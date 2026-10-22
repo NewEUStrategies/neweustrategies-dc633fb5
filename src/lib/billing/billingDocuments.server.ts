@@ -36,6 +36,19 @@
 // bez wiersza `subscriptions` faktura nie miała właściciela i przepadała bez
 // śladu. Zapasem jest zamówienie z metadanych subskrypcji.
 //
+// ŚRODOWISKO I UPRAWNIENIE (I9, Z-S2-07). Nowy dokument niesie `environment`
+// zdarzenia (bez niego trafiał do `unknown_environment_documents` i poza
+// przychód zrealizowany) i - dla faktury subskrypcji - `subscription_id`
+// (= `user_subscriptions.id` po `external_ref`). Ten drugi zasila wyzwalacz
+// `subscription.renewed.v1` (S2), który strzela przy opłaconej fakturze
+// `live` BEZ zamówienia - dlatego pierwszej faktury subskrypcji
+// (`subscription_create`) nie wiążemy: zakup to nie odnowienie. Istniejącym
+// dokumentom dopinamy uprawnienie WYŁĄCZNIE przy przejściu do `paid` (faktura
+// `open` opłacona później = prawdziwe odnowienie); stare, już opłacone
+// dokumenty zostają bez niego - spóźnione `invoice.updated` wyemitowałoby
+// zaległe odnowienie i zapisało kontakt na ścieżkę. Z tego samego powodu bez
+// backfillu SQL (runbook).
+//
 // Moduł server-only (klient service_role; klient operatora wyłącznie po
 // `billing_reason` faktury, gdy ładunek go nie niesie).
 import {
@@ -267,6 +280,50 @@ async function ownerFor(input: TransactionDocumentInput): Promise<DocumentOwner 
 }
 
 /**
+ * Uprawnienie (`user_subscriptions.id`) faktury subskrypcji - po identyfikatorze
+ * subskrypcji operatora (`external_ref`), zawężone do najemcy i konta
+ * właściciela ustalonego z NASZEGO wiersza. `null` = dokument bez uprawnienia:
+ * paragon, transakcja bez subskrypcji, pierwsza faktura subskrypcji (zakup, nie
+ * odnowienie) albo uprawnienie jeszcze niezałożone. Błąd odczytu RZUCA - „nie
+ * wiem" to nie „brak" (jak `ownerFor`); zdarzenie wróci od operatora.
+ */
+async function entitlementFor(
+  input: TransactionDocumentInput,
+  owner: DocumentOwner,
+): Promise<string | null> {
+  if (input.kind !== "invoice" || !input.subscriptionId) return null;
+  if (input.billingReason === "subscription_create") return null;
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("user_subscriptions")
+    .select("id")
+    .eq("external_ref", input.subscriptionId)
+    .eq("tenant_id", owner.tenantId)
+    .eq("user_id", owner.userId)
+    .maybeSingle();
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return typeof data?.id === "string" ? data.id : null;
+}
+
+/** Odczyt uprawnienia jako błąd rejestru (`failed` z dzwonkiem, jak odczyt dokumentu). */
+async function entitlementOrFailure(
+  input: TransactionDocumentInput,
+  owner: DocumentOwner,
+): Promise<{ id: string | null } | { failed: "failed" }> {
+  try {
+    return { id: await entitlementFor(input, owner) };
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    return {
+      failed: await documentNotRecorded(owner, input, "lookup", {
+        message: `entitlement lookup failed: ${errorMessage(e)}`,
+        ...(typeof code === "string" ? { code } : {}),
+      }),
+    };
+  }
+}
+
+/**
  * Odczyt albo zapis rejestru nie udał się z powodu innego niż wyścig: log
  * BŁĘDU, dzwonek dla administratorów najemcy dokumentu i wynik `failed`. Treść
  * alarmu niesie wyłącznie identyfikatory (transakcja, kod błędu) - żadnych
@@ -324,7 +381,7 @@ export async function recordTransactionDocument(
   const supabase = await admin();
   const { data: existing, error: loadError } = await supabase
     .from("billing_documents")
-    .select("id, number, amount_cents, status, order_id")
+    .select("id, number, amount_cents, status, order_id, environment, subscription_id")
     .eq("provider_document_id", input.transactionId)
     .eq("tenant_id", owner.tenantId)
     .maybeSingle();
@@ -345,6 +402,8 @@ export async function recordTransactionDocument(
       hosted_url?: string;
       pdf_url?: string;
       order_id?: string;
+      environment?: StripeEnv;
+      subscription_id?: string;
     } = { updated_at: new Date().toISOString() };
     if (input.invoiceNumber && input.invoiceNumber !== existing.number) {
       patch.number = input.invoiceNumber;
@@ -359,6 +418,20 @@ export async function recordTransactionDocument(
     // Dokument zapisany przed powiązaniem (stara wersja, wyścig z realizacją)
     // dostaje zamówienie przy kolejnej dostawie; raz zapisanego nie zmieniamy.
     if (owner.orderId && !existing.order_id) patch.order_id = owner.orderId;
+    // Uprawnienie tylko przy przejściu do `paid` (odnowienie opłacone teraz) -
+    // nigdy do dokumentu już opłaconego (spóźnione odnowienie, nagłówek modułu).
+    if (patch.status === "paid" && existing.status !== "paid" && !existing.subscription_id) {
+      const entitlement = await entitlementOrFailure(input, owner);
+      if ("failed" in entitlement) return entitlement.failed;
+      if (entitlement.id) patch.subscription_id = entitlement.id;
+    }
+    // Środowisko uzupełniamy dokumentowi, który go nie zna - ale nie temu, który
+    // ma już uprawnienie: `UPDATE OF environment` na opłaconej fakturze
+    // z uprawnieniem wyemitowałby zaległe odnowienie. Taki dokument zostaje
+    // w diagnostyce „nieznane środowisko" (runbook).
+    if (!existing.environment && (!existing.subscription_id || patch.subscription_id)) {
+      patch.environment = input.environment;
+    }
     if (Object.keys(patch).length === 1) return "skipped";
 
     const { error } = await supabase
@@ -369,6 +442,9 @@ export async function recordTransactionDocument(
     if (error) return documentNotRecorded(owner, input, "update", error);
     return "updated";
   }
+
+  const entitlement = await entitlementOrFailure(input, owner);
+  if ("failed" in entitlement) return entitlement.failed;
 
   // Migawka stron i płaszczyzny rozliczeń z CHWILI ZAKUPU (audyt INV-07).
   // Jej brak nie blokuje dokumentu - członek ma zobaczyć zakup od razu -
@@ -399,6 +475,10 @@ export async function recordTransactionDocument(
     // bez niego zakup jednorazowy pokazałby się dwa razy - jako dokument i jako
     // zamówienie bez dokumentu.
     order_id: owner.orderId,
+    // Środowisko zdarzenia (przychód zrealizowany liczy tylko `live`)
+    // i uprawnienie faktury subskrypcji (wyzwalacz `subscription.renewed.v1`).
+    environment: input.environment,
+    subscription_id: entitlement.id,
     ...(snapshot ? snapshotColumns(snapshot) : {}),
   });
   if (error) {

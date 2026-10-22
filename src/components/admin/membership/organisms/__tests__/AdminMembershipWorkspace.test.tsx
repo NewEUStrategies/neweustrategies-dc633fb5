@@ -47,6 +47,17 @@ function planRow(overrides: Partial<PlanRow> = {}): PlanRow {
 
 vi.mock("react-i18next", () => reactI18nextStub());
 vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => chain.from(table) },
 }));
@@ -149,6 +160,17 @@ beforeEach(() => {
     "confirm",
     vi.fn(() => true),
   );
+});
+
+describe("AdminMembershipWorkspace - sygnał huba (I9, SPEC §2.7)", () => {
+  it('pasek Diagnostyki obszarów członkostwa (`surface="membership"`) w nagłówku pod kaflami', async () => {
+    renderWithQueryClient(<AdminMembershipWorkspace />);
+
+    const mount = await screen.findByTestId("revenue-signal-mount");
+    expect(mount).toHaveAttribute("data-surface", "membership");
+    expect(mount).toHaveAttribute("data-variant", "bar");
+    expect(mount.closest("header")).not.toBeNull();
+  });
 });
 
 describe("AdminMembershipWorkspace - liczniki nagłówka", () => {

@@ -44,6 +44,9 @@ const pl = {
       updatedAt: "Dane z {{time}}",
       refreshing: "Odświeżanie danych…",
       stale: "Dane mogą być nieaktualne - odśwież widok.",
+      // (I9, Z-S7-05) Kanał szyny zdarzeń przerwany - scenariusz S-F.
+      livePaused:
+        "Aktualizacje na żywo wstrzymane - zmiany z innych kart pokażą się po odświeżeniu widoku albo powrocie połączenia.",
       noData: "Jeszcze nie wczytano danych huba.",
     },
     provenance: {
@@ -128,6 +131,9 @@ const pl = {
       newsletter: "Newsletter - wysyłki",
       workflows: "Automatyzacje",
       analytics: "Analityka BI",
+      // (I9) Pasek cennika (`AdminPricingWorkspace`): hub i pulpit monetyzacji.
+      hub: "Przychód i lejek",
+      dashboard: "Pulpit monetyzacji",
     },
     nav: {
       label: "Sekcje huba",
@@ -137,6 +143,12 @@ const pl = {
       badge_few: "{{count}} elementy do uwagi",
       badge_many: "{{count}} elementów do uwagi",
       badge_other: "{{count}} elementu do uwagi",
+      // Licznik Ścieżek liczy aktywne ścieżki, nie rzeczy „do uwagi” - czytnik
+      // ekranu słyszy, co znaczy liczba (Integrator S8, Z-S6-08).
+      badgeJourneys_one: "{{count}} aktywna ścieżka",
+      badgeJourneys_few: "{{count}} aktywne ścieżki",
+      badgeJourneys_many: "{{count}} aktywnych ścieżek",
+      badgeJourneys_other: "{{count}} aktywnej ścieżki",
     },
     filters: {
       label: "Filtry huba",
@@ -389,6 +401,8 @@ const en: typeof pl = {
       updatedAt: "Data as of {{time}}",
       refreshing: "Refreshing data…",
       stale: "The data may be out of date - refresh the view.",
+      livePaused:
+        "Live updates paused - changes from other tabs will show after you refresh the view or the connection returns.",
       noData: "The hub data has not loaded yet.",
     },
     provenance: {
@@ -473,6 +487,8 @@ const en: typeof pl = {
       newsletter: "Newsletter - mailings",
       workflows: "Automations",
       analytics: "BI analytics",
+      hub: "Revenue and funnel",
+      dashboard: "Monetization dashboard",
     },
     nav: {
       label: "Hub sections",
@@ -482,6 +498,10 @@ const en: typeof pl = {
       badge_few: "{{count}} items need attention",
       badge_many: "{{count}} items need attention",
       badge_other: "{{count}} items need attention",
+      badgeJourneys_one: "{{count}} active journey",
+      badgeJourneys_few: "{{count}} active journeys",
+      badgeJourneys_many: "{{count}} active journeys",
+      badgeJourneys_other: "{{count}} active journeys",
     },
     filters: {
       label: "Hub filters",

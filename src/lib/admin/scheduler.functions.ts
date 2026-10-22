@@ -103,6 +103,32 @@ export interface SchedulerEnvState {
   suggestedBaseUrl: string;
 }
 
+/**
+ * Silnik ścieżek komunikacji (S5) widziany z panelu harmonogramu (I9,
+ * Z-S5-03). Runner jest GLOBALNY (krok `journeys` w `jobs-tick`), ale stan
+ * silnika jest PER NAJEMCA - liczby dotyczą najemcy operatora; wyłącznik
+ * awaryjny środowiska dotyczy wszystkich najemców.
+ */
+export interface SchedulerJourneysEngine {
+  /** Przełącznik najemcy (`journey_settings.enabled`, panel ustawień silnika). */
+  enabled: boolean;
+  dueNow: number;
+  inboxPending: number;
+  lastStepAt: string | null;
+  /** Nieudane zapisy, martwe kroki i błędy faz silnika z ostatniej doby. */
+  failures24h: number;
+}
+
+export interface SchedulerJourneysState {
+  /** `JOURNEYS_ENGINE_DISABLED=1` - awaryjny wyłącznik środowiska. */
+  killSwitch: boolean;
+  /**
+   * `null` = baza bez silnika (okno wdrożenia) albo odczyt padł. Zdrowie
+   * harmonogramu NIE może przez to zgasnąć - silnik to jedna z jego części.
+   */
+  engine: SchedulerJourneysEngine | null;
+}
+
 export interface SchedulerHealth {
   runner: SchedulerRunnerState;
   capabilities: { pgCron: boolean; pgNet: boolean };
@@ -117,6 +143,8 @@ export interface SchedulerHealth {
   freshness: SchedulerFreshness;
   /** Znacznik odpowiedzi - UI liczy z niego wiek bez dryfu zegara przeglądarki. */
   observedAt: string;
+  /** Silnik ścieżek (krok `journeys` w ticku) - wyłącznik i stan najemcy. */
+  journeys: SchedulerJourneysState;
 }
 
 /** Kształt jsonb z RPC job_scheduler_health() (autorstwo: 20260731110000). */
@@ -178,6 +206,48 @@ const num = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+type RpcReader = {
+  rpc: (fn: string) => PromiseLike<{ data: unknown; error: { message: string } | null } | null>;
+};
+
+/**
+ * Stan silnika ścieżek dla panelu harmonogramu. Ten sam RPC i parser co
+ * pasek zdrowia na liście ścieżek (`getJourneyEngineHealth`). Bramka RPC
+ * (`_journey_staff_tenant`: admin/editor/super_admin) jest tą samą co
+ * `requireAdminEditor` tej funkcji. Każdy błąd (baza bez silnika, odmowa,
+ * zły kształt) daje `engine: null` - panel mówi „silnik niedostępny", ale
+ * reszta zdrowia harmonogramu zostaje na ekranie.
+ */
+async function readJourneysState(context: { supabase: unknown }): Promise<SchedulerJourneysState> {
+  // Ten sam predykat co runner (`runJourneysTick`) i `journeysKillSwitch`
+  // panelu ścieżek - bez importu modułu funkcji serwerowych ścieżek tutaj.
+  const killSwitch = process.env.JOURNEYS_ENGINE_DISABLED === "1";
+  try {
+    // Literał RPC (bramka generate:ts-sql-contract); klient sesji - najemca
+    // z `current_tenant_id()`, nigdy z parametru.
+    const res = await (context.supabase as RpcReader).rpc("admin_journey_engine_health");
+    if (!res || res.error) return { killSwitch, engine: null };
+    const { parseEngineHealth } = await import("@/lib/journeys/parse");
+    const health = parseEngineHealth(res.data, killSwitch);
+    const phaseErrors = Object.values(health.errors24h).reduce<number>(
+      (sum, n) => sum + (n ?? 0),
+      0,
+    );
+    return {
+      killSwitch,
+      engine: {
+        enabled: health.enabled,
+        dueNow: health.dueNow,
+        inboxPending: health.inboxPending,
+        lastStepAt: health.lastStepAt,
+        failures24h: health.failed24h + health.deadSteps24h + phaseErrors,
+      },
+    };
+  } catch {
+    return { killSwitch, engine: null };
+  }
+}
+
 export const getSchedulerHealth = createServerFn({ method: "GET" })
   .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<SchedulerHealth> => {
@@ -213,6 +283,7 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
     const { getOrigin } = await import("@/lib/seo/request");
     const origin = normalizeArmOrigin(getOrigin()) ?? "";
     const { emailProviderConfigured } = await import("@/lib/email/provider.server");
+    const journeys = await readJourneysState(context);
 
     return {
       runner,
@@ -270,6 +341,7 @@ export const getSchedulerHealth = createServerFn({ method: "GET" })
       },
       freshness: schedulerFreshness(runner.lastAppOkAt),
       observedAt: new Date().toISOString(),
+      journeys,
     };
   });
 

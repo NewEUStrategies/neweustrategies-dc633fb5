@@ -212,12 +212,184 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["admin_journey_series", "S5", "panel"],
   ["journey_rollup_daily", "S5", "service"],
   ["email_apply_delivery_event", "S5", "service"],
+  // (Integrator S5, 2026-10-20): pomocnicze silnika rozpisane przy wykonaniu
+  // (wewnętrzne - REVOKE od wszystkich ról, woła je wyłącznie SQL S5) oraz
+  // odczyt ustawień silnika dla panelu (wymóg właściciela: każdy przełącznik
+  // w panelu admina, także stan „brak wiersza = wartości domyślne").
+  ["_journey_enroll", "S5", "internal"],
+  ["_journey_node", "S5", "internal"],
+  ["_journey_edge", "S5", "internal"],
+  ["_journey_next_time", "S5", "internal"],
+  ["_journey_exec_action", "S5", "internal"],
+  ["_journey_marketing_consent", "S5", "internal"],
+  ["_journey_eval_predicate", "S5", "internal"],
+  ["_journey_quiet_until", "S5", "internal"],
+  ["_journey_num", "S5", "internal"],
+  ["_journey_send_verdict", "S5", "internal"],
+  ["_journey_message_id", "S5", "internal"],
+  ["_journey_unsubscribe", "S5", "internal"],
+  ["_journey_staff_tenant", "S5", "internal"],
+  ["admin_journey_settings_get", "S5", "panel"],
   // S7 - diagnostyka.
   ...HUB_FACT_AREAS.map((area): FunctionEntry => [`_revenue_facts_${area}`, "S7", "internal"]),
   ["admin_revenue_facts", "S7", "panel"],
   ["admin_revenue_diagnostic_snooze", "S7", "panel"],
   ["admin_revenue_diagnostic_unsnooze", "S7", "panel"],
   ["admin_revenue_diagnostic_snoozes", "S7", "panel"],
+  // I9 - decyzje właściciela z 2026-10-20 (I9b): katalog cennika v6.2
+  // (redefinicje sprzed huba, `HUB_CIALO_Z`), limit miejsc Zespołu i RODO
+  // księgi MRR (redakcja śladów operatora po usunięciu subskrypcji/konta).
+  ["pricing_catalog_v62_rows", "I9", "service"],
+  ["pricing_catalog_v62_benefits", "I9", "service"],
+  ["_pricing_v62_owner_decisions", "I9", "internal"],
+  ["tg_member_organizations_team_seat_cap", "I9", "trigger"],
+  ["tg_organization_seats_team_seat_cap", "I9", "trigger"],
+  ["_revenue_segments_recompute", "I9", "internal"],
+  ["_revenue_ledger_redact_subscription", "I9", "internal"],
+  ["_revenue_ledger_redact_orphans", "I9", "internal"],
+  ["tg_subscriptions_revenue_redact", "I9", "trigger"],
+  ["tg_auth_users_revenue_redact", "I9", "trigger"],
+  // (I9b-A2, 2026-10-20) RODO po usunięciu konta (Z-I9b-03/04/05): pseudonim
+  // zastępczy lejka, redakcja szyny i jej kopii, wyjście ze ścieżek, odcięcie
+  // CRM/newslettera, autorzy konfiguracji, audyt; wyzwalacz AFTER DELETE na
+  // `auth.users` i domknięcie wstecz.
+  ["_hub_erasure_surrogate", "I9", "internal"],
+  ["_funnel_erase_account", "I9", "internal"],
+  ["_hub_erasure_payload", "I9", "internal"],
+  ["_hub_erasure_text", "I9", "internal"],
+  ["_domain_events_erase_account", "I9", "internal"],
+  ["_journeys_erase_account", "I9", "internal"],
+  ["_hub_account_erase", "I9", "internal"],
+  ["_hub_account_erase_orphans", "I9", "internal"],
+  ["tg_auth_users_hub_erasure", "I9", "trigger"],
+  // (I9c, 2026-10-20) RODO po usunięciu konta - domknięcia po A2 (Z-I9b-11
+  // i poczta w kolejce): autorzy, recenzenci i dane własne konta w modułach
+  // spoza huba, anulowanie poczty konta w kolejce i pytanie drenu przed
+  // wysyłką (service_role) - ten sam punkt wejścia `_hub_account_erase`.
+  ["_hub_account_bound_email_labels", "I9", "internal"],
+  ["_hub_account_erase_modules", "I9", "internal"],
+  ["_hub_account_erase_mail_queue", "I9", "internal"],
+  ["email_queue_send_recheck", "I9", "service"],
+  // (I9c, 2026-10-20) Retencja danych (Z-I9b-10, polecenie właściciela):
+  // ustawienia najemcy, pieczęcie agregatów (lejek, licznik, ścieżki),
+  // wykonanie per kategoria, zadanie dzienne (`jobs-tick`), RPC karty
+  // „Retencja danych" w `/admin/settings/privacy` oraz odczyt okien sprzed
+  // progu z agregatów (redefinicje niżej i w `HUB_CIALO_Z`).
+  ["_data_retention_catalog", "I9", "internal"],
+  ["_data_retention_effective", "I9", "internal"],
+  ["_data_retention_funnel_cut", "I9", "internal"],
+  ["_data_retention_journey_sealed", "I9", "internal"],
+  ["_data_retention_seal_funnel", "I9", "internal"],
+  ["_journey_rollup_days", "I9", "internal"],
+  ["_data_retention_seal_journeys", "I9", "internal"],
+  ["_data_retention_audit_is_financial", "I9", "internal"],
+  ["_data_retention_customer_until", "I9", "internal"],
+  ["_data_retention_bounded", "I9", "internal"],
+  ["_data_retention_paywall_metering", "I9", "internal"],
+  ["_data_retention_fold_campaign_events", "I9", "internal"],
+  ["_data_retention_email_engagement", "I9", "internal"],
+  ["_data_retention_email_send_log", "I9", "internal"],
+  ["_data_retention_crm_candidates", "I9", "internal"],
+  ["_data_retention_anonymize_lead", "I9", "internal"],
+  ["_data_retention_crm", "I9", "internal"],
+  ["_data_retention_audit_log", "I9", "internal"],
+  ["_data_retention_journey_enrollments", "I9", "internal"],
+  ["_data_retention_cancellation_surveys", "I9", "internal"],
+  ["_data_retention_consent_log", "I9", "internal"],
+  ["_data_retention_run_tenant", "I9", "internal"],
+  ["_data_retention_admin_tenant", "I9", "internal"],
+  ["_data_retention_emit", "I9", "internal"],
+  ["data_retention_run", "I9", "service"],
+  ["admin_data_retention_get", "I9", "panel"],
+  ["admin_data_retention_save", "I9", "panel"],
+  ["admin_data_retention_enforcement", "I9", "panel"],
+  ["admin_data_retention_preview", "I9", "panel"],
+  ["admin_data_retention_crm_due", "I9", "panel"],
+  ["admin_data_retention_crm_extend", "I9", "panel"],
+  ["admin_data_retention_run_now", "I9", "panel"],
+  // Funkcje sprzed huba czytające okna sprzed progu retencji z agregatów.
+  ["monetization_dashboard", "I9", "panel"],
+  ["newsletter_campaign_engagement", "I9", "panel"],
+  // (I9d-Y1, 2026-10-22) RODO - decyzje właściciela 2: zgłoszenia do klubów
+  // (anonimizacja po usunięciu konta i po okresie, koniec członkostwa,
+  // odmowa decyzji dla zgłoszenia zanonimizowanego), odczyty licznika
+  // (agregat dzienny, redakcja historii czytania), uczestnicy wydarzeń,
+  // wygaszanie nieaktywnych subskrybentów newslettera (znacznik
+  // zaangażowania, cykl prośby, wysyłka przez krok TS, panel listy
+  // i wykluczeń).
+  ["_club_applications_anonymize", "I9", "internal"],
+  ["tg_club_members_membership_end", "I9", "trigger"],
+  ["tg_club_members_membership_gone", "I9", "trigger"],
+  ["tg_club_applications_club_detached", "I9", "trigger"],
+  ["_data_retention_club_candidates", "I9", "internal"],
+  ["_data_retention_club_applications", "I9", "internal"],
+  ["admin_club_application_set_status", "I9", "panel"],
+  ["_data_retention_backfill_metered_views", "I9", "internal"],
+  ["_data_retention_metered_views", "I9", "internal"],
+  ["_data_retention_event_attendee_candidates", "I9", "internal"],
+  ["_data_retention_event_attendees", "I9", "internal"],
+  ["_newsletter_engagement_touch", "I9", "internal"],
+  ["newsletter_record_campaign_event", "I9", "service"],
+  ["newsletter_engagement_touch", "I9", "service"],
+  ["newsletter_sunset_keep", "I9", "service"],
+  ["_newsletter_last_engagement", "I9", "internal"],
+  ["_newsletter_track_opens", "I9", "internal"],
+  ["_data_retention_newsletter_candidates", "I9", "internal"],
+  ["_newsletter_sunset_fold_events", "I9", "internal"],
+  ["_newsletter_sunset_delete", "I9", "internal"],
+  ["_data_retention_newsletter_inactive", "I9", "internal"],
+  ["newsletter_sunset_claim", "I9", "service"],
+  ["newsletter_sunset_mark", "I9", "service"],
+  ["admin_data_retention_newsletter_due", "I9", "panel"],
+  ["admin_data_retention_newsletter_exclude", "I9", "panel"],
+  ["admin_data_retention_newsletter_include", "I9", "panel"],
+  // (I9d-Y2, 2026-10-22) Treść zgody i pomiar: jedno źródło treści domyślnej
+  // i jej wersji, rejestr wersji z pomiarem, oznaczenie admina, klucz zgody
+  // `email_measurement` (wyzwalacz rejestru zgód), wersja przy każdej zgodzie
+  // newslettera, czytelnik zgody na pomiar i porcja dla runnerów, wycofanie
+  // samego pomiaru, licznik mierzonych kampanii, ponowne potwierdzenie
+  // (prośby, wspólny budżet z wygaszaniem, link) i panel.
+  ["_newsletter_consent_default", "I9", "internal"],
+  ["_newsletter_consent_version", "I9", "internal"],
+  ["_newsletter_consent_upgrade_defaults", "I9", "internal"],
+  ["_consent_measurement_versions", "I9", "internal"],
+  ["_consent_text_sha256", "I9", "internal"],
+  ["_consent_text_version", "I9", "internal"],
+  ["_consent_covers_measurement", "I9", "internal"],
+  ["tg_crm_consent_log_measurement", "I9", "trigger"],
+  ["_newsletter_log_consents", "I9", "internal"],
+  ["newsletter_to_lead", "I9", "trigger"],
+  ["tg_newsletter_consents_log", "I9", "trigger"],
+  ["_email_measurement_consent", "I9", "internal"],
+  ["email_measurement_status", "I9", "service"],
+  ["_email_measurement_subject", "I9", "internal"],
+  ["email_measurement_state", "I9", "service"],
+  ["email_measurement_withdraw", "I9", "service"],
+  ["tg_newsletter_recipients_measured", "I9", "trigger"],
+  ["admin_newsletter_campaign_measurement", "I9", "panel"],
+  ["_newsletter_oneoff_mail_used", "I9", "internal"],
+  ["_newsletter_measurement_candidates", "I9", "internal"],
+  ["admin_newsletter_measurement_preview", "I9", "panel"],
+  ["admin_newsletter_measurement_request", "I9", "panel"],
+  ["newsletter_measurement_claim", "I9", "service"],
+  ["newsletter_measurement_mark", "I9", "service"],
+  ["newsletter_measurement_confirm", "I9", "service"],
+  ["admin_newsletter_consent_measurement_get", "I9", "panel"],
+  ["admin_newsletter_consent_measurement_mark", "I9", "panel"],
+  // (I9-C, 2026-10-22) Z-S5-04: jeden pomocnik wycofania zgody marketingowej
+  // kontaktu CRM (personel, wypis ze ścieżki, wygaszanie newslettera) i RPC
+  // personelu sprzed huba przepisany na niego.
+  ["_crm_marketing_consent_withdraw", "I9", "internal"],
+  ["crm_leads_marketing_consent_withdraw", "I9", "panel"],
+  // (I9-C, 2026-10-22) Z-S5-01: wiadomość z formularza kontaktowego na szynie
+  // (`contact_message.submitted.v1`, szablon ścieżki B2B).
+  ["tg_contact_messages_submitted_emit", "I9", "trigger"],
+  // (I9-C, 2026-10-22) Z-I9c-05 / Z-S7-07: czytelnicy zdarzeń kampanii po
+  // retencji - suma dzienna zestawienia oraz Kokpit i warstwa semantyczna
+  // sprzed huba przepisane na archiwum i zestawienie dzienne.
+  ["_newsletter_engagement_daily_sum", "I9", "internal"],
+  ["admin_dashboard_marketing", "I9", "panel"],
+  ["analytics_semantic_snapshot", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -256,6 +428,92 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   log_metering_event: "20260721070203",
   tg_newsletter_subscribers_emit_events: "20260711220607",
   email_apply_delivery_event: "20260725123624",
+  pricing_catalog_v62_rows: "20261018160100",
+  pricing_catalog_v62_benefits: "20261018160200",
+  // (I9c, 2026-10-20) Retencja danych: zdarzenia licznika i zaangażowanie
+  // kampanii dni sprzed progu z agregatów.
+  monetization_dashboard: "20260724100000",
+  newsletter_campaign_engagement: "20260814215302",
+  // (I9d, 2026-10-22) Decyzje właściciela 2 (Y1): decyzja komisji klubu
+  // odmawia zgłoszeniu zanonimizowanemu, zapis zdarzeń kampanii utrwala
+  // zaangażowanie subskrybenta (wygaszanie nieaktywnych).
+  admin_club_application_set_status: "20260811150000",
+  newsletter_record_campaign_event: "20260814215302",
+  // (I9d-Y2, 2026-10-22) Wersja treści przy każdej zgodzie newslettera
+  // (wspólny pisarz rejestru zgód z wyzwalacza subskrybenta).
+  newsletter_to_lead: "20260708151417",
+  // (I9-C, 2026-10-22) Z-S5-04: RPC personelu CRM zapisuje wycofanie zgody
+  // wspólnym pomocnikiem (`_crm_marketing_consent_withdraw`).
+  crm_leads_marketing_consent_withdraw: "20261012180900",
+  // (I9-C, 2026-10-22) Z-I9c-05 / Z-S7-07: Kokpit i warstwa semantyczna
+  // czytają okna sprzed progu retencji z archiwum i zestawienia dziennego.
+  admin_dashboard_marketing: "20260912110000",
+  analytics_semantic_snapshot: "20261003180000",
+};
+
+/**
+ * Funkcje INNYCH wycinków huba redefiniowane w bloku I9 - Integrator domyka
+ * w nim poprawki ze scalenia i decyzje właściciela (SPEC §4.2, wiersz
+ * `2026102016…`). Bez tego wyjątku każda taka redefinicja byłaby „złym
+ * blokiem" i „funkcją w dwóch blokach", choć właśnie po to I9 ma rezerwę.
+ * Wartość = wersja NAJNOWSZEJ wcześniejszej definicji w bloku huba; migracja
+ * I9 niesie ją jako `-- CIALO-Z:`, a bramka sprawdza, że rejestr nadal
+ * wskazuje najnowszą (późniejsza redefinicja w innym wycinku = czerwień).
+ * Właściciel i rodzaj zostają z `FUNCTION_TABLE` (granty jak u właściciela).
+ *
+ * (I9d, 2026-10-22) DRUGA I KOLEJNA REDEFINICJA tej samej funkcji w bloku I9
+ * (np. zapis zdarzeń ścieżek: I9c-X2 - wyłącznik piksela, I9d-Y1 - znacznik
+ * zaangażowania, I9d-Y2 - pomiar tylko za zgodą) dostaje MAPĘ wersji per
+ * plik: `{ "<wersja pliku I9>": "<CIALO-Z tego pliku>" }`. Każdy plik I9
+ * z redefinicją musi mieć w mapie swój wpis, a wartość nadal musi wskazywać
+ * NAJNOWSZĄ wcześniejszą definicję w hubie - ochrona przed przepisaniem
+ * starego ciała zostaje taka sama jak dla jednej wartości.
+ */
+export type HubI9Redefinition = string | Readonly<Record<string, string>>;
+
+export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> = {
+  // Z-01 / Z-S2-02: segment przychodu z typu klienta (I9b, decyzja właściciela).
+  revenue_segment_of_tier: "20261020090500",
+  // Z-S5-02: jeden limit tagu CRM (`CRM_TAG_MAX`) w pisarzu tagów S4
+  // i walidatorze grafu S5 (I9b, część B, decyzja właściciela).
+  run_workflow_step: "20261020130200",
+  journey_validate_graph: "20261020140200",
+  // (I9c, 2026-10-20) Retencja danych: lejek S3 i statystyki S5 czytają dni
+  // sprzed progu z agregatów, rollup S5 liczy dowolny zakres dni bez dni
+  // zapieczętowanych, a piksel otwarć ma wyłącznik najemcy (ustawienia
+  // silnika, kontakt do wysyłki, zapis zdarzenia).
+  _funnel_counts: "20261020120400",
+  journey_rollup_daily: "20261020140500",
+  // (I9-A, 2026-10-22, Z-I9c-06) + podsumowanie ścieżki sumuje zapisy
+  // surowe i dzienne zestawienie zapisów usuniętych retencją - druga
+  // redefinicja w I9; seria dzienna ścieżki - pierwsza.
+  admin_journey_stats: {
+    "20261020161200": "20261020140500",
+    "20261020162600": "20261020161200",
+  },
+  admin_journey_series: "20261020140500",
+  // (I9d, 2026-10-22) + znacznik zaangażowania subskrybenta newslettera
+  // (wygaszanie nieaktywnych, Z-I9c-08) - druga redefinicja w I9.
+  // (I9d-Y2, 2026-10-22) + otwarcia i kliknięcia tylko za zgodą na pomiar
+  // i przy wspólnym przełączniku najemcy - trzecia (zapis zdarzeń) i druga
+  // (kontakt do wysyłki: piksel i linki z identyfikatorem) redefinicja.
+  journey_record_message_event: {
+    "20261020161300": "20261020140500",
+    "20261020161900": "20261020161300",
+    "20261020162400": "20261020161900",
+  },
+  journey_contact_for_send: {
+    "20261020161300": "20261020140200",
+    "20261020162400": "20261020161300",
+  },
+  admin_journey_settings_get: "20261020140300",
+  admin_journey_settings_save: "20261020140300",
+  // (I9-C, 2026-10-22) Z-S5-04: wypis ze ścieżki wycofuje zgodę wspólnym
+  // pomocnikiem z RPC personelu CRM i wygaszaniem newslettera.
+  _journey_unsubscribe: "20261020140500",
+  // (I9-C, 2026-10-22) Z-I9c-05: zasięg kampanii w zdrowiu poczty (S1)
+  // z archiwum kampanii, przycięty do kohorty (Z-I9c-10).
+  admin_revenue_email_health: "20261020100300",
 };
 
 /**
@@ -269,6 +527,10 @@ export const HUB_SHARED_FILES: readonly string[] = [
   "drizzle/migrations/meta/_journal.json",
   "governance/ownership.json",
   "reports/bundle-baseline.json",
+  // (I9c, 2026-10-20) Raport bramki parytetu i18n - przepisywany przy każdym
+  // przebiegu `i18nParity.gate.test.ts`; nowy bramkowany prefiks
+  // (`adminDataRetention`) zmienia jego listę prefiksów.
+  "reports/i18n-parity.json",
   "scripts/check-bundle-size.ts",
   "scripts/hub-slice-guard.ts",
   "scripts/scheduler-tick.mjs",
@@ -479,6 +741,10 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/__tests__/Paywall{,.reader}.test.tsx",
     "src/components/{PopupSignupForm,NewsletterPopup}.tsx",
     "src/components/__tests__/{PopupSignupForm,NewsletterPopup}*.test.tsx",
+    // (Integrator S3, 2026-10-20): testy popupu mają w repo nazwy małą literą
+    // (`popupSignupForm.test.tsx`, `newsletterPopup.test.tsx`) - P08
+    // przestawił w nich domyślną zgodę newslettera.
+    "src/components/__tests__/{popupSignupForm,newsletterPopup}*.test.tsx",
     "src/components/molecules/MeterBanner.tsx",
     "src/components/molecules/__tests__/MeterBanner*.test.tsx",
     "src/components/clubs/organisms/ClubAccessGate.tsx",
@@ -498,6 +764,26 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/billing/{oneTimeFulfilment.server,stripeCheckout.functions}.ts",
     "src/lib/billing/__tests__/{oneTimeFulfilment,stripeCheckout}*.test.ts",
     "e2e/{login-return,paywall}.spec.ts",
+    // (Integrator S3, 2026-10-20): bliźniaki drizzle 5 migracji S3 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego na `main` - po `0346`, którym
+    // Lovable potwierdził wdrożenie PR #527; §6 dziennika wdrożenia).
+    "drizzle/migrations/{0347,0348,0349,0350,0351}_*.sql",
+    // (Integrator S3, 2026-10-20): P22 - sesje Stripe powstają
+    // w `adhocCheckout.server.ts` (nie w `stripeCheckout.functions.ts`), a okno
+    // porzucenia czyta serwerowy odczyt ustawień kasy (pole opcjonalne
+    // w `CheckoutSettings`).
+    "src/lib/billing/{adhocCheckout.server,checkoutSettings,checkoutSettings.server}.ts",
+    "src/lib/billing/__tests__/{checkoutSessionFlags.server,checkoutSettingsLoad.server}.test.ts",
+    // (Integrator S3, 2026-10-20): wspólny skrót gościa (`meteringVisitorDigest`)
+    // dla licznika uderzeń - weryfikacja podpisanego cookie w jednym module.
+    "src/lib/access/meteringVisitor.server.ts",
+    // (Integrator S3, 2026-10-20): P15 - CTA darmowej warstwy w `TierCard`
+    // prowadzi do rejestracji z intencją `pricing`; test trasy cennika
+    // przypinał goły `/login`.
+    "src/routes/__tests__/pricingRoute.test.tsx",
+    // (Integrator S3, 2026-10-20): Z-S6-16 - wpięcie `funnel`
+    // (`admin_revenue_funnel`, migracja 20261020120400) w migawkę huba.
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
   ],
   S4: [
     "supabase/migrations/2026102013????_*.sql",
@@ -565,6 +851,31 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/routes/{api.public.newsletter.unsubscribe.ts,-api.public.newsletter.unsubscribe.test.ts}",
     "src/lib/email/{queueDrain.server,suppressionPolicy}.ts",
     "src/lib/email/__tests__/{queueDrain,suppressionPolicy}*.test.ts",
+    // (Integrator S5, 2026-10-20): zapis zdarzeń maila 1:1 (otwarcie,
+    // kliknięcie, wypis) - jedyne miejsce, z którego trasy publiczne dotykają
+    // silnika; testy server fn, zapytań, słownika i kształtów RPC z bazy.
+    "src/lib/journeys/tracking.server.ts",
+    // (Integrator S5, 2026-10-20): klucze etykiet `adminJourneys.*` z kodów
+    // unii (typowane) - czytelnik słownika do czasu UI S8 i jego API.
+    "src/lib/journeys/labels.ts",
+    "src/lib/journeys/__tests__/{journeys.functions,queries,tracking.server,i18nJourneys}.test.ts",
+    "src/lib/journeys/__tests__/rpcShapes.fixture.ts",
+    // (Integrator S5, 2026-10-20): nadawca i Reply-To z panelu
+    // (`journey_settings.sender_name`/`reply_to`) idą przez tę samą kolejkę co
+    // poczta transakcyjna - `enqueueRawEmail` przyjmuje je jako opcje.
+    "src/lib/email/transactional.server.ts",
+    "src/lib/email/__tests__/transactional.server.test.ts",
+    // (Integrator S5, 2026-10-20): bliźniaki drizzle 6 migracji S5 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego po `0351` z S3; §6 dziennika).
+    "drizzle/migrations/{0352,0353,0354,0355,0356,0357}_*.sql",
+    // (Integrator S5, 2026-10-20): `journey.changed.v1` z op `settings`
+    // (agregat = najemca) odświeża kartę ustawień i zdrowie silnika - test
+    // reguły w zbiorczym teście inwalidacji huba (plik I0).
+    "src/lib/realtime/__tests__/revenueInvalidation.test.ts",
+    // (Integrator S5, 2026-10-20): strażnik ACL `hub_grants` (plik I0) zna
+    // pomocnicze silnika dopisane do rejestru - inaczej nikt nie sprawdza ich
+    // EXECUTE po wdrożeniu (`hubDelivery.gate.test.ts`).
+    "supabase/tests/hub_shared_helpers_test.sql",
   ],
   S6: [
     "src/lib/analytics/semantic/{metricHelp,revenueRaw,revenueSnapshot.functions,metrics,streams,format,reconcile,window,index}.ts",
@@ -625,6 +936,20 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/dashboard/MarketingPanel.tsx",
     "src/components/admin/dashboard/__tests__/MarketingPanel*.test.tsx",
     "src/lib/i18n-admin-revenue-{tabs,diagnostics}.ts",
+    // (Integrator S7, 2026-10-22): bliźniaki drizzle 3 migracji S7 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego po `0372` z I9c; §6 dziennika).
+    "drizzle/migrations/{0373,0374,0375}_*.sql",
+    // (Integrator S7, 2026-10-22): zakładki S7 mają treść; testy tras I0
+    // asertują nagłówki Kokpitu i Oferty zamiast zdania zaślepki; pulpit
+    // atrapuje leniwy kafel przychodu zrealizowanego (zachowanie dowodzi
+    // `MarketingPanel.realized.test.tsx`). Licznik Diagnostyki w układzie huba
+    // (Z-S6-08) zostaje plikiem S6 - zmiana integratora (§23 dziennika).
+    // (Scalenie S7 po S8, 2026-10-22): po S7 i S8 żadna zakładka nie ma stanu
+    // „w przygotowaniu” (I9a §19.6) - moduł `tabPreparing`, molekuła
+    // `RevenueTabPreparing`, słownik `-preparing` i ich testy usunięte
+    // (Z-S7-17, §23.11 dziennika); wpisy zdjęte z manifestów S7 i I9.
+    "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
+    "src/components/admin/dashboard/__tests__/dashboardPanels.test.tsx",
   ],
   S8: [
     "src/lib/admin/journeys/**",
@@ -633,6 +958,18 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/journeys/editorSearch.ts",
     "src/lib/journeys/__tests__/editorSearch.test.ts",
     "src/lib/i18n-admin-journeys-editor.ts",
+    // (Integrator S8, 2026-10-22): słownik podzielony na podzadania - lista,
+    // galeria i ustawienia silnika (S8.1), wyniki i karta leada (S8.2), kanwa
+    // (S8.3b), panele kroku (S8.3c), publikacja, symulacja i test (S8.3c2);
+    // `-editor` = sesja szkicu i złożenie edytora (S8.3a/d). Jeden plik na
+    // podzadanie - rozłączne pliki przy pracy kolejnych agentów.
+    "src/lib/i18n-admin-journeys-{list,results,canvas,steps,publish}.ts",
+    // (Integrator S8, 2026-10-22): Z-S5-08 - czysta część podstawiania
+    // zmiennych maila (`substituteDocVariables`, `journeyUrlVariables`) mieszka
+    // w liściu klienckim `variables.ts`, a `render.server.ts` ją importuje
+    // i re-eksportuje: podgląd edytora i wysyłka mają jedną implementację.
+    // Pliki S5 zmienione przez S8.3a (precedens: S4 i migawka S6).
+    "src/lib/journeys/{variables,render.server}.ts",
   ],
   I9: [
     ...HUB_SHARED_FILES,
@@ -654,6 +991,290 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // Atrybuty `data-tour` w komponentach S7/S8 (P2).
     "src/components/admin/revenue/**",
     "src/components/admin/journeys/**",
+    // (Integrator I9a, 2026-10-20 - decyzja właściciela: hub w nawigacji przed
+    // I9). Powłoka panelu podaje nawigacji DOKŁADNE role i `search` skrótów
+    // ⌘K; stan „w przygotowaniu" zakładek (dane, słownik, testy - usunięte
+    // po S7 i S8, §23.11); okno porzucenia kasy w karcie ustawień kasy (S1) -
+    // wspólny predykat w limitach I0, odczyt i zapis w module S1, serwer kasy
+    // S3.
+    "src/components/admin/AdminShell.tsx",
+    "src/components/admin/__tests__/AdminShell.test.tsx",
+    "src/lib/locale/__tests__/coreScopeSurfaces.test.tsx",
+    "src/routes/__tests__/platformPaywallRoute.test.tsx",
+    "src/components/admin/paywall/CheckoutSettingsCard.tsx",
+    "src/components/admin/paywall/__tests__/CheckoutSettingsCard.abandon.test.tsx",
+    "src/hooks/useCheckoutSettings.ts",
+    "src/hooks/__tests__/useCheckoutSettings.test.ts",
+    "src/lib/i18n-admin-paywall-sync.ts",
+    "src/lib/revenue/limits.ts",
+    "src/lib/revenue/__tests__/checkoutAbandonMinutes.test.ts",
+    "src/lib/billing/{checkoutSettings,checkoutSettings.server}.ts",
+    "docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md",
+    // (Integrator I9b, 2026-10-20 - decyzje właściciela, część A: SQL
+    // i katalog). Segment przychodu z typu klienta (mapa I0, lustro TS,
+    // chip w panelu członkostwa), cennik v6.2 (Zespół, NGO - katalog
+    // seedu, lustra rang i macierz, stabilny drugi klucz rangi), Zespół
+    // 3-20 miejsc (stała współdzielona, funkcja serwerowa, panel
+    // organizacji) i RODO księgi MRR (test S2 Z-07 po wymianie
+    // identyfikatora subskrypcji).
+    "supabase/tests/hub_i9b_*_test.sql",
+    // Rezerwa I9 w bramce dostawy (`HUB_I9_REDEFINITIONS`) - fikstury reguły.
+    "src/lib/ci/__tests__/hubDelivery.gate.test.ts",
+    "supabase/tests/{hub_shared_helpers,pricing_catalog_v62,revenue_subscription_history}_test.sql",
+    "src/lib/revenue/segments.ts",
+    "src/lib/revenue/__tests__/segmentsParity.test.ts",
+    "src/lib/billing/{tierRanks,tiers}.ts",
+    "src/lib/billing/__tests__/{tierCatalogParity,tierRankOrder}.test.ts",
+    "src/lib/access/paywallOffer.ts",
+    "src/lib/admin/membersDirectory.functions.ts",
+    "src/lib/clubs/planTiers.ts",
+    "src/components/admin/AccessSettingsPane.tsx",
+    "src/components/admin/membership/membershipQueries.ts",
+    "src/components/admin/membership/molecules/{TierEditorCard,TierSummaryCard}.tsx",
+    "src/components/admin/membership/atoms/RevenueSegmentChip.tsx",
+    "src/components/admin/membership/atoms/__tests__/RevenueSegmentChip.test.tsx",
+    "src/lib/i18n-admin-membership.ts",
+    "src/components/pricing/organisms/PricingComparisonMatrix.tsx",
+    "src/components/pricing/__tests__/{comparisonMatrixV62,tierCardV62Catalog}.test.tsx",
+    "src/lib/i18n-pricing.ts",
+    "src/lib/organizations/{teamSeats,teamSeats.functions}.ts",
+    "src/lib/organizations/__tests__/{teamSeatCap,organizationsFunctions}.test.ts",
+    "src/components/admin/organizations/**",
+    "src/lib/i18n-admin-organizations.ts",
+    "src/routes/admin.organizations{,.new,.$id}.tsx",
+    "src/routes/__tests__/adminOrganizationsRoutes.test.tsx",
+    "src/routes/admin.library.tsx",
+    "src/routes/admin.newsletter.campaigns.$id.tsx",
+    // (I9b-A2, 2026-10-20) RODO po usunięciu konta: powód wyjścia ze ścieżki
+    // `account_deleted` (lustro CHECK, etykiety PL/EN, parytet) i rejestr
+    // czynności przetwarzania huba (art. 30 RODO).
+    "src/lib/journeys/limits.ts",
+    "src/lib/journeys/__tests__/journeyLimitsParity.test.ts",
+    "src/lib/i18n-admin-journeys.ts",
+    "docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md",
+    // (Integrator I9b, 2026-10-20 - decyzje właściciela, część B). Z-S5-02:
+    // jeden limit tagu CRM (`CRM_TAG_MAX`) w schematach panelu CRM, przepisów
+    // i ścieżek, parytet z pisarzem S4 i walidatorem S5 (testy tych wycinków
+    // czytają teraz najnowszą definicję). Z-S3-07: linia okna porzucenia kasy
+    // w karcie biletów wydarzenia. Z-S2-01: scenariusz anulowania na granicy
+    // SDK operatora. Z-14-03/04: wpis `engagement_rate` rejestru S6
+    // (dane, nakładka, wygenerowane moduły, pole `hub` pakietu Insidera)
+    // i przegląd źródeł PPCR.
+    "src/lib/crm/{lifecycle,leadListSpec,leadViews}.ts",
+    "src/lib/crm/__tests__/{tagLimitParity,leadViews}.test.ts",
+    "src/lib/{crm,crm-tasks}.functions.ts",
+    "src/lib/admin/workflows.ts",
+    "src/lib/admin/__tests__/workflows.test.ts",
+    "src/lib/i18n-admin-workflows.ts",
+    "src/components/admin/crm/LeadFilterChips.tsx",
+    "src/components/admin/crm/__tests__/LeadFilterChipsHub.test.tsx",
+    "src/lib/journeys/{graph,predicates}.ts",
+    "src/lib/journeys/__tests__/{graph,nodeTypesParity}.test.ts",
+    "supabase/tests/workflow_actions_v2_test.sql",
+    "src/components/admin/events/organisms/EventTicketsPanel.tsx",
+    "src/components/admin/events/molecules/EventTicketCheckoutWindowNote.tsx",
+    "src/components/admin/events/molecules/__tests__/EventTicketCheckoutWindowNote.test.tsx",
+    "src/components/admin/events/__tests__/{EventTicketsPanel,EventTicketsPanelStudio}.test.tsx",
+    "src/lib/i18n-admin-event-registration.ts",
+    "src/lib/retention/__tests__/{applyOffer,functions.stripeBoundary}.test.ts",
+    "docs/benchmarki/2026-10-18/lejek{,.overlay}.json",
+    "docs/benchmarki/insider-2026-10-19/{manifest,ranges}.json",
+    "docs/{BENCHMARKI_WSKAZNIKOW_2026-10-18,WIEDZA_INSIDER_MARKETINGOWY_2026-10-19}.md",
+    "src/lib/analytics/semantic/benchmarks/{index,sources}.ts",
+    "src/lib/analytics/semantic/benchmarks/groups/funnel.server.ts",
+    "src/lib/analytics/semantic/benchmarks/__tests__/{registry,i18nParity,metricMap}.test.ts",
+    // (I9c, 2026-10-20) RODO po usunięciu konta - domknięcia po A2: lista
+    // poczty związanej z kontem albo zapisem (lustro SQL, parytet), dren
+    // pytający bazę przed wysyłką, testy drenu i pgTAP domknięć.
+    "src/lib/email/{queueDrain.server,suppressionPolicy}.ts",
+    "src/lib/email/__tests__/{queueDrainAccountBound,accountBoundLabelsParity,emailLogTenantBoundary}.test.ts",
+    "supabase/tests/hub_i9c_*_test.sql",
+    // (I9c, 2026-10-20) Retencja danych (Z-I9b-10): stałe, funkcje serwerowe
+    // i zapytania karty, karta w ustawieniach prywatności (leniwy chunk,
+    // słownik PL/EN), piksel otwarć w renderze i ustawieniach silnika ścieżek
+    // (S5), reguła szyny `data_retention.changed.v1` w rozszerzeniu panelu.
+    "src/lib/privacy/**",
+    "src/components/admin/settings/dataRetention/**",
+    "src/routes/admin.settings.privacy.tsx",
+    "src/routes/__tests__/adminSettingsPrivacyRoute.test.tsx",
+    "src/lib/i18n-admin-data-retention.ts",
+    "src/lib/journeys/{render.server,dto,parse,journeys.functions}.ts",
+    "src/lib/journeys/__tests__/{render.server.test,parse.test,journeys.functions.test,rpcShapes.fixture}.ts",
+    "src/lib/server/journeysRunner.server.ts",
+    "src/lib/server/__tests__/journeysRunner.server.test.ts",
+    "src/lib/realtime/__tests__/{invalidationExtension,eventInvalidationMap}.test.ts",
+    // (I9d-Y1, 2026-10-22) RODO - decyzje właściciela 2: pgTAP kategorii
+    // retencji (zgłoszenia do klubów, licznik, uczestnicy wydarzeń,
+    // wygaszanie newslettera) i bramka CIALO-Z (mapa wersji per plik).
+    "supabase/tests/hub_i9d_*_test.sql",
+    // (Integrator I9d-Y1, 2026-10-22) Wygaszanie newslettera (Y1-B): trasa
+    // publiczna „Chcę dalej otrzymywać" (endpoint, strona, słownik PL/EN,
+    // noindex - bramka noindex tras kodu) i zaangażowanie z formularza zapisu
+    // (`newsletter_engagement_touch` przy istniejącym adresie).
+    "src/routes/{api.public.newsletter.keep.ts,newsletter.keep.tsx,-api.public.newsletter.keep.test.ts}",
+    "src/routes/__tests__/newsletterKeepPage.test.tsx",
+    "src/lib/i18n-newsletter-keep{,-head}.ts",
+    "src/lib/newsletter.functions.ts",
+    "src/lib/__tests__/newsletter.functions.test.ts",
+    "src/lib/seo/noindexCodeRoutes.ts",
+    // (Integrator I9d-Y1, 2026-10-22) Panel (Y1-C): notka agregatu dobowego
+    // (osobny mały słownik - lejek nie ciągnie słownika karty), edytor treści
+    // prośby obok treści maili newslettera, test pulpitu monetyzacji
+    // (`aggregate_before`).
+    "src/lib/i18n-admin-retention-aggregate.ts",
+    "src/routes/admin.newsletter.email-content.tsx",
+    "src/routes/__tests__/platformMonetizationRoute.test.tsx",
+    // (I9d-Y2, 2026-10-22) Treść zgody i pomiar: zapis otwarć i kliknięć
+    // tylko za zgodą na pomiar - fikstury testów zapisu zdarzeń kampanii
+    // i ścieżek (S5) nadają zgodę (ich przedmiotem jest deduplikacja
+    // i statystyki, nie zgoda).
+    "supabase/tests/{journeys_tracking_stats,newsletter_campaign_events_dedup}_test.sql",
+    // (Integrator I9d-Y2, 2026-10-22) Treść zgody i pomiar (Y2-B): jedno
+    // źródło treści zgody newslettera i formularze zgody (widżety, popup,
+    // rejestracja, bramka klubu, kontakt, dokument buildera), pomiar tylko za
+    // zgodą w renderze kampanii i ścieżek, trasa publiczna linków pomiaru
+    // (strona, słownik PL/EN, noindex), link „Nie mierz" w preferencjach
+    // (wypis).
+    "src/lib/newsletter/{consentText,keys,renderCampaign.server,trackingEvents.server}.ts",
+    "src/lib/newsletter/__tests__/{consentText,renderCampaign.server,trackingEvents}.test.ts",
+    "src/components/newsletter/{NewsletterConsentText,NewsletterDocRenderer}.tsx",
+    "src/components/newsletter/__tests__/newsletterDocRendererPure.test.tsx",
+    "src/components/{NewsletterForm,PopupSignupForm}.tsx",
+    "src/components/__tests__/{NewsletterForm,popupSignupForm}.test.tsx",
+    "src/components/popups/__tests__/SignupPopupPanel.test.tsx",
+    "src/components/blocks/{AuthFormBlocks,ContactFormView}.tsx",
+    "src/components/blocks/__tests__/{authFormBlocks,authFormPlaceholders,contactFormNewsletterConsent}.test.tsx",
+    "src/components/clubs/organisms/ClubAccessGate.tsx",
+    "src/components/clubs/__tests__/ClubAccessGate{,.funnel}.test.tsx",
+    "src/components/interests/JoinUsForm.tsx",
+    "src/components/interests/__tests__/joinUsForm.test.tsx",
+    "src/hooks/useNewsletterSettings.ts",
+    "src/lib/builder/registry.tsx",
+    "src/lib/{contact.functions,newsletter-campaigns.functions}.ts",
+    "src/lib/__tests__/{contactFunctions,newsletterCampaignSend,newsletterCampaignsFunctionsGaps}.test.ts",
+    "src/lib/i18n-{club-gate,interests,public-auth,public}.ts",
+    "src/lib/i18n-newsletter-measurement{,-head}.ts",
+    "src/routes/{api.public.newsletter.measurement.ts,newsletter.measurement.tsx,-api.public.newsletter.measurement.test.ts}",
+    "src/routes/{api.public.newsletter.unsubscribe.ts,newsletter.unsubscribe.tsx,-api.public.newsletter.unsubscribe.test.ts}",
+    "src/routes/__tests__/{newsletterMeasurementPage,newsletterConsentPages}.test.tsx",
+    // (Integrator I9d-Y2, 2026-10-22) Panel (Y2-C): treść zgody z jawnym
+    // oznaczeniem „mój tekst obejmuje pomiar", „Poproś o zgodę na pomiar"
+    // i edytor treści tego maila, dymki pomiaru w statystykach kampanii,
+    // ścieżek i rejestrze wskaźników, ostrzeżenie etykiety zgody w popupie,
+    // unieważnienie podglądu po zmianie wspólnego przełącznika pomiaru.
+    "src/components/admin/newsletter/measurement/**",
+    "src/components/admin/newsletter/molecules/CampaignEngagementCard.tsx",
+    "src/components/admin/newsletter/__tests__/CampaignEngagementCard.test.tsx",
+    "src/components/admin/popups/signup/FieldsTab.tsx",
+    "src/components/admin/popups/signup/__tests__/FieldsTabConsentLabel.test.tsx",
+    "src/lib/admin/journeys/journeyMutations.ts",
+    "src/lib/admin/journeys/__tests__/journeyMutations.test.ts",
+    "src/lib/analytics/semantic/metrics.ts",
+    "src/lib/i18n-admin-{newsletter-measurement,measurement-hint,journeys-list,journeys-results,revenue-email}.ts",
+    "src/routes/admin.newsletter.{overview,email-content}.tsx",
+    "src/routes/__tests__/adminNewsletterCampaignRoutes.test.tsx",
+    // (Integrator I9d-Y2, 2026-10-22) Polityka w kodzie: sekcja „pomiar”
+    // polityki komunikacji (podstawa - zgoda, osobne wyłączenie, wersja
+    // treści) i dane newslettera w polityce prywatności, z osobnymi datami
+    // zmiany treści tych dwóch dokumentów.
+    "src/lib/legal/content/{communications,privacy}.ts",
+    "src/lib/legal/{entity,registration}.ts",
+    // (Integrator I9d-Y2, 2026-10-22) Tabela fabryk kluczy huba: wiersze
+    // kluczy pomiaru newslettera (Y2-B) i prefiksy ich unieważniania.
+    "src/lib/__tests__/hubKeyFactories.test.ts",
+    // (I9-A, 2026-10-22) Harmonogram huba (Z-S5-03): siatka community-cron
+    // (joby journeys, revenue-lifecycle), panel zdrowia harmonogramu (stan
+    // silnika ścieżek), teksty S8 po podpięciu runnera; jedna stopka wypisu
+    // (Z-S5-05); pgTAP zestawienia zapisów (Z-I9c-06) - glob
+    // `supabase/tests/hub_i9_*_test.sql` niżej, w bloku I9-C.
+    "src/routes/api/public/{community-cron.ts,-community-cron.test.ts}",
+    "src/lib/admin/scheduler.functions.ts",
+    "src/lib/admin/__tests__/schedulerFunctions.test.ts",
+    "src/lib/i18n-admin-scheduler.ts",
+    "src/components/admin/community/__tests__/SchedulerHealthPanel.test.tsx",
+    "src/lib/admin/journeys/summaries.ts",
+    "src/lib/i18n-admin-journeys-publish.ts",
+    "src/lib/email/{ownUnsubscribeFooter,provider.server}.ts",
+    "src/lib/email/__tests__/{ownUnsubscribeFooter,provider.server}.test.ts",
+    "src/lib/journeys/__tests__/journeyFooterDelivery.test.ts",
+    "docs/RUNBOOK_COMMUNITY.md",
+    ".env.example",
+    // (I9-B, 2026-10-22) Moduły → hub (SPEC §2.7), pisarz P24 i zgłoszenia
+    // S7 (Z-S7-01…12): sygnał Diagnostyki i drogowskazy w ekranach modułów,
+    // akcja przypisania zadań CRM, słownik wskaźników sterowany adresem,
+    // baner przerwanej szyny, waluta wiodąca migawki, powody rezygnacji
+    // w Cenniku, zdrowie poczty w migawce. Test skrzynki zgłoszeń klubów
+    // niżej, w bloku I9-C.
+    "src/routes/admin.crm.index.tsx",
+    "src/routes/__tests__/{adminBillingRoute,adminCouponsShellRoutes,adminCrmInboxRoute,adminNewsletterShellRoutes,adminWorkflowsRoute}.test.tsx",
+    "src/components/admin/clubs/__tests__/ClubInvitationsTab.test.tsx",
+    "src/components/admin/events/organisms/__tests__/{EventAnalyticsPanel,EventCommunicationsPanel,EventOverviewPanel}.test.tsx",
+    "src/components/admin/membership/organisms/__tests__/AdminMembershipWorkspace.test.tsx",
+    "src/components/admin/pricing/organisms/__tests__/AdminPricingWorkspace.test.tsx",
+    "src/components/admin/crm/AssignUnassignedTasksButton.tsx",
+    "src/components/admin/crm/__tests__/AssignUnassignedTasksButton.test.tsx",
+    "src/lib/i18n-admin-{revenue-links,crm-tasks,revenue-shell,revenue-finance,pricing}.ts",
+    "src/lib/admin/revenue/quickFixes.ts",
+    "src/lib/admin/revenue/__tests__/quickFixes.test.ts",
+    "src/components/admin/analytics/semantic/organisms/MetricDictionary.tsx",
+    "src/components/admin/analytics/semantic/__tests__/{semanticOrganisms,RevenueInsightSection}.test.tsx",
+    "src/lib/realtime/{tableChannelHub,useDomainEventStream}.ts",
+    "src/lib/realtime/__tests__/tableChannelHub.test.ts",
+    "src/lib/revenue/__tests__/syncScenarios.test.ts",
+    "src/lib/analytics/semantic/{revenueRaw,revenueSnapshot.functions}.ts",
+    "src/lib/analytics/semantic/snapshot.functions.test.ts",
+    "src/lib/retention/reasonLabel.ts",
+    "src/lib/admin/retentionStats.ts",
+    "src/lib/admin/__tests__/pricingRules.test.ts",
+    "src/components/admin/pricing/atoms/RetentionReasonText.tsx",
+    "src/components/admin/pricing/molecules/{RetentionFeedbackList,RetentionStatsCards}.tsx",
+    "src/components/admin/pricing/molecules/__tests__/retentionReasons.test.tsx",
+    // (I9-C, 2026-10-22) Zgłoszenia 9.2 i domknięcia S8/I9d: środowisko
+    // i uprawnienie dokumentu rozliczeniowego (Z-S2-07), odmowa progu Zespół
+    // w profilu (Z-I9b-09), import CSV bez przycinania (Z-I9b-15), etykiety
+    // powodów Skrzynki wysyłek (Z-I9c-02), zdarzenie formularza i szablon B2B
+    // (Z-S5-01), pgTAP bloku I9, link polityki w zgodach buildera (Z-I9d-19),
+    // zgłoszenia zanonimizowane w skrzynce klubów (Z-I9d-03), notka pomiaru
+    // w Kokpicie (Z-I9d-16).
+    "src/lib/billing/billingDocuments.server.ts",
+    "src/lib/billing/__tests__/{billingDocuments.server,webhookDispatch.server,webhookDispatchDocuments.server}.test.ts",
+    "src/routes/profile.organization.tsx",
+    "src/routes/__tests__/profileOrganizationRoute.test.tsx",
+    "src/lib/i18n-membership.ts",
+    "src/lib/crm/importMapping.ts",
+    "src/lib/crm/__tests__/importMapping.test.ts",
+    "src/lib/csv/parseCsv.ts",
+    "src/lib/csv/__tests__/parseCsv.test.ts",
+    "src/components/admin/crm/ImportLeadsCsvDialog.tsx",
+    "src/components/admin/crm/__tests__/crmDialogs.test.tsx",
+    "src/lib/admin/emailOutboxReason.ts",
+    "src/lib/admin/__tests__/emailOutboxReason.test.ts",
+    "src/components/admin/newsletter/outbox/**",
+    "src/lib/i18n-admin-email-outbox.ts",
+    "src/lib/journeys/{triggers,templates/pricing_enquiry_b2b}.ts",
+    "src/lib/journeys/__tests__/{templates,contactMessageEvent}.test.ts",
+    "src/lib/i18n-admin-journeys-steps.ts",
+    "src/lib/admin/journeys/__tests__/{journeyEditor.functions,summaries}.test.ts",
+    "supabase/tests/hub_i9_*_test.sql",
+    "src/lib/builder/__tests__/registryConsentLinks.test.ts",
+    "src/lib/clubs/{applyApi,adminApplicationsInbox}.ts",
+    "src/lib/clubs/__tests__/{applyApi,adminApplicationsInbox}.test.ts",
+    "src/components/admin/clubs/molecules/ClubInboxRow.tsx",
+    "src/components/admin/clubs/__tests__/ClubApplicationsInbox.test.tsx",
+    "src/lib/i18n-clubs-admin.ts",
+    "src/components/admin/dashboard/MarketingPanel.tsx",
+    "src/components/admin/dashboard/__tests__/MarketingPanel.realized.test.tsx",
+    // (Integrator I9, 2026-10-22) Reguły szyny wykryte trybem ścisłym
+    // `metrics` (subskrybent newslettera → `email`, subskrypcja u operatora
+    // → `economics` i `funnel`) - asercje rozszerzenia panelu.
+    "src/lib/realtime/__tests__/revenueInvalidation.test.ts",
+    // (Integrator I9, 2026-10-22) Przewodnik po Ścieżkach (Z-S8-01): montaż
+    // w zakładce i edytorze (`components/admin/journeys/tour/**` jest już
+    // w globie huba) - atrapa nakładki w teście tras huba.
+    "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
+    // (Integrator I9, 2026-10-22) Lustro reguły szyny subskrybenta w lokalnej
+    // inwalidacji odbiorców newslettera (dziedzina `email` huba).
+    "src/lib/newsletter/settingsQueries.ts",
   ],
 };
 
@@ -1026,6 +1647,28 @@ export interface HubDeliveryOptions {
 }
 
 /**
+ * Wersja CIALO-Z, której rejestr rezerwy I9 oczekuje od redefinicji `name`
+ * w pliku `version` (wpis jednowartościowy - każdy plik; mapa - wpis pliku,
+ * brak wpisu = `undefined`).
+ */
+export function hubI9RedefinitionCialoZ(name: string, version: string): string | undefined {
+  const entry = HUB_I9_REDEFINITIONS[name];
+  if (entry === undefined) return undefined;
+  return typeof entry === "string" ? entry : entry[version];
+}
+
+/** Czy definicja w pliku wycinka `slice` to dozwolona redefinicja w rezerwie I9. */
+function isI9Redefinition(name: string, slice: HubSliceId | null): boolean {
+  const owner = HUB_FUNCTION_OWNERS[name];
+  return (
+    slice === "I9" &&
+    owner !== undefined &&
+    owner !== "I9" &&
+    Object.hasOwn(HUB_I9_REDEFINITIONS, name)
+  );
+}
+
+/**
  * Analiza migracji bloku huba. `migrations` może zawierać także pliki sprzed
  * huba - wtedy analiza wie, które funkcje istniały wcześniej (redefinicja bez
  * wpisu w `HUB_CIALO_Z` = naruszenie).
@@ -1038,6 +1681,7 @@ export function analyzeHubDelivery(
   const functions: HubFunctionDefinition[] = [];
   const files: string[] = [];
   const preHubLatest = new Map<string, string>();
+  const hubLatest = new Map<string, string>();
   const sorted = [...migrations].sort((a, b) => a.name.localeCompare(b.name));
 
   for (const file of sorted) {
@@ -1102,9 +1746,10 @@ export function analyzeHubDelivery(
       }
       functions.push({ name: hit.name, file: file.name, block: version.slice(0, 10) });
       const owner = HUB_FUNCTION_OWNERS[hit.name];
+      const i9Redefinition = isI9Redefinition(hit.name, fileSlice);
       if (owner === undefined) {
         add("bez-wlasciciela", `public.${hit.name} nie ma wpisu w HUB_FUNCTION_OWNERS`);
-      } else if (owner !== fileSlice) {
+      } else if (owner !== fileSlice && !i9Redefinition) {
         add(
           "zly-blok",
           `public.${hit.name} należy do ${owner} (blok ${HUB_VERSION_BLOCKS[owner] ?? "brak"}), plik jest w bloku ${version.slice(0, 10)}`,
@@ -1117,7 +1762,10 @@ export function analyzeHubDelivery(
       const marker = markers.filter((m) => m.at > previous && m.at < hit.at).at(-1);
       const expected = HUB_CIALO_Z[hit.name];
       const existedBefore = preHubLatest.has(hit.name);
-      if (expected !== undefined || existedBefore) {
+      // Redefinicja w rezerwie I9 przepisuje ciało z NAJNOWSZEJ definicji
+      // w hubie (niżej), nie sprzed huba - `HUB_CIALO_Z` opisuje tylko
+      // pierwszą redefinicję w wycinku właściciela.
+      if (!i9Redefinition && (expected !== undefined || existedBefore)) {
         if (marker === undefined) {
           add(
             "brak-cialo-z",
@@ -1127,6 +1775,37 @@ export function analyzeHubDelivery(
           add("brak-cialo-z", `public.${hit.name} nie ma wpisu w HUB_CIALO_Z`);
         } else if (marker.version !== expected) {
           add("zly-cialo-z", `public.${hit.name}: CIALO-Z ${marker.version}, rejestr ${expected}`);
+        }
+      }
+      if (i9Redefinition) {
+        // Redefinicja funkcji innego wycinka w I9: ciało przepisane z NAJNOWSZEJ
+        // definicji w hubie - rejestr i znacznik muszą ją wskazywać.
+        const registered = hubI9RedefinitionCialoZ(hit.name, version);
+        // Funkcja sprzed huba bez redefinicji w wycinku: najnowsza sprzed huba.
+        const latestInHub = hubLatest.get(hit.name) ?? preHubLatest.get(hit.name);
+        if (registered === undefined) {
+          // Mapa wersji bez wpisu tego pliku: każda kolejna redefinicja w I9
+          // musi zostać zarejestrowana z własnym CIALO-Z.
+          add(
+            "brak-cialo-z",
+            `HUB_I9_REDEFINITIONS.${hit.name} nie ma wpisu dla pliku ${version} (najnowsza wcześniejsza definicja w hubie: ${latestInHub ?? "brak"})`,
+          );
+        } else if (marker === undefined) {
+          add(
+            "brak-cialo-z",
+            `public.${hit.name} redefiniuje funkcję huba - brak \`-- CIALO-Z: ${registered}\``,
+          );
+        } else if (marker.version !== registered) {
+          add(
+            "zly-cialo-z",
+            `public.${hit.name}: CIALO-Z ${marker.version}, rejestr ${registered}`,
+          );
+        }
+        if (registered !== undefined && latestInHub !== registered) {
+          add(
+            "zly-cialo-z",
+            `HUB_I9_REDEFINITIONS.${hit.name} = ${registered}, najnowsza wcześniejsza definicja w hubie: ${latestInHub ?? "brak"}`,
+          );
         }
       }
 
@@ -1163,10 +1842,16 @@ export function analyzeHubDelivery(
         }
       }
     });
+    // Najnowsza definicja w hubie liczy się dopiero PO pliku - redefinicja
+    // I9 porównuje się z wersją sprzed siebie, nie ze sobą.
+    for (const hit of hits)
+      if (hit.schema === null || hit.schema === "public") hubLatest.set(hit.name, version);
   }
 
   const blocksByFunction = new Map<string, Set<string>>();
   for (const def of functions) {
+    // Redefinicja w rezerwie I9 (rejestr wyżej) nie jest „drugim blokiem".
+    if (def.block === HUB_VERSION_BLOCKS.I9 && isI9Redefinition(def.name, "I9")) continue;
     const blocks = blocksByFunction.get(def.name) ?? new Set<string>();
     blocks.add(def.block);
     blocksByFunction.set(def.name, blocks);

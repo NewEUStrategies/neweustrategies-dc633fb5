@@ -486,3 +486,74 @@ it("falls back to the platform only for an unverified sender domain", async () =
   expect(await sendEmail(input())).toEqual({ ok: true, messageId: null, provider: "platform" });
   expect(h.sendLovableEmail).toHaveBeenCalledTimes(1);
 });
+
+// Z-S5-05: mail ścieżki niesie własną stopkę wypisu w znacznikach. Nadawca
+// platformy dokleja swoją (nie da się jej wyłączyć) - nasza ma zniknąć; gateway
+// Resend stopki nie dokleja - nasza zostaje, bez znaczników, z RFC 8058.
+describe("sendEmail - jedna stopka wypisu (Z-S5-05)", () => {
+  const MARKED = "<!--nes:unsub--><p>Wypisz się jednym kliknięciem</p><!--/nes:unsub-->";
+  const MARKED_TEXT = "Treść\n\n<!--nes:unsub-->Wypisz się: https://a.test/u<!--/nes:unsub-->";
+
+  it("nadawca platformy (domena nadawcza): oznaczona stopka wycięta z HTML i tekstu, token wypisu przekazany", async () => {
+    withResend();
+    h.sendLovableEmail.mockResolvedValue({});
+
+    await sendEmail(
+      input({
+        html: `<p>Treść</p>${MARKED}`,
+        text: MARKED_TEXT,
+        senderDomain: "notify.example.test",
+        unsubscribeToken: "tok-1",
+        listUnsubscribeUrl: "https://a.test/u",
+      }),
+    );
+
+    const [payload] = h.sendLovableEmail.mock.calls[0] as [Record<string, unknown>];
+    expect(payload.html).toBe("<p>Treść</p>");
+    expect(payload.text).toBe("Treść");
+    expect(payload.unsubscribe_token).toBe("tok-1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("degradacja 403 „domain is not verified” do platformy też wycina stopkę", async () => {
+    withResend();
+    fetchMock.mockResolvedValue(new Response("Domain is not verified", { status: 403 }));
+    h.sendLovableEmail.mockResolvedValue({});
+
+    await sendEmail(input({ html: `<p>Treść</p>${MARKED}`, text: MARKED_TEXT }));
+
+    // Do gatewaya poszła stopka bez znaczników, do platformy - bez stopki.
+    expect(String(lastRequestBody().html)).toBe("<p>Treść</p><p>Wypisz się jednym kliknięciem</p>");
+    const [payload] = h.sendLovableEmail.mock.calls[0] as [Record<string, unknown>];
+    expect(payload.html).toBe("<p>Treść</p>");
+    expect(payload.text).toBe("Treść");
+  });
+
+  it("sam klucz platformy (bez domeny nadawczej): też jedna stopka - platformy", async () => {
+    withPlatformOnly();
+    h.sendLovableEmail.mockResolvedValue({});
+
+    await sendEmail(input({ html: `<p>Treść</p>${MARKED}` }));
+
+    const [payload] = h.sendLovableEmail.mock.calls[0] as [Record<string, unknown>];
+    expect(payload.html).toBe("<p>Treść</p>");
+  });
+
+  it("gateway Resend: stopka zostaje bez znaczników, a wypis idzie nagłówkami RFC 8058", async () => {
+    withResend();
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ id: "m" }), { status: 200 }));
+
+    await sendEmail(
+      input({
+        html: `<p>Treść</p>${MARKED}`,
+        text: MARKED_TEXT,
+        listUnsubscribeUrl: "https://a.test/u",
+      }),
+    );
+
+    const body = lastRequestBody();
+    expect(body.html).toBe("<p>Treść</p><p>Wypisz się jednym kliknięciem</p>");
+    expect(body.text).toBe("Treść\n\nWypisz się: https://a.test/u");
+    expect((body.headers as Record<string, string>)["List-Unsubscribe"]).toBe("<https://a.test/u>");
+  });
+});

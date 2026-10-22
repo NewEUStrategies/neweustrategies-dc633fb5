@@ -990,6 +990,11 @@ export const adminEventRegistrationPl = {
       title: "Bilety",
       subtitle:
         "Bilety ustawia się każdemu wydarzeniu indywidualnie - nie ma globalnego cennika. Bilet nadaje grupę uczestnika.",
+      // Okno porzucenia kasy (I9b, Z-S3-07) - wspólne dla planów, treści i biletów.
+      checkoutWindow: {
+        note: "Niezapłacona rezerwacja biletu wygasa po {{minutes}} min - to wspólne okno porzucenia kasy dla planów, treści i biletów.",
+        link: "Zmień w ustawieniach kasy",
+      },
       loading: "Wczytywanie biletów…",
       empty:
         "To wydarzenie nie ma biletów. Zapis obowiązuje bez wyboru biletu, w limicie miejsc wydarzenia.",
@@ -2503,6 +2508,11 @@ export const adminEventRegistrationEn = {
       title: "Tickets",
       subtitle:
         "Tickets are set per event - there is no global price list. A ticket grants the participant's group.",
+      // Checkout abandonment window (I9b, Z-S3-07) - shared by plans, content and tickets.
+      checkoutWindow: {
+        note: "An unpaid ticket reservation expires after {{minutes}} min - the same checkout abandonment window applies to plans, content and tickets.",
+        link: "Change it in checkout settings",
+      },
       loading: "Loading tickets…",
       empty:
         "This event has no tickets. Registration works without picking one, within the event seat limit.",

@@ -9,6 +9,8 @@
 // Statusy ścieżki (`JOURNEY_STATUSES`) mieszkają w `lib/revenue/search.ts`,
 // bo są też parametrem adresu huba (`?status=`) - jedna lista, zero dryfu.
 
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
+
 export const JOURNEY_LIMITS = {
   /** `journey_definitions.key` - klucz techniczny ścieżki. */
   keyPattern: /^[a-z0-9_-]{3,64}$/,
@@ -24,7 +26,8 @@ export const JOURNEY_LIMITS = {
   preheaderMax: 200,
   taskTitleMax: 200,
   staffMessageMax: 500,
-  tagMax: 64,
+  /** Tag kontaktu - ta sama stała co panel CRM i pisarz tagów (Z-S5-02). */
+  tagMax: CRM_TAG_MAX,
   nodesMax: 60,
   /** Wariant maila w teście A/B (`journey_email_contents.variant`). */
   variantPattern: /^[A-E]$/,
@@ -92,6 +95,9 @@ export const JOURNEY_EXIT_REASONS = [
   "journey_archived",
   "error",
   "entry_filter",
+  // RODO (I9b-A2): konto usunięte - zapis w toku kończy wyzwalacz usunięcia
+  // konta, bo podstawa ścieżki związanej z kontem wygasła razem z nim.
+  "account_deleted",
 ] as const;
 export type JourneyExitReason = (typeof JOURNEY_EXIT_REASONS)[number];
 

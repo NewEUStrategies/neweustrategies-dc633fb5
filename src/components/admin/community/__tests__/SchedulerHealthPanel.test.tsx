@@ -9,9 +9,10 @@
 //      a stan zdrowy go NIE podnosi,
 //   3. „Uruchom tick teraz" faktycznie woła serwerową funkcję ticku.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { SchedulerHealth } from "@/lib/admin/scheduler.functions";
+import { axeViolations, summarize } from "@/test/axe";
 
 const getSchedulerHealth = vi.fn();
 const runSchedulerTickNow = vi.fn();
@@ -122,6 +123,18 @@ function health(overrides: Partial<SchedulerHealth> = {}): SchedulerHealth {
     },
     freshness: "fresh",
     observedAt: new Date(now).toISOString(),
+    // Silnik ścieżek (I9): liczby rozłączne z kafelkami kolejki (87, 12) -
+    // asercje `getByText` niżej muszą zostać jednoznaczne.
+    journeys: {
+      killSwitch: false,
+      engine: {
+        enabled: true,
+        dueNow: 6,
+        inboxPending: 9,
+        lastStepAt: new Date(now - 60_000).toISOString(),
+        failures24h: 0,
+      },
+    },
     ...overrides,
   };
 }
@@ -299,5 +312,83 @@ describe("SchedulerHealthPanel", () => {
 
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
     expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
+  });
+
+  // I9 (Z-S5-03): runner ścieżek jest krokiem tego ticku - jego stan stoi tu.
+  it("silnik ścieżek: stan najemcy, harmonogram kroków i wejście w ustawienia", async () => {
+    getSchedulerHealth.mockResolvedValue(health());
+    renderPanel();
+
+    const card = await screen.findByTestId("scheduler-journeys");
+    await waitFor(() => expect(within(card).getByText("6")).toBeInTheDocument());
+    expect(within(card).getByText("9")).toBeInTheDocument();
+    // Stan to ikona + słowo, nie sam kolor.
+    expect(card.querySelector("[data-engine-state]")).toHaveAttribute(
+      "data-engine-state",
+      "enabled",
+    );
+    expect(within(card).getByText("Włączony")).toBeInTheDocument();
+    expect(within(card).getByText(/minuta 13/)).toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: "Ścieżki i ustawienia silnika" }),
+    ).toHaveAttribute("href", "/admin/revenue/journeys");
+    expect(within(card).queryByRole("alert")).toBeNull();
+    expect(document.body.textContent ?? "").not.toContain("adminScheduler.");
+  });
+
+  it("wyłącznik awaryjny JOURNEYS_ENGINE_DISABLED: odznaka i alert z wyjaśnieniem", async () => {
+    getSchedulerHealth.mockResolvedValue(health({ journeys: { killSwitch: true, engine: null } }));
+    renderPanel();
+
+    const card = await screen.findByTestId("scheduler-journeys");
+    await waitFor(() =>
+      expect(within(card).getByRole("alert")).toHaveTextContent("JOURNEYS_ENGINE_DISABLED=1"),
+    );
+    expect(card.querySelector("[data-engine-state]")).toHaveAttribute(
+      "data-engine-state",
+      "killSwitch",
+    );
+    expect(within(card).getByText("Wyłącznik awaryjny")).toBeInTheDocument();
+  });
+
+  it("silnik wyłączony u najemcy albo niedostępny w bazie: wyjaśnienie zamiast pustki", async () => {
+    getSchedulerHealth.mockResolvedValue(
+      health({
+        journeys: {
+          killSwitch: false,
+          engine: { enabled: false, dueNow: 0, inboxPending: 0, lastStepAt: null, failures24h: 2 },
+        },
+      }),
+    );
+    const { unmount } = renderPanel();
+    const card = await screen.findByTestId("scheduler-journeys");
+    await waitFor(() => expect(within(card).getByText("Wyłączony")).toBeInTheDocument());
+    expect(within(card).getByText(/poza testem na sobie/)).toBeInTheDocument();
+    expect(within(card).getByText("jeszcze nie było")).toBeInTheDocument();
+    unmount();
+
+    getSchedulerHealth.mockResolvedValue(health({ journeys: { killSwitch: false, engine: null } }));
+    renderPanel();
+    const missing = await screen.findByTestId("scheduler-journeys");
+    await waitFor(() => expect(within(missing).getByText("Niedostępny")).toBeInTheDocument());
+    expect(within(missing).getByText(/migracji silnika ścieżek/)).toBeInTheDocument();
+    expect(within(missing).queryByText("Do wykonania")).toBeNull();
+  });
+
+  it("brak naruszeń axe (karta silnika z wyłącznikiem, tabele, kafelki)", async () => {
+    getSchedulerHealth.mockResolvedValue(
+      health({
+        journeys: {
+          killSwitch: true,
+          engine: { enabled: true, dueNow: 6, inboxPending: 9, lastStepAt: null, failures24h: 1 },
+        },
+      }),
+    );
+    const { container } = renderPanel();
+    await screen.findByTestId("scheduler-journeys");
+    await waitFor(() => expect(screen.getByText("87")).toBeInTheDocument());
+
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });

@@ -17,6 +17,10 @@ import {
   NEWSLETTER_UNSUBSCRIBE_API_PATH,
   NEWSLETTER_UNSUBSCRIBE_PAGE_PATH,
 } from "@/lib/newsletter/unsubscribeUrl";
+import {
+  MEASUREMENT_FOOTER_COPY,
+  NEWSLETTER_MEASUREMENT_API_PATH,
+} from "@/lib/privacy/measurement";
 
 export const Route = createFileRoute("/newsletter/unsubscribe")({
   head: () => {
@@ -41,9 +45,14 @@ export const Route = createFileRoute("/newsletter/unsubscribe")({
 type State = "loading" | "confirm" | "already" | "ok" | "invalid" | "error";
 
 function Page() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [state, setState] = useState<State>("loading");
   const [email, setEmail] = useState<string | null>(null);
+  // „Nie mierz moich otwarć i kliknięć" (I9d-Y2): alternatywa dla wypisu -
+  // podpisany link z odpowiedzi endpointu (tylko aktywna subskrypcja).
+  const [measurementUrl, setMeasurementUrl] = useState<string | null>(null);
+  // Napisy linku z liścia pomiaru (bez nowych kluczy w słowniku rdzenia, D-08).
+  const measurementCopy = MEASUREMENT_FOOTER_COPY[i18n?.language === "en" ? "en" : "pl"];
   const [detail, setDetail] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -66,6 +75,7 @@ function Page() {
           already?: boolean;
           error?: string;
           email?: string;
+          measurementUrl?: string;
         };
         if (!j.ok) {
           if (j.error === "invalid_token" || j.error === "not_found") return setState("invalid");
@@ -73,6 +83,13 @@ function Page() {
           return setState("error");
         }
         setEmail(j.email ?? null);
+        // Wyłącznie ścieżka względna endpointu pomiaru - nic innego z odpowiedzi.
+        setMeasurementUrl(
+          typeof j.measurementUrl === "string" &&
+            j.measurementUrl.startsWith(`${NEWSLETTER_MEASUREMENT_API_PATH}?`)
+            ? j.measurementUrl
+            : null,
+        );
         setState(j.already ? "already" : "confirm");
       })
       .catch((e: unknown) => {
@@ -131,6 +148,14 @@ function Page() {
                 ? t("newsletter.unsubscribePage.working")
                 : t("newsletter.unsubscribePage.confirmBtn")}
             </button>
+            {measurementUrl && (
+              <p className="text-xs text-muted-foreground">
+                {measurementCopy.lead}{" "}
+                <a href={measurementUrl} className="underline">
+                  {measurementCopy.link}
+                </a>
+              </p>
+            )}
           </>
         )}
         {(state === "ok" || state === "already") && (

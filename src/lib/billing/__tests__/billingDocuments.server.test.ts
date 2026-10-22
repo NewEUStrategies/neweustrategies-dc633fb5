@@ -145,6 +145,7 @@ function seed(
     document?: SupabaseResult;
     write?: SupabaseResult;
     checkoutSettings?: SupabaseResult;
+    entitlement?: SupabaseResult;
   } = {},
 ): void {
   db.setResponse("subscriptions", options.subscription ?? ok(null));
@@ -177,6 +178,8 @@ function seed(
     ok({ value: { name: "Fundacja Syntetyczna", tax_id: "PL5260000000", city: "Kraków" } }),
   );
   db.setResponse("checkout_settings", options.checkoutSettings ?? ok(null));
+  // Uprawnienie faktury subskrypcji (Z-S2-07) - domyślnie brak wiersza.
+  db.setResponse("user_subscriptions", options.entitlement ?? ok(null));
 }
 
 beforeEach(() => {
@@ -277,6 +280,8 @@ describe("recordTransactionDocument - ODMOWY (nic nie zapisujemy)", () => {
         number: "FV/2026/08/0001",
         amount_cents: 4900,
         status: "paid",
+        // Środowisko znane - brak go to też zmiana do zapisu (Z-S2-07).
+        environment: ENV,
       }),
     });
 
@@ -612,6 +617,7 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
         number: "FV/2026/08/0001",
         amount_cents: 4900,
         status: stored,
+        environment: ENV,
       }),
     });
 
@@ -647,6 +653,7 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
         number: "FV/2026/08/0001",
         amount_cents: 4900,
         status: "paid",
+        environment: ENV,
       }),
     });
 
@@ -670,6 +677,191 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
       amount_cents: 4900,
       status: "paid",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I9 (Z-S2-07): środowisko dokumentu i uprawnienie faktury subskrypcji.
+// Bez `environment` nowy dokument liczył się do „nieznanego środowiska"
+// (poza przychodem zrealizowanym), a bez `subscription_id` wyzwalacz
+// `subscription.renewed.v1` (S2) nigdy nie strzelał.
+// ---------------------------------------------------------------------------
+
+const ENTITLEMENT = "33333333-bbbb-4bbb-8bbb-333333333333";
+
+/** Filtry `eq` zapytania o uprawnienie (jedyne wywołanie tabeli w teście). */
+function entitlementFilters(): ReadonlyArray<readonly unknown[]> {
+  const chain = db.chainsFor("user_subscriptions")[0];
+  return chain ? chain.calls.filter((c) => c.method === "eq").map((c) => c.args) : [];
+}
+
+describe("I9 Z-S2-07 - środowisko i uprawnienie dokumentu", () => {
+  it.each(["sandbox", "live"] as const)(
+    "nowy dokument niesie środowisko zdarzenia (%s)",
+    async (environment) => {
+      await recordTransactionDocument(input({ environment }));
+
+      expect(writtenRow("billing_documents", "insert").environment).toBe(environment);
+    },
+  );
+
+  it("faktura subskrypcji wiąże uprawnienie TEGO najemcy i konta (po `external_ref`)", async () => {
+    seed({
+      subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+      entitlement: ok({ id: ENTITLEMENT }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ subscriptionId: "sub_stripe_1", environment: "live" }),
+    );
+
+    expect(outcome).toBe("created");
+    expect(writtenRow("billing_documents", "insert")).toMatchObject({
+      subscription_id: ENTITLEMENT,
+      environment: "live",
+      order_id: null,
+    });
+    // Najemca i konto z NASZEGO wiersza subskrypcji, nie z ładunku.
+    expect(entitlementFilters()).toEqual([
+      ["external_ref", "sub_stripe_1"],
+      ["tenant_id", OWNER.tenantId],
+      ["user_id", OWNER.userId],
+    ]);
+  });
+
+  it("uprawnienie innego najemcy nie jest wiązane (zapytanie zawężone, brak wiersza)", async () => {
+    // Atrapa zwraca wiersz tylko przy zgodnym najemcy - jak baza z filtrem.
+    seed({ subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }) });
+    db.setResponse("user_subscriptions", (chain) => {
+      const tenant = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id");
+      return ok(tenant?.args[1] === FOREIGN.tenantId ? { id: ENTITLEMENT } : null);
+    });
+
+    await recordTransactionDocument(input({ subscriptionId: "sub_stripe_1" }));
+
+    expect(writtenRow("billing_documents", "insert").subscription_id).toBeNull();
+  });
+
+  it("paragon i transakcja bez subskrypcji: `subscription_id` null i bez zapytania o uprawnienie", async () => {
+    await recordTransactionDocument(input({ kind: "receipt", transactionId: "cs_1Zakup" }));
+    await recordTransactionDocument(input({ subscriptionId: null }));
+
+    for (const chain of db.chainsFor("billing_documents").filter((c) => c.has("insert"))) {
+      expect(chain.argsOf("insert")?.[0]).toMatchObject({ subscription_id: null });
+    }
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+  });
+
+  it("pierwsza faktura subskrypcji (`subscription_create`) to zakup, nie odnowienie - bez uprawnienia", async () => {
+    seed({
+      subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+      entitlement: ok({ id: ENTITLEMENT }),
+    });
+
+    await recordTransactionDocument(
+      input({ subscriptionId: "sub_stripe_1", billingReason: "subscription_create" }),
+    );
+
+    expect(writtenRow("billing_documents", "insert").subscription_id).toBeNull();
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+  });
+
+  it("awaria odczytu uprawnienia: `failed` z dzwonkiem, bez zapisu (zdarzenie wróci)", async () => {
+    seed({
+      subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+      entitlement: fail("statement timeout", "57014"),
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await recordTransactionDocument(input({ subscriptionId: "sub_stripe_1" }));
+
+    expect(outcome).toBe("failed");
+    expect(db.chainsFor("billing_documents").some((c) => c.has("insert"))).toBe(false);
+    expect(h.notifyTenantAdmins).toHaveBeenCalledTimes(1);
+    errorLog.mockRestore();
+  });
+
+  it("faktura `open` opłacona później dostaje uprawnienie i środowisko (prawdziwe odnowienie)", async () => {
+    seed({
+      subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+      entitlement: ok({ id: ENTITLEMENT }),
+      document: ok({
+        id: "doc-1",
+        number: "FV/2026/08/0001",
+        amount_cents: 4900,
+        status: "open",
+        order_id: null,
+        environment: null,
+        subscription_id: null,
+      }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ subscriptionId: "sub_stripe_1", environment: "live", hostedUrl: null, pdfUrl: null }),
+    );
+
+    expect(outcome).toBe("updated");
+    expect(writtenRow("billing_documents", "update")).toMatchObject({
+      status: "paid",
+      subscription_id: ENTITLEMENT,
+      environment: "live",
+    });
+  });
+
+  it("już OPŁACONY dokument bez uprawnienia go nie dostaje (bez spóźnionego odnowienia)", async () => {
+    seed({
+      subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+      entitlement: ok({ id: ENTITLEMENT }),
+      document: ok({
+        id: "doc-1",
+        number: null,
+        amount_cents: 4900,
+        status: "paid",
+        order_id: null,
+        environment: null,
+        subscription_id: null,
+      }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ subscriptionId: "sub_stripe_1", hostedUrl: null, pdfUrl: null }),
+    );
+
+    expect(outcome).toBe("updated");
+    const patch = writtenRow("billing_documents", "update");
+    expect(patch).not.toHaveProperty("subscription_id");
+    // Środowisko nieznane - uzupełniane (dokument bez uprawnienia nie emituje).
+    expect(patch.environment).toBe(ENV);
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+  });
+
+  it("dokument Z uprawnieniem i bez środowiska nie dostaje środowiska (UPDATE OF environment = zaległe odnowienie)", async () => {
+    seed({
+      document: ok({
+        id: "doc-1",
+        number: null,
+        amount_cents: 4900,
+        status: "paid",
+        order_id: ORDER_ID,
+        environment: null,
+        subscription_id: ENTITLEMENT,
+      }),
+    });
+
+    const outcome = await recordTransactionDocument(input({ hostedUrl: null, pdfUrl: null }));
+
+    expect(outcome).toBe("updated");
+    const patch = writtenRow("billing_documents", "update");
+    expect(patch.number).toBe("FV/2026/08/0001");
+    expect(patch).not.toHaveProperty("environment");
+  });
+
+  it("odczyt istniejącego dokumentu pyta też o środowisko i uprawnienie", async () => {
+    await recordTransactionDocument(input());
+
+    const read = db.chainsFor("billing_documents").find((c) => c.has("select"));
+    expect(read?.argsOf("select")?.[0]).toContain("environment");
+    expect(read?.argsOf("select")?.[0]).toContain("subscription_id");
   });
 });
 

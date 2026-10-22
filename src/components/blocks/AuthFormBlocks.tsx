@@ -29,6 +29,12 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
+import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import {
+  resolveNewsletterConsent,
+  signupNewsletterSubscription,
+} from "@/lib/newsletter/consentText";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
 import "@/lib/i18n-public";
 import "@/lib/i18n-public-auth";
 import { Button } from "@/components/ui/button";
@@ -710,6 +716,7 @@ interface RegisterData extends BaseData {
 export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lang }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const subscribe = useServerFn(subscribeToNewsletter);
   const [values, setValues] = useState<Record<string, string>>({});
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -732,7 +739,6 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
     () => ({
       password: t("authForms.passwordLabel"),
       confirm: t("authForms.confirmPasswordLabel"),
-      newsletter: t("authForms.newsletterOptIn"),
       ok: t("authForms.signupOk"),
       mismatch: t("authForms.passwordsMismatch"),
       consent: t("authForms.consentRequired"),
@@ -808,7 +814,12 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
   // Rozjazd kluczy: schemat/registry piszą `consentText`, komponent czytał
   // `consentLabel` - własna treść RODO nigdy się nie renderowała.
   const consentText = pickAuthText(data, ["consentText", "consentLabel"], lang, L.consentDefault);
-  const newsletterLabel = pickAuthText(data, ["newsletterLabel"], lang, L.newsletter);
+  // Pole „newsletter" (I9d-Y2): etykieta pusta albo domyślna = pełna treść
+  // zgody z pomiarem z jednego źródła; etykieta z buildera - bez zmian.
+  const newsletterConsent = resolveNewsletterConsent(
+    pickAuthText(data, ["newsletterLabel"], lang, ""),
+    lang,
+  );
   const pwdLabel = pickAuthText(data, ["passwordLabel"], lang, L.password);
   const pwdPlaceholder = pickAuthText(data, ["passwordPlaceholder"], lang, "");
   const confirmLabel = pickAuthText(data, ["passwordConfirmLabel"], lang, L.confirm);
@@ -869,6 +880,25 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
         },
       });
       if (error) throw error;
+      // Zgoda z pola „newsletter" = zapis na listę z dowodem treści i wersji
+      // (jak popup rejestracji). Dotąd zostawała wyłącznie flagą
+      // `marketing_opt_in` w metadanych konta. Błąd zapisu nie cofa konta.
+      if (showNewsletter && newsletter) {
+        try {
+          await subscribe({
+            data: signupNewsletterSubscription({
+              email,
+              firstName,
+              lastName,
+              lang,
+              source: "register_widget",
+              consent: newsletterConsent,
+            }),
+          });
+        } catch {
+          // Niekrytyczne: konto powstało, zapis można ponowić formularzem.
+        }
+      }
       toast.success(L.ok);
       navigate({ to: redirectTo });
     } catch (err) {
@@ -948,7 +978,11 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
 
         {showNewsletter && (
           <CheckboxRow checked={newsletter} onChange={setNewsletter} className={layout.wide}>
-            {newsletterLabel}
+            {newsletterConsent.isDefault ? (
+              <NewsletterConsentText lang={lang} />
+            ) : (
+              newsletterConsent.text
+            )}
           </CheckboxRow>
         )}
         {requireConsent && (

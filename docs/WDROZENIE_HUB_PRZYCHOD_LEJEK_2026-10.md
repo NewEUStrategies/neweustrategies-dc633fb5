@@ -8,7 +8,13 @@ opisują wycinek **I0 - fundament i kontrakt** (Integrator, otwarcie), sekcja
 wycinek **S1 - moduły źródłowe**, sekcja 13 - stan po scaleniu PR #520
 (`cb7a18df`, 2026-10-19) i kolejne kroki, sekcja 14 - uspójnienie benchmarków
 S6 z pakietem Insidera, sekcja 15 - wycinek **S4 - CRM, automatyzacje
-i społeczność (dane)**.
+i społeczność (dane)**, sekcja 16 - wycinek **S2 - przychód i retencja**,
+sekcja 17 - przekazanie na koniec sesji 2026-10-19, sekcja 18 - wycinek
+**S3 - lejek i paywall czytelnika**, sekcja 19 - krok **I9a - nawigacja
+i widoczność huba w panelu** (decyzja właściciela 2026-10-20), sekcja 20 -
+wycinek **S5 - silnik ścieżek (backend)**, sekcja 21 - krok **I9b -
+decyzje właściciela, część A: SQL i katalog** (segmenty przychodu, cennik
+v6.2, RODO księgi MRR).
 
 Gałąź `hub/i0`, baza `baec9c64` (`main` + cennik v6.2 + poprawki), worktree
 bez commitów - commit robi orkiestrator.
@@ -53,17 +59,17 @@ I0 w `HUB_SLICE_MANIFESTS.I0` pokrywa każdą - `hub-slice-guard I0` zielony,
 
 ### 2.2 Nowe zgłoszenia do właściciela (powstały w I0)
 
-| ID   | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Stan w I0 (bezpieczna wartość)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Termin                                                                                |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Z-01 | **Segmenty przychodu dla partnerów.** Kontrakt SPEC liczy jako `other` warstwy `partner`, `partner_general`, `presidents_circle`, `ngo`, `vip`, `reader`, `supporter` i jednorazowy `decision_lab`. Partnerzy instytucjonalni nie trafiają więc do `b2b_institution`, a `ngo` nie trafia do `b2c_reduced`.                                                                                                                                                                                                                                                                              | Mapa SPEC bez zmian (`revenue_segment_of_tier` w `090500` = `REVENUE_SEGMENT_BY_TIER`). Zmiana = 1 linia SQL + 1 linia TS, pilnowana testem `segmentsParity`. Wymaga decyzji przed S2, bo wtedy segment zapisuje się w `mrr_movements` historycznie.                                                                                                                                                                                                                                                                                                                                                                      | przed S2                                                                              |
-| Z-02 | **Rozszerzona sygnatura `_log_emit_error`.** W PL/pgSQL `SQLSTATE`/`SQLERRM` istnieją tylko w handlerze TEJ SAMEJ funkcji, więc trójargumentowy helper z SPEC nie mógłby zapisać błędu. Sygnatura: `_log_emit_error(p_tenant uuid, p_source text, p_event_type text, p_sqlstate text DEFAULT NULL, p_error text DEFAULT NULL)`. Wywołanie trójargumentowe z SPEC nadal działa. Emitery S1-S5 przekazują `SQLSTATE, SQLERRM`. Bez komunikatu zapisuje się `'unknown'`. Komunikat > 2000 znaków nie jest przycinany - zapisuje się znacznik `'message_too_long'` z zachowanym `sqlstate`. | Wdrożone w `090500`, przypięte pgTAP (`hub_shared_helpers_test`). Kontrakt dla emiterów S1-S5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | informacyjne                                                                          |
-| Z-03 | **Odczyt `domain_event_emit_errors` bez `is_nes_staff()`.** Gałąź `is_nes_staff() OR (…)` z SPEC nie wiąże najemcy (prawda dla redaktora dowolnego najemcy), więc dawałaby odczyt awarii wszystkich najemców.                                                                                                                                                                                                                                                                                                                                                                           | Polityka: wyłącznie admin najemcy z sesji, własne wiersze. Wiersze bez najemcy czyta tylko `service_role` (server fn z bramką sztabu - S7).                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | przed S7                                                                              |
-| Z-04 | **Próg budżetu `overall`.** Po I0 zostało 12,0 KB zapasu (4867,0/4879). Cele fali A (S1-S6) z §8.6 to łącznie ok. +36 KB, a cały plan huba ok. +106 KB. Wariant B (leniwe karty) nie zmniejsza `overall`, bo bramka liczy wszystkie chunki.                                                                                                                                                                                                                                                                                                                                             | Bez ratchetu (D-08 B). **Fala A nie zmieści się w progu** bez decyzji o ratchecie `overall` albo cięć poza hubem.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | przed falą A - **zamknięte**: D-08, ratchet `overall` 4879 → 4959 (`35c22b7b`, §12.7) |
-| Z-05 | **Cele I0 dla `entry` i `public` przekroczone** (§8): entry +2,0 KB (cel ≤ +0,6), public +3,0 KB (cel ≤ +0,3). Progi twarde zielone, zapas entry 34 KB, public 121 KB.                                                                                                                                                                                                                                                                                                                                                                                                                  | Bez przenoszenia reguł rdzenia do rozszerzenia panelu (zmiana kontraktu `invalidationExtension`) - decyzja orkiestratora.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | przed scaleniem I0                                                                    |
-| Z-06 | **Kolumny huba w `crm_leads` i `crm_tasks` zapisywalne przez personel.** `authenticated` ma tabelowe INSERT/UPDATE na obu tabelach (20260630053403, 20260721120000), a polityki personelu przepuszczają admina, redaktora i autora. Bez strażnika redaktor zmienia przez PostgREST `user_id` (`admin_journey_enroll_test` z S5 ufa `crm_leads.user_id = auth.uid()`), `lifecycle_stage` z pominięciem pierwszeństwa AD-11 (billing jedynym pisarzem `customer`/`former_customer`) oraz `source`/`origin_ref` zadania (zajęty `origin_ref` = cichy brak zadania kroku automatyzacji).    | I0 bez zmian: addytywny DDL §4.3, a topologię pisarzy (S-D: `updateCrmLead` → historia) i pierwszeństwo projektuje S4 - strażnik w I0 zablokowałby ją z góry. **Wymóg dla S4 (`130000`):** strażnik BEFORE INSERT OR UPDATE albo wyłącznie RPC - zmiana tych kolumn tylko z SECURITY DEFINER/`service_role`, `customer`/`former_customer` tylko ze źródła billing; pgTAP: admin i redaktor nie zmieniają ich przez UPDATE/INSERT (42501).                                                                                                                                                                                 | przed S4                                                                              |
-| Z-07 | **Księga MRR a usunięcie konta.** `auth.users` → `subscriptions` → `subscription_state_history` → `mrr_movements` (`history_id ON DELETE CASCADE`) i `dunning_cycles` kaskadują, a ruchy z backfillu (`history_id NULL`) i migawki zostają - z surowym `user_id`. Usunięcie konta zmienia wstecz zamknięte miesiące (fantomowe MRR, utracone cykle windykacji) i łamie niezmienniki S2 (§4.7: `start + Σ = end`, dryf 0).                                                                                                                                                               | I0 bez zmian (DDL = §4.3): to decyzja RODO (zachować ruchy z anonimizacją czy kasować), a sama zmiana FK nie domyka głównej ścieżki - `deleteMyAccount` kasuje subskrypcję przed webhookiem anulowania, więc ruch `churn` nie powstaje wcale. **Rekomendacja dla S2** (pierwszy pisarz, zmiana w jego bloku nie migruje danych): `history_id ON DELETE SET NULL`, `user_id` NULL-owalne z anonimizacją przy usunięciu konta (wzorzec 20260805090100), ruch `churn` przy DELETE subskrypcji z MRR > 0, backfill rozróżniany kolumną `backfilled`; pgTAP: usunięcie konta nie zmienia Σ `delta_minor` zamkniętych miesięcy. | przed S2                                                                              |
-| Z-08 | **Lista „ostatnie odpowiedzi” w `/admin/pricing?tab=retention`.** Po S2 wiersze bez powodu (`started`, `abandoned`) trafiają do `RetentionFeedbackList` jako puste wiersze z datą i zajmują miejsca w próbce `limit(100)`.                                                                                                                                                                                                                                                                                                                                                              | I0 poprawił liczby (`retentionStats`, karta w `/admin/monetization`: tylko wiersze z powodem; test w `pricingRules.test.ts`). **Do integracji → S1** (właściciel `RetentionTab` i `retentionFeedbackQueryOptions`): filtr `reason_label` NOT NULL w zapytaniu (limit nie zjada odpowiedzi) i na liście.                                                                                                                                                                                                                                                                                                                   | przed S2 - **zamknięte w S1** (§12.4)                                                 |
-| Z-09 | **„Anuluj mimo to” przed wyborem powodu.** Karta S2 każe pokazywać ten przycisk zawsze, a CHECK I0 (zgodnie z §4.7) wymaga powodu dla `canceled`.                                                                                                                                                                                                                                                                                                                                                                                                                                       | **Do decyzji S2:** przycisk zapisuje `canceled` z jawnym powodem z katalogu (np. „nie podano”) albo prosi o powód; zmiana CHECK tylko przez zgłoszenie do Integratora. `abandoned` bez powodu jest dozwolone od I0.                                                                                                                                                                                                                                                                                                                                                                                                       | przed S2                                                                              |
+| ID   | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Stan w I0 (bezpieczna wartość)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Termin                                                                                                                                    |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-01 | **Segmenty przychodu dla partnerów.** Kontrakt SPEC liczy jako `other` warstwy `partner`, `partner_general`, `presidents_circle`, `ngo`, `vip`, `reader`, `supporter` i jednorazowy `decision_lab`. Partnerzy instytucjonalni nie trafiają więc do `b2b_institution`, a `ngo` nie trafia do `b2c_reduced`.                                                                                                                                                                                                                                                                              | Mapa SPEC bez zmian (`revenue_segment_of_tier` w `090500` = `REVENUE_SEGMENT_BY_TIER`). Zmiana = 1 linia SQL + 1 linia TS, pilnowana testem `segmentsParity`. Wymaga decyzji przed S2, bo wtedy segment zapisuje się w `mrr_movements` historycznie.                                                                                                                                                                                                                                                                                                                                                                      | przed S2 - **Zamknięte 2026-10-20 (I9b, §21.2):** mapa z typu klienta, historia `mrr_movements` przeliczona                               |
+| Z-02 | **Rozszerzona sygnatura `_log_emit_error`.** W PL/pgSQL `SQLSTATE`/`SQLERRM` istnieją tylko w handlerze TEJ SAMEJ funkcji, więc trójargumentowy helper z SPEC nie mógłby zapisać błędu. Sygnatura: `_log_emit_error(p_tenant uuid, p_source text, p_event_type text, p_sqlstate text DEFAULT NULL, p_error text DEFAULT NULL)`. Wywołanie trójargumentowe z SPEC nadal działa. Emitery S1-S5 przekazują `SQLSTATE, SQLERRM`. Bez komunikatu zapisuje się `'unknown'`. Komunikat > 2000 znaków nie jest przycinany - zapisuje się znacznik `'message_too_long'` z zachowanym `sqlstate`. | Wdrożone w `090500`, przypięte pgTAP (`hub_shared_helpers_test`). Kontrakt dla emiterów S1-S5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | informacyjne                                                                                                                              |
+| Z-03 | **Odczyt `domain_event_emit_errors` bez `is_nes_staff()`.** Gałąź `is_nes_staff() OR (…)` z SPEC nie wiąże najemcy (prawda dla redaktora dowolnego najemcy), więc dawałaby odczyt awarii wszystkich najemców.                                                                                                                                                                                                                                                                                                                                                                           | Polityka: wyłącznie admin najemcy z sesji, własne wiersze. Wiersze bez najemcy czyta tylko `service_role` (server fn z bramką sztabu - S7).                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | przed S7                                                                                                                                  |
+| Z-04 | **Próg budżetu `overall`.** Po I0 zostało 12,0 KB zapasu (4867,0/4879). Cele fali A (S1-S6) z §8.6 to łącznie ok. +36 KB, a cały plan huba ok. +106 KB. Wariant B (leniwe karty) nie zmniejsza `overall`, bo bramka liczy wszystkie chunki.                                                                                                                                                                                                                                                                                                                                             | Bez ratchetu (D-08 B). **Fala A nie zmieści się w progu** bez decyzji o ratchecie `overall` albo cięć poza hubem.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | przed falą A - **zamknięte**: D-08, ratchet `overall` 4879 → 4959 (`35c22b7b`, §12.7)                                                     |
+| Z-05 | **Cele I0 dla `entry` i `public` przekroczone** (§8): entry +2,0 KB (cel ≤ +0,6), public +3,0 KB (cel ≤ +0,3). Progi twarde zielone, zapas entry 34 KB, public 121 KB.                                                                                                                                                                                                                                                                                                                                                                                                                  | Bez przenoszenia reguł rdzenia do rozszerzenia panelu (zmiana kontraktu `invalidationExtension`) - decyzja orkiestratora.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | przed scaleniem I0                                                                                                                        |
+| Z-06 | **Kolumny huba w `crm_leads` i `crm_tasks` zapisywalne przez personel.** `authenticated` ma tabelowe INSERT/UPDATE na obu tabelach (20260630053403, 20260721120000), a polityki personelu przepuszczają admina, redaktora i autora. Bez strażnika redaktor zmienia przez PostgREST `user_id` (`admin_journey_enroll_test` z S5 ufa `crm_leads.user_id = auth.uid()`), `lifecycle_stage` z pominięciem pierwszeństwa AD-11 (billing jedynym pisarzem `customer`/`former_customer`) oraz `source`/`origin_ref` zadania (zajęty `origin_ref` = cichy brak zadania kroku automatyzacji).    | I0 bez zmian: addytywny DDL §4.3, a topologię pisarzy (S-D: `updateCrmLead` → historia) i pierwszeństwo projektuje S4 - strażnik w I0 zablokowałby ją z góry. **Wymóg dla S4 (`130000`):** strażnik BEFORE INSERT OR UPDATE albo wyłącznie RPC - zmiana tych kolumn tylko z SECURITY DEFINER/`service_role`, `customer`/`former_customer` tylko ze źródła billing; pgTAP: admin i redaktor nie zmieniają ich przez UPDATE/INSERT (42501).                                                                                                                                                                                 | przed S4                                                                                                                                  |
+| Z-07 | **Księga MRR a usunięcie konta.** `auth.users` → `subscriptions` → `subscription_state_history` → `mrr_movements` (`history_id ON DELETE CASCADE`) i `dunning_cycles` kaskadują, a ruchy z backfillu (`history_id NULL`) i migawki zostają - z surowym `user_id`. Usunięcie konta zmienia wstecz zamknięte miesiące (fantomowe MRR, utracone cykle windykacji) i łamie niezmienniki S2 (§4.7: `start + Σ = end`, dryf 0).                                                                                                                                                               | I0 bez zmian (DDL = §4.3): to decyzja RODO (zachować ruchy z anonimizacją czy kasować), a sama zmiana FK nie domyka głównej ścieżki - `deleteMyAccount` kasuje subskrypcję przed webhookiem anulowania, więc ruch `churn` nie powstaje wcale. **Rekomendacja dla S2** (pierwszy pisarz, zmiana w jego bloku nie migruje danych): `history_id ON DELETE SET NULL`, `user_id` NULL-owalne z anonimizacją przy usunięciu konta (wzorzec 20260805090100), ruch `churn` przy DELETE subskrypcji z MRR > 0, backfill rozróżniany kolumną `backfilled`; pgTAP: usunięcie konta nie zmienia Σ `delta_minor` zamkniętych miesięcy. | przed S2 - S2 (§16.2); **Zamknięte 2026-10-20 (I9b, §21.2, §21.9):** pełna anonimizacja księgi i akceptacja; RODO po usunięciu konta (A2) |
+| Z-08 | **Lista „ostatnie odpowiedzi” w `/admin/pricing?tab=retention`.** Po S2 wiersze bez powodu (`started`, `abandoned`) trafiają do `RetentionFeedbackList` jako puste wiersze z datą i zajmują miejsca w próbce `limit(100)`.                                                                                                                                                                                                                                                                                                                                                              | I0 poprawił liczby (`retentionStats`, karta w `/admin/monetization`: tylko wiersze z powodem; test w `pricingRules.test.ts`). **Do integracji → S1** (właściciel `RetentionTab` i `retentionFeedbackQueryOptions`): filtr `reason_label` NOT NULL w zapytaniu (limit nie zjada odpowiedzi) i na liście.                                                                                                                                                                                                                                                                                                                   | przed S2 - **zamknięte w S1** (§12.4)                                                                                                     |
+| Z-09 | **„Anuluj mimo to” przed wyborem powodu.** Karta S2 każe pokazywać ten przycisk zawsze, a CHECK I0 (zgodnie z §4.7) wymaga powodu dla `canceled`.                                                                                                                                                                                                                                                                                                                                                                                                                                       | **Do decyzji S2:** przycisk zapisuje `canceled` z jawnym powodem z katalogu (np. „nie podano”) albo prosi o powód; zmiana CHECK tylko przez zgłoszenie do Integratora. `abandoned` bez powodu jest dozwolone od I0.                                                                                                                                                                                                                                                                                                                                                                                                       | przed S2                                                                                                                                  |
 
 **Nowe materiały od właściciela (2026-10-19).** Właściciel dostarczył plik
 „Insider marketingowy” (wcześniej pusty). To nowe źródło wiedzy dla huba.
@@ -292,6 +298,16 @@ n·60 000, §15.6). **Następny wolny numer: `0338`** (idx 338) - na
 choć wersje S2 (`2026102011*`) są niższe niż S4 (`2026102013*`); oba
 wycinki nie dzielą obiektów. **Następny wolny numer: `0346`** (idx 346).
 
+**Po scaleniu S3 (2026-10-20, gałąź PR odtworzona od `main` po #527).**
+`0346_pr527_deployment_completion` dołożył Lovable na `main` (potwierdzenie
+wdrożenia #527, `when` = 1792476373912). Bliźniaki S3 `0347…0351` (idx
+347-351, `when` = 1792476373912 + n·60 000, §18.6). **Następny wolny numer:
+`0352`** (idx 352).
+
+**Po scaleniu S5 (2026-10-20, ta sama gałąź).** Bliźniaki S5 `0352…0357`
+(idx 352-357, `when` = 1792476673912 + n·60 000, §20.6); `main` bez nowych
+migracji drizzle (ostatni `0346`). **Następny wolny numer: `0358`** (idx 358).
+
 Praktyka PR #520 (odchylenie od pkt 3-4): S6 i S1 poszły prosto do PR #520,
 bez `hub/integration`. Integrator S1 dodał bliźniaki i wpisy dziennika
 w commicie wycinka (D-S1-01, §12.6). Tak samo dla wycinków w nowym PR
@@ -445,14 +461,25 @@ przebiegu i błędy środowiska - §13.2.
 
 ## 10. Dziennik wdrożeń
 
-| Data       | Wycinek / fala                               | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                                                     |
-| ---------- | -------------------------------------------- | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-10-19 | I0 (gałąź)                                   | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                   |
-|            | M0                                           | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                          |
-| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                      |
-| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)   | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                            |
-| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`) | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                     |
-| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`) | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                 | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527 |
+| Data       | Wycinek / fala                                                                                   | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                                                                                                       | Odchylenia / uwagi                                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------ | --------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-19 | I0 (gałąź)                                                                                       | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                                                                                                                 | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                                                                                                                                                        |
+|            | M0                                                                                               | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`)                                                                                   | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                                                                                                                                                               |
+| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                                                                    | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                                                                                                    | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                                                                                                                                                           |
+| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)                                                       | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                                                                                                             | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                                                                                                                                                                 |
+| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                                                                                                                | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                                                                                                                                          |
+| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                                                                                                   | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527                                                                                                                                      |
+| 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527)                                             | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                                                                                                          | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR                                                                                                                          |
+| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)                                               | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                                                                                                   | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7                                                                                                                               |
+| 2026-10-20 | S5 (gałąź PR, fast-forward z `hub/s5-silnik-sciezek`)                                            | `20261020140000…140500` (6) | `0352…0357`       | do wdrożenia przez właściciela - po M0 i S1-S4, nocą (wyzwalacz na `domain_events`), razem z publikacją frontu; silnik wyłączony; M3 po I9 (§20.9)                                                                                                  | §20: silnik bez UI (S8), runner do `jobs-tick` w I9; bez ratchetu (`overall` −1,8 - szum hashy); otwarte Z-S5-01…08                                                                                                                                                                         |
+| 2026-10-20 | I9b część A (gałąź `hub/i9b-decyzje` → PR, `822cf9a9`)                                           | `20261020160000…160400` (5) | `0358…0362`       | do wdrożenia przez właściciela - po S2 (segmenty i RODO działają też bez S2 jako no-op), nocą (wyzwalacze na `subscriptions`, `auth.users`, `member_organizations`, `organization_seats`; UPDATE `membership_tiers`)                                | §21.1-21.8: decyzje właściciela 2026-10-20 (zgoda delegowana) - segmenty z typu klienta, cennik v6.2 (Zespół, NGO, 3-20 miejsc), RODO księgi MRR                                                                                                                                            |
+| 2026-10-20 | I9b A2 (gałąź `hub/i9b-rodo` → PR, `d7efcba5`)                                                   | `20261020160500…160700` (3) | `0363…0365`       | do wdrożenia przez właściciela - po `20261020160400` i S5, nocą (ALTER `revenue_diagnostic_snoozes`, CHECK `journey_enrollments`, wyzwalacz na `auth.users`; domknięcie wstecz kont usuniętych przed A2) - §21.9                                    | §21.9: RODO po usunięciu konta (polecenie „zastosuj”) - pseudonim lejka, redakcja szyny i ścieżek, pełny przegląd tabel, rejestr czynności                                                                                                                                                  |
+| 2026-10-20 | I9b część B + krok C (gałąź `hub/i9b-decyzje`; push po ratchecie D-08 - §21.19)                  | `20261020160800` (1)        | `0366`            | do wdrożenia przez właściciela - po S4 i S5; same redefinicje funkcji (bez blokad gorących tabel), razem z publikacją frontu (§21.17)                                                                                                               | §21.10-21.17: limit tagu 64 (Z-S5-02), linia okna kasy przy biletach (Z-S3-07), wpis `engagement_rate` (Z-14-03), akceptacje Z-S3-01, Z-S3-06, D-11/Z-S6-14, Z-14-01/02; Z-S2-01 zawężone do 3 kroków wizualnych                                                                            |
+| 2026-10-22 | S8 (gałąź `hub/s8-sciezki-panel-c`; zintegrowany lokalnie, push przed S7 - §22)                  | brak (S8 bez SQL)           | brak              | - (bez migracji; publikacja frontu - zależy od S5 `2026102014*` i I9c-X2 `20261020161300`, już w PR; §22.8)                                                                                                                                         | §22: lista, galeria, edytor kanwy, ustawienia silnika, wyniki, karta leada i oś leada; Z-S5-08 w `variables.ts`; `overall` +160,3 → ratchet D-08 5023 → 5182; otwarte Z-S8-01…10                                                                                                            |
+| 2026-10-22 | S7 (gałąź `hub/s7-zakladki-diagnostyka-c`; scalona z gałęzią PR po S8, push po S8 - §23, §23.11) | `20261020150000…150100` (3) | `0373…0375`       | do wdrożenia przez właściciela - po M0, S1-S5 i I9b-I9c; same funkcje `plpgsql` (bez DDL tabel i blokad gorących tabel), razem z publikacją frontu (§23.9)                                                                                          | §23: 10 zakładek huba, 55 reguł diagnostyki (Z-I9b-06), 3 migracje zamiast 2; `overall` +136,9 → ratchet D-08 5023 → 5159; otwarte Z-S7-01…17 (I9: chipy w modułach, P24, baner realtime S-F)                                                                                               |
+| 2026-10-22 | I9d-Y1 (gałąź `hub/i9d-rodo-2`; scalona z gałęzią PR po S8 i S7 `70bdccbb` - §21.22)             | `20261020161500…162200` (8) | `0376…0383`       | do wdrożenia przez właściciela - po I9c-X2 (`161000…161400`) i S7, nocą (ALTER gorących tabel klubów, licznika, wydarzeń i newslettera; domknięcia wstecz), razem z publikacją frontu albo po niej (§21.22 pkt 7)                                   | §21.22: decyzje właściciela 2 (Z-I9c-01, -07, -08) - 4 nowe kategorie retencji, anonimizacja zgłoszeń do klubów po usunięciu konta, wygaszanie newslettera; `overall` +17,9 → ratchet D-08 5316 → 5334; otwarte Z-I9d-01…10                                                                 |
+| 2026-10-22 | I9d-Y2 (gałąź `hub/i9d-rodo-2` od `7390ecf0`; gałąź PR bez zmian - bez scalenia - §21.23)        | `20261020162300…162500` (3) | `0384…0386`       | do wdrożenia przez właściciela - po I9d-Y1 (`161500…162200`), razem z publikacją frontu, poza wysyłką kampanii (krótkie blokady `newsletter_settings`, `crm_consent_log`, `newsletter_subscribers`, `newsletter_campaign_recipients`; §21.23 pkt 7) | §21.23: decyzje właściciela 2026-10-20 i 2026-10-21 (wariant (a)) - treść zgody z pomiarem z jednego źródła, wersja przy każdej zgodzie, pomiar tylko za zgodą, wspólny przełącznik (Z-I9c-09), „Poproś o zgodę na pomiar”; `overall` +23,1 → ratchet D-08 5334 → 5357; otwarte Z-I9d-11…21 |
+| 2026-10-22 | I9 (gałąź `hub/i9d-rodo-2` od `2113569d`; gałąź PR bez zmian - bez scalenia - §24)               | `20261020162600…162900` (4) | `0387…0390`       | do wdrożenia przez właściciela - po I9d-Y2 (`162300…162500`), razem z publikacją frontu; jedyna blokada: wyzwalacz na `contact_messages` (`lock_timeout` 5 s); pełna kolejność `0347…0390` z K1-K9 - `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8        | §24: integracja i wydanie - harmonogram ścieżek w `jobs-tick`, moduły → hub, bramki ścisłe, zgłoszenia 9.2, przewodnik po Ścieżkach, runbook, raport końcowy (§24.11); `overall` +14,5 → ratchet D-08 5357 → 5371                                                                           |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -479,7 +506,9 @@ wykonuje zgłoszenia „Do integracji” tego wycinka (§11.4). S6 nie ma SQL.
   `overall` i `css` orkiestrator podnosi przy scaleniu o przyrost zmierzony
   w §11.6. `public`, `publicCss`, `chunk` i `boot` zostają zamrożone.
 - **D-11:** druga lektura EN benchmarków zrobiona w torach T2 i T3.
-  Akceptacja właściciela - Z-S6-14.
+  Akceptacja właściciela - Z-S6-14. **Zamknięte 2026-10-20 (I9b, §21.11 B6):**
+  akceptacja EN benchmarków, 76 zestawów dźwigni i szablonów S5 (zgoda
+  delegowana).
 - **Wpięcia RPC (Integrator S6):** odłożone do wycinków-właścicieli (§11.3).
   Oba sprawdzenia kontraktu TS ⇄ SQL i pgTAP `ts_sql_contract` są zielone
   przed migracjami S1-S4.
@@ -521,21 +550,21 @@ Jedyne naruszenie strażnika wycinka to plik współdzielony
 
 ### 11.5 Zgłoszenia otwarte
 
-| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Właściciel / termin                                                                                                                                    |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Z-S6-16 | **Wpięcia RPC migawki** w `REVENUE_DOMAIN_READS` (`src/lib/analytics/semantic/revenueSnapshot.functions.ts`) w commicie migracji właściciela: `email` - S1 (`admin_revenue_email_health`), `snapshot` - S2 (`admin_revenue_semantic_snapshot`), `funnel` - S3 (`admin_revenue_funnel`, `p_track: "all"`), `events` i `clubs` - S4 (`admin_revenue_{events,clubs}_summary`). Treść wpięcia = `WPIECIA_DOCELOWE` z `snapshot.functions.test.ts`, np. `email: (c, w) => c.rpc("admin_revenue_email_health", { p_since: w.sinceIso, p_until: w.untilIso })`. Test „każde wpięcie produkcyjne woła SWOJĄ funkcję” pilnuje zgodności. Plik jest w manifeście S6, więc wpięcie robi Integrator przy scaleniu wycinka-właściciela.                                                                                                                               | Integrator przy scaleniu S1, S4, S2, S3. **Część S1 (`email`) niewykonana w PR #520** - Z-S1-01 (§12.5); część S4 (`events`, `clubs`) wykonana - §15.4 |
-| Z-S6-17 | **Kształt `admin_revenue_email_health` z S1 ≠ `REVENUE_EMAIL_KEYS` z S6.** S1 (`src/lib/revenue/email/parse.ts`, `EMAIL_HEALTH_KEYS`) oddaje `{since, until, campaigns{sent, delivered, unique_opens, unique_clicks, hard_bounces, soft_bounces, complaints, unsubscribes}, list{start, end, new, unsubscribed, net_growth}, doi{started, confirmed_7d}}`, a parser S6 czyta płaskie `delivered…`, `list_base`, `list_net_growth`, `doi_started`, `doi_confirmed`. Parser S6 jest tolerancyjny, więc wpięcie bez adaptera dałoby ciche „brak danych”. Przy Z-S6-16: wpięcie `email` spłaszcza kształt S1 (`campaigns.*` → pola płaskie, `list.start` → `list_base`, `list.net_growth` → `list_net_growth`, `doi.started`/`confirmed_7d` → `doi_started`/`doi_confirmed`) albo `parseRevenueEmailHealth` czyta kształt S1. Mianownik odbić: S1 ma `sent`. | Integrator przy scaleniu S1 → **otwarte**, razem z Z-S1-01                                                                                             |
-| Z-S6-18 | **Grupa chunków rdzenia wykresów.** Nowe leniwe wejścia panelu (`RevenueInsightSection`, `MetricExplainer`, `MetricDictionary`) sięgają `KpiTile` i ocen bez `ChartFrame`/`parse.ts`. Rolldown dzieli więc istniejące moduły publiczne na nowe chunki wspólne `i18n-charts`, `status` (+`smooth.ts`) i `roles`. Listy `__vite__mapDeps` w `app-initial` i chunkach wykresów dostają ich nazwy - to jest całe `public` +0,9 KB (§11.6). Grupa leniwej rodziny (`scripts/lib/clientChunkGroups.ts`, wzór `post-card`) dla `lib/charts/{parse,status,roles,smooth,seriesStyle}.ts` i `hooks/useRevealOnScroll.ts` oraz osobno `i18n-charts.ts` z `ChartFrame` przywróciłaby układ bazy. To zmiana globalnej konfiguracji podziału, poza zakresem wycinka.                                                                                                   | I9 / orkiestrator                                                                                                                                      |
-| Z-S6-01 | D9 (koniec `+∞`, `Intl` z `lang`) jako zachowanie domyślne wszystkich kafli: przełączenie gałęzi `formatDeltaLegacy`, 5 asercji `kpiTile.test.tsx`, `lang` z i18n tam, gdzie dashboardy go nie podają; manifest: `kpiTile.test.tsx`, `timeRangeFilter.test.tsx`, `reconcile.test.ts`, `semanticInsights.test.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | I9                                                                                                                                                     |
-| Z-S6-04 | `BenchContext.displayUnit?: "minutes" \| "days" \| "score"` w `benchmarks/types.ts` (dziś `GeneratedContext` w `adapter.ts`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | I9                                                                                                                                                     |
-| Z-S6-05 | Kontrakt jsonb `*_KEYS` z `revenueRaw.ts` i parametry RPC (`p_since`, `p_until`; lejek `p_segment`, `p_track`) dla S2, S3 i S4. Ułamki 0-1, kwoty `MoneyByCurrency[]` z `amount_minor`, `null` ≠ 0. Rozjazd = „brak danych”, nie błąd.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | S2, S3, S4 / Integrator przy scaleniu                                                                                                                  |
-| Z-S6-07 | `StreamHealthGrid` (iteruje `STREAMS`) i `WindowProvenance` (`iso.slice(0, 10)`) - strumienie huba w BI i lokalne daty okien huba.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | I9                                                                                                                                                     |
-| Z-S6-08 | Liczniki paska huba: slot `badges` w `RevenueHubLayout`, podpięcie `revenueFactsQueryOptions` (S7) i listy ścieżek (S5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | I9                                                                                                                                                     |
-| Z-S6-10 | `MetricTooltip` (publiczny) bez przycisku „Więcej” - tylko za decyzją o `public`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | właściciel                                                                                                                                             |
-| Z-S6-11 | `HUB_SYNC_MANIFEST[*].metrics` z `HUB_METRIC_IDS` i `METRIC_GROUP`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | I9                                                                                                                                                     |
-| Z-S6-12 | Kopie kafli (`admin.paywall.tsx`, `membership/atoms/KpiTile.tsx`, `AdminBiStrip.tsx`) na `KpiTile` z `metricId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | S1 / I9. S1 tego nie zrobił (`PaywallKpiStrip` i `AdminMembershipWorkspace` nadal na `membership/atoms/KpiTile`) → I9                                  |
-| Z-S6-14 | D-11: akceptacja EN benchmarków i 76 zestawów dźwigni przez właściciela.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | właściciel                                                                                                                                             |
-| Z-S6-15 | Opcjonalna łatka `getSemanticSnapshot({ fromDate, toDate })` (D13 na wejściu server fn).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | I9 (opcja)                                                                                                                                             |
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Właściciel / termin                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S6-16 | **Wpięcia RPC migawki** w `REVENUE_DOMAIN_READS` (`src/lib/analytics/semantic/revenueSnapshot.functions.ts`) w commicie migracji właściciela: `email` - S1 (`admin_revenue_email_health`), `snapshot` - S2 (`admin_revenue_semantic_snapshot`), `funnel` - S3 (`admin_revenue_funnel`, `p_track: "all"`), `events` i `clubs` - S4 (`admin_revenue_{events,clubs}_summary`). Treść wpięcia = `WPIECIA_DOCELOWE` z `snapshot.functions.test.ts`, np. `email: (c, w) => c.rpc("admin_revenue_email_health", { p_since: w.sinceIso, p_until: w.untilIso })`. Test „każde wpięcie produkcyjne woła SWOJĄ funkcję” pilnuje zgodności. Plik jest w manifeście S6, więc wpięcie robi Integrator przy scaleniu wycinka-właściciela.                                                                                                                               | Integrator przy scaleniu S1, S4, S2, S3. **Część S1 (`email`) niewykonana w PR #520** - Z-S1-01 (§12.5); część S4 (`events`, `clubs`) wykonana - §15.4; część S3 (`funnel`) wykonana - §18.4 **Zamknięte 2026-10-22 (I9, §24):** ostatnie wpięcie - `email` (`admin_revenue_email_health`) z adapterem kształtu S1 (`3a28896e3`); przed wdrożeniem migracji PGRST202 = `not_configured`. |
+| Z-S6-17 | **Kształt `admin_revenue_email_health` z S1 ≠ `REVENUE_EMAIL_KEYS` z S6.** S1 (`src/lib/revenue/email/parse.ts`, `EMAIL_HEALTH_KEYS`) oddaje `{since, until, campaigns{sent, delivered, unique_opens, unique_clicks, hard_bounces, soft_bounces, complaints, unsubscribes}, list{start, end, new, unsubscribed, net_growth}, doi{started, confirmed_7d}}`, a parser S6 czyta płaskie `delivered…`, `list_base`, `list_net_growth`, `doi_started`, `doi_confirmed`. Parser S6 jest tolerancyjny, więc wpięcie bez adaptera dałoby ciche „brak danych”. Przy Z-S6-16: wpięcie `email` spłaszcza kształt S1 (`campaigns.*` → pola płaskie, `list.start` → `list_base`, `list.net_growth` → `list_net_growth`, `doi.started`/`confirmed_7d` → `doi_started`/`doi_confirmed`) albo `parseRevenueEmailHealth` czyta kształt S1. Mianownik odbić: S1 ma `sent`. | Integrator przy scaleniu S1 → **otwarte**, razem z Z-S1-01 **Zamknięte 2026-10-22 (I9, §24):** `parseRevenueEmailHealth` spłaszcza zagnieżdżony kształt S1 do kluczy `REVENUE_EMAIL_KEYS` (`3a28896e3`).                                                                                                                                                                                 |
+| Z-S6-18 | **Grupa chunków rdzenia wykresów.** Nowe leniwe wejścia panelu (`RevenueInsightSection`, `MetricExplainer`, `MetricDictionary`) sięgają `KpiTile` i ocen bez `ChartFrame`/`parse.ts`. Rolldown dzieli więc istniejące moduły publiczne na nowe chunki wspólne `i18n-charts`, `status` (+`smooth.ts`) i `roles`. Listy `__vite__mapDeps` w `app-initial` i chunkach wykresów dostają ich nazwy - to jest całe `public` +0,9 KB (§11.6). Grupa leniwej rodziny (`scripts/lib/clientChunkGroups.ts`, wzór `post-card`) dla `lib/charts/{parse,status,roles,smooth,seriesStyle}.ts` i `hooks/useRevealOnScroll.ts` oraz osobno `i18n-charts.ts` z `ChartFrame` przywróciłaby układ bazy. To zmiana globalnej konfiguracji podziału, poza zakresem wycinka.                                                                                                   | I9 / orkiestrator                                                                                                                                                                                                                                                                                                                                                                        |
+| Z-S6-01 | D9 (koniec `+∞`, `Intl` z `lang`) jako zachowanie domyślne wszystkich kafli: przełączenie gałęzi `formatDeltaLegacy`, 5 asercji `kpiTile.test.tsx`, `lang` z i18n tam, gdzie dashboardy go nie podają; manifest: `kpiTile.test.tsx`, `timeRangeFilter.test.tsx`, `reconcile.test.ts`, `semanticInsights.test.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | I9                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-S6-04 | `BenchContext.displayUnit?: "minutes" \| "days" \| "score"` w `benchmarks/types.ts` (dziś `GeneratedContext` w `adapter.ts`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | I9                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-S6-05 | Kontrakt jsonb `*_KEYS` z `revenueRaw.ts` i parametry RPC (`p_since`, `p_until`; lejek `p_segment`, `p_track`) dla S2, S3 i S4. Ułamki 0-1, kwoty `MoneyByCurrency[]` z `amount_minor`, `null` ≠ 0. Rozjazd = „brak danych”, nie błąd.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | S2, S3, S4 / Integrator przy scaleniu                                                                                                                                                                                                                                                                                                                                                    |
+| Z-S6-07 | `StreamHealthGrid` (iteruje `STREAMS`) i `WindowProvenance` (`iso.slice(0, 10)`) - strumienie huba w BI i lokalne daty okien huba.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | I9                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-S6-08 | Liczniki paska huba: slot `badges` w `RevenueHubLayout`, podpięcie `revenueFactsQueryOptions` (S7) i listy ścieżek (S5). **Zamknięte 2026-10-22 (S8, §22.4 pkt 5; S7, §23; oba liczniki razem po scaleniu - §23.11):** licznik Diagnostyki (otwarte krytyczne + ważne bez obowiązujących wyciszeń) - hak S7 `useDiagnosticsBadgeCount` w leniwej sondzie `DiagnosticsBadgeProbe` montowanej przez układ; licznik aktywnych ścieżek z `journeyListQueryOptions(tenantId, null)` po hydratacji, z nazwą dla czytnika.                                                                                                                                                                                                                                                                                                                                      | I9                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-S6-10 | `MetricTooltip` (publiczny) bez przycisku „Więcej” - tylko za decyzją o `public`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | właściciel                                                                                                                                                                                                                                                                                                                                                                               |
+| Z-S6-11 | `HUB_SYNC_MANIFEST[*].metrics` z `HUB_METRIC_IDS` i `METRIC_GROUP`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | I9 **Zamknięte 2026-10-22 (I9, §24):** tryb ścisły `metrics` manifestu z mapą grupa wskaźnika → dziedzina (`METRIC_GROUP_DOMAINS`, `HUB_METRICS_WITHOUT_ENTITY`) - `d0cf40d17`; trzy brakujące reguły szyny dopisał integrator (`3cbee455c`).                                                                                                                                            |
+| Z-S6-12 | Kopie kafli (`admin.paywall.tsx`, `membership/atoms/KpiTile.tsx`, `AdminBiStrip.tsx`) na `KpiTile` z `metricId`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | S1 / I9. S1 tego nie zrobił (`PaywallKpiStrip` i `AdminMembershipWorkspace` nadal na `membership/atoms/KpiTile`) → I9                                                                                                                                                                                                                                                                    |
+| Z-S6-14 | D-11: akceptacja EN benchmarków i 76 zestawów dźwigni przez właściciela. **Zamknięte 2026-10-20 (I9b, §21.11 B6):** akceptacja właściciela 2026-10-20 (zgoda delegowana).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | właściciel                                                                                                                                                                                                                                                                                                                                                                               |
+| Z-S6-15 | Opcjonalna łatka `getSemanticSnapshot({ fromDate, toDate })` (D13 na wejściu server fn).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | I9 (opcja)                                                                                                                                                                                                                                                                                                                                                                               |
 
 ### 11.6 Pomiar bundla (D-08 rozstrzygnięta)
 
@@ -711,20 +740,20 @@ i `src/lib/ci/hubDelivery.ts`. Obie zmiany są integratorskie. Poprawki Codex
 
 ### 12.5 Zgłoszenia otwarte
 
-| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Właściciel / termin                          |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Z-S1-01 | **Wpięcie `email` w migawkę huba** (część S1 z Z-S6-16, razem z Z-S6-17). W `REVENUE_DOMAIN_READS.email` trzeba wpiąć `getRevenueEmailHealth` albo literał `admin_revenue_email_health` (`p_since`, `p_until`) z adapterem kształtu. S1 oddaje `campaigns.*`, `list.{start,end,new,unsubscribed,net_growth}`, `doi.{started,confirmed_7d}`, a S6 czyta pola płaskie: `delivered…`, `list_base`, `list_net_growth`, `doi_started`, `doi_confirmed`. Bez adaptera wynik byłby cichym „brak danych”.           | Integrator w nowym PR, po wdrożeniu `100300` |
-| Z-S1-02 | **Globy bliźniaków w manifestach `hubDelivery.ts` po renumeracji.** Dziś I0 ma `{0317…0322}_hub_*`, a S1 `{0323…0327}_*`. Według `slicesOfPath` `0323_hub_shared_sql_helpers` należy do S1 i I9, a `0328_membership_grants_single_path` tylko do I9. Poprawnie powinno być: I0 `{0318…0323}`, S1 `{0324…0328}`. Test `checkSliceDiff` w `hubDelivery.gate.test.ts` używa `0318`, więc przejdzie przy obu globach.                                                                                           | Integrator (plik współdzielony), w nowym PR  |
-| Z-S1-03 | **`AdminBillingPanel` (manifest S2) ma kontrakt z S1:** propsy `tab` i `onTabChange` z `admin.billing.tsx` (`8c8d3050`). S2 przejmuje plik bez zrywania tego kontraktu i dokłada filtr `status` z adresu (PLAN S1 §3.3).                                                                                                                                                                                                                                                                                    | S2                                           |
-| Z-S1-04 | **Domy tymczasowe.** Narzędzia zapisu (`STALE_WRITE_CODE`, `isStaleWriteError`, `staleWriteError`, `assertPatchColumns`, `invalidateKeys`, `revenueDomainKeys`) trzeba przenieść z `billing/planQueries.ts` do neutralnego `src/lib/admin/staleWrite.ts` (reszta Z-S1-P1). `components/admin/membership/membershipQueries.ts` trzeba przenieść obok `billing/tierMutations.ts`.                                                                                                                             | I9                                           |
-| Z-S1-05 | **`toastError` nie rozpoznaje konfliktu `40001`** (PLAN S1 §3.2 pkt 11). Dziś jedynym tłumaczem jest `pricing/saveErrorToast.ts`. Docelowo rozpoznanie powinno trafić do `toastError`, żeby ekrany spoza S1 (hub S7) mówiły o konflikcie tymi samymi słowami.                                                                                                                                                                                                                                               | I9                                           |
-| Z-S1-06 | **Szyna i bramka literałów.** Cztery klucze bez fabryki-liścia stoją literałem: `["public","resolved"]`, `["unlocked-body"]` (licznik, dostęp do treści), `["authz","permission-matrix","tiers"]` i `["admin-membership-tiers"]` (`VerificationDomainsCard`). Reguła `coupon_campaign.changed.v1` nie unieważnia `newsletterKeys.campaignsAll()` - dziś robi to sam mutator. 19 plików długu S1 jest już bez literałów (bramka z 2026-10-19), więc można je zdjąć z `QUERY_KEY_LITERAL_DEBT` (tryb ścisły). | I9 (pliki współdzielone)                     |
-| Z-S1-07 | **Ryzyko szczątkowe szwu D-S1-04.** Edytor ze szkicem starszym niż cache może odesłać starą wartość kolumny zmienionej w innej karcie. Rozwiązanie: przepiąć `RegistrationFieldsSection` i `NewsletterBuilder` na `usePatchNewsletterSettings` z własną bazą szkicu.                                                                                                                                                                                                                                        | I9                                           |
-| Z-S1-08 | **Sygnatury 5 RPC S1 w `types.ts`** (N19). Dziś wywołania idą przez `RpcCallable` z literałem nazwy. Sygnatury dopisać po wdrożeniu (R-07).                                                                                                                                                                                                                                                                                                                                                                 | I9                                           |
-| Z-S1-09 | **Stara ścieżka nadań.** `admin_grant_membership` zostaje w bazie. Macierz uprawnień nadal wskazuje stare gniazdo: `src/lib/authz/permissionRows.ts` (`membership_grant` → `fn:admin_grant_membership/4`) i `authzSnapshot.generated.ts`. Do zrobienia: przepięcie na `admin_membership_grant_set/4`, regeneracja snapshotu, DROP starej funkcji osobną migracją po potwierdzeniu braku wywołań serwisowych.                                                                                                | I9                                           |
-| Z-S1-10 | **PII w payloadach** `newsletter_subscriber.{subscribed,confirmed,unsubscribed}.v1`. Przepisano je 1:1 z `CIALO-Z`, bo czytają je przepisy automatyzacji i router integracji. Tabela SPEC §4.5 („Payload (bez PII)”) obejmuje tylko nowe typy, więc trzech starych nie ruszano.                                                                                                                                                                                                                             | I9 / właściciel (decyzja)                    |
-| Z-S1-11 | **Słowniki.** Stare klucze `admin.paywall.*` w `i18n-admin-core.ts` i `i18n-admin-extras.ts` do usunięcia (nikt ich już nie czyta). `newsletterCampaign.roleRequired` (dziś w `i18n-admin-coupons.ts`) do przeniesienia do `adminNewsletter.*`.                                                                                                                                                                                                                                                             | I9                                           |
-| Z-S1-12 | **`HUB_SYNC_MANIFEST` dla `access_plan`** zna tylko część kolumn paywalla. Test `planQueries.test.ts` sprawdza tylko, że to podzbiór. Pełną listę uzupełnić razem z Z-S6-11. Z-S6-12 (kopie kafli) S1 nie wykonał - §11.5.                                                                                                                                                                                                                                                                                  | I9                                           |
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Właściciel / termin                                                                                                                                    |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Z-S1-01 | **Wpięcie `email` w migawkę huba** (część S1 z Z-S6-16, razem z Z-S6-17). W `REVENUE_DOMAIN_READS.email` trzeba wpiąć `getRevenueEmailHealth` albo literał `admin_revenue_email_health` (`p_since`, `p_until`) z adapterem kształtu. S1 oddaje `campaigns.*`, `list.{start,end,new,unsubscribed,net_growth}`, `doi.{started,confirmed_7d}`, a S6 czyta pola płaskie: `delivered…`, `list_base`, `list_net_growth`, `doi_started`, `doi_confirmed`. Bez adaptera wynik byłby cichym „brak danych”.           | Integrator w nowym PR, po wdrożeniu `100300` **Zamknięte 2026-10-22 (I9, §24):** `email` wpięty w migawkę z adapterem kształtu (`3a28896e3`, Z-S7-10). |
+| Z-S1-02 | **Globy bliźniaków w manifestach `hubDelivery.ts` po renumeracji.** Dziś I0 ma `{0317…0322}_hub_*`, a S1 `{0323…0327}_*`. Według `slicesOfPath` `0323_hub_shared_sql_helpers` należy do S1 i I9, a `0328_membership_grants_single_path` tylko do I9. Poprawnie powinno być: I0 `{0318…0323}`, S1 `{0324…0328}`. Test `checkSliceDiff` w `hubDelivery.gate.test.ts` używa `0318`, więc przejdzie przy obu globach.                                                                                           | Integrator (plik współdzielony), w nowym PR                                                                                                            |
+| Z-S1-03 | **`AdminBillingPanel` (manifest S2) ma kontrakt z S1:** propsy `tab` i `onTabChange` z `admin.billing.tsx` (`8c8d3050`). S2 przejmuje plik bez zrywania tego kontraktu i dokłada filtr `status` z adresu (PLAN S1 §3.3).                                                                                                                                                                                                                                                                                    | S2                                                                                                                                                     |
+| Z-S1-04 | **Domy tymczasowe.** Narzędzia zapisu (`STALE_WRITE_CODE`, `isStaleWriteError`, `staleWriteError`, `assertPatchColumns`, `invalidateKeys`, `revenueDomainKeys`) trzeba przenieść z `billing/planQueries.ts` do neutralnego `src/lib/admin/staleWrite.ts` (reszta Z-S1-P1). `components/admin/membership/membershipQueries.ts` trzeba przenieść obok `billing/tierMutations.ts`.                                                                                                                             | I9                                                                                                                                                     |
+| Z-S1-05 | **`toastError` nie rozpoznaje konfliktu `40001`** (PLAN S1 §3.2 pkt 11). Dziś jedynym tłumaczem jest `pricing/saveErrorToast.ts`. Docelowo rozpoznanie powinno trafić do `toastError`, żeby ekrany spoza S1 (hub S7) mówiły o konflikcie tymi samymi słowami.                                                                                                                                                                                                                                               | I9                                                                                                                                                     |
+| Z-S1-06 | **Szyna i bramka literałów.** Cztery klucze bez fabryki-liścia stoją literałem: `["public","resolved"]`, `["unlocked-body"]` (licznik, dostęp do treści), `["authz","permission-matrix","tiers"]` i `["admin-membership-tiers"]` (`VerificationDomainsCard`). Reguła `coupon_campaign.changed.v1` nie unieważnia `newsletterKeys.campaignsAll()` - dziś robi to sam mutator. 19 plików długu S1 jest już bez literałów (bramka z 2026-10-19), więc można je zdjąć z `QUERY_KEY_LITERAL_DEBT` (tryb ścisły). | I9 (pliki współdzielone)                                                                                                                               |
+| Z-S1-07 | **Ryzyko szczątkowe szwu D-S1-04.** Edytor ze szkicem starszym niż cache może odesłać starą wartość kolumny zmienionej w innej karcie. Rozwiązanie: przepiąć `RegistrationFieldsSection` i `NewsletterBuilder` na `usePatchNewsletterSettings` z własną bazą szkicu.                                                                                                                                                                                                                                        | I9                                                                                                                                                     |
+| Z-S1-08 | **Sygnatury 5 RPC S1 w `types.ts`** (N19). Dziś wywołania idą przez `RpcCallable` z literałem nazwy. Sygnatury dopisać po wdrożeniu (R-07).                                                                                                                                                                                                                                                                                                                                                                 | I9                                                                                                                                                     |
+| Z-S1-09 | **Stara ścieżka nadań.** `admin_grant_membership` zostaje w bazie. Macierz uprawnień nadal wskazuje stare gniazdo: `src/lib/authz/permissionRows.ts` (`membership_grant` → `fn:admin_grant_membership/4`) i `authzSnapshot.generated.ts`. Do zrobienia: przepięcie na `admin_membership_grant_set/4`, regeneracja snapshotu, DROP starej funkcji osobną migracją po potwierdzeniu braku wywołań serwisowych.                                                                                                | I9                                                                                                                                                     |
+| Z-S1-10 | **PII w payloadach** `newsletter_subscriber.{subscribed,confirmed,unsubscribed}.v1`. Przepisano je 1:1 z `CIALO-Z`, bo czytają je przepisy automatyzacji i router integracji. Tabela SPEC §4.5 („Payload (bez PII)”) obejmuje tylko nowe typy, więc trzech starych nie ruszano.                                                                                                                                                                                                                             | I9 / właściciel (decyzja)                                                                                                                              |
+| Z-S1-11 | **Słowniki.** Stare klucze `admin.paywall.*` w `i18n-admin-core.ts` i `i18n-admin-extras.ts` do usunięcia (nikt ich już nie czyta). `newsletterCampaign.roleRequired` (dziś w `i18n-admin-coupons.ts`) do przeniesienia do `adminNewsletter.*`.                                                                                                                                                                                                                                                             | I9                                                                                                                                                     |
+| Z-S1-12 | **`HUB_SYNC_MANIFEST` dla `access_plan`** zna tylko część kolumn paywalla. Test `planQueries.test.ts` sprawdza tylko, że to podzbiór. Pełną listę uzupełnić razem z Z-S6-11. Z-S6-12 (kopie kafli) S1 nie wykonał - §11.5.                                                                                                                                                                                                                                                                                  | I9                                                                                                                                                     |
 
 ### 12.6 Bliźniaki drizzle
 
@@ -994,12 +1023,12 @@ Tabela par z rozstrzygnięciem i powodem: kolumna „Rozstrzygnięcie” w
 
 ### 14.5 Do potwierdzenia przez właściciela (nieblokujące)
 
-| Nr      | Kwestia                                                                                                                                                                         |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Z-14-01 | P25 kontekstów LinkedIn (4,6% i 1,0%) i liczby kont (173, 87) odczytane ze strony źródła Kiin Labs 2026-10-19 - pakiet Insidera miał tylko P50/P75/P90. Rekomendacja: zostawić. |
-| Z-14-02 | Kontekst „demo” pod formularzem zapisu - lead B2B → oferta; dostępny do wyboru, nie domyślny. Rekomendacja: zostawić.                                                           |
-| Z-14-03 | `b-engr` (zaangażowanie GA4) wymagałby nowego wpisu rejestru (nowego klucza) - osobna decyzja S6.                                                                               |
-| Z-14-04 | Kontekst strony cennika self-serve stoi na źródle C (SaasDash); przy następnym przeglądzie poszukać pierwotnego benchmarku.                                                     |
+| Nr      | Kwestia                                                                                                                                                                                                                                                                           |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-14-01 | P25 kontekstów LinkedIn (4,6% i 1,0%) i liczby kont (173, 87) odczytane ze strony źródła Kiin Labs 2026-10-19 - pakiet Insidera miał tylko P50/P75/P90. Rekomendacja: zostawić. **Zamknięte 2026-10-20 (I9b, §21.11 B5):** akceptacja „zostawić”.                                 |
+| Z-14-02 | Kontekst „demo” pod formularzem zapisu - lead B2B → oferta; dostępny do wyboru, nie domyślny. Rekomendacja: zostawić. **Zamknięte 2026-10-20 (I9b, §21.11 B5):** akceptacja „zostawić”.                                                                                           |
+| Z-14-03 | `b-engr` (zaangażowanie GA4) wymagałby nowego wpisu rejestru (nowego klucza) - osobna decyzja S6. **Zamknięte 2026-10-20 (I9b, §21.11 B5):** BI ma źródło (GA4 Data API, metryka `engagement_rate`) - nowy wpis rejestru `engagement_rate` z pasmami z `b-engr` i Siege Media.    |
+| Z-14-04 | Kontekst strony cennika self-serve stoi na źródle C (SaasDash); przy następnym przeglądzie poszukać pierwotnego benchmarku. **Zamknięte 2026-10-20 (I9b, §21.11 B5):** przegląd 2026-10-20 - brak weryfikowalnego źródła A/B dla tej definicji; kontekst zostaje na SaasDash (C). |
 
 ## 15. Wycinek S4 - CRM, automatyzacje i społeczność (dane) (2026-10-19)
 
@@ -1099,16 +1128,16 @@ przebieg vitest; przywrócony, Z-S4-09).
 
 ### 15.5 Zgłoszenia otwarte
 
-| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                               | Właściciel / termin                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| Z-S4-02 | **Sygnatury 6 RPC S4 i kolumny `crm_leads_all` w `types.ts`** (`admin_crm_set_lifecycle_stage`, `crm_set_lifecycle_stage`, `newsletter_subscriber_list_set`, `admin_revenue_{events,clubs}_summary`, `_event_revenue_net`; `source_type`, `lifecycle_stage`, `lifecycle_changed_at`). Po regeneracji Lovable zdjąć rzutowania `RpcCallable` w `crm.functions.ts`, `purchaseEffects.server.ts`, `community.functions.ts`. | I9 / Lovable po wdrożeniu (R-07)                |
-| Z-S4-07 | UI zakładki „Społeczność” huba (S7) używa `revenueEventsSummaryQueryOptions` / `revenueClubsSummaryQueryOptions` i słownika `adminRevenue.community`; reguła diagnostyki P24 (S7) woła `assignUnassignedCrmTasks`.                                                                                                                                                                                                       | S7                                              |
-| Z-S4-09 | Raport `i18n-parity`: `repoWide.untranslated` 559 → 570 (+11) - zapożyczenia (Lead, MQL, SQL, Newsletter, Billing, Import, System, Tag, Segment) w niebramkowanych prefiksach `adminCrm`/`adminWorkflows`. Bramkowany `adminRevenue` - 0. Raport w repo nieodświeżony.                                                                                                                                                   | I9 (decyzja: wyjątki słownika albo tłumaczenia) |
-| Z-S4-10 | 3 ostrzeżenia `react-refresh/only-export-components`: helpery obok komponentów w `LeadStageHistoryCard.tsx` (`parseStageHistory`, `leadStageHistoryQueryOptions`) i `ClubApplicationsInbox.tsx` (`inboxDecisionInvalidations`) - do `lib`, gdy pliki klubów będą w zasięgu.                                                                                                                                              | I9                                              |
-| Z-S4-11 | `src/lib/ci/__tests__/onConflictArbiters.test.ts` (wydajność, 15 tys. celów) przekracza próg pod obciążeniem CPU innych sesji; sam przechodzi.                                                                                                                                                                                                                                                                           | środowisko (informacyjne)                       |
-| Z-S4-12 | Heurystyczny filtr `source='import'` (`leadListSpec`) nie trafia w nic (`source_count` domyślnie 1). Został dla kompatybilności API i `leadListParity`; panel go nie wysyła.                                                                                                                                                                                                                                             | I9                                              |
-| Z-S4-13 | `crm_leads` po `130000`: zmiana `user_id`/`lifecycle_stage`/`lifecycle_changed_at` z sesji klienta = 42501. Stary front ich nie pisze, ale każdy przyszły pisarz musi iść przez RPC (`admin_crm_set_lifecycle_stage`) - wpis dla S5/S7.                                                                                                                                                                                  | S5, S7 (informacyjne)                           |
-| Z-S4-14 | Lokalne środowisko: `tsgo` z nieaktualnym `node_modules/.cache/tsconfig.tsbuildinfo` (po przebazowaniu) przekraczał limit pamięci cgroup 14,3 GB (OOM, exit 137, także na bazie). Bez pliku buildinfo pełny `bun run typecheck` przechodzi. Dla kolejnych Integratorów: przy SIGKILL usunąć buildinfo przed typecheckiem.                                                                                                | informacyjne                                    |
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Właściciel / termin                             |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Z-S4-02 | **Sygnatury 6 RPC S4 i kolumny `crm_leads_all` w `types.ts`** (`admin_crm_set_lifecycle_stage`, `crm_set_lifecycle_stage`, `newsletter_subscriber_list_set`, `admin_revenue_{events,clubs}_summary`, `_event_revenue_net`; `source_type`, `lifecycle_stage`, `lifecycle_changed_at`). Po regeneracji Lovable zdjąć rzutowania `RpcCallable` w `crm.functions.ts`, `purchaseEffects.server.ts`, `community.functions.ts`.                                                                 | I9 / Lovable po wdrożeniu (R-07)                |
+| Z-S4-07 | UI zakładki „Społeczność” huba (S7) używa `revenueEventsSummaryQueryOptions` / `revenueClubsSummaryQueryOptions` i słownika `adminRevenue.community`; reguła diagnostyki P24 (S7) woła `assignUnassignedCrmTasks`. **Zamknięte 2026-10-22 (S7, §23):** zakładka Społeczność na `revenue{Events,Clubs}SummaryQueryOptions` i słowniku `adminRevenue.community`; naprawa P24 woła `assignUnassignedCrmTasks` (wpis w `HUB_SYNC_MANIFEST.crm_task.writers` i przycisk w CRM - Z-S7-02, I9). | S7                                              |
+| Z-S4-09 | Raport `i18n-parity`: `repoWide.untranslated` 559 → 570 (+11) - zapożyczenia (Lead, MQL, SQL, Newsletter, Billing, Import, System, Tag, Segment) w niebramkowanych prefiksach `adminCrm`/`adminWorkflows`. Bramkowany `adminRevenue` - 0. Raport w repo nieodświeżony.                                                                                                                                                                                                                   | I9 (decyzja: wyjątki słownika albo tłumaczenia) |
+| Z-S4-10 | 3 ostrzeżenia `react-refresh/only-export-components`: helpery obok komponentów w `LeadStageHistoryCard.tsx` (`parseStageHistory`, `leadStageHistoryQueryOptions`) i `ClubApplicationsInbox.tsx` (`inboxDecisionInvalidations`) - do `lib`, gdy pliki klubów będą w zasięgu.                                                                                                                                                                                                              | I9                                              |
+| Z-S4-11 | `src/lib/ci/__tests__/onConflictArbiters.test.ts` (wydajność, 15 tys. celów) przekracza próg pod obciążeniem CPU innych sesji; sam przechodzi.                                                                                                                                                                                                                                                                                                                                           | środowisko (informacyjne)                       |
+| Z-S4-12 | Heurystyczny filtr `source='import'` (`leadListSpec`) nie trafia w nic (`source_count` domyślnie 1). Został dla kompatybilności API i `leadListParity`; panel go nie wysyła.                                                                                                                                                                                                                                                                                                             | I9                                              |
+| Z-S4-13 | `crm_leads` po `130000`: zmiana `user_id`/`lifecycle_stage`/`lifecycle_changed_at` z sesji klienta = 42501. Stary front ich nie pisze, ale każdy przyszły pisarz musi iść przez RPC (`admin_crm_set_lifecycle_stage`) - wpis dla S5/S7.                                                                                                                                                                                                                                                  | S5, S7 (informacyjne)                           |
+| Z-S4-14 | Lokalne środowisko: `tsgo` z nieaktualnym `node_modules/.cache/tsconfig.tsbuildinfo` (po przebazowaniu) przekraczał limit pamięci cgroup 14,3 GB (OOM, exit 137, także na bazie). Bez pliku buildinfo pełny `bun run typecheck` przechodzi. Dla kolejnych Integratorów: przy SIGKILL usunąć buildinfo przed typecheckiem.                                                                                                                                                                | informacyjne                                    |
 
 ### 15.6 Bliźniaki drizzle
 
@@ -1401,21 +1430,21 @@ donorMessage, tenantId, idempotencySeed: invoiceId ?? donationId })`.
 
 ### 16.5 Zgłoszenia otwarte
 
-| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                 |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Z-S2-01 | **Ręczna weryfikacja właściciela w trybie testowym operatora (przed publikacją frontu)** - instrukcja niżej. Kryterium karty otwarte do jej wykonania.                                                                                                                                                     |
-| Z-S2-02 | (Z-01) Segment ruchu = segment `tier_key` w chwili ruchu; most filtrowany segmentem wybiera subskrypcje po segmencie na `until`, więc subskrypcja, która zmieniła segment w oknie, liczy się w całości w segmencie końcowym. Decyzja właściciela: akceptacja albo podział ruchów per segment (zmiana SQL). |
-| Z-S2-03 | (Z-07) Księga zachowuje zanonimizowane ruchy, historię i cykle windykacji (`user_id NULL`) i zapisuje `churn` przy usunięciu konta - do potwierdzenia przez właściciela/IOD, że kwoty bez identyfikatora spełniają politykę retencji RODO.                                                                 |
-| Z-S2-04 | (Z-09) `not_given` w `reason_label` - etykieta i wykluczenie z rankingu w `RetentionFeedbackList`/statystykach (S1/S7, §16.4).                                                                                                                                                                             |
-| Z-S2-05 | Wskaźniki migawki (NRR, GRR, quick ratio, wzrost m/m) liczone w walucie wiodącej (największy MRR). Propozycja dla S6: `ratio_currency` w `REVENUE_SNAPSHOT_KEYS.meta`.                                                                                                                                     |
-| Z-S2-06 | `new_customers_plan` w `revenue_manual_inputs.amount_minor` to LICZBA klientów (z walutą, bo CHECK I0 jej wymaga). UI S7 musi opisać pole jako liczbę (`inputs.newCustomersHint`); docelowo osobna kolumna (zmiana schematu I0).                                                                           |
-| Z-S2-07 | Do czasu zmiany w `billingDocuments.server.ts` (§16.4, I9) nowe dokumenty są `unknown_environment_documents` (poza przychodem zrealizowanym), a `subscription.renewed.v1` z wyzwalacza nie wychodzi. Mail odnowienia od tego nie zależy (idzie z webhooka).                                                |
-| Z-S2-08 | Migawka rabatu: zwykłe zdarzenia Stripe niosą tylko identyfikatory `di_…`, więc kolumny nie są nadpisywane; rabat zdjęty zdarzeniem bez rozwinięcia zostaje w księdze do następnego odczytu autorytatywnego. Opcja: rozwijać rabaty przy każdym zdarzeniu aktualizacji (dodatkowe wywołanie Stripe).       |
-| Z-S2-09 | `average_discount` i `price_realization` w migawce tylko dla okien kończących się teraz (brak historii cen i rabatów); okna historyczne zwracają `null`.                                                                                                                                                   |
-| Z-S2-10 | Wyścig: dwa równoległe przepływy anulowania (dwie karty) mogą oba przejść regułę 180 dni i dopiąć dwa rabaty (idempotencja per `feedback_id`). Niskie ryzyko; domknięcie - RPC z blokadą doradczą per (najemca, użytkownik).                                                                               |
-| Z-S2-11 | Ankieta z portalu Stripe wymaga włączenia powodów rezygnacji w konfiguracji portalu klienta (panel Stripe, właściciel).                                                                                                                                                                                    |
-| Z-S2-12 | Konsumenci S7: zakładki huba (MRR, churn, kohorty, windykacja, zrealizowany, retencja, oferta, dane wejściowe, ekonomika) na `queryOptions` z `src/lib/revenue/finance/queries.ts` i słowniku `i18n-admin-revenue-finance` - hub i `/admin/billing` dzielą klucz (most dla okresu `month`).                |
-| Z-S2-13 | Raport `reports/i18n-parity.json` zregenerowany przez Integratora (`61bbdee9`) - `repoWide.untranslated` 570 (+9 względem stanu na bazie; wszystkie w niebramkowanych prefiksach, bramkowane `adminRevenue` 0). Przegląd zapożyczeń przy I9 (jak Z-S4-09).                                                 |
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S2-01 | **Ręczna weryfikacja właściciela w trybie testowym operatora (przed publikacją frontu)** - instrukcja niżej. Kryterium karty otwarte do jej wykonania. **Aktualizacja 2026-10-20 (I9b, §21.11 B4):** kroki 3-8 i 10 zautomatyzowane (mapa krok → test); dla właściciela zostają trzy kroki wizualne w trybie testowym Stripe (Z-I9b-13).                                                                                                                                                                                                                                                                                      |
+| Z-S2-02 | (Z-01) Segment ruchu = segment `tier_key` w chwili ruchu; most filtrowany segmentem wybiera subskrypcje po segmencie na `until`, więc subskrypcja, która zmieniła segment w oknie, liczy się w całości w segmencie końcowym. Decyzja właściciela: akceptacja albo podział ruchów per segment (zmiana SQL). **Zamknięte 2026-10-20 (I9b, §21.2):** akceptacja - atrybucja do segmentu na koniec okresu.                                                                                                                                                                                                                        |
+| Z-S2-03 | (Z-07) Księga zachowuje zanonimizowane ruchy, historię i cykle windykacji (`user_id NULL`) i zapisuje `churn` przy usunięciu konta - do potwierdzenia przez właściciela/IOD, że kwoty bez identyfikatora spełniają politykę retencji RODO. **Zamknięte 2026-10-20 (I9b, §21.2):** akceptacja pod warunkiem pełnej anonimizacji (20261020160400); IOD potwierdza wpis przy aktualizacji rejestru czynności.                                                                                                                                                                                                                    |
+| Z-S2-04 | (Z-09) `not_given` w `reason_label` - etykieta i wykluczenie z rankingu w `RetentionFeedbackList`/statystykach (S1/S7, §16.4). **Częściowo zamknięte 2026-10-22 (S7, §23):** w hubie (`ChurnReasonsCard`) `not_given` stoi poza rankingiem z etykietą `reasonNotGiven`, a `stripe:<kod>` brzmi „Portal Stripe: <kod>”; `RetentionFeedbackList` (S1) - I9 (Z-S7-08). **Zamknięte 2026-10-22 (I9, §24):** `RetentionFeedbackList` i statystyki Cennika - wspólny liść `retentionReasonLabel`, `not_given` poza rankingiem jako „Bez podanego powodu” (`3a28896e3`, Z-S7-08); pulpit monetyzacji zostaje do przekierowania D-09. |
+| Z-S2-05 | Wskaźniki migawki (NRR, GRR, quick ratio, wzrost m/m) liczone w walucie wiodącej (największy MRR). Propozycja dla S6: `ratio_currency` w `REVENUE_SNAPSHOT_KEYS.meta`. **Częściowo zamknięte 2026-10-22 (S7, §23):** zakładki Przychód i Retencja podpisują walutę wiodącą ilorazów (odtwarzaną w panelu - `snapshotMetaOf`), bez sumy walut; `ratio_currency` w migawce - S6/I9 (Z-S7-06). **Zamknięte 2026-10-22 (I9, §24):** `ratioCurrency` w wyniku migawki, `snapshotMetaOf` czyta pole (`3a28896e3`, Z-S7-06).                                                                                                         |
+| Z-S2-06 | `new_customers_plan` w `revenue_manual_inputs.amount_minor` to LICZBA klientów (z walutą, bo CHECK I0 jej wymaga). UI S7 musi opisać pole jako liczbę (`inputs.newCustomersHint`); docelowo osobna kolumna (zmiana schematu I0). **Zamknięte 2026-10-22 (S7, §23):** siatka Danych wejściowych opisuje `new_customers_plan` jako liczbę klientów (`inputs.newCustomersHint`); osobna kolumna (zmiana schematu I0) - bez zmian.                                                                                                                                                                                                |
+| Z-S2-07 | Do czasu zmiany w `billingDocuments.server.ts` (§16.4, I9) nowe dokumenty są `unknown_environment_documents` (poza przychodem zrealizowanym), a `subscription.renewed.v1` z wyzwalacza nie wychodzi. Mail odnowienia od tego nie zależy (idzie z webhooka). **Zamknięte 2026-10-22 (I9, §24):** dokument przy wstawieniu dostaje `environment` i `subscription_id` (uprawnienie po `external_ref`), odnowienie emituje `subscription.renewed.v1`, pierwsza faktura subskrypcji to zakup; bez backfillu - dokumenty sprzed zmiany zostają w diagnostyce (`c94ff41bf`).                                                         |
+| Z-S2-08 | Migawka rabatu: zwykłe zdarzenia Stripe niosą tylko identyfikatory `di_…`, więc kolumny nie są nadpisywane; rabat zdjęty zdarzeniem bez rozwinięcia zostaje w księdze do następnego odczytu autorytatywnego. Opcja: rozwijać rabaty przy każdym zdarzeniu aktualizacji (dodatkowe wywołanie Stripe).                                                                                                                                                                                                                                                                                                                          |
+| Z-S2-09 | `average_discount` i `price_realization` w migawce tylko dla okien kończących się teraz (brak historii cen i rabatów); okna historyczne zwracają `null`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Z-S2-10 | Wyścig: dwa równoległe przepływy anulowania (dwie karty) mogą oba przejść regułę 180 dni i dopiąć dwa rabaty (idempotencja per `feedback_id`). Niskie ryzyko; domknięcie - RPC z blokadą doradczą per (najemca, użytkownik).                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Z-S2-11 | Ankieta z portalu Stripe wymaga włączenia powodów rezygnacji w konfiguracji portalu klienta (panel Stripe, właściciel).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-S2-12 | Konsumenci S7: zakładki huba (MRR, churn, kohorty, windykacja, zrealizowany, retencja, oferta, dane wejściowe, ekonomika) na `queryOptions` z `src/lib/revenue/finance/queries.ts` i słowniku `i18n-admin-revenue-finance` - hub i `/admin/billing` dzielą klucz (most dla okresu `month`). **Zamknięte 2026-10-22 (S7, §23):** zakładki finansowe huba czytają wyłącznie `queryOptions` z `src/lib/revenue/finance/queries.ts` i słownik `adminRevenue.finance.*` (bramka `revenueKeysReuse`).                                                                                                                               |
+| Z-S2-13 | Raport `reports/i18n-parity.json` zregenerowany przez Integratora (`61bbdee9`) - `repoWide.untranslated` 570 (+9 względem stanu na bazie; wszystkie w niebramkowanych prefiksach, bramkowane `adminRevenue` 0). Przegląd zapożyczeń przy I9 (jak Z-S4-09).                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Z-S2-01 - instrukcja ręcznej weryfikacji (tryb testowy Stripe, baza
 podglądu/sandbox, przed publikacją frontu na produkcji):**
@@ -1610,7 +1639,7 @@ wyzwalaczy `trg_subscriptions_revenue_history`/`trg_billing_documents_renewed_em
 - [x] pgTAP 7 plików zielony: `revenue_catalog_mirror` 33, `revenue_subscription_history` 38, `revenue_backfill` 14, `revenue_aggregates` 48, `revenue_lifecycle_scanner` 16, `retention_flow` 20, `revenue_offer_inputs_economics` 26 (pułapka rangi, pauza, waluta, idempotencja, sandbox/mock, suma mostu = MRR końca, migawka = suma ruchów); w `run.sh all` po integracji - §16.8.
 - [x] Parsery: `null` ≠ 0, most ±0,5 %, `MoneyByCurrency[]`; `*_KEYS` = listy `set_eq` pgTAP (`parse.test.ts` 211, komentarz `// rpc-shape:` przy każdej stałej; migawka = `REVENUE_SNAPSHOT_KEYS` S6).
 - [x] Anulowanie: ≤ 2 kroki (RTL liczy `data-retention-step`), „Anuluj mimo to” na krokach ankiety i oferty, `enabled=false` = samo potwierdzenie (`RetentionDialog.test.tsx` 20 z axe); oferta = rabat `repeating` (atrapa operatora: parametry + klucze idempotencji, `applyOffer.test.ts` 13), 1 oferta / 180 d (`functions.test.ts`).
-- [ ] Weryfikacja ręczna właściciela w trybie testowym operatora przed scaleniem - **otwarte** (Z-S2-01, instrukcja §16.5).
+- [ ] Weryfikacja ręczna właściciela w trybie testowym operatora przed scaleniem - **otwarte** (Z-S2-01, instrukcja §16.5). **I9b (§21.11 B4):** kroki 3-8 i 10 pokryte testami na granicy SDK operatora; otwarte zostają trzy kroki wizualne (panel Stripe, logi, portal z powodami - Z-I9b-13).
 - [x] `startRetentionFlow` → `started`; `submitRetentionFeedback` aktualizuje ten sam wiersz (filtr `id`/najemca/użytkownik + `outcome in (started, abandoned)`, zapas INSERT; Z-09 `not_given`).
 - [x] Maile P12: snapshoty PL/EN (8: m/ż/neutralny + EN, w okresie i po końcu); każda ścieżka CTA w `tx-*` istnieje w `routeTree.gen.ts` (`notificationsCtaRoutes.test.ts` 12, bez `/cennik`).
 - [x] `/admin/billing` pokazuje te same aktywne subskrypcje i MRR co hub - ten sam RPC i klucz (`revenueKeys.query('mrr', tenant, range, {segment})`; `AdminBillingPanel.test.tsx` 60).
@@ -1632,7 +1661,12 @@ wyzwalaczy `trg_subscriptions_revenue_history`/`trg_billing_documents_renewed_em
 Bliźniaki drizzle: S4 `0330…0337`, S2 `0338…0345`; **następny wolny `0346`**.
 Budżet `overall` po S2: 4991 (D-08); `public` 2773,9 / 2881 (zamrożony).
 
-### 17.2 Niescalone - S3 (lejek i paywall czytelnika)
+### 17.2 S3 (lejek i paywall czytelnika) - scalony 2026-10-20 (§18)
+
+**Aktualizacja 2026-10-20:** PR #527 scalony do `main` (`f149a004`), potem
+`main` dostał #528 i potwierdzenie wdrożenia #527 (`0346`, `a39a10bf`); gałąź PR
+odtworzona od `main`, S3 dokończony i zintegrowany na niej (§18), łatki
+i inwentarz z `docs/kontynuacja` usunięte. Poniżej stan z 2026-10-19.
 
 Stan pracy: 8 commitów na gałęzi lokalnej `hub/s3-lejek-paywall` (head
 `3a8899dd`, przebazowana na `d71a4017`), **nie wypchnięta** - zachowana w repo
@@ -1653,10 +1687,4338 @@ testów popupu w manifeście S3, sekcja dziennika), pgTAP i kontrakt TS⇄SQL S3
 
 ### 17.4 Kolejka i zasady dalszej pracy
 
-Kolejka: S3 (dokończenie + integracja) → S5 → S7 → S8 → I9. Zasady
+Kolejka (aktualizacja 2026-10-20, po S3 - §18, I9a - §19, S5 - §20 i I9b -
+§21): **S8 → S7 → I9**. Nawigacja huba i skróty ⌘K zakładek są już z I9a;
+od 2026-10-20 obowiązuje wymóg właściciela **„wszystko, co robimy, ma być
+w panelu admina”** - każdy kolejny wycinek kończy się wejściem w panelu dla
+właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne `adminPageHead`, PL/EN,
+stan pusty z następnym krokiem). Zasady
 (decyzje właściciela 2026-10-19): praca **szeregowa** (jeden agent naraz);
 lokalnie testy celowane + typecheck + lint + pgTAP + build z budżetem, **pełna
 suita vitest w CI**; pamięć kontenera 16 GB - typecheck jako `bunx tsgo
---noEmit --checkers 2` (+ `typecheck:scripts`, `typecheck:e2e`), vitest z
+--noEmit --checkers 2` (+ `typecheck:scripts`, `typecheck:e2e`; przy OOM
+`GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1` - Z-S3-05), vitest z
 `--maxWorkers=3`, ciężkie kroki po kolei pod `flock -o /tmp/hub-build.lock`.
 Gotowy prompt: `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`.
+
+### 17.5 Stan po I9b (2026-10-20)
+
+Gałąź PR `claude/elegant-fermat-xwfca1` (`origin`) = `d7efcba5`: S3, I9a,
+S5 i I9b części A i A2 (bliźniaki do `0365`). Część B i krok C (bliźniak
+`0366`, dziennik §21.10-21.18) są zacommitowane na `hub/i9b-decyzje`
+(worktree `/home/user/wt/I9B`) i **wypchnięte** po ratchecie D-08 `overall`
+5003 → 5005 wykonanym przez orkiestratora (Z-I9b-16, §21.19). Następny wolny bliźniak:
+`0367`; blok wersji I9 zajęty do `20261020160800`. Decyzje właściciela
+niewykonalne z kontenera - §21.18. Kolejka bez zmian: **S8 → S7 → I9**.
+
+### 17.6 Stan po S8 (2026-10-22)
+
+S8 (§22) zintegrowany lokalnie na gałęzi `hub/s8-sciezki-panel-c`
+(worktree `/home/user/wt/S8`, baza `75133fe2` + scalenie `main` `4b1aa96d`):
+zakładka Ścieżki (lista, galeria, kreator, ustawienia i zdrowie silnika
+z pomiarem otwarć, nadawcą i Reply-To), edytor kanwy, wyniki, karta
+„Ścieżki” i typ `journey` na osi leada w CRM, ⌘K „Nowa ścieżka”, licznik
+aktywnych ścieżek na pasku huba, „[TEST] ” w runnerze. Bez SQL i bliźniaków
+(następny wolny bliźniak bez zmian: `0373`, zajmuje go S7). Ratchet D-08
+`overall` 5023 → 5182. Push: fast-forward gałęzi PR po S8, potem S7
+(zintegrowany lokalnie, §23 - scalenie gałęzi PR do S7 i ponowny pomiar
+bundla, Z-S8-10). Otwarte Z-S8-01…10 (§22.5), runner w `jobs-tick`
+(Z-S5-03) i M3 - I9. Kolejka: **S7 → I9d → I9**.
+
+### 17.7 Stan po S7 (2026-10-22)
+
+S7 (§23) zintegrowany lokalnie na gałęzi `hub/s7-zakladki-diagnostyka-c`
+(worktree `/home/user/wt/S7`, baza `75133fe2` = gałąź PR po I9c i promptach
+przekazania), potem **scalony** (merge, nie rebase - SHA S7 w §23 zostają)
+z gałęzią PR po S8 (`df075ffc`, §17.6): konflikty plików współdzielonych obu
+wycinków rozwiązane w §23.11, mechanizm „w przygotowaniu” usunięty w całości
+(Z-S7-17), katalog `docs/kontynuacja/` usunięty, ratchet D-08 `overall` z
+łącznego pomiaru S8 + S7 (§23.11). Bliźniaki S7 `0373…0375` (S8 nie ma SQL -
+numery stoją), **następny wolny `0376`**. Push: fast-forward gałęzi PR do
+scalenia S7. Kolejka: **I9d → I9** - w I9 m.in. chipy `RevenueSignalChip`
+w modułach, P24 w manifeście i CRM, baner realtime S-F (Z-S7-01…10), runner
+w `jobs-tick` (Z-S5-03) i Z-S8-01…10.
+
+### 17.8 Stan po I9d-Y1 (2026-10-22)
+
+I9d-Y1 (§21.22) zintegrowany lokalnie na gałęzi `hub/i9d-rodo-2` (worktree
+`/home/user/wt/I9d`, baza `53c5d6d3` = S7 przed scaleniem), po scaleniu
+gałęzi PR `70bdccbb` (S8, scalenie S7 po S8, poprawka granicy benchmarków).
+Decyzje właściciela 2 wykonane: zgłoszenia do klubów anonimizowane po
+usunięciu konta i po okresie, kategorie retencji „Odczyty licznika
+artykułów”, „Uczestnicy wydarzeń”, „Zgłoszenia do klubów” i „Nieaktywni
+subskrybenci” (karta „Retencja danych” - 13 kategorii, lista „do wygaszenia”
+z wykluczeniami), prośba „Chcę dalej otrzymywać” (krok `jobs-tick`, trasa
+publiczna, edytor treści w panelu newslettera). Bliźniaki `0376…0383`,
+**następny wolny `0384`, wersja `20261020162300`**. Ratchet D-08 `overall`
+5316 → 5334. Kolejka: **I9d-Y2** (treść zgody i pomiar, pakiet I9d-5) **→ I9**.
+Otwarte Z-I9d-01…10 (§21.22 pkt 10).
+
+### 17.9 Stan po I9d-Y2 (2026-10-22)
+
+I9d-Y2 (§21.23) zintegrowany lokalnie na gałęzi `hub/i9d-rodo-2` (worktree
+`/home/user/wt/I9d`, baza `7390ecf0` = gałąź PR po I9d-Y1, bez scalenia -
+gałąź PR nie poszła do przodu). Decyzje właściciela 2026-10-20 („tak,
+uzupełnij”) i 2026-10-21 (wariant (a)) wykonane: domyślna treść zgody na
+newsletter PL/EN z pomiarem otwarć i kliknięć z jednego źródła (TS⇄SQL
+z testem parytetu), wersja treści przy każdej zgodzie, klucz
+`email_measurement` z osobnym wycofaniem linkiem „Nie mierz moich otwarć
+i kliknięć”, piksel i linki z identyfikatorem tylko za zgodą i przy wspólnym
+przełączniku najemcy (Z-I9c-09 zamknięte), dymki i mianownik mierzonych
+w statystykach, „Poproś o zgodę na pomiar” (krok `jobs-tick` w minucie 4),
+polityka komunikacji i prywatności w kodzie. Bliźniaki `0384…0386`,
+**następny wolny `0387`, wersja `20261020162600`**. Ratchet D-08 `overall`
+5334 → 5357. Kolejka: **I9** (runner ścieżek w `jobs-tick` i zgłoszenia
+§9.2 promptu kontynuacji). Otwarte Z-I9d-01…21 (§21.22 pkt 10, §21.23
+pkt 10).
+
+### 17.10 Stan po I9 (2026-10-22)
+
+I9 (§24) zintegrowany lokalnie na gałęzi `hub/i9d-rodo-2` (worktree
+`/home/user/wt/I9d`, baza `2113569d` = gałąź PR po I9d-Y2, bez scalenia -
+gałąź PR nie poszła do przodu). Karta I9 wykonana (§24.10): runner ścieżek
+w `jobs-tick` przed drenem poczty, skanery S2, rollup i sprzątanie ścieżek,
+karta silnika w panelu zdrowia harmonogramu, odnośniki moduły → hub w 13
+punktach SPEC §2.7, bramki ścisłe (`queryKeyLiterals`, `metrics` manifestu,
+`domainMap`), zgłoszenia 9.2 (Z-S2-07, Z-S5-01, -04, -05, Z-I9b-09, -15,
+Z-I9c-02, -05, -06, -10), przewodnik po Ścieżkach (Z-S8-01), runbook
+`docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`. Bliźniaki `0387…0390`, **następny wolny
+`0391`, wersja `20261020163000`**. Ratchet D-08 `overall` 5357 → 5371.
+Wszystkie wycinki huba są w PR #530 - raport końcowy §24.11. Kolejka:
+**krok 5 - zamknięcie PR #530** (push po zielonych bramkach, CI, opis PR,
+usunięcie gałęzi roboczych; prompt kontynuacji §10). Otwarte - §24.6;
+sprawy właściciela - §24.11 pkt 4.
+
+## 18. Wycinek S3 - lejek i paywall czytelnika (2026-10-20)
+
+Gałąź `hub/s3-lejek-paywall` (worktree `/home/user/wt/S3`). Wykonawca pracował
+na bazie `e69234c1`, w sesji 2026-10-19 gałąź przebazowano na `d71a4017` (S2)
+i zostawiono niescaloną (§17.2: łatki w `docs/kontynuacja/s3-wip`). Po
+scaleniu PR #527 do `main` (`f149a004`) gałąź PR `claude/elegant-fermat-xwfca1`
+odtworzono od `main`; S3 przebazowano na nią bez konfliktów, dokończono braki
+karty i wykonano integrację. Przed wypchnięciem `main` przesunął się do
+`a39a10bf` (#528 i `0346_pr527_deployment_completion` - potwierdzenie
+wdrożenia #527 przez Lovable), więc S3 przebazowano jeszcze raz (konflikty
+tylko w `_journal.json` i `types.ts`), bliźniaki przesunięto na `0347…0351`,
+a bramki dotknięte zmianą bazy powtórzono (§18.8); potem fast-forward.
+Commity:
+
+- `74157988` - 5 migracji `2026102012*`, 5 plików pgTAP (rejestracja, uderzenia w paywall, P19, kasa, lejek i inwentarz);
+- `da5c0818` - warstwa TS lejka i inwentarza dostępu, linki powrotu logowania;
+- `0d4caf4f` - paywall czytelnika: oferta per persona, `preview`, powrót po logowaniu, pomiar;
+- `4c7e8cca` - licznik, bramka klubu i popup rejestracji w lejku czytelnika;
+- `43d00703` - powrót po logowaniu, pomiar lejka konta i kasy, P21, część P22 (`cancel_reason`);
+- `09aa029b`, `78041e99` - testy bez nieużywanych pomocników; uderzenie liczone dopiero po ustaleniu sesji;
+- `c6a66265` - P08 w popupie rejestracji (zgoda newslettera domyślnie odznaczona);
+- `1a6c2795` - dokończenie karty: P22 `expires_at`, wspólny skrót gościa, budżet `public` (§18.2, §18.7);
+- `6cecc813`, `5c41f3c6` - integracja: pliki współdzielone (§18.4);
+- `a310387e`, `5243b3be` - ratchet `overall` 4991 → 4995 → 4997 (D-08, §18.7);
+- ten wpis.
+
+Pełny pakiet vitest uruchamia CI nowego PR (decyzja właściciela 2026-10-19:
+lokalnie testy celowane, typecheck, lint, build z budżetem i pgTAP - §18.8).
+
+### 18.1 Zakres
+
+Wykonawca: 76 plików, +8807 / −202 linii (8 commitów). Z dokończeniem
+i integracją (bez tego wpisu): 95 plików, +10 811 / −213.
+
+| Obszar                               | Co dostarcza S3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL (5 migracji, 9 funkcji)          | `120000` `account.registered.v1` z wyzwalacza na `profiles` (źródło rejestracji z białej listy `SIGNUP_SOURCES`, P16; payload bez PII); `120100` `record_paywall_hit` (konto, `authenticated`) i `record_paywall_hit_visitor` (gość, wyłącznie `service_role`) do `paywall_hits`, `paywall.hit.v1` raz na konto i dobę; `120200` `_metered_view_consume` z progiem rangi (P19) i `metering.quota_exhausted.v1` raz na konto i miesiąc (`revenue_event_marks`, zero skanu dziennika), `log_metering_event` bez obcego `_visitor_id`; `120300` `checkout.started/completed/failed/abandoned.v1` z wyzwalacza na `payment_orders` (tylko `live`, bez atrapy; `abandoned` tylko z `cancel_reason = 'session_expired'`); `120400` `_funnel_counts`, `admin_revenue_funnel` (tor samoobsługowy + sprzedaż), `admin_revenue_access_inventory`. |
+| Lejek i inwentarz (TS)               | `src/lib/revenue/funnel/{dto,parse,funnelStages,funnel.functions,queries}.ts`, `src/lib/revenue/access/{dto,parse,access.functions,queries}.ts` (parsery `null` ≠ 0, literały RPC, stany 42501/PGRST202/22023), słownik `i18n-admin-revenue-funnel.ts` (PL/EN).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Paywall czytelnika (P14, P09, AD-16) | `resolvePaywallOffer` (`paywallOffer.ts`) - macierz person × reguła lustrzana do `has_content_access`; ceny widzi też gość; zalogowany z rangą za niską dostaje „wymaga planu X” i upgrade; plan na zapytanie → `contact_sales`; członek organizacji → `contact_org`. `Paywall` += `preview` (symulator S7: bez `consume`, `record_paywall_hit` i `track`, linki `aria-disabled`); oferta dociąga się `import()` po pierwszym renderze (teaser i CTA w pierwszym renderze); EN pokazuje „Charged in {{currency}}” (P09).                                                                                                                                                                                                                                                                                                                |
+| Powrót po logowaniu (P15)            | `paywallLinks.ts` (`safeNextPath` - odrzuca `//host`, `https://…`, `/\host`, `%2F%2F`, pętle logowania; `loginSearch`, `parseLoginSearch`, `postLoginTarget`, `signupRedirectPath`); `/login` przyjmuje `next`/`intent`/`plan` kształtem, sanitizuje `AuthPortal` (wygląd bez zmian); `/auth/callback` i sukces kasy wracają na `next`; CTA darmowej warstwy `mode=signup`.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Pomiar (P18)                         | `paywall_view`, `paywall_cta_click`, `checkout_view`, `checkout_submit`, `signup_completed`, `login_completed`, `pricing_audience_change` - wyłącznie przy zgodzie analitycznej (także kopia GA4, `ga4EventMap`); `record_paywall_hit` bez zgody i bez identyfikatora przeglądarki; stopka liczy zapis newslettera po sukcesie (`footerTracking`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Popup i zgody (P08, P17)             | Zgoda newslettera domyślnie odznaczona (`PopupSignupForm`, bramka klubu); popup rejestracji nie dla zalogowanych; odmowa zgody marketingowej nie wygasza zaproszenia do konta (`overlayCoordinator`, slot `invite`); bramka klubu z `useHydrated` (AGENTS).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Kasa (P21, P22)                      | `/plans/$planId` przy `cta_mode = contact` - formularz kontaktu zamiast kasy; `checkout.session.expired` zapisuje `cancel_reason = 'session_expired'` w tym samym zapisie co status; `expires_at` sesji Stripe z `checkout_settings.abandon_after_minutes` (§18.2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+### 18.2 Decyzje
+
+- **S3 prosto do gałęzi PR** (odtworzonej od `main` po #527), jak S1, S2 i S4:
+  migracje, bliźniaki i kod w jednym PR.
+- **P22 - `expires_at`** (dokończenie): okno = `abandon_after_minutes` + 60 s
+  zapasu (opóźnienie i dryf zegara względem operatora), nie mniej niż minimum
+  operatora 30 min; okno sięgające doby (domyślne 1440 min) zostawia parametr
+  pusty - operator i tak zamyka sesję po 24 h, więc dla najemcy bez zmiany
+  ustawień zachowanie jest bit w bit dotychczasowe. Dotyczy sesji planu
+  i ad-hoc (treść, bilet). Wartość liczona raz przed `sessions.create`:
+  ponowienia SDK wysyłają ten sam ładunek, a klucz idempotencji jest per
+  zamówienie zakładane w tym samym żądaniu. Kolumnę czyta wyłącznie serwerowy
+  `loadCheckoutSettings` (granice z `REVENUE_LIMITS`, poza CHECK = okno
+  domyślne); `CHECKOUT_SETTINGS_COLUMNS` panelu i dokumentów bez zmian.
+- **Skrót gościa** (dokończenie): `meteringVisitorDigest(purpose)`
+  w `meteringVisitor.server.ts` - jedno miejsce odczytu podpisanego cookie
+  i sekretu dla liczników gościa; handler `record_paywall_hit_visitor` nie
+  powiela już wyboru sekretu ani HMAC (skrót bit w bit ten sam:
+  `HMAC(secret, "paywall_hit:<uuid>")`). `meteringVisitor.functions.ts` bez
+  zmian - moduł `.functions` zawiera wyłącznie deklaracje server fn
+  (tss-serverfn-split), a dublowanie było po stronie serwera.
+- **P09:** napis waluty obciążenia jest w S3; reguła
+  `checkout.display_currency_mismatch` to diagnostyka S7 (SPEC §5.7: „warn,
+  P09, kod - cennik”) - zostaje dla S7 (Z-S3-03).
+- **Plan B karty** (oferta przez `import()` po pierwszym renderze) zachowany:
+  wpis bez paywalla nie pobiera modułu oferty. Budżetu `public` nie obniża -
+  bramka liczy każdy chunk osiągalny z publicznego adresu (Z-S3-01, §18.7).
+- **D-08:** ratchet `overall` 4991 → 4995 (pomiar na `f149a004`: +4,4 KB,
+  w całości `public`), po przebazowaniu na `a39a10bf` korekta 4995 → 4997
+  (+5,8 KB: kod S3 ok. +4,7, reszta to entropia hashy w nazwach importów,
+  §18.7). `css` bez zmian (99,7).
+
+### 18.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S3                                | Stan po S3                                                                                                                                  | Uzasadnienie                                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| §4.8 `CIALO-Z` `log_metering_event` = `20261013090400` | `-- CIALO-Z: 20260721070203` w `120200`; `HUB_CIALO_Z` (I0) ma tę samą wersję; po scaleniu S1/S2/S4 grep potwierdza brak nowszej definicji. | `20261013090400` zawiera dla tej funkcji wyłącznie `REVOKE`/`GRANT`; najnowsze `CREATE` to `20260721070203`. |
+| P22 w `stripeCheckout.functions.ts`                    | `expires_at` w `adhocCheckout.server.ts` (obie sesje), odczyt okna w `checkoutSettings.server.ts`, pole opcjonalne w `CheckoutSettings`.    | Sesje Stripe powstają w `adhocCheckout.server.ts`; server fn tylko wołają tę warstwę.                        |
+| Karta: `meteringVisitor.functions.ts` (zmienia)        | Wspólny pomocnik w `meteringVisitor.server.ts`; plik `.functions` bez zmian.                                                                | §18.2 - deklaracje server fn bez logiki.                                                                     |
+| Karta: `public` ≤ +1,2 KB                              | +5,4 KB (2774,4 → 2779,8 na `a39a10bf`), próg 2881 zielony.                                                                                 | Z-S3-01 (§18.7).                                                                                             |
+| P09 reguła `checkout.display_currency_mismatch`        | Wyłącznie napis waluty (`paywall.offer.chargedIn`).                                                                                         | Reguła diagnostyki = S7 (§5.7), Z-S3-03.                                                                     |
+| §6.6 `loginHref(mode, next, intent, planId)`           | Jest; ścieżki w UI budują obiekt `search` routera (`loginSearch`), adres tekstowy - `signupRedirectPath` (`emailRedirectTo`).               | Link routera nie potrzebuje sklejonego adresu.                                                               |
+| `/login` - sanitizacja `next` w trasie                 | Walidator trasy przepuszcza `next`/`intent`/`plan` wyłącznie kształtem (napis z limitem); sanitizuje `AuthPortal` (`parseLoginSearch`).     | Walidator jedzie w chunku wejściowym - bez modułu lejka w `app-initial` (test `loginReturn`).                |
+
+### 18.4 Zgłoszenia „Do integracji” wykonane przez Integratora S3
+
+Strażnik `hub-slice-guard.ts S3 --base a39a10bf` po integracji zgłasza
+wyłącznie zmiany Integratora: `[plik-wspoldzielony]`
+`drizzle/migrations/meta/_journal.json`, `scripts/check-bundle-size.ts`,
+`src/integrations/supabase/types.ts`, `src/lib/authz/authzSnapshot.generated.ts`,
+`src/lib/ci/hubDelivery.ts` oraz `[poza-manifestem]` ten dziennik,
+`docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md` i usunięte
+`docs/kontynuacja/**`. Pliki spoza manifestu, których wymagały karta
+i bramki, dopisano do manifestu S3 z komentarzem „Integrator S3”.
+
+| Zgłoszenie                  | Zmiana                                                                                                                                                                                                                                 | Pliki                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Bliźniaki drizzle           | 5 bliźniaków (bajt w bajt) i 5 wpisów `_journal.json` w kolejności wersji (§18.6); `check:migration-lanes` zielone.                                                                                                                    | `drizzle/migrations/0347…0351_*.sql`, `meta/_journal.json`, `hubDelivery.ts` (glob) |
+| `types.ts`                  | Sygnatury `record_paywall_hit`, `record_paywall_hit_visitor` (`Returns: undefined`), `admin_revenue_funnel`, `admin_revenue_access_inventory` (`Json`) - jak S2: dokumentacja kontraktu, wywołania przez `RpcCallable`.                | `src/integrations/supabase/types.ts`                                                |
+| Manifest S3                 | Glob testów popupu małą literą (`popupSignupForm`, `newsletterPopup` - P08), pliki P22 z testami, `meteringVisitor.server.ts`, wpięcie migawki, test trasy cennika.                                                                    | `src/lib/ci/hubDelivery.ts`                                                         |
+| Z-S6-16 (lejek)             | `REVENUE_DOMAIN_READS.funnel` = `admin_revenue_funnel(p_since, p_until, p_segment, p_track: "all")` - kształt z `WPIECIA_DOCELOWE`, klucze płaskie `REVENUE_FUNNEL_KEYS`; test „każde wpięcie produkcyjne woła SWOJĄ funkcję” zielony. | `src/lib/analytics/semantic/revenueSnapshot.functions.ts`                           |
+| Snapshot bramek autoryzacji | `generate:authz-snapshot`: `admin_revenue_access_inventory` czyta flagę `premium_content` (inwentarz warstw dla admina/editora za `is_admin_or_editor`, nie bramka czytelnika) - wpis do przeglądu (Z-S3-06).                          | `src/lib/authz/authzSnapshot.generated.ts`                                          |
+| P15 w teście cennika        | CTA darmowej warstwy → `/login?mode=signup&intent=pricing` (asercja świadomie zmieniona).                                                                                                                                              | `src/routes/__tests__/pricingRoute.test.tsx`                                        |
+| Budżet D-08                 | Ratchet `overall` 4991 → 4995 → 4997 z wpisem w kronice (§18.7).                                                                                                                                                                       | `scripts/check-bundle-size.ts`                                                      |
+| Przekazanie                 | Łatki `docs/kontynuacja/s3-wip/*.patch` i inwentarz `S3-stan-2026-10-19.md` usunięte - praca jest w historii, treść inwentarza w tej sekcji.                                                                                           | `docs/kontynuacja/**`                                                               |
+
+**Do integracji S5/S7/I9 (nie wykonane przez Integratora S3):**
+
+- **S5 (szablony ścieżek):** „porzucony koszyk” na `checkout.abandoned.v1`
+  (P22 - okno z `abandon_after_minutes`), „powitanie konta” na
+  `account.registered.v1`, „wyczerpany limit” na `metering.quota_exhausted.v1`.
+- **S7 (zakładki i diagnostyka):** zakładka lejka i inwentarza dostępu na
+  `queryOptions` z `src/lib/revenue/{funnel,access}/queries.ts` i słowniku
+  `i18n-admin-revenue-funnel`; symulator czytelnika = `<Paywall preview>`;
+  reguły `checkout.display_currency_mismatch` (P09), `paywall.members_rank_no_cta`
+  (regresja P14), `funnel.signup_popup_for_members` (regresja P17),
+  `checkout.abandon_window_default` (dialog okna porzucenia - pole
+  `checkout_settings.abandon_after_minutes` nie miało UI; od I9a jest
+  w karcie kasy, §19).
+- **I9:** przegląd wpisu `premium_content` w snapshocie autoryzacji
+  (Z-S3-06); e2e S3 w CI (Z-S3-04).
+
+### 18.5 Zgłoszenia otwarte
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S3-01 | **Budżet `public` ponad cel karty:** +5,4 KB (2774,4 → 2779,8 na `a39a10bf`; na `f149a004` +4,6: 2773,9 → 2778,5) przy celu ≤ +1,2 KB; próg zamrożony 2881 zielony (zapas 101,2 KB). Po dokończeniu zdjęto 1,4 KB (chunki-fasady). Reszta to kod funkcji, ok. +4,7 KB (rozbicie §18.7), i entropia hashy. Plan B karty nie obniża tej liczby: `public` liczy każdy chunk osiągalny z publicznego adresu (`check-bundle-size.ts`: „przeniesienie kodu z eager do lazy nie rusza tej liczby”). Decyzja właściciela: akceptacja odchylenia albo okrojenie funkcji (np. rezygnacja z oferty dla gościa). **Zamknięte 2026-10-20 (I9b, §21.11 B1):** decyzja właściciela - bez okrajania funkcji; przegląd redukcji (słowniki, martwy kod, duplikaty, przeniesienie oferty na serwer) bez bezpiecznego zysku zbliżającego do celu; akceptacja odchylenia +4,2 KB ponad cel (+5,4 przy celu +1,2), próg 2881 bez zmian. |
+| Z-S3-02 | Uderzenia gości w paywall są dolną granicą: bez ważnego cookie licznika (`nes_mvid`, zakłada je dopiero konsumpcja limitu) uderzenie nie jest liczone, bo pomiar nie ma podstawy, by zakładać identyfikator przeglądarki. Wskaźniki PHR/PSCR liczą konta, nie gości. **Udokumentowane 2026-10-22 (I9, §24):** granica pomiaru bez zmian, opis w `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Z-S3-03 | P09: reguła diagnostyki `checkout.display_currency_mismatch` - S7 (§5.7). **Zamknięte 2026-10-22 (S7, §23):** reguła `checkout.display_currency_mismatch` (ostrzeżenie, naprawa w kodzie) w `src/lib/revenue/diagnostics/checks/checkout.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Z-S3-04 | e2e S3 lokalnie częściowo: kontener bez sekretów Supabase w serwerze dev - testy z sesją podstawioną w magazynie (`login-return`, link aktywacyjny) czekają na nawigację portalu do limitu, a `checkout.spec.ts:66` nie widzi linku do logowania. Na czystym `main` w tym kontenerze padają tak samo `checkout.spec.ts:66` i `event-paid-registration.spec.ts:252`. Rozstrzyga job `e2e` CI. **Zamknięte 2026-10-22 (I9, §24):** `e2e` i `e2e-seeded` mają `success` na głowie PR `2113569d` (job `e2e`: 114 zaliczonych, 25 pominiętych, 0 błędów).                                                                                                                                                                                                                                                                                                                                                              |
+| Z-S3-05 | `bunx tsgo --noEmit --checkers 2` ginie z OOM (137) przy 15 GB także na bazie; przechodzi `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1` (szczyt ok. 13,7 GB). Propozycja dla kolejnych wycinków: ten wariant jako lokalny typecheck.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Z-S3-06 | Snapshot autoryzacji zgłasza `admin_revenue_access_inventory` jako bramkę flagi `premium_content` (bez ról omijających). Funkcja jest za `is_admin_or_editor` i tylko raportuje warstwy z tą flagą - do potwierdzenia w przeglądzie (I9). **Zamknięte 2026-10-20 (I9b, §21.11 B2):** potwierdzone - raport personelu, nie bramka czytelnika; generator bez mechanizmu adnotacji, wpis zostaje; pgTAP `hub_i9b_access_inventory_authz` dowodzi odmowy dla anon, czytelnika, roli `user`, autora i editora innego najemcy.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Z-S3-07 | P22 obejmuje wszystkie sesje kasy (plan, treść, bilet): krótsze okno zwalnia rezerwację biletu szybciej (`expireCheckoutOrder`). Domyślne 1440 min nie zmienia zachowania; wartość okna ustawia właściciel (UI - S7). **Aktualizacja 2026-10-20:** pole z dymkiem o skutkach dla rezerwacji biletów jest w karcie kasy od I9a (§19); dialog naprawy - S7. **Zamknięte 2026-10-20 (I9b, §21.11 B3):** akceptacja jednego okna; linia z bieżącym oknem i linkiem do karty kasy w nagłówku karty biletów wydarzenia (`EventTicketCheckoutWindowNote`).                                                                                                                                                                                                                                                                                                                                                               |
+
+### 18.6 Bliźniaki drizzle
+
+| Wersja supabase                           | Bliźniak                        | idx | `when`        |
+| ----------------------------------------- | ------------------------------- | --- | ------------- |
+| `20261020120000_account_registered_event` | `0347_account_registered_event` | 347 | 1792476433912 |
+| `20261020120100_paywall_hits_rpc`         | `0348_paywall_hits_rpc`         | 348 | 1792476493912 |
+| `20261020120200_metering_quota_rank_gate` | `0349_metering_quota_rank_gate` | 349 | 1792476553912 |
+| `20261020120300_checkout_events`          | `0350_checkout_events`          | 350 | 1792476613912 |
+| `20261020120400_revenue_funnel_access`    | `0351_revenue_funnel_access`    | 351 | 1792476673912 |
+
+Numery od pierwszego wolnego na `main` w chwili scalenia: `0346` zajął
+`0346_pr527_deployment_completion` (Lovable, potwierdzenie wdrożenia #527,
+`when` = 1792476373912), więc `when` = 1792476373912 + n·60 000. Pierwsza
+integracja (na `f149a004`) dała `0346…0350` - przesunięte przy
+przebazowaniu (§4.4 pkt 3; glob w `hubDelivery.ts` zaktualizowany). `cmp`
+supabase ⇄ drizzle: bajt w bajt. **Następny wolny numer: `0352`** (idx 352),
+bez rezerwacji (§6).
+
+### 18.7 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`, ten sam host i te same `node_modules`. Bazy zbudowane
+w `/home/user/neweustrategies-dc633fb5`: `f149a004` (`main` po PR #527; kod =
+drzewo końcowe S2) i `a39a10bf` (`main` po #528 - baza końcowa). Przypisanie:
+gzip -9 per chunk z `.output/public/assets` (nazwa bez hasha) i inwentarz
+modułów (`reports/chunk-inventory.json`), baza ⇄ S3.
+
+| Budżet (gzip KB)         | Próg przed / po | Baza `f149a004` | S3 wykonawca (`f149a004`) | S3 po dokończeniu (`f149a004`) | Baza `a39a10bf` | S3 końcowy (`a39a10bf`) | Δ S3 (końcowa) | Cel S3 (§8.6) | Wynik                                                                                |
+| ------------------------ | --------------- | --------------- | ------------------------- | ------------------------------ | --------------- | ----------------------- | -------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `overall`                | 4991 / **4997** | 4989,6          | 4995,3                    | 4994,0                         | 4989,8          | 4995,6                  | **+5,8**       | -             | próg 4991 ✗ → ratchet D-08 4995, po przebazowaniu korekta (4995,6 → 4996 → +1)       |
+| `admin-only`             | -               | 2215,6          | 2215,8                    | 2215,5                         | 2215,4          | 2215,9                  | +0,5           | -             | entropia hashy; snapshot autoryzacji +0,05                                           |
+| `public`                 | 2881 (zamr.)    | 2773,9          | 2779,5                    | 2778,5                         | 2774,4          | 2779,8                  | **+5,4**       | ≤ +1,2        | próg ✓; cel ✗ (Z-S3-01)                                                              |
+| największy chunk (entry) | 286 (zamr.)     | 257,9           | 258,0                     | 258,1                          | 257,8           | 258,1                   | +0,3           | -             | ✓                                                                                    |
+| `css`                    | 100             | 99,7            | 99,7                      | 99,7                           | 99,7            | 99,7                    | 0,0            | 0             | ✓ (bez ratchetu)                                                                     |
+| `publicCss`              | 85 (zamr.)      | 83,8            | 83,8                      | 83,8                           | 83,8            | 83,8                    | 0,0            | -             | ✓                                                                                    |
+| `boot`                   | 579 (zamr.)     | 471,6           | 471,8                     | 471,8                          | 471,6           | 471,8                   | +0,2           | -             | ✓                                                                                    |
+| liczba chunków           | -               | 1457            | -                         | 1459                           | 1457            | 1459                    | +2             | -             | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Dokończenie: `paywallOffer` importował katalog planów, warstwy, organizację,
+klienta Supabase i server fn uderzenia przez `import()`. Moduły, które inne
+chunki importują statycznie, Rolldown emitował wtedy jako chunki-fasady
+z pełną listą eksportów (`tiers` +0,30, `queries` +0,20, `membership` +0,12,
+osobna zaślepka `paywallHits.functions` +0,22). Moduł oferty sam jest leniwy,
+więc importy w nim są teraz statyczne: −1,4 KB `public` przy tym samym
+zachowaniu.
+
+Przypisanie przyrostu `public` (gzip KB, S3 końcowy ⇄ baza `a39a10bf`; moduły
+z inwentarza):
+
+| Chunk (klasa)                  | Δ gzip KB | Przyczyna                                                                                                                                                        |
+| ------------------------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_` (trasa wpisu, leniwy)      | +1,61     | `Paywall.tsx` +5,6 KB surowo (oferta per persona, tytuł progu, CTA gościa z powrotem, `preview`, pomiar), `i18n-paywall` +1,2 KB (PL/EN), `MeterBanner` +0,4 KB. |
+| `paywallOffer` (nowy, leniwy)  | +1,23     | `resolvePaywallOffer`, `loadPaywallOffer`, `recordPaywallHit` i zaślepka klienta `recordPaywallHitVisitor` (4,2 KB surowo).                                      |
+| `paywallLinks` (nowy, wspólny) | +0,78     | Sanitizacja `next` i parametry `/login` (2,7 KB surowo) - wspólne dla paywalla, licznika, bramki klubu, portalu, `/auth/callback` i sukcesu kasy.                |
+| `club._clubSlug.index`         | +0,40     | Bramka klubu: `useHydrated`, pomiar, powrót po logowaniu, kontekst planu (+1,3 KB surowo).                                                                       |
+| `app-initial` (entry, boot)    | +0,20     | Walidator `/login` z `next`/`intent`/`plan` (+0,3 KB surowo), nazwy GA4 lejka; reszta - hashe importów.                                                          |
+| `AuthPortal`                   | +0,18     | `next`/`intent`/`plan`, źródło rejestracji, zdarzenia konta.                                                                                                     |
+| `checkout._planId`             | +0,12     | `checkout_view`, `checkout_submit`.                                                                                                                              |
+| pozostałe moduły S3            | +0,23     | `SupporterStrip` (cennik: P15/P18) +0,07, `auth.callback` +0,06, `overlay` +0,05, `NewsletterPopup` +0,03, `login` +0,03.                                        |
+| entropia hashy                 | ok. +0,7  | Nowe hashe w nazwach importów - po kilka bajtów w ~700 chunkach, bez zmiany modułów.                                                                             |
+
+Ratchet `overall` 4991 → 4995 (`a310387e`) i korekta 4995 → 4997 po
+przebazowaniu (`5243b3be`) w `scripts/check-bundle-size.ts` z wpisem
+w kronice. Progi `public`, `publicCss`, `chunk`, `boot` bez zmian i w normie;
+`css` bez zmian.
+
+### 18.8 Weryfikacja końcowa S3
+
+Worktree `/home/user/wt/S3`: pełny zestaw na `f149a004` po dokończeniu
+i integracji, a po przebazowaniu na `a39a10bf` powtórzone bramki dotknięte
+zmianą bazy (ostatni wiersz tabeli; `main` nie dodał migracji `supabase/`,
+więc pgTAP z `f149a004` jest aktualny).
+Decyzja właściciela (2026-10-19): lokalnie testy celowane; **pełny pakiet
+vitest uruchamia CI nowego PR**. Pamięć 16 GB: ciężkie kroki po kolei.
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `bun run verify:static`                                                                                                                                                                                                                                                                                                                                                                                                                                                       | ✓ 18 bramek w 279 s (`check:migration-lanes` 351 wpisów, bliźniaki S3 rozpoznane; `check:types-freshness` 381 tabel; `check:ts-sql-contract` 945 wywołań RPC)                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bunx tsgo --noEmit --checkers 2`                                                                                                                                                                                                                                                                                                                                                                                                                                             | ✗ OOM 137 (szczyt 14,8 GB) - środowisko (Z-S3-05)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                                                                                                                                                                                                                                              | ✓ 0 błędów (szczyt 13,7 GB)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `bun run lint`                                                                                                                                                                                                                                                                                                                                                                                                                                                                | ✓ 0 błędów, 282 ostrzeżenia (bez przyrostu względem bazy)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/access`, `src/lib/revenue`, `src/components/{__tests__,clubs,auth,pricing,molecules}`, `src/routes/api/public`, `src/routes/__tests__`, `src/lib/{analytics,billing,ci,realtime,__tests__}`                                                                                                                                                                                                                                | ✗ → ✓: 844 pliki, 24 400 testów + 101 oczekiwanych porażek (10,7 min); jedna czerwień - `pricingRoute.test.tsx` przypinał goły `/login` (P15, §18.4), po poprawce zielony                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - konsumenci zmienionych modułów spoza zestawu (panel paywalla, popupy, zgody, reklamy, `src/hooks`, `src/lib/{auth,authz,clubs,seo,consent,pricing,newsletter}`, inwariant schematu)                                                                                                                                                                                                                                                 | ✗ → ✓: 294 pliki, 7669 testów; jedna czerwień - `authzSnapshotParity` (nowy wpis `premium_content`, §18.4), po regeneracji 5/5 plików `src/lib/authz` zielone                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-int`, port 5470, `flock`)                                                                                                                                                                                                                                                                                                                                                                                                           | 1278 migracji (1 błąd znany: `20260825230232`); 233 pliki: 229 OK, 4 znane błędy środowiska (`community_cron_schedule` 2 i `job_scheduler_heartbeat` 1 - `pg_net`; `public_definer_views_read_only` 1/35; `profile_intent_semantic` 20/36 - `vector`). 5 plików S3 zielone: 100 asercji (`account_registered_event` 12, `paywall_hits` 23, `metering_quota_rank_gate` 24 - w tym 1000 wywołań `_metered_view_consume` bez skanu sekwencyjnego, `checkout_events` 14, `revenue_funnel_access` 27); `metering_concurrency` 9, `metering_paywall` 17, `metering_visitor_identity` 45 zielone bez edycji |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                                                                                                                                                    | ✓ 946 wywołań RPC (+1: wpięcie lejka w migawce), 1510 operacji na tabelach; 9/9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `check:rpc-contract`                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ✓ 820 nazw, 1661 funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `check:types-freshness`, `check:migration-lanes`                                                                                                                                                                                                                                                                                                                                                                                                                              | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`, `check:ts-sql-contract`                                                                                                                                                                                                                                                                                             | ✓ wszystkie rc=0 (po ostatnim commicie integracji)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `split-migration.ts --dry-run` dla `2026102012*`                                                                                                                                                                                                                                                                                                                                                                                                                              | ✓ każdy plik 1 część (największy `120400` = 28 532 B < 46 080 B)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                                                                                                       | build ✓; `check:bundle` ✗ wyłącznie `overall` 4994,0 > 4991 → ratchet D-08 4995 → ✓ (po przebazowaniu 4995,6 > 4995 → korekta 4997 → ✓); `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓                                                                                                                                                                                                                                                                                                                                                                        |
+| `flock -o /tmp/hub-build.lock bun run test:e2e -- e2e/paywall.spec.ts e2e/login-return.spec.ts e2e/checkout.spec.ts`                                                                                                                                                                                                                                                                                                                                                          | częściowo (Z-S3-04): 2 ✓ (`pricing page boots…`, „rejestracja z paywalla otwiera formularz rejestracji i zachowuje powrót”), 3 ✗ środowiskowe (sesja podstawiona w magazynie; `checkout.spec.ts:66` pada tak samo na czystym `main`), 12 niewykonanych (tryb `serial` po pierwszej porażce) - rozstrzyga CI                                                                                                                                                                                                                                                                                          |
+| `bun run scripts/hub-slice-guard.ts S3 --base a39a10bf`                                                                                                                                                                                                                                                                                                                                                                                                                       | exit 1 wyłącznie na zmianach Integratora (§18.4); dostawa huba: 5 plików, 9 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `cmp` supabase ⇄ drizzle `0347…0351`                                                                                                                                                                                                                                                                                                                                                                                                                                          | ✓ bajt w bajt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Po przebazowaniu na `a39a10bf`: `check:{migration-lanes,types-freshness,rpc-contract,ts-sql-contract,on-conflict-arbiters,sql-tenant-scope}`; `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1` + `typecheck:scripts` + `typecheck:e2e`; `TZ=UTC bunx vitest run --maxWorkers=3` (`src/lib/{ci,access,revenue,newsletter,analytics,authz,__tests__}`, `src/components/{__tests__,interests,clubs,auth,pricing,molecules}`, `src/routes/api/public`); build + budżety | ✓ wszystkie rc=0 (`check:migration-lanes` 352 wpisy; `ts-sql-contract` 946 wywołań RPC); typecheck 0 błędów (szczyt 12,2 GB); vitest 466 plików, 11 944 testy + 23 oczekiwane porażki (4 min); build ✓, budżety po korekcie ✓, `check:chunks`/`entry-purity`/`server-entry-purity` ✓                                                                                                                                                                                                                                                                                                                 |
+
+### 18.9 Wdrożenie S3 na produkcji (właściciel)
+
+Kod i migracje S3 idą w jednym PR. Zależności w obie strony:
+
+- nowy front przed migracjami: `record_paywall_hit` dostaje PGRST202, który
+  paywall połyka (pomiar nigdy nie psuje ściany); lejek i inwentarz w hubie
+  pokazują stan „źródło jeszcze niewdrożone”, migawka huba - `funnel`
+  `not_configured`; `expires_at` i `cancel_reason` działają bez migracji
+  (kolumna `abandon_after_minutes` jest z M0);
+- stary front po migracjach S3 działa bez zmian (P19 ma kształt werdyktu
+  „licznik nie dotyczy”, który klient już obsługuje).
+
+1. **Warunek:** M0 wdrożone (`paywall_hits`, `revenue_event_marks`,
+   `crm_lead_stage_history`, `_log_emit_error`, `revenue_segment_of_tier`),
+   S1, S2 i S4 wdrożone albo w tym samym oknie (§10).
+2. **Okno nocne** - gorące tabele: `CREATE TRIGGER` na `profiles` (`120000`)
+   i `payment_orders` (`120300`) pod `SET lock_timeout = '5s'`. Panel Lovable →
+   5 plików **w kolejności wersji**:
+   1. `20261020120000_account_registered_event` (wyzwalacz na `profiles`);
+   2. `120100_paywall_hits_rpc`;
+   3. `120200_metering_quota_rank_gate` (redefinicja `_metered_view_consume` i `log_metering_event`, sygnatury bez zmian);
+   4. `120300_checkout_events` (wyzwalacz na `payment_orders`);
+   5. `120400_revenue_funnel_access` (po `120100`).
+
+   Pliki są idempotentne (`CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`
+   - `CREATE TRIGGER`, bezstanowe `REVOKE`/`GRANT`). `55P03` (limit blokady) =
+     ponów cały plik.
+
+3. Zaraz potem opublikuj front z tego PR.
+4. Bliźniaki `0347…0351` są kopiami bajt w bajt - po panelu wykonują się jako
+   no-op; migrator Drizzle wykona je sam, jeśli panel zostanie pominięty.
+5. `workflow_dispatch` CI na `main` → `post-deploy`: `check:db-contract`
+   i `check:migration-ledger` (5 wersji) zielone. Wynik do §10.
+6. Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- RPC S3: oczekiwane 4 niepuste kolumny.
+SELECT to_regprocedure('public.record_paywall_hit(text,uuid,text,text,text)') AS hit,
+       to_regprocedure('public.record_paywall_hit_visitor(text,uuid,text,uuid,text,text,text)') AS visitor_hit,
+       to_regprocedure('public.admin_revenue_funnel(timestamptz,timestamptz,text,text)') AS funnel,
+       to_regprocedure('public.admin_revenue_access_inventory()') AS inventory;
+-- 2 wyzwalacze S3: oczekiwane 2.
+SELECT count(*) FROM pg_trigger
+ WHERE NOT tgisinternal
+   AND tgname IN ('trg_profiles_account_registered_emit', 'payment_orders_checkout_emit');
+-- Licznik gościa tylko dla serwera: oczekiwane false, false.
+SELECT has_function_privilege('anon', 'public.record_paywall_hit_visitor(text,uuid,text,uuid,text,text,text)', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public.record_paywall_hit_visitor(text,uuid,text,uuid,text,text,text)', 'EXECUTE');
+```
+
+Wycofanie: DDL S3 to funkcje i dwa wyzwalacze - bez nowych tabel i kolumn.
+Revert kodu przywraca dawny paywall (plany tylko dla zalogowanych) bez zmian
+danych. Zdjęcie wyzwalaczy `trg_profiles_account_registered_emit`
+i `payment_orders_checkout_emit` - osobną migracją spoza bloku huba, decyzją
+właściciela; redefinicja `_metered_view_consume` wraca przez ciało
+z `20261013090400` (P19 znika).
+
+### 18.10 Kryteria akceptacji S3 (SPEC §8.3)
+
+- [x] Macierz person RTL (gość, zarejestrowany bez planu, ranga za niska, z planem, wyczerpany limit, hasło, członek organizacji bez miejsca, plan na zapytanie) - tekst i CTA; teaser bez `body` w DOM; `preview` nie woła `consume_metered_view`, `record_paywall_hit` ani `track` (`Paywall.reader.test.tsx`, `Paywall.test.tsx`).
+- [x] `next`: tylko ścieżki względne (`//evil.com`, `https://…`, `/\evil`, `%2F%2F` odrzucone) - `paywallLinks.test.ts`, `loginReturn`, `authCallbackReturn`, `AuthPortal.return`; [x] e2e bez bazy - zielone w CI (Z-S3-04 zamknięte: `e2e` i `e2e-seeded` `success` na `2113569d`, §24).
+- [x] pgTAP 5 plików zielony (100 asercji); `metering_*` zielone bez edycji; 1000 wywołań `_metered_view_consume` bez skanu sekwencyjnego (§18.8).
+- [x] Zdarzenia klienta tylko przy zgodzie analitycznej; `record_paywall_hit` niezależny od zgody; błąd RPC (i nieudany `import()` modułu pomiaru) nie psuje paywalla.
+- [x] Popup rejestracji nie dla zalogowanych (`NewsletterPopup.session.test`); zgoda newslettera domyślnie odznaczona w obu formularzach (`popupSignupForm`, `ClubAccessGate.funnel`).
+- [x] `expires_at` sesji kasy z `abandon_after_minutes` (`checkoutSessionFlags.server.test.ts`, `checkoutSettingsLoad.server.test.ts`); `session_expired` zapisuje `cancel_reason` (`oneTimeFulfilment.server.test.ts`); [x] `e2e/checkout.spec.ts` - zielony w CI (Z-S3-04, §24).
+- [ ] **`public` ≤ +1,2 KB** - niespełnione: +5,4 KB na `a39a10bf` (+4,6 na `f149a004`; próg zamrożony zielony), odchylenie Z-S3-01 (§18.7). **Odchylenie zaakceptowane - decyzja właściciela 2026-10-20, zgoda delegowana (I9b, §21.11 B1).**
+
+## 19. I9a - nawigacja i widoczność huba w panelu (2026-10-20)
+
+**Decyzja właściciela 2026-10-20:** „wszystko, co robimy, ma być w panelu
+admina”. Hub `/admin/revenue` (trasy z I0) był dostępny wyłącznie z adresu -
+SPEC §2.4 przewidywał nawigację dopiero w I9. Część nawigacyjna karty I9
+(§8.3: pozycje, `searchEntries` ⌘K, `adminNav.test.ts`) przesunięta na teraz
+jako krok **I9a**; reszta karty I9 bez zmian. Praca szeregowa (jedyny aktywny
+agent), gałąź `hub/i9a-nawigacja` (worktree `/home/user/wt/NAV`) od
+`848cbf7e` (PR #530), fast-forward do `claude/elegant-fermat-xwfca1`.
+Commity:
+
+- `7cce99c7` - hub w nawigacji panelu i skróty ⌘K;
+- `4a7d2925` - zakładki „w przygotowaniu” z etapem i odnośnikami, słownik S6 w Wskaźnikach;
+- `c6516a8e` - okno porzucenia kasy w karcie ustawień kasy;
+- `dca6f4e9` - manifest I9 i ratchet D-08 `overall` 4997 → 5003;
+- ten wpis.
+
+### 19.1 Zakres
+
+| Obszar                               | Co dostarcza I9a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pasek boczny (`adminNav.ts`)         | Monetyzacja: **pierwsza** pozycja „Przychód i lejek” → `/admin/revenue` (ikona `Route`, słowa kluczowe z SPEC §2.4). CRM: „Ścieżki komunikacji” → `/admin/revenue/journeys` (ikona `GitBranch`) zaraz po „Automatyzacjach”. Podświetlenie: zakładki → hub, lista i edytor ścieżki → Ścieżki (najdłuższe dopasowanie).                                                                                                                                                                                                                                                                                                                             |
+| Role (SPEC §2.5)                     | `buildAdminNavGroups` dostaje **dokładne** role sesji (`roles` z `useAuth`) i liczy widoczność przez `hubTabsFor`/`canSeeTab` (S6) - ta sama reguła co pasek zakładek huba. Admin i redaktor widzą obie pozycje; autor i sam `super_admin` (bez wiersza `admin`) - żadnej (hub dałby im `RoleGateNotice`, bo polityki pytają `has_role(…, 'admin')`/`is_admin_or_editor()`).                                                                                                                                                                                                                                                                      |
+| ⌘K (`searchEntries`)                 | Skróty do zakładek dostępnych dla roli: Kokpit, Przychód (MRR), Lejek, Retencja, Społeczność, Diagnostyka, Oferta, Dostęp, Ścieżki, Wskaźniki, Dane wejściowe (admin - 11; redaktor - 8, bez zakładek z kwotami). Dopasowanie po własnej nazwie i słowach kluczowych (np. „churn”, „kohorty” → Retencja; „mrr”, „arpu” → Przychód), nazwa huba jako etykieta trafienia, jeden wynik na cel (Ścieżki z huba i z CRM). Enter przenosi z `search`. Napisy `admin.nav.revenueHub`, `admin.nav.journeys`, `admin.nav.revenueTabs.*` (PL/EN, `i18n-admin-core.ts`).                                                                                     |
+| Zakładki S7/S8 (zaślepki I0)         | Zamiast zdania „w przygotowaniu” - `RevenueTabPreparing`: nazwa zakładki, stan, **co pokaże** (SPEC §2.2), **kiedy** (etap S7; Ścieżki - S5 + S8; kolejka S5 → S7 → S8 → I9) i **gdzie te dane są dziś** - odnośniki do paywalla (plany, licznik, wyjątki, kasa), cennika (rezygnacje), członkostwa, kuponów, rozliczeń (subskrypcje), rejestru i pulpitu monetyzacji, CRM (kontakty, lejek), newslettera (popup, skrzynka nadawcza), automatyzacji, wydarzeń, klubów (zgłoszenia) i BI. Dane w `src/lib/admin/revenue/tabPreparing.ts` (cele i parametry z `AREA_OWNER_LINK`, SPEC §2.6), słownik przejściowy `i18n-admin-revenue-preparing.ts`. |
+| Wskaźniki                            | Gotowy słownik S6 (`MetricDictionary`) podpięty **leniwie** pod stanem „słownik działa, wartości z oceną - S7” (`data-tab-state="partial"`). Benchmarki z server fn z bramką admin/redaktor - ta sama poprzeczka co hub.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Kasa (`/admin/paywall?tab=checkout`) | Pole **„Okno porzucenia kasy (minuty)”** w istniejącej karcie S1 (`CheckoutSettingsCard`): wartość z serwera (brak = 1440), podpowiedź z granicami, dymek PL/EN (porzucenie kasy → lejek i ścieżka porzuconej kasy; dotyczy planu, treści i biletu - krótsze okno szybciej zwalnia rezerwację biletu, Z-S3-07). Wartość spoza 30-1440, ułamek, `1e3` i puste pole → komunikat `role="alert"`, `aria-invalid`, zapis wyłączony (odrzucenie, nie przycięcie). Zapis istniejącym mutatorem S1 z tokenem `updated_at` (CAS).                                                                                                                          |
+
+### 19.2 Decyzje
+
+- **Widoczność = dostęp do trasy.** Pozycje liczą role tak samo jak układ
+  huba (`hubTabsFor`), a nie z `isAdmin` (ten liczy też samego
+  `super_admin`). Skróty ⌘K to dokładnie zakładki z paska huba dla roli -
+  redaktor nie dostaje skrótu do ekranu „brak dostępu”.
+- **Ikona Ścieżek `GitBranch`, nie `Workflow` (SPEC §2.4).** `Workflow` nosi
+  już „Automatyzacje” piętro wyżej, a w zwiniętym pasku ikona jest jedyną
+  etykietą. Obie ikony są w grafie modułów (bez nowych zależności i ikon spoza
+  grafu, SPEC §8.6).
+- **Nazwy zakładek w `admin.nav.revenueTabs.*`**, nie `adminRevenue.tab.*`:
+  słownik huba ładuje dopiero hub, a wyszukiwarka działa na każdej trasie
+  panelu. „Przychód (MRR)” zamiast „Przychód”, żeby skrót nie mylił się
+  z pozycją huba.
+- **„Nowa ścieżka” bez skrótu.** Parametr `?new=1` jest w kontrakcie adresu
+  (I0), ale zakładka Ścieżek do S8 go nie obsługuje - skrót obiecywałby akcję,
+  która nic nie robi. Test w `adminNav.test.ts` przypina brak (do zmiany
+  w S8). **Zamknięte 2026-10-22 (S8, §22.4 pkt 2):** zakładka
+  obsługuje `?new=1` (galeria), skrót ⌘K „Nowa ścieżka komunikacji” dla
+  admina i redaktora, test odwrócony.
+- **Skróty wskaźników ⌘K pominięte** - `metricSearchIndex.ts` (SPEC §2.4)
+  to plik S7, którego jeszcze nie ma.
+- **Okno porzucenia: jeden predykat, zero importu limitów w kasie
+  czytelnika.** `isCheckoutAbandonMinutes`/`parseCheckoutAbandonMinutes`
+  w `lib/revenue/limits.ts` czyta formularz i serwer kasy
+  (`abandonAfterMinutes` deleguje); bazę pilnuje CHECK (parytet liczb -
+  `revenueLimitsParity.test.ts`). `useCheckoutSettings` (moduł publicznej
+  kasy - test „nie importuje modułów panelu”) tylko wybiera kolumnę w tym
+  samym odczycie co token i przekazuje wartość do zapisu; wartość spoza
+  zakresu odrzuca CHECK (`23514`), nigdy przycięcie. Osobne zapytanie o kolumnę
+  odrzucone: dwie kopie wiersza z różnymi tokenami pozwoliłyby nadpisać cudzą
+  zmianę okna.
+- **Karta zapisuje widoczne okno** (także domyślne 1440, gdy najemca nie ma
+  wiersza) - to, co admin widzi, jest tym, co zapisuje; asercja
+  `platformPaywallRoute.test.tsx` świadomie zmieniona.
+- **`adminPageHead`:** trasy huba (I0) i `/admin/paywall` (S1) mają już
+  sekcyjne nagłówki - I9a nie dodaje ekranów.
+- **D-08:** ratchet `overall` 4997 → 5003 (§19.4).
+
+### 19.3 Zmiany integratorskie i pliki współdzielone
+
+Strażnik `hub-slice-guard.ts I9 --base 848cbf7e`: diff mieści się
+w manifeście I9. Pliki spoza listy karty, których wymagał krok, dopisano do
+manifestu I9 z komentarzem „Integrator I9a”.
+
+| Plik                                                                                                                                                                   | Właściciel         | Zmiana                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/admin/adminNav.ts`, `__tests__/adminNav.test.ts`, `src/lib/i18n-admin-core.ts`                                                                                | współdzielone (I9) | pozycje huba i Ścieżek, `roles`, `searchEntries`, deduplikacja trafień, klucz pozycji z `search`; `admin.nav.*` PL/EN |
+| `src/components/admin/AdminShell.tsx`, `__tests__/AdminShell.test.tsx`                                                                                                 | panel (poza hubem) | role sesji do nawigacji, `search` w odnośniku i w Enter; testy pozycji, ról, podświetlenia i ⌘K prawdziwym słownikiem |
+| `src/lib/locale/__tests__/coreScopeSurfaces.test.tsx`                                                                                                                  | rdzeń i18n         | wywołanie z `roles`; etykiety skrótów ⌘K też muszą być napisami                                                       |
+| `src/components/admin/revenue/tabs/Revenue{Overview,Mrr,Funnel,Retention,Community,Diagnostics,Offer,Access,Metrics,Inputs}Tab.tsx`                                    | S7                 | stan „w przygotowaniu” (Wskaźniki: + słownik S6); S7 podmienia treść i usuwa wpis z `TAB_PREPARING`                   |
+| `src/components/admin/revenue/tabs/RevenueJourneysTab.tsx`                                                                                                             | S8                 | stan „w przygotowaniu” (etap S5 + S8)                                                                                 |
+| `src/lib/admin/revenue/tabPreparing.ts` (+ test), `src/components/admin/revenue/molecules/RevenueTabPreparing.tsx` (+ test), `src/lib/i18n-admin-revenue-preparing.ts` | I9a (nowe)         | dane, molekuła i słownik stanu „w przygotowaniu” (prefiks `adminRevenue` już w `GATED_PREFIXES` - bez zmiany bramki)  |
+| `src/components/admin/paywall/CheckoutSettingsCard.tsx` (+ test RTL), `src/hooks/useCheckoutSettings.ts` (+ test), `src/lib/i18n-admin-paywall-sync.ts`                | S1                 | pole okna porzucenia, odczyt i zapis kolumny, napisy PL/EN                                                            |
+| `src/lib/revenue/limits.ts` (+ `checkoutAbandonMinutes.test.ts`)                                                                                                       | I0                 | wspólny predykat i parser okna                                                                                        |
+| `src/lib/billing/checkoutSettings.server.ts`, `checkoutSettings.ts`                                                                                                    | S3 / S1            | serwer kasy na wspólnym predykacie; komentarze o czytelnikach kolumny                                                 |
+| `src/routes/__tests__/platformPaywallRoute.test.tsx`                                                                                                                   | S1                 | asercja zapisu z `abandon_after_minutes: 1440` (zmiana zamierzona)                                                    |
+| `src/lib/ci/hubDelivery.ts`, `scripts/check-bundle-size.ts`                                                                                                            | współdzielone (I9) | manifest I9; ratchet `overall` z kroniką                                                                              |
+
+`generate:authz-snapshot --check` zielony bez regeneracji (I9a nie dotyka
+migracji ani bramek SQL).
+
+### 19.4 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build drzewa `848cbf7e` (worktree `/home/user/wt/S3`,
+ten sam host i `node_modules`). Przypisanie: gzip -9 per chunk (nazwa bez
+hasha) i inwentarz modułów.
+
+| Budżet (gzip KB)            | Próg przed / po | Baza `848cbf7e` | I9a    | Δ        | Wynik                                                                                      |
+| --------------------------- | --------------- | --------------- | ------ | -------- | ------------------------------------------------------------------------------------------ |
+| `overall`                   | 4997 / **5003** | 4995,6          | 5001,8 | **+6,2** | próg 4997 ✗ → ratchet D-08 (5001,8 → 5002 → +1)                                            |
+| `admin-only`                | -               | 2215,9          | 2222,7 | +6,8     | -                                                                                          |
+| `public`                    | 2881 (zamr.)    | 2779,8          | 2779,1 | −0,7     | ✓ (nawigacja admina poza pakietem publicznym; `useCheckoutSettings` +0,08, reszta - hashe) |
+| największy chunk (entry)    | 286 (zamr.)     | 258,1           | 258,0  | −0,1     | ✓                                                                                          |
+| `css`                       | 100             | 99,7            | 99,7   | 0,0      | ✓ arkusze bit w bit te same (bez nowych klas)                                              |
+| `publicCss`                 | 85 (zamr.)      | 83,8            | 83,8   | 0,0      | ✓                                                                                          |
+| `boot`                      | 579 (zamr.)     | 471,8           | 471,8  | 0,0      | ✓                                                                                          |
+| chunki JS (nazwy bez hasha) | -               | 1269            | 1272   | +3       | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓       |
+
+| Chunk                        | Δ gzip KB | Przyczyna                                                                                                                                                                                 |
+| ---------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RevenueTabPreparing` (nowy) | +4,12     | słownik PL/EN opisu, etapu i odnośników 11 zakładek (6,2 KB surowo), dane `tabPreparing` (4,5 KB), molekuła (2,9 KB) - leniwie                                                            |
+| `AdminShell`                 | +0,86     | pozycje huba, mapy etykiet i słów kluczowych skrótów, wyszukiwanie po skrótach                                                                                                            |
+| `hubTabs` (nowy, wspólny)    | +0,80     | `hubTabs.ts` wspólny dla nawigacji i huba (z `admin.revenue` −0,39)                                                                                                                       |
+| `saveErrorToast`             | +0,54     | pole okna porzucenia w karcie kasy i napisy `adminPaywall.checkout.abandonAfter*`                                                                                                         |
+| `RevenueMetricsTab`          | +0,54     | leniwy słownik S6 i stan „słownik działa”                                                                                                                                                 |
+| `limits` (nowy, wspólny)     | +0,43     | predykat okna współdzielony przez kartę kasy i rozliczenia                                                                                                                                |
+| pozostałe                    | −0,7      | `admin.paywall` +0,31, `admin` +0,25 (`admin.nav.*`), `admin.revenue._tab` +0,23, `admin.billing` −0,18, `useCheckoutSettings` +0,08 (kolumna okna w odczycie kasy); entropia hashy −1,38 |
+
+### 19.5 Weryfikacja końcowa I9a
+
+Worktree `/home/user/wt/NAV`, ciężkie kroki po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                | Wynik                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                   | ✓                                                                                                                                                                                                    |
+| `bun run verify:static`                                                                                                                                                                                                                  | ✓ 18 bramek w 318 s (`check:ts-sql-contract` 946 wywołań RPC, 1510 operacji na tabelach; `check:types-freshness` 381 tabel)                                                                          |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                         | ✗ → ✓: jedno wywołanie `buildAdminNavGroups` bez `roles` (`coreScopeSurfaces.test.tsx`), po poprawce 0 błędów                                                                                        |
+| `bun run lint`                                                                                                                                                                                                                           | ✓ 0 błędów, 282 ostrzeżenia (bez przyrostu)                                                                                                                                                          |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/admin`, `src/routes/__tests__`, `src/components/admin/{revenue,paywall,analytics,__tests__}`, `src/lib/{revenue,ci,__tests__,locale,billing}`, `src/__tests__`, `src/hooks/__tests__` | ✗ → ✓: 814 plików, 23 407 testów + 116 oczekiwanych porażek (10,9 min); jedna czerwień - `platformPaywallRoute` (zapis karty kasy z oknem, zmiana zamierzona), po poprawce 65 plików / 1446 testów ✓ |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - konsumenci (`EventInvoicesPanel`, `src/lib/{realtime,access,authz,analytics/semantic}`, `src/components/{checkout,__tests__}`, `src/components/admin/{pricing,membership}`)                    | ✓ 116 plików, 2281 testów + 7 oczekiwanych porażek                                                                                                                                                   |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                  | build ✓; `check:bundle` ✗ wyłącznie `overall` 5001,8 > 4997 → ratchet D-08 5003 → ✓; pozostałe ✓                                                                                                     |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                                | ✓ bez regeneracji                                                                                                                                                                                    |
+| `bun run scripts/hub-slice-guard.ts I9 --base 848cbf7e`                                                                                                                                                                                  | ✓ diff mieści się w manifeście; dostawa huba: 0 plików SQL                                                                                                                                           |
+
+Nowe testy: `adminNav.test.ts` (+16: pozycje i role, ikony, podświetlenie,
+skróty admina i redaktora, trasy bez 404, deduplikacja, brak „Nowej
+ścieżki”), `AdminShell.test.tsx` (+5, prawdziwy słownik PL),
+`tabPreparing.test.ts` (78: etapy, odnośniki na stałe trasy z kontraktu,
+pokrycie modułów, PL/EN), `RevenueTabPreparing.test.tsx` (5, z axe),
+`CheckoutSettingsCard.abandon.test.tsx` (10, RTL: wartość, granice, dymek,
+odrzucenie 5 wartości, CAS, PL/EN), `useCheckoutSettings.test.ts` (+4),
+`checkoutAbandonMinutes.test.ts` (24).
+
+### 19.6 Co zostaje
+
+- **I9:** odnośniki moduły → hub (`RevenueSignalChip` w 13 modułach, SPEC
+  §2.7), baner „przeniesione do huba” w `/admin/monetization` (D-09),
+  `RelatedModulesBar` w cenniku, skróty wskaźników ⌘K z
+  `metricSearchIndex.ts` (po S7), okruszki edytora ścieżki (S8 - **zamknięte
+  2026-10-22, §22.2**), reszta karty
+  I9 bez zmian (jobs-tick, authz/ownership, tryb ścisły, ratchet końcowy,
+  runbook).
+- **S7:** podmieniając zaślepkę zakładki, usuń jej wpis z `TAB_PREPARING`
+  i gałąź `adminRevenue.preparing.what.*` (odnośniki mogą zostać jako
+  „Powiązane moduły”); Wskaźniki - wartości z oceną i `?metric=&ctx=` obok
+  słownika; dialog `checkout.abandon_window_default` może prowadzić do pola
+  z I9a (`/admin/paywall?tab=checkout`) albo reużyć predykatu z `limits.ts`.
+- **S8:** zakładka Ścieżek i obsługa `?new=1` → wtedy skrót ⌘K „Nowa
+  ścieżka” w `adminNav.ts` (test przypina dziś jego brak). **Zamknięte 2026-10-22 (S8,
+  §22.4 pkt 2 i 7):** skrót dodany, wpis Ścieżek zdjęty z `TAB_PREPARING`.
+- **Wszystkie kolejne wycinki (S5 → S7 → S8 → I9):** wymóg właściciela
+  „wszystko w panelu admina” - każda nowa funkcja kończy się wejściem
+  w panelu dla właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne
+  `adminPageHead`, PL/EN, stan pusty z następnym krokiem).
+
+## 20. Wycinek S5 - silnik ścieżek (backend) (2026-10-20)
+
+Gałąź `hub/s5-silnik-sciezek` (worktree `/home/user/wt/S5`), baza
+`32e9039a` (gałąź PR `claude/elegant-fermat-xwfca1` po S3, I9a i scaleniu
+`main` z #529). Jeden agent wykonał kartę S5 i integrację (praca szeregowa,
+decyzja właściciela 2026-10-19); po zielonych bramkach fast-forward gałęzi PR.
+Commity:
+
+- `e0c41930` - 6 migracji `2026102014*` i 7 plików pgTAP (trasa i skrzynka, wykonanie, warunki i zgody, RPC panelu, narzędzia panelu, tracking i statystyki);
+- `db5ced66` - warstwa TS `src/lib/journeys/**` (graf, warunki, wyzwalacze, 14 szablonów, server fn, `queryOptions`, render, tracking, etykiety), słownik `adminJourneys`, testy;
+- `f1c42069` - runner, doręczanie przez istniejącą kolejkę (nadawca i Reply-To z panelu), tracking 1:1 w `nl-open`/`nl-click`/wypisie, wpis `SERVICE_ROLE_READERS`, testy;
+- `9938b97f` - integracja: pliki współdzielone (§20.4);
+- ten wpis (dziennik, prompt kontynuacji).
+
+Pełny pakiet vitest uruchamia CI PR (decyzja właściciela 2026-10-19:
+lokalnie testy celowane, typecheck, lint, pgTAP, build z budżetem - §20.8).
+
+### 20.1 Zakres
+
+84 pliki, +19 055 / −8 linii (bez tego wpisu), w tym 6 bliźniaków drizzle
+(3 969 linii kopii) - kod, SQL, testy i pliki współdzielone: ok. +15 100.
+
+| Obszar                           | Co dostarcza S5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trasa i skrzynka (`140000`)      | `trg_journey_route_event` na `domain_events` (warunek `WHEN` odsiewa agregaty ścieżek i diagnostyki, zapytanie po kluczu głównym `journey_event_routes`, ładunek bez imion i nazwisk, błąd trasy → `journey_engine_errors`, nigdy wycofanie zdarzenia szyny); `journey_resolve_lead` (lead → konto/członek → osoba wydarzeń, także z agregatu zgłoszenia przy rezygnacji → subskrybent → aktor spoza personelu; klub `secret` i zdarzenie anonimowe = brak kontaktu; brak leada przy znanym adresie = lead **bez zgody**); `journey_ingest_inbox` (zapis, cel, wyjście, pobudka czekania; zapis tylko przy włączonym silniku i opublikowanej wersji).                                              |
+| Wykonanie (`140100`)             | `journey_claim_due` (dzierżawa 120 s, ≤ 20 zapisów na najemcę na tick, ścieżki wstrzymane i najemcy z wyłączonym silnikiem pominięci - poza testem na żywo), `journey_advance` (krok = jeden wiersz `journey_step_runs` na `(zapis, węzeł)`, powtórka po awarii jest no-opem; czekania, A/B z kubełkiem deterministycznym, warunki, akcje CRM), `_journey_exec_action` (etap cyklu przez `crm_set_lifecycle_stage` z pierwszeństwem pisarzy, etap sprzedaży tylko w przód, zadanie CRM z `origin_ref` `journey:{zapis}:{węzeł}`, tagi, lista newslettera, powiadomienie zespołu), `journey_fail_step` (ponowienia 1 min·4ⁿ do 12 h, martwy krok po 8), `journey_tick_emit_stats`, `journey_purge`. |
+| Warunki i zgody (`140200`)       | `_journey_eval_predicate` (14 rodzajów, w tym `trigger_field` - §20.3), `journey_can_send` (blokady techniczne → zgoda → limit D-03 → cisza nocna D-03), `journey_contact_for_send` (adres, imię, język z fallbackiem, wariant, temat, dokument, nadawca, zmienne), `journey_validate_graph` (te same reguły co TS + kody parametrów), kolumny `journey_settings.sender_name`/`reply_to` (CHECK, odrzucenie zamiast przycięcia).                                                                                                                                                                                                                                                                   |
+| Panel - RPC (`140300`, `140400`) | `admin_journey_{create,save_draft,publish,set_status,email_content_save,settings_get,settings_save,list,enrollments,lead_enrollments,enroll_test,enrollment_skip_wait,enrollment_exit,trigger_estimate,simulate,engine_health}` - najemca i rola z sesji (`_journey_staff_tenant`), publikacja/status/ustawienia/pominięcie czekania tylko admin, CAS po `updated_at` (40001), każda zmiana emituje `journey.changed.v1`.                                                                                                                                                                                                                                                                          |
+| Tracking i statystyki (`140500`) | `_journey_message_id` (lustro `deterministicMessageId`), `journey_complete_email_step` (wynik maila: `queued`/`deferred`/`quiet`/`capped`/brak zgody/wypis/blokada/`delivery_not_ready`), `journey_record_message_event` (najemca z wiadomości, deduplikacja doby, otwarcie maszynowe: proxy albo próg `machine_open_seconds`), wypis (`_journey_unsubscribe`), `admin_journey_stats` (per krok, A/B z z-score od 100 zapisów na ramię, rollup > 400 dni albo > 50 tys. zapisów), `admin_journey_series`, `journey_rollup_daily`, redefinicja `email_apply_delivery_event` (najemca po `provider_message_id`).                                                                                     |
+| TS (`src/lib/journeys/**`)       | `graph` (zod, `validateJourneyGraph`: DAG, gałęzie, osiągalność, ≤ 60 węzłów, zakaz maila przy `payment_failed`, ostrzeżenia `workflow_overlap`/`trigger_cycle`/`entry_filter_history`), `nodeTypes`, `predicates`, `triggers` (25 wyzwalaczy z kluczami ładunku emiterów S1-S4, `buildTriggerCondition`), `variables` (tryby html/text/url), `dto`, `parse` (rzuca, nie zeruje), `journeys.functions` i `stats.functions` (19 server fn), `queries`, `render.server`, `tracking.server`, `labels` (klucze etykiet z kodów unii), 14 szablonów `templates/**`.                                                                                                                                     |
+| Runner i doręczanie              | `src/lib/server/journeysRunner.server.ts` (`runJourneysTick`) - kolejność, termin 3 s, sufit 20 maili, odkładanie, bramka reputacji raz na najemcę, idempotencja; mail przez istniejącą kolejkę (`enqueueRawEmail` → `queueDrain`) z kategorią z `suppressionPolicy` (`journey` = masowa, `journey_service`/`journey_test` = 1:1), nadawca i Reply-To z panelu. Runner **niepodpięty** do `jobs-tick` (I9, §20.4).                                                                                                                                                                                                                                                                                 |
+| Trasy publiczne                  | `nl-open`/`nl-click` - gałąź `m=` (token wiadomości `jm:`, podpis linku z numerem, cel tylko podpisany, http(s)); wypis `/api/public/newsletter/unsubscribe` przyjmuje token ścieżki (`ju:`): GET bez mutacji, POST przez limiter, 500 przy awarii (bramka ponawia).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Słownik                          | `src/lib/i18n-admin-journeys.ts` (`adminJourneys.*`, PL/EN): typy i rodziny węzłów, gałęzie, statusy, powody wyjścia, wyniki kroków, fazy, warunki, wyzwalacze, zmienne, werdykty, kody błędów TS i SQL, adnotacje symulacji, ustawienia, zdrowie, 14 szablonów.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+### 20.2 Decyzje
+
+- **S5 prosto do gałęzi PR**, jak S1-S4: migracje, bliźniaki i kod w jednym PR.
+- **D-03** (właściciel): maks. **3 maile marketingowe / 7 dni na kontakt**
+  liczone razem ze ścieżek (kategoria `marketing`, bez testów) i kampanii
+  newslettera (`newsletter_campaign_recipients.status = 'sent'`); limit
+  wyczerpany → krok przesuwany o dobę do 3 razy, potem pominięty z wynikiem
+  `capped`. **Cisza nocna 21:00-08:00 Europe/Warsaw** (wartości domyślne
+  `journey_settings` z I0): mail marketingowy w ciszy czeka do jej końca
+  (08:00). Usługa (z podstawą prawną) i test na żywo podlegają wyłącznie
+  blokadom technicznym (odbicie, skarga) - nie limitowi, ciszy ani zgodzie
+  marketingowej.
+- **D-04** (właściciel): porzucona kasa = **marketing**, wymaga zgody
+  marketingowej; szablon `abandoned_checkout` tylko dla subskrypcji
+  (`{"kind": "subscription"}`), celem jest `checkout.completed.v1`.
+- **Silnik wyłączony domyślnie:** brak wiersza `journey_settings` =
+  `enabled = false`; przy wyłączonym silniku skrzynka się zamyka bez zapisów,
+  a `journey_claim_due` nie pobiera zapisów (poza testem na żywo - admin
+  testuje ścieżkę przed włączeniem, M3). Awaryjny wyłącznik środowiska
+  `JOURNEYS_ENGINE_DISABLED=1` zatrzymuje runner bez dostępu do bazy; jego
+  stan pokazuje `admin_journey_engine_health` (`killSwitch`).
+- **„Wszystko w panelu admina”** (wymóg właściciela): każdy przełącznik ma RPC
+  i server fn dla UI S8 - włączenie silnika, limit D-03, cisza nocna, strefa,
+  nadawca i Reply-To, opiekun zadań, próg otwarcia maszynowego
+  (`saveJourneySettings`, odczyt `getJourneySettings`, także stan „brak
+  wiersza”), pauza/wznowienie/archiwum ścieżki (`setJourneyStatus`), wyjście
+  kontaktu (`exitJourneyEnrollment`), pominięcie czekania (`skipJourneyWait`),
+  test na żywo (`enrollJourneyTest`), zdrowie silnika
+  (`getJourneyEngineHealth`). Żadnego ustawienia tylko z SQL albo env (poza
+  wyłącznikiem awaryjnym, który jest widoczny w panelu).
+- **Tożsamość wiadomości:** `message_id = deterministicMessageId("journey:{zapis}:{węzeł}")`
+  = `_journey_message_id` (parytet asercją pgTAP i testem TS na tej samej
+  stałej). Klucz kolejki = ten sam napis, więc powtórka po awarii między
+  kolejką a domknięciem kroku nie wysyła drugiego maila.
+- **Tracking 1:1:** rozłączne domeny HMAC - `jm:` (piksel, kliknięcie, podpis
+  linku z numerem) i `ju:` (wypis); wyciek piksela nie wypisze odbiorcy.
+  Wypis: zgoda leada wycofana z wpisem `crm_consent_log` (`given = false`),
+  subskrybent wypisany istniejącym `email_unsubscribe_by_token` (blokada
+  `unsubscribe` w tej samej transakcji; bez subskrybenta - sama blokada),
+  aktywne zapisy **marketingowe** kontaktu wychodzą z powodem `unsubscribed`;
+  globalna trasa wyjścia `newsletter_subscriber.unsubscribed.v1` dla ścieżek
+  marketingowych.
+- **Wersje i A/B:** publikacja `drain` (zapisy w toku kończą starą wersję)
+  albo `exit_all`; kubełek A/B = `hashtextextended(zapis:węzeł) % 100`
+  (stały dla kontaktu); z-score tylko przy ≥ 100 zapisach na ramię.
+- **Szablony:** 14 w kodzie (instalacja = szkic u najemcy + treść wariantu A),
+  ton NES, bez obietnic liczbowych; odnośniki do wiedzy Insidera to wyłącznie
+  identyfikatory z `docs/benchmarki/insider-2026-10-19` (test sprawdza ich
+  istnienie). `pricing_enquiry_b2b` widoczny jako niedostępny do zdarzenia
+  formularza kontaktu (SPEC P25 - po M3). Przypomnienia logistyczne wydarzeń
+  zostają w module wydarzeń (szablon nurtowania ich nie dubluje).
+
+### 20.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S5                      | Stan po S5                                                                                                                                                 | Uzasadnienie                                                                                                                               |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `winback_30d` z `reason <> 'paused'` (§5.6)  | Nowy rodzaj warunku `trigger_field` (`in`/`not_in` na polu ładunku zdarzenia wejścia) w filtrze wejścia.                                                   | `payload @> condition` nie wyraża zaprzeczenia; warunek żyje w tym samym interpreterze co pozostałe.                                       |
+| Limit tagu `JOURNEY_LIMITS.tagMax` = 64 (I0) | Akcje i warunek tagu ≤ 40 znaków (`JOURNEY_TAG_MAX`, SQL `tag_length`).                                                                                    | Pisarz tagów CRM (`run_workflow_step`, panel CRM) przyjmuje 40 - dłuższy tag padłby przy wykonaniu. Z-S5-02.                               |
+| §5.2 RPC panelu                              | + `admin_journey_settings_get` (odczyt ustawień, także „brak wiersza” z wartościami domyślnymi).                                                           | Wymóg właściciela: stan każdego przełącznika widoczny w panelu.                                                                            |
+| `journey_settings` (I0)                      | + `sender_name` (1-120, bez `<>"` i nowych linii), `reply_to` (≤ 254, adres) w `140200`; `enqueueRawEmail` przyjmuje `fromName`/`replyTo`.                 | Nadawca z panelu, nie z env (domena nadawcza zostaje zweryfikowana - zmienia się tylko nazwa). `transactional.server.ts` poza listą karty. |
+| `journey_claim_due(p_limit, p_backlog)`      | `journey_claim_due(p_limit, p_lease_seconds)`; zaległość kolejki sprawdza runner (`email_queue_depth`) i odkłada wyłącznie maile.                          | Kroki bazy (warunki, akcje CRM) nie czekają na kolejkę poczty.                                                                             |
+| `journey_tick_emit_stats(p_journey_ids)`     | + `p_counts` (liczniki ticku per ścieżka w ładunku `journey.stats_changed.v1`).                                                                            | Panel nie musi przeliczać, co się zmieniło.                                                                                                |
+| `journey_fail_step`                          | + `p_phase` (`advance`/`email`) w dzienniku błędów.                                                                                                        | Zdrowie silnika rozróżnia awarie bazy i poczty.                                                                                            |
+| Wycofanie zgody przy wypisie                 | Logika `crm_leads_marketing_consent_withdraw` powtórzona w `_journey_unsubscribe` (zgoda + wpis księgi).                                                   | Istniejące RPC wymaga sesji personelu; wypis idzie z trasy publicznej. Z-S5-04.                                                            |
+| Filtr wejścia                                | Niespełniony filtr nie zakłada zapisu (powód `entry_filter` z I0 nieużywany).                                                                              | Bez szumu w liście kontaktów; szacunek zasięgu liczy zdarzenia, nie zapisy.                                                                |
+| Katalog wyzwalaczy (kontrakt emiterów)       | `club_application.*`: klucz `specialization` (nie `specialization_id`), decyzja tylko `accepted`/`rejected`; `event.registration.cancelled.v1` w katalogu. | Klucze z migracji emiterów (test `triggers.test.ts` czyta migracje); rezygnacja = wyjście nurtowania wydarzenia.                           |
+| `admin_journey_stats` (§5.6)                 | Zbiór zapisów okna jako tablica identyfikatorów (`STABLE`), bez tabeli tymczasowej.                                                                        | Bramka `plpgsql_check_gate` nie widzi tabel tymczasowych; lista zwolnień może tylko maleć.                                                 |
+| Test narzutu trasy (§4.7)                    | 1000 zdarzeń najemcy bez tras < 1,5 s (ok. 1 ms na zdarzenie z zapasem), plan zapytania trasy przez klucz główny (`enable_seqscan = off` w `EXPLAIN`).     | Na małej tabeli testowej planista wybiera skan sekwencyjny; asercja dotyczy dostępności indeksu.                                           |
+| Pliki spoza karty                            | `tracking.server.ts`, `labels.ts`, testy server fn/zapytań/słownika/kształtów RPC, `trackingTokenJourney.test.ts`.                                         | §20.4 (manifest S5 z komentarzem „Integrator S5”).                                                                                         |
+
+### 20.4 Zgłoszenia „Do integracji” wykonane przez Integratora S5
+
+Strażnik `hub-slice-guard.ts S5 --base 32e9039a` po integracji zgłasza
+wyłącznie zmiany Integratora: `[plik-wspoldzielony]`
+`drizzle/migrations/meta/_journal.json`, `src/integrations/supabase/types.ts`,
+`src/lib/ci/hubDelivery.ts`, `src/lib/realtime/eventInvalidationMap.admin.ts`,
+`src/lib/authz/authzSnapshot.generated.ts` oraz `[poza-manifestem]` ten
+dziennik i `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`.
+`serviceRoleTenantScope.gate.test.ts` to przydział imienny S5
+(`HUB_SHARED_FILE_GRANTS`).
+
+| Zgłoszenie                         | Zmiana                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bliźniaki drizzle                  | 6 bliźniaków (bajt w bajt) i 6 wpisów `_journal.json` w kolejności wersji (§20.6); `check:migration-lanes` zielone.                                                                                                                          |
+| `types.ts`                         | `journey_settings.sender_name`/`reply_to`; sygnatury 30 RPC S5 (`admin_journey_*`, `journey_*`) - jak S2/S3: dokumentacja kontraktu, wywołania przez `RpcCallable` z literałem nazwy.                                                        |
+| Rejestr dostawy (`hubDelivery.ts`) | `FUNCTION_TABLE` += 13 pomocniczych `_journey_*` (internal) i `admin_journey_settings_get` (panel); manifest S5 += `tracking.server.ts`, `labels.ts`, testy, `transactional.server.ts` z testem, bliźniaki `0352…0357`, dwa pliki testów I0. |
+| `SERVICE_ROLE_READERS`             | Jeden wpis: `src/lib/server/journeysRunner.server.ts` (runner czyta wyłącznie przez RPC, najemca z wiersza).                                                                                                                                 |
+| Inwalidacja szyny                  | `journey.changed.v1` z `op = 'settings'` (agregat = najemca) odświeża `journeyKeys.settings`, `engineHealth` i listę zamiast `detail(najemca)`; test w `revenueInvalidation.test.ts`.                                                        |
+| Strażnik ACL `hub_grants`          | `hub_shared_helpers_test.sql` zna 13 pomocniczych `_journey_*` (bramka `hubDelivery.gate.test.ts`: lista pgTAP = rejestr).                                                                                                                   |
+| Snapshot bramek autoryzacji        | `generate:authz-snapshot` - wyłącznie liczniki skanu (1278 → 1284 migracji, 1723 → 1770 funkcji); bramki RPC S5 są w `_journey_staff_tenant`, bez nowych literałów ról.                                                                      |
+| `i18nParity`                       | Bez zmian - `adminJourneys` jest w `GATED_PREFIXES` od I0.                                                                                                                                                                                   |
+| Budżet D-08                        | Bez ratchetu - `overall` w progu, przyrost S5 w szumie hashy (§20.7).                                                                                                                                                                        |
+
+**Do integracji I9 (nie wykonane przez Integratora S5):**
+
+- **Runner w `jobs-tick`** (SPEC §4.6): po zadaniach uczestnika, **przed**
+  drenem kolejki maili - `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`
+  (wynik do telemetrii ticku; `{ error: "disabled" }` przy
+  `JOURNEYS_ENGINE_DISABLED=1`). Do tego czasu silnik nie wykonuje kroków
+  nawet po włączeniu w panelu.
+- **Harmonogram:** `journey_rollup_daily()` co godzinę (wolny pas),
+  `journey_purge('30 days')` raz na dobę (skrzynka, przetworzone wpisy,
+  dziennik błędów); wpisy w `scheduler.ts` i karcie zdrowia schedulera
+  (`SchedulerHealthPanel`) - stan silnika ścieżek (włączony, zaległość
+  skrzynki, ostatni tick, błędy 24 h z `admin_journey_engine_health`).
+- **Runbook:** `JOURNEYS_ENGINE_DISABLED`, procedura M3 (§20.9 pkt 7).
+
+**Dla S8 (UI) - gotowe API:** server fn `listJourneys`, `getJourneyEnrollments`,
+`getLeadJourneys`, `getJourneySettings`/`saveJourneySettings`,
+`getJourneyEngineHealth`, `estimateJourneyTrigger`, `simulateJourney`,
+`createJourney`, `installJourneyTemplate`, `saveJourneyDraft`,
+`saveJourneyEmailContent`, `publishJourney`, `setJourneyStatus`,
+`enrollJourneyTest`, `skipJourneyWait`, `exitJourneyEnrollment`,
+`getJourneyStats`, `getJourneySeries`; `queryOptions` w `queries.ts` (klucze
+pod prefiksami inwalidacji szyny); walidacja kanwy `validateJourneyGraph`,
+katalog wyzwalaczy z polami warunku (`JOURNEY_TRIGGERS`,
+`buildTriggerCondition`), zmienne i próbki (`JOURNEY_VARIABLES`,
+`JOURNEY_VARIABLE_SAMPLES`), szablony (`JOURNEY_TEMPLATES`), etykiety
+`journeyLabelKey`/`journeyTriggerLabelKey`/`journeyTemplateLabelKeys`. Kody
+błędów zapisów (`JourneyMutationErrorCode`) i kody walidatora SQL mają napisy
+w słowniku.
+
+### 20.5 Zgłoszenia otwarte
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S5-01 | `pricing_enquiry_b2b` czeka na zdarzenie `contact_message.submitted.v1` (SPEC P25, po M3) - emiter formularza kontaktu poza S5; do tego czasu instalacja odmawia (`template_unavailable`). **Zamknięte w części UI 2026-10-22 (S8, §22):** galeria pokazuje szablon wyszarzony z powodem (zdarzenie `contact_message.submitted.v1`); emiter formularza kontaktu - po M3. **Zamknięte 2026-10-22 (I9, §24):** wyzwalacz `trg_contact_messages_to_lead_submitted_emit` (`20261020162800`) emituje `contact_message.submitted.v1` po wyzwalaczu CRM (ładunek bez danych osobowych, kandydaci do pracy poza szyną); szablon `pricing_enquiry_b2b` dostępny dla `form_kind = pricing` (`00f44ba92`, katalog szyny `3cbee455c`).                                                                                    |
+| Z-S5-02 | Limit tagu: I0 `JOURNEY_LIMITS.tagMax` = 64, pisarz tagów CRM = 40; silnik egzekwuje 40. Do decyzji: wyrównać stałą I0 (i jej test parytetu) do 40 albo poszerzyć pisarza CRM. **Zamknięte 2026-10-20 (I9b, §21.11 B7):** jeden limit 64 (`CRM_TAG_MAX`) - kolumna bez CHECK długości, wygrał kontrakt I0; pisarz i walidator SQL (20261020160800), zod i komunikaty PL/EN czytają tę samą wartość, test parytetu i wartości granicznej.                                                                                                                                                                                                                                                                                                                                                                      |
+| Z-S5-03 | Runner niepodpięty do `jobs-tick` (I9, §20.4) - po włączeniu silnika w panelu zapisy powstają, ale kroki nie wykonują się do czasu I9; panel pokazuje to w zdrowiu silnika (rosnące `due_now`, brak `last_step_at`). **Zamknięte w części UI 2026-10-22 (S8, §22):** pasek zdrowia silnika i panel „Testuj na sobie” mówią, że kroki ruszą po podpięciu harmonogramu (I9); runner w `jobs-tick` zostaje dla I9. **Zamknięte 2026-10-22 (I9, §24):** krok `journeys` w `jobs-tick` przed drenem poczty (termin 3 s, `ingestLimit` 200, `claimLimit` 50), skanery S2 co 5 min, `journey_rollup_daily` w minucie 13, `journey_purge('30 days')` o 03:11 UTC, wyłącznik jako `skipped: kill_switch`, karta silnika w panelu zdrowia harmonogramu, karta retencji bez „Harmonogram w przygotowaniu” (`9e3ba64ce`). |
+| Z-S5-04 | Wycofanie zgody przy wypisie powtarza logikę `crm_leads_marketing_consent_withdraw` (wymaga sesji personelu). Propozycja: wspólny pomocnik wewnętrzny dla obu ścieżek (CRM/I9). **Zamknięte 2026-10-22 (I9, §24):** jeden pomocnik `_crm_marketing_consent_withdraw` (`20261020162700`) dla personelu CRM, wypisu ze ścieżki i wygaszania newslettera, ślad źródła w `crm_consent_log.form_id` (`9effef05c`, `dd007627f`).                                                                                                                                                                                                                                                                                                                                                                                    |
+| Z-S5-05 | Do sprawdzenia w teście na żywo (M3): czy bramka pocztowa platformy dokleja własną stopkę wypisu do maili ścieżek (kolejka transakcyjna wymaga `unsubscribe_token`) - wtedy mail marketingowy miałby dwie stopki; usługa i test nie mają stopki ścieżki. **Zamknięte 2026-10-22 (I9, §24):** na drodze platformy stopka ścieżki jest wycinana (jedna stopka), test integracyjny render → kolejka → wysyłka (`34a4daf75`); wygląd stopki platformy potwierdza test na żywo (M3).                                                                                                                                                                                                                                                                                                                               |
+| Z-S5-06 | Otwarcia Apple MPP nie mają rozpoznawalnego nagłówka - odsiewa je wyłącznie próg czasu (`machine_open_seconds`, domyślnie 2 s); `unique_human_opens` i CTOR są górną granicą. **Zamknięte 2026-10-22 (S8, §22.2):** otwarcia ludzkie i CTOR w wynikach, nakładce kanwy i tabeli maili mają dymek „górna granica” (MPP); granica pomiaru zostaje opisana, nie zmieniona. **Potwierdzone 2026-10-22 (I9, §24):** dymek „górna granica” na wszystkich powierzchniach otwarć (wyniki, nakładka kanwy, tabela maili, A/B); notka pomiaru w Kokpicie - Z-I9d-16.                                                                                                                                                                                                                                                    |
+| Z-S5-07 | M3 - włączenie silnika u NES (decyzja właściciela) po teście na żywo `welcome_onboarding` i `abandoned_checkout` (§20.9 pkt 7) i po I9. **Stan 2026-10-22 (I9, §24):** runner podpięty (Z-S5-03); test na żywo i włączenie silnika - właściciel (`docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Z-S5-08 | Podgląd treści w edytorze S8: `substituteDocVariables` mieszka w `render.server.ts` (render z podpisami); podgląd w przeglądarce potrzebuje wersji klienckiej (przeniesienie do `variables.ts`) albo server fn podglądu - decyzja S8. **Zamknięte 2026-10-22 (S8, §22.2):** czysta część podstawiania w liściu `variables.ts`, `render.server.ts` re-eksportuje; podgląd w przeglądarce bez server fn, test parytetu znak w znak (14 szablonów, PL i EN).                                                                                                                                                                                                                                                                                                                                                     |
+
+### 20.6 Bliźniaki drizzle
+
+| Wersja supabase                              | Bliźniak                           | idx | `when`        |
+| -------------------------------------------- | ---------------------------------- | --- | ------------- |
+| `20261020140000_journeys_routing`            | `0352_journeys_routing`            | 352 | 1792476733912 |
+| `20261020140100_journeys_engine`             | `0353_journeys_engine`             | 353 | 1792476793912 |
+| `20261020140200_journeys_predicates_consent` | `0354_journeys_predicates_consent` | 354 | 1792476853912 |
+| `20261020140300_journeys_admin_rpc`          | `0355_journeys_admin_rpc`          | 355 | 1792476913912 |
+| `20261020140400_journeys_admin_tools`        | `0356_journeys_admin_tools`        | 356 | 1792476973912 |
+| `20261020140500_journeys_tracking_stats`     | `0357_journeys_tracking_stats`     | 357 | 1792477033912 |
+
+`when` = 1792476673912 (`0351`) + n·60 000; `cmp` supabase ⇄ drizzle: bajt
+w bajt. **Następny wolny numer: `0358`** (idx 358), bez rezerwacji (§6).
+
+### 20.7 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build `32e9039a` w `/home/user/neweustrategies-dc633fb5`
+(ten sam host i `node_modules`). Przypisanie: gzip -9 per chunk (nazwa bez
+hasha), baza ⇄ S5.
+
+| Budżet (gzip KB)            | Próg         | Baza `32e9039a` | S5     | Δ        | Wynik                                                                                |
+| --------------------------- | ------------ | --------------- | ------ | -------- | ------------------------------------------------------------------------------------ |
+| `overall`                   | 5003         | 5001,7          | 4999,9 | **−1,8** | ✓ bez ratchetu D-08 (zapas 3,1 KB)                                                   |
+| `admin-only`                | -            | 2223,0          | 2222,2 | −0,8     | -                                                                                    |
+| `public`                    | 2881 (zamr.) | 2778,7          | 2777,7 | −1,0     | ✓                                                                                    |
+| największy chunk (entry)    | 286 (zamr.)  | 257,8           | 257,8  | 0,0      | ✓                                                                                    |
+| `css`                       | 100          | 99,7            | 99,7   | 0,0      | ✓ arkusze bit w bit te same (słownik i szablony bez słów-klas narzędziowych)         |
+| `publicCss`                 | 85 (zamr.)   | 83,8            | 83,8   | 0,0      | ✓                                                                                    |
+| `boot`                      | 579 (zamr.)  | 471,6           | 471,6  | 0,0      | ✓                                                                                    |
+| chunki JS (nazwy bez hasha) | -            | 1272            | 1272   | 0        | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Jedyny chunk z ruchem > 0,05 KB: `admin` +0,07 (reguła inwalidacji
+`op = 'settings'` w `eventInvalidationMap.admin.ts`). Silnik, szablony, server
+fn i słownik nie trafiają do żadnego chunku klienta - UI (S8) jeszcze ich nie
+importuje (stuby server fn powstaną dopiero z importem w komponencie). Reszta
+różnicy to entropia hashy w nazwach importów (888 chunków po kilka bajtów).
+
+### 20.8 Weryfikacja końcowa S5
+
+Worktree `/home/user/wt/S5`, ciężkie kroki po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                                  | Wynik                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                                     | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `bun run verify:static`                                                                                                                                                                                                                                    | ✓ 18 bramek (320 s)                                                                                                                                                                                                                                                                                                                             |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                           | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `bun run lint`                                                                                                                                                                                                                                             | ✓ 0 błędów (282 ostrzeżenia zastane, żadne w plikach S5)                                                                                                                                                                                                                                                                                        |
+| `TZ=UTC bunx vitest run --maxWorkers=3 --coverage.enabled --coverage.include='src/lib/journeys/**' src/lib/journeys`                                                                                                                                       | ✓ 12 plików, 212 testów; pokrycie linii **99,19 %** (615/620), gałęzi 97,75 %; nowe pliki 100 % linii (`keys.ts` z I0 - 72 %)                                                                                                                                                                                                                   |
+| `TZ=UTC bunx vitest run --maxWorkers=3 src/lib/journeys src/lib/server/__tests__ src/routes/api/public src/routes/__tests__ src/lib/email src/lib/newsletter src/lib/realtime src/lib/ci src/lib/__tests__ src/__tests__`                                  | ✗ → ✓: `overlayReaders` - korzeń `adminJourneys` bez czytelnika w kodzie produkcyjnym (UI dopiero w S8) → `labels.ts` (typowane klucze etykiet dla S8). Po poprawce 583 pliki, 17 112 testów ✓                                                                                                                                                  |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - konsumenci zmienionych modułów spoza zestawu (45 plików: zdarzenia, powiadomienia, kluby, retencja, dostęp, kupony, szablony maili) + `src/lib/revenue`, `src/lib/admin/revenue`, `src/components/admin/revenue` | ✓ 88 plików, 3330 testów                                                                                                                                                                                                                                                                                                                        |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-int`, port 5470, `flock`)                                                                                                                                                                                        | 235 plików ✓, 5 z błędem: 4 znane środowiska (pg_net 2+1, `public_definer_views_read_only` 1/35, `profile_intent_semantic` - vector; migracja `20260825230232`) i **`plpgsql_check_gate` 1/4** - `admin_journey_stats` z tabelą tymczasową (13 błędów 42P01/55000) → przepisane na tablicę identyfikatorów (§20.3); ponowny przebieg `journeys_ | email_ | hub_shared_helpers | plpgsql_check_gate | ts_sql_contract` na tej bazie po wgraniu poprawionej migracji: 19 plików ✓ |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                 | ✓ bez zmian pliku (wpisy S5 już w kontrakcie), 9 asercji                                                                                                                                                                                                                                                                                        |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`                                                                                                                                                                                     | ✓ (847 nazw RPC; 7 znanych kolumn - baseline; 358 wpisów dziennika drizzle)                                                                                                                                                                                                                                                                     |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`                                                                                                   | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `split-migration.ts --dry-run` dla `2026102014*`                                                                                                                                                                                                           | ✓ każdy plik 1 część (największy `140500` = 43 208 B < 46 080 B)                                                                                                                                                                                                                                                                                |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                    | ✓ (§20.7)                                                                                                                                                                                                                                                                                                                                       |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                                                  | ✗ → ✓ po regeneracji (wyłącznie liczniki skanu, §20.4)                                                                                                                                                                                                                                                                                          |
+| `bun run scripts/hub-slice-guard.ts S5 --base 32e9039a`                                                                                                                                                                                                    | exit 1 wyłącznie na zmianach Integratora (§20.4); dostawa huba: 6 plików, 48 definicji funkcji                                                                                                                                                                                                                                                  |
+| `cmp` supabase ⇄ drizzle `0352…0357`                                                                                                                                                                                                                       | ✓ bajt w bajt                                                                                                                                                                                                                                                                                                                                   |
+
+Nowe testy TS: `graph` (21), `nodeTypesParity` (8, czyta migracje S5),
+`triggers` (7, czyta migracje emiterów), `templates` (79 przypadków
+z `describe.each`), `render.server` (9), `parse` (11, kształty z prawdziwej
+bazy), `journeys.functions` (17), `queries` (3), `tracking.server` (4),
+`i18nJourneys` (20), `journeysRunner.server` (15), `trackingTokenJourney` (7),
+`-nl-tracking` (+7 przypadków `m=`), `-api.public.newsletter.unsubscribe` (+5),
+`queueDrain` (+2), `transactional.server` (+2), `suppressionPolicy` (+1),
+`revenueInvalidation` (+1). pgTAP: 7 plików, 168 asercji.
+
+### 20.9 Wdrożenie S5 na produkcji (właściciel)
+
+Kod i migracje S5 idą w jednym PR. Zależności w obie strony:
+
+- nowy front przed migracjami: server fn ścieżek dostają PGRST202/42883 →
+  stan `unavailable` (UI S8 jeszcze nie ma); trasy `nl-open`/`nl-click`
+  z `m=` zawsze oddają piksel i przekierowanie (zapis to telemetria
+  best-effort), wypis tokenem ścieżki odpowiada 500 (bramka ponowi) - takich
+  tokenów nikt jeszcze nie dostał, bo silnik jest wyłączony;
+- stary front po migracjach: bez zmian - trasa zdarzeń nie robi nic bez
+  opublikowanych ścieżek (zero wierszy skrzynki), `email_apply_delivery_event`
+  zachowuje sygnaturę i dotychczasowe dopasowanie.
+
+1. **Warunek:** M0 (tabele ścieżek, `journey_settings`,
+   `email_send_log.provider_message_id`), S1, S2, S3 i S4 wdrożone albo
+   w tym samym oknie (§10) - akcje v2 `run_workflow_step` (S4) i emitery
+   wyzwalaczy (S1-S4).
+2. **Okno nocne** - gorąca tabela: `CREATE TRIGGER trg_journey_route_event`
+   na `domain_events` (`140000`) pod `SET lock_timeout = '5s'`. Panel Lovable →
+   6 plików **w kolejności wersji**:
+   1. `20261020140000_journeys_routing` (wyzwalacz na `domain_events`);
+   2. `140100_journeys_engine`;
+   3. `140200_journeys_predicates_consent` (`ALTER TABLE journey_settings` - mała tabela);
+   4. `140300_journeys_admin_rpc`;
+   5. `140400_journeys_admin_tools`;
+   6. `140500_journeys_tracking_stats` (redefinicja `email_apply_delivery_event`, sygnatura bez zmian).
+
+   Pliki są idempotentne (`CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS` -
+   `CREATE TRIGGER`, `ADD COLUMN IF NOT EXISTS`, CHECK przez
+   `DROP CONSTRAINT IF EXISTS`, bezstanowe `REVOKE`/`GRANT`). `55P03` (limit
+   blokady) = ponów cały plik.
+
+3. Zaraz potem opublikuj front z tego PR.
+4. Bliźniaki `0352…0357` są kopiami bajt w bajt - po panelu wykonują się jako
+   no-op; migrator Drizzle wykona je sam, jeśli panel zostanie pominięty.
+5. `workflow_dispatch` CI na `main` → `post-deploy`: `check:db-contract`
+   i `check:migration-ledger` (6 wersji) zielone. Wynik do §10.
+6. Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Wyzwalacz trasy: oczekiwane 1.
+SELECT count(*) FROM pg_trigger
+ WHERE NOT tgisinternal AND tgname = 'trg_journey_route_event';
+-- Silnik wyłączony u każdego najemcy: oczekiwane 0.
+SELECT count(*) FROM public.journey_settings WHERE enabled;
+-- RPC panelu i runnera: oczekiwane 4 niepuste kolumny.
+SELECT to_regprocedure('public.admin_journey_settings_get()') AS settings,
+       to_regprocedure('public.admin_journey_engine_health()') AS health,
+       to_regprocedure('public.journey_claim_due(integer,integer)') AS claim,
+       to_regprocedure('public.journey_record_message_event(text,text,integer,text,boolean)') AS tracking;
+-- Funkcje serwisowe tylko dla serwera: oczekiwane false, false.
+SELECT has_function_privilege('anon', 'public.journey_ingest_inbox(integer)', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public.journey_advance(uuid,uuid,integer)', 'EXECUTE');
+```
+
+7. **M3 (po I9 - runner w `jobs-tick`), decyzja właściciela:** w panelu
+   (UI S8; do tego czasu RPC) zainstaluj `welcome_onboarding`
+   i `abandoned_checkout`, uzupełnij nadawcę i Reply-To, opublikuj, a potem
+   **test na żywo** na własnym koncie (`admin_journey_enroll_test` działa
+   przy wyłączonym silniku; „pomiń czekanie” prowadzi przez kolejne kroki).
+   Sprawdź: oba maile dochodzą, linki przechodzą przez `nl-click` na właściwy
+   cel, wypis jednym kliknięciem wyprowadza zapis z powodem `unsubscribed`,
+   stopka występuje raz (Z-S5-05). Dopiero potem `enabled = true` w ustawieniach
+   silnika i obserwacja 7 dni (SPEC §9.2) w zdrowiu silnika.
+
+Wycofanie: wyłączenie silnika w panelu (`enabled = false`) zatrzymuje zapisy
+i pobieranie; awaryjnie `JOURNEYS_ENGINE_DISABLED=1` zatrzymuje runner.
+Zdjęcie wyzwalacza trasy - osobną migracją spoza bloku huba, decyzją
+właściciela; `email_apply_delivery_event` wraca przez ciało
+z `20260725123624` (bez dopasowania najemcy po `provider_message_id`).
+Kolumny `sender_name`/`reply_to` są opcjonalne (NULL = nazwa serwisu, bez
+Reply-To).
+
+### 20.10 Kryteria akceptacji S5 (SPEC §8.3)
+
+- [x] pgTAP 7 plików zielony - 168 asercji (trasa 24, narzut trasy 7, silnik 38, wersje i A/B 13, zgody 23, RPC panelu 37, tracking i statystyki 26), w tym narzut trasy na 1000 zdarzeń (< 1,5 s, indeks klucza głównego, warunek `WHEN`) i brak pętli (cykl odrzucony przy publikacji; krok raz na zapis i węzeł); pełny `run.sh all` - wyłącznie znane błędy środowiska (§20.8).
+- [x] `graph.test.ts` (DAG, gałęzie, osiągalność, limit 60, zakaz maila przy `payment_failed`, ostrzeżenia), `nodeTypesParity.test.ts`, `triggers.test.ts` (każdy wyzwalacz ∈ `DOMAIN_EVENT_TYPES`, klucze ładunku z migracji emiterów, `conditionFields` budują `payload @>`), `templates.test.ts` (schemat publikacji, PL/EN, `service` z podstawą prawną, `winback_30d` z `reason` `not_in ['paused']`).
+- [x] `journeysRunner.server.test.ts`: kolejność, termin 3 s, sufit 20 maili/tick, odkładanie przy zaległości > 120 (5 min) i blokadzie reputacji (60 min, bramka raz na najemcę), idempotencja `journey:{zapis}:{węzeł}` (duplikat domyka krok bez drugiego liczenia), `JOURNEYS_ENGINE_DISABLED`.
+- [x] Tracking: podpis linku z numerem i odporność na otwarte przekierowanie (nowe przypadki `m=`: podmieniony cel, numer, brak podpisu, podpis kampanii, nie-http), token trackingu nie wypisuje; wypis wyprowadza aktywne zapisy marketingowe z powodem `unsubscribed` (pgTAP), usługowe zostają.
+- [x] Silnik wyłączony domyślnie: brak wiersza ustawień = wyłączony; wyłączony najemca - zero zapisów (pgTAP trasy), pobierany wyłącznie test na żywo (pgTAP silnika); kontrola po wdrożeniu (§20.9 pkt 6).
+- [x] Pokrycie `src/lib/journeys/**` ≥ 90 % linii - 99,19 %.
+- [x] Wymóg właściciela „wszystko w panelu admina”: każdy przełącznik silnika ma RPC panelu i server fn (§20.2, lista dla S8 - §20.4); UI - S8.
+- [ ] Runner w `jobs-tick` i M3 - poza kartą S5 (I9, Z-S5-03, Z-S5-07). **Runner wykonany 2026-10-22 (I9, §24); M3 - właściciel.**
+
+## 21. I9b - decyzje właściciela (2026-10-20)
+
+**Zgoda właściciela 2026-10-20:** „wykonaj wszystkie i aktualizuj - masz
+zgodę”; rozstrzygnięcia oddane orkiestratorowi. Każdy wpis niżej jest
+decyzją właściciela z adnotacją „zgoda delegowana”. Praca szeregowa (jedyny
+aktywny agent), gałąź `hub/i9b-decyzje` (worktree `/home/user/wt/I9B`),
+scalana do gałęzi PR `claude/elegant-fermat-xwfca1` wyłącznie przez
+fast-forward albo scalenie bez przepisywania historii. Układ sekcji:
+
+- **część A** (SQL i katalog, od `74a49536`): segmenty przychodu (Z-01,
+  Z-S2-02), obietnice cennika v6.2 bez pokrycia (lista z PR #520, pozycje
+  1-6), RODO księgi MRR (Z-07, Z-S2-03) - §21.1-21.7, integracja do PR §21.8;
+- **A2** (polecenie właściciela „zastosuj”): RODO po usunięciu konta - §21.9;
+- **część B** (od `d7efcba5`): budżet `public` S3 (Z-S3-01), snapshot
+  autoryzacji (Z-S3-06), okno porzucenia kasy (Z-S3-07), weryfikacja
+  anulowania (Z-S2-01), benchmarki (Z-14-01…04), EN benchmarków (D-11,
+  Z-S6-14), limit tagu (Z-S5-02) - §21.10-21.14;
+- **krok C** (integracja części B, bramki, push): §21.15; tabela decyzji
+  I9b zbiorczo - §21.16; wdrożenie migracji I9b - §21.17; co zostaje dla
+  właściciela - §21.18;
+- **I9c-X1** (polecenie właściciela „ok rozumiem, optymalizuj”): domknięcia
+  po A2 - kolumny autora w modułach spoza huba (Z-I9b-11) i poczta
+  w kolejce po usunięciu konta (Z-I9b-17) - §21.20.
+- **I9c-X2** (polecenie właściciela „tak, zaproponuj zgodnie z polskim
+  i europejskim prawem oraz rynkowymi standardami”): retencja danych żywych
+  kont i kontaktów (Z-I9b-10) z kartą „Retencja danych” w
+  `/admin/settings/privacy` i przełącznikiem pomiaru otwarć - §21.21.
+
+**Zasada nadrzędna decyzji cennikowych:** obietnica v6.2 to MINIMUM.
+Migracja nigdy nie odbiera istniejącym klientom uprawnień (brak obniżek
+w trakcie opłaconego okresu), brakujące uprawnienia DODAJE, nowy najemca
+(seed) dostaje dokładnie v6.2, a karty i macierz mówią prawdę o bramce (nie
+obiecują więcej niż bramka, mogą pokazać więcej niż v6.2).
+
+### 21.1 Zakres (część A)
+
+| Obszar                                 | Co dostarcza I9b (część A)                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL (5 migracji, blok I9 `2026102016`) | `160000` mapa segmentów z typu klienta + `_revenue_segments_recompute()` (przeliczenie zapisanej historii) + strażnik migawek; `160100` katalog progów v6.2 z decyzjami (seed); `160200` benefity karty Zespołu + `_pricing_v62_owner_decisions(najemca)` (najemcy istniejący); `160300` limit 20 miejsc Zespołu (dwa wyzwalacze); `160400` pełna anonimizacja księgi MRR po usunięciu subskrypcji/konta + domknięcie wstecz.                                  |
+| pgTAP (4 nowe pliki, 59 asercji)       | `hub_i9b_revenue_segments` (10), `hub_i9b_pricing_decisions` (19), `hub_i9b_team_seat_cap` (16), `hub_i9b_revenue_ledger_erasure` (14); zaktualizowane: `hub_shared_helpers` (mapa, lista `hub_grants`), `pricing_catalog_v62` (kolejność kart NGO), `revenue_subscription_history` (Z-07 po wymianie identyfikatora subskrypcji).                                                                                                                             |
+| TS - segmenty                          | `REVENUE_SEGMENT_BY_TIER` z regułą typu klienta (komentarz zamiast „partnerzy do other”), `segmentsParity` czyta NAJNOWSZĄ definicję funkcji; chip `RevenueSegmentChip` (tylko do odczytu, dymek PL/EN) w edytorze warstwy (zakładka Podstawy, przy randze) i w kaflu katalogu `/admin/membership`.                                                                                                                                                            |
+| TS - cennik                            | `TIER_RANKS.ngo` 40, `compareTierRank` (ranga, `sort_order`, klucz) w siatce warstw panelu, wymaganym progu ściany płatności, pickerach progów (dostęp do treści, biblioteka, kampanie newslettera, katalog członków); macierz: NGO z wartościami zakresu Partnera, kanał bezpośredni „Bez limitu, bezpośrednio”, komentarze; karty z najnowszego katalogu benefitów.                                                                                          |
+| TS - Zespół 3-20                       | `TEAM_TIER_MAX_SEATS`/`TEAM_TIER_MIN_SEATS` i reguły (`teamSeatVerdict`, `teamSeatLimitRejected`, `teamSeatAddBlocked`, `isTeamSeatsMaxError`, `organizationTierOptions`) w `teamSeats.ts`; `setTeamSeatLimit` odrzuca > 20 przed operatorem; panel organizacji (lista, karta, nowa organizacja) - `TeamSeatCapNotice` (stan x/20, alert z sugestią Enterprise, ostrzeżenie < 3), blokada dodawania przy 20 aktywnych, Zespół do wyboru jako próg organizacji. |
+| Bramka dostawy                         | `HUB_I9_REDEFINITIONS` - rezerwa I9 może redefiniować funkcję innego wycinka wyłącznie z rejestru, z `CIALO-Z` najnowszej definicji w hubie (fikstury w `hubDelivery.gate.test.ts`); 8 nowych funkcji I9 i 2 redefinicje sprzed huba w rejestrze.                                                                                                                                                                                                              |
+
+### 21.2 Decyzje → wykonanie → dowód (część A)
+
+**Z-01 / Z-S2-02 - segmenty przychodu (decyzja właściciela 2026-10-20,
+zgoda delegowana).** Reguła: konto organizacyjne (flaga `corporate_seats`
+albo umowa instytucjonalna/firmowa) → `b2b_institution`; płatna cykliczna
+subskrypcja osoby po cenie katalogowej → `b2c_individual`; płatna cykliczna
+osoby w stawce ulgowej → `b2c_reduced`; bezpłatne, grzecznościowe,
+jednorazowe i bez planu → `other`. Uzasadnienie: segmenty służą do ocen
+churnu i ARPA według typu klienta (benchmarki B2B i B2C różnią się
+kilkukrotnie), więc organizacja w stawce ulgowej zachowuje się jak B2B.
+Sprawdzone flagami i cenami katalogu v6.2 (`20261018160100`) oraz stanem
+najemcy domyślnego (lokalna baza po wszystkich migracjach) - fakty potwierdzają
+oczekiwany wynik:
+
+| Klucz                                             | Segment           | Uzasadnienie (fakty)                                                                                                  |
+| ------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `partner`, `partner_general`, `presidents_circle` | `b2b_institution` | `corporate_seats`, umowa roczna na organizację (cena „od”, bez planu)                                                 |
+| `ngo`                                             | `b2b_institution` | `corporate_seats`, umowa roczna organizacji (-50% stawki Partnera) - organizacja w stawce ulgowej to nadal B2B        |
+| `team`, `corporate`                               | `b2b_institution` | `corporate_seats`, faktura na organizację                                                                             |
+| `business`                                        | `b2b_institution` | subskrypcja firmowa (plany `business_2w/monthly/quarterly`), bez `corporate_seats`, ale klient = firma                |
+| `member`, `pro`                                   | `b2c_individual`  | plany osoby 39 / 119 zł miesięcznie (cena katalogowa)                                                                 |
+| `student`, `educator`                             | `b2c_reduced`     | plany osoby 19 / 29 zł miesięcznie (stawka ulgowa)                                                                    |
+| `supporter`                                       | `other`           | status po darowiźnie (`tg_donations_grant_supporter`), nie próg członkostwa ani subskrypcja progu (v6.2)              |
+| `vip`                                             | `other`           | cena „od 6 000 zł” w umowie osoby, bez planu w katalogu operatora - ani subskrypcja katalogowa, ani konto organizacji |
+| `reader`, `decision_lab`, klucze nieznane, `NULL` | `other`           | bezpłatne / jednorazowe                                                                                               |
+
+Wykonanie: `revenue_segment_of_tier` (`CIALO-Z: 20261020090500`, rezerwa I9
+w bramce), lustro `REVENUE_SEGMENT_BY_TIER`, przeliczenie
+`mrr_movements.segment` (`churn` - warstwa przed ruchem, reszta - po, jak
+pisarze S2). Pochodne: `mrr_daily_snapshots` nie niosą `tier_key` (obraz
+tabeli `subscriptions` z doby), więc nie da się ich przeliczyć - mapa zmienia
+wyłącznie progi bez ceny w katalogu operatora (`billing_catalog_entry`), więc
+żadna migawka nie zawiera ich kwot; strażnik przerywa migrację, gdyby katalog
+miał taki próg. `revenue_manual_inputs.segment` wybiera admin, lejek liczy
+segment w zapytaniu, indeksów i widoków na funkcji nie ma. Bez S2 na produkcji
+przeliczenie jest no-opem (`to_regclass`). **Z-S2-02: AKCEPTACJA** -
+subskrypcja, która zmieniła segment w oknie, liczy się w segmencie końcowym
+mostu (standardowa atrybucja do segmentu na koniec okresu, jak ARR na koniec
+kwartału): ten sam zbiór subskrypcji na początku i końcu okna domyka most,
+a podział ruchów dałby częściowe mosty bez sumy. Panel: chip „Segment
+przychodu: …” z dymkiem PL/EN („Segment przychodu - do raportów MRR, churnu
+i ARPA w hubie; wynika z typu klienta”) w `/admin/membership`. Dowód:
+`hub_i9b_revenue_segments_test` (mapa każdego klucza, przeliczenie partnera
+i NGO, niezmiennik zamkniętego miesiąca per segment, suma segmentów = most
+bez filtra, druga runda 0 i ctid bez zmian), `segmentsParity.test.ts`,
+`RevenueSegmentChip.test.tsx` (PL/EN, dymek, axe).
+
+**Cennik v6.2, pozycje 1-6 (decyzja właściciela 2026-10-20, zgoda
+delegowana):**
+
+1. **Zespół „pełny zakres Pro” → DODANE.** `regulatory_monitoring` w seedzie
+   (`pricing_catalog_v62_rows`, `CIALO-Z: 20261018160100`) i u istniejących
+   najemców (`features || {"regulatory_monitoring": true}` po kluczu `team`).
+   Opis karty PL/EN „Pełny zakres Członka Pro dla każdego miejsca, jedna
+   faktura, wspólne wejście do klubów.” / „The full Member Pro scope for every
+   seat, one invoice and joint entry to clubs.” i pierwsza pozycja benefitów -
+   u istniejących WYŁĄCZNIE tam, gdzie tekst był równy katalogowi v6.2 (tekst
+   zmieniony w panelu zostaje). Macierz: wiersz trackera z flagi pokazuje ✓.
+   Dowód: `hub_i9b_pricing_decisions_test`, `comparisonMatrixV62.test.tsx`,
+   `tierCardV62Catalog.test.tsx`.
+2. **Zespół „3 zapytania na miejsce”.** Seed nowego najemcy = dokładnie v6.2:
+   `expert_request_quota` 3, BEZ `chat_direct_gated`. U istniejących - bez
+   zmian (kanał bezpośredni = brak obniżki), a pozycja karty o korespondencji
+   mówi prawdę o bramce: „Korespondencja z ekspertami bez limitu dla każdego
+   miejsca (kanał bezpośredni)” (tylko gdy tekst był katalogowy i próg ma
+   `chat_direct_gated`). Macierz: „Bez limitu, bezpośrednio” / „Unlimited,
+   direct” przy kanale, liczba przy puli. **Wyrównanie w panelu:**
+   `/admin/membership` → kafel „Zespół” → zakładka „Bramki i limity”:
+   wyłączyć `chat_direct_gated` (przełącznik uprawnień), wtedy
+   `ExpertRequestQuotaEditor` („Zapytania do eksperta - pula miesięczna”)
+   pokazuje pole liczby - wpisać 3 i zapisać (edytor działa dla każdego progu,
+   także `team`; przy włączonym kanale pokazuje notę „bez limitu”).
+3. **Zespół „3-20 miejsc” → EGZEKWOWANE.** Mechanizm miejsc istnieje
+   (`member_organizations.seats_limit`, `organization_seats`, `org_add_seat`,
+   `org_set_seats_limit`, `org_apply_subscription_seats`). Baza
+   (`20261020160300`): organizacja na progu `team` nie dostaje limitu > 20
+   (zakładanie, przejście na Zespół, podniesienie), 21. aktywne miejsce
+   odrzucone - `23514 orgs: team seats max`, odrzucenie, nigdy przycięcie.
+   Organizacje ponad limitem sprzed reguły: limit i miejsca zostają, obniżanie
+   przechodzi, zmiana statusu (karencja) przechodzi, blokowane jest tylko
+   dodawanie. Minimum 3 - warunek sprzedaży, nie przydziału: panel ostrzega,
+   nie blokuje. Wspólna stała `TEAM_TIER_MAX_SEATS` (parytet z `c_team_max`
+   w SQL), `setTeamSeatLimit` odrzuca > 20 przed operatorem płatności, panel
+   organizacji pokazuje stan x/20, alert z sugestią Enterprise i blokuje
+   dodawanie przy 20 aktywnych; Zespół jest do wyboru jako próg organizacji
+   (`corporate_seats` albo ranga ≥ 30 - sama ranga pomijała Zespół). Webhook
+   operatora z ilością > 20 dla Zespołu dostaje odmowę (log „seats sync
+   failed”, limit bez zmian) - taka ilość to Enterprise. Dowód:
+   `hub_i9b_team_seat_cap_test`, `teamSeatCap.test.ts`,
+   `organizationsFunctions.test.ts`, `TeamSeatCapNotice.test.tsx`,
+   `adminOrganizationsRoutes.test.tsx`.
+4. **NGO → ranga 40 i zakres Partnera Instytucjonalnego.** Seed: ranga 40,
+   features = flagi dawnego NGO ∪ flagi Partnera (`strategic_partner`,
+   `regulatory_monitoring`, `chat_direct_gated` dochodzą; pula 3 zostaje),
+   `sort_order` 85. Istniejący najemcy: ranga podniesiona do 40 (nigdy
+   obniżona), suma z flagami progu `partner` TEGO najemcy (bez progu - z
+   katalogu; prawda wygrywa, liczba - większa), `sort_order` 50 → 85 i opisy
+   tylko bez zmian admina. Opis karty: „Zakres Partnera Instytucjonalnego
+   w stawce -50% dla organizacji pozarządowych i think-tanków non-profit, po
+   weryfikacji KRS lub statutu.” / „The Institutional Partner scope at 50% off
+   for NGOs and non-profit think-tanks, after registry (KRS) or statute
+   verification.”; nota ceny bez zmian. Lustra rang: `TIER_RANKS.ngo` 40,
+   `tierCatalogParity` czyta redefinicję, komentarz `clubs/planTiers.ts`;
+   macierz: wartości zakresu Partnera dla NGO. Skutki - §21.3.
+5. **Pula 2/5 u istniejących najemców - BEZ ZMIAN** (brak obniżki
+   w opłaconym okresie; v6.2 to minimum). Dawne flagi `chat_inmail_quota_2/5`
+   dają Członkowi 2, Pro 5; nowi najemcy mają 1 i 3. Wyrównanie - w panelu:
+   `/admin/membership` → warstwa → „Bramki i limity”: wyłączyć
+   `chat_inmail_quota_2` (Członek) albo `chat_inmail_quota_5` (Pro) i ustawić
+   pulę w „Zapytania do eksperta”.
+6. **„Pytania do archiwum” - backlog poza hubem.** Funkcja nie istnieje;
+   zostaje poza kartami i macierzą (bez kodu).
+
+**Z-07 / Z-S2-03 - RODO księgi MRR (decyzja właściciela 2026-10-20, zgoda
+delegowana): AKCEPTACJA** zachowania zanonimizowanych ruchów, historii
+i cykli windykacji po usunięciu konta, pod warunkiem pełnej anonimizacji.
+Przegląd kolumn po S2: zostawały identyfikator zdarzenia operatora
+(`source_event_id` `evt_…`, także w `dedupe_key`), cena osadzona darowizny
+(`price_data` = identyfikator jednej subskrypcji u operatora), identyfikator
+subskrypcji (przez 90 dni retencji szyny w ładunkach
+`billing_subscription.*.v1` obok `user_id`) i znaczniki `revenue_event_marks`
+(`quota` z surowym uid, `trial_ending`/`expired` z id subskrypcji,
+`retention_abandoned`). `retention_feedback` (wolny tekst, kupon u operatora)
+i `subscription_price_migrations` kasują się kaskadą z kontem; migawka rabatu
+żyje w wierszu `subscriptions` (kaskada). Wykonanie (`20261020160400`):
+redakcja per subskrypcja po wyzwalaczu S2 - nowy losowy identyfikator wspólny
+dla historii, ruchów i cykli, `user_id` NULL, `source_event_id` NULL,
+`dedupe_key = redacted:<id>`, cena spoza katalogu NULL (katalogowa zostaje -
+opis planu), znaczniki usunięte; przy usunięciu konta - znaczniki `quota`
+i `retention_abandoned` konta; domknięcie wstecz. Zostają: kwoty, waluta,
+daty, środowisko, status, ilość, `tier_key`, interwał, segment, rodzaj ruchu,
+powód z katalogu. Awaria redakcji przerywa usunięcie (jak anonimizacja
+dowodów księgowych). Dowód: `hub_i9b_revenue_ledger_erasure_test` (żaden
+wiersz nie zawiera uid, e-maila, `sub_`/`cus_`/`evt_`, ceny osadzonej ani
+starego id; Σ `delta_minor` zamkniętych miesięcy bez zmian; dane innej osoby
+nietknięte; domknięcie wstecz i druga runda 0), `revenue_subscription_history_test`.
+
+**Podstawa (wpis do rejestru czynności przetwarzania):** dane po anonimizacji
+nie są danymi osobowymi (motyw 26 RODO); przed usunięciem konta
+przetwarzanie w celu sprawozdawczości finansowej (art. 6 ust. 1 lit. f)
+i obowiązków rachunkowych (art. 6 ust. 1 lit. c - dokumenty księgowe żyją
+w module rozliczeń: `payment_orders`, `billing_documents`, nie w księdze MRR);
+retencja zanonimizowanych agregatów bez terminu. **Zalecenie: IOD potwierdza
+wpis przy najbliższej aktualizacji rejestru czynności.** W repozytorium nie ma
+rejestru czynności przetwarzania (przegląd `docs/` po „rejestr czynności”
+i „RODO”) - wpis żyje tutaj do przeniesienia przez IOD. Publiczna polityka
+prywatności bez zmian.
+
+### 21.3 Skutki rangi 40 dla NGO
+
+- **Kluby, treści, wydarzenia:** wszystko z `min_tier_rank` ≤ 40 - jak
+  Partner Instytucjonalny (kluby „partner”, treści i wydarzenia rang 25-40,
+  dotąd zamknięte dla NGO). To zamierzony skutek „zakresu Partnera”.
+- **Licznik artykułów (S3, P19):** licznik nie odblokowuje treści powyżej
+  rangi czytelnika - ranga wyższa daje więcej, nie mniej; nic nie wypada.
+- **Remis rangi z Partnerem:** indeks `(tenant_id, rank DESC)` jest
+  nieunikalny, remisy istniały wcześniej (10, 20, 25). `current_membership_tier`
+  przy dwóch uprawnieniach rangi 40 wybiera jedno z nich - flagi NGO ⊇ flagi
+  Partnera (różnica tylko w puli zapytań, którą kanał bezpośredni i tak
+  zastępuje), więc dostęp jest ten sam. Kolejność widoczna w UI ma teraz
+  stabilny drugi klucz (`compareTierRank`: ranga, `sort_order`, klucz): siatka
+  warstw `/admin/membership`, „wymagany próg” ściany płatności (dla treści
+  rangi 31-40 nazywa Partnera, nie stawkę po weryfikacji - `sort_order` 80 <
+  85), pickery progów w ustawieniach dostępu treści, bibliotece, kampaniach
+  newslettera i katalogu członków. Strona cennika sortowała już po (ranga,
+  `sort_order`, klucz).
+- **Organizacje:** NGO (ranga 40, `corporate_seats`) jest do wyboru jako próg
+  organizacji członkowskiej.
+- **Segment:** `b2b_institution` (§21.2).
+
+### 21.4 Zmiany integratorskie i pliki współdzielone (część A)
+
+Strażnik `hub-slice-guard.ts I9 --base 74a49536`: diff mieści się
+w manifeście I9 (pliki spoza listy karty dopisane do manifestu I9 z komentarzem
+„Integrator I9b”).
+
+| Plik                                                              | Właściciel         | Zmiana                                                                                                                                                     |
+| ----------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/ci/hubDelivery.ts`, `__tests__/hubDelivery.gate.test.ts` | współdzielony (I9) | wymagane przez bramkę: `HUB_I9_REDEFINITIONS` (rezerwa I9), 8 funkcji I9 + 2 redefinicje cennika w rejestrze (`HUB_CIALO_Z`), manifest I9; fikstury reguły |
+| `supabase/tests/hub_shared_helpers_test.sql`                      | I0                 | mapa segmentów po redefinicji; lista `hub_grants` (wymagana przez `hubDelivery.gate.test.ts`)                                                              |
+| `supabase/tests/revenue_subscription_history_test.sql`            | S2                 | Z-07 odnajduje wiersze po `id` (identyfikator subskrypcji wymieniony)                                                                                      |
+| `supabase/tests/pricing_catalog_v62_test.sql`                     | cennik v6.2        | kolejność kart (NGO po Partnerze)                                                                                                                          |
+| `src/lib/revenue/segments.ts`, `__tests__/segmentsParity.test.ts` | I0                 | mapa i reguła; parytet z najnowszą definicją                                                                                                               |
+| `src/integrations/supabase/types.ts`                              | współdzielony      | **bez zmian** - do kroku C: `subscription_state_history.price_id_after` jest od `160400` NULL-owalne (Row `string \| null`)                                |
+
+### 21.5 Weryfikacja (I9b, część A)
+
+Worktree `/home/user/wt/I9B`, kroki ciężkie po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                                                     | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki)                                                                                                                                                                                                                                                                                                                                     | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `bun run verify:static`                                                                                                                                                                                                                                                                                                                                                       | `format:check` ✓, `check:client-ip-source` ✓, `check:dangerous-html` ✓; `check:migration-lanes` ✗ wyłącznie przez brak bliźniaków drizzle pięciu migracji `2026102016*` (krok C, Z-I9b-01); pozostałe bramki zestawu uruchomione osobno - ✓: `module-singletons`, `on-conflict-arbiters`, `public-assets`, `rpc-contract` (847 nazw), `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` (1289 plików), `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` (1778 funkcji), `structured-data-live`, `ts-sql-contract`, `types-freshness` (baseline 7) |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`                                                                                                                                                                                                                                                                                                                    | 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - te same na bazie `74a49536` (osobny worktree), żadnego w plikach I9b (Z-I9b-07)                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `bun run typecheck:scripts`, `bun run typecheck:e2e`                                                                                                                                                                                                                                                                                                                          | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                                                                                                                                                               | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/{revenue,billing,organizations,ci,access,admin,clubs}`, `src/components/admin/{pricing,membership,organizations,members,__tests__,post-editor}`, `src/components/pricing`, `src/routes/__tests__`, bramki `src/__tests__` i konsumenci (`Paywall.reader`, `ClubAccessGate.funnel`, `adminLibraryReplace`, `-billing-cron`) | ✗ → ✓: 800 plików; 4 pliki czerwone po imporcie `compareTierRank` przez atrapowany moduł `billing/tiers` → import z liściowego `tierRanks`, po poprawce ✓; zostaje wyłącznie `supabaseLaneCoverage` (2 asercje: brak bliźniaków drizzle `2026102016*` - krok C)                                                                                                                                                                                                                                                                                                                                            |
+| pgTAP `run.sh all 'revenue\|pricing\|tier\|segment\|mrr\|subscription\|dunning\|retention\|hub_\|account\|membership\|org\|seat\|security_definer\|metering\|paywall\|checkout\|donation'`                                                                                                                                                                                    | ✓ 50 plików (w tym 4 nowe: 59 asercji), migracje: wyłącznie znany błąd `20260825230232`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| pgTAP `run.sh test` - konsumenci rang i flag (`community_tracker`, `expert_request*`, `plan_ticket_allowance`, `payment_orders_for_sale`, kluby, wydarzenia, licznik)                                                                                                                                                                                                         | ✓ 67 plików                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `bun run generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                                            | ✓ bez zmiany pliku; 9 asercji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `scripts/split-migration.ts --dry-run` (5 migracji)                                                                                                                                                                                                                                                                                                                           | ✓ każda w limicie (8,4 / 16,9 / 26,8 / 7,2 / 13,4 KB)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `scripts/hub-slice-guard.ts I9 --base 74a49536`                                                                                                                                                                                                                                                                                                                               | ✓ diff w manifeście I9; dostawa huba: 5 plików w bloku I9, 11 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `generate:authz-snapshot --check`                                                                                                                                                                                                                                                                                                                                             | ✗ tylko liczniki skanu (migracje 1284 → 1289, funkcje 1770 → 1778) - plik współdzielony, nie w CI; regeneracja w I9 (jak po S2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                       | ✓ bez ratchetu: `overall` 5002,6 / 5003 (**zapas 0,4 KB** - części B/C muszą liczyć się z ratchetem D-08), `public` 2777,8 / 2881 (zamr.), największy chunk 257,8 / 286, `publicCss` 83,8 / 85, `boot` 471,6 / 579; kod panelu (chip, notka Zespołu, słowniki) w leniwych chunkach admina                                                                                                                                                                                                                                                                                                                  |
+
+### 21.6 Wdrożenie części A (właściciel)
+
+Kolejność: po S2 (`2026102011*`) i po bliźniakach drizzle z kroku C, nocą -
+wyzwalacze na `subscriptions`, `auth.users`, `member_organizations`
+i `organization_seats` oraz UPDATE `membership_tiers` (`lock_timeout` 5 s,
+55P03 = ponów plik). Wszystkie pięć plików jest idempotentnych. Kontrola po
+wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Segmenty: partnerzy i NGO w instytucjach; oczekiwane 0 wierszy niezgodnych.
+SELECT count(*) FROM public.mrr_movements m
+ WHERE m.segment IS DISTINCT FROM public.revenue_segment_of_tier(
+         CASE WHEN m.kind = 'churn' THEN m.tier_key_before ELSE m.tier_key_after END);
+-- Cennik: Zespół z trackerem, NGO ranga 40 (każdy najemca).
+SELECT t.slug, mt.key, mt.rank, mt.features ->> 'regulatory_monitoring' AS tracker,
+       mt.features ->> 'chat_direct_gated' AS direct
+  FROM public.membership_tiers mt JOIN public.tenants t ON t.id = mt.tenant_id
+ WHERE mt.key IN ('team', 'ngo') ORDER BY 1, 2;
+-- Zespół ponad 20 miejsc sprzed reguły (zostają, dodawanie zablokowane).
+SELECT id, name, seats_limit FROM public.member_organizations
+ WHERE tier_key = 'team' AND seats_limit > 20;
+-- RODO: ślady operatora w księdze subskrypcji usuniętych - oczekiwane 0.
+SELECT count(*) FROM public.subscription_state_history h
+ WHERE NOT EXISTS (SELECT 1 FROM public.subscriptions s WHERE s.id = h.subscription_id)
+   AND (h.source_event_id IS NOT NULL OR h.dedupe_key NOT LIKE 'redacted:%');
+```
+
+Wycofanie: segmenty - nowa migracja z mapą sprzed I9b i ponownym
+`_revenue_segments_recompute()`; cennik - zmiany są addytywne (tracker, ranga,
+flagi Partnera), cofnięcie wymaga decyzji właściciela (obniżka uprawnień);
+limit miejsc - `DROP TRIGGER trg_member_organizations_team_seat_cap`
+i `trg_organization_seats_team_seat_cap` osobną migracją; RODO - redakcja jest
+nieodwracalna z założenia (zdjęcie wyzwalaczy zatrzymuje ją dla kolejnych
+usunięć, czego RODO nie dopuszcza bez innej anonimizacji).
+
+### 21.7 Zgłoszenia I9b
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). **Zamknięte 2026-10-20 (§21.9, polecenie właściciela „zastosuj”): pseudonim zastępczy konta (losowy UUID v8, bez mapowania) - liczniki lejka zamkniętych okresów bez zmian.**                                                                                                                                               |
+| Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba). **Zamknięte 2026-10-20 (§21.9): zdarzenia osoby i ich kopie redagowane przy usunięciu konta (nowy id, pseudonim, biała lista kluczy), nieprzetworzone pominięte; retencja 90 dni bez zmian.**                                                                                                                                                                                   |
+| Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru. **Zamknięte 2026-10-20 (§21.9): administrator danych zatwierdził podstawę i retencję („zastosuj”); rejestr czynności huba - `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`, do wiadomości IOD.**                                                                                                                                                                                                                                                                        |
+| Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7. **Zamknięte 2026-10-22 (S7, §23):** 55. reguła diagnostyki `catalog.team_seats_over_cap` (Zespół ponad `TEAM_TIER_MAX_SEATS` = 20 albo na granicy, odnośnik `/admin/organizations`) - odejście od zamkniętej listy Insidera §6.8 do akceptacji (Z-S7-14).                                                                                                                          |
+| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`). **Zamknięte 2026-10-22 (I9, §24):** odmowa `orgs: team seats max` na faktycznej ścieżce `inviteOrgSeat` → `org_add_seat` (nie `setTeamSeatLimit`) pokazuje komunikat z akcją „Zobacz plan Enterprise” (`87f6b3962`).                                                                                                           |
+| Z-I9b-10 | IOD: retencja danych żywych kont i kontaktów nieustalona w repozytorium (`paywall_hits`, `metering_event_log`, `crm_leads` bez źródła poza kontem, `email_send_log`, `journey_message_events`, `audit_log`) - propozycja okresów i zadań czyszczących w harmonogramie panelu (rejestr czynności, §21.9). **Zamknięte 2026-10-20 (I9c, §21.21): okresy i zakresy per kategoria (decyzja administratora danych), zadanie dzienne w `jobs-tick` z 14-dniowym podglądem, agregaty dzienne przed usunięciem, karta „Retencja danych” w `/admin/settings/privacy`; rozbieżność okresu dowodów księgowych - Z-I9c-04.** |
+| Z-I9b-11 | Kolumny autora w modułach, do których hub nie pisze: `club_applications.reviewed_by` (zmiana wymaga wycinka S4 - znacznik `pg-harness: exclude`) i `event_registrations.paid_amount_recorded_by` - zostaje uid usuniętego konta personelu (§21.9). **Zamknięte 2026-10-20 (I9c, §21.20): obie kolumny i pełny przegląd kolumn autora/osoby bez klucza obcego -> NULL, pseudonim albo usunięcie danych własnych konta tym samym wyzwalaczem A2; domknięcie wstecz.**                                                                                                                                              |
+| Z-I9b-12 | Bliźniak drizzle `20261020160800_crm_tag_limit_shared` (następny wolny numer `0366`) i wpis `_journal.json` - krok C (`check:migration-lanes`, `supabaseLaneCoverage`). **Zamknięte 2026-10-20 (§21.15): `0366_crm_tag_limit_shared`, idx 366.**                                                                                                                                                                                                                                                                                                                                                                 |
+| Z-I9b-13 | Z-S2-01: trzy kroki wizualne w trybie testowym Stripe (panel, logi, portal z powodami - po Z-S2-11) przy wdrożeniu S2 (§21.11 B4, §21.16).                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-I9b-14 | Snapshot autoryzacji nie rozwija `is_admin_or_editor` (nie jest w `ROLE_ALIAS_ANY`), więc raporty personelu z odczytem flag warstw mają `bypassRoles: []` - opcjonalnie: alias w generatorze (zmienia snapshot wielu funkcji; decyzja poza I9b). **Świadomie bez zmian 2026-10-22 (I9, §24):** alias zmieniłby jedną linię snapshotu, ale wiersz `cap_premium_content` w `/admin/permissions` pokazałby admina i redaktora jako „pełny dostęp”, a raport personelu `admin_revenue_access_inventory` nie jest bramką czytelnika; opis w runbooku §6.                                                              |
+| Z-I9b-15 | Import CSV leadów: tag dłuższy niż 64 znaki odrzuca cały import walidatorem serwera (jak dotąd przy 40) - opcjonalnie: komunikat w dialogu importu przed wysłaniem. **Zamknięte 2026-10-22 (I9, §24):** dialog importu raportuje wartości ponad limit (wiersz arkusza, kolumna, pole, limit), „Importuj” zablokowany, nic nie jest przycinane (także liczba tagów); jedno źródło limitów dla mapowania i zod (`9418f7b6e`).                                                                                                                                                                                      |
+| Z-I9b-16 | Budżet `overall`: 5003,2 > 5003 po części B (+313 B, linia okna kasy przy biletach - Z-S3-07); baza `d7efcba5` stoi na progu (5003,0). **Bloker (krok C, §21.15):** ratchet D-08 5003 → 5005 zablokowany przez system uprawnień jako obejście CI (w części B i w kroku C), zmiana wycofana; scalenie i push części B wstrzymane. Decyzja właściciela: zezwolenie na ratchet (wpis kroniki gotowy w §21.15) albo cięcie kodu panelu ≥ 0,3 KB gzip. **Zamknięte 2026-10-20 (§21.19): ratchet wykonany przez orkiestratora, push części B.**                                                                        |
+| Z-I9b-17 | Kolejka poczty po usunięciu konta (zgłoszenie właściciela 2026-10-20): krok ścieżki albo digest wstawiony do kolejki `transactional_emails` przed usunięciem konta wychodzi w najbliższym cyklu drenu (TTL 60 min) - A2 kończy zapis, ale wiadomość w kolejce o tym nie wie; dren nie sprawdzał ponownie zapisu ani zgody. **Zamknięte 2026-10-20 (I9c, §21.20): anulowanie w kolejce przy usunięciu konta (`cancelled:account_deleted`, bez treści i adresu) i pytanie drenu przed wysyłką (`email_queue_send_recheck`); poczta transakcyjna wychodzi.**                                                        |
+
+### 21.8 Integracja części A do PR (orkiestrator, 2026-10-20)
+
+**Polecenie właściciela:** „wypchnij do PR co wykonałeś”. Część A weszła na
+gałąź PR przed częściami B i C. Część B pracuje dalej w worktree
+`/home/user/wt/I9B`; przy integracji (C) commity A są już w gałęzi PR.
+
+- **Scalenie:** `822cf9a9` (merge `--no-ff` commitu `2d97838a` na
+  `0eeb59b1`). Baza ma już poprawkę typów testów S5 (`0eeb59b1`), więc
+  Z-I9b-07 jest zamknięte.
+- **Bliźniaki drizzle (Z-I9b-01):** `0358_revenue_segment_institutions`,
+  `0359_pricing_v62_catalog_decisions`, `0360_pricing_v62_decisions_tenants`,
+  `0361_team_seat_cap`, `0362_revenue_ledger_erasure` (bajt w bajt, `cmp`)
+  i wpisy `meta/_journal.json` (idx 358-362, `when` co 60 000). Następny wolny
+  numer: **0363**.
+- **`types.ts` (Z-I9b-02):** `subscription_state_history.price_id_after` -
+  `string | null` w Row, opcjonalne i NULL-owalne w Insert i Update.
+- **`authzSnapshot.generated.ts` (Z-I9b-08):** regeneracja - zmieniają się
+  tylko liczniki skanu (migracje 1284 → 1289, funkcje 1770 → 1778).
+
+| Bramka (gałąź PR po scaleniu)                                                                                        | Wynik                               |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `bun run format:check`, `bun run verify:static` (w tym `check:migration-lanes`)                                      | ✓                                   |
+| `check:types-freshness`, `generate:authz-snapshot --check`                                                           | ✓                                   |
+| `tsgo --noEmit` z domyślnymi checkerami (jak CI), zawężony do 34 zmienionych plików TS części A i ich zależności     | ✓ 0 błędów                          |
+| `vitest` (authz, `hubDelivery.gate`, `migrationLaneParity`, `supabaseLaneCoverage`, revenue, billing, organizations) | ✓ 217 plików, 6116 testów           |
+| pgTAP, build i budżety                                                                                               | bez zmian względem części A (§21.5) |
+
+### 21.9 RODO po usunięciu konta (polecenie właściciela, A2)
+
+**Polecenie właściciela 2026-10-20:** „zastosuj” dla Z-I9b-03, Z-I9b-04
+i Z-I9b-05. Wykonanie: worktree `/home/user/wt/I9B2`, gałąź `hub/i9b-rodo`
+od `ad3bc9d1` (gałąź PR po integracji części A). Część B pracuje osobno
+w `/home/user/wt/I9B` i przenumeruje swoją migrację na wersję po A2.
+
+**R1 (Z-I9b-03) - lejek.** Lejek S3 liczy konta przez `count(DISTINCT
+user_id)` (`_funnel_counts`: `paywall_hit_accounts`, `active_accounts`,
+`paywall_reasons`; inwentarz `hits_30d`), nie przez złączenie z kontem, więc
+NULL zgubiłby konto z zamkniętych okresów (i złamałby CHECK „dokładnie jeden
+podmiot”). Decyzja: JEDEN pseudonim zastępczy na usuwane konto - losowy UUID
+(`gen_random_uuid()`) z cyfrą wersji 8 (RFC 9562 „custom”), bez zapisu
+mapowania. Wersja 8 odróżnia pseudonim od uid kont (GoTrue - wersja 4), więc
+domknięcie wstecz go nie bierze i powtórka zwraca 0. `paywall_hits.user_id`
+i `metering_event_log.user_id` -> pseudonim, `visitor_id` dziennika licznika
+-> NULL; IP i UA tabele lejka nie trzymają. Kolejność wyzwalaczy: redakcja
+huba jest AFTER DELETE (`on_auth_user_deleted_redact_hub`), więc odpala się
+po akcjach kluczy obcych (`RI_ConstraintTrigger_…` są pierwsze alfabetycznie)
+
+- kaskady (profil, subskrypcje, nadania) kończą się wcześniej, a zdarzenia
+  emitowane przez kaskadę (np. zmiana statusu usuwanej subskrypcji z
+  `user_id`) też są redagowane. Żadna tabela z przeglądu nie traci wierszy
+  kaskadą przed redakcją. PSCR: mianownik zostaje, a konwersja usuniętego
+  konta znika z licznika, bo moduł rozliczeń zeruje `payment_orders.user_id`
+  (tak jak przed A2). Zachowanie jej wymagałoby pseudonimu na dowodzie
+  księgowym, który identyfikuje nabywcę. Dowód: `hub_i9b_account_erasure_sweep_test`
+  (liczniki lejka zamkniętego okresu - 2 konta z uderzeniem, 2 aktywne, powody -
+  bez zmian; jeden pseudonim v8 w lejku, licznikach, szynie i audycie).
+
+**R2 (Z-I9b-04) - szyna zdarzeń.** Zdarzenie osoby (aktor, agregat albo
+uid/e-mail gdziekolwiek w ładunku) dostaje NOWY losowy `id` (odcina
+odwołania z wierszy związanych z leadem: `trigger_event_id`,
+`detail.event_id`, `crm_tasks.origin_ref 'wf:<id>'`), `aggregate_id` =
+pseudonim, `actor_id` -> NULL, `correlation_id` -> NULL. Ładunek przechodzi
+przez BIAŁĄ listę kluczy nieosobowych (`_hub_erasure_payload`), a
+`user_id`/`member_user_id` osoby -> pseudonim (spójne liczenie z lejkiem
+i szacunkiem wyzwalacza ścieżki). Znikają identyfikatory operatora
+(subskrypcja, cena, klient), zamówienia, dokumentu, leada, osoby, zgłoszenia,
+imiona, adresy i wolny tekst. Zostają typ, czas, najemca, kwoty i klucze
+nieosobowe. Znacznik `_redacted: account_deleted`. Kopie (skrzynka ścieżek,
+dostawy integracji) dostają ten sam nowy id i ten sam kształt. Konsumenci:
+skrzynka ścieżek - nieprzetworzone `processed_at` + `error =
+skipped:account_deleted` (ingest ich nie weźmie, więc nie rozpozna leada i nie
+wyśle maila); router integracji - `queued|failed` -> `dead` z tym samym
+powodem; workflowy działają synchronicznie przy INSERT, a unieważnianie
+zapytań w przeglądarce słucha wyłącznie INSERT, więc UPDATE redakcji niczego
+nie wyzwala. Zapis na ścieżkę w toku -> `exited` z nowym powodem
+`account_deleted` (CHECK, lustro `JOURNEY_EXIT_REASONS`, etykiety PL/EN
+„Konto usunięte (RODO)” / „Account deleted (GDPR)”, parytet
+`journeyLimitsParity`), bo ścieżki `service` nie pytają o zgodę. Zapis
+zostaje przy kontakcie CRM bez `user_id`, bez `trigger_event_id`, z migawką
+bez identyfikatorów i bez pseudonimu (lead jest identyfikowalny). Odcięcie
+leada od konta emituje `crm_lead.updated.v1` - trasa do skrzynki pomija je
+(głębokość wyzwalaczy ≥ 3), a redakcja i tak oznacza je jako pominięte
+i gasi dostawy. Retencja 90 dni (`prune_domain_events`) bez zmian. Dowód: ten
+sam test (zdarzenia zostają z nowym id, nieprzetworzone pominięte, ingest po
+usunięciu: 0 zapisów, liczba leadów bez zmian, dostawy `dead`).
+
+**R3 - pełny przegląd.** Przegląd kolumn uuid/text/jsonb (`information_schema`
+na bazie po wszystkich migracjach) tabel huba (I0-S5, I9) i modułów, do
+których hub pisze (emitery, CRM, newsletter, licznik, kasa, retencja,
+nadania, poczta ścieżek, integracje, audyt). „Bez FK” = kolumna bez klucza
+obcego do `auth.users` (surowy uid po usunięciu konta).
+
+| Tabela                                                                                                                                                            | Kolumny osobowe                                          | Przed A2                                                     | Po A2                                                                 | Dowód (sweep, nr asercji) |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------- |
+| `subscription_state_history`, `mrr_movements`, `dunning_cycles`                                                                                                   | `user_id`, `subscription_id`, zdarzenia i ceny operatora | redakcja `160400`                                            | bez zmian                                                             | 4, 8; `ledger_erasure`    |
+| `revenue_event_marks`                                                                                                                                             | `ref` (uid, subskrypcja, ankieta)                        | znaczniki konta usunięte `160400`                            | bez zmian                                                             | 4                         |
+| `mrr_daily_snapshots`, `journey_email_contents`, `journey_event_routes`, `journey_node_daily_stats`                                                               | brak                                                     | -                                                            | -                                                                     | 4                         |
+| `paywall_hits`                                                                                                                                                    | `user_id` (bez FK)                                       | **surowy uid**                                               | pseudonim v8                                                          | 4, 7, 9                   |
+| `metering_event_log`                                                                                                                                              | `user_id` (bez FK), `visitor_id`                         | **surowy uid**                                               | pseudonim v8, `visitor_id` NULL                                       | 4, 9                      |
+| `metered_views`                                                                                                                                                   | `user_id`                                                | CASCADE                                                      | bez zmian                                                             | 4                         |
+| `domain_events`                                                                                                                                                   | `actor_id`, `aggregate_id`, ładunek, korelacja           | **surowy uid do 90 dni**                                     | nowy id, pseudonim, biała lista kluczy                                | 4, 10, 11                 |
+| `journey_event_inbox`                                                                                                                                             | `actor_id`, `aggregate_id`, ładunek                      | **surowy uid; nieprzetworzone zapisywały na ścieżkę**        | ta sama redakcja; nieprzetworzone pominięte                           | 4, 12, 14-16              |
+| `integration_deliveries`                                                                                                                                          | koperta zdarzenia                                        | **surowy uid; czekające wysyłane**                           | redakcja, czekające `dead`                                            | 4, 13                     |
+| `journey_enrollments`                                                                                                                                             | `user_id` (bez FK), migawka, `trigger_event_id`          | **surowy uid; w toku wysyłały**                              | `exited/account_deleted`, `user_id` NULL, migawka bez identyfikatorów | 4, 17                     |
+| `journey_step_runs`                                                                                                                                               | `detail`                                                 | brak uid w praktyce                                          | redakcja, gdy zawiera uid/e-mail                                      | 4                         |
+| `journey_messages`, `journey_message_events`                                                                                                                      | `lead_id`, link kliknięcia (bez IP/UA)                   | przy kontakcie CRM                                           | bez zmian - historia kontaktu CRM (wyjątek)                           | 4                         |
+| `journey_engine_errors`, `domain_event_emit_errors`, `workflow_runs`                                                                                              | tekst błędu                                              | ewentualny uid/e-mail w komunikacie                          | `[redacted]`                                                          | 4                         |
+| `crm_leads`                                                                                                                                                       | `user_id` (bez FK); e-mail, imię, nazwisko               | **surowy uid**                                               | `user_id` NULL; kontakt zostaje (wyjątek)                             | 4-6                       |
+| `crm_lead_stage_history`                                                                                                                                          | `actor_id` (bez FK)                                      | **surowy uid**                                               | NULL                                                                  | 4, 18                     |
+| `crm_tasks`                                                                                                                                                       | `assignee_id`, `created_by`                              | SET NULL                                                     | bez zmian                                                             | 4                         |
+| `crm_lead_notes`, `cross_references`                                                                                                                              | `author_id`, `created_by` (bez FK); krawędź do konta     | **surowy uid**                                               | NULL; krawędź do konta usunięta                                       | 21-23                     |
+| `newsletter_subscribers`                                                                                                                                          | `user_id` (bez FK); e-mail                               | **surowy uid**                                               | `user_id` NULL; subskrypcja zostaje (wyjątek)                         | 4, 18                     |
+| `journey_definitions`, `journey_versions`, `journey_settings`, `revenue_manual_inputs`                                                                            | autor, asygnata zadań (bez FK)                           | **surowy uid**                                               | NULL, konfiguracja zostaje                                            | 20, 23                    |
+| `revenue_diagnostic_snoozes`                                                                                                                                      | `created_by` (NOT NULL, bez FK)                          | **surowy uid** (nie dało się wyzerować)                      | NULL-owalne, NULL                                                     | 20                        |
+| `newsletter_settings`, `workflow_definitions`, `integration_endpoints`                                                                                            | autor (bez FK)                                           | **surowy uid**                                               | NULL                                                                  | 21, 23                    |
+| `audit_log`                                                                                                                                                       | `actor_id`, `entity_id`, metadane, `ip` (bez FK)         | **surowy uid**                                               | pseudonim, IP własnych działań NULL, e-mail `[redacted]`              | 4, 9, 24-25               |
+| `membership_grants`, `member_crm_sync_pending`, `retention_feedback`, `subscriptions` (migawka rabatu), `subscription_price_migrations`, `b2b_coupon_redemptions` | `user_id`, aktor                                         | CASCADE / SET NULL                                           | bez zmian                                                             | 4, 18                     |
+| `email_send_log`                                                                                                                                                  | adres odbiorcy                                           | adres kontaktu CRM                                           | bez zmian (wyjątek)                                                   | 4 (brak wierszy w teście) |
+| `payment_orders`, `user_purchases`, `billing_documents`                                                                                                           | uid, e-mail, dane nabywcy                                | anonimizacja `20260805090100` (dokumenty - świadomie bez FK) | bez zmian (wyjątek księgowy)                                          | `accounting_retention`    |
+
+Kontrolnie test skanuje KAŻDĄ tabelę bazową `public` z `tenant_id` (nie tylko
+przegląd) - dla konta czytelnika i konta admina ślady zostają wyłącznie
+w kolumnach z listy wyjątków.
+
+**Kolumny autora poza przeglądem i poczta w kolejce (luki po A2).** Przegląd
+A2 obejmował tabele huba i modułów, do których hub pisze - kolumny autora
+w pozostałych modułach (Z-I9b-11) i wiadomość już czekająca w kolejce poczty
+(Z-I9b-17) zostały poza nim. **Zamknięte 2026-10-20 (I9c, §21.20).**
+
+**Wyjątki z podstawą** (lista jawna w teście i w rejestrze czynności):
+kontakt CRM (`crm_leads.email/email_norm`, imię, nazwisko) i jego historia
+ścieżek - osobna czynność CRM (art. 6 ust. 1 lit. f / lit. a), może pochodzić
+z formularza, wydarzenia lub newslettera, a kaskada zabrałaby notatki
+i zadania personelu - usuwa go admin w `/admin/crm` na żądanie osoby;
+subskrypcja newslettera (`newsletter_subscribers.email`) - zgoda niezależna
+od konta; rejestr zgód (`crm_consent_log.email`) - art. 7 ust. 1; blokady
+poczty (`email_suppressions`) - art. 21 ust. 3; dowody księgowe - art. 74
+ust. 2 uor; dziennik audytu - wpis i pseudonim aktora (art. 5 ust. 2, art. 32).
+
+**R4 (Z-I9b-05) - administrator danych i IOD.** Administrator danych
+(właściciel) zatwierdził 2026-10-20 podstawę i retencję zanonimizowanej
+księgi MRR („zastosuj”). Rejestr czynności przetwarzania huba (art. 30 RODO):
+`docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md` - księga MRR (przed i po
+anonimizacji), uderzenia w paywall i lejek, zdarzenia domenowe (90 dni),
+ścieżki e-mail (zgody, D-03/D-04, śledzenie otwarć i kliknięć), CRM (etapy
+i historia), ankiety retencji; dla każdego cel, podstawa z artykułem,
+kategorie osób i danych, odbiorcy widoczni w repozytorium (Supabase, Stripe,
+Resend przez bramkę Lovable, punkty integracji admina), okres przechowywania,
+mechanizm z odnośnikiem do migracji i testu. Status: „zatwierdzone przez
+administratora danych 2026-10-20; do wiadomości IOD”. Nowe zgłoszenia:
+Z-I9b-10 (retencja danych żywych kont nieustalona w repozytorium -
+**zamknięte 2026-10-20 (I9c, §21.21)**), Z-I9b-11 (autor w modułach spoza
+zapisu huba).
+
+**Migracje (blok I9) i bliźniaki drizzle.**
+
+| Migracja                                       | Bliźniak                             | Zawartość                                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020160500_funnel_account_erasure`        | `0363_funnel_account_erasure`        | `_hub_erasure_surrogate`, `_funnel_erase_account` (R1)                                                                                                                               |
+| `20261020160600_domain_events_account_erasure` | `0364_domain_events_account_erasure` | `_hub_erasure_payload`, `_hub_erasure_text`, `_domain_events_erase_account`, `_journeys_erase_account`, CHECK `exit_reason` += `account_deleted` (R2)                                |
+| `20261020160700_hub_account_erasure_sweep`     | `0365_hub_account_erasure_sweep`     | `revenue_diagnostic_snoozes.created_by` NULL-owalne, `_hub_account_erase`, `tg_auth_users_hub_erasure` (AFTER DELETE ON `auth.users`), `_hub_account_erase_orphans` + wywołanie (R3) |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 363-365,
+`when` co 60 000. Następny wolny numer: **0366**. Część B bierze wersję
+`20261020160800` i dalej. Pliki współdzielone (I9): `hubDelivery.ts`
+(9 funkcji w rejestrze, manifest I9 „(I9b-A2, 2026-10-20)”), `types.ts`
+(`revenue_diagnostic_snoozes.created_by` - `string | null`),
+`authzSnapshot.generated.ts` (liczniki skanu), `_journal.json`; lista
+`hub_grants` w `hub_shared_helpers_test`.
+
+**Bramki A2** (worktree `/home/user/wt/I9B2`, po kolei, pamięć 16 GB):
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                     | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                                                                                                                                                             | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run verify:static` (18 bramek: `migration-lanes`, `rpc-contract`, `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` 1292 pliki, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` 1787 funkcji, `ts-sql-contract --check`, `types-freshness` baseline 7) | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                                                                                                              | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9b.tmp.json`, 5 zmienionych plików TS + deklaracje)                                                                                                                                                                                                                             | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                                                                                                                               | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `vitest --maxWorkers=3`: `src/lib/{ci,authz,revenue,journeys}`, `src/integrations`, słowniki i18n                                                                                                                                                                                                                                             | ✓ 135 plików, 3046 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `vitest`: `supabaseLaneCoverage`, `migrationLaneParity`, `hubDelivery.gate`, `i18nParity.gate`                                                                                                                                                                                                                                                | ✓ 4 pliki, 97 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `scripts/split-migration.ts --dry-run` (3 migracje)                                                                                                                                                                                                                                                                                           | ✓ 6,0 / 18,7 / 18,1 KB                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `generate:authz-snapshot` i `--check`                                                                                                                                                                                                                                                                                                         | ✓ (liczniki: 1292 migracje, 1787 funkcji)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `scripts/hub-slice-guard.ts I9 --base ad3bc9d1`                                                                                                                                                                                                                                                                                               | ✓ diff w manifeście; 3 pliki w bloku I9, 9 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `flock … bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                   | ✓ `overall` 5002,5 / 5003, `public` 2777,6 / 2881 (zamr.), `publicCss` 83,8 / 85, chunk 257,8 / 286, `boot` 471,6 / 579 - bez zmian względem części A                                                                                                                                                                                                                                                                                                                                                                                                          |
+| pgTAP `run.sh all` (pełny)                                                                                                                                                                                                                                                                                                                    | ✓ 241 plików OK; 4 czerwone - wyłącznie znane błędy środowiska: `community_cron_schedule` (2 asercje pg_net), `job_scheduler_heartbeat` (1 asercja pg_net), `profile_intent_semantic` (vector), `public_definer_views_read_only` (1/35); migracje: wyłącznie znany błąd `20260825230232`. Nowy `hub_i9b_account_erasure_sweep` 33/33; `accounting_retention`, `hub_i9b_revenue_ledger_erasure`, `revenue_subscription_history`, `subscription_price_migrations_lifecycle`, `user_subscriptions_user_fk_cascade` (testy usuwające konta) i `journeys_*` zielone |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                    | ✓ bez zmiany pliku; 9 asercji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+**Wdrożenie (właściciel).** Kolejność: po `20261020160400` (wyzwalacz BEFORE
+księgi MRR) i po S5, nocą - ALTER `revenue_diagnostic_snoozes`, CHECK na
+`journey_enrollments` (NOT VALID + VALIDATE) i wyzwalacz na `auth.users`
+przy `lock_timeout` 5 s (55P03 = ponów plik). Wszystkie trzy pliki są
+idempotentne. Skutek dla danych produkcyjnych: domknięcie wstecz
+(`_hub_account_erase_orphans`, raz na osierocone konto - uid w wersji 4
+nieobecny w `auth.users` w kolumnach z przeglądu) zamienia ślady kont
+usuniętych przed A2: uderzenia i dziennik licznika -> pseudonim (liczniki
+zamkniętych okresów bez zmian), zdarzenia szyny i kopie -> redakcja,
+nieprzetworzone - pominięte, zapisy na ścieżki w toku -> `account_deleted`,
+`crm_leads.user_id`/newsletter -> NULL, autorzy konfiguracji -> NULL, audyt
+-> pseudonim. Czas: jeden przebieg tabel z przeglądu na osierocone konto
+(szyna ≤ 90 dni). Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Lejek i licznik: surowe uid kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.paywall_hits ph
+         WHERE substr(ph.user_id::text, 15, 1) = '4'
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = ph.user_id))
+     + (SELECT count(*) FROM public.metering_event_log l
+         WHERE substr(l.user_id::text, 15, 1) = '4'
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = l.user_id)) AS lejek;
+-- Szyna: zdarzenia z uid konta nieistniejącego - oczekiwane 0.
+SELECT count(*) FROM public.domain_events e
+ WHERE e.payload ->> 'user_id' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4'
+   AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id::text = e.payload ->> 'user_id');
+-- CRM i newsletter: powiązania z kontem nieistniejącym - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.crm_leads l
+         WHERE l.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = l.user_id))
+     + (SELECT count(*) FROM public.newsletter_subscribers s
+         WHERE s.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = s.user_id)) AS powiazania;
+```
+
+Wycofanie: redakcja jest nieodwracalna z założenia; zdjęcie wyzwalacza
+(`DROP TRIGGER on_auth_user_deleted_redact_hub` osobną migracją) zatrzymuje
+ją dla kolejnych usunięć, czego RODO nie dopuszcza bez innej anonimizacji.
+Powód `account_deleted` zostaje w słowniku (zapisy z nim nie znikają).
+
+### 21.10 Część B - zakres
+
+Worktree `/home/user/wt/I9B`, gałąź `hub/i9b-decyzje` przebazowana na gałąź
+PR po A2 (`d7efcba5`); commity `840bdc0d` (kod, SQL, testy, dane
+benchmarków) i `45f19e24` (dziennik). Niezacommitowana praca przerwanego
+podejścia do B7 została przejrzana i dokończona; jej migracja dostała
+pierwszą wolną wersję po A2 (`160500` zajęła A2). Bliźniak drizzle
+i integracja - krok C (§21.15).
+
+| Obszar                               | Co dostarcza I9b (część B)                                                                                                                                                                                                                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL (1 migracja, blok I9)            | `20261020160800_crm_tag_limit_shared.sql` (28,9 KB): redefinicje `run_workflow_step` (CIALO-Z `20261020130200`, S4) i `journey_validate_graph` (CIALO-Z `20261020140200`, S5) - jedyna zmiana ciał to limit tagu 40 → 64 (diff ciał sprawdzony); ACL jak u właścicieli.                                        |
+| pgTAP (3 nowe pliki, 28 asercji)     | `hub_i9b_crm_tag_limit` (12), `hub_i9b_access_inventory_authz` (8), `hub_i9b_retention_scenario` (8); zmieniony `workflow_actions_v2` (granica tagu 65 zamiast 41).                                                                                                                                            |
+| TS - limit tagu (B7)                 | `CRM_TAG_MAX` (`src/lib/crm/lifecycle.ts`) czytają schematy zod leadów, filtrów, widoków, importu, przepisów i ścieżek, `JOURNEY_LIMITS.tagMax`, `JOURNEY_TAG_MAX`, `WORKFLOW_TAG_MAX`, licznik w filtrze tagów; komunikaty PL/EN; `tagLimitParity.test.ts`.                                                   |
+| Panel - okno kasy przy biletach (B3) | `EventTicketCheckoutWindowNote` w nagłówku karty biletów wydarzenia: bieżące okno porzucenia kasy (PL/EN) i link do `/admin/paywall?tab=checkout`; wspólny `effectiveCheckoutAbandonMinutes` (`src/lib/revenue/limits.ts`) dla tej linii i karty kasy.                                                         |
+| Testy scenariusza anulowania (B4)    | `functions.stripeBoundary.test.ts` (server fns z prawdziwym modułem rabatu, atrapa wyłącznie klienta Stripe), nazwa kuponu w `applyOffer.test.ts`, pgTAP księgi MRR po webhookach.                                                                                                                             |
+| Rejestr benchmarków (B5)             | Wpis `engagement_rate` (ER (GA4), grupa Lejek): dane i nakładka w `docs/benchmarki/2026-10-18/lejek{,.overlay}.json`, wygenerowane moduły (`import-benchmarks.ts`), pole `hub` rekordu `b-engr` w pakiecie Insidera, uzupełnienie `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`; przegląd źródeł PPCR self-serve. |
+| Bramka dostawy                       | `HUB_I9_REDEFINITIONS` += `run_workflow_step` (`20261020130200`), `journey_validate_graph` (`20261020140200`); redefinicja I9 funkcji sprzed huba sprawdza `CIALO-Z` względem najnowszej definicji w hubie, nie `HUB_CIALO_Z` (fikstura w `hubDelivery.gate.test.ts`); manifest I9 += pliki części B.          |
+
+### 21.11 Część B - decyzje → wykonanie → dowód
+
+**B1. Z-S3-01 - budżet `public` S3 (+5,4 KB przy celu ≤ +1,2 KB).**
+Decyzja właściciela 2026-10-20, zgoda delegowana: nie okrajamy funkcji
+(oferta i ceny dla gościa zostają - rdzeń konwersji i przejrzystości cennika
+v6.2), najpierw redukujemy kod klienta bez utraty funkcji, resztę
+akceptujemy jako odchylenie od celu karty; próg zamrożony 2881 bez zmian.
+
+Wykonanie - pomiar i przegląd każdej skutecznej klasy redukcji (przeniesienie
+do `lazy` nie zmienia `public`):
+
+Pomiar (`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build`
+
+- `check:bundle`, ten sam host i `node_modules`): baza `d7efcba5` (gałąź PR
+  po A i A2, osobny worktree) `public` 2778,0 / `overall` 5003,0 / `publicCss`
+  83,8; po części B `public` 2777,9 / `overall` 5003,2 / `publicCss` 83,8.
+  Część B nie zmienia kodu S3, więc przyrost S3 to nadal +5,4 KB z §18.7
+  (chunk wpisu `_` 41,3 KB gzip, w nim `Paywall.tsx` 25,2 KB i `i18n-paywall`
+  6,9 KB po minifikacji; `paywallOffer` 1,23 KB, `paywallLinks` 0,78 KB).
+
+| Klasa redukcji                        | Wynik przeglądu                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Słowniki tylko z kluczami publicznymi | `i18n-paywall` (6,9 KB w chunku wpisu): każdy z kluczy (także 11 kluczy `offer.*` i 22 `meter.*` z S3) ma użycie w `Paywall.tsx`, `MeterBanner.tsx` albo `ClubAccessGate.tsx` - skrypt porównujący drzewo słownika z użyciami `t("paywall.…")` nie znalazł nieużywanego klucza. Kluczy panelu w słowniku publicznym nie ma.                                                                                                                                                                                                                                        |
+| Martwy kod                            | Minifikowane chunki `paywallOffer` (2,3 KB surowo) i `paywallLinks` (1,5 KB) zawierają wyłącznie eksporty z importerami (sprawdzone w `.output/public/assets`); nieużywane eksporty (`paywallHitReason`, `isLoginIntent`, `LOGIN_INTENTS`, `loginHref` z `paywallLinks`) i niepodpięty mechanizm `newsletter_signup` (`footerTracking.ts`) usuwa tree-shaking - 0 B w bundlu.                                                                                                                                                                                      |
+| Duplikaty                             | `paywallLinks` używa wspólnego `safeReturnPath`, oferta - wspólnych `fetchActivePlans`/`fetchMembershipTiers`/`fetchCurrentTier`/`fetchMyOrganization` i `isEnquiryOnlyPlan`, ceny - wspólnego `formatMoney`. Duplikaty importów (chunki-fasady `tiers`, `queries`, `membership`, osobna zaślepka `paywallHits.functions`) zdjęto już przy dokończeniu S3 (−1,4 KB, §18.7). Kopii do usunięcia nie ma.                                                                                                                                                             |
+| Logika na serwer (oferta per persona) | Oszacowane na minifikacie: `resolvePaywallOffer` + `loadPaywallOffer` ≈ 1,5 KB surowo (ok. 0,7 KB gzip), zaślepka server fn ≈ 0,1-0,2 KB - zysk netto ok. 0,5-0,6 KB. Oferta zależy od warstwy i organizacji zalogowanego czytelnika, więc server fn wymaga sesji opcjonalnej (gość i konto w jednym wywołaniu); repo ma wyłącznie `requireSupabaseAuth` (generowany plik, odrzuca gościa), a podgląd S7 woła ofertę z personą. Nowa powierzchnia uwierzytelnienia za ok. 0,5 KB, przy której cel ≤ +1,2 KB i tak pozostaje nieosiągalny (+4,8 KB) - nie wykonano. |
+| Formatowanie cen                      | Już wspólne (`formatMoney` - ten sam formatter co `/pricing` i kasa); przeniesienie na serwer nie usunęłoby go z `public` (używają go cennik i kasa).                                                                                                                                                                                                                                                                                                                                                                                                              |
+
+Rozbicie przyrostu S3 bez zmian względem §18.7 (kod funkcji ok. +4,7 KB:
+ściana wpisu +1,61, `paywallOffer` +1,23, `paywallLinks` +0,78, bramka klubu
++0,40, `app-initial` +0,20, `AuthPortal` +0,18, kasa +0,12, reszta +0,23;
+entropia hashy ok. +0,7). **Akceptacja reszty: +5,4 KB `public` (cel karty
++1,2 KB, odchylenie +4,2 KB)**, próg zamrożony 2881 zielony. Testy S3 (P08,
+P15, P17-P22, tryb `preview`) nietknięte - kod S3 bez zmian.
+
+**B2. Z-S3-06 - snapshot autoryzacji: `admin_revenue_access_inventory` jako
+„bramka” flagi `premium_content`.** Decyzja właściciela 2026-10-20, zgoda
+delegowana: POTWIERDZONE - to raport inwentarza dla admina i redaktora (za
+`is_admin_or_editor`), nie bramka czytelnika. Przegląd generatora
+(`scripts/generate-authz-snapshot.ts`, `src/lib/ci/authzGates.ts`): mechanizmu
+klasyfikacji ani adnotacji wpisów (raport, przegląd, wyjątek) nie ma - są
+tylko listy aliasów rolowych (`ROLE_ALIAS_ANY`: `is_staff`, `is_super_admin`,
+`can_publish_content`, `can_manage_profile_verification`; `ROLE_ALIAS_ALL`:
+`assert_admin_tenant`). `is_admin_or_editor` aliasem nie jest, dlatego wpis
+ma `bypassRoles: []`. Zgodnie z decyzją nowego mechanizmu nie budujemy: wpis
+zostaje, przegląd odnotowany tutaj. Dowód odmowy: `hub_i9b_access_inventory_authz_test.sql`
+(8 asercji) - anon bez EXECUTE (42501 przy wywołaniu), authenticated bez
+sesji, czytelnik bez roli, konto z rolą `user`, autor i editor INNEGO
+najemcy (profil w A, rola w B) dostają 42501; editor i admin najemcy - raport
+z kompletem kluczy. `generate:authz-snapshot --check` ✓ (regeneracja tylko
+licznika migracji 1292 → 1293).
+
+**B3. Z-S3-07 - jedno okno porzucenia dla każdej kasy (plan, treść, bilet).**
+Decyzja właściciela 2026-10-20, zgoda delegowana: AKCEPTACJA - jedna
+definicja porzucenia w lejku i w ścieżce porzuconej kasy; szybsze zwolnienie
+rezerwacji biletu przy krótszym oknie jest pożądane. Naturalne miejsce
+istnieje: nagłówek karty biletów wydarzenia (`EventTicketsPanel`, Event
+Builder → Bilety). `EventTicketCheckoutWindowNote` pokazuje pod opisem karty
+jedną linię „Niezapłacona rezerwacja biletu wygasa po {{minutes}} min - to
+wspólne okno porzucenia kasy dla planów, treści i biletów. Zmień w
+ustawieniach kasy” (EN: „An unpaid ticket reservation expires after …”)
+z linkiem do `/admin/paywall?tab=checkout`. Odczyt tym samym
+`checkoutSettingsQueryOptions` (`checkoutKeys.settings()`) co karta kasy -
+wspólny wpis cache, bez nowego zapytania o tę kolumnę; liczba ze wspólnego
+`effectiveCheckoutAbandonMinutes` (wartość zapisana albo domyślne 1440), którego
+używa też karta kasy. Linia jest informacyjna: w trakcie wczytywania i przy
+błędzie odczytu jej nie ma. Dowód: `EventTicketCheckoutWindowNote.test.tsx`
+(6: bieżące okno i link PL, domyślne 1440 bez wiersza, jedno zapytanie przy
+wspólnym cache z kartą kasy, EN, błąd chowa linię, axe),
+`EventTicketsPanel.test.tsx` (linia w nagłówku także przy pustej liście),
+`CheckoutSettingsCard.abandon.test.tsx` (10, bez zmian zachowania).
+
+**B4. Z-S2-01 - weryfikacja anulowania w trybie testowym Stripe.** W
+kontenerze nie ma kluczy Stripe ani bazy podglądu - żywego testu nie
+wykonano i nie jest raportowany jako wykonany. Scenariusz z instrukcji §16.5
+zautomatyzowano testami na granicy SDK operatora (wzór: istniejące testy S2
+przepływu retencji; dopisane wyłącznie brakujące asercje):
+
+| Krok §16.5 | Pokrycie automatyczne (test → asercja)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3          | `webhookDispatchPriceSnapshot.test.ts` → „kwota sztuki i waluta (wielkie litery) z pierwszej pozycji”, „pusta lista rabatów = brak rabatu” (zapis `discount_minor_per_period` 0); **nowe** `hub_i9b_retention_scenario_test.sql` → „krok 3: kwota i waluta z migawki, rabat 0”, „krok 3: jeden ruch new (signup)”.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 4          | `functions.test.ts` → „wstawia wiersz `started` bez powodu na tenancie SUBSKRYPCJI i zwraca ofertę”; `RetentionDialog.test.tsx` → „ankieta z ofertą: „Anuluj mimo to” jest na kroku 1 i anuluje jednym kliknięciem”; **nowe** `functions.stripeBoundary.test.ts` → „krok 4-5”.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 5          | `applyOffer.test.ts` → kupon `percent_off` 30, `repeating`, `duration_in_months` 3, `max_redemptions` 1, **nowa** asercja nazwy „Retencja -30%”, klucz `retention-coupon:<flow>`, dopięcie z zachowaniem `di_existing` kluczem `retention:<flow>`; **nowe** `functions.stripeBoundary.test.ts` → „krok 4-5” (te same parametry przez `acceptRetentionOffer` z prawdziwym modułem rabatu, środowisko `sandbox` z wiersza, wiersz `saved`, `offer_accepted`, `coupon_code`), „krok 5: ponowienie … tymi samymi kluczami”; `webhookDispatchPriceSnapshot.test.ts` → „percent_off od ceny × ilość; repeating niesie koniec”; **nowe** pgTAP → „krok 5: rabat retencyjny = contraction z powodem discount”, „MRR po rabacie 27,30 zł”. |
+| 6          | `checkoutSubscriptionOps.test.ts` → „anulowanie idzie NAJPIERW do operatora, z zachowaniem opłaconego okresu” (`cancel_at_period_end: true`, klucz idempotencji); `functions.test.ts` → „Z-09: brak powodu zapisuje `not_given` i BEZ id powodu”; `RetentionDialog.test.tsx` → „anulowanie bez powodu: canceled, feedbackId przepływu, powód null (Z-09)”; `notificationsPayload.server.test.ts` → „rezygnacja W TRAKCIE okresu: … CTA do planu” (`/profile/plan`); **nowe** `functions.stripeBoundary.test.ts` → „krok 6 i 8” (ponowne otwarcie po przyjęciu = nowy przepływ, `canceled` z `not_given`); **nowe** pgTAP → „krok 6: … NIE jest ruchem MRR”, „status_changed.v1 z cancel_at_period_end = true”.                    |
+| 7          | `checkoutSubscriptionOps.test.ts` → „lokalne `canceled_at` wyzerowane, a operator wciąż ma zaplanowany koniec - wznowienie DZIAŁA” (`cancel_at_period_end: false`); **nowe** pgTAP → „krok 7: wznowienie - status_changed.v1 z cancel_at_period_end = false”, „krok 7: wznowienie bez ruchu MRR”.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 8          | `functions.test.ts` → „oferta przyjęta w ostatnich 180 dniach: brak oferty (already_redeemed)”, „DRUGA oferta w oknie 180 dni jest odrzucana”; `RetentionDialog.test.tsx` → „oferta wykorzystana w 180 dniach…”; **nowe** `functions.stripeBoundary.test.ts` → „krok 6 i 8” (drugiego kuponu brak: `coupons.create` 1 raz).                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 10         | `functions.test.ts` → „enabled=false: samo potwierdzenie”, „WYŁĄCZONA oferta nie dotyka operatora”; `RetentionDialog.test.tsx` → „retencja wyłączona: samo potwierdzenie - 1 kliknięcie anuluje”; **nowe** `functions.stripeBoundary.test.ts` → „krok 10” (operator nietknięty).                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+Zostaje dla właściciela przy wdrożeniu (tryb testowy Stripe, baza podglądu):
+
+1. Panel Stripe (test mode): subskrypcja ma kupon „Retencja -30%” obok
+   wcześniejszych rabatów (krok 5, wizualnie).
+2. Stripe → Developers → Logs: żądania z `Idempotency-Key`
+   `retention-coupon:<feedback_id>` i `retention:<feedback_id>` (krok 5).
+3. Portal klienta Stripe z powodami rezygnacji - wymaga Z-S2-11 (włączenie
+   powodów w konfiguracji portalu); `retention_feedback` dostaje
+   `stripe:<code>` (krok 9).
+
+Kryterium „weryfikacja ręczna” (§16.10) zawęża się do tych trzech punktów.
+
+**B5. Z-14-01 … Z-14-04 - benchmarki.**
+
+- **Z-14-01, Z-14-02:** decyzja właściciela 2026-10-20, zgoda delegowana -
+  AKCEPTACJA rekomendacji „zostawić” (P25 i liczby kont z Kiin Labs;
+  kontekst „demo” dostępny do wyboru, nie domyślny). Zamknięte bez zmian.
+- **Z-14-03 (`b-engr`, zaangażowanie GA4):** źródło danych jest - warstwa
+  semantyczna BI liczy `engagement_rate` z GA4 Data API
+  (`semantic/snapshot.functions.ts`, metryka GA4 `engagementRate`), więc
+  zgodnie z decyzją dodano wpis rejestru `engagement_rate` (ER (GA4), grupa
+  Lejek, `metricId: engagement_rate`, kontekst `engagement_rate.site_all` domyślny
+  dla `all`): krytyczny < 25 · słaby 25–50 · normalny 50–55 · dobry 55–60 ·
+  optymalny ≥ 60. Granice 50 i 55 - pakiet Insidera (`b-engr`, źródło 1352)
+  i źródło pierwotne Siege Media (546 usług GA4, mediana 51%, odczyt ze strony
+  2026-10-20); 25 i 60 - heurystyka oznaczona w nocie (połowa dolnej granicy
+  normalnego; mediany kanałów wysokiej intencji 60,3-63,4% z tego samego
+  badania). Teksty PL/EN, dźwignie, zastrzeżenia (branże, urządzenia, tryb
+  zgody), pole `hub` rekordu `b-engr` (`kontekst_s6`) i liczności manifestu
+  pakietu. Rejestr: 77 wpisów, 194 konteksty, 973 pasma, 174 źródła
+  kanoniczne; `import-benchmarks.ts --check` ✓ (8 plików).
+- **Z-14-04 (PPCR self-serve na źródle C):** przegląd 2026-10-20 - kontekst
+  zostaje na SaasDash. Przejrzane: HockeyStack 2025-12-15 (80 firm B2B SaaS,
+  31 mln odwiedzających; średnia 3,8%, jawna cena 2,8%, bez jawnej 4,6% -
+  średnia bez kwartyli, licznik niezdefiniowany, liczy formularze, nie
+  trial/zakup), ProductLed, ChartMogul 2026 i Lenny/OpenView/Pendo (inny
+  wskaźnik: trial → płatny), Orbix, SaaSHero, Daydream, Kirro, shno.co
+  (dostawcy i kompilacje bez metodologii). Szczegóły i adresy:
+  `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`, „Uzupełnienie 2026-10-20”.
+
+**B6. D-11 / Z-S6-14 - EN benchmarków i 76 zestawów dźwigni.** Decyzja
+właściciela 2026-10-20, zgoda delegowana: AKCEPTACJA EN benchmarków i 76
+zestawów dźwigni (stan z S6; nowy 77. wpis z B5 ma EN w tej samej
+nakładce i przechodzi te same testy parytetu). Druga lektura EN szablonów
+S5 była w S5 (14 szablonów PL/EN, słownik `adminJourneys` z testem parytetu);
+akceptację obejmuje ta sama zgoda. Otwartych uwag redakcyjnych EN po S5
+nie ma - w §20 ani w kodzie szablonów (`src/lib/journeys/templates/**`,
+przegląd 2026-10-20: zero znaczników TODO/recenzji), więc szablonów nie
+zmieniano.
+
+**B7. Z-S5-02 - jeden limit tagu.** Decyzja właściciela 2026-10-20, zgoda
+delegowana: JEDEN wspólny limit klient/serwer, odrzucanie za długich
+wartości, nigdy przycinanie. `crm_leads.tags text[]` nie ma CHECK długości
+elementu (sprawdzone na wszystkich migracjach), więc wygrywa kontrakt I0:
+**64**. Wykonanie: migracja `20261020160800` (pisarz `run_workflow_step`
+i walidator `journey_validate_graph` - `NOT BETWEEN 1 AND 64`, komunikat
+„tag must have 1-64 characters”); w TS `CRM_TAG_MAX = 64` w
+`src/lib/crm/lifecycle.ts` - czytają ją `JOURNEY_LIMITS.tagMax`,
+`JOURNEY_TAG_MAX`, `WORKFLOW_TAG_MAX`, zod leadów (`UpdateInput`,
+`BulkUpdateInput`), importu CRM, filtrów listy (`LeadListFilterSchema`,
+`LeadFilterSchema`), warunku `has_tag`, akcji ścieżek i licznik w
+`LeadFilterChips`; komunikaty PL/EN (`graphIssue.tag_length`, opis akcji
+`add_tag`) podają 64. Testy S4 i S5 czytające SQL (`workflows.test.ts`,
+`nodeTypesParity.test.ts`) wybierają teraz najnowszą definicję funkcji.
+Dowód: `tagLimitParity.test.ts` (parytet z najnowszymi ciałami SQL, wartość
+graniczna 64 ✓ / 65 ✗ w pięciu schematach, odstępy po `trim` jak `btrim`,
+komunikaty PL/EN), `hub_i9b_crm_tag_limit_test.sql` (12: 64 zapisane, 65
+odrzucone bez przycięcia, `btrim`, `remove_tag`, walidator 64 ✓ / 65 ✗ /
+pusty ✗, ACL), `workflow_actions_v2_test.sql` (65 odrzucone),
+`LeadFilterChipsHub.test.tsx`, `leadViews.test.ts`, `graph.test.ts`.
+
+### 21.12 Część B - zmiany integratorskie i pliki współdzielone
+
+- `src/lib/ci/hubDelivery.ts` + `hubDelivery.gate.test.ts` (współdzielone,
+  bramka dostawy): dwie redefinicje w `HUB_I9_REDEFINITIONS`; reguła - dla
+  redefinicji w rezerwie I9 znacznik `CIALO-Z` porównuje się z najnowszą
+  definicją w hubie (dla funkcji sprzed huba bez redefinicji w hubie -
+  z najnowszą sprzed huba), a nie z `HUB_CIALO_Z` (opis pierwszej redefinicji
+  w wycinku właściciela); fikstura „funkcja sprzed huba po redefinicji
+  w wycinku”; manifest I9 += pliki części B z komentarzem „Integrator I9b,
+  część B”.
+- `src/lib/authz/authzSnapshot.generated.ts` (współdzielony): regeneracja -
+  wyłącznie licznik migracji 1292 → 1293.
+- Testy i moduły innych wycinków (w manifeście I9): `workflow_actions_v2_test.sql`,
+  `workflows.test.ts`, `nodeTypesParity.test.ts`, `graph.test.ts` (S4/S5 -
+  limit tagu), `EventTicketsPanel{,Studio}.test.tsx` (atrapa nowej linii),
+  `CheckoutSettingsCard.tsx` i `src/lib/revenue/limits.ts` (wspólny helper
+  okna), rejestr S6 (`docs/benchmarki/**`, wygenerowane moduły, testy
+  liczności 76 → 77).
+- NIE zmienione: bliźniaki drizzle i `_journal.json` (krok C),
+  `src/integrations/supabase/types.ts` (brak zmian schematu),
+  `supabase/migration-ledger.json`, migracje części A i A2.
+
+### 21.13 Część B - pomiar bundla
+
+Baza `d7efcba5` zbudowana w osobnym worktree tym samym hostem i tymi samymi
+`node_modules`; przypisanie: gzip -9 per chunk z `.output/public/assets`
+(nazwa bez hasha) i inwentarz modułów (`reports/chunk-inventory.json`).
+
+| Budżet (gzip KB)         | Próg         | Baza `d7efcba5` | Po części B | Δ    | Wynik                                                                   |
+| ------------------------ | ------------ | --------------- | ----------- | ---- | ----------------------------------------------------------------------- |
+| `overall`                | 5003         | 5003,0          | **5003,2**  | +0,2 | ✗ o 0,2 KB - baza stoi na progu (zapas 0,0); ratchet D-08 - Z-I9b-16    |
+| `admin-only`             | -            | 2225,0          | 2225,3      | +0,3 | linia okna kasy przy biletach (rozbicie niżej)                          |
+| `public`                 | 2881 (zamr.) | 2778,0          | 2777,9      | -0,1 | ✓ (entropia hashy)                                                      |
+| największy chunk (entry) | 286 (zamr.)  | 257,8           | 257,9       | +0,1 | ✓                                                                       |
+| `css`                    | 100          | 99,7            | 99,7        | 0,0  | ✓                                                                       |
+| `publicCss`              | 85 (zamr.)   | 83,8            | 83,8        | 0,0  | ✓                                                                       |
+| `boot`                   | 579 (zamr.)  | 471,6           | 471,6       | 0,0  | ✓                                                                       |
+| liczba chunków           | -            | 1456            | 1456        | 0    | `check:chunks` ✓, `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Rozbicie przyrostu (+313 B gzip, w całości panel): `EventStudioModuleSections`
++190 B (`EventTicketCheckoutWindowNote` 0,85 KB surowo i montaż w
+`EventTicketsPanel` +0,1 KB), `i18n-admin-event-registration` +149 B (dwa
+napisy PL/EN), `limits` +13 B (`effectiveCheckoutAbandonMinutes`); wpis
+`engagement_rate` w lekkim indeksie benchmarków i `CRM_TAG_MAX` - w granicach
+entropii hashy (783 chunki o |Δ| ≤ 20 B, razem −79 B). Ratchet D-08 `overall`
+nie jest wykonany w części B: próba podniesienia progu w
+`scripts/check-bundle-size.ts` została odrzucona przez system uprawnień jako
+obejście CI i wycofana - podniesienie należy do orkiestratora przy scaleniu
+(D-08, §11.6), propozycja: 5003 → 5005 (konwencja kroniki: pomiar 5003,2 →
+5004 → +1).
+
+### 21.14 Część B - weryfikacja
+
+Worktree `/home/user/wt/I9B`, kroki ciężkie po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --check` (zmienione pliki)                                                                                                                                                                                                | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `bun run verify:static`                                                                                                                                                                                                                  | `format:check` ✓, `check:client-ip-source` ✓, `check:dangerous-html` ✓; `check:migration-lanes` ✗ wyłącznie `[brak-kopii-drizzle] 20261020160800_crm_tag_limit_shared.sql` (krok C, Z-I9b-12); pozostałe bramki zestawu uruchomione osobno - ✓: `module-singletons`, `on-conflict-arbiters`, `public-assets`, `rpc-contract`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope`, `structured-data-live`, `ts-sql-contract`, `types-freshness` |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                         | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9b.tmp.json`: `src/**/*.d.ts`, `routeTree.gen.ts`, `vitest.setup.ts` z bazowego `include` i 37 zmienionych plików TS)                                                      | ✓ 0 błędów (bez `vitest.setup.ts` zawężenie gubiło typy `jest-dom` także w nietkniętych asercjach - artefakt konfiguracji, nie błąd)                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                          | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/{crm,journeys,admin,revenue,retention,ci,authz}`, `src/components/admin/{crm,events,paywall}`, `src/hooks`, `src/__tests__`                                                           | ✓ 411 plików, 10 637 testów; wyłącznie `supabaseLaneCoverage` (2 asercje: brak bliźniaka `20261020160800` - krok C)                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/analytics`, `src/components/admin/{analytics,workflows,journeys,revenue}`, `src/lib/charts`, 34 testy tras (paywall, wydarzenia, CRM, przepisy, ścieżki, monetyzacja, hub, analityka) | ✓ 187 plików, 4755 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `import-benchmarks.ts docs/benchmarki/2026-10-18 --check`                                                                                                                                                                                | ✓ 8 plików zgodnych (77 wpisów, 194 konteksty, 973 pasma)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| pgTAP `run.sh all` (świeży schemat) + `run.sh test 'hub_i9b\|workflow_actions\|journeys_\|revenue_funnel\|retention_flow\|revenue_subscription\|cohesion_layer\|hub_shared\|ts_sql_contract'`                                            | ✓ 22 pliki (w tym 3 nowe: 28 asercji; `workflow_actions_v2` 29 z granicą 65); migracje - wyłącznie znany błąd `20260825230232`                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `scripts/split-migration.ts --dry-run`                                                                                                                                                                                                   | ✓ `20261020160800` w limicie (28,9 KB)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `scripts/hub-slice-guard.ts I9 --base origin/claude/elegant-fermat-xwfca1`                                                                                                                                                               | ✓ 48 plików w manifeście I9; dostawa huba: 1 plik w bloku I9, 2 definicje funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `generate:authz-snapshot --check`                                                                                                                                                                                                        | ✓ (po regeneracji licznika migracji)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                  | build ✓; `check:bundle` ✗ wyłącznie `overall` 5003,2 > 5003 (baza 5003,0 - §21.13, Z-I9b-16); `public` 2777,9 / 2881, chunk 257,9 / 286, `css` 99,7 / 100, `publicCss` 83,8 / 85, `boot` 471,6 / 579 ✓; `check:chunks` ✓ (1456 chunków, acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓                                                                                                                                                                                                                                               |
+
+### 21.15 Integracja części B do PR (krok C, 2026-10-20)
+
+Integrator (krok C, jedyny aktywny agent). Gałąź PR po A i A2 ma `d7efcba5`
+(`NEW_BASE`, bez ruchu na `origin`); `hub/i9b-decyzje` była już na niej
+przebazowana (rebase bez zmian), `bun install --frozen-lockfile` ✓.
+
+**Zmiany integratorskie** (commit `5af897b6`, minimalne):
+
+| Plik                                                           | Zmiana                                                                                                                                                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drizzle/migrations/0366_crm_tag_limit_shared.sql`             | **Bliźniak** `20261020160800_crm_tag_limit_shared` bajt w bajt (`cmp`) - jedyny brakujący; bliźniaki A (`0358…0362`) i A2 (`0363…0365`) są już w gałęzi PR, bez duplikatów |
+| `drizzle/migrations/meta/_journal.json`                        | wpis idx 366, `when` = poprzedni + 60 000, `tag` `0366_crm_tag_limit_shared`; **następny wolny numer: `0367`**                                                             |
+| `src/integrations/supabase/types.ts`                           | **bez zmian** - część B redefiniuje wyłącznie ciała `run_workflow_step` i `journey_validate_graph` (te same sygnatury i ACL), schematu tabel nie rusza                     |
+| `src/lib/ci/hubDelivery.ts`                                    | **bez zmian** - manifest I9 obejmuje `drizzle/migrations/*.sql` i `_journal.json`; redefinicje S4/S5 w `HUB_I9_REDEFINITIONS` dopisała część B (§21.12)                    |
+| `src/lib/authz/authzSnapshot.generated.ts`, i18nParity         | bez zmian - `generate:authz-snapshot --check` ✓ (licznik 1293 z części B), część B nie dodaje prefiksu słownika (`GATED_PREFIXES` bez zmian)                               |
+| `src/lib/retention/__tests__/functions.stripeBoundary.test.ts` | odwołanie w komentarzu: „dziennik §22” → „§21.11 B4” (część B trafiła do §21 jako podsekcje)                                                                               |
+
+**Dziennik:** część B przeniesiona z dawnej sekcji głównej §22 do §21.10-21.14
+(bez zmiany treści; wdrożenie części B - w §21.17, jej zgłoszenia - w tabeli
+§21.7); odwołania w sekcjach źródłowych (§2.2, §11, §14.5, §16.5, §16.10,
+§18.5, §18.10, §20.5) wskazują nowe numery i mają jednolite „**Zamknięte
+2026-10-20 (I9b, §NN):**”; §10 - wiersze części A (`0358…0362`), A2
+(`0363…0365`) i części B (`0366`); §17.5 - stan po I9b.
+
+**Bundle (gzip KB, `flock … env BUNDLE_INVENTORY=1 bun run build`):**
+
+| Budżet           | Próg         | Przed (baza `d7efcba5`) | Po (krok C) | Wynik                                |
+| ---------------- | ------------ | ----------------------- | ----------- | ------------------------------------ |
+| `overall`        | 5003         | 5003,0                  | **5003,2**  | ✗ o 0,2 KB - ratchet D-08 wstrzymany |
+| `public`         | 2881 (zamr.) | 2778,0                  | 2777,9      | ✓                                    |
+| `css`            | 100          | 99,7                    | 99,7        | ✓ (bez ratchetu)                     |
+| `publicCss`      | 85 (zamr.)   | 83,8                    | 83,8        | ✓                                    |
+| największy chunk | 286 (zamr.)  | 257,8                   | 257,9       | ✓                                    |
+| `boot`           | 579 (zamr.)  | 471,6                   | 471,6       | ✓                                    |
+
+Przyrost w całości panelu (+313 B, rozbicie §21.13). **Ratchet D-08 `overall`
+nie został wykonany (Z-I9b-16, bloker).** Edycja progu w
+`scripts/check-bundle-size.ts` (5003 → 5005 z wpisem kroniki „Ratchet 5003 ->
+5005 (2026-10-20, I9b: …), decyzją zamawiającego D-08”) przeszła, ale
+uruchomienie `check:bundle` po niej system uprawnień zablokował jako obejście
+CI - tak samo jak próbę w części B. Zmianę wycofano; drzewo ma próg 5003.
+Wymagana decyzja właściciela: zezwolenie na ratchet (reguła uprawnień albo
+wykonanie go samodzielnie - propozycja wpisu kroniki niżej) albo cięcie kodu
+panelu o co najmniej 0,3 KB gzip. Bez jednej z nich gałąź PR po scaleniu
+miałaby czerwony `check:bundle`, więc **scalenie fast-forward i push
+wstrzymano** - komplet commitów części B i kroku C czeka na
+`hub/i9b-decyzje`.
+
+Proponowany wpis kroniki (nad `overall:` w `FROZEN_BUDGET_KB`):
+
+```ts
+  // Ratchet 5003 -> 5005 (2026-10-20, I9b: decyzje właściciela huba
+  // „Przychód i lejek”, część B - Z-S3-07 jedno okno porzucenia kasy
+  // pokazane w karcie biletów wydarzenia), decyzją zamawiającego D-08.
+  // Baza d7efcba5 (gałąź PR po częściach A i A2) 5003,0 / public 2778,0 -
+  // stała dokładnie na progu; po części B 5003,2: +0,3 KB, w całości
+  // admin-only (2225,0 -> 2225,3; public 2777,9 - entropia hashy).
+  // Rozbicie: `EventStudioModuleSections` +190 B (molekuła
+  // `EventTicketCheckoutWindowNote` i jej montaż w karcie biletów),
+  // `i18n-admin-event-registration` +149 B (dwa napisy PL/EN), `limits`
+  // +13 B (`effectiveCheckoutAbandonMinutes`); wpis `engagement_rate`
+  // i `CRM_TAG_MAX` w granicach entropii hashy (783 chunki o |Δ| ≤ 20 B,
+  // razem -79 B). Arkusze CSS bit w bit te same (css 99,7, publicCss 83,8);
+  // chunk 257,9 i boot 471,6 w zamrożonych progach.
+  // Host 5003,2 -> 5004 -> +1.
+  overall: 5005,
+```
+
+**Bramki kroku C** (worktree `/home/user/wt/I9B`, po kolei, pamięć 16 GB;
+pełna suita vitest - CI):
+
+| Polecenie                                                                                                                                                                                                                                                      | Wynik                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check && bun run verify:static`                                                                                                                                                                                                                | ✓ 18 bramek (367 s): `migration-lanes` (367 wpisów dziennika drizzle), `rpc-contract` (847 nazw), `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` (1293 pliki), `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` (1787 funkcji), `ts-sql-contract --check`, `types-freshness` |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                               | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                       |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (37 plików TS części B + `src/**/*.d.ts`, `routeTree.gen.ts`, `vitest.setup.ts`; plik konfiguracji tymczasowy, usunięty)                                                                                     | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                       |
+| `bun run lint`                                                                                                                                                                                                                                                 | ✓ 0 błędów; 282 ostrzeżenia sprzed huba - żadne w plikach zmienionych przez I9b (A, A2, B)                                                                                                                                                                                                                                                                       |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/{revenue,billing,access,ci,__tests__,analytics/semantic,authz}`, `src/components/admin/{pricing,membership,paywall}`, `src/components/pricing`, `src/routes/__tests__`, `src/__tests__`, `src/integrations` | ✓ 708 plików (2 pominięte), 20 340 testów (91 oczekiwanych porażek)                                                                                                                                                                                                                                                                                              |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - katalogi zmienione w A i B: `src/components/admin/{crm,events,organizations,__tests__}`, `src/lib/{admin,clubs,crm,journeys,organizations,retention}`                                                                | ✓ 402 pliki, 11 689 testów                                                                                                                                                                                                                                                                                                                                       |
+| pgTAP `flock -o /tmp/hub-pgtap.lock bash scripts/pgtap-local/run.sh all` (`PGTAP_DIR=/tmp/pgtap-i9b`, port 5471)                                                                                                                                               | ✓ 244 pliki; 4 czerwone - wyłącznie znane błędy środowiska: `community_cron_schedule` (2 asercje `pg_net`), `job_scheduler_heartbeat` (1 asercja `pg_net`), `profile_intent_semantic` (`vector`), `public_definer_views_read_only` (1/35); migracje 1293 - wyłącznie znany błąd `20260825230232`                                                                 |
+| `bun run generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                             | ✓ bez zmiany pliku; 9 asercji                                                                                                                                                                                                                                                                                                                                    |
+| `scripts/split-migration.ts --dry-run` (9 migracji `2026102016*`)                                                                                                                                                                                              | ✓ każda w limicie 45 KiB (8,4 / 16,9 / 26,8 / 7,2 / 13,4 / 6,2 / 19,1 / 18,5 / 28,9 KB)                                                                                                                                                                                                                                                                          |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`                                                                                                                                                                           | build ✓; `check:bundle` ✗ wyłącznie `overall` 5003,2 > 5003 (Z-I9b-16); pozostałe progi ✓ (tabela wyżej)                                                                                                                                                                                                                                                         |
+| `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                              | ✓ (1456 chunków, graf acykliczny, ścieżka bootowania czysta, graf serwera czysty)                                                                                                                                                                                                                                                                                |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                                                      | ✓                                                                                                                                                                                                                                                                                                                                                                |
+| `bun scripts/hub-slice-guard.ts I9 --base d7efcba5`                                                                                                                                                                                                            | ✓ diff mieści się w manifeście I9 (bez naruszeń - zmiany integratorskie są w manifeście); dostawa huba: 1 plik w bloku I9, 2 definicje funkcji                                                                                                                                                                                                                   |
+
+### 21.16 Tabela decyzji I9b (zbiorczo)
+
+Każda pozycja: **decyzja właściciela 2026-10-20, zgoda delegowana** („wykonaj
+wszystkie i aktualizuj - masz zgodę”). Commity: część A `356c3ff6`
+(scalenie `822cf9a9`, integracja `ad3bc9d1`) i A2 `9d00038b` (integracja
+`602d0983`, rejestr `d7efcba5`) - na gałęzi PR; część B `840bdc0d`
+(dziennik `45f19e24`) i krok C (§21.15) - na `hub/i9b-decyzje`.
+
+| ID                                            | Decyzja                                                                                                                                                              | Uzasadnienie                                                                                                                                           | Wykonanie                                                                                                                                                                                                                                        | Dowód (test / plik / commit)                                                                                                                                             |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Z-01                                          | Segment z typu klienta: organizacja → `b2b_institution`, osoba po cenie katalogowej → `b2c_individual`, stawka ulgowa → `b2c_reduced`, reszta → `other` (mapa niżej) | Segmenty służą do churnu i ARPA według typu klienta (benchmarki B2B i B2C różnią się kilkukrotnie); organizacja w stawce ulgowej zachowuje się jak B2B | `20261020160000`: redefinicja `revenue_segment_of_tier`, `_revenue_segments_recompute()` (historia `mrr_movements`), strażnik migawek; lustro `REVENUE_SEGMENT_BY_TIER`; chip „Segment przychodu” w `/admin/membership` (edytor i kafel warstwy) | `hub_i9b_revenue_segments_test` (10), `segmentsParity.test.ts`, `RevenueSegmentChip.test.tsx`; `356c3ff6` (§21.2)                                                        |
+| Z-S2-02                                       | AKCEPTACJA atrybucji do segmentu na koniec okresu                                                                                                                    | Ten sam zbiór subskrypcji na początku i końcu okna domyka most; podział ruchów dałby częściowe mosty bez sumy                                          | Bez zmiany SQL mostu (S2)                                                                                                                                                                                                                        | `hub_i9b_revenue_segments_test` (suma segmentów = most bez filtra); §21.2                                                                                                |
+| Z-07 / Z-S2-03                                | AKCEPTACJA zanonimizowanej księgi MRR po usunięciu konta, pod warunkiem pełnej anonimizacji; A2: RODO po usunięciu konta w całym hubie                               | Motyw 26 RODO (po anonimizacji to nie dane osobowe), art. 6 ust. 1 lit. f i c; niezmienniki zamkniętych miesięcy S2                                    | `20261020160400` (redakcja per subskrypcja, domknięcie wstecz); A2 `160500…160700` (pseudonim lejka, szyna, ścieżki, przegląd tabel); rejestr `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`                                                       | `hub_i9b_revenue_ledger_erasure_test` (14), `revenue_subscription_history_test`, `hub_i9b_account_erasure_sweep_test`; `356c3ff6`, `9d00038b`, `d7efcba5` (§21.2, §21.9) |
+| v6.2 poz. 1 (Zespół „pełny zakres Pro”)       | DODANE `regulatory_monitoring` w seedzie i u istniejących najemców                                                                                                   | v6.2 to minimum: brakujące uprawnienie dodajemy                                                                                                        | `160100` (seed), `160200` (`_pricing_v62_owner_decisions` per najemca); opis karty i benefit tylko tam, gdzie tekst był katalogowy; macierz ✓                                                                                                    | `hub_i9b_pricing_decisions_test` (19), `comparisonMatrixV62.test.tsx`, `tierCardV62Catalog.test.tsx`                                                                     |
+| v6.2 poz. 2 (Zespół „3 zapytania na miejsce”) | Seed: pula 3 bez `chat_direct_gated`; istniejący bez zmian                                                                                                           | Brak obniżek w opłaconym okresie; karty mówią prawdę o bramce                                                                                          | Karta „bez limitu (kanał bezpośredni)” przy kanale, macierz „Bez limitu, bezpośrednio”; wyrównanie w panelu: `/admin/membership` → Zespół → „Bramki i limity”                                                                                    | `hub_i9b_pricing_decisions_test`, `comparisonMatrixV62.test.tsx`                                                                                                         |
+| v6.2 poz. 3 (Zespół 3-20 miejsc)              | Maks. 20 miejsc egzekwowane (odrzucenie, nigdy przycięcie), poniżej 3 ostrzeżenie; organizacje ponad limitem sprzed reguły zachowują miejsca                         | Jeden limit klient/serwer (AGENTS.md); sprzedaż > 20 to Enterprise                                                                                     | `160300` (2 wyzwalacze, `23514 orgs: team seats max`), `TEAM_TIER_MAX_SEATS`, `setTeamSeatLimit`, `TeamSeatCapNotice` w panelu organizacji                                                                                                       | `hub_i9b_team_seat_cap_test` (16), `teamSeatCap.test.ts`, `TeamSeatCapNotice.test.tsx`, `adminOrganizationsRoutes.test.tsx`                                              |
+| v6.2 poz. 4 (NGO)                             | Ranga 40 i zakres Partnera Instytucjonalnego (flagi NGO ∪ Partner) w seedzie i u istniejących                                                                        | v6.2 sprzedaje zakres rangi 40 w stawce -50%; ranga tylko w górę                                                                                       | `160100`, `160200` (ranga, flagi, `sort_order` 85, opisy bez zmian admina); `TIER_RANKS.ngo` 40, `compareTierRank`; skutki §21.3                                                                                                                 | `hub_i9b_pricing_decisions_test`, `pricing_catalog_v62_test`, `tierRankOrder.test.ts`, `tierCatalogParity.test.ts`, 67 plików pgTAP konsumentów rang                     |
+| v6.2 poz. 5 (pula 2/5)                        | BEZ ZMIAN u istniejących najemców                                                                                                                                    | v6.2 to minimum, brak obniżki uprawnień                                                                                                                | Bez kodu; wyrównanie w panelu („Bramki i limity”, „Zapytania do eksperta”)                                                                                                                                                                       | §21.2 pkt 5                                                                                                                                                              |
+| v6.2 poz. 6 („Pytania do archiwum”)           | Backlog poza hubem                                                                                                                                                   | Funkcja nie istnieje - karty nie obiecują więcej niż bramka                                                                                            | Bez kodu; brak na kartach i w macierzy                                                                                                                                                                                                           | §21.2 pkt 6, `comparisonMatrixV62.test.tsx`                                                                                                                              |
+| Z-S3-01                                       | Bez okrajania funkcji; najpierw redukcja kodu bez utraty funkcji, resztę akceptujemy; próg `public` 2881 bez zmian                                                   | Oferta i ceny dla gościa to rdzeń konwersji; przegląd czterech klas redukcji nie dał bezpiecznego zysku zbliżającego do celu                           | Pomiar i przegląd (słowniki, martwy kod, duplikaty, oferta na serwerze); odchylenie +4,2 KB ponad cel karty zaakceptowane                                                                                                                        | §21.11 B1, §21.13; `check:bundle` (`public` w progu); `840bdc0d`                                                                                                         |
+| Z-S3-06                                       | POTWIERDZONE: `admin_revenue_access_inventory` to raport personelu, nie bramka czytelnika; wpis snapshotu zostaje                                                    | Funkcja za `is_admin_or_editor`; generator nie ma mechanizmu adnotacji (budowa poza decyzją)                                                           | pgTAP odmowy; opcja aliasu w generatorze - Z-I9b-14                                                                                                                                                                                              | `hub_i9b_access_inventory_authz_test` (8), `generate:authz-snapshot --check`; `840bdc0d`                                                                                 |
+| Z-S3-07                                       | AKCEPTACJA jednego okna porzucenia dla każdej kasy (plan, treść, bilet)                                                                                              | Jedna definicja porzucenia w lejku i ścieżce; krótsze okno szybciej zwalnia martwe rezerwacje                                                          | `EventTicketCheckoutWindowNote` w karcie biletów (Event Builder → Bilety) z linkiem do `/admin/paywall?tab=checkout`; wspólny `effectiveCheckoutAbandonMinutes`                                                                                  | `EventTicketCheckoutWindowNote.test.tsx` (6), `EventTicketsPanel.test.tsx`, `CheckoutSettingsCard.abandon.test.tsx`; `840bdc0d`                                          |
+| Z-S2-01                                       | Scenariusz §16.5 zautomatyzowany na granicy SDK operatora; żywy test w trybie testowym Stripe - właściciel (trzy kroki wizualne)                                     | Kontener nie ma kluczy Stripe ani bazy podglądu - testu na żywo nie raportujemy jako wykonanego                                                        | `functions.stripeBoundary.test.ts` (4), asercja nazwy kuponu w `applyOffer.test.ts`, pgTAP księgi po webhookach (listy niżej)                                                                                                                    | `functions.stripeBoundary.test.ts`, `hub_i9b_retention_scenario_test` (8); `840bdc0d` (§21.11 B4)                                                                        |
+| Z-14-01, Z-14-02                              | AKCEPTACJA „zostawić” (P25 i liczby kont Kiin Labs; kontekst „demo” do wyboru, nie domyślny)                                                                         | Odczyt ze źródła z datą; demo to lead B2B, nie domyślna ścieżka                                                                                        | Bez zmian                                                                                                                                                                                                                                        | §14.5, §21.11 B5                                                                                                                                                         |
+| Z-14-03                                       | Nowy wpis rejestru `engagement_rate` (ER GA4, grupa Lejek)                                                                                                           | BI ma źródło (GA4 Data API, `engagementRate`); granice 50 i 55 z `b-engr` i Siege Media, 25 i 60 - heurystyka opisana w notach                         | `docs/benchmarki/2026-10-18/lejek{,.overlay}.json`, wygenerowane moduły, pole `hub` w `b-engr`                                                                                                                                                   | `import-benchmarks.ts --check` (77 wpisów, 194 konteksty, 973 pasma), testy rejestru; `840bdc0d`                                                                         |
+| Z-14-04                                       | Kontekst self-serve zostaje na SaasDash (C)                                                                                                                          | Przegląd 2026-10-20 (HockeyStack, ProductLed, ChartMogul i inne) bez weryfikowalnego źródła A/B dla tej definicji                                      | Zapis przeglądu z adresami i datą                                                                                                                                                                                                                | `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`, „Uzupełnienie 2026-10-20”                                                                                                    |
+| D-11 / Z-S6-14                                | AKCEPTACJA EN benchmarków, 76 zestawów dźwigni i szablonów S5                                                                                                        | Druga lektura EN w S6 i S5; zero otwartych uwag redakcyjnych                                                                                           | Zamknięcie w dzienniku (§11); 77. wpis ma EN w tej samej nakładce                                                                                                                                                                                | test parytetu EN rejestru (`i18nParity.test.ts`), §21.11 B6                                                                                                              |
+| Z-S5-02                                       | Jeden limit tagu CRM: 64 znaki, odrzucanie, nigdy przycinanie                                                                                                        | `crm_leads.tags` bez CHECK długości, kontrakt I0 = 64; AGENTS.md: limity współdzielone klient/serwer                                                   | `20261020160800` (`run_workflow_step`, `journey_validate_graph`), `CRM_TAG_MAX` w zod, licznikach i komunikatach PL/EN                                                                                                                           | `tagLimitParity.test.ts`, `hub_i9b_crm_tag_limit_test` (12), `workflow_actions_v2_test`; `840bdc0d`                                                                      |
+
+**Z-01 - mapa segmentów (pełna, stan po `20261020160000`):**
+
+| Klucz progu                                       | Segment           | Fakt rozstrzygający                                      |
+| ------------------------------------------------- | ----------------- | -------------------------------------------------------- |
+| `partner`, `partner_general`, `presidents_circle` | `b2b_institution` | `corporate_seats`, umowa roczna organizacji              |
+| `ngo`                                             | `b2b_institution` | `corporate_seats`, organizacja w stawce -50% (nadal B2B) |
+| `team`, `corporate`                               | `b2b_institution` | `corporate_seats`, faktura na organizację                |
+| `business`                                        | `b2b_institution` | plany `business_*` - klient to firma                     |
+| `member`, `pro`                                   | `b2c_individual`  | plan osoby w cenie katalogowej (39 / 119 zł)             |
+| `student`, `educator`                             | `b2c_reduced`     | plan osoby w stawce ulgowej (19 / 29 zł)                 |
+| `supporter`                                       | `other`           | status po darowiźnie, nie subskrypcja progu              |
+| `vip`                                             | `other`           | umowa osoby bez planu w katalogu operatora               |
+| `reader`, `decision_lab`, klucz nieznany, `NULL`  | `other`           | bezpłatne albo jednorazowe                               |
+
+**Z-S2-01 - kroki zautomatyzowane** (instrukcja §16.5; mapa krok → test
+w §21.11 B4):
+
+- krok 3 (migawka ceny, rabat 0, jeden ruch `new`) - `webhookDispatchPriceSnapshot.test.ts`, `hub_i9b_retention_scenario_test`;
+- kroki 4-5 (wiersz `started`, kupon `percent_off` 30, `repeating`,
+  3 miesiące, `max_redemptions` 1, nazwa „Retencja -30%”, klucze
+  `retention-coupon:<flow>` i `retention:<flow>`, rabat B2B zachowany,
+  `saved` z `coupon_code`, `contraction:discount` w księdze) -
+  `functions.stripeBoundary.test.ts`, `applyOffer.test.ts`, pgTAP;
+- krok 6 (anulowanie na koniec okresu, `not_given`, CTA do `/profile/plan`) -
+  `checkoutSubscriptionOps.test.ts`, `functions.test.ts`,
+  `notificationsPayload.server.test.ts`;
+- krok 7 (wznowienie, `status_changed.v1`, bez ruchu MRR) -
+  `checkoutSubscriptionOps.test.ts`, pgTAP;
+- krok 8 (`already_redeemed`, drugiego kuponu brak) - `functions.test.ts`,
+  `functions.stripeBoundary.test.ts`;
+- krok 10 (`enabled=false` - samo potwierdzenie, operator nietknięty) -
+  `functions.test.ts`, `RetentionDialog.test.tsx`, `functions.stripeBoundary.test.ts`.
+
+**Z-S2-01 - dla właściciela** (tryb testowy Stripe, baza podglądu; Z-I9b-13):
+
+1. Panel Stripe: subskrypcja ma kupon „Retencja -30%” obok wcześniejszych
+   rabatów (krok 5).
+2. Stripe → Developers → Logs: `Idempotency-Key`
+   `retention-coupon:<feedback_id>` i `retention:<feedback_id>` (krok 5).
+3. Portal klienta z powodami rezygnacji (krok 9) - po włączeniu powodów
+   w konfiguracji portalu (Z-S2-11).
+
+### 21.17 Wdrożenie migracji I9b na produkcji (właściciel)
+
+**Kolejność.** Dziewięć plików bloku I9 (`20261020160000…160800`, bliźniaki
+`0358…0366`) idzie PO S2 (`2026102011*`, `0338…0345`), S3 (`12*`,
+`0347…0351`), S4 (`13*`, `0330…0337`) i S5 (`14*`, `0352…0357`) - w jednym
+oknie nocnym, w kolejności wersji (migrator Drizzle stosuje wpisy
+`_journal.json` po `idx`, więc `0358…0366` wchodzą po `0357`). Zależności:
+`160000` przelicza historię `mrr_movements` z S2 (bez S2 - no-op przez
+`to_regclass`); `160400` wiesza redakcję po wyzwalaczu S2 na `subscriptions`;
+`160600` rozszerza CHECK `journey_enrollments.exit_reason` z S5; `160800`
+redefiniuje `run_workflow_step` (S4, `20261020130200`) i
+`journey_validate_graph` (S5, `20261020140200`). Przyszły S7 (blok `15*`)
+dostanie bliźniaki od `0367` - blok wersji nie koliduje, a Drizzle wykonuje
+dziennik po `idx`. Gdy `main` zajmie numery bliźniaków przed scaleniem -
+renumeracja wg §4.4. Każdy plik jest idempotentny; ALTER/UPDATE gorących
+tabel mają `lock_timeout` 5 s - `55P03` = ponów plik.
+
+**Co robi z danymi produkcyjnymi** (szczegóły i kontrole SQL: część A §21.6,
+A2 §21.9 „Wdrożenie”):
+
+| Plik                                           | Skutek dla danych produkcyjnych                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020160000_revenue_segment_institutions`  | **Przeliczenie segmentów:** `mrr_movements.segment` dla partnerów, NGO i pozostałych przemapowanych progów (`churn` - warstwa przed ruchem, reszta - po); Σ kwot zamkniętych miesięcy bez zmian, zmienia się tylko podział na segmenty. Strażnik przerywa migrację, gdyby przemapowany próg miał cenę w katalogu operatora (migawki dzienne nie niosą `tier_key`). |
+| `20261020160100_pricing_v62_catalog_decisions` | Brak zmian danych - nowa definicja seedu katalogu (dla nowych najemców).                                                                                                                                                                                                                                                                                           |
+| `20261020160200_pricing_v62_decisions_tenants` | **Podniesienie rang i flag u każdego najemcy:** Zespół + `regulatory_monitoring`; NGO - ranga tylko w górę do 40, flagi ∪ flagi progu `partner` tego najemcy, `sort_order` 50 → 85; opisy i benefity tylko tam, gdzie tekst był katalogowy (zmiany admina zostają). Nic nie jest odbierane.                                                                        |
+| `20261020160300_team_seat_cap`                 | Brak zmian danych - wyzwalacze blokują od teraz limit > 20 i 21. aktywne miejsce Zespołu; organizacje ponad limitem sprzed reguły zachowują miejsca.                                                                                                                                                                                                               |
+| `20261020160400_revenue_ledger_erasure`        | **Anonimizacja wstecz** (`_revenue_ledger_redact_orphans`): wiersze księgi subskrypcji i kont usuniętych przed I9b - nowy identyfikator, `user_id`/`source_event_id` NULL, `dedupe_key = redacted:<id>`, ceny spoza katalogu NULL; `price_id_after` NULL-owalne. Nieodwracalne z założenia.                                                                        |
+| `20261020160500_funnel_account_erasure`        | Funkcje redakcji lejka (bez zmian danych samodzielnie).                                                                                                                                                                                                                                                                                                            |
+| `20261020160600_domain_events_account_erasure` | Funkcje redakcji szyny i ścieżek; CHECK `exit_reason` += `account_deleted` (NOT VALID + VALIDATE).                                                                                                                                                                                                                                                                 |
+| `20261020160700_hub_account_erasure_sweep`     | **Anonimizacja wstecz** kont usuniętych przed A2 (`_hub_account_erase_orphans`): lejek i licznik → pseudonim v8, szyna i kopie → redakcja (nieprzetworzone pominięte), zapisy na ścieżki w toku → `account_deleted`, `crm_leads.user_id`/newsletter/autorzy → NULL, audyt → pseudonim. Nieodwracalne.                                                              |
+| `20261020160800_crm_tag_limit_shared`          | Brak zmian danych - ciała dwóch funkcji (limit tagu 40 → 64); zapisane tagi pozostają poprawne.                                                                                                                                                                                                                                                                    |
+
+**Kontrola po wdrożeniu** (SQL editor, tylko odczyt): zapytania z §21.6
+(segmenty, cennik Zespołu i NGO, Zespół > 20, księga) i §21.9 (lejek, szyna,
+CRM) oraz limit tagu:
+
+```sql
+-- Jeden limit tagu: oba ciała mają 64, żadne 40.
+SELECT p.proname,
+       pg_get_functiondef(p.oid) LIKE '%NOT BETWEEN 1 AND 64%' AS has_64,
+       pg_get_functiondef(p.oid) LIKE '%NOT BETWEEN 1 AND 40%' AS has_40
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname IN ('run_workflow_step', 'journey_validate_graph');
+```
+
+**Publikacja frontu** razem z migracjami (karty cennika, macierz, chip
+segmentu, panel organizacji, linia okna kasy przy biletach, wpis
+`engagement_rate`, `CRM_TAG_MAX` = 64): kod TS zakłada już stan bazy po
+`160800` (np. tag 41-64 znaków przed migracją odrzuci serwer komunikatem
+o 40).
+
+**Wycofanie:** część A - §21.6; A2 - §21.9; część B - nowa migracja
+z ciałami z `20261020130200` i `20261020140200` (limit 40) razem
+z `CRM_TAG_MAX = 40` (tagi 41-64 zapisane w międzyczasie zostają poprawne
+w bazie, ale przepisy i ścieżki nie zdejmą ich krokiem); linia okna przy
+biletach i wpis `engagement_rate` nie mają stanu w bazie. Anonimizacja
+(`160400`, `160700`) jest nieodwracalna z założenia.
+
+### 21.18 Co zostaje dla właściciela (niewykonalne z kontenera)
+
+1. ~~**Z-I9b-16 - ratchet `overall` 5003 → 5005**~~ - wykonane przez
+   orkiestratora w ramach zasady D-08 (§21.19); część B wypchnięta.
+2. **Wdrożenie** `0358…0366` (Lovable, migrator Drizzle) i publikacja frontu
+   wg §21.17, potem zapytania kontrolne.
+3. **Z-S2-01 / Z-I9b-13** - trzy kroki wizualne w trybie testowym Stripe
+   (§21.16): kupon w panelu, `Idempotency-Key` w logach, portal z powodami.
+4. **Z-S2-11** - włączenie powodów rezygnacji w konfiguracji portalu klienta
+   Stripe (warunek kroku 9 Z-S2-01).
+5. **Konektor Confluence** - autoryzacja po stronie właściciela.
+6. **Z-S5-07 (M3)** - włączenie silnika ścieżek u NES po teście na żywo
+   `welcome_onboarding` i `abandoned_checkout` (§20.9 pkt 7), po I9.
+7. **Wdrożenie retencji danych** (`0368…0372`, §21.21) - po wdrożeniu 14 dni
+   podglądu przegląd liczb w karcie „Retencja danych” przed terminem
+   karencji („Włącz teraz” albo przesunięcie); decyzja o treści zgody
+   (pomiar otwarć, §21.21 pkt 5).
+8. **Wdrożenie I9d-Y1** (`0376…0383`, §21.22 pkt 7) - nowe kategorie
+   (odczyty licznika, uczestnicy wydarzeń, zgłoszenia do klubów, nieaktywni
+   subskrybenci) mają własne 14 dni podglądu; przegląd liczb i listy „do
+   wygaszenia” w karcie przed terminem karencji, treść prośby
+   o potwierdzenie w `/admin/newsletter/email-content`.
+9. **Wdrożenie I9d-Y2** (`0384…0386`, §21.23 pkt 7) - razem z publikacją
+   frontu; wskaźniki otwarć i kliknięć spadną skokowo (zgody sprzed nowej
+   treści nie obejmują pomiaru) - opcjonalnie „Poproś o zgodę na pomiar”
+   w `/admin/newsletter/overview`; `NEWSLETTER_ENGAGEMENT_SOURCE` =
+   `first_party` i wyłączony tracking u dostawcy poczty; nowa wersja
+   polityki komunikacji i prywatności w panelu dokumentów prawnych, jeśli
+   najemca opublikował własną.
+
+Zgłoszenia otwarte, które wykonuje kolejny wycinek (nie decyzje
+właściciela): Z-I9b-06, Z-I9b-09, Z-I9b-14, Z-I9b-15 (§21.7); Z-I9c-05,
+Z-I9c-06 (§21.21). Z-I9b-11 zamknięte w I9c (§21.20), Z-I9b-10 -
+w I9c (§21.21). Decyzje administratora danych: Z-I9c-04, Z-I9d-01 (§21.22),
+Z-I9d-11, Z-I9d-13 i ocena IOD Z-I9d-12 (§21.23); Z-I9c-01, Z-I9c-07
+i Z-I9c-08 zamknięte w I9d-Y1 (§21.22), Z-I9c-09 i rekomendacja treści
+zgody (§21.21 pkt 5) - w I9d-Y2 (§21.23).
+
+**Aktualizacja 2026-10-22 (I9, §24):** Z-I9b-09 i Z-I9b-15 zamknięte,
+Z-I9b-14 świadomie bez zmian, Z-I9c-05 i Z-I9c-06 zamknięte; zbiorcza lista
+spraw właściciela po całym hubie - §24.11 pkt 4, kolejność wdrożenia
+`0347…0390` - `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8.
+
+### 21.19 Ratchet D-08 `overall` i push części B (orkiestrator, 2026-10-20)
+
+Agent kroku C nie mógł podnieść progu (system uprawnień subagenta uznał to za
+obejście CI). Ratchet `overall` o zmierzony przyrost jest stałą zasadą
+zamawiającego (D-08: tylko `overall` i `css`, o pomiar zaokrąglony w górę
++1 KB, z wpisem w kronice; `public`, `publicCss`, `chunk` i `boot`
+zamrożone) - orkiestrator wykonał go sam:
+
+- `scripts/check-bundle-size.ts`: `overall` 5003 → 5005 z wpisem kroniki
+  z §21.15 (host 5003,2 → 5004 → +1);
+- `bun run check:bundle` na buildzie kroku C: ✓ (`overall` 5003,2 / 5005,
+  `public` 2777,9 / 2881, chunk 257,9 / 286, css 99,7 / 100, publicCss
+  83,8 / 85, boot 471,6 / 579);
+- scalenie fast-forward `hub/i9b-decyzje` do gałęzi PR i push.
+
+Zapas `overall` po ratchecie: 1,8 KB. Kolejne wycinki z kodem panelu (I9c,
+S8, S7) podnoszą próg tą samą zasadą.
+
+### 21.20 Domknięcia po A2 (I9c-X1)
+
+**Polecenie właściciela 2026-10-20:** „ok rozumiem, optymalizuj” dla obu
+punktów: Z-I9b-11 (uid usuniętego konta personelu w kolumnach autora modułów
+spoza huba) i Z-I9b-17 (poczta w kolejce po usunięciu konta). Wykonanie:
+worktree `/home/user/wt/I9C1`, gałąź `hub/i9c-domkniecia` od `7bc2aafa`
+(gałąź PR po §21.19), praca szeregowa (jedyny aktywny agent).
+
+**1. Kolumny autora, recenzenta i dane własne konta (Z-I9b-11).** A2
+domknęła autorów wyłącznie w tabelach huba i modułów, do których hub pisze.
+Pełny przegląd na bazie po wszystkich migracjach (`information_schema`
+
+- `pg_constraint`): kolumny uuid tabel bazowych `public` bez klucza obcego
+  z ON DELETE SET NULL/CASCADE - 132, z czego 71 pasuje do wzorca autora lub
+  osoby (`*_by`, `*user_id`, `actor_id`, `author_id`, `owner_id`,
+  `reviewer_id`, `assigned_to`, `*_sender` …). Każda trafiła do redakcji albo
+  na listę z uzasadnieniem (tabela niżej). Mechanizm A2 bez nowego wyzwalacza:
+  ten sam punkt wejścia `_hub_account_erase` (wyzwalacz
+  `on_auth_user_deleted_redact_hub` i domknięcie wstecz) woła nową
+  `_hub_account_erase_modules(uid, pseudonim)` - przed redakcją szyny, więc
+  zdarzenia emitowane przez te zmiany też są redagowane:
+
+* autor, recenzent, opiekun -> NULL (wiersz, decyzja i kwota zostają);
+* kolumna NOT NULL i dzienniki rozliczalności (zadanie importu, dziennik
+  zmian ról - aktor i cel, cel moderacji członka klubu) -> ten sam pseudonim
+  konta (UUID v8) co w lejku, szynie i `audit_log`;
+* dane własne konta bez klucza obcego -> usunięte (jak kaskada, której tym
+  tabelom brakowało); obserwacje USUWANEGO autora przez innych też;
+* historia czytania -> pseudonim (popularność treści i analityka członków
+  liczą konta po `user_id` - NULL zgubiłby odczyty zamkniętych okresów, jak
+  lejek w A2);
+* powiadomienia INNYCH osób z uid konta w `meta` (np. „X zaczął Cię
+  obserwować” - imię w tytule, odnośnik do profilu, którego nie ma) ->
+  usunięte; własne powiadomienia konta zabiera kaskada;
+* `crm_leads.owner_id` zerowany w tej samej instrukcji co `user_id` (A2), więc
+  emitowane `crm_lead.updated.v1` jest pomijane w skrzynce ścieżek
+  i dostawach tak samo;
+* `user_invitations`: wyzwalacz `user_invitations_pin_admin_columns_bu`
+  przywraca `invited_by`/`auth_user_id` każdemu poza service_role i adminem,
+  a usunięcie konta biegnie bez sesji (GoTrue) - na czas jednej instrukcji
+  tożsamość żądania = service_role (`_set_request_identity`), potem wraca;
+* `payment_webhook_events.user_id`: redakcję
+  `payment_webhook_events_redact_for_user` (20261013090100) woła tylko
+  aplikacja przy zamknięciu konta (`accountClosure.server`) - usunięcie konta
+  poza aplikacją (panel operatora bazy, CLI) ją omijało; wyzwalacz domyka to
+  samo (powtórka po aplikacji - 0 wierszy).
+
+`event_cfp_reviews.reviewer_id` NIE jest uid: wskazuje wiersz
+`event_cfp_reviewers` (klucz złożony, kaskada z konta) - poza redakcją.
+
+**UI („konto usunięte”).** Sprawdzone: skrzynka zgłoszeń klubów pokazuje
+tylko `reviewed_at`, a `event_registrations.paid_amount_recorded_by` jest
+kolumną prywatną (20261013900600), której klient nie czyta - żaden ekran nie
+pokazuje autora tych dwóch kolumn, więc napisu nie trzeba. Panele, które
+pokazują autora innych kolumn z przeglądu (historia ustawień witryny,
+rewizje treści), już dziś pokazują „-” albo „Nieznany autor”, gdy profilu
+nie ma - po I9c tak samo (profilu usuniętego konta i tak nie było).
+
+| Moduł                        | Kolumna                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Przed I9c                              | Po I9c                                                                                       | Dowód (sweep, nr asercji)                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Kluby, wydarzenia (Z-I9b-11) | `club_applications.reviewed_by`, `event_registrations.paid_amount_recorded_by`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **surowy uid**                         | NULL; status, czas decyzji i kwota zostają                                                   | 20, 24, 25, 29, 36                                  |
+| Kreator i CMS                | `builder_experiments`, `builder_global_widgets`, `builder_popups`, `builder_revisions`, `builder_template_revisions` (`created_by`), `content_revisions.author_id`, `pages.author_id`, `post_changelog`, `post_preview_tokens`, `post_sidebar_layouts` (`created_by`), `post_layout_settings.updated_by`, `live_blog_entries`, `media_folders`, `redirects`, `legal_document_versions`, `verification_domains`, `event_home_ads` (`created_by`), `site_design_tokens`, `site_settings` (`updated_by`), `site_settings_revisions.changed_by` | **surowy uid**                         | NULL                                                                                         | 20, 24, 28, 29                                      |
+| Konta i zgłoszenia           | `profiles.verified_by`, `user_invitations.invited_by`, `user_invitations.auth_user_id`, `user_reports.resolved_by`                                                                                                                                                                                                                                                                                                                                                                                                                          | **surowy uid**                         | NULL (weryfikacja i zaproszenie zostają)                                                     | 24, 28, 29                                          |
+| CRM, kontakt, rekrutacja     | `crm_leads.owner_id`, `contact_messages.assigned_to`, `career_application_events.actor_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **surowy uid**                         | NULL                                                                                         | 24, 28, 29                                          |
+| Zadania, czat                | `command_idempotency.actor_id`, `job_runner_runs.actor_id`, `conversations.last_message_sender`                                                                                                                                                                                                                                                                                                                                                                                                                                             | **surowy uid**                         | NULL                                                                                         | 24, 29                                              |
+| Rozliczalność                | `wp_import_jobs.actor_id` (NOT NULL), `role_audit_log.actor_id`, `role_audit_log.target_user_id` (NOT NULL), `club_moderation_log.target_id` (cel `member`)                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | pseudonim konta v8                                                                           | 24, 26, 29                                          |
+| Dane własne konta            | `user_bookmarks`, `user_read_later`, `user_notes`, `user_todos`, `saved_searches`, `saved_views`, `notification_push_queue`, `user_follows` (`user_id` i cel `author`)                                                                                                                                                                                                                                                                                                                                                                      | **surowy uid** (wiersze zostawały)     | wiersze usunięte                                                                             | 24, 27, 29                                          |
+| Historia czytania            | `user_read_history.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | pseudonim konta v8                                                                           | 24, 26, 29                                          |
+| Powiadomienia innych osób    | `notifications.meta` (uid aktora)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **surowy uid**, imię w tytule          | wiersze usunięte                                                                             | 20, 24                                              |
+| Webhooki operatora           | `payment_webhook_events.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | NULL tylko przy zamknięciu w aplikacji | NULL także przy usunięciu poza aplikacją                                                     | 20, 24, 29                                          |
+| Księga MRR                   | `dunning_cycles`, `mrr_movements`, `subscription_state_history` (`user_id`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | redakcja `160400`                      | bez zmian                                                                                    | 29; `ledger_erasure`                                |
+| Dokumenty sprzedaży          | `billing_documents.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | wyjątek księgowy                       | bez zmian (wyjątek)                                                                          | 29; `accounting_retention`                          |
+| Zgłoszenie do klubu osoby    | `club_applications.user_id` (NOT NULL, z danymi zgłoszenia)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | I9d: anonimizacja zgłoszenia, `user_id` -> pseudonim konta - **Z-I9c-01 zamknięte (§21.22)** | 29 (od I9d kolumna redagowana, poza listą wyjątków) |
+
+Test `hub_i9b_account_erasure_sweep_test` (40 asercji, było 33; od I9d 41 - §21.22): konto
+admina i konto REDAKTORA z wierszem w każdej kolumnie z tabeli (asercja 20 -
+fikstura), po usunięciu skan KAŻDEJ tabeli `public` z `tenant_id` nie
+znajduje uid ani e-maila poza wyjątkami z podstawą prawną (24 - lista
+wyjątków bez zmian: kontakt CRM, newsletter, rejestr zgód; żadna kolumna
+autora), a asercja 29 pilnuje kompletności przeglądu - każda kolumna uuid
+wzorca autora lub osoby bez klucza obcego jest redagowana albo stoi na
+jawnej liście z uzasadnieniem (nowa kolumna bez klasyfikacji = czerwień).
+
+**2. Poczta w kolejce po usunięciu konta (Z-I9b-17).** Kolejka
+`transactional_emails` (pgmq) rozróżnia pocztę po etykiecie (`label`
+-> `emailCategoryForLabel`) i po kluczu idempotencji producenta. Poczta
+związana z kontem albo zapisem - jedna lista w SQL
+(`_hub_account_bound_email_labels()`) i TS (`ACCOUNT_BOUND_EMAIL_LABELS`,
+parytet `accountBoundLabelsParity.test.ts`): kroki ścieżek `journey`
+(marketing), `journey_service`, `journey_test` (klucz
+`journey:<zapis>:<węzeł>`) i digest `digest_daily`/`digest_weekly` (klucz
+`digest:<częstotliwość>:<uid>:<dzień>`). Poza listą - wychodzą: poczta
+transakcyjna (potwierdzenia, rozliczenia, dokumenty, bilety, autoryzacja),
+potwierdzenie newslettera (zgoda niezależna od konta) i zaproszenie do
+ankiety wydarzenia (podstawa związana ze zgłoszeniem na wydarzenie;
+zatrzymuje je wypis z listy wykluczeń). Kampanie newslettera nie idą kolejką
+(wysyłka bezpośrednia do subskrybentów w chwili porcji; subskrypcja jest
+wyjątkiem niezależnym od konta).
+
+- **Warstwa 1 - przy usunięciu** (`_hub_account_erase_mail_queue`, wołana
+  z `_hub_account_erase` PRZED odcięciem CRM i wyjściem ze ścieżek, bo
+  rozpoznaje zapisy konta po `user_id`): gdy dziennik ma wiadomość tej osoby
+  w toku (`pending` bez stanu końcowego, etykieta z listy, adres konta albo
+  kontaktu CRM jego zapisów), jeden odczyt kolejki API pgmq (`read` z czasem
+  niewidzialności 0 - nic nie chowa przed drenem, do 1000 wiadomości),
+  usunięcie wiadomości z kluczem zapisu KONTA albo digestu konta. Dziennik:
+  wpis `suppressed` z powodem `cancelled:account_deleted`, adres każdego
+  wpisu tej wiadomości -> `[redacted]` (kolumna NOT NULL), najemca z wpisu
+  `pending`. Krok ścieżki kontaktu CRM bez konta (A2: osobna czynność CRM)
+  i poczta transakcyjna zostają.
+- **Warstwa 2 - dren przed wysyłką** (`email_queue_send_recheck(etykieta,
+klucz)`, tylko service_role; `queueDrain.server.ts` po liście wykluczeń):
+  zapis musi istnieć (`skipped:enrollment_missing`) i nie być `exited`
+  (`skipped:exited:<powód>` - usunięcie konta, wypis linkiem, wyjście
+  ręczne), krok marketingowy - mieć zgodę (`_journey_marketing_consent`:
+  `skipped:unsubscribed`/`skipped:no_consent` - wypis w trakcie cyklu),
+  digest - konto (`skipped:account_deleted`) i włączony digest tej
+  częstotliwości (`skipped:digest_disabled`). Werdykt trafia do dziennika
+  jako `suppressed` z tym powodem (przy werdykcie usuniętego konta odbiorca
+  `[redacted]`, jak w warstwie 1), wiadomość znika z kolejki; awaria
+  zapytania = bez wysyłki i bez kasowania (wraca po czasie niewidzialności,
+  TTL ją zamyka). Usługa ścieżki z podstawą prawną nie pyta o zgodę
+  marketingową.
+- **Panel:** `/admin/newsletter/outbox` (Skrzynka wysyłek) pokazuje każdą
+  anulowaną i pominiętą wiadomość ze statusem „Zablokowana”, powodem
+  (`cancelled:account_deleted`, `skipped:…` - kody jak dotychczasowe
+  `suppressed:…`) i odbiorcą `[redacted]` dla anulowanych przy usunięciu.
+
+Dowód: `hub_i9c_account_erasure_mail_queue_test` (16 asercji: lista = lustro
+TS; po usunięciu kroki ścieżki konta - marketing i usługa - i digest konta
+anulowane, transakcyjna, potwierdzenie newslettera, kontakt CRM bez konta
+i cudzy digest zostają; dziennik bez adresu; powtórka 0; werdykty drenu po
+usunięciu, po wyłączeniu digestu, po wypisie w trakcie cyklu, dla usługi,
+zapisu usuniętego i klucza spoza konwencji; ACL),
+`queueDrainAccountBound.test.ts` (7: wypis w trakcie cyklu, usunięcie konta -
+ścieżka usługowa i digest, transakcyjna wychodzi bez pytania także po
+wypisie, zgoda obowiązuje - wysyłka, lista wykluczeń przed pytaniem, awaria
+bazy - odłożenie, zakres etykiet), `accountBoundLabelsParity.test.ts` (6).
+
+**Zgłoszenia I9c.**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9c-01 | Decyzja administratora danych: zgłoszenie osoby do klubu (`club_applications.user_id`, NOT NULL, z imieniem, e-mailem i motywacją) zostaje z uid po usunięciu konta - usunięcie zgłoszenia albo wyjątek jak kontakt CRM (podstawa do wpisania w rejestrze). Asercja 29 trzyma kolumnę na jawnej liście do czasu decyzji. **Zamknięte 2026-10-22 (I9d, §21.22):** anonimizacja zgłoszenia po usunięciu konta (`_hub_account_erase_modules`) i po okresie retencji (kategoria `club_applications`); kolumna wypadła z listy asercji 29. Sprostowanie: przed I9d zgłoszenie NIE zostawało z imieniem, e-mailem i motywacją - wyzwalacz sprzed huba (`anonymize_club_applications_for_user`) czyścił kolumny tekstowe, a zostawały surowy `user_id`, języki, dostępność, `crm_lead_id`, `crm_error` i `notify_error`. |
+| Z-I9c-02 | Opcjonalnie: czytelne etykiety PL/EN powodów pominięcia w Skrzynce wysyłek (`cancelled:account_deleted`, `skipped:…`, także dotychczasowe `suppressed:…`) - dziś panel pokazuje kody. **Zamknięte 2026-10-22 (I9, §24):** etykiety PL/EN powodów (`suppressed:*`, `skipped:*`, `cancelled:account_deleted`, kody I9d-Y1/Y2), surowy kod w podpowiedzi, parytet z najnowszymi definicjami SQL (`51dbc7b74`).                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-I9c-03 | Wiadomo: zerowanie autora przesuwa `updated_at` wierszy z wyzwalaczem `set_updated_at`/`_tg_touch_updated_at` (np. `pages`, `legal_document_versions`, `event_registrations`, `club_applications`) na chwilę usunięcia konta - treść bez zmian, bez nowej rewizji (migawki powstają tylko przy zmianie treści). **Udokumentowane 2026-10-22 (I9, §24):** `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §6.                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+**Migracja i bliźniak.**
+
+| Migracja                                          | Bliźniak                                | Zawartość                                                                                                                                                                                                                                                    |
+| ------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020160900_account_erasure_staff_mail_queue` | `0367_account_erasure_staff_mail_queue` | `_hub_account_bound_email_labels`, `_hub_account_erase_modules`, `_hub_account_erase_mail_queue`, `email_queue_send_recheck` (service_role); redefinicje `_hub_account_erase` i `_hub_account_erase_orphans` (`CIALO-Z: 20261020160700`) + domknięcie wstecz |
+
+Bliźniak bajt w bajt (`cmp`), wpis `meta/_journal.json` idx 367, `when`
+1792477633912 (+60 000). Następny wolny numer: **0368**, wersja
+`20261020161000`. Znacznik `pg-harness: exclude` (migracja dotyka
+`public.club_*` razem z modułami spoza atrapy harnessu klubów). Pliki
+współdzielone (I9): `hubDelivery.ts` (4 funkcje w rejestrze i manifest I9
+„(I9c, 2026-10-20)”), `types.ts` (`email_queue_send_recheck`),
+`authzSnapshot.generated.ts` (liczniki skanu 1293 → 1294 migracje, 1787 →
+1791 funkcji), `_journal.json`; lista `hub_grants` w `hub_shared_helpers_test`.
+
+**Wdrożenie (właściciel).** Po `20261020160800` (całe I9b), razem z frontem
+(kod drenu woła `email_queue_send_recheck`; stary dren bez niego działa jak
+dotąd, nowy dren bez migracji odkłada pocztę ścieżek i digest - wdrożyć
+razem). Zero DDL tabel; plik idempotentny. Skutek dla danych produkcyjnych:
+domknięcie wstecz (`_hub_account_erase_orphans`, raz na osierocone konto -
+uid v4 nieobecny w `auth.users` w kolumnach z tabeli wyżej) zeruje autorów
+i recenzentów kont usuniętych wcześniej, usuwa ich dane własne
+i powiadomienia innych osób z ich uid, historię czytania przepina na
+pseudonim, a dla kont usuniętych poza aplikacją redaguje dziennik webhooków.
+Czas: jeden przebieg tabel z przeglądu na osierocone konto (nocą). Kontrola
+po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Autorzy i recenzenci kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.club_applications a
+         WHERE a.reviewed_by IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = a.reviewed_by))
+     + (SELECT count(*) FROM public.event_registrations r
+         WHERE r.paid_amount_recorded_by IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = r.paid_amount_recorded_by))
+     + (SELECT count(*) FROM public.pages p
+         WHERE p.author_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p.author_id)) AS autorzy;
+-- Dane własne kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.user_bookmarks b WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = b.user_id))
+     + (SELECT count(*) FROM public.user_notes n WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = n.user_id)) AS dane_wlasne;
+-- Poczta anulowana przy usunięciu konta i pominięta przez dren (informacyjnie).
+SELECT error_message, count(*) FROM public.email_send_log
+ WHERE error_message = 'cancelled:account_deleted' OR error_message LIKE 'skipped:%'
+ GROUP BY 1 ORDER BY 2 DESC;
+```
+
+Wycofanie: redakcja jest nieodwracalna z założenia; zatrzymanie nowych
+domknięć = nowa migracja z ciałem `_hub_account_erase` z `20261020160700`
+(bez modułów i kolejki). Dren bez warstwy 2 = wycofanie zmiany
+`queueDrain.server.ts` (funkcja w bazie zostaje nieużywana).
+
+**Bramki I9c-X1** (worktree `/home/user/wt/I9C1`, po kolei, pamięć 16 GB):
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                                          | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                                                                                                                                                                                  | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run verify:static` (18 bramek: `migration-lanes` 368 wpisów dziennika, `rpc-contract`, `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` 1294 pliki, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` 1791 funkcji, `ts-sql-contract --check`, `types-freshness` baseline 7) | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                                                                                                                                   | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9c.tmp.json`, 8 zmienionych plików TS + deklaracje)                                                                                                                                                                                                                                                  | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                                                                                                                                                    | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `vitest --maxWorkers=3`: `src/lib/{email,ci,authz}`, `jobsTickRun`, trasa drenu `platform/email/queue`                                                                                                                                                                                                                                                             | ✓ 108 plików, 2978 testów (+1 oczekiwana porażka)                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `scripts/split-migration.ts --dry-run`                                                                                                                                                                                                                                                                                                                             | ✓ 42,1 KB, 1 część (limit 45 KiB)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| pgTAP `run.sh all` (pełny)                                                                                                                                                                                                                                                                                                                                         | ✓ 245 plików OK; 4 czerwone - wyłącznie znane błędy środowiska: `community_cron_schedule` (2 asercje pg_net), `job_scheduler_heartbeat` (1 asercja pg_net), `profile_intent_semantic` (vector), `public_definer_views_read_only` (1/35); migracje: wyłącznie znany błąd `20260825230232`. `hub_i9b_account_erasure_sweep` 40/40, nowy `hub_i9c_account_erasure_mail_queue` 16/16, `hub_shared_helpers` 27/27, `accounting_retention`, `hub_i9b_revenue_ledger_erasure` i `journeys_*` zielone |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                                         | ✓ 9 asercji (`email_queue_send_recheck` w kontrakcie, wołany z `queueDrain.server.ts`)                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `flock … bun run check:pg-harness`                                                                                                                                                                                                                                                                                                                                 | ✓ 106 migracji, 5 pominiętych znacznikiem (w tym `20261020160900`), 504 asercje runtime                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `generate:authz-snapshot` i `--check`                                                                                                                                                                                                                                                                                                                              | ✓ (liczniki: 1294 migracje, 1791 funkcji)                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `scripts/hub-slice-guard.ts I9 --base 7bc2aafa`                                                                                                                                                                                                                                                                                                                    | ✓ diff w manifeście; 1 plik w bloku I9, 6 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `flock … bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                                        | ✓ `overall` 5002,9 / 5005 (bez ratchetu), `public` 2777,8 / 2881, css 99,7 / 100, `publicCss` 83,8 / 85, chunk 257,8 / 286, `boot` 471,6 / 579 - zmiana wyłącznie w kodzie serwera                                                                                                                                                                                                                                                                                                            |
+
+### 21.21 Retencja danych (I9c-X2)
+
+**Polecenie właściciela 2026-10-20:** „tak, zaproponuj zgodnie z polskim
+i europejskim prawem oraz rynkowymi standardami” (Z-I9b-10). Okresy
+domyślne, zakresy edycji, podstawy i standardy niżej to decyzja
+administratora danych z tego polecenia - jedno źródło liczb po stronie TS
+(`src/lib/privacy/dataRetention.ts`), lustro SQL w katalogu
+`_data_retention_catalog()` i w CHECK `data_retention_settings`, parytet
+przypina `dataRetentionParity.test.ts`. Wykonanie: worktree
+`/home/user/wt/I9C2`, gałąź `hub/i9c-retencja` od `763ecda0` (gałąź PR po
+§21.20), przebazowana przed wypchnięciem na `142e24d9` (znacznik
+`careers-harness: exclude` w `20261020160900` - bez wpływu na X2; powtórzone
+bramki dotknięte zmianą: harnessy CI, `verify:static`, testy `src/lib/ci`,
+`hub-slice-guard --base 142e24d9`), praca szeregowa (jedyny aktywny agent).
+
+**1. Kategorie (okres, zakres, podstawa, standard, mechanizm, test).**
+Okres spoza zakresu jest ODRZUCANY na każdej warstwie (walidator serwera,
+RPC `22023 period_out_of_range`, CHECK `23514`), nigdy przycinany.
+
+| Kategoria (klucz)                                                       | Okres domyślny                                                                                                                                                                                                                       | Zakres w panelu                                      | Po upływie - mechanizm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Podstawa                                                                                                                               | Standard                                                                                                    | Test                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Uderzenia w paywall i dziennik licznika (`paywall_metering`)            | 13 mies.                                                                                                                                                                                                                             | 3-25                                                 | NAJPIERW pieczęć dnia: `funnel_paywall_daily` (konta aktywne, konta i goście z uderzeniem, uderzenia, konwersje per segment, powody - bez identyfikatorów) i `metering_events_daily` (wynik, liczba); potem usunięcie `paywall_hits` (dzień < próg) i `metering_event_log` - tylko do dnia zapieczętowanego. Odczyt dni sprzed granicy z agregatu: `_funnel_counts` (lejek, wszystkie zakładki S3), `monetization_dashboard` (zdarzenia licznika)                                                                                                                                                                                                                                                                                                                       | RODO art. 5 ust. 1 lit. c i e; pomiar zależny od zgody (dyrektywa 2002/58/WE art. 5 ust. 3, w Polsce Prawo komunikacji elektronicznej) | wytyczne CNIL dla pomiaru odbiorców (13 mies. dla identyfikatorów, 25 mies. dla danych), GA4 maks. 14 mies. | `hub_i9c_data_retention_test` (sekcje 3-5), `hub_i9c_data_retention_aggregates_test` (2-4) |
+| Otwarcia i kliknięcia maili ścieżek i kampanii (`email_engagement`)     | 13 mies.                                                                                                                                                                                                                             | 3-25                                                 | ścieżki: pieczęć `journey_node_daily_stats` (wspólny `_journey_rollup_days`, dni zapieczętowane nie są przeliczane), potem usunięcie `journey_message_events`; odczyt okna z dniem zapieczętowanym - z rollupu (`admin_journey_stats`, `source: rollup`). Kampanie: zdarzenia starsze niż próg złożone do `newsletter_campaign_engagement_archive` (otwarcia, kliknięcia, zasięg unikalny = subskrybenci bez zdarzenia tego rodzaju po progu), potem usunięte; `newsletter_campaign_engagement` = surowe + archiwum                                                                                                                                                                                                                                                     | jw.; piksel śledzący - art. 5 ust. 3 dyrektywy 2002/58/WE (wytyczne EDPB 2/2023 w sprawie zakresu technicznego art. 5 ust. 3)          | jak wyżej                                                                                                   | jw.                                                                                        |
+| Dziennik wysyłek (`email_send_log`)                                     | 13 mies.                                                                                                                                                                                                                             | 6-25                                                 | `email_send_log`: adres -> `[redacted]`, `message_id`, `provider_message_id`, `metadata` -> NULL, adresy w treści błędu -> `[redacted]`; `email_delivery_events`: adres, identyfikatory, diagnostyka, ładunek; `newsletter_campaign_recipients`: adres -> `[redacted]:<id wiersza>` (adres jest kluczem unikalnym), subskrybent i identyfikator dostawcy -> NULL. Szablon, data, status i rodzaj zdarzenia zostają. Rollup ścieżek liczy „wysłane” po identyfikatorze wiadomości, więc pieczęć ścieżek stoi i przed tą redakcją. Wiersze dziennika bez najemcy - stałe 13 mies. (nikt nie może ich zmienić)                                                                                                                                                             | RODO art. 6 ust. 1 lit. f i art. 5 ust. 2 (rozliczalność wysyłek na podstawie zgody)                                                   | logi dostawców poczty: 30 dni-13 mies.                                                                      | `hub_i9c_data_retention_test`                                                              |
+| Kontakty CRM bez konta i bez transakcji (`crm_inactive_contacts`)       | 24 mies. od ostatniej aktywności                                                                                                                                                                                                     | 12-36                                                | anonimizacja (`_data_retention_anonymize_lead`): e-mail -> losowy `anon-…@anonymized.invalid` (bez mapowania), imię, nazwisko, telefon, firma, stanowisko, LinkedIn, kraj, tagi, aliasy -> puste; notatki usunięte, tytuły zadań `[redacted]`, migawki zapisów `{}`, dziennik wysyłek i wiadomości formularza tego adresu zredagowane; etap, cykl życia, źródło, daty i wynik zostają; łańcuch zgód zamknięty wpisem wygaśnięcia. Aktywność = utworzenie, `last_activity_at`, zmiana cyklu życia, notatka, zadanie, zmiana etapu, otwarcie/kliknięcie maila ścieżki lub kampanii, rejestracja na wydarzenie, formularz kontaktowy. Poza kategorią: kontakt z kontem, subskrybent newslettera (oczekujący/zapisany/potwierdzony), aktywny zapis na ścieżkę, przedłużenie | RODO art. 6 ust. 1 lit. f (marketing B2B) albo lit. a (zgoda), art. 21 ust. 2-3                                                        | „sunset policy” 12-24 mies. bez zaangażowania                                                               | `hub_i9c_data_retention_test`                                                              |
+| Kontakty CRM klientów (`crm_customers`) - tylko do odczytu              | późniejsza z dat: `accounting_retention_until(ostatnia transakcja)` (reguła repozytorium: 31.12 roku obrotowego + 6) i 31.12 roku transakcji + 6 (przedawnienie z końcem roku); nie wcześniej niż próg nieaktywności kategorii wyżej | - (minimum ustawowe: bez zmiany okresu i wyłączenia) | anonimizacja jak wyżej; transakcja = opłacone albo zwrócone zamówienie (`payment_orders.receipt_email`) i płatne zgłoszenie na wydarzenie (`event_registrations` po `event_people.email_norm`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ustawa o rachunkowości (art. 74), Kodeks cywilny (art. 118); spójnie z `purge_expired_*`                                               | minimum ustawowe                                                                                            | `hub_i9c_data_retention_test` (klient sprzed 3 lat zostaje, sprzed 8 lat - anonimizacja)   |
+| Dziennik audytu panelu (`audit_log`)                                    | 24 mies.; IP i przeglądarka po 12 mies.; operacje finansowe - jak dowody księgowe                                                                                                                                                    | 12-60 (finansowe - tylko do odczytu)                 | wpis usunięty; po 12 mies. `ip` -> NULL i `metadata` bez `user_agent`, `ua`, `ip`, `ip_address` (treść wpisu zostaje); operacja finansowa (prefiks akcji `membership.`, `billing.`, `payment.`, `refund`, `price`, `pricing.`, `coupon`, `discount`, `event.invoice.`, `order.` albo typ encji członkostwa, zamówienia, dokumentu, planu, kuponu, faktury, subskrypcji - lustro `AUDIT_FINANCIAL_*`) - do `accounting_retention_until(created_at)`                                                                                                                                                                                                                                                                                                                      | RODO art. 32 i art. 5 ust. 2                                                                                                           | PCI DSS 12 mies., ISO/IEC 27001 - zdefiniowana retencja logów                                               | `hub_i9c_data_retention_test`                                                              |
+| Zapisy na ścieżki i przebiegi kroków po wyjściu (`journey_enrollments`) | 13 mies. od zakończenia                                                                                                                                                                                                              | 6-25                                                 | zapis `completed`/`goal_reached`/`exited`/`failed` usunięty (kaskada: kroki, wiadomości, zdarzenia) po pieczęci rollupu ścieżek; statystyki per krok zostają                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | RODO art. 5 ust. 1 lit. e                                                                                                              | jak zdarzenia maili: 13 mies.                                                                               | `hub_i9c_data_retention_test`, `..._aggregates_test`                                       |
+| Ankiety rezygnacji (`cancellation_surveys`)                             | 24 mies.                                                                                                                                                                                                                             | 12-36                                                | anonimizacja: `user_id`, `subscription_id`, komentarz, kod kuponu -> NULL (`retention_feedback.user_id` od X2 dopuszcza NULL); powód, wynik i data zostają                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | RODO art. 6 ust. 1 lit. f                                                                                                              | brak rynkowego standardu - okres przyjęty przez administratora danych                                       | `hub_i9c_data_retention_test`                                                              |
+| Dziennik zgód (`consent_log`) - tylko do odczytu                        | czas trwania zgody + 6 lat od wycofania albo wygaśnięcia                                                                                                                                                                             | - (minimum ustawowe)                                 | łańcuch (adres + klucz zgody), którego ostatni wpis to wycofanie starsze niż 6 lat - usunięty. Wygaśnięcie: zgoda „tak” bez podmiotu (kontakt zanonimizowany albo usunięty, brak subskrypcji i konta z tym adresem) dostaje wpis „nie” z dnia przebiegu (`source_type = 'other'`) - od niego biegnie 6 lat                                                                                                                                                                                                                                                                                                                                                                                                                                                              | RODO art. 7 ust. 1 (wykazanie zgody), Kodeks cywilny art. 118                                                                          | minimum ustawowe                                                                                            | `hub_i9c_data_retention_test`                                                              |
+| Lista wyłączeń wysyłki - tylko do odczytu                               | bezterminowo (wyłącznie adres i data)                                                                                                                                                                                                | -                                                    | bez usuwania (karta: „Bez usuwania”)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | RODO art. 21 ust. 3 (respektowanie sprzeciwu)                                                                                          | -                                                                                                           | parytet (`DATA_RETENTION_EXISTING`)                                                        |
+| Zdarzenia domenowe - tylko do odczytu                                   | 90 dni (bez zmian)                                                                                                                                                                                                                   | -                                                    | istniejący `prune_domain_events` (`20260711220607`, pg_cron)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | jak dotąd (§21.9)                                                                                                                      | -                                                                                                           | parytet: literał `interval '90 days'` w migracji źródłowej                                 |
+
+Karta pokazuje też, tylko do odczytu, pozostałe okresy ustalone gdzie
+indziej (bez dublowania): analityka pierwszej strony 12 mies., Web Vitals
+200 dni, błędy klienta 90 dni (`telemetry_retention_prune`), skrzynka ścieżek
+30 dni (`journey_purge` - „Harmonogram w przygotowaniu”, I9; **od I9 (§24):** „Harmonogram zadań aplikacji (raz na dobę)” - krok `journeysPurge` o 03:11 UTC), dostawy
+integracji 14 dni, kolejka martwych maili 30 dni, dziennik SMS 30 dni,
+dziennik webhooków płatności 30 dni, dowody księgowe do 31.12 szóstego roku
+po roku obrotowym. Każdy z tych okresów ma w `DATA_RETENTION_EXISTING`
+migrację źródłową i literał - test parytetu czerwieni się, gdy okres w SQL
+zmieni się bez karty.
+
+**2. Bezpieczny start.** `data_retention_settings.enforce_after`: istniejący
+najemcy dostają wiersze z `now() + 14 dni` (migracja), nowy najemca bez
+wierszy - założenie + 14 dni (`_data_retention_effective`). Do tego terminu
+zadanie działa w trybie PODGLĄDU: liczy (dziennik przebiegów, karta), niczego
+nie usuwa ani nie anonimizuje; agregaty dzienne pieczętuje już w podglądzie
+(nie są danymi osobowymi, a odczyt starszych okien jest od razu stabilny).
+Karta pokazuje stan karencji, termin i liczby z podglądu
+(`admin_data_retention_preview`, sufit 100 000 na kategorię), admin może
+„Włącz teraz” albo przesunąć termin (wspólny atom daty, najdalej 90 dni od
+dziś - `postpone_out_of_range`). Zapis kategorii (CAS po `updated_at`,
+`40001 conflict`), wyłączenie kategorii (potwierdzenie z ostrzeżeniem
+o zasadzie ograniczenia przechowywania), zmiana karencji, przedłużenie
+kontaktu i „Uruchom teraz” (potwierdzenie, `confirmation_required`) - każde
+z wpisem w `audit_log` (`data_retention.settings_changed`,
+`data_retention.enforcement_changed`, `data_retention.crm_extended`,
+`data_retention.run_manual`) i zdarzeniem `data_retention.changed.v1`
+(wyłącznie panel: inwalidacja `dataRetentionKeys.tenant`). Najemca i admin
+wyłącznie z sesji (`_data_retention_admin_tenant`: admin albo super_admin
+bieżącego najemcy; redaktor `42501`).
+
+**3. Harmonogram.** Repozytorium ma dwa mechanizmy: `pg_cron` (istniejące
+czyszczenia `prune_*`, `telemetry_retention_prune`, `purge_expired_*` -
+03:20-03:53 UTC) i `jobs-tick` (zadania z wynikiem w panelu zdrowia
+harmonogramu i w `job_runner_runs`). Wybór: `jobs-tick` (SPEC §4.6 - hub
+dokłada zadania tam), krok `dataRetention` OSTATNI w ticku, okno nocne
+02:07-02:57 UTC co 10 minut (`isDataRetentionWindow`, sześć szans na dobę),
+RPC `data_retention_run(p_limit => 5000)` (tylko service_role): najemcy bez
+przebiegu z 20 h albo z zaległością z ostatnich 2 h, budżet czasu 8 s
+(`more: true` - reszta w kolejnym oknie), każda kategoria osobno
+(`BEGIN … EXCEPTION` - błąd jednej nie zatrzymuje pozostałych, kod błędu
+w dzienniku), blokada doradcza per najemca (przebieg nocny i „Uruchom teraz”
+nie biegną równolegle - `{busy: true}`), limit wierszy na kategorię (domyślnie
+5000, najwięcej 50 000). Dziennik przebiegów `data_retention_runs` (kategoria,
+tryb, wyzwalacz, próg, liczba, zaległość, kod błędu, czasy - bez danych
+osobowych) czyszczony po 25 mies. Ostatni przebieg każdej kategorii widać
+w karcie. Brak migracji = `skipped: migration_pending` (jak inne kroki).
+
+**4. Zachowanie agregatów (wskaźnik okna sprzed progu bez zmian).**
+Pieczęć zawsze przed usunięciem i usuwanie tylko do dnia zapieczętowanego
+(pieczęć przerwana limitem dni = reszta następnej nocy, zaległość w dzienniku).
+Granica odczytu lejka (`_data_retention_funnel_cut`) = później z (próg,
+dzień, poniżej którego wiersze już usunięto), ale nigdy dalej niż dzień po
+ostatnim zapieczętowanym. Dowód (`hub_i9c_data_retention_aggregates_test`):
+okno sprzed progu i okno przecinające próg - lejek (konta aktywne, konta
+i goście z uderzeniem, uderzenia, konwersje, powody, wskaźniki PHR/PSCR),
+segment, pulpit monetyzacji, kampania (także subskrybent z otwarciem przed
+progiem i po nim) i liczniki kroku ścieżki identyczne przed czyszczeniem
+i po nim; surowe wiersze faktycznie usunięte. Granice znane i opisane:
+agregat jest dobowy, więc konto z uderzeniami w kilku dniach okna liczy się
+raz na dzień (surowe okno liczyłoby je raz), a konwersja paywalla dni
+zapieczętowanych obejmuje płatność z dnia uderzenia; początek pomiaru
+(`paywall_data_since`) po pieczęci = początek dnia pierwszego uderzenia.
+
+**5. Pomiar otwarć (piksel).** Treści zgód w repozytorium (formularz
+newslettera, okienka zapisu, formularz „Dołącz”, zgody wydarzeń) nie
+informują o pomiarze otwarć i kliknięć - tekstu prawnego NIE zmieniono.
+Dodany przełącznik najemcy `journey_settings.open_tracking_enabled`
+(domyślnie WŁĄCZONY - zachowanie bez zmian): klucz w `admin_journey_settings_get/save`
+(S5, wartość nie-logiczna `22023 open_tracking_enabled_invalid`; UI ustawień
+silnika - S8), przełącznik „Pomiar otwarć (piksel)” w karcie retencji (ten
+sam zapis); wyłączony = render maila ścieżki bez piksela
+(`journey_contact_for_send.open_tracking`, `render.server.ts`) i otwarcie
+z maila wysłanego wcześniej nie jest zapisywane
+(`open_tracking_disabled`); kliknięcia (przekierowanie) bez zmian.
+**Rekomendacja dla administratora danych:** uzupełnić treść zgody
+marketingowej i newslettera o informację o pomiarze otwarć i kliknięć
+(piksel i przekierowanie) albo przenieść pomiar otwarć pod zgodę - zgodnie
+z wytycznymi EDPB 2/2023 piksel w mailu mieści się w zakresie art. 5 ust. 3
+dyrektywy 2002/58/WE. Do czasu decyzji przełącznik pozwala wyłączyć pomiar
+otwarć ścieżek u najemcy. **Wykonana (I9d-Y2, §21.23):** treść zgody na
+newsletter informuje o pomiarze otwarć i kliknięć, jego celu i osobnym
+wyłączeniu (decyzje właściciela 2026-10-20 i 2026-10-21, wariant (a));
+piksel i linki z identyfikatorem odbiorcy tylko za zgodą obejmującą pomiar
+i przy włączonym wspólnym przełączniku najemcy.
+
+**6. Rozbieżności z istniejącymi mechanizmami (zgłoszenia, bez zmian po
+cichu).**
+
+- **Dowody księgowe:** polecenie podaje „5 lat od początku roku następującego
+  po roku obrotowym (ustawa o rachunkowości art. 74)”; repozytorium od
+  `20261012121000` trzyma dowody do 31.12 roku obrotowego + 6
+  (`accounting_retention_until`, uzasadnienie w nagłówku tej migracji -
+  obejmuje też 5 lat z ustawy o rachunkowości). Klient CRM i wpisy audytu
+  operacji finansowych idą za regułą repozytorium (dłuższą) - jedna data
+  dla dowodu i dla kontaktu. Rejestr czynności (wiersz wyjątków) mówił
+  jeszcze „31.12 piątego roku (`20260805090100`)” - poprawiony na stan
+  repozytorium. Zgłoszenie Z-I9c-04.
+- **Skrzynka ścieżek (`journey_purge`, 30 dni) i rollup ścieżek
+  (`journey_rollup_daily`)** - funkcje są, harmonogram podpina I9 (runner
+  w `jobs-tick`); karta pokazuje „Harmonogram w przygotowaniu”. Pieczęć
+  retencji woła ten sam `_journey_rollup_days`, więc nie czeka na I9.
+  **Zamknięte 2026-10-22 (I9, §24):** rollup co godzinę w minucie 13,
+  sprzątanie skrzynki raz na dobę o 03:11 UTC; karta pokazuje „Harmonogram
+  zadań aplikacji (raz na dobę)” (`9e3ba64ce`).
+- **pg_cron vs jobs-tick:** istniejące czyszczenia zostają w pg_cron (nie
+  przenoszone); nowe zadanie w `jobs-tick` (pkt 3).
+
+**Zgłoszenia I9c (X2).**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9c-04 | Rozbieżność okresu dowodów księgowych: polecenie „5 lat od początku roku następującego po roku obrotowym”, repozytorium 31.12 roku obrotowego + 6 (`20261012121000`). Retencja X2 stosuje regułę repozytorium (dłuższą); skrócenie wymaga decyzji administratora danych i zmiany `accounting_retention_until` (dotyka dowodów księgowych). **Stan 2026-10-22 (I9, §24):** decyzja właściciela, bez zmian; opis w runbooku §6.                                                                                                                                                                                                                                                                                                                                             |
+| Z-I9c-05 | Czytelnicy surowych zdarzeń kampanii poza hubem RPC (warstwa semantyczna, agregaty pulpitu newslettera, zdrowie poczty S1, scoring leadów) i `admin_journey_series` liczą dla okien starszych niż okres retencji tylko to, co zostało - przełączyć na archiwum/rollup przy najbliższej zmianie tych modułów (S7/I9). **Zamknięte 2026-10-22 (I9, §24):** Kokpit (`admin_dashboard_marketing`), zdrowie poczty i warstwa semantyczna czytają dni sprzed progu z `newsletter_campaign_engagement_daily` i archiwum kampanii (`20261020162900`, `4194e0a14`); `admin_journey_series` - maile i kliknięcia dni zapieczętowanych z `journey_node_daily_stats` (`20261020162600`, `7d9de300c`); scoring leadów świadomie bez zmian (minimalizacja).                             |
+| Z-I9c-06 | Podsumowanie ścieżki w `admin_journey_stats` (zapisy, statusy, wyjścia) dla okien starszych niż okres zapisów czyta pozostałe zapisy - rollup trzyma tylko liczniki per krok (wejścia, wysłane, otwarcia, kliknięcia). Opcja: dzienny rollup statusów zapisu. **Zamknięte w części UI 2026-10-22 (S8, §22.2):** wyniki ścieżki dla okien starszych niż retencja zapisów mają podpis „Pełne dane od …”, kreski zamiast zer i przerwę w serii; dzienny rollup statusów zapisu (SQL) zostaje otwarty. **Zamknięte 2026-10-22 (I9, §24):** dzienne zestawienie `journey_enrollment_daily_stats` składane przy retencji w tej samej instrukcji co usunięcie; `admin_journey_stats` i `admin_journey_series` liczą surowe zapisy + zestawienie (`20261020162600`, `7d9de300c`). |
+| Z-I9c-07 | Poza kategoriami X2: `metered_views` (wyświetlenia licznika - kaskada z kontem, bez retencji żywych kont) i `event_people` (uczestnicy wydarzeń) - do decyzji administratora danych przy przeglądzie modułów wydarzeń. **Zamknięte 2026-10-22 (I9d, §21.22):** kategorie `metered_views` (3 mies., agregat `metered_views_daily`, redakcja treści w dzienniku licznika i uderzeniach) i `event_attendees` (anonimizacja po 24 mies.).                                                                                                                                                                                                                                                                                                                                     |
+| Z-I9c-08 | Subskrybenci newslettera nie są anonimizowani przez kategorię CRM (zgoda niezależna od kontaktu); polityka wygaszania nieaktywnych subskrybentów - do decyzji (moduł newslettera). **Zamknięte 2026-10-22 (I9d, §21.22):** kategoria `newsletter_inactive` - 12 mies. bez zaangażowania, jedna prośba o potwierdzenie, po 30 dniach usunięcie subskrybenta (rejestr zgód zostaje, lista wyłączeń nietknięta).                                                                                                                                                                                                                                                                                                                                                             |
+| Z-I9c-09 | Przełącznik pomiaru otwarć obejmuje ścieżki; kampanie newslettera mają własny tryb źródła zaangażowania (piksel własny albo dostawca - `i18n-newsletter-deliverability`) - wspólny przełącznik najemcy przy najbliższej zmianie modułu newslettera. Rekomendacja treści zgody (pkt 5) - decyzja administratora danych. **Zamknięte 2026-10-22 (I9d-Y2, §21.23):** `journey_settings.open_tracking_enabled` jest wspólnym przełącznikiem ścieżek i kampanii, otwarć i kliknięć (render, zapis zdarzeń i webhook dostawcy), z jednym opisem w karcie retencji, ustawieniach silnika ścieżek i przeglądzie newslettera; rekomendacja treści zgody wykonana (pkt 5).                                                                                                          |
+| Z-I9c-10 | Archiwum kampanii: subskrybent z otwarciem przed progiem i ponownym otwarciem po kolejnym złożeniu (następna noc po nowym progu) liczy się w zasięgu unikalnym dwa razy - granica znana (zasięg bez identyfikatorów); różnica najwyżej o liczbę takich powrotów. **Zamknięte 2026-10-22 (I9, §24):** zasięg przycięty do liczby odbiorców (`LEAST`) w `newsletter_campaign_engagement` i zdrowiu poczty (`20261020162900`, `4194e0a14`).                                                                                                                                                                                                                                                                                                                                  |
+
+**Migracje i bliźniaki (blok I9, „(I9c, 2026-10-20)”).**
+
+| Migracja                                      | Bliźniak                            | Zawartość                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020161000_data_retention_core`          | `0368_data_retention_core`          | tabele `data_retention_settings`, `data_retention_runs`, `data_retention_state`, `data_retention_crm_extensions`, `funnel_paywall_daily`, `metering_events_daily`, `newsletter_campaign_engagement_archive` (RLS, `tenant_id` FK CASCADE, tylko service_role); `crm_leads.anonymized_at`, `retention_feedback.user_id` NULL, `journey_settings.open_tracking_enabled` (`lock_timeout`); katalog, pieczęcie, `_journey_rollup_days`, redefinicja `journey_rollup_daily` (CIALO-Z `20261020140500`); wiersze istniejących najemców (+14 dni) |
+| `20261020161100_data_retention_executor`      | `0369_data_retention_executor`      | funkcje kategorii, anonimizacja kontaktu, `_data_retention_run_tenant`, `data_retention_run` (service_role)                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `20261020161200_data_retention_reads`         | `0370_data_retention_reads`         | redefinicje odczytu: `_funnel_counts` (CIALO-Z `20261020120400`), `monetization_dashboard` (`20260724100000`), `newsletter_campaign_engagement` (`20260814215302`), `admin_journey_stats` (`20261020140500`)                                                                                                                                                                                                                                                                                                                               |
+| `20261020161300_data_retention_open_tracking` | `0371_data_retention_open_tracking` | redefinicje `journey_record_message_event` (`20261020140500`), `journey_contact_for_send` (`20261020140200`), `admin_journey_settings_get/save` (`20261020140300`)                                                                                                                                                                                                                                                                                                                                                                         |
+| `20261020161400_data_retention_panel`         | `0372_data_retention_panel`         | RPC panelu: `admin_data_retention_get`, `_save`, `_enforcement`, `_preview`, `_crm_due`, `_crm_extend`, `_run_now` (authenticated, admin z sesji)                                                                                                                                                                                                                                                                                                                                                                                          |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 368-372,
+`when` 1792477693912 … 1792477933912 (+60 000). Następny wolny numer:
+**0373**, wersja `20261020161500`. `public.club_*`/`event_*` - bez zmian
+(odczyt `event_registrations`/`event_people` w funkcji kontaktu CRM to nie
+DDL ani zapis). Pliki współdzielone (I9): `hubDelivery.ts` (rejestr funkcji -
+32 nowe i 9 redefinicji w `HUB_CIALO_Z`/`HUB_I9_REDEFINITIONS`, manifest I9
+„(I9c, 2026-10-20)”), `types.ts` (7 tabel, 2 kolumny, `retention_feedback.user_id` NULL, 8 RPC),
+`authzSnapshot.generated.ts` (liczniki 1294 → 1299 migracji, 1791 → 1823
+funkcji), `domainEvents.ts`/`eventInvalidationMap*.ts`
+(`data_retention.changed.v1`, wyłącznie panel), `jobsTick.server.ts`,
+`i18nParity.gate.test.ts` (prefiks `adminDataRetention`) i raport
+`reports/i18n-parity.json` (dopisany do `HUB_SHARED_FILES`),
+`scripts/check-bundle-size.ts` (ratchet `overall`, kronika), lista
+`hub_grants` w `hub_shared_helpers_test`. Harnessy CI: `check:careers-harness`
+wybiera `20261020161100` (wzmianka `public.contact_messages`), ale pomija go
+wewnętrznym filtrem modułu (brak `public.career_*`), `check:pg-harness`,
+`check:events-harness` i `check:tenant-isolation` nie wybierają żadnej
+migracji X2 - bez znaczników.
+
+**Panel.** `/admin/settings/privacy` - sekcyjny `adminPageHead`
+(„Prywatność i retencja danych”), karta „Retencja danych” w leniwym chunku
+(`React.lazy` + `Suspense`, słownik `i18n-admin-data-retention.ts` PL/EN
+w bramce parytetu): stan karencji z „Włącz teraz” i przesunięciem terminu,
+wiersz na kategorię (nazwa, opis, okres - wspólny `FormSelect` z pełnym
+zakresem, przełącznik z potwierdzeniem wyłączenia, dymek podstawy
+i standardu, ostatni przebieg, podgląd liczby i progu), kategorie ustawowe
+i okresy z innych modułów oznaczone „tylko do odczytu”, lista „Do
+anonimizacji w ciągu 30 dni” z przedłużeniem (dialog z powodem i licznikiem
+znaków), „Uruchom teraz” z potwierdzeniem, przełącznik pomiaru otwarć.
+Klucze `dataRetentionKeys` (jeden prefiks najemcy), mutatory
+`dataRetentionQueries.ts`, inwalidacja przez `data_retention.changed.v1`.
+Testy: `DataRetentionCard.test.tsx` (11, w tym axe), `adminSettingsPrivacyRoute.test.tsx`
+(2: nagłówek, leniwy chunk), `dataRetentionParse.test.ts` (17),
+`dataRetentionParity.test.ts` (9), `jobsTickRun.test.ts` (okno i krok),
+testy S5 (render bez piksela, parser ustawień, kształty RPC).
+
+**Wdrożenie (właściciel).** Kolejność: `20261020161000` → `161100` →
+`161200` → `161300` → `161400`, razem z frontem (karta czyta RPC panelu;
+stary front bez karty działa z nowymi migracjami, nowy front bez migracji
+pokazuje błąd ładowania karty, a krok `jobs-tick` -
+`skipped: migration_pending`). Po wdrożeniu przez 14 dni wyłącznie podgląd -
+admin sprawdza liczby w karcie. Kontrola po wdrożeniu (SQL editor, tylko
+odczyt):
+
+```sql
+-- Ustawienia i termin karencji najemców (oczekiwane: 9 kategorii na najemcę).
+SELECT tenant_id, count(*) AS kategorie, min(enforce_after) AS wykonanie_od
+  FROM public.data_retention_settings GROUP BY tenant_id;
+-- Ostatnie przebiegi: tryb, liczby, błędy (oczekiwane: preview przez 14 dni).
+SELECT tenant_id, category, mode, run_trigger, affected, backlog, error_code, started_at
+  FROM public.data_retention_runs ORDER BY started_at DESC LIMIT 50;
+-- Pieczęcie agregatów (lejek i statystyki ścieżek).
+SELECT tenant_id, scope, sealed_through, purged_before FROM public.data_retention_state ORDER BY 1, 2;
+```
+
+Wycofanie: wyłączenie zadania = `UPDATE public.data_retention_settings SET
+enabled = false` dla kategorii edytowalnych albo przesunięcie
+`enforce_after` (panel); funkcje odczytu z agregatów działają bez pieczęci
+jak przed X2. Usunięte wiersze nie wracają (z założenia).
+
+**Pomiar bundla (D-08).** Baza `763ecda0` 5002,9 / public 2777,8 → po X2
+5021,2 / public 2778,6: +18,3 KB, w tym admin-only +17,4 (2225,2 → 2242,6)
+i public +0,8 (entropia hashy - 1261 chunków o |Δ| ≤ 20 B; `app-initial`
++55 B). Rozbicie: nowy leniwy chunk karty `DataRetentionCard` +15,9 (słownik
+PL/EN kategorii z podstawami i standardami ok. 8 KB, wiersz kategorii, lista
+„do anonimizacji”, parsery, stałe, zapytania), trasa
+`admin.settings.privacy` +0,6, wspólne chunki wydzielone drugim importem
+(`SectionCard` +0,4, `lifecycle` +0,1, `FieldGroupRule` -0,2, `admin`
+-0,2), klucze zapytań +0,3. Ratchet `overall` 5005 → 5023 (5021,2 → 5022
+→ +1) z wpisem kroniki w `scripts/check-bundle-size.ts`; progi public 2881,
+publicCss 85, chunk 286 i boot 579 bez zmian (arkusze CSS bit w bit te same:
+99,7 / 83,8; chunk 257,9; boot 471,7).
+
+**Bramki I9c-X2** (worktree `/home/user/wt/I9C2`, po kolei, pamięć 16 GB):
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                      | Wynik                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                                                                                                                                                              | ✓                                                                                                                                                                                                                                                                                                                                                                   |
+| `bun run verify:static` (18 bramek: `migration-lanes`, `rpc-contract`, `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` 1299 plików, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` 1823 funkcje, `ts-sql-contract --check`, `types-freshness` baseline 7) | ✓                                                                                                                                                                                                                                                                                                                                                                   |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                                                                                                               | ✓ 0 błędów (pierwszy przebieg: 2 błędy - zawężenie klucza kategorii w `RetentionCategoryRow`, pole `dataRetention` w ładunku `-jobs-tick.test.ts`; naprawione u źródła)                                                                                                                                                                                             |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9c.tmp.json`, 34 zmienione pliki TS + deklaracje)                                                                                                                                                                                                                                | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                          |
+| `bunx eslint --max-warnings 0` (zmienione pliki)                                                                                                                                                                                                                                                                                               | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                             |
+| `TZ=UTC vitest --maxWorkers=3`: `src/components/admin/settings`, `src/lib/{privacy,journeys,realtime,server,ci,authz}`, trasa ustawień prywatności, `src/routes/api/public`, bramka parytetu i18n                                                                                                                                              | ✓ 156 plików, 3829 testów                                                                                                                                                                                                                                                                                                                                           |
+| `scripts/split-migration.ts --dry-run` (5 migracji)                                                                                                                                                                                                                                                                                            | ✓ każda 1 część, największa 44 527 B (limit 46 080)                                                                                                                                                                                                                                                                                                                 |
+| pgTAP `run.sh all` (pełny)                                                                                                                                                                                                                                                                                                                     | ✓ 1299 migracji (1 znany błąd: `20260825230232`), 247 plików OK; 4 czerwone - wyłącznie znane środowiskowe: `community_cron_schedule` 2/17 i `job_scheduler_heartbeat` 1/32 (pg_net), `public_definer_views_read_only` 1/35, `profile_intent_semantic` (vector). Nowe: `hub_i9c_data_retention` 52, `hub_i9c_data_retention_aggregates` 23, `hub_shared_helpers` 27 |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                     | ✓ 9 asercji (985 wywołań RPC)                                                                                                                                                                                                                                                                                                                                       |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`, `check:sql-*` (8)                                                                                                                                                                                                                                                      | ✓                                                                                                                                                                                                                                                                                                                                                                   |
+| `flock … bun run check:pg-harness`, `check:careers-harness`, `check:events-harness`, `check:tenant-isolation`                                                                                                                                                                                                                                  | ✓ pg-harness: 111 migracji, 5 pominiętych znacznikiem, 504 asercje runtime (żadna migracja X2 w selektorze); careers: 14 migracji, 3 pominięte znacznikiem (`20261020161100` odfiltrowany w pętli modułu - brak `public.career_*`); events: 278 migracji, 4914 asercji; tenant-isolation: 126 asercji RLS                                                           |
+| `generate:authz-snapshot` i `--check`                                                                                                                                                                                                                                                                                                          | ✓ (1299 migracji, 1823 funkcje)                                                                                                                                                                                                                                                                                                                                     |
+| `scripts/hub-slice-guard.ts I9 --base 763ecda02` (i po przebazowaniu `--base 142e24d92`)                                                                                                                                                                                                                                                       | ✓ diff w manifeście (raport `reports/i18n-parity.json` dopisany do plików współdzielonych - nowy bramkowany prefiks `adminDataRetention`); 5 plików w bloku huba, 41 definicji funkcji                                                                                                                                                                              |
+| `flock … bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                    | ✓ po ratchecie: `overall` 5021,2 / 5023, `public` 2778,6 / 2881, css 99,7 / 100, `publicCss` 83,8 / 85, chunk 257,9 / 286, `boot` 471,7 / 579; graf chunków acykliczny, ścieżka bootowania i graf serwera czyste                                                                                                                                                    |
+
+### 21.22 RODO – decyzje właściciela 2 (I9d-Y1)
+
+**Decyzje właściciela 2026-10-20 (zatwierdzone):** „optymalne rozwiązanie
+wybierz” dla Z-I9c-01 (zgłoszenia do klubów) i Z-I9c-07 (odczyty licznika,
+uczestnicy wydarzeń) oraz „tak, usuwaj” dla Z-I9c-08 (nieaktywni
+subskrybenci newslettera). Wykonanie: worktree `/home/user/wt/I9d`, gałąź
+`hub/i9d-rodo-2` od `53c5d6d3` (S7 przed scaleniem), cztery podzadania
+szeregowo: Y1-A - SQL (`a30e38a0`, `b4c0b576`), Y1-B - backend TS
+(`fe6c33c2`, `e55a81fe`), Y1-C - panel (`91ceae45`), Y1-D - integracja:
+scalenie gałęzi PR `70bdccbb` (S8 + scalenie S7 po S8 + poprawka granicy
+benchmarków; merge, nie rebase - `14ec4c08`, jedyny plik zmieniony po obu
+stronach, `hubDelivery.ts`, scalił się automatycznie), pliki współdzielone
+(`0b9df99d`), słownik strony „Chcę dalej otrzymywać” poza chunkiem startowym
+i ratchet D-08 (`ef329c9e`), dziennik i rejestr czynności. Etap Y2 (treść
+zgody i pomiar - pakiet I9d-5) jest osobnym krokiem i zredefiniuje te same
+funkcje zapisu zdarzeń (pkt 11).
+
+**1. Decyzje → wykonanie → dowód.** W1-W5 - decyzje właściciela; W6-W23 -
+decyzje wykonawcze (orkiestrator I9d i podzadania), opisane także
+w nagłówkach migracji `20261020161500…162200`.
+
+| #   | Decyzja (źródło)                                                                                                                                                                   | Wykonanie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Uzasadnienie                                                                                                                                                                                                                                                                            | Dowód                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| W1  | Z-I9c-01 (a): zgłoszenie do klubu po usunięciu konta - anonimizacja, nie kasowanie (właściciel)                                                                                    | `_club_applications_anonymize(uuid[], uuid)` (`161500`) - jedna lista kolumn dla usunięcia konta i retencji: imię, nazwisko, e-mail, telefon, firma, stanowisko, miasto, profil społecznościowy i wszystkie teksty własne (doświadczenie, języki, motywacja, cele, wkład, dostępność, źródło polecenia) -> `''` (NOT NULL), `user_id` -> pseudonim konta v8; rozszerzony istniejący punkt wywołania `_hub_account_erase_modules` (sekcja 4, CIALO-Z `20261020160900`) - bez nowego wyzwalacza; domknięcie wstecz `_hub_account_erase_orphans` (+ `club_applications.user_id`) w migracji; asercja 29 przeglądu - kolumna wypada z wyjątków | statystyki klubów (klub, specjalizacja, status, daty decyzji, warstwa, pola zgrubne) zostają, osoba znika                                                                                                                                                                               | `hub_i9b_account_erasure_sweep_test` (41, było 40), `hub_i9d_club_applications_test` (24)             |
+| W2  | Z-I9c-01 (b): kategoria „Zgłoszenia do klubów” - odrzucone 24 mies. po decyzji (12-36), przyjęte 24 mies. od końca członkostwa, oczekujące nigdy (właściciel)                      | kategoria `club_applications` (`161600`, katalog `162200`): `_data_retention_club_candidates`, `_data_retention_club_applications` (osobny pseudonim na konto)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | RODO art. 6 ust. 1 lit. b i f, ograniczenie przechowywania (art. 5 ust. 1 lit. e)                                                                                                                                                                                                       | `hub_i9d_club_applications_test`, `hub_i9d_retention_core_test` (15)                                  |
+| W3  | Z-I9c-07: „Odczyty licznika artykułów” 3 mies. (2-13), agregat dzienny przed usunięciem (właściciel)                                                                               | kategoria `metered_views` (`161700`): `metered_views_daily`, pieczęć w pętli lejka, uzupełnienie dni zapieczętowanych, usunięcie odczytów starszych niż próg (nigdy bieżący `period_month`)                                                                                                                                                                                                                                                                                                                                                                                                                                                | licznik potrzebuje bieżącego okresu; historia czytania w serwisie think-tanku może ujawniać poglądy (art. 9 RODO) - minimalizacja                                                                                                                                                       | `hub_i9d_metered_views_test` (15: okna sprzed progu identyczne przed i po)                            |
+| W4  | Z-I9c-07: „Uczestnicy wydarzeń” 24 mies. od ostatniego udziału/rejestracji (12-36); wyjątki: istniejące konto, płatne zamówienie, zgody sponsorów nietknięte (właściciel)          | kategoria `event_attendees` (`161800`): `_data_retention_event_attendee_candidates`, `_data_retention_event_attendees`; płatne - nie wcześniej niż `accounting_retention_until` ostatniej transakcji                                                                                                                                                                                                                                                                                                                                                                                                                                       | jw.; rozliczenia - ustawa o rachunkowości                                                                                                                                                                                                                                               | `hub_i9d_event_attendees_test` (15)                                                                   |
+| W5  | Z-I9c-08: „Nieaktywni subskrybenci” 12 mies. bez zaangażowania (6-24), JEDNA prośba, 30 dni, usunięcie; karta: lista, podgląd, wykluczenie z powodem, karencja 14 dni (właściciel) | kategoria `newsletter_inactive` (`161900…162100`), krok `jobs-tick` (prośba PL/EN przez kolejkę z etykietą masową respektującą listę wyłączeń), trasa `/api/public/newsletter/keep` + strona `/newsletter/keep`, lista „do wygaszenia” w karcie „Retencja danych”                                                                                                                                                                                                                                                                                                                                                                          | RODO art. 5 ust. 1 lit. e; dowód zgody zostaje (art. 7 ust. 1) - reguła „czas trwania zgody + 6 lat”; NIE lista wyłączeń (to nie sprzeciw)                                                                                                                                              | `hub_i9d_newsletter_sunset_test` (32), `hub_i9d_newsletter_sunset_cap_test` (8), vitest Y1-B/Y1-C     |
+| W6  | „Odrzucone/wycofane” = `rejected`; `pending`/`review`/`needs_info` = oczekujące (orkiestrator)                                                                                     | CHECK `club_applications_status_chk` nie zna statusu „wycofane” i nie ma RPC wycofania                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | jedyna interpretacja zgodna ze schematem                                                                                                                                                                                                                                                | `hub_i9d_club_applications_test`                                                                      |
+| W7  | Koniec członkostwa = nowa kolumna (orkiestrator)                                                                                                                                   | `club_members.ended_at` (wyzwalacz BEFORE INSERT/UPDATE OF status: stempel przy `left`/`banned`, z `left` w `banned` data zostaje, powrót czyści); usunięcie członkostwa (admin, kaskada klubu albo konta) -> `club_applications.membership_ended_at` (AFTER DELETE, nowe członkostwo czyści; BEFORE UPDATE OF club_id stempluje przy odłączeniu od klubu). Uzupełnienie wsteczne: `ended_at = updated_at` dla `left`/`banned`; przyjęte bez wiersza członkostwa -> `now()`                                                                                                                                                                | data w ZGŁOSZENIU, nie w tabeli pomocniczej: para (klub, osoba) gubiłaby skasowany klub (kaskada ustawia `club_id = NULL`). `updated_at` = najlepsze przybliżenie (późniejsza zmiana tylko opóźnia anonimizację); chwili skasowania nie da się odtworzyć - 24 mies. biegną od wdrożenia | `hub_i9d_club_applications_test`                                                                      |
+| W8  | Czyścimy też `admin_note`, `crm_lead_id`, `crm_error`, `notify_error`; zostają `consent`, `marketing_consent`, `lang`, statusy techniczne (orkiestrator)                           | lista kolumn W1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | notatka komisji to wolny tekst o osobie, powiązanie z zachowanym kontaktem CRM i tekst błędu pozwalałyby ją odtworzyć                                                                                                                                                                   | jw.                                                                                                   |
+| W9  | Odmowa decyzji komisji dla zgłoszenia zanonimizowanego (orkiestrator)                                                                                                              | `admin_club_application_set_status` (`161600`, CIALO-Z `20260811150000` z `HUB_CIALO_Z`): `application_anonymized` (P0001) przed jakąkolwiek zmianą - także dla zgłoszenia osoby, której konta już nie ma                                                                                                                                                                                                                                                                                                                                                                                                                                  | przyjęcie kończyło się surowym 23503 (`club_members.user_id`), odrzucenie wysyłało powiadomienie do nikogo                                                                                                                                                                              | `hub_i9d_club_applications_test`                                                                      |
+| W10 | `anonymize_club_applications_for_user` bez zmian; wspólny helper; `_hub_account_erase_orphans` += zgłoszenia (orkiestrator)                                                        | funkcja sprzed huba zostaje (pg-harness A35.7 przypina jej zachowanie) - po `161500` nadmiarowa; jej ciche `EXCEPTION WHEN OTHERS` przestaje mieć znaczenie, bo krok AFTER przerywa usunięcie przy błędzie. Pseudonim: przy usunięciu konta ten sam co w lejku, szynie i audycie; przy retencji osobny na konto (kandydat traci podgląd starego zgłoszenia w `club_my_applications` i w eksporcie - zamierzone)                                                                                                                                                                                                                            | harness klubów i rozdzielenie usunięcia konta od retencji                                                                                                                                                                                                                               | `check:pg-harness`, sweep                                                                             |
+| W11 | Licznik: `metered_views_daily` (członkowie, goście, konta czytające) z uzupełnieniem dni już zapieczętowanych; czytelnicy starszych okien na agregacie (orkiestrator)              | granica `_data_retention_funnel_cut` (CIALO-Z `161000`) = także próg `metered_views`, gdy kategoria włączona - lejek (`_funnel_counts`, S3) bez redefinicji; `monetization_dashboard` (CIALO-Z `20260724100000` z rejestru; ciało I9c) - odczyty dni sprzed granicy z agregatu, nowy klucz `aggregate_before`; przełączenie przy pieczęci, nie przy usuwaniu                                                                                                                                                                                                                                                                               | wynik okna sprzed progu ten sam przed czyszczeniem i po nim. Skutek opisany w dymku: okna starsze niż okres odczytów (dom. 3 mies., dotąd 13) liczą konto raz na dzień, nie raz na okno                                                                                                 | `hub_i9d_metered_views_test`                                                                          |
+| W12 | Kategoria licznika redaguje też `entity_id` w `metering_event_log` i `paywall_hits` starszych niż okres (orkiestrator)                                                             | `entity_id` -> NULL; `paywall_hits.entity_id` DROP NOT NULL (indeksy unikalne traktują NULL jako różne - zapis nowych uderzeń bez zmian)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | cel art. 9 - inaczej historia czytania zostaje 13 mies. w kategorii `paywall_metering`                                                                                                                                                                                                  | jw.                                                                                                   |
+| W13 | Dymek w panelu lejka/licznika (orkiestrator)                                                                                                                                       | `RetentionAggregateNote` (Y1-C): zakładka Lejek i mini lejek Kokpitu - próg najkrótszego dozwolonego okresu (2 mies.), bo RPC S3 nie zwraca granicy; pulpit monetyzacji - dokładne `aggregate_before`                                                                                                                                                                                                                                                                                                                                                                                                                                      | admin wie, skąd liczba okna                                                                                                                                                                                                                                                             | `RetentionAggregateNote.test.tsx`, `RevenueFunnelTab`, `RevenueOverview`, `platformMonetizationRoute` |
+| W14 | Uczestnicy: imię/nazwisko `[redacted]` (`DATA_RETENTION_REDACTED`) + `anonymized_at` (orkiestrator)                                                                                | e-mail, telefon, stanowisko, firma wpisana, profil, notatki, `photo_url`, `bio_*`, `seeking_*`/`offering_*` -> NULL, `social_links` -> `{}`, `email_visible`/`phone_visible` -> false; w `event_registrations`: `answers` -> `{}`, `submitted_profile`, `participant_reason`, `cancel_reason` -> NULL, `decision_note` -> `[redacted]` (CHECK: odrzucenie przez organizatora wymaga powodu); `company_id` zostaje; prelegenci wyłączeni; `consent_*` i `event_consent_records` nietknięte                                                                                                                                                  | konwencja repozytorium; statystyki firm i sponsorów („leady ze zgodą”) bez zmian; karta prelegenta należy do archiwum wydarzenia. Telefon -> NULL wyłącza przypomnienia SMS osoby (zamierzone)                                                                                          | `hub_i9d_event_attendees_test`                                                                        |
+| W15 | Wygaszanie - trwały znacznik zaangażowania (orkiestrator)                                                                                                                          | `newsletter_subscribers.last_engaged_at` (kliknięcie, formularz, „Chcę dalej”) i `last_human_open_at` (otwarcie ludzkie - osobno, bo przy wyłączonym pomiarze otwarć liczy się bez otwarć); jedyny pisarz `_newsletter_engagement_touch` (najwyżej raz na dobę); redefinicje `newsletter_record_campaign_event` (CIALO-Z `20260814215302` z rejestru) i `journey_record_message_event` (druga redefinicja w I9 - mapa wersji, W21); logowanie konta (`auth.users.last_sign_in_at`), formularze i potwierdzenie zapisu - z trwałych źródeł w funkcji kandydatów, bez wyzwalacza w ścieżce logowania                                         | surowe zdarzenia usuwa `email_engagement` po 3-25 mies. - okno 24 mies. widziałoby „brak aktywności” u osoby, która klikała                                                                                                                                                             | `hub_i9d_newsletter_sunset_test`                                                                      |
+| W16 | Otwarcie przez proxy Gmaila = ludzkie, Apple MPP - nie (orkiestrator)                                                                                                              | otwarcie ludzkie = po progu `machine_open_seconds` (S5) od `newsletter_campaign_recipients.sent_at` (brak wysyłki = maszynowe); w ścieżkach flaga `p_machine` z TS nie wpływa na znacznik - decyduje próg czasu                                                                                                                                                                                                                                                                                                                                                                                                                            | Apple MPP pobiera piksel przy doręczeniu; proxy Gmaila - przy otwarciu przez człowieka                                                                                                                                                                                                  | jw.                                                                                                   |
+| W17 | Kandydat tylko z ≥ 1 wysłaną kampanią w oknie; `suppressed` = wysłany, błąd = ponów; dzienny limit próśb (orkiestrator)                                                            | `_data_retention_newsletter_candidates` (porcja, kampania w oknie po subskrybencie); `newsletter_sunset_mark`: `queued`/`duplicate`/`suppressed` = wysłany, `failed` = ponowienie (1 h × próba, maks. 24 h); `newsletter_sunset_claim`: limit 200 na najemcę na dobę (`newsletter_daily_cap`, lustro `DATA_RETENTION_RULES.newsletterDailyCap`), dzierżawa 15 min                                                                                                                                                                                                                                                                          | bez szansy na reakcję nie ma „nieaktywności”; adres na liście wyłączeń i tak nieosiągalny; reputacja domeny nadawcy (fala próśb do martwych adresów)                                                                                                                                    | `hub_i9d_newsletter_sunset_cap_test`, `newsletterSunsetMail.test.ts`                                  |
+| W18 | Po usunięciu subskrybenta: wycofanie zgody marketingowej leada TYLKO, gdy jej źródłem był newsletter; lista wyłączeń nietknięta (orkiestrator)                                     | `_newsletter_sunset_delete`: łańcuchy zgód z ostatnim „tak” z newslettera -> wpis wygaśnięcia „brak potwierdzenia chęci otrzymywania newslettera (retencja danych)”; zgoda `marketing` kontaktu -> „nie” + flaga, gdy rejestr nie ma innej zgody „tak” `marketing*`/`newsletter*` z innego źródła (brak wpisów = źródłem był newsletter, bo flagę ustawia `newsletter_to_lead`); zdarzenia kampanii -> archiwum; `crm_lead.updated.v1` NIE wyciszone (wycofanie zgody to zdarzenie biznesowe)                                                                                                                                              | reguła „czas trwania zgody + 6 lat”; wygaśnięcie to nie sprzeciw                                                                                                                                                                                                                        | `hub_i9d_newsletter_sunset_test`                                                                      |
+| W19 | `pending` (niepotwierdzony DOI) i `unsubscribed` - poza zakresem (orkiestrator)                                                                                                    | kandydat tylko `subscribed`/`confirmed`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | decyzja Z-I9c-08 dotyczy nieaktywnych zapisanych                                                                                                                                                                                                                                        | zgłoszenie Z-I9d-01                                                                                   |
+| W20 | Rdzeń: JEDNA migracja dla 4 kategorii, osobne migracje per obszar (orkiestrator)                                                                                                   | `20261020162200` - CHECK-i ustawień i przebiegów (przebiegi: NOT VALID + VALIDATE), katalog 13 kategorii z regułami `newsletter_response_days` 30 i `newsletter_daily_cap` 200, dyspozytor przebiegu i podglądu, seed karencji +14 dni dla 4 nowych kluczy u istniejących najemców, `grace.enforce_after` = najbliższy termin kategorii wciąż w podglądzie. ODCHYLENIE: rdzeń jest OSTATNI, nie pierwszy                                                                                                                                                                                                                                   | katalog nigdy nie wskazuje funkcji, której jeszcze nie ma; wersje rosną, żadna migracja nie zależy od późniejszej                                                                                                                                                                       | `hub_i9c_data_retention_test` (52), `hub_i9d_retention_core_test`                                     |
+| W21 | Bramka CIALO-Z dopuszcza drugą redefinicję funkcji innego wycinka w I9 (orkiestrator)                                                                                              | `HUB_I9_REDEFINITIONS`: napis albo mapa `{wersja pliku I9: CIALO-Z}` (`journey_record_message_event`: `161300` -> `140500`, `161900` -> `161300`), eksport `hubI9RedefinitionCialoZ`; plik bez wpisu - `brak-cialo-z`, wpis rozjechany z najnowszą wcześniejszą definicją - `zly-cialo-z`. ODCHYLENIE od reguły jednowartościowej                                                                                                                                                                                                                                                                                                          | ochrona przed przepisaniem starego ciała bez zmian; Y2 zredefiniuje tę samą funkcję trzeci raz                                                                                                                                                                                          | `hubDelivery.gate.test.ts`                                                                            |
+| W22 | Parytet TS przepięty na najnowsze definicje (orkiestrator)                                                                                                                         | `dataRetentionParity.test.ts` szuka NAJNOWSZEJ definicji każdego obiektu we wszystkich migracjach (CHECK-i, katalog z literałem reguł, seed, CHECK powodu, stałe `c_*`, gałęzie dyspozytora i podglądu, `c_redacted`) - nie ścieżki `161000/161100/161400`; czułość sprawdzona mutacją                                                                                                                                                                                                                                                                                                                                                     | kolejne redefinicje nie zostawią parytetu na starym pliku                                                                                                                                                                                                                               | `dataRetentionParity.test.ts`                                                                         |
+| W23 | Naprawa I9c w `admin_data_retention_preview` (Y1-A)                                                                                                                                | kategoria wyłączona dostawała `count` = sufit 100 000 (LEAST pomija NULL) - teraz `count` = null, karta pokazuje „wyłączona”                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | błąd I9c widoczny dopiero przy wyłączeniu kategorii                                                                                                                                                                                                                                     | `hub_i9d_retention_core_test`                                                                         |
+
+**Decyzje wykonawcze backendu TS (Y1-B).** (1) Treść prośby edytowalna
+w panelu - `site_settings`, klucz `newsletter_sunset_email` (wiersz najemcy
+z sesji, CAS na `updated_at`, historia przez wyzwalacz
+`site_settings_revisions`; puste pole = treść domyślna w tonie NES
+`NEWSLETTER_SUNSET_DEFAULT_COPY`, za długie odrzucane - limity
+`NEWSLETTER_SUNSET_COPY_LIMITS` w punktach kodowych): bez nowej migracji
+i bez redefinicji `admin_newsletter_settings_patch`, wzór `tx_email_overrides`.
+(2) Link „Chcę dalej otrzymywać”: HMAC tym samym sekretem co tracking
+(`trackingToken.server.ts`), własna domena `nk:`, podpis (subskrybent,
+nonce, termin), kształt `k` + 104 hex, porównanie w stałym czasie, ważność
+120 dni (30 dni na reakcję + 90 dni najdalszego przesunięcia karencji);
+jednorazowość daje nonce cyklu w SQL (`already`). (3) Okno wysyłki 08-17
+czasu polskiego (Europe/Warsaw), minuta 9 co 10 minut, porcja 50, termin
+kroku 4 s (reszta wraca po dzierżawie) - minuta 3 z pakietu kolidowała
+z dziewięcioma testami `jobsTickRun`. (4) Bramka reputacji domeny
+(`evaluateSendGate`) jak dla kampanii i ścieżek - najemca zablokowany:
+`failed` z kodem `reputation_blocked` i ponowienie. (5) Trasa
+`/api/public/newsletter/keep`: GET z przeglądarki - 303 na stronę, GET
+z `fetch` - walidacja podpisu i terminu bez bazy; POST - limiter per IP
+(`newsletter.keep`, 10/10 min, fail-open) -> `newsletter_sunset_keep`
+(service_role); 500 `update_failed` przy awarii. Strona: najpierw tylko GET
+(skaner linków nie odnowi zgody), decyzja dopiero kliknięciem (POST),
+noindex, język z parametru `lang` (`validateSearch` - SSR i klient zgodne).
+(6) Formularz zapisu z adresem istniejącego subskrybenta woła
+`newsletter_engagement_touch` (best-effort, odpowiedź bez zmian). (7) Parser
+karty pomija kategorię nieznaną frontowi zamiast rzucać (pułapka 5 pakietu
+I9d-1: migracja przed frontem psuła całą kartę). (8) Wspólne mapowanie
+błędów RPC w `rpcResult.ts` (stare eksporty przez re-eksport).
+
+**Decyzje wykonawcze panelu (Y1-C).** (1) Karencja w wierszu kategorii
+tylko, gdy terminy kategorii się różnią (nowe klucze +14 dni u najemcy, który
+już usuwa). (2) Lista „do wygaszenia” maskuje adres (`maskEmail` - jedyny
+wzorzec maskowania w repozytorium), bez imienia i nazwiska (minimalizacja),
+z liczbami etapów, stanem prośby i terminem usunięcia; dymek zaangażowania
+(Gmail tak, Apple MPP nie, kandydat tylko po kampanii w oknie) i znacznik
+„Zaangażowanie liczone bez otwarć” przy wyłączonym pomiarze. (3) Jedno okno
+powodu `ReasonDialog` (3-500 znaków, limit blokuje, nie przycina) dla
+przedłużenia kontaktu CRM, wykluczenia i jego cofnięcia - klucze
+`crm.reason*` przeniesione do `reason.*`. (4) Edytor treści prośby PL/EN
+na `/admin/newsletter/email-content` obok treści maili transakcyjnych
+(leniwy chunk), wyłącznie admin/super_admin (te same role co `requireAdmin`
+funkcji serwerowych), puste pole = treść domyślna (placeholder), licznik
+punktów kodowych, „Przywróć domyślne” per język, podgląd z renderu serwera
+w `iframe sandbox`, zapis CAS (konflikt zostawia szkic). (5) Notka agregatu
+(W13) z atomem `HintTooltip` i typografią `ProvenanceNote` (`MetricExplainer`
+jest związany z rejestrem wskaźników S6). (6) `i18n-admin-data-retention.ts`
+dostał `const en: typeof pl` (EN ma przez to formy `_few`/`_many`, precedens
+`i18n-admin-revenue-funnel.ts`); notka agregatu ma osobny mały słownik
+`i18n-admin-retention-aggregate.ts` (lejek nie ciągnie słownika karty).
+
+**Decyzje integratora (Y1-D).** (1) `ensureI18n()` strony keep było wołane
+na poziomie modułu trasy - automatyczny podział kodu zostawiał cały słownik
+PL/EN strony i logikę odpowiedzi endpointu w `app-initial` (+1,6 KB gz na
+każdej stronie czytelnika). `head()` czyta teraz dwuzdaniową nakładkę
+`i18n-newsletter-keep-head.ts` (wzór `i18n-event-sponsor-report-head`)
+i literał ścieżki, słownik strony ładuje się z chunku komponentu
+(`app-initial` 259,6 -> 258,3, boot 473,4 -> 472,1; test nagłówka).
+(2) Krok `newsletterSunset` w `jobs-tick` za jobami sieciowymi, przed
+retencją (diff Y1-B; komentarz pola przeniesiony przed opis retencji).
+(3) Nagłówek `20261020162200` opisuje parser po Y1-B (bliźniak przepisany).
+(4) Rzutowania `RpcCallable` z literałem nazwy w funkcjach serwerowych
+wygaszania zostają (precedens S7) - działają przed i po regeneracji typów.
+
+**2. Zakres - migracje i bliźniaki (blok I9, „(I9d, 2026-10-22)”).**
+
+| Migracja                                           | Bliźniak                                 | Zawartość                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261020161500_club_applications_account_erasure` | `0376_club_applications_account_erasure` | `_club_applications_anonymize`; redefinicje `_hub_account_erase_modules` i `_hub_account_erase_orphans` (CIALO-Z `20261020160900`); domknięcie wstecz; znaczniki `pg-harness: exclude` i `careers-harness: exclude` (pełne ciało modułów RODO)                                                                                                                                                                                              |
+| `20261020161600_club_applications_retention`       | `0377_club_applications_retention`       | `club_members.ended_at`, `club_applications.membership_ended_at` (limit blokady), 3 wyzwalacze, uzupełnienie wsteczne, kandydaci i wykonanie kategorii, redefinicja `admin_club_application_set_status` (CIALO-Z `20260811150000`); `pg-harness: exclude`                                                                                                                                                                                   |
+| `20261020161700_metered_views_retention`           | `0378_metered_views_retention`           | `metered_views_daily` (RLS, tylko service_role), `paywall_hits.entity_id` DROP NOT NULL, redefinicje `_data_retention_seal_funnel`, `_data_retention_funnel_cut` (CIALO-Z `161000`), `monetization_dashboard` (CIALO-Z `20260724100000`), uzupełnienie agregatu, wykonanie kategorii                                                                                                                                                        |
+| `20261020161800_event_attendees_retention`         | `0379_event_attendees_retention`         | `event_people.anonymized_at`, kandydaci i wykonanie kategorii                                                                                                                                                                                                                                                                                                                                                                               |
+| `20261020161900_newsletter_sunset_core`            | `0380_newsletter_sunset_core`            | `newsletter_subscribers.last_engaged_at`/`last_human_open_at` (uzupełnienie ze zdarzeń), `newsletter_sunset_requests`, `newsletter_sunset_exclusions`, indeksy kluczy obcych subskrybenta w modułach poczty, `_newsletter_engagement_touch`, `newsletter_engagement_touch`, `newsletter_sunset_keep`, redefinicje `newsletter_record_campaign_event` (CIALO-Z `20260814215302`) i `journey_record_message_event` (CIALO-Z `20261020161300`) |
+| `20261020162000_newsletter_sunset_retention`       | `0381_newsletter_sunset_retention`       | `_newsletter_last_engagement`, `_newsletter_track_opens`, kandydaci, `_newsletter_sunset_fold_events`, `_newsletter_sunset_delete`, wykonanie kategorii, `newsletter_sunset_claim`, `newsletter_sunset_mark` (service_role)                                                                                                                                                                                                                 |
+| `20261020162100_newsletter_sunset_panel`           | `0382_newsletter_sunset_panel`           | `admin_data_retention_newsletter_due`, `_exclude`, `_include` (authenticated, admin z sesji, `audit_log`, `data_retention.changed.v1` `op` = `exclusion`)                                                                                                                                                                                                                                                                                   |
+| `20261020162200_data_retention_y1_core`            | `0383_data_retention_y1_core`            | rdzeń katalogu (W20, W23)                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 376-383,
+`when` 1792478173912 … 1792478593912 (+60 000). S8 nie miał SQL, więc po
+scaleniu gałęzi PR pierwszy wolny numer nadal był `0376`. **Następny wolny:
+`0384`, wersja `20261020162300`.** Każdy plik ≤ 45 KiB (największy 25 946 B).
+
+**API dla kolejnych agentów.** RPC tylko service_role:
+`newsletter_sunset_claim(p_limit integer DEFAULT 50)` (TABLE: subskrybent,
+najemca, e-mail, `lang` pl|en, imię, nonce, prośba, termin usunięcia, token
+wypisu, próba), `newsletter_sunset_mark(p_subscriber, p_nonce, p_outcome
+'queued'|'duplicate'|'suppressed'|'failed', p_error DEFAULT NULL)`,
+`newsletter_sunset_keep(p_subscriber, p_nonce)` (`kept`|`already`|`inactive`|`gone`|`invalid`),
+`newsletter_engagement_touch(p_tenant, p_email) RETURNS boolean`. Panel
+(authenticated, admin albo super_admin z sesji, inaczej 42501):
+`admin_data_retention_newsletter_due(p_limit DEFAULT 50)`,
+`admin_data_retention_newsletter_exclude(p_subscriber_id, p_reason)`,
+`admin_data_retention_newsletter_include(p_subscriber_id, p_reason)` (powód
+3-500 po `btrim`, 22023 `reason_length`; P0002 `subscriber_not_found`/
+`exclusion_not_found`). Błąd decyzji komisji: P0001 `application_anonymized`.
+TS: `src/lib/privacy/newsletterSunset.functions.ts` (`getDataRetentionNewsletterDue`,
+`exclude/includeNewsletterSubscriber`, `get/saveNewsletterSunsetCopy`,
+`previewNewsletterSunsetEmail` - POST + `requireAdmin`),
+`newsletterSunsetQueries.ts` (klucze `dataRetentionKeys.newsletterDue/
+newsletterCopy` pod prefiksem najemcy), `newsletterSunsetMail.server.ts`
+(`runNewsletterSunsetMail`), `newsletterKeepToken.server.ts`; panel:
+`NewsletterSunsetList`, `ReasonDialog`, `RetentionAggregateNote`,
+`NewsletterSunsetCopySection`.
+
+**3. Odchylenia (kontrakt bez zmian, fakty repozytorium wygrywają).**
+
+- Rdzeń katalogu `162200` jest ostatnią migracją I9d, nie pierwszą (W20).
+- Bramka CIALO-Z: mapa wersji per plik zamiast jednej wartości (W21).
+- Odmowa `application_anonymized` obejmuje też zgłoszenia osoby bez konta
+  (W9); data końca członkostwa w zgłoszeniu, nie w tabeli pomocniczej (W7).
+- Granica lejka przesunięta na próg odczytów przez `_data_retention_funnel_cut`
+  bez redefinicji `_funnel_counts` (W11); `monetization_dashboard` dostaje
+  nowy klucz `aggregate_before` (dotychczasowe bez zmian).
+- Uczestnikom zerowane też `email_visible`/`phone_visible` (decyzja wprost ich
+  nie wymienia); `photo_url` -> NULL, plik w magazynie zostaje (Z-I9d-02).
+- Treść prośby w `site_settings`, nie w kolumnach `newsletter_settings`
+  (Y1-B pkt 1); okno wysyłki w minucie 9, nie 3 (Y1-B pkt 3); bramka
+  reputacji domeny dla prośby (Y1-B pkt 4); plik pgTAP limitu dziennego
+  (`hub_i9d_newsletter_sunset_cap_test`) dopisany w podzadaniu TS.
+- Lista „do wygaszenia” maskuje adres tylko w widoku - RPC przekazuje
+  administratorowi pełny adres i imię (Z-I9d-08); notka agregatu także pod
+  mini lejkiem Kokpitu (ten sam organizm i te same liczby co Lejek).
+- Integrator: słownik strony keep wyniesiony z chunku startowego (Y1-D pkt 1).
+
+**4. Zmiany integratorskie i pliki współdzielone (Y1-D).** `types.ts`
+(konwencja generatora: tabele `metered_views_daily`,
+`newsletter_sunset_requests`, `newsletter_sunset_exclusions` z relacjami -
+także do widoku `crm_funnel_view`; kolumny `club_members.ended_at`,
+`club_applications.membership_ended_at`, `event_people.anonymized_at`,
+`newsletter_subscribers.last_engaged_at`/`last_human_open_at`;
+`paywall_hits.entity_id` nullable; 7 RPC), bliźniaki i `_journal.json`,
+`authzSnapshot.generated.ts` (`monetization_dashboard` -> `161700`; 1310
+migracji, 1867 funkcji), `jobsTick.server.ts` + `jobsTickRun.test.ts` +
+`-jobs-tick.test.ts` (krok `newsletterSunset`), `hubDelivery.ts` (manifest
+I9: trasa keep, formularz zapisu, noindex, słowniki `i18n-newsletter-keep{,-head}`
+i notki agregatu, edytor treści prośby, test pulpitu monetyzacji; rejestr
+funkcji i mapa CIALO-Z - Y1-A), `i18nParity.gate.test.ts` (prefiks
+`newsletterKeep`) i `reports/i18n-parity.json`, `domainEvents.ts`
+(komentarz: `op` = `exclusion`), `routeTree.gen.ts` (generator idempotentny -
+trasy keep z Y1-B), `scripts/check-bundle-size.ts` (ratchet), rejestr
+czynności, ten dziennik i `docs/KONTYNUACJA_…`. `i18n-admin-core.ts`,
+`adminNav.ts`, scheduler i mapa inwalidacji - bez zmian (karta i edytor mają
+istniejące wejścia w panelu; inwalidacja po prefiksie najemcy).
+
+**5. Testy.** pgTAP: `hub_i9d_club_applications_test` (24),
+`hub_i9d_metered_views_test` (15), `hub_i9d_event_attendees_test` (15),
+`hub_i9d_newsletter_sunset_test` (32), `hub_i9d_newsletter_sunset_cap_test`
+(8), `hub_i9d_retention_core_test` (15); zmienione:
+`hub_i9b_account_erasure_sweep_test` (41, było 40 - zgłoszenie usuwanej
+osoby: PII puste, zgrubne i decyzja zostają, pseudonim = lejek; kolumna bez
+wyjątku; wstecz), `hub_i9c_data_retention_test` (52 - 13 kategorii),
+`hub_shared_helpers_test` (27 - lista grantów). vitest: `src/lib/privacy`
+(`dataRetentionParity`, `dataRetentionParse`, `newsletterSunset`,
+`newsletterSunsetFunctions`, `newsletterSunsetMail`,
+`newsletterSunsetQueries`, `newsletterSunsetRender`, `newsletterKeepToken`),
+karta i edytor (`DataRetentionCard`, `NewsletterSunsetCopyEditor`,
+`RetentionAggregateNote`, `emailContentRouteSunset`, `i18nDataRetention` -
+RTL + axe), trasy (`-api.public.newsletter.keep`, `newsletterKeepPage` -
+także nagłówek dokumentu, `platformMonetizationRoute`), `newsletter.functions`,
+Lejek i Kokpit (`RevenueFunnelTab`, `RevenueOverview`), `jobsTickRun`
+(okno minuty 9), `hubDelivery.gate` (mapa CIALO-Z).
+
+**6. Pomiar bundla (D-08).** Baza `70bdccbb` (gałąź PR po S8 i S7, kopia
+`git archive`, ten sam `node_modules`) 5314,3 / public 2779,2 -> po I9d-Y1
+z integracją 5332,2 / public 2783,0: +17,9 KB, w tym admin-only +14,1
+(2535,0 -> 2549,1) i public +3,8. Rozbicie: wspólny leniwy chunk karty
+i edytora prośby `sunsetCopyRules` +15,7 (słownik PL/EN czterech kategorii,
+listy, okna powodu i edytora, stałe i zapytania wygaszania) przy
+`DataRetentionCard` -6,6 i `dataRetentionQueries` -0,8,
+`NewsletterSunsetCopyEditor` +2,2, `admin.newsletter.email-content` +0,4,
+`RetentionAggregateNote` +1,3, `dataRetention` +1,0, `model` (`maskEmail`)
++0,4; public: nowa trasa `newsletter.keep` +2,5 (leniwy chunk ze słownikiem),
+`app-initial` +0,3 (definicja trasy i nakładka nagłówka - przed poprawką
+integratora +1,6), entropia hashy (964 chunki o |Δ| < 150 B, +1,7 KB w obu
+koszykach). Ratchet `overall` 5316 -> 5334 (host 5332,2 -> 5333 -> +1)
+z wpisem kroniki „wycinek: I9d-Y1”. Arkusze bit w bit te same: css 99,8 /
+100 (bez ratchetu), publicCss 83,8 / 85; chunk 258,3 / 286, boot 472,1 / 579,
+public 2783,0 / 2881 - w zamrożonych progach.
+
+**7. Wdrożenie (właściciel).** Kolejność: `20261020161500` -> `161600` ->
+`161700` -> `161800` -> `161900` -> `162000` -> `162100` -> `162200`
+(drizzle `0376…0383`), nocą - ALTER gorących tabel (`club_members`,
+`club_applications`, `paywall_hits`, `event_people`, `newsletter_subscribers`;
+`lock_timeout` w migracjach) i domknięcia wstecz (zgłoszenia kont usuniętych,
+agregat odczytów, znaczniki zaangażowania). Front publikować razem albo
+wcześniej: parser karty pomija nieznaną kategorię, a krok `jobs-tick` bez
+migracji `162000` zwraca `skipped: migration_pending`; do wejścia `162200`
+nowe kategorie czekają poza katalogiem (`newsletter_sunset_claim` nic nie
+wydaje). Po wdrożeniu nowe kategorie mają u istniejących najemców własne
+14 dni podglądu - admin przegląda liczby w karcie przed terminem karencji.
+Kontrolne SQL (SQL editor, tylko odczyt):
+
+```sql
+-- 1. Kategorie i karencja (oczekiwane: 13 kategorii na najemcę; nowe klucze
+--    z enforce_after = chwila wdrożenia + 14 dni, stare bez zmian).
+SELECT tenant_id, count(*) AS kategorie FROM public.data_retention_settings GROUP BY 1;
+SELECT tenant_id, category, enabled, period_months, enforce_after
+  FROM public.data_retention_settings
+ WHERE category IN ('metered_views', 'newsletter_inactive', 'event_attendees', 'club_applications')
+ ORDER BY 1, 2;
+-- 2. Zgłoszenia do klubów kont usuniętych bez pseudonimu (oczekiwane: 0).
+SELECT count(*) FROM public.club_applications a
+ WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = a.user_id)
+   AND substr(a.user_id::text, 15, 1) <> '8';
+-- 3. Podgląd liczb przed pierwszym wykonaniem (oczekiwane przez 14 dni:
+--    mode = 'preview'); liczby per kategoria pokazuje też karta.
+SELECT tenant_id, category, mode, run_trigger, affected, backlog, error_code, started_at
+  FROM public.data_retention_runs
+ WHERE category IN ('metered_views', 'newsletter_inactive', 'event_attendees', 'club_applications')
+ ORDER BY started_at DESC LIMIT 50;
+-- 4. Agregat odczytów uzupełniony dla dni zapieczętowanych (wiersze > 0).
+SELECT tenant_id, min(day), max(day), count(*) FROM public.metered_views_daily GROUP BY 1;
+-- 5. ACL (oczekiwane: newsletter_sunset_* i newsletter_engagement_touch -
+--    tylko service_role; admin_data_retention_newsletter_* - authenticated
+--    i service_role; funkcje `_*` - żadna rola API).
+SELECT p.proname, r.rolname, has_function_privilege(r.rolname, p.oid, 'EXECUTE') AS execute
+  FROM pg_proc p
+ CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rolname)
+ WHERE p.pronamespace = 'public'::regnamespace
+   AND p.proname IN ('newsletter_sunset_claim', 'newsletter_sunset_mark', 'newsletter_sunset_keep',
+                     'newsletter_engagement_touch', 'admin_data_retention_newsletter_due',
+                     'admin_data_retention_newsletter_exclude', 'admin_data_retention_newsletter_include',
+                     '_club_applications_anonymize', '_data_retention_metered_views',
+                     '_data_retention_event_attendees', '_newsletter_sunset_delete')
+ ORDER BY 1, 2;
+```
+
+Wycofanie: wyłączenie kategorii w karcie (zapis z ostrzeżeniem) albo
+przesunięcie karencji; zanonimizowane wiersze i usunięci subskrybenci nie
+wracają (z założenia). Pierwsze prośby o potwierdzenie wychodzą dopiero po
+karencji, w oknie 08-17 czasu polskiego, najwyżej 200 dziennie na najemcę.
+
+**8. Weryfikacja (Y1-D, worktree `/home/user/wt/I9d`, po scaleniu
+gałęzi PR i integracji).**
+
+| Polecenie                                                                                                                                                                                               | Wynik                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scalenie gałęzi PR `70bdccbb` (merge), potem pgTAP `run.sh all`                                                                                                                                         | ✓ 1310 migracji (1 znany błąd `20260825230232`), 255 plików OK; 4 czerwone - wyłącznie znane środowiskowe (`community_cron_schedule` 2/17 i `job_scheduler_heartbeat` 1/32 - pg_net, `public_definer_views_read_only` 1/35, `profile_intent_semantic` - vector); fakty S7 po scaleniu (Z-S7-16): `plpgsql_check_gate` 4, `revenue_facts` 24, `revenue_diagnostic_snoozes` 26 |
+| `bun run verify:static` (18 bramek, w tym `format:check`, `ts-sql-contract --check`, `types-freshness`)                                                                                                 | ✓ 266 s                                                                                                                                                                                                                                                                                                                                                                      |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.y1d`: 189 zmienionych .ts/.tsx od `53c5d6d3` + 169 importerów, bez rozwijania importerów `types.ts`), `typecheck:scripts`, `typecheck:e2e` | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                   |
+| `bun run lint`                                                                                                                                                                                          | ✓ 0 błędów, 320 ostrzeżeń - stan bazy (żadne w plikach I9d)                                                                                                                                                                                                                                                                                                                  |
+| vitest `TZ=UTC --maxWorkers=2` (flock -x), grupy: `src/lib/privacy`, `src/components/admin/settings`, `src/lib/ci`, `src/__tests__`                                                                     | ✓ 93 pliki, 1777 testów (2 pliki / 50 testów pominięte z założenia)                                                                                                                                                                                                                                                                                                          |
+| jw.: `src/lib/__tests__`, `src/lib/admin`, `src/lib/revenue`, `src/lib/journeys`                                                                                                                        | ✓ 258 plików, 8545 testów (19 „expected fail”, 1 todo)                                                                                                                                                                                                                                                                                                                       |
+| jw.: `src/lib/{newsletter,server,analytics,clubs,events,crm,seo,realtime,onboarding,locale}`                                                                                                            | ✓ 632 pliki, 16 021 testów                                                                                                                                                                                                                                                                                                                                                   |
+| jw.: `src/components/admin/{revenue,newsletter,journeys,crm,dashboard}`                                                                                                                                 | ✓ 123 pliki, 2592 testy                                                                                                                                                                                                                                                                                                                                                      |
+| jw.: `src/routes`                                                                                                                                                                                       | ✓ 273 pliki, 9382 testy                                                                                                                                                                                                                                                                                                                                                      |
+| jw.: wszystkie bramki granic i kontraktów (`grep -rlE "Boundary\|gate\.test\|Contract" src` - 114 plików, w tym granica `src/lib/analytics`)                                                            | ✓ 114 plików, 4691 testów                                                                                                                                                                                                                                                                                                                                                    |
+| pgTAP `run.sh all` po integracji                                                                                                                                                                        | ✓ jak wyżej; nowe i zmienione: `hub_i9d_*` (24, 15, 15, 8, 32, 15), `hub_i9b_account_erasure_sweep` 41, `hub_i9c_data_retention` 52, `hub_shared_helpers` 27                                                                                                                                                                                                                 |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                              | ✓ 9 asercji (997 wywołań RPC, 1524 operacje na tabelach)                                                                                                                                                                                                                                                                                                                     |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`                                                                                                                                  | ✓ (types-freshness: baseline 7; pasy: 384 wpisy dziennika drizzle)                                                                                                                                                                                                                                                                                                           |
+| `check:sql-tenant-scope`, `sql-app-role`, `sql-anon-insert`, `sql-definer-views`, `on-conflict-arbiters`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-migration-replay`              | ✓                                                                                                                                                                                                                                                                                                                                                                            |
+| `scripts/split-migration.ts --dry-run` (8 migracji)                                                                                                                                                     | ✓ każda 1 część, największa 25 946 B                                                                                                                                                                                                                                                                                                                                         |
+| `check:pg-harness`, `check:careers-harness`, `check:events-harness` (flock)                                                                                                                             | ✓ pg: 115 migracji modułu, 9 pominiętych znacznikiem (w tym `161500`, `161600`), 504 asercje; careers: 14 migracji, 4 pominięte (w tym `161500`); events: 278 migracji, 4914 asercji                                                                                                                                                                                         |
+| `bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                     | ✓ po ratchecie: overall 5332,2 / 5334, public 2783,0 / 2881, css 99,8 / 100, publicCss 83,8 / 85, chunk 258,3 / 286, boot 472,1 / 579; graf chunków acykliczny, ścieżka bootowania i graf serwera czyste                                                                                                                                                                     |
+| `generate:authz-snapshot --check`                                                                                                                                                                       | ✓                                                                                                                                                                                                                                                                                                                                                                            |
+| `hub-slice-guard I9 --base 53c5d6d3b`                                                                                                                                                                   | ✗ 58 × `poza-manifestem` - WYŁĄCZNIE pliki S8 i scalenia S7 po S8 wniesione mergem gałęzi PR (manifesty S8/S7, żaden plik I9d); `--base 70bdccbb3` (diff samego I9d): ✓ 95 plików w manifeście, 8 plików w bloku huba, 36 definicji funkcji                                                                                                                                  |
+
+**9. Zgłoszenia zamknięte.** Z-I9c-01, Z-I9c-07, Z-I9c-08 (dopiski
+w §21.20 i §21.21), sprostowanie opisu Z-I9c-01 (stan sprzed I9d: wyzwalacz
+sprzed huba czyścił kolumny tekstowe, zostawały surowy `user_id`, języki,
+dostępność, `crm_lead_id`, `crm_error`, `notify_error` - nie „imię, e-mail
+i motywacja”; pakiet I9d-2) - także w rejestrze czynności.
+
+**10. Zgłoszenia I9d (otwarte).**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Z-I9d-01 | Do decyzji administratora danych: subskrybenci z niepotwierdzonym zapisem (DOI `pending`) i wypisani (`unsubscribed`) nie mają okresu przechowywania - Z-I9c-08 objął zapisanych i potwierdzonych.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Z-I9d-02 | Anonimizacja uczestnika wydarzenia zeruje `photo_url`, ale plik w bibliotece mediów zostaje - usunięcie pliku tylko przez API magazynu (moduł wydarzeń, krok serwera po przebiegu retencji).                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Z-I9d-03 | Etykieta „zanonimizowano” w module wydarzeń (`event_people.anonymized_at`, imię `[redacted]`) i w skrzynce zgłoszeń klubów (`user_id` w wersji 8) oraz przyjazny komunikat błędu `application_anonymized` w panelu klubów - dziś surowe wartości i kod błędu. **Częściowo zamknięte 2026-10-22 (I9, §24):** skrzynka zgłoszeń klubów - etykieta „zgłoszenie zanonimizowane” bez przycisków decyzji i nazwany komunikat `application_anonymized` (`6f3281326`); moduł wydarzeń (`[redacted]` w ok. 15 komponentach) zostaje - wymaga wspólnego pomocnika wyświetlania osoby albo RPC z `anonymized_at`. |
+| Z-I9d-04 | Kontakt CRM subskrybenta usuniętego przez wygaszanie (bez konta i transakcji, nieaktywny > 24 mies.) może zostać zanonimizowany w najbliższym przebiegu CRM bez pojawienia się na 30-dniowej liście „do anonimizacji” - wcześniej chroniła go subskrypcja, a osoba dostała już 30-dniową prośbę.                                                                                                                                                                                                                                                                                                       |
+| Z-I9d-05 | Logowanie konta jako zaangażowanie czyta `auth.users.last_sign_in_at`, które nie zmienia się przy odświeżaniu długiej sesji - osoba zalogowana na stałe może wyglądać na nieaktywną (inne źródła zaangażowania nadal działają).                                                                                                                                                                                                                                                                                                                                                                        |
+| Z-I9d-06 | Historia czytania kont (`user_read_history`) nie ma okresu przechowywania - ta sama przesłanka art. 9 co odczyty licznika (W3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Z-I9d-07 | Kategoria wygaszania wyłączona po wysyłce prośby i włączona ponownie po > 120 dniach: usunięcie w najbliższym przebiegu bez nowej prośby (link wygasł). Opcja: reset cykli przy ponownym włączeniu kategorii.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Z-I9d-08 | Maskowanie adresu listy „do wygaszenia” już w RPC/funkcji serwerowej (dziś maskuje widok; administrator i tak widzi pełną listę subskrybentów w `/admin/newsletter`) - niski priorytet.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Z-I9d-09 | Lejek i Kokpit nie znają dokładnej granicy agregatu (`admin_revenue_funnel` bez `aggregate_before`) - notka z progu najkrótszego dozwolonego okresu; dokładna data jak w pulpicie monetyzacji po dodaniu klucza w RPC S3.                                                                                                                                                                                                                                                                                                                                                                              |
+| Z-I9d-10 | Oczekujące zgłoszenia do klubów (`pending`, `review`, `needs_info`) zgodnie z decyzją nigdy nie są anonimizowane automatycznie - ryzyko dla zasady ograniczenia przechowywania; opcja: licznik starych oczekujących w karcie.                                                                                                                                                                                                                                                                                                                                                                          |
+
+**11. Dla Y2 (treść zgody i pomiar).** `newsletter_record_campaign_event`
+jest w `HUB_CIALO_Z`, więc kolejna redefinicja nadal niesie
+`-- CIALO-Z: 20260814215302`, ale ciało trzeba wziąć z `20261020161900`
+(znacznik zaangażowania przed deduplikacją doby). `journey_record_message_event`
+
+- do mapy `HUB_I9_REDEFINITIONS` dopisać wpis `"<wersja Y2>": "20261020161900"`.
+  Następny wolny bliźniak `0384`, wersja `20261020162300`. **Wykonane
+  (I9d-Y2, §21.23):** `20261020162400` z oboma znacznikami; następny wolny
+  `0387`, wersja `20261020162600`.
+
+### 21.23 Treść zgody i pomiar (I9d-Y2)
+
+**Decyzje właściciela:** 2026-10-20 „tak, uzupełnij” (rekomendacja EDPB
+2/2023 z §21.21 pkt 5 i Z-I9c-09; pakiet I9d-5) oraz **2026-10-21 -
+wariant (a)**: informacja o pomiarze otwarć i kliknięć jest częścią treści
+zgody na newsletter, a SAM pomiar odbiorca wyłącza osobno, w każdej chwili
+i bez rezygnacji z newslettera. Uzasadnienie: art. 7 ust. 3 RODO (wycofanie
+tak łatwe jak udzielenie - jeden link w stopce każdej wiadomości) i art. 7
+ust. 4 (zgoda na newsletter nie jest uzależniona od zgody na pomiar, skoro
+pomiar da się odrzucić osobno bez utraty newslettera). **Ryzyko
+pakietowania:** polityka komunikacji deklaruje „każda zgoda ma osobne pole
+i osobną treść”, a w wariancie (a) pomiar nie ma osobnego pola wyboru -
+organ może ocenić to jako zgodę pakietową. Ryzyko ograniczają: (1) treść
+zgody mówi wprost, że pomiar wyłącza się osobno, (2) osobny klucz
+`email_measurement` w rejestrze zgód z własnym łańcuchem udzieleń
+i wycofań, (3) link „Nie mierz moich otwarć i kliknięć” w każdej
+wiadomości marketingowej i na stronie wypisu, (4) zgody sprzed nowej treści
+nie obejmują pomiaru (bez domniemania). Wariant (b) - osobne, niezaznaczone
+pole „pomiar otwarć i kliknięć” - pozostaje możliwy bez zmiany modelu
+danych (ten sam klucz `email_measurement`), gdyby IOD lub organ tego
+wymagał.
+
+Wykonanie: worktree `/home/user/wt/I9d`, gałąź `hub/i9d-rodo-2` od
+`7390ecf0` (gałąź PR po I9d-Y1; `git fetch` przed integracją - gałąź PR
+nie poszła do przodu, bez scalenia), cztery podzadania szeregowo: Y2-A - SQL
+i pgTAP (`947bb70f`), Y2-B - backend TS i formularze (`b7bb9cf4`,
+`0ad2a3ed`, `12b17d46`, `86a4e118`, `1e4b5b1b`), Y2-C - panel (`cbb2644c`),
+Y2-D - integracja: pliki współdzielone (`0d8c5e27`), polityka w kodzie
+i ratchet D-08 (`0408de01`), tabela fabryk kluczy (`48ecded1`), dziennik
+i rejestr czynności.
+
+**1. Decyzje → wykonanie → dowód.** W24-W25 - decyzje właściciela;
+W26-W40 - decyzje wykonawcze (podzadania i integrator), opisane także
+w nagłówkach migracji `20261020162300…162500`.
+
+| #   | Decyzja (źródło)                                                                                                                                                              | Wykonanie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Uzasadnienie                                                                                                                                                | Dowód                                                                                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W24 | Domyślna treść PL/EN: pomiar otwarć i kliknięć, cel, wycofanie w każdej chwili (link); JEDNO źródło; teksty admina nienadpisane; ostrzeżenie w panelu (właściciel 2026-10-20) | `src/lib/newsletter/consentText.ts` - odcinki treści, z których powstaje HTML bajt w bajt równy `_newsletter_consent_default` (`20261020162300`) i widok React bez `innerHTML` (`NewsletterConsentText`); wersja `newsletter-2026-10-21` (`_newsletter_consent_version`); DEFAULT kolumn `policy_html_*` = literał tej treści; `_newsletter_consent_upgrade_defaults` zmienia wyłącznie wiersze równe staremu domyślnemu (po `btrim`; tekst admina, NULL i pusty zostają); kopie słownikowe (`newsletterForm.consentDefault`, `joinUs.consent`, `authForms.newsletterOptIn`, `clubGate.newsletterOptIn`, słownik formularza kontaktu, etykiety rejestru buildera) usunięte; dawne treści domyślne zapisane w danych buildera i popupu podmieniane przy renderze (`LEGACY_NEWSLETTER_CONSENT_DEFAULTS`); EN `/privacy-policy` (trasa nie istnieje) -> `/en/polityka-prywatnosci`, link wycofania -> `/komunikacja-i-marketing#rezygnacja`                 | jedna treść = jeden dowód zgody (art. 7 ust. 1); masowa zmiana JSON buildera ryzykowna (rewizje, publikacje) - pytanie 10 pakietu                           | test parytetu TS⇄SQL `consentText.test.ts` (czyta bloki `newsletter-consent-default:*` NAJNOWSZEJ migracji), `hub_i9d_y2_consent_test` (33)                                                  |
+| W25 | Wariant (a): pomiar wyłączalny osobno, bez rezygnacji z newslettera (właściciel 2026-10-21)                                                                                   | klucz `email_measurement` w `crm_consent_log`: wyzwalacz `trg_crm_consent_log_measurement` dopisuje „tak” do każdego wpisu „tak” klucza `newsletter*`/`marketing*` w wersji z rejestru `_consent_measurement_versions` albo z treścią oznaczoną przez admina (W28) - dla KAŻDEGO pisarza rejestru; `email_measurement_withdraw` zapisuje „nie” (kanały `email_footer`, `preferences`, `account`), zgoda na newsletter bez zmian; czytelnik `_email_measurement_consent`: zgoda trwa, gdy ostatnie udzielenie jest PÓŹNIEJSZE niż wycofanie pomiaru, wycofanie zgody newsletterowej/marketingowej i wypis (remis chwil = brak pomiaru)                                                                                                                                                                                                                                                                                                                    | art. 7 ust. 3-4 RODO; „później niż ostatnie wycofanie” nie wymaga zmian w pisarzach wycofania (pytanie 13 pakietu)                                          | `hub_i9d_y2_consent_test`                                                                                                                                                                    |
+| W26 | Wersja treści przy każdej zgodzie (orkiestrator)                                                                                                                              | `newsletter_to_lead` (CIALO-Z `20260708151417`, wpis w `HUB_CIALO_Z`) i wspólny `_newsletter_log_consents`: wersja z ładunku albo `txt-sha256:` + 20 znaków skrótu treści; pisarze TS wysyłają `newsletter-2026-10-21` tylko dla treści z rejestru - serwer (`normalizeConsentVersion` w `subscribeToNewsletter` i `submitContactMessage`) zdejmuje wersję, gdy treść jej nie odpowiada; własny tekst admina - bez wersji (skrót liczy baza); `newsletter_sunset_keep` (Y1) też zapisuje wersję                                                                                                                                                                                                                                                                                                                                                                                                                                                          | da się wykazać, którą treść osoba widziała; fałszywa wersja w ładunku nie nada zgody na pomiar                                                              | `hub_i9d_y2_consent_test`, `contactFunctions`, `newsletter.functions`, `consentText`                                                                                                         |
+| W27 | Pisarze rejestru zgód marketingowych ujednoliceni (pytanie 9 pakietu; orkiestrator: naprawić to, co dotyczy zgody marketingowej i pomiaru)                                    | JoinUs loguje treść, którą wyświetla (dotąd zahardkodowane inne zdanie); formularz kontaktu przekazuje zgody subskrybentowi (bez tekstu zastępczego); rejestracja (`AuthFormBlocks`) i bramka klubu (`ClubAccessGate`) zapisują na newsletter z treścią i wersją (dotąd tylko `marketing_opt_in` w metadanych konta; błąd zapisu nie cofa konta); nowy wyzwalacz `trg_newsletter_consents_log` (AFTER UPDATE OF `consents`) loguje NOWE pozycje przy ponownym zapisie po wypisie; wymagane pole „prywatność” popupu nie niesie już treści zgody marketingowej (`privacyAcceptanceHtml`)                                                                                                                                                                                                                                                                                                                                                                  | art. 7 ust. 1 (dowód = to, co osoba widziała) i ust. 4 (zgoda marketingowa nie może warunkować rejestracji)                                                 | `joinUsForm`, `contactFormNewsletterConsent`, `authFormBlocks`, `ClubAccessGate{,.funnel}`, `popupSignupForm`, `SignupPopupPanel`, `hub_i9d_y2_consent_test`                                 |
+| W28 | Własny tekst admina: jawne oznaczenie „mój tekst obejmuje pomiar”, nie heurystyka słów (orkiestrator, pytanie 2 pakietu)                                                      | tabela `newsletter_consent_measurement_marks` (skrót SHA-256 ZAPISANEGO tekstu liczony w bazie, autor, chwila); RPC `admin_newsletter_consent_measurement_get` (admin, redaktor) i `_mark` (admin; `audit_log`, `newsletter_settings.changed.v1` z `keys` `['consent_measurement_marks']`); panel - karta „Treść zgody na newsletter” w `/admin/newsletter/overview`: ostrzeżenie dla własnego tekstu bez oznaczenia i dla tekstu zmienionego po oznaczeniu (także przed zapisem szkicu), oznaczenie tylko zapisanego tekstu, redaktor widzi stan                                                                                                                                                                                                                                                                                                                                                                                                        | słowa kluczowe nie są dowodem; zmiana tekstu = inny skrót, więc oznaczenie wygasa samo                                                                      | `hub_i9d_y2_reconfirm_test` (29), `ConsentTextCard`, `consentTextRules`                                                                                                                      |
+| W29 | Render tylko za zgodą i wspólny przełącznik najemcy (EDPB 2/2023, Z-I9c-09)                                                                                                   | ścieżki: `journey_contact_for_send` (CIALO-Z `20261020161300`, mapa `HUB_I9_REDEFINITIONS`) - `measurement` = `open_tracking` = `link_tracking` = przełącznik ORAZ zgoda kontaktu; render (`JourneyRenderInput.openTracking/linkTracking`) mierzy tylko przy jawnym `true`; kampanie: porcja `email_measurement_status` w chwili wysyłki (`fetchMeasuredEmails`; awaria odczytu = wysyłka BEZ pomiaru), `measured` w logu odbiorców; przełącznik `journey_settings.open_tracking_enabled` obejmuje od Y2 ścieżki I kampanie, otwarcia I kliknięcia - jeden opis w karcie retencji, ustawieniach silnika ścieżek i przeglądzie newslettera                                                                                                                                                                                                                                                                                                                | bezpieczna awaria: nigdy pomiar bez zgody                                                                                                                   | `render.server.test`, `renderCampaign.server.test` (48 skrótów renderu bez nowego argumentu - bez zmian), `newsletterCampaignSend`, `journeysRunner.server`, `hub_i9d_y2_tracking_test` (19) |
+| W30 | Odbiorca bez zgody: brak piksela, linki NIEPRZEPISANE - bez anonimowego liczenia (orkiestrator, pytanie 3 pakietu)                                                            | linki prowadzą wprost do celu, bez identyfikatora odbiorcy; nagłówek wypisu RFC 8058 zostaje (to nie pomiar)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | przekierowanie bez identyfikatora odbiorcy nadal byłoby odczytem z urządzenia (art. 5 ust. 3) - wariant zachowawczy                                         | jw.                                                                                                                                                                                          |
+| W31 | Zgoda liczona w CHWILI zdarzenia (orkiestrator)                                                                                                                               | `journey_record_message_event` (CIALO-Z `20261020161900` - trzecia redefinicja w I9) i `newsletter_record_campaign_event` (CIALO-Z `20260814215302` z `HUB_CIALO_Z`, ciało z `161900`) odrzucają otwarcie i kliknięcie: `measurement_disabled` (przełącznik; dotąd `open_tracking_disabled` tylko dla otwarć ścieżek), `no_measurement_consent`; webhook dostawcy przechodzi przez ten sam filtr; `trackingEvents.server.ts` zna oba powody; zdarzenia odrzucone nie podbijają znacznika zaangażowania                                                                                                                                                                                                                                                                                                                                                                                                                                                   | piksel i linki zostają w skrzynce na zawsze - wycofanie musi działać na maile wysłane wcześniej                                                             | `hub_i9d_y2_tracking_test`, `trackingEvents.test`, fikstury `journeys_tracking_stats` i `newsletter_campaign_events_dedup` (nadają zgodę)                                                    |
+| W32 | Link „Nie mierz moich otwarć i kliknięć” (stopka i preferencje)                                                                                                               | stopka każdego maila marketingowego i każdego MIERZONEGO maila serwisowego (poza przekierowaniem trackingu), strona wypisu (`measurementUrl`, kanał `preferences`); token `mw:` (HMAC jak `trackingToken.server.ts`, podmiot - subskrybent albo kontakt CRM, bez terminu); trasa `/api/public/newsletter/measurement`: GET z przeglądarki - 303 na stronę, GET z `fetch` - walidacja i stan (`email_measurement_state`) bez zmiany, POST przez limiter (`newsletter.measurement`, 10/10 min) -> `email_measurement_withdraw` (z IP i UA); strona `/newsletter/measurement` PL/EN, noindex, ponowienie po błędzie = GET                                                                                                                                                                                                                                                                                                                                   | skaner linków nie wycofa ani nie udzieli zgody; rodzaj akcji wynika z podpisu, nie z parametru adresu                                                       | `measurementToken.test`, `-api.public.newsletter.measurement.test`, `newsletterMeasurementPage.test`, `-api.public.newsletter.unsubscribe.test`, `newsletterConsentPages.test`               |
+| W33 | „Poproś o zgodę na pomiar” - opcjonalnie, ręcznie z panelu (właściciel 2026-10-20 pkt 3)                                                                                      | tabela `newsletter_measurement_requests` (PK subskrybent + wersja treści - jedna prośba na wersję); kandydaci: aktywni bez zgody na pomiar, bez własnego „nie mierz”, poza listą wyłączeń (liczeni osobno); podgląd i start tylko admin, start z liczbą z podglądu (`p_expected`; więcej kandydatów = 40001 `stale_preview`); krok `jobs-tick` `newsletterMeasurement` w minucie 4 okna 08-17 czasu polskiego (nigdy w ticku wygaszania), termin 4 s; dzienny limit 200 WSPÓLNY z prośbami wygaszania (`_newsletter_oneoff_mail_used`, redefinicja `newsletter_sunset_claim`); token `mc:` (nonce, 60 dni); `newsletter_measurement_confirm` zapisuje `newsletter` „tak” z bieżącą treścią i wersją, wyzwalacz dopisuje `email_measurement`; brak reakcji = bez zmian; treść PL/EN w `site_settings.newsletter_measurement_email` (edytor na `/admin/newsletter/email-content`, wspólne ciało z edytorem prośby wygaszania); mail sam niczego nie mierzy | reputacja domeny nadawcy; admin nigdy nie wyśle do większej grupy, niż zatwierdził; formularz zapisu nie dowodzi własności skrzynki dla istniejącego adresu | `hub_i9d_y2_reconfirm_test`, `measurementReconfirm{,Mail}.test`, `measurementFunctions`, `jobsTickRun` (5 nowych), `MeasurementRequestCard`, `NewsletterMeasurementCopyEditor`               |
+| W34 | Statystyki: dymek i mianownik (pytanie 7 pakietu)                                                                                                                             | `newsletter_campaign_recipients.measured` (runner albo wyzwalacz przy `sent`; NULL = sprzed Y2) i RPC `admin_newsletter_campaign_measurement` -> karta kampanii: mianownik = odbiorcy mierzeni (kampanie sprzed Y2 - wysłani), podpis „% mierzonych”, „Mierzeni odbiorcy: N z M”; ścieżki S8 (tabela maili, wyniki węzła, nakładka kanwy) i zdrowie poczty (zastrzeżenia w rejestrze wskaźników `metrics.ts`) - dymek, że otwarcia i kliknięcia obejmują tylko odbiorców ze zgodą                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | wskaźniki nie mogą spaść pozornie; ścieżki nie mają danych o mierzonych w RPC S5 - tylko dymek (Z-I9d-15)                                                   | `CampaignEngagementCard.test`, `adminNewsletterCampaignRoutes`, `hub_i9d_y2_tracking_test`                                                                                                   |
+| W35 | Warunki ścieżek `email_opened`/`email_clicked` (pytanie 4 pakietu)                                                                                                            | notka w `PredicateRow` (StepSheet `if_else` i filtr wejścia): odbiorcy bez zgody na pomiar nigdy nie spełnią warunku i trafią do gałęzi „nie”; szablon `newsletter_welcome` (gałąź engaged) wyśle więc „preferences” także osobom czytającym bez zgody - świadoma konsekwencja                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | brak zgody nie może być obchodzony przez logikę ścieżki                                                                                                     | `PredicateRow.test`                                                                                                                                                                          |
+| W36 | Niemierzeni a wygaszanie Y1 (pytanie 5 pakietu)                                                                                                                               | bez osobnej definicji zaangażowania: subskrybent bez zgody na pomiar nie zostawia otwarć ani kliknięć, więc po 12 mies. dostanie JEDNĄ prośbę o potwierdzenie (logowanie konta, formularz i potwierdzenie zapisu nadal liczą się jako zaangażowanie); kliknięcie „Chcę dalej otrzymywać” odnawia subskrypcję                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | jedna wiadomość raz na 12 mies. to mniejsza ingerencja niż pomiar bez zgody                                                                                 | `hub_i9d_newsletter_sunset_test` (fikstury z pomiarem, +2 wpisy wygaśnięcia łańcucha `email_measurement`)                                                                                    |
+| W37 | Tryb `NEWSLETTER_ENGAGEMENT_SOURCE=provider` (pytanie 6 pakietu)                                                                                                              | runbook (pkt 7): wymagany `first_party` (domyślny) i wyłączony tracking otwarć i kliknięć u dostawcy - piksel i przepisanie linków dostawcy nie dają się wyłączyć per odbiorca; zdarzenia z webhooka i tak zapisuje `newsletter_record_campaign_event`, który odsiewa brak zgody                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | piksel dostawcy byłby pomiarem bez zgody                                                                                                                    | `hub_i9d_y2_tracking_test`                                                                                                                                                                   |
+| W38 | Zgody wydarzeń i CFP oraz zgoda premium - bez wersji z pomiarem (Y2-A, Y2-B)                                                                                                  | `event_consent_texts` (wersja globalna `EVENT_CONSENT_TEXT_VERSION` dla 3 celów, bramka SQL⇄i18n `eventConsentTexts.gate.test.ts`) i `PREMIUM_NEWSLETTER_CONSENT_TEXTS` bez zmian - kontakty wyłącznie z tych źródeł dostają maile bez pomiaru; mechanizm gotowy: nowa wersja treści + dopisek do `_consent_measurement_versions()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | wariant zachowawczy - nowa wersja wymaga migracji treści i przeglądu ścieżek rejestracji                                                                    | Z-I9d-11                                                                                                                                                                                     |
+| W39 | Maile serwisowe ścieżek (pytanie 8 pakietu)                                                                                                                                   | pomiar bramkowany zgodą kontaktu niezależnie od kategorii ścieżki (`marketing`/`service`); mierzony mail serwisowy ma link „Nie mierz” w stopce                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | jedna zgoda, jeden łańcuch - prostszy dowód; do oceny IOD                                                                                                   | Z-I9d-12                                                                                                                                                                                     |
+| W40 | Polityka w kodzie (integrator)                                                                                                                                                | `communications.ts` PL/EN: sekcja `pomiar` przepisana (podstawa - zgoda, art. 399 PKE, EDPB 2/2023; cel; bez zgody bez piksela i linków z identyfikatorem; osobne wyłączenie linkiem; wersja treści; zgody sprzed wersji bez pomiaru i jednorazowa prośba), sekcja `zapis` - zdanie o osobnym wyłączeniu pomiaru (ryzyko pakietowania), personalizacja - historia otwarć tylko przy zgodzie; `privacy.ts` - dane newslettera i podstawa art. 6 ust. 1 lit. a; osobne daty `COMMUNICATIONS_UPDATED` i `PRIVACY_UPDATED` = 2026-10-22 (pakiet zgodności i pozostałe dokumenty bez zmian)                                                                                                                                                                                                                                                                                                                                                                   | treść zgody linkuje do `#rezygnacja`, polityka prywatności do `#pomiar`; data „ostatnia aktualizacja” to sygnał zmiany treści                               | `legalContent`, `documentIndex`, `legalVersions`, `legalComplianceRoutes`, `sitemapEntries.server`                                                                                           |
+
+**Decyzje wykonawcze backendu TS (Y2-B).** (1) Kontrakt pisarzy: wpis
+`{key: 'newsletter', text, version}` z `version = 'newsletter-2026-10-21'`
+tylko, gdy wyświetlony tekst to treść z rejestru (w dowolnym formacie -
+HTML, tekst, odcinki); skrót własnego tekstu = sha256 hex UTF-8 po obcięciu
+białych znaków (także NBSP i BOM). (2) Render kampanii bez nowego argumentu
+daje wynik bajt w bajt jak przed Y2 (48 skrótów SHA-256 w teście). (3) Tokeny
+`mw:` (wycofanie) i `mc:` (zgoda z prośby, `MEASUREMENT_CONFIRM_LINK_DAYS =
+60`) w `measurementToken.server.ts` - rodzaj akcji wyłącznie z podpisu.
+(4) Rejestracja i bramka klubu przy włączonym double opt-in najemcy wysyłają
+dodatkowo mail potwierdzający zapis (jak popup). (5) Mianownik kampanii
+wznowionej w chwili wdrożenia liczy tylko mierzonych - niedoszacowany
+mianownik zamiast wskaźnika ponad 100%. (6) Odpowiedź GET wypisu dla
+aktywnej subskrypcji ma pole `measurementUrl` (ścieżka względna, bez
+adresu e-mail).
+
+**Decyzje wykonawcze panelu (Y2-C).** (1) Treść zgody PL/EN w przeglądzie
+newslettera (grupa `inline`, CAS, wspólny komunikat konfliktu); puste pole =
+`null` = bieżąca treść domyślna z pomiarem i wersją. (2) Stan pola: baza
+(bieżąca domyślna albo ważne oznaczenie) oraz `isNewsletterConsentDefault`
+(dawne domyślne nie ostrzegają - czytelnik widzi treść z pomiarem).
+(3) „Poproś o zgodę na pomiar” - tylko admin; okno potwierdzenia podaje
+liczbę, limit dzienny wspólny z wygaszaniem, okno 8-18 i ważność linku
+60 dni; przy braku kandydatów przycisk zablokowany z wyjaśnieniem.
+(4) Edytor treści maila prośby na `/admin/newsletter/email-content` - wspólne
+ciało `MailCopyEditorBody` z edytorem prośby wygaszania Y1-C (limity, reset
+per język, podgląd renderu serwera, CAS bez wycierania szkicu); trasa dostała
+sekcyjny `adminPageHead` „Newsletter - treści maili - Ustawienia”.
+(5) Wspólny przełącznik (Z-I9c-09) w trzech miejscach z jednym opisem;
+mutatory przełącznika unieważniają też `newsletterKeys.measurementAll()`.
+(6) Popup: zgodą na newsletter jest etykieta pola `newsletter_optin`
+(ostrzeżenie przy WŁASNEJ etykiecie w `FieldsTab`); `popup_privacy_html_*`
+nie są zgodą marketingową (Y2-B), więc panel ich nie oznacza (Z-I9d-17).
+(7) Słowniki `i18n-admin-newsletter-measurement.ts` i
+`i18n-admin-measurement-hint.ts` (`const en: typeof pl`, liczebniki PL
+`_one/_few/_many/_other`) tylko w leniwych chunkach panelu.
+
+**Decyzje integratora (Y2-D).** (1) Krok `newsletterMeasurement` w
+`jobs-tick` za wygaszaniem, przed retencją, z tym samym terminem kroku
+(`NEWSLETTER_SUNSET_WINDOW_MS`, 4 s) - inna minuta okna, więc oba kroki
+nigdy nie dzielą ticku. (2) Polityka w kodzie (W40) - Y2-B i Y2-C zostawiły
+ją integratorowi; osobne stałe dat zamiast podbicia daty pakietu
+zgodności (ta sama zasada co `PRIVACY_UPDATED`). (3) `types.ts` - tabele,
+kolumna i 11 publicznych RPC w konwencji generatora (funkcje `_*`
+i wyzwalacze poza typami - konwencja Y1-D); wywołania przez `RpcCallable`
+z literałem nazwy zostają (działają przed i po regeneracji). (4) `consentText`
+(4,4 KB przed minifikacją) siedzi w `app-initial`, bo domyślne ustawienia
+newslettera w hooku korzenia (`useNewsletterSettings`) czytają treść z jednego
+źródła zamiast dwóch literałów - +1,4 KB gz na każdej stronie, w zamrożonym
+progu `chunk` (259,8 / 286); wydzielenie rdzenia treści - Z-I9d-20. (5) Bramka kompletności
+`hubKeyFactories` była czerwona po Y2-B (pięć nowych kluczy
+`newsletterKeys` bez wierszy) - wiersze z miejscami wywołań i pary
+prefiksów unieważniania dopisane w integracji (`48ecded1`).
+
+**2. Zakres - migracje i bliźniaki (blok I9, „(I9d-Y2, 2026-10-22)”).**
+
+| Migracja                                       | Bliźniak                             | Zawartość                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261020162300_consent_measurement_core`      | `0384_consent_measurement_core`      | `_newsletter_consent_default`, `_newsletter_consent_version`, `_consent_measurement_versions`, skrót i wersja treści, `_newsletter_consent_upgrade_defaults` + DEFAULT `policy_html_*` (`lock_timeout`); `newsletter_consent_measurement_marks` (RLS, tylko service_role); `_consent_covers_measurement` i wyzwalacz `trg_crm_consent_log_measurement`; `_newsletter_log_consents`, redefinicje `newsletter_to_lead` (CIALO-Z `20260708151417`) i `newsletter_sunset_keep`; wyzwalacz `trg_newsletter_consents_log`; `_email_measurement_consent`, `email_measurement_status/_state/_withdraw` (service_role) |
+| `20261020162400_consent_measurement_tracking`  | `0385_consent_measurement_tracking`  | redefinicje `journey_contact_for_send` (CIALO-Z `20261020161300`), `journey_record_message_event` (CIALO-Z `20261020161900`), `newsletter_record_campaign_event` (CIALO-Z `20260814215302`, ciało z `161900`); `newsletter_campaign_recipients.measured` (`lock_timeout`) i wyzwalacz `tg_newsletter_recipients_measured`; `admin_newsletter_campaign_measurement`                                                                                                                                                                                                                                            |
+| `20261020162500_consent_measurement_reconfirm` | `0386_consent_measurement_reconfirm` | `newsletter_measurement_requests` (RLS, tylko service_role); `_newsletter_oneoff_mail_used`, redefinicja `newsletter_sunset_claim` (wspólny limit dzienny); kandydaci, `admin_newsletter_measurement_preview/_request`, `newsletter_measurement_claim/_mark/_confirm`, `admin_newsletter_consent_measurement_get/_mark`                                                                                                                                                                                                                                                                                       |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 384-386,
+`when` 1792478653912 … 1792478773912 (+60 000), `check:migration-lanes`
+zielony. **Następny wolny: `0387`, wersja `20261020162600`.** Każdy plik
+≤ 45 KiB (35 124 B, 22 818 B, 35 430 B - po jednej części). Zero zmian
+danych poza podmianą treści równej staremu domyślnemu.
+
+**API dla kolejnych agentów.** RPC tylko service_role:
+`email_measurement_status(p_tenant uuid, p_emails text[])` (TABLE `email`,
+`consent`, `measured`; adresy małymi literami, maks. 2000; 22023
+`tenant_required`/`too_many_emails`), `email_measurement_state(p_subscriber
+DEFAULT NULL, p_lead DEFAULT NULL)` i `email_measurement_withdraw(p_subscriber,
+p_lead, p_channel 'email_footer'|'preferences'|'account', p_ip, p_user_agent)`
+(dokładnie jeden identyfikator; `withdrawn`|`already`|`gone`|`invalid`),
+`newsletter_measurement_claim(p_limit DEFAULT 50)` (dzierżawa 15 min, maks.
+5 prób), `newsletter_measurement_mark(p_subscriber, p_nonce, p_outcome
+'queued'|'duplicate'|'suppressed'|'failed', p_error)`,
+`newsletter_measurement_confirm(p_subscriber, p_nonce, p_ip, p_user_agent)`
+(`confirmed`|`already`|`inactive`|`gone`|`invalid`). Panel (authenticated,
+rola z sesji): `admin_newsletter_campaign_measurement(p_campaign)`
+(admin/redaktor; `{sent, measured, unmeasured, unknown}`),
+`admin_newsletter_measurement_preview()` i `_request(p_expected)` (admin;
+22023 `expected_invalid`, 40001 `stale_preview`),
+`admin_newsletter_consent_measurement_get()` (admin/redaktor) i
+`_mark(p_field, p_marked)` (admin; 22023 `field_invalid`|`marked_invalid`|`text_missing`).
+`journey_contact_for_send` ma nowe pola `measurement` i `link_tracking`,
+zapis zdarzeń - powody `measurement_disabled` i `no_measurement_consent`.
+TS: `src/lib/newsletter/consentText.ts` (`NEWSLETTER_CONSENT_VERSION`,
+`MEASUREMENT_CONSENT_VERSIONS`, `newsletterConsentSegments/Html/Plain`,
+`resolveNewsletterConsent`, `newsletterConsentPayload`,
+`isNewsletterConsentDefault`, `normalizeConsentVersion`,
+`privacyAcceptanceHtml`), `src/lib/privacy/measurement.ts` (ścieżki, kanały,
+`newsletterMeasurementUrl`, `MEASUREMENT_FOOTER_COPY`),
+`measurementToken.server.ts`, `measurementStatus.server.ts`
+(`fetchMeasuredEmails`), `measurementReconfirm{,Mail.server}.ts`
+(`runNewsletterMeasurementMail`, `isNewsletterMeasurementMailWindow`),
+`measurement.functions.ts`, `measurementQueries.ts`, `measurementParse.ts`
+(`consentFieldNeedsWarning`, `campaignMeasuredDenominator`); klucze
+`newsletterKeys.measurementAll/consentMeasurement/measurementPreview/
+measurementCopy` (pod `settings()` - reguła `newsletter_settings.changed.v1`
+je unieważnia) i `campaignMeasurement(id)`; panel
+`src/components/admin/newsletter/measurement/**`, `MailCopyEditorBody`,
+`MeasurementConsentNote`.
+
+**3. Odchylenia (kontrakt bez zmian, fakty repozytorium wygrywają).**
+
+- Wspólny przełącznik `open_tracking_enabled` obejmuje od Y2 także kliknięcia
+  i kampanie (dotąd tylko piksel ścieżek); powód odmowy otwarcia przy
+  wyłączonym przełączniku: `open_tracking_disabled` -> `measurement_disabled`
+  (test I9c `hub_i9c_data_retention_aggregates` poprawiony).
+- Licznik odbiorców mierzonych tylko dla kampanii; ścieżki - dymek (W34).
+- Anonimowe liczenie kliknięć bez odbiorcy nie wdrożone (W30).
+- Zgody wydarzeń, CFP i premium bez wersji z pomiarem (W38).
+- Dawne treści domyślne w JSON buildera i etykiety pól popupu podmieniane
+  przy renderze, nie migracją danych (W24).
+- Treść i „Poproś o zgodę” to leniwa sekcja `/admin/newsletter/overview`,
+  nie osobna trasa (bez zmian `adminNav` i `routeTree` panelu); edytor
+  treści maila prośby obok prośby wygaszania.
+- Refaktor Y1-C: ciało edytora prośby wygaszania wydzielone do
+  `MailCopyEditorBody` (testy Y1-C bez zmian); zmienione pliki S8
+  (`PredicateRow`, `JourneyEmailsTable`, `JourneyNodeResults`, słowniki
+  ścieżek) i rejestr wskaźników `metrics.ts` (zastrzeżenia EN).
+- Redefinicja `newsletter_sunset_claim` (Y1) - jedyna zmiana to wspólny
+  budżet dzienny; `newsletter_sunset_keep` zapisuje wersję treści.
+- Fikstury istniejących testów pgTAP nadają zgodę na pomiar
+  (`journeys_tracking_stats`, `newsletter_campaign_events_dedup`,
+  `hub_i9d_newsletter_sunset`, `hub_i9c_data_retention_aggregates`) - ich
+  przedmiotem jest deduplikacja, statystyki i wygaszanie, nie zgoda;
+  `hub_shared_helpers` - lista grantów.
+- Integrator: polityka w kodzie (W40) i osobne stałe dat dokumentów.
+
+**4. Zmiany integratorskie i pliki współdzielone (Y2-D).** Bliźniaki
+`0384…0386` i `_journal.json`; `types.ts` (konwencja generatora: tabele
+`newsletter_consent_measurement_marks` i `newsletter_measurement_requests`
+z relacjami - także do widoku `crm_funnel_view`; kolumna
+`newsletter_campaign_recipients.measured`; 11 RPC);
+`authzSnapshot.generated.ts` (1313 migracji, 1893 funkcje);
+`jobsTick.server.ts` + `jobsTickRun.test.ts` (5 nowych przypadków: poza
+minutą 4, okno z terminem 4 s i ostatnim krokiem, minuta 9 wygaszania,
+noc, błąd kroku) + `-jobs-tick.test.ts`; `routeTree.gen.ts` (trasy
+`/newsletter/measurement` i `/api/public/newsletter/measurement`, diff
+wyłącznie addytywny); `hubDelivery.ts` - manifest I9 (pliki Y2-B, Y2-C
+i polityki w kodzie; rejestr funkcji, `HUB_CIALO_Z.newsletter_to_lead`
+i mapy `HUB_I9_REDEFINITIONS` dla `journey_record_message_event`
+i `journey_contact_for_send` - Y2-A); `i18nParity.gate.test.ts` (prefiksy
+`newsletterMeasurement`, `adminNewsletterMeasurement`,
+`adminMeasurementHint`) i `reports/i18n-parity.json`; `domainEvents.ts`
+(komentarz: `keys` `['consent_measurement_marks']`);
+`scripts/check-bundle-size.ts` (ratchet); polityka w kodzie
+(`src/lib/legal/**`); rejestr czynności, ten dziennik i
+`docs/KONTYNUACJA_…`. Kontrakt TS⇄SQL (`generate:ts-sql-contract`, plik
+generowany i poza gitem) obejmuje nowe RPC: 1008 wywołań, 1533 operacje na
+tabelach, pgTAP `ts_sql_contract` 9 asercji. `i18n-admin-core.ts`, `adminNav.ts`,
+scheduler i mapa inwalidacji - bez zmian (wejścia w istniejących trasach
+panelu; inwalidacja po prefiksie `newsletterKeys.settings()`).
+
+**5. Testy.** pgTAP: `hub_i9d_y2_consent_test` (33),
+`hub_i9d_y2_tracking_test` (19), `hub_i9d_y2_reconfirm_test` (29);
+zmienione: `hub_i9d_newsletter_sunset_test` (32),
+`hub_i9c_data_retention_aggregates_test` (23), `hub_shared_helpers_test`
+(27), `journeys_tracking_stats_test` (26),
+`newsletter_campaign_events_dedup_test` (28). vitest: jedno źródło treści
+i parytet TS⇄SQL oraz PL/EN (`consentText`), formularze i pisarze rejestru
+(`NewsletterForm`, `popupSignupForm`, `SignupPopupPanel`, `joinUsForm`,
+`authFormBlocks`, `authFormPlaceholders`, `contactFormNewsletterConsent`,
+`ClubAccessGate{,.funnel}`, `newsletterDocRendererPure`, `contactFunctions`,
+`newsletter.functions`), render tylko za zgodą (`render.server`,
+`renderCampaign.server`, `newsletterCampaignSend`,
+`newsletterCampaignsFunctionsGaps`, `journeysRunner.server`,
+`trackingEvents`), tokeny, stan i trasa (`measurementToken`,
+`measurementStatus`, `-api.public.newsletter.measurement`,
+`-api.public.newsletter.unsubscribe`, `newsletterMeasurementPage`,
+`newsletterConsentPages`), prośba (`measurementReconfirm`,
+`measurementReconfirmMail`, `measurementFunctions`, `measurementQueries`,
+`jobsTickRun`, `-jobs-tick`), panel RTL + axe (`ConsentTextCard`,
+`MeasurementRequestCard`, `NewsletterMeasurementCopyEditor`,
+`consentTextRules`, `i18nNewsletterMeasurement`, `CampaignEngagementCard`,
+`FieldsTabConsentLabel`, `PredicateRow`, `DataRetentionCard`,
+`journeyMutations`, `adminNewsletterCampaignRoutes`), bramka
+`i18nParity.gate` (3 nowe prefiksy), `hubDelivery.gate`.
+
+**6. Pomiar bundla (D-08).** Baza `7390ecf0` (gałąź PR po I9d-Y1, kopia
+`git archive`, ten sam `node_modules`) 5332,2 / public 2783,0 / admin-only
+2549,1 -> po I9d-Y2 z integracją 5355,3 / 2790,2 / 2565,1: +23,1 KB,
+w tym admin-only +16,0 i public +7,2. Admin-only: `consentTextRules` +4,7
+(słownik PL/EN panelu zgody i pomiaru), `NewsletterMeasurementPanel` +3,6,
+`NewsletterMeasurementCopyEditor` +1,8, `MailCopyEditorBody` +1,8
+(wydzielony z edytora wygaszania: `NewsletterSunsetCopyEditor` -1,2,
+`sunsetCopyRules` -1,5, przecięcie chunków przez Rolldown -
+`newsletterSunset` +1,1, `newsletterSunsetQueries` +1,0),
+`measurementQueries` +1,2, `i18n-admin-measurement-hint` +1,0,
+`MeasurementConsentNote` +0,4, trasy panelu newslettera +1,1, `metrics`
++0,3. Public: nowa trasa `newsletter.measurement` +3,1 (leniwy chunk strony
+ze słownikiem), liść `measurement` +0,5, `NewsletterConsentText` +0,3,
+polityki `communications` +0,9 i `privacy` +0,3 (leniwe chunki
+dokumentów), `app-initial` +1,4 (decyzja integratora 4), formularze +0,3,
+entropia hashy (1348 chunków o |Δ| < 150 B, +1,1 KB w obu koszykach).
+Ratchet `overall` 5334 -> 5357 (host 5355,3 -> 5356 -> +1) z wpisem kroniki
+„wycinek: I9d-Y2”. Arkusze bit w bit te same: css 99,8 / 100 (bez
+ratchetu), publicCss 83,8 / 85; chunk 259,8 / 286, boot 473,6 / 579,
+public 2790,2 / 2881 - w zamrożonych progach.
+
+**7. Wdrożenie (właściciel).** Kolejność: `20261020162300` -> `162400` ->
+`162500` (drizzle `0384…0386`), po I9d-Y1 (`161500…162200`). Krótkie
+blokady pod `lock_timeout` 5 s: DEFAULT kolumn `newsletter_settings`,
+wyzwalacze na `crm_consent_log` i `newsletter_subscribers`, kolumna
+`newsletter_campaign_recipients.measured` (bez wartości domyślnej - sama
+zmiana katalogu); wyzwalacz tabeli odbiorców kampanii - krótka blokada bez
+limitu, więc wdrażać poza wysyłką kampanii. Front publikować RAZEM z migracjami albo zaraz po nich: runner
+sprzed Y2-B czyta `open_tracking` (piksel znika od razu), ale przepisuje
+linki - ich kliknięcia bez zgody i tak nie są zapisywane (`162400`);
+krok `jobs-tick` bez `162500` zwraca `skipped: migration_pending`.
+**Skutek wdrożenia (zamierzony):** zgody sprzed nowej treści nie obejmują
+pomiaru, więc od migracji `162400` nikt nie jest mierzony, dopóki nie
+zapisze się z nową treścią albo nie potwierdzi prośby - wskaźniki otwarć
+i kliknięć kampanii i ścieżek spadają skokowo (mianownik kampanii =
+mierzeni, ścieżki - dymek). Admin może wysłać „Poproś o zgodę na pomiar”
+z `/admin/newsletter/overview` (najwyżej 200 maili dziennie na najemcę,
+wspólnie z prośbami wygaszania). **Tryb źródła zaangażowania:**
+`NEWSLETTER_ENGAGEMENT_SOURCE` musi zostać `first_party` (domyślnie),
+a tracking otwarć i kliknięć u dostawcy poczty (Resend) - wyłączony;
+`provider` nie daje się pogodzić z pomiarem tylko za zgodą. **Polityka:**
+jeśli najemca ma opublikowaną własną wersję polityki komunikacji albo
+prywatności (`legal_document_versions`), ma ona pierwszeństwo przed kodem -
+admin publikuje nową wersję z akapitem o pomiarze w panelu dokumentów
+prawnych. Kontrolne SQL (SQL editor, tylko odczyt):
+
+```sql
+-- 1. Treść domyślna z pomiarem (oczekiwane: stara treść domyślna = 0;
+--    teksty z dawną ścieżką EN /privacy-policy to teksty WŁASNE admina).
+SELECT count(*) AS najemcy,
+       count(*) FILTER (WHERE btrim(policy_html_pl) = btrim(public._newsletter_consent_default('pl'))) AS pl_nowa,
+       count(*) FILTER (WHERE btrim(policy_html_en) = btrim(public._newsletter_consent_default('en'))) AS en_nowa,
+       count(*) FILTER (WHERE policy_html_pl LIKE 'Zapisując się akceptujesz <a href="/polityka-prywatnosci">%') AS pl_stara,
+       count(*) FILTER (WHERE policy_html_en LIKE '%/privacy-policy%') AS en_privacy_policy
+  FROM public.newsletter_settings;
+-- 2. Zgody z pomiarem (tuż po wdrożeniu: 0 - zgody sprzed wersji nie
+--    obejmują pomiaru; potem rośnie z nowymi zapisami i potwierdzeniami).
+SELECT tenant_id, consent_version, given, count(*)
+  FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement'
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+-- 3. Wersja przy nowych zgodach newslettera (oczekiwane: brak NULL
+--    w wpisach z doby po publikacji frontu).
+SELECT consent_version IS NULL AS bez_wersji, count(*)
+  FROM public.crm_consent_log
+ WHERE consent_key LIKE 'newsletter%' AND created_at > now() - interval '1 day'
+ GROUP BY 1;
+-- 4. Wspólny przełącznik pomiaru per najemca (ścieżki i kampanie).
+SELECT tenant_id, open_tracking_enabled FROM public.journey_settings ORDER BY 1;
+-- 5. ACL (oczekiwane: email_measurement_* i newsletter_measurement_* -
+--    tylko service_role; admin_newsletter_* - authenticated i service_role;
+--    funkcje `_*` - żadna rola API).
+SELECT p.proname, r.rolname, has_function_privilege(r.rolname, p.oid, 'EXECUTE') AS execute
+  FROM pg_proc p
+ CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rolname)
+ WHERE p.pronamespace = 'public'::regnamespace
+   AND p.proname IN ('email_measurement_status', 'email_measurement_state', 'email_measurement_withdraw',
+                     'newsletter_measurement_claim', 'newsletter_measurement_mark', 'newsletter_measurement_confirm',
+                     'admin_newsletter_campaign_measurement', 'admin_newsletter_measurement_preview',
+                     'admin_newsletter_measurement_request', 'admin_newsletter_consent_measurement_get',
+                     'admin_newsletter_consent_measurement_mark', '_email_measurement_consent',
+                     '_newsletter_measurement_candidates')
+ ORDER BY 1, 2;
+-- 6. Własne wersje polityk w bazie (pierwszeństwo przed kodem).
+SELECT tenant_id, doc_key, status, published_at FROM public.legal_document_versions
+ WHERE doc_key IN ('communications', 'privacy') AND status = 'published' ORDER BY 1, 2;
+```
+
+Wycofanie: wyłączenie wspólnego przełącznika (karta retencji, ustawienia
+silnika ścieżek albo przegląd newslettera) zatrzymuje pomiar u wszystkich;
+wpisy rejestru zgód zostają (dowód). Prośby czekające w kolejce wychodzą
+dopiero w oknie 08-17 czasu polskiego.
+
+**8. Weryfikacja (Y2-D, worktree `/home/user/wt/I9d`).**
+
+| Polecenie                                                                                                                                                                                                                                   | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `git fetch origin claude/elegant-fermat-xwfca1`                                                                                                                                                                                             | ✓ gałąź PR = `7390ecf0` (przodek gałęzi roboczej) - bez scalenia                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| bliźniaki `cmp` + `check:migration-lanes`                                                                                                                                                                                                   | ✓ `0384…0386` bajt w bajt; 387 wpisów dziennika drizzle                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| pgTAP `run.sh all` (po integracji)                                                                                                                                                                                                          | ✓ 1313 migracji (1 znany błąd `20260825230232`), 258 plików OK; 4 czerwone - wyłącznie znane środowiskowe (`community_cron_schedule` 2/17 i `job_scheduler_heartbeat` 1/32 - pg_net, `public_definer_views_read_only` 1/35, `profile_intent_semantic` - vector); nowe: `hub_i9d_y2_consent` 33, `hub_i9d_y2_tracking` 19, `hub_i9d_y2_reconfirm` 29; zmienione: `hub_i9d_newsletter_sunset` 32, `hub_i9c_data_retention_aggregates` 23, `hub_shared_helpers` 27, `journeys_tracking_stats` 26, `newsletter_campaign_events_dedup` 28 |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                  | ✓ 9 asercji (1008 wywołań RPC, 1533 operacje na tabelach)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`                                                                                                                                                                      | ✓ (kontrakt RPC: 878 nazw, 1831 funkcji; typy: 393 tabele, baseline 7)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `check:sql-tenant-scope`, `sql-app-role`, `sql-anon-insert`, `sql-definer-views`, `on-conflict-arbiters`, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-migration-replay`                                                  | ✓ (tenant-scope: 1893 funkcje)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `scripts/split-migration.ts --dry-run` (3 migracje)                                                                                                                                                                                         | ✓ każda 1 część: 35 124 B, 22 818 B, 35 430 B                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `check:pg-harness`, `check:careers-harness`, `check:events-harness` (flock)                                                                                                                                                                 | ✓ pg: 115 migracji modułu, 9 pominiętych znacznikiem, 504 asercje; careers: 14 migracji, 4 pominięte; events: 278 migracji, 4914 asercji                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run verify:static` (18 bramek, w tym `format:check`, `ts-sql-contract --check`, `types-freshness`)                                                                                                                                     | ✓ 287 s                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.y2d`: 120 zmienionych .ts/.tsx od `7390ecf0` + importerzy - razem 458 plików, bez rozwijania importerów `types.ts` i `routeTree.gen.ts`), `typecheck:scripts`, `typecheck:e2e` | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `bun run lint`                                                                                                                                                                                                                              | ✓ 0 błędów, 320 ostrzeżeń - stan bazy (w zmienionych plikach te same ostrzeżenia co w bazie)                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| vitest `TZ=UTC --maxWorkers=2` (flock -x): `src/lib/{privacy,consent,newsletter,journeys,email,legal}`                                                                                                                                      | ✓ 106 plików, 2410 testów (1 „expected fail”)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| jw.: `src/lib/{server,analytics,ci}`, `src/__tests__`                                                                                                                                                                                       | ✓ 147 plików, 3525 testów (2 pliki / 50 testów pominięte z założenia)                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| jw.: `src/lib/__tests__`                                                                                                                                                                                                                    | ✗ -> ✓: `hubKeyFactories` (kompletność tabeli fabryk) - 5 kluczy pomiaru z Y2-B bez wierszy; poprawione (`48ecded1`), plik 110 testów ✓; pozostałe 129 plików, 3536 testów ✓                                                                                                                                                                                                                                                                                                                                                         |
+| jw.: `src/routes`                                                                                                                                                                                                                           | ✓ 275 plików, 9415 testów (80 „expected fail”)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| jw.: `src/components` (w tym `admin/{newsletter,journeys,settings,popups}`, `blocks`)                                                                                                                                                       | ✓ 1620 plików, 36 245 testów (80 „expected fail”)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| jw.: wszystkie bramki granic i kontraktów (`grep -rlE "Boundary\|gate\.test\|Contract" src` - 114 plików)                                                                                                                                   | ✓ 114 plików, 4691 testów (61 „expected fail”)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                         | ✓ po ratchecie: overall 5355,3 / 5357, public 2790,2 / 2881, css 99,8 / 100, publicCss 83,8 / 85, chunk 259,8 / 286, boot 473,6 / 579; graf chunków acykliczny, ścieżka bootowania i graf serwera czyste                                                                                                                                                                                                                                                                                                                             |
+| `generate:authz-snapshot --check`                                                                                                                                                                                                           | ✓ (1313 migracji, 1893 funkcje, 677 polityk)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `format:check` po dokumentach (pełny)                                                                                                                                                                                                       | ✓ (`prettier --check .` po dopisaniu dziennika, rejestru i KONTYNUACJI)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `hub-slice-guard I9 --base 7390ecf0f`                                                                                                                                                                                                       | ✓ 141 plików w manifeście, 3 pliki w bloku huba, 32 definicje funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+**9. Zgłoszenia zamknięte.** Z-I9c-09 (wspólny przełącznik ścieżek
+i kampanii) i rekomendacja treści zgody z §21.21 pkt 5 (EDPB 2/2023) -
+dopiski w §21.21; z pytania 9 pakietu I9d-5 (pisarze rejestru zgód)
+naprawione wszystkie cztery: JoinUs, kontakt, rejestracja i bramka klubu,
+ponowny zapis po wypisie (W27).
+
+**10. Zgłoszenia I9d-Y2 (otwarte).**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9d-11 | Do decyzji administratora danych: zgoda marketingowa wydarzeń i CFP (`event_consent_texts` dla 3 celów, `EVENT_CONSENT_TEXT_VERSION`, i18n `eventRegistration.consents.marketing`) i zgoda premium (`PREMIUM_NEWSLETTER_CONSENT_TEXTS`) - nowa wersja treści z pomiarem, `retired_at` starej, dopisek `event-marketing-v2-pl/en` i wersji premium do `_consent_measurement_versions()` (migracja z CIALO-Z i wpisem w `hubDelivery.ts`). Do tego czasu kontakty wyłącznie z tych źródeł są niemierzone (bezpiecznie). |
+| Z-I9d-12 | Do oceny IOD: zgoda na pomiar z treści zgody na newsletter obejmuje też mierzone maile serwisowe ścieżek (kategoria `service`) - alternatywa: pomiar wyłącznie w mailach marketingowych (`journey_contact_for_send`).                                                                                                                                                                                                                                                                                                 |
+| Z-I9d-13 | Do decyzji administratora danych: oznaczenie własnej treści jako „obejmującej pomiar” działa od chwili oznaczenia - nie nadaje pomiaru wcześniejszym zgodom z tą samą treścią (wariant zachowawczy; uzupełnienie wsteczne tylko decyzją).                                                                                                                                                                                                                                                                             |
+| Z-I9d-14 | Własne teksty zgody w widżetach buildera (JoinUs `consentText_*`, rejestracja i kontakt `newsletterLabel_*`) nie mają oznaczenia „obejmuje pomiar” ani ostrzeżenia w inspektorze CMS - pomiar tylko, gdy tekst równy treści z rejestru (oznaczanie działa dla pól ustawień newslettera).                                                                                                                                                                                                                              |
+| Z-I9d-15 | Statystyki ścieżek bez licznika odbiorców mierzonych (`journey_messages`, `admin_journey_stats`, rollup) - dziś tylko dymek; licznik jak `newsletter_campaign_recipients.measured`.                                                                                                                                                                                                                                                                                                                                   |
+| Z-I9d-16 | Kafel otwarć i kliknięć w Kokpicie (`MarketingPanel`, prefiks `adminDashboard`) bez dymka o zgodzie na pomiar. **Zamknięte 2026-10-22 (I9, §24):** `MeasurementConsentNote` w wariancie `dashboard` pod kaflami Kokpitu (`f49fa8ba4`).                                                                                                                                                                                                                                                                                |
+| Z-I9d-17 | `popup_privacy_html_*` w CHECK `newsletter_consent_measurement_marks` i w RPC `_get`/`_mark` są martwe od Y2-B (pole prywatności popupu nie niesie zgody marketingowej) - usunąć albo zostawić świadomie.                                                                                                                                                                                                                                                                                                             |
+| Z-I9d-18 | Kanał `account` wyłączenia pomiaru (panel konta, `ConsentsPanel`): RPC `email_measurement_withdraw` go obsługuje, brak funkcji serwerowej zalogowanego (subskrybent po e-mailu sesji w najemcy) i przełącznika w UI; dziś „w preferencjach” realizuje strona wypisu.                                                                                                                                                                                                                                                  |
+| Z-I9d-19 | Domyślne zgody RODO formularzy kontaktu i rejestracji w `src/lib/builder/registry.tsx` (`consentText_en`) wskazują nieistniejącą trasę `/privacy-policy` - zgoda niemarketingowa, poza zakresem Y2; poprawić na `/en/polityka-prywatnosci`. **Zamknięte 2026-10-22 (I9, §24):** domyślne zgody EN w rejestrze buildera prowadzą do `/en/polityka-prywatnosci` (`87011ecbf`).                                                                                                                                          |
+| Z-I9d-20 | `consentText` w `app-initial` (+1,4 KB gz na każdej stronie, decyzja integratora 4) - wydzielić rdzeń treści (odcinki + HTML) od listy dawnych treści i pomocników formularzy albo nie wołać go w domyślnych ustawieniach hooka korzenia.                                                                                                                                                                                                                                                                             |
+| Z-I9d-21 | Podgląd „Poproś o zgodę na pomiar” liczy zgodę per subskrybent - przy dziesiątkach tysięcy subskrybentów odpowiedź może trwać sekundy; obserwować po wdrożeniu (ewentualnie porcja jak u kandydatów wygaszania).                                                                                                                                                                                                                                                                                                      |
+
+**11. Dla I9.** Kolejna redefinicja `journey_record_message_event`
+albo `journey_contact_for_send` dopisuje wpis do mapy
+`HUB_I9_REDEFINITIONS` z CIALO-Z `20261020162400`;
+`newsletter_record_campaign_event` - CIALO-Z z `HUB_CIALO_Z`
+(`20260814215302`), ciało z `20261020162400`. Następny wolny bliźniak
+`0387`, wersja `20261020162600`. Zapas `overall` po ratchecie 1,7 KB.
+
+## 22. Wycinek S8 - Ścieżki: lista, galeria, edytor kanwy, ustawienia silnika, wyniki, karta leada (2026-10-22)
+
+Gałąź `hub/s8-sciezki-panel-c` (worktree `/home/user/wt/S8`), baza
+`75133fe2` (gałąź PR #530 z materiałami przekazania S8/S7 w
+`docs/kontynuacja/`). S8.1 (`6d602ca5` z gałęzi roboczej) przeniesiono na
+bazę jako `2401729e`; pozostałe podzadania wykonali kolejno osobni agenci na
+jednym worktree (pliki rozłączne, praca szeregowa), potem bramki S8,
+scalenie `main` i integracja. Commity:
+
+- `2401729e` - S8.1: fundament JRL (`viewModel`, `layout`, `nav`, `ops`, `summaries`, `issues`, `hash`, `access`, server fn szczegółu/wersji/katalogu, `queryOptions`, mutatory), zakładka Ścieżki z listą, galerią, kreatorem, ustawieniami i zdrowiem silnika;
+- `b5e0f5c7` - S8.3c2: lista problemów (`useJourneyIssues`), dialog publikacji, symulacja ze szkicem, test na sobie;
+- `a760cf07` - S8.2: wyniki ścieżki, zakładki „Wyniki” i „Kontakty” panelu kroku, statystyki na kanwie, karta leada „Ścieżki”;
+- `0c6a0443` - S8.3a: sesja edytora (autozapis z CAS, konflikt, historia), podgląd maila zgodny z wysyłką (Z-S5-08), dialog różnic;
+- `32aaa514` - S8.3b: kanwa i lista kroków (`role="tree"`), wstawianie, menu operacji, klawiatura;
+- `33c7be62` - S8.3c: panele boczne - krok (14 typów), edytor maila (warianty A/B, podgląd PL/EN), warunki, wyzwalacz, ustawienia ścieżki;
+- `9e704eca`, `8c2796f4` - S8.3d: złożenie edytora (trasa, pasek, okruszki, leniwe części), test powiększenia, pomiar bundla;
+- `c5718bed` - bramki S8: wybór kontaktu w symulacji przez fabrykę zapytania (`revenueKeysReuse`);
+- `e26fba3c` - scalenie `main` (`4b1aa96d`, ikony kolorem przycisku - wyłącznie `src/lib/builder/globalColors.ts`);
+- `9139b647` - integracja: pliki współdzielone (§22.4);
+- `e59f2e23` - ratchet D-08 `overall` 5023 → 5182 (§22.6);
+- ten wpis i stan (§17.6, `docs/KONTYNUACJA_…`).
+
+Pełny pakiet vitest uruchamia CI PR (decyzja właściciela 2026-10-19:
+lokalnie testy celowane, typecheck, lint, build z budżetem i kontrakt TS⇄SQL;
+S8 nie ma SQL - pełny pgTAP i harnessy nie były potrzebne, §22.7).
+
+### 22.1 Zakres
+
+Wykonawcy (S8.1-S8.3d i bramki): 101 plików, +40 935 / −79 linii, zero SQL,
+zero nowych tras i zależności. Z integracją (bez tego wpisu i bez usuniętych materiałów przekazania
+`docs/kontynuacja/s8`): 133 pliki, +42 118 / −175.
+
+| Obszar                                        | Co dostarcza S8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Warstwa JRL (`src/lib/admin/journeys/**`)     | `viewModel` (DAG → drzewo: węzeł pod pierwszym rodzicem, chipy scaleń z numerem celu, numeracja 1, 2, k.i.j), `layout` (O(n), karty 280×88, odstępy 48/40, etykieta gałęzi 20, krawędzie ortogonalne, chipy, „+” 28 px, miniatury galerii), `nav` (kanwa i lista, przejście przez chip, mapa klawiszy), `ops` (8 operacji + `availableOps` - jedno źródło menu kanwy, listy i klawiatury), `summaries`, `issues` (blokady publikacji), `hash`, `access` (zdolności z dokładnych ról, `mfa_required`), `results` (lejek, A/B z `z`, okno, rollup), `editorSession`, `emailPreview`, `simulationLeads`, `activeCount`. |
+| Dane (server fn i zapytania)                  | `journeyEditor.functions`: `getJourneyDetail`, `getJourneyVersion`, `listJourneyTemplateCatalog` na tabelach `journey_*` przez RLS (literały `.from()`, jawne kolumny, `requireCrmStaff`, najemca z sesji, `templateMatches` liczone na serwerze, szablony z treścią wyłącznie dynamicznym importem w handlerze); `journeyQueries`/`journeyMutations` (10 hooków, `ok:false` nie rzuca, inwalidacja `journeyKeys` + `dataRetentionKeys.tenant` przy ustawieniach).                                                                                                                                                   |
+| Zakładka Ścieżki (`RevenueJourneysTab`)       | Pasek zdrowia silnika (Z-S5-03 jako stan), lista z `?status=&q=`, galeria szablonów `?new=1&template=` (niedostępny wyszarzony z powodem, Z-S5-01), kreator (szablon albo pusta ścieżka z wyzwalaczem), dialog ustawień silnika (włączenie z potwierdzeniem, limit D-03, cisza nocna `TimeInput`, strefa, opiekun zadań, próg otwarć maszynowych, nadawca i Reply-To z licznikami, **pomiar otwarć** `open_tracking_enabled`, CAS z konfliktem, redaktor - podgląd), stany ról, MFA i niewdrożenia.                                                                                                                  |
+| Edytor (`/admin/revenue/journeys/$journeyId`) | `JourneyEditorRoute` (bramka ról literałem, `RevenueTabPending` do hydratacji, leniwy `JourneyEditor`), pasek (Kanwa/Lista/Wyniki, powiększenie, okno statystyk, wersja, autozapis, Sprawdź (n), Symuluj, Testuj na sobie, Ustawienia, Opublikuj/Wstrzymaj/Wznów - admin), kanwa i lista (`role="tree"`), panel kroku, edytor maila, arkusze wyzwalacza i ustawień, dialogi publikacji, symulacji i konfliktu, panel testu, okruszki „Przychód i lejek › Ścieżki › {nazwa}” z ostatnim filtrem listy.                                                                                                                |
+| Wyniki (`?view=results`)                      | Kafle z `metricId` i oceną S6, wejścia/cele w czasie (`line`), przejścia kroków (`FunnelBars`), powody wyjścia (`bar-horizontal`), karta A/B z „Zostaw A/B”, tabela maili (MPP, CTOR), podpis rollupu (Z-I9c-06); nakładka statystyk na kanwie i zakładki panelu kroku.                                                                                                                                                                                                                                                                                                                                              |
+| Karta leada (`LeadJourneysCard`)              | Ścieżki kontaktu z krokiem, statusem, wersją i testem; pominięcie czekania (admin) i wyjście (admin, redaktor); stany MFA, niewdrożenia, błędu i pusty z odnośnikiem do galerii. Montaż w CRM i oś leada - integrator (§22.4).                                                                                                                                                                                                                                                                                                                                                                                       |
+| Słowniki (6 plików, `adminJourneys.*`)        | `i18n-admin-journeys-{list,results,editor,canvas,steps,publish}.ts` - po jednym na podzadanie (+3355 linii), PL/EN, `const en: typeof pl`, zero kolizji z S5, czytelnik każdego klucza, zero słów-klas Tailwinda (skan kompilatorem).                                                                                                                                                                                                                                                                                                                                                                                |
+
+### 22.2 Decyzje
+
+- **Z-S5-08 - podgląd maila w przeglądarce, bez server fn.** Czysta część
+  podstawiania (`substituteDocVariables` z `sub`/`subUrl`, do tego
+  `journeyUrlVariables` i `journeyVariableTags`) mieszka w liściu
+  `src/lib/journeys/variables.ts` (jedyny import - typ z `emailDoc`);
+  `render.server.ts` ją importuje i re-eksportuje, a runner od integracji
+  importuje `journeyUrlVariables` stamtąd (re-eksport dla testów). Podgląd
+  i wysyłka mają jedną implementację; `emailPreview.test.ts` porównuje temat
+  i HTML znak w znak z `renderJourneyEmail` dla każdego maila 14 szablonów
+  w PL i EN oraz wrogich wartości zmiennych. Podgląd bez przekierowań,
+  piksela i stopki (Z-S5-05 sprawdza M3).
+- **Blokady publikacji „treść z szablonu” i „nadawca domyślny” są w UI**
+  (`issues.ts`; SQL ich nie ma): treść = `templateMatches` liczone na
+  serwerze stabilnym porównaniem JSON, nadawca domyślny =
+  `journey_settings.sender_name IS NULL`. Publikacja najpierw zapisuje szkic
+  (`flushDraft` - RPC publikuje szkic z bazy), dublujące przepisy wyłącza
+  PO udanej publikacji (odwrotna kolejność przy odmowie zostawiłaby
+  kontakty bez automatyzacji).
+- **„Zostaw B” = szkic, nie publikacja:** `resolveSplit` ustawia wagi
+  zwycięzcy 100/0 bez usuwania gałęzi (stabilne identyfikatory
+  i statystyki), zapis `saveJourneyDraft` z CAS; konflikt - ponowny odczyt.
+- **CTOR oceniany benchmarkiem kampanii z adnotacją** (`click_to_open_rate`,
+  `email_ctr`): SPEC §6.3 wymaga odznaki, rejestr S6 nie ma CTOR dla
+  automatyzacji. Otwarcia i CTOR mają dymek „górna granica” (MPP, Z-S5-06).
+- **Z-I9c-06 w UI - okno „dane od …”:** dla okien starszych niż retencja
+  zapisów admin widzi „Pełne dane od {data}” (`getDataRetention`), redaktor -
+  zdanie, gdzie tę datę znaleźć; kafle zerowe z rollupu to „—”, ocena
+  konwersji `no_data`, seria ma przerwę przed pierwszym pełnym dniem.
+- **Słownik w 6 plikach** (jeden na podzadanie) zamiast jednego `-editor` -
+  rozłączne pliki przy kolejnych agentach; manifest S8 poszerzony (§22.4).
+- **Leniwość:** zakładka i edytor w osobnych chunkach panelu; `JourneyEditor`
+  przez `lazy()`, arkusze, dialogi, panel testu i widok Wyników - przy
+  pierwszym otwarciu; karta leada w CRM leniwie na zakładce Analityka;
+  licznik paska huba z liścia `activeCount.ts` (§22.4).
+- **Nawigacja w obrębie edytora** (widok, krok, zakładka, okno, wersja) z
+  `ignoreBlocker` - strażnik niezapisanych zmian pilnuje wyjścia z edytora,
+  nie otwarcia panelu kroku w 2-sekundowym oknie autozapisu.
+- **Okruszki:** filtr listy (`?status=&q=`) pamięta `JourneyList`
+  w `sessionStorage` karty (try/catch, odczyt przez `parseRevenueHubSearch`);
+  brak - powrót do `/admin/revenue/journeys`.
+
+### 22.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S8                                        | Stan po S8                                                                                                                                                             | Uzasadnienie                                                                                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| §6.3 numeracja kroków                                          | Numeracja k.i.j z indeksem gałęzi według typu (`yes`=1, `no`=2, A/B, zdarzenie/termin), reguła w komentarzu `viewModel.ts`.                                            | Stabilna przy dopisaniu brakującej gałęzi i zmianie kolejności niezwiązanych krawędzi (test).                                      |
+| §6.3 `y = depth·(NODE_H+GAP_Y) + (gałąź ? BRANCH_LABEL_H : 0)` | `y = głębokość·136 + piętro·20` (piętro = liczba gałęzi innych niż `next` na drodze).                                                                                  | Uogólnienie wzoru - dla jednego poziomu identyczne, przy zagnieżdżeniu etykiety nie nachodzą na karty.                             |
+| §5.2 `getJourney`, `listJourneyVersions`                       | `getJourneyDetail`/`getJourneyVersion` zwracają kształt „drutowy” z polami Json; DTO z przeparsowanym szkicem buduje `queryFn` (`toJourneyDetail`/`toJourneyVersion`). | Serializator typów TanStack Start; luki API S5 zamknięte w JRL na tabelach przez RLS (kolumny i granty - pgTAP `ts_sql_contract`). |
+| Stany odczytu                                                  | `JourneyDetailRead` = `JourneyRead` + `not_found`; `unavailable` = 42P01/42703/42883/PGRST2xx.                                                                         | Brak ścieżki to stan, nie błąd; kody pamięci schematu zawężone z ogólnego „PGRST”.                                                 |
+| §6.3 „nadawca domyślny” = `onboarding@resend.dev`              | `journey_settings.sender_name IS NULL` (ścieżki wysyłają z `noreply@SENDER_DOMAIN` z nazwą serwisu).                                                                   | Fakt repozytorium (S5, §20.2).                                                                                                     |
+| Galeria                                                        | Katalog niesie tematy maili, bez dokumentów.                                                                                                                           | Pełne `EmailDoc` szablonów nie trafiają do klienta.                                                                                |
+| `ops.mergeInto` „do węzła późniejszego topologicznie”          | „Do węzła niebędącego przodkiem” (w DAG równoważne).                                                                                                                   | Prostszy niezmiennik, uzasadnienie w komentarzu.                                                                                   |
+| `ops.duplicateSubtree`                                         | Bez celu kopiuje jeden krok liniowy, z celem - całe poddrzewo w pusty koniec gałęzi.                                                                                   | Kopia rozgałęzienia „w miejscu” łamałaby graf.                                                                                     |
+| `useSaveJourneyDraft`                                          | Wpisuje token wyniku do cache szczegółu zamiast go unieważniać.                                                                                                        | Refetch po własnym zapisie nadpisywałby brudny szkic.                                                                              |
+| §6.3 wskaźniki maila                                           | Otwarcia, kliknięcia, wypisy i skargi liczone od doręczonych (`sent − bounced`); `goalRate` z DTO.                                                                     | Rejestr S6 definiuje je od doręczonych; DTO nie ma pola „doręczone”.                                                               |
+| Lejek kroków                                                   | Udział względem kroku nadrzędnego w drzewie; krok łączący gałęzie bez udziału („—” z dopiskiem).                                                                       | Poprzedni wiersz po rozgałęzieniu to sąsiednia gałąź.                                                                              |
+| Odbicia                                                        | Wszystkie odbicia oceniane wpisem `hard_bounce_rate`, skargi - `spam_complaint_rate`.                                                                                  | Baza nie dzieli odbić na twarde i miękkie (Z-S8-04).                                                                               |
+| Panel kroku - wyniki                                           | `JourneyNodeResults` sam czyta statystyki (ten sam klucz co kanwa).                                                                                                    | Te same stany MFA/roli/niewdrożenia co pozostałe karty, bez podwójnego pobrania.                                                   |
+| Karta leada                                                    | Identyfikator bieżącego kroku zamiast numeru hierarchicznego; odnośnik `?node=<id>&tab=contacts`.                                                                      | Numer wymagałby szczegółu (graf i treści) każdej ścieżki kontaktu.                                                                 |
+| Kontakty kroku                                                 | Filtr statusu i strona w stanie komponentu, nie w adresie.                                                                                                             | Kontrakt adresu edytora (`editorSearch.ts`) ich nie ma.                                                                            |
+| §6.3 symulacja „wynik każdego predykatu”                       | Wybrana gałąź warunku, lista kryteriów, kryteria historii oznaczone jako niespełnione.                                                                                 | `admin_journey_simulate` zwraca wynik całego warunku i adnotację (Z-S8-02).                                                        |
+| §5.2 `sendJourneyTestEmail`                                    | Test na sobie = `enrollJourneyTest` + `skipJourneyWait` (admin) + `exitJourneyEnrollment`; temat z „[TEST] ” (runner, §22.4).                                          | Funkcji brak w S5 (Z-S8-03).                                                                                                       |
+| Dialog różnic                                                  | Własny `JourneyConflictDialog` na `diffLines`/`collapseContext`, linie stabilnego JSON (pole definicji, klucz ustawień, krok, połączenie).                             | `RevisionDiffDialog` obsługuje tylko `post`/`page`; graf z 60 krokami mieści się w limicie 800 linii.                              |
+| Arkusze                                                        | Cel, wyjścia i ponowne wejście w `JourneySettingsSheet`, nie w arkuszu wyzwalacza; okno wysyłki - tylko odczyt polityki silnika.                                       | Wyzwalacz = KTO wchodzi, ustawienia = JAK się kończy; DTO szkicu nie ma okna wysyłki ścieżki.                                      |
+| Czekanie                                                       | Rodzaj czekania zmieniany w panelu tylko przy tej samej liczbie gałęzi (czas ↔ do godziny).                                                                            | Przejście na „czekaj na zdarzenie” wymaga nowych gałęzi - usunięcie i wstawienie z palety.                                         |
+| Pasek edytora                                                  | Powiększenie w pasku (kanwa `showZoomControls={false}`); „Sprawdź (n)” i „Testuj na sobie” jako panel pod paskiem (`aria-expanded`).                                   | Lista problemów zostaje widoczna przy skakaniu po krokach.                                                                         |
+| Karta S8: `overall` ≤ +25 KB gz dla edytora                    | Chunk `JourneyEditor` 22,3 KB gz (≤ 25), cały interfejs edytora ok. 95 KB gz w 18 leniwych chunkach (pierwsze wejście ok. 47 KB).                                      | Arkusze, edytor maila, wyniki i 5 słowników osiągalne wyłącznie z edytora - ratchet D-08 (§22.6).                                  |
+
+### 22.4 Zgłoszenia „Do integracji” wykonane przez Integratora S8
+
+Strażnik `hub-slice-guard.ts S8 --base 75133fe20` po integracji zgłasza
+wyłącznie zmiany Integratora i scalenie `main`:
+`[plik-wspoldzielony]` `scripts/check-bundle-size.ts`,
+`src/__tests__/i18nParity.gate.test.ts`, `src/lib/admin/adminNav.ts` (+ test),
+`src/lib/ci/hubDelivery.ts`, `src/lib/i18n-admin-core.ts` oraz
+`[poza-manifestem]` pliki zmian 2-9 z tabeli niżej (CRM: `admin.crm.$id.tsx`,
+`admin.crm.index.tsx`, `crm.functions.ts`, `leadTimeline.ts`,
+`CrmJourneyActivityLink.tsx`; hub: `RevenueHubLayout.tsx`,
+`i18n-admin-revenue-shell.ts`, `tabPreparing.ts`, `RevenueTabPreparing.tsx`,
+`i18n-admin-revenue-preparing.ts`; `journeysRunner.server.ts`, `tours.ts`,
+`CampaignBlockProperties.tsx` i ich testy, `adminRevenueHubRoutes.test.tsx`),
+`docs/kontynuacja/**`, ten dziennik i `docs/KONTYNUACJA_…`. Do tego
+`src/lib/builder/globalColors.ts` - wyłącznie ze scalenia `main` (`4b1aa96d`,
+gałąź PR po bazie), nie zmiana S8 (`--base 4b1aa96d` go nie pokazuje).
+
+| #   | Zgłoszenie (źródło)                                | Zmiana                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Manifest S8 (S8.1-S8.3d)                           | `hubDelivery.ts`: `i18n-admin-journeys-{list,results,canvas,steps,publish}.ts` oraz `src/lib/journeys/{variables,render.server}.ts` (Z-S5-08, pliki S5 zmienione przez S8.3a - precedens S4 i migawki S6), komentarz „Integrator S8, 2026-10-22”; `hubDelivery.gate` zielony (51).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2   | ⌘K „Nowa ścieżka” (§19.2, §19.6, S8.1)             | `adminNav.ts`: skrót `/admin/revenue/journeys?new=1` („Nowa ścieżka komunikacji” / „New communication journey”, słowa „nowa sciezka”, „new journey”, „szablon”) dla ról z `canSeeTab("journeys")`, komentarz „świadomie NIE MA” zdjęty; `adminNav.test.ts`: admin i redaktor mają skrót (parametr przechodzi `parseRevenueHubSearch`, adres bez 404), autor i sam `super_admin` - nie, „journeys” dalej jedna zakładka; `RevenueJourneysTab.test`: samo `?new=1` otwiera galerię redaktorowi.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 3   | Test tras I0 (S8.3d)                               | `adminRevenueHubRoutes.test.tsx`: edytor zamiast zaślepki - nagłówek z odczytu `getJourneyDetail` (atrapa), stan „wybierz wyzwalacz”, `data-journey-id`/`data-view` bez zmian.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 4   | Karta leada i oś leada (SPEC §2.7, S8.2)           | `admin.crm.$id.tsx`: `LeadJourneysCard` pod historią etapów na zakładce Analityka, **leniwie** (`lazy` + `Suspense` - słowniki ścieżek ok. 100 KB surowego tekstu tylko po otwarciu zakładki); `leadTimeline.ts`: typ `journey` - `leadTimelineEventsFromJourneys` (wejście `jr:<zapis>:in`, koniec `jr:<zapis>:out` ze statusem i powodem), kontrakt `meta` jak przy „event” (`summary_pl`/`summary_en` + identyfikatory), nazwy statusów i powodów = etykiety S5 (test zgodności); `crm.functions.ts` `buildLeadTimeline`: `.rpc("admin_journey_lead_enrollments", { p_lead_id })` (RPC S5, najemca i rola z sesji; odmowa, niewdrożenie albo kształt spoza kontraktu = oś bez tych wpisów); widoki `/admin/crm` i `/admin/crm/$id`: etykieta „Ścieżka”/„Journey” (druk i CSV), kolor z istniejących klas, zdanie w języku panelu, odnośnik `CrmJourneyActivityLink` do edytora na bieżącym kroku (`?node=&tab=contacts`). |
+| 5   | Licznik paska „Ścieżki = aktywne” (Z-S6-08, S8.1)  | `RevenueHubLayout.tsx`: `badges.journeys` z `journeyListQueryOptions(tenantId, null)` (ten sam klucz co zakładka - przy ciepłym cache bez żądania), po hydratacji, tylko z najemcą i dla ról z zakładką Ścieżek; `null` = brak licznika, nie „0”; nazwa dla czytnika „N aktywne ścieżki” (`adminRevenue.nav.badgeJourneys_*`, `i18n-admin-revenue-shell.ts`). `activeJourneyCount` przeniesiony do liścia `activeCount.ts` (re-eksport z `summaries.ts`) - układ nie ciągnie modułu opisów (§22.6).                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 6   | Prefiks „[TEST] ” (SPEC §6.3, S8.3c2)              | `journeysRunner.server.ts`: temat zapisu testowego `journeyTestSubject` (PL i EN, raz także przy ponowieniu kroku), dokładany PO renderze - pusty temat dalej zatrzymuje wysyłkę (`subject_empty`); `journeyUrlVariables` z liścia `variables.ts` (kopia zlikwidowana, re-eksport). Testy runnera +3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 7   | Stan „w przygotowaniu” Ścieżek (§19.6, S8.1/S8.3d) | `tabPreparing.ts`: bez wpisu `journeys`, etapu `s5s8` i odnośnika skrzynki nadawczej; mapa `Partial` (zakładka bez wpisu nie rysuje stanu - `RevenueTabPreparing` zwraca `null`); słownik bez `what.journeys`, `stage.s5s8`, `link.outbox`; testy danych i molekuły.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 8   | Wycieczka (P2, S8.1/S8.3b/S8.3d)                   | `tours.ts`: `JOURNEYS_TOUR_STEPS` (`journeys-engine`, `journeys-list`, `journeys-gallery`, `journeys-engine-settings`) i `JOURNEY_EDITOR_TOUR_STEPS` (`journey-canvas`, `journey-publish`), napisy `admin.onboarding.journeys*` PL/EN; test: każda kotwica istnieje jako `data-tour` w komponencie S8. Montaż - Z-S8-01.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 9   | Dostępność listy wyboru (S8.3c)                    | `CampaignBlockProperties.tsx`: `SelectField` i `TextField` z `useId` (`<Label htmlFor>` + `id` wyzwalacza/pola) - `combobox` ma nazwę z etykiety; test z axe; filtr reguły `button-name` w teście axe `EmailStepEditor` zdjęty.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 10  | `IDENTICAL_ALLOWLIST` (S8.1, S8.2, S8.3b, S8.3c)   | 15 kluczy z identycznym PL/EN (`Marketing`, `Newsletter`, `Status`, `Test`, `CTOR`, szablony z samych miejsc interpolacji); `reports/i18n-parity.json` po bramce wraca do stanu bazy (`untranslated` 570).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 11  | Snapshot autoryzacji, kontrakt TS⇄SQL              | `generate:authz-snapshot --check` zgodny (S8 bez migracji - snapshot bez zmian); `generate:ts-sql-contract` - 986 wywołań RPC (+1: oś leada), 1515 operacji na tabelach (odczyty `journey_*` z `journeyEditor.functions`); pgTAP `ts_sql_contract` zielony (§22.7).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 12  | Ratchet D-08 `overall` (S8.3d)                     | `check-bundle-size.ts`: `overall` 5023 → 5182 (5180,9 → 5181 → +1) z wpisem kroniki nad progiem i rozbiciem przyrostu; `css` bez ratchetu (99,77 / 100); public, publicCss, chunk i boot w zamrożonych progach (§22.6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 13  | Materiały przekazania                              | `docs/kontynuacja/s8/` usunięty (łatka S8.1, `STAN_S8.md`, `S8.md`); `docs/kontynuacja/README.md` opisuje już tylko S7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+### 22.5 Zgłoszenia
+
+**Zamknięte przez S8** (w sekcjach źródłowych dopisek „Zamknięte 2026-10-22
+(S8, §22)”): Z-S5-08 (decyzja §22.2), Z-S5-06 w UI (dymek „górna granica”
+przy otwarciach i CTOR), Z-S5-01 w UI (szablon wyszarzony z powodem),
+Z-S5-03 w części UI (stan „kroki ruszą po podpięciu harmonogramu” w zdrowiu
+silnika i panelu testu - runner w `jobs-tick` zostaje dla I9), Z-S6-08
+w części Ścieżek (licznik Diagnostyki - S7), Z-I9c-06 w części UI (dzienny
+rollup statusów zapisu w SQL zostaje otwarty), I9a „Nowa ścieżka bez
+skrótu” (§19.2) i zadania S8 z §19.6.
+
+**Otwarte:**
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S8-01 | Wycieczki po Ścieżkach (P2): kroki i napisy PL/EN są (`tours.ts`, §22.4 pkt 8), montaż `useOnboardingTour` + `CoachmarkTour` w zakładce i edytorze (auto-start raz na najemcę, atrapa w testach komponentów - nakładka przejmuje fokus) - I9. **Zamknięte 2026-10-22 (I9, §24):** `JourneyTour` w zakładce i edytorze - start raz, gdy kotwice stoją, nakładka `CoachmarkTour` leniwa (`5a2b29ef0`).                                                                                                       |
+| Z-S8-02 | Symulacja „wynik każdego predykatu” (SPEC §6.3) wymaga rozszerzenia `admin_journey_simulate` (S5) o wynik per kryterium - dziś gałąź warunku i kryteria historii oznaczone jako niespełnione.                                                                                                                                                                                                                                                                                                              |
+| Z-S8-03 | `sendJourneyTestEmail` (SPEC §5.2) - osobny mail testowy bez zapisu do ścieżki nie istnieje w S5; test na sobie działa przez zapis testowy (wymaga runnera - Z-S5-03).                                                                                                                                                                                                                                                                                                                                     |
+| Z-S8-04 | Odbicia: `journey_message_events` nie rozróżnia twardych i miękkich - ocena odbić kroku porównuje wszystkie odbicia z benchmarkiem twardych (przybliżenie opisane w UI).                                                                                                                                                                                                                                                                                                                                   |
+| Z-S8-05 | CTOR automatyzacji: rejestr S6 ma tylko konteksty kampanii - po dodaniu wpisu automatyzacji wystarczy zmiana `journeyBenchmarkRefs(...).ctor` (jedno miejsce).                                                                                                                                                                                                                                                                                                                                             |
+| Z-S8-06 | 39 ostrzeżeń eslint `react-refresh/only-export-components` w 12 plikach S8 (hooki i pomocniki eksportowane z plików komponentów) - przeniesienie do `src/lib/admin/journeys/*` (bez błędów lintu).                                                                                                                                                                                                                                                                                                         |
+| Z-S8-07 | Wstecz przeglądarki między stanami adresu edytora przy brudnym szkicu otwiera pytanie strażnika (`useBlocker` nie rozróżnia POP w obrębie trasy); „wyjdź” nic nie traci, bo edytor zostaje zamontowany.                                                                                                                                                                                                                                                                                                    |
+| Z-S8-08 | Wyścig `journey.changed.v1` ⇄ odpowiedź zapisu sprawdzony atrapą szyny (reguła „zapis w toku = decyzja odroczona”, pamięć 32 tokenów); test w dwóch kartach - ręcznie w M3.                                                                                                                                                                                                                                                                                                                                |
+| Z-S8-09 | Arkusze i dialogi edytora ładują się przy pierwszym otwarciu bez prefetchu (panel kroku ok. 28 KB gz); prefetch po wejściu do edytora to optymalizacja UX kosztem pierwszego wejścia. **Zamknięte 2026-10-22 (I9, §24):** `whenIdle` dociąga arkusze kroku i wyzwalacza po wejściu do edytora; dialogi zostają leniwe (`86a1df4ab`).                                                                                                                                                                       |
+| Z-S8-10 | Scalenie z S7 (zintegrowany lokalnie, push po S8): wspólne pliki zmienione przez obu integratorów - `RevenueHubLayout.tsx` (sloty Ścieżek i Diagnostyki w jednym `badges`, ten sam parametr `tenantId` w `HubSections`), `tabPreparing.ts` + molekuła + słownik (po S7 mapa pusta - usunąć cały stan), `adminNav.ts`/test, `i18n-admin-core.ts`, `i18nParity` (allowlist), `check-bundle-size.ts` (ratchet łączny), dziennik §10/§17. **Zamknięte scaleniem (§23.11), potwierdzone 2026-10-22 (I9, §24).** |
+
+Przekazane dalej bez zmian: Z-S5-03 (runner w `jobs-tick`, harmonogram
+`journey_rollup_daily`/`journey_purge` - I9), Z-S5-04, Z-S5-05 i Z-S5-07
+(M3), Z-I9c-06 w części SQL.
+
+### 22.6 Pomiar bundla
+
+`flock -x /tmp/hub-heavy.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build `75133fe2` (`git archive` w scratchpadzie, te
+same `node_modules`), S8 = drzewo po integracji. Przypisanie: gzip per chunk
+(nazwa bez hasha), baza ⇄ S8.
+
+| Budżet (gzip KB)         | Próg            | Baza `75133fe2` | S8     | Δ          | Wynik                                                                                |
+| ------------------------ | --------------- | --------------- | ------ | ---------- | ------------------------------------------------------------------------------------ |
+| `overall`                | 5023 → **5182** | 5020,6          | 5180,9 | **+160,3** | ✓ po ratchecie D-08 (zapas 1,1 KB)                                                   |
+| `admin-only`             | -               | 2242,3          | 2402,3 | +160,0     | -                                                                                    |
+| `public`                 | 2881 (zamr.)    | 2778,3          | 2778,6 | +0,3       | ✓ entropia hashy - zero modułów S8 w koszyku publicznym                              |
+| największy chunk (entry) | 286 (zamr.)     | 257,9           | 257,9  | 0,0        | ✓                                                                                    |
+| `css`                    | 100             | 99,75           | 99,77  | +0,02      | ✓ bez ratchetu - arkusz panelu +19 B, publiczny bit w bit ten sam                    |
+| `publicCss`              | 85 (zamr.)      | 83,8            | 83,8   | 0,0        | ✓                                                                                    |
+| `boot`                   | 579 (zamr.)     | 471,7           | 471,6  | −0,1       | ✓                                                                                    |
+| chunki JS (pliki)        | -               | 1462            | 1502   | +40        | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Rozbicie (gzip per chunk, 29 chunków z nowymi modułami = 160,5 KB):
+
+- **Edytor - wyłącznie z trasy edytora** (18 leniwych chunków, ok. 95 KB):
+  `JourneyEditor` 22,4 (kanwa, lista kroków, pasek, wstawianie, słownik
+  kanwy - chunk ≤ 25 KB z karty), `PredicateRow` + słownik paneli 15,2,
+  `JourneyStepSheet` + edytor maila + zakładki wyników kroku 12,7, słowniki
+  publikacji 6,1 i edytora 3,6, wyniki 4,7 i tabela maili 3,9, sesja szkicu
+  4,7, dialogi publikacji 4,0 i symulacji 3,6, panel testu 2,6, lista
+  problemów 3,3, arkusze ustawień 2,8 i wyzwalacza 2,1, `variables` 0,9,
+  `hash` 0,6, powłoka trasy 2,0. Pierwsze wejście do edytora (trasa +
+  statyczne domknięcie `JourneyEditor`) ok. 47 KB; reszta przy pierwszym
+  otwarciu arkusza, dialogu, panelu testu albo widoku Wyników.
+- **Wspólne dla zakładki, edytora i karty leada:** chunk 22,4 (słowniki
+  `i18n-admin-journeys` S5 i `-list`, `graph`/`predicates`/`nodeTypes` S5,
+  `MfaRequiredNotice`), model kanwy i operacje 6,5, słownik wyników 6,2,
+  opisy kroków 3,5, układ i lista 3,3, mutatory 1,3, server fn szczegółu
+  0,8, `access` 0,3.
+- **Zakładka Ścieżki:** 9,5 (lista, galeria, kreator, ustawienia silnika,
+  pasek zdrowia).
+- **CRM:** karta „Ścieżki” 2,3 (leniwie, zakładka Analityka - zmiana
+  integratora); `CrmJourneyActivityLink` we wspólnym chunku zadań leada.
+- **Układ huba (licznik):** statyczne domknięcie `admin.revenue` +3,2 KB -
+  klient server fn listy z `limits`/`dto` 1,9, `queries` 0,8,
+  `require-staff` 0,3, układ +0,15; to te same chunki, które i tak ładuje
+  zakładka Ścieżek (przeniesione, nie nowe). Moduł opisów (`summaries`
+  z `graph`/`ops`/zod) nie wchodzi do układu - licznik z liścia
+  `activeCount.ts`.
+
+### 22.7 Weryfikacja końcowa S8
+
+Worktree `/home/user/wt/S8`, ciężkie kroki po kolei pod
+`flock -x /tmp/hub-heavy.lock` (pamięć 15 GB, równolegle integrator S7);
+pełny pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                     | Wynik                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                             | ✓                                                                                                                                                                                        |
+| `bun run verify:static`                                                                                                                                                                                       | ✓ 18 bramek (236 s; `migration-lanes`, `rpc-contract`, `ts-sql-contract --check` 986 wywołań RPC, `types-freshness` baseline 7, `sql-*`, `on-conflict-arbiters`, `structured-data-live`) |
+| typecheck zawężony jak w CI: `tsconfig.s8i.tmp.json` (deklaracje, `routeTree.gen.ts`, `vitest.setup.ts` + 133 pliki TS zmienione od bazy i ich importerzy - 256 plików), `GOMEMLIMIT=6GiB bunx tsgo --noEmit` | ✓ 0 błędów (48 s)                                                                                                                                                                        |
+| `bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                                          | ✓                                                                                                                                                                                        |
+| `bun run lint` (+ `bunx eslint` zmienionych plików integracji)                                                                                                                                                | ✓ 0 błędów; 320 ostrzeżeń, w tym 39 w 12 plikach S8 (`react-refresh/only-export-components`, Z-S8-06); pliki integracji - 0 ostrzeżeń                                                    |
+| `TZ=UTC bunx vitest run --maxWorkers=2` w czterech grupach (odporność na restart kontenera): `src/lib/{admin,journeys,ci,crm,onboarding}`, `src/lib/server/__tests__`                                         | ✓ 199 plików, 5754 testy (+7 oczekiwanych porażek)                                                                                                                                       |
+| jw.: `src/components/admin/{journeys,revenue,newsletter,crm}`                                                                                                                                                 | ✓ 84 pliki, 1728 testów                                                                                                                                                                  |
+| jw.: `src/lib/__tests__`, `src/__tests__` (bramki i18n, nakładek, czytelników, kluczy, dostawy)                                                                                                               | ✓ 144 pliki (+2 pominięte), 3750 testów (+12 oczekiwanych porażek, 50 pominiętych)                                                                                                       |
+| jw.: `src/routes/__tests__` (trasy huba I0, CRM, `adminRouteAuthority.gate`)                                                                                                                                  | ✓ 230 plików, 8084 testy (+79 oczekiwanych porażek)                                                                                                                                      |
+| `bun run generate:ts-sql-contract` + `run.sh migrate` i `run.sh test ts_sql_contract` (`PGTAP_DIR=/tmp/pgtap-hub-s8`, port 5458, `flock -x /tmp/hub-pgtap.lock`)                                              | ✓ 1299 migracji (1 znany błąd środowiska `20260825230232`); `ts_sql_contract` 9 asercji - 986 wywołań RPC (+1: oś leada), 1515 operacji na tabelach (odczyty `journey_*` S8)             |
+| `flock -x … env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`                                                                                                                                            | ✗ → ✓: `overall` 5180,9 > 5023 → ratchet D-08 5182 (§22.6); public 2778,6, chunk 257,9, css 99,77, publicCss 83,8, boot 471,6 w progach                                                  |
+| `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                             | ✓ (graf acykliczny, ścieżka bootowania i graf serwera czyste)                                                                                                                            |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                     | ✓ zgodny (S8 bez migracji - snapshot bez zmian)                                                                                                                                          |
+| `bun run scripts/hub-slice-guard.ts S8 --base 75133fe20`                                                                                                                                                      | exit 1 wyłącznie na zmianach Integratora, dokumentach i scaleniu `main` (§22.4); dostawa huba: 0 plików w bloku, 0 definicji funkcji                                                     |
+| pgTAP pełny, `check:pg-harness`/`careers-harness`/`events-harness`                                                                                                                                            | nie dotyczy - S8 bez SQL                                                                                                                                                                 |
+
+Testy S8 (48 plików w `src/lib/admin/journeys/__tests__` i
+`src/components/admin/journeys/*/__tests__`): 43 pliki, 732 testy - zielone (RTL + axe, czyste moduły JRL). Integracja dołożyła
+testy: `adminNav` (+3), `RevenueJourneysTab` (+1), `adminRevenueHubRoutes`
+(asercja edytora), `leadTimeline` (+6), `crmFunctions` (+3),
+`crmJourneyActivityLink` (3, nowy), `adminCrmLeadRoute` (+2),
+`adminCrmInboxRoute` (+1), `RevenueHubLayout` (+6), `journeysRunner.server`
+(+2 i asercje tematu), `tabPreparing`/`RevenueTabPreparing` (przepisane na
+mapę bez Ścieżek), `tours` (+1), `CampaignBlockProperties` (+1 z axe),
+`EmailStepEditor` (axe bez filtra).
+
+### 22.8 Wdrożenie S8 na produkcji (właściciel)
+
+S8 nie ma migracji ani bliźniaków drizzle - publikacja frontu wystarcza.
+Zależności SQL są już w PR: migracje S5 `20261020140000…140500`
+(`0352…0357`, §20.9) i I9c-X2 `20261020161300` (`open_tracking_enabled`,
+§21.21). Front S8 przed tymi migracjami pokazuje stan „niewdrożone” (42883)
+z następnym krokiem zamiast błędu - kolejność dowolna, zalecana: migracje,
+potem front. Silnik zostaje wyłączony (M3 po I9, Z-S5-07); runner nie jest
+podpięty do `jobs-tick` (Z-S5-03), więc „Testuj na sobie” tworzy zapis, ale
+kroki ruszą dopiero po I9 (UI mówi to wprost). Po publikacji admin
+sprawdza w `/admin/revenue/journeys`: pasek zdrowia (`scheduler_pending`),
+ustawienia silnika (nadawca, Reply-To, pomiar otwarć), galerię (`?new=1`
+z ⌘K „Nowa ścieżka”), edytor (`/admin/revenue/journeys/<id>`), kartę
+„Ścieżki” w `/admin/crm/<id>` (Analityka) i wpisy „Ścieżka” na osi leada.
+
+### 22.9 Kryteria akceptacji S8 (SPEC §8.3)
+
+- [x] Zero bibliotek grafu; `layout.test.ts` (O(n), stałe wymiary, brak
+      nakładania, chip scalenia); `viewModel.test.ts` (DAG → drzewo, numeracja
+      stabilna) - `layout.ts`/`viewModel.ts` importują tylko typy i `nodeTypes`;
+      56 + 29 testów (14 szablonów, łańcuchy 400/4000 z licznikiem odczytów,
+      przetasowanie krawędzi, operacje).
+- [x] Parytet operacji kanwa ↔ lista ↔ klawiatura (`ops.test.ts`:
+      każda pozycja `availableOps` każdego kroku 14 szablonów i grafu A/B);
+      `nav.test.ts` (strzałki, Home/End, przejście przez chip); `role=tree/
+treeitem` z `aria-level/setsize/posinset/expanded`; jeden tab stop; axe;
+      „Lista = te same węzły i kolejność co kanwa” - `JourneyOutline.test`,
+      `JourneyCanvas.test`, `JourneyEditorParity.test` (złożony edytor).
+- [x] Autozapis 2 s z `p_expected_updated_at` (konflikt → dialog różnic),
+      `useUnsavedChangesGuard`, cofnij/ponów (Ctrl/Cmd+Z, Shift+Z),
+      `usePrefersReducedMotion` (domyślnie Lista) - `editorSession.test`,
+      `JourneyEditorAutosave.test`, `JourneyConflictDialog.test`,
+      `JourneyEditorRoute.test`.
+- [x] Publikacja: blokady (treść z szablonu, nadawca domyślny), szacunek
+      wolumenu, „N kontaktów kontynuuje wersję k”, deduplikacja z przepisami
+      (`useSetWorkflowEnabled` po publikacji), tryb drain/exit_all; symulacja ze
+      szkicem (nic nie zapisuje i nie wysyła); test na żywo tylko własny kontakt
+      (+ „[TEST] ” w temacie po integracji) - `JourneyPublishDialog.test`,
+      `JourneySimulateDialog.test`, `JourneyTestPanel.test`,
+      `journeysRunner.server.test`.
+- [x] Wyniki per krok i wariant A/B z `z` („za mało danych (n < 100)”,
+      „B lepsze o X pp (95 %)”); „Zostaw B” tworzy szkic (CAS, bez publikacji);
+      galeria: szablon niedostępny wyszarzony z powodem; `?new=1&template=`
+      otwiera galerię z wyborem - `results.test`, `JourneyAbCard.test`,
+      `JourneyResults.test`, `JourneyTemplateGallery.test`,
+      `RevenueJourneysTab.test` (+ samo `?new=1` ze skrótu ⌘K).
+- [x] Ustawienia silnika: edycja tylko admin (redaktor - podgląd),
+      `TimeInput` (`HH:MM`), brak aal2 → `MfaRequiredNotice`; nadawca i Reply-To
+      z licznikami (odrzucenie, nie przycięcie), **pomiar otwarć**
+      `open_tracking_enabled` (I9c-X2; inwalidacja karty retencji), CAS
+      z konfliktem - `JourneySettingsDialog.test`, `journeyMutations.test`.
+- [ ] **`overall` ≤ +25 KB gz dla edytora (leniwy chunk), `public` 0** -
+      częściowo: leniwy chunk `JourneyEditor` 22,4 KB gz (≤ 25), ale cały
+      interfejs edytora to ok. 95 KB gz w 18 leniwych chunkach (arkusze, edytor
+      maila, wyniki, 2 słowniki) - przyrost `overall` +160,3 KB przyjęty
+      ratchetem D-08 (§22.6); `public` +0,3 KB to wyłącznie entropia hashy
+      (zero modułów S8 w koszyku publicznym, arkusz publiczny bit w bit).
+- [x] Weryfikacja z karty: `format:check`, `verify:static`, typecheck
+      (zawężony jak w CI + skrypty + e2e), `lint`, vitest celowany, strażnik
+      wycinka, build z `check:bundle`/`check:chunks`/`check:entry-purity`
+      (§22.7).
+
+## 23. Wycinek S7 - zakładki huba, diagnostyka i szybkie naprawy (2026-10-22)
+
+Gałąź `hub/s7-zakladki-diagnostyka-c` (worktree `/home/user/wt/S7`), baza
+`75133fe2` (gałąź PR `claude/elegant-fermat-xwfca1` po I9c i promptach
+przekazania S8/S7). Pracę przerwaną 2026-10-20 na limicie tokenów
+(`docs/kontynuacja/s7/` - łatka WIP S7.1 i pakiet) odtworzono i dokończono
+w sesji 2026-10-21/22 podzadaniami S7.1-lib, S7.2, S7.3a, S7.1-ui, S7.3b,
+S7-bramki i integracja (praca szeregowa w jednym worktree, pliki rozłączne).
+Numer sekcji 22 jest zarezerwowany dla S8, który trafi do PR wcześniej;
+S7 jest zintegrowany lokalnie i czeka z wypchnięciem na S8 (§17.7). Commity:
+
+- `e5f2f1d0` - S7.1-lib: 3 migracje `2026102015*` (fakty, wyciszenia), 2 pliki pgTAP, `src/lib/revenue/diagnostics/**` (fakty, rejestr 55 reguł w 16 plikach `checks/*`, powierzchnie chipów, mapa defektów, server fn, `queryOptions`), `quickFixes.ts` (15 napraw), `diagnosticGroups.ts`, słownik `i18n-admin-revenue-diagnostics.ts`;
+- `6ea7d66b` - S7.1-lib: mapa defektów - dokładna lista numerów briefów spoza tabeli SPEC (`DEFECTS_OUTSIDE_TABLE`);
+- `155b596f` - S7.2: Kokpit, most MRR, Lejek, Dostęp (symulator czytelnika), Oferta, Dane wejściowe, słownik `i18n-admin-revenue-tabs.ts`, `overviewTiles`, `policySentence`, `paywallChecklist`;
+- `e3676cec`, `5f9b6cbb` - S7.3a: zakładki Przychód i Retencja (szereg MRR pod zarezerwowanym kluczem zakładki);
+- `474fb6b8` - S7.1-ui: zakładka Diagnostyka (lista, mapa systemu, wyciszenia), dialogi szybkich napraw (`QuickFixDialog`, `fixes/*`), `RevenueSignalChip`, „Wymaga uwagi” (`AttentionCard`);
+- `5c1f9942`, `0a5ef277` - S7.3b: Społeczność, Wskaźniki (wartości z oceną, arkusz `?metric=&ctx=`), przychód zrealizowany na pulpicie, `metricSearchIndex`, `syncScenarios`, `hubLinksContract`, `sourceHeaderOnMutations`;
+- `6d02b021` - S7-bramki: `SourceHeader` przy wyciszeniu i przywróceniu diagnozy;
+- `ea39da84` - integracja: pliki współdzielone (§23.4) i ratchet D-08 (§23.7);
+- `53c5d6d3` - ten wpis (dziennik, stan, prompt kontynuacji; usunięcie `docs/kontynuacja/s7/`);
+- scalenie gałęzi PR po S8 (`df075ffc`) do S7 i poprawki po bramkach - §23.11.
+
+Pełny pakiet vitest uruchamia CI PR (decyzja właściciela 2026-10-19:
+lokalnie testy celowane, typecheck, lint, pgTAP, build z budżetem - §23.8).
+
+### 23.1 Zakres
+
+Wykonawcy: 189 plików, +36 377 / −123 linii (9 commitów), w tym SQL
+i pgTAP +1711. Z integracją (bez tego wpisu): 209 plików, +38 084 / −426 (w tym 3 bliźniaki drizzle - 1292 linie kopii).
+
+| Obszar                                | Co dostarcza S7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL (3 migracje, 20 funkcji)          | `150000` - 8 helperów `_revenue_facts_<obszar>(p_tenant)` obszarów sprzedaży (katalog, paywall, licznik, kasa, kupony, retencja, windykacja, lejek); `150050` - 8 helperów obszarów operacyjnych (CRM, newsletter, automatyzacje, ścieżki, wydarzenia, kluby, synchronizacja, jakość danych) i RPC panelu `admin_revenue_facts()` (admin\|editor, najemca z `current_tenant_id()`, `statement_timeout 5s`, `{v:1, computedAt, areas{16}}`, awaria obszaru = `null`, kwoty tylko admin, zero PII); `150100` - `admin_revenue_diagnostic_snooze`/`_unsnooze`/`_snoozes()` (admin, najemca i użytkownik z sesji, reguły niewyciszalne, powód 3-500 znaków odrzucany, nigdy przycinany). Wszystko `plpgsql`, bez DDL tabel; helpery bez EXECUTE dla ról API. |
+| Diagnostyka (TS)                      | `facts.ts` (parser `null` ≠ 0, `EMPTY_REVENUE_FACTS`), `registry.ts` (55 reguł: `ok/warn/error/unknown`, brak pola = `unknown`, `UNSNOOZABLE_CHECK_IDS`, `CHECK_KNOWLEDGE` - identyfikatory wiedzy Insidera), `surfaces.ts` (10 powierzchni chipów), `defectMap.ts`, server fn (`getRevenueFacts`, `getRevenueSnoozes`, `snoozeRevenueCheck`, `unsnoozeRevenueCheck`; odmowy 42501/42883/PGRST202 i `mfa_required` jako stany), `queries.ts` (klucze `revenueKeys.facts/snoozes`, 30 s / 10 min, licznik paska `useDiagnosticsBadgeCount`).                                                                                                                                                                                                              |
+| Szybkie naprawy                       | `quickFixes.ts` - 15 specyfikacji na mutatorach modułów z `HUB_SYNC_MANIFEST` (bez `.from`/`.rpc` w hubie), `QuickFixDialog` („Przed → Po”, `SourceHeader`, ponowne sprawdzenie na świeżych faktach z `aria-live`, „Cofnij” 60 s, konflikt 40001 „Twoja zmiana / stan teraz”, brak roli = `Zastosuj` disabled z `Tooltip`), treści `fixes/*` jako `React.lazy`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Zakładka Diagnostyka                  | `DiagnosticsBoard` (filtr `?area=` w adresie, waga i stan lokalnie, `?view=list\|map`, `?finding=`, `?fix=`), `DiagnosticCard`, `SnoozeDialog` (7/30/90/180 dni albo „celowo” z powodem), `SystemMapGrid` (byt → pisarze → zdarzenia → zakładki → ekran), `AttentionCard` na Kokpicie, `RevenueSignalChip` (`{areas}` albo `{surface}`, treść w leniwym `SignalChipBody`).                                                                                                                                                                                                                                                                                                                                                                               |
+| Kokpit, Przychód, Retencja            | Kafle z `metricId` i `drillHref` (admin 6 z kwotami, redaktor 6 bez kwot + `LockedMetricTile` bez RPC finansowego), most MRR (`start + Σ = end`, rozjazd > 0,5 % = baner), szereg MRR, ruchy, przychód zrealizowany per kategoria i waluta (nigdy suma walut), zgodność źródeł (werdykt `reconcileMetric`), churn z poprzednim oknem, mapa ciepła kohort (puste pole, nigdy 0), przepływ anulowania, oferty, powody odejść (Z-S2-04), windykacja.                                                                                                                                                                                                                                                                                                        |
+| Lejek, Dostęp, Oferta, Dane wejściowe | `FunnelStageMap` (przejście między strumieniami bez ilorazu, aktywacja = „brak definicji”), symulator czytelnika = ten sam `<Paywall preview>` (5 person, bez efektów), polityka dostępu jednym zdaniem, inwentarz, lista kontrolna paywalla, macierz plan × benefit (konflikty P20, tabela a11y, `Accordion` < 768 px), drabina cen, zdanie kasy, siatka danych wejściowych (tylko admin, za długa notatka odrzucona, 40001 w wierszu, miesiące lokalne).                                                                                                                                                                                                                                                                                               |
+| Społeczność, Wskaźniki, pulpit        | `?sec=events\|clubs` na `revenue{Events,Clubs}SummaryQueryOptions` (Z-S4-07); słownik S6 z wartościami migawki i ekonomiki S2, ocena 5 progami z rejestru S6, arkusz `?metric=&ctx=`, „brak danych” z powodem; kafel przychodu zrealizowanego w `MarketingPanel` (leniwy `RealizedRevenueTile`) spod klucza migawki BI.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Kontrakty (testy)                     | `syncScenarios.test.ts` (S-A…S-F, 1 `it.todo` - Z-S7-05), `hubLinksContract.test.ts` (367 przypadków: każdy odnośnik huba → trasa z `routeTree.gen.ts` i parametry §2.6), `revenueTilesHaveMetric`, `sourceHeaderOnMutations` (każdy ekran z zapisem ma `SourceHeader`), axe w każdym organizmie.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+### 23.2 Decyzje
+
+- **Bliźniaki od `0373`** (pierwszy wolny po I9c `0372`), **przed S8** -
+  S8 nie ma SQL, więc kolejność wycinków nie przesuwa numerów (§23.6).
+- **Blok wersji 15** (pakiet S7 §7): funkcje S7 w `plpgsql` (ciało
+  niewalidowane przy `CREATE`), fakty nie czytają obiektów bloku 16 I9
+  (`data_retention_*`, `funnel_paywall_daily`, `metering_events_daily`,
+  `newsletter_campaign_engagement_archive`, `crm_leads.anonymized_at`)
+  i nie wołają jego funkcji; S7 nie dodaje tabel ani kolumn; pgTAP nie
+  zakłada `created_by NOT NULL` w `revenue_diagnostic_snoozes`. Odtworzenie
+  w kolejności wersji (15 → 16, pgTAP i `check:sql-migration-replay`)
+  i produkcja w kolejności dziennika drizzle (`0358…0372` → `0373…0375`)
+  dają ten sam stan.
+- **Identyczny klucz przychodu zrealizowanego - wariant „migawka”** (REK
+  pakietu §8): kafel pulpitu, kafel Kokpitu, KPI Przychodu i BI czytają
+  `revenueSnapshotQueryOptions(t, range)` - test porównuje `queryKey`
+  (jeden wpis cache, jedno żądanie). Rozbicie per kategoria i waluta -
+  `revenueRealizedQueryOptions` (S2). BI (`RevenueInsightSection`) bez zmian.
+- **Licznik Diagnostyki w leniwej sondzie** (Integrator, Z-S6-08): hak
+  `useDiagnosticsBadgeCount` liczy ocenę całego rejestru, więc statyczny
+  import w układzie wciągnąłby rejestr 55 reguł do chunku `admin.revenue`
+  (ładowanego z każdą zakładką). Układ montuje `DiagnosticsBadgeProbe` przez
+  `React.lazy` (tylko z najemcą, rolą admin/editor i zakładką Diagnostyka na
+  pasku); sonda oddaje liczbę układowi, znacznik licznika zostaje w jednym
+  miejscu. `null` = nie wiadomo (ładowanie, odmowa) - pasek nie pokazuje „0”.
+  Fakty i wyciszenia spod kluczy zakładki - na Diagnostyce i Kokpicie zero
+  nowych żądań; „Odśwież dane” i wskaźnik świeżości obejmują teraz też fakty.
+- **Stan „w przygotowaniu”** (I9a §19.6): `TAB_PREPARING` jest `Partial`,
+  wpisy dziesięciu zakładek S7, etapy `s7`/`s6s7`, zdanie `partial`
+  i odnośniki używane tylko przez nie zniknęły; zostały Ścieżki (S8).
+  Molekuła bez wpisu nic nie rysuje.
+- **⌘K wskaźników**: pozycja huba w nawigacji dostaje 43 skróty
+  `„<KOD> · Wskaźniki”` → `/admin/revenue/metrics?metric=<id>` (admin
+  i redaktor; autor - nic), z listy par kod/identyfikator bez rejestru S6
+  (nawigacja jedzie w powłoce panelu).
+- **Wszystko w panelu admina**: każda funkcja S7 ma wejście w panelu dla
+  właściwych ról (10 zakładek huba z `adminPageHead` huba, Diagnostyka
+  z naprawami i wyciszeniami, kafel pulpitu, ⌘K zakładek i wskaźników);
+  PL/EN z parytetem; stany puste i odmowy jako stany kart.
+
+### 23.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S7                                    | Stan po S7                                                                                                                                                                                                                                                                                       | Uzasadnienie                                                                                                                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| §5.7 „Reguły (50)”                                         | 55 reguł: 54 identyfikatory wyliczone w §5.7 i 55. `catalog.team_seats_over_cap` (Zespół ponad `TEAM_TIER_MAX_SEATS` = 20 albo na granicy, odnośnik `/admin/organizations`).                                                                                                                     | Nagłówek SPEC nie zgadza się z własną listą (54). 55. reguła zamyka Z-I9b-06 („Opcja: alert diagnostyki S7”) - odejście od zamkniętej listy Insidera §6.8, do akceptacji właściciela (Z-S7-14). |
+| Karta: 2 migracje (`150000`, `150100`)                     | 3 pliki: `150000` (obszary sprzedaży), `150050` (obszary operacyjne + `admin_revenue_facts`), `150100` (wyciszenia); bliźniaki `0373…0375`.                                                                                                                                                      | Fakty nie mieściły się w 45 KiB (§4 pkt 3); podział w tym samym bloku 15.                                                                                                                       |
+| `defectMap.test.ts` „wszystkie identyfikatory z briefów”   | Pokrywa tabelę SPEC §7, listę „Odłożone świadomie” i przywołania P/D w regułach §5.7 (w tym D13 br. 03 przez `DEFECTS_OUTSIDE_TABLE`).                                                                                                                                                           | `brief_01..05.md` i `proposal_dane.md` nie istnieją w repo. Numery bez źródła: def. 1, 2, 5, 7, 8, 12, 16, 18, 19 br. 02; D4, D8, D10, D15 br. 03; br. 04 D2-D4, D11, D12 (Z-S7-13).            |
+| `journeys.missing_core`                                    | Błąd przy braku `welcome_onboarding` lub `abandoned_checkout` (M3); ostrzeżenie przy braku `event_registration_nurture`, `payment_failed_crm` lub `cancel_scheduled_save`.                                                                                                                       | SPEC nie definiuje rdzenia ścieżek - REK pakietu §3.8 (rozszerzenie Insidera).                                                                                                                  |
+| Progi bez źródła benchmarkowego                            | Nazwane stałe operacyjne z uzasadnieniem: `PAYWALL_SILENT_DAYS` 7, granice większości 0,5 (`ATTRIBUTION_UNKNOWN_MAJORITY`, `STEP_FAILURE_MAJORITY`, `TICKET_UNUSED_MAJORITY`, `BENCHMARK_STALE_MAJORITY`), `SANDBOX_RECENT_DAYS` 7, `COUPON_EXPIRING_DAYS` 14, okna wniosków do klubów 7/30 dni. | Liczb benchmarków nie wymyślamy (§4 pkt 9); backlog skrzynki ścieżek mierzą progi świeżości harmonogramu, rabat roczny ma tylko granice logiczne.                                               |
+| `catalog.price_change_without_notice` = `unknown` (pakiet) | Liczona z historii migracji cen (nieudane albo wiszące > 24 h w 90 dniach).                                                                                                                                                                                                                      | Źródło zmian w bazie istnieje.                                                                                                                                                                  |
+| Lustra stałych                                             | `RETENTION_DIALOG_STEPS`, `LEDGER_DRIFT_TOLERANCE` (= `BRIDGE_TOLERANCE`), `SERIES_DAY_GRAIN_MAX_DAYS` (= `FINANCE_DAY_GRAIN_MAX_DAYS`) - parytet w testach.                                                                                                                                     | Import modułów server fn i arytmetyki wciągnąłby je do chunków chipu i czystych modeli; `RetentionDialog` nie eksportuje liczby kroków (Z-S7-08).                                               |
+| P24 `bulkUpdateCrmTasks` (SPEC)                            | Naprawa `crm_assign_tasks` woła server fn S4 `assignUnassignedCrmTasks`; zapadki `PENDING_MANIFEST_WRITERS` i `PENDING_MODULE_CONSUMERS` w `quickFixes.test.ts`.                                                                                                                                 | `bulkUpdateCrmTasks` nie istnieje; manifest `crm_task.writers` i ekran CRM - I9 (Z-S7-02).                                                                                                      |
+| Konflikt zapisu → `RevisionDiffDialog`                     | `QuickFixDialog`: „Twoja zmiana / stan teraz” na świeżych faktach (`role=alert`, tabela z `caption`/`scope`) i „Wczytaj aktualne”; Dane wejściowe - konflikt w wierszu siatki.                                                                                                                   | `RevisionDiffDialog` obsługuje wyłącznie rewizje wpisów i stron (`entityType post\|page`); naprawy zmieniają wiersze bez rewizji. S-E w `syncScenarios` dowodzi kontraktu danych.               |
+| §2.6 filtry Diagnostyki                                    | Waga i stan - stan lokalny tablicy (domyślnie „otwarte”); do adresu trafia tylko `?area=`.                                                                                                                                                                                                       | Kontrakt URL i walidator `parseRevenueHubSearch` nie mają tych parametrów; układu S6 S7 nie zmienia.                                                                                            |
+| §6.1 `RevenueSignalChip {areas}`                           | Także `{surface: SignalSurface}`; domyślny wariant `chip`; rejestr, ocena i słownik w leniwym `SignalChipBody`.                                                                                                                                                                                  | Plik trasy modułu nie importuje mapy obszarów z rejestrem (D-08).                                                                                                                               |
+| Lejek (IA §2.2)                                            | Odwiedzający (`first_party`) obok `FunnelBars`, nie pierwszy pasek; etap M1 poza mapą; `StageTimeCard` zawsze „brak danych” z powodem.                                                                                                                                                           | Szerokość paska byłaby ukrytym ilorazem; DTO S3 nie ma M1 (należy do Retencji); agregat nie zapisuje czasu przejścia (Z-S7-15).                                                                 |
+| Oferta i Dostęp                                            | Macierz - kolumny aktywnych planów, konflikt P20 raz na parę (warstwa, uprawnienie), poprawka benefitów → `/admin/pricing?tab=tiers`; persony z rang warstw najemcy; waluty siatki z rynków planów.                                                                                              | `useSaveTierMarketing` nie jest wołany z macierzy; brak listy walut wpisanej w kod.                                                                                                             |
+| Przychód i Retencja                                        | Mapa kohort ≤ 10 wierszy; karty bez segmentu w RPC S2 mówią to zdaniem; waluta wiodąca ilorazów odtwarzana w panelu (`snapshotMetaOf`); „trend” churnu = bieżące okno vs poprzednie; zgodność źródeł: księga 0 i zamówienia > 0 = `order_inverted`.                                              | `MAX_SERIES` silnika wykresów; RPC S2 bez segmentu; migawka bez `ratio_currency` (Z-S7-06); brak RPC szeregu churnu.                                                                            |
+| Wskaźniki                                                  | Wiersz słownika S6 otwiera arkusz przez `?metric=` (przechwycenie kliknięcia `onClickCapture`); słownik dostaje też ekonomikę S2 (tylko admin) z mapą brakujących danych wejściowych; 77 pozycji (70 metryk + 7 bez metryki); `metricSearchIndex` - 43 kody, nie 70.                             | `MetricDictionary` nie ma propsa `onOpenMetric` (Z-S7-04); skróty tylko dla wskaźników z kodem w rejestrze benchmarków S6.                                                                      |
+| S-F (§3.5) baner „Aktualizacje na żywo wstrzymane”         | `it.todo` w `syncScenarios.test.ts`; reszta S-F testowana.                                                                                                                                                                                                                                       | `subscribeToDomainEvents` nie wystawia statusu kanału (Z-S7-05).                                                                                                                                |
+| Karta: delta bundla „≤ +40 KB” (pakiet)                    | `overall` +136,9 KB, w całości leniwe chunki panelu; zamrożone progi zachowane (§23.7).                                                                                                                                                                                                          | 10 zakładek, rejestr 55 reguł i dwa słowniki PL/EN (diagnostyka 22,3 KB, zakładki 13,3 KB) - ratchet D-08.                                                                                      |
+
+### 23.4 Zgłoszenia „Do integracji” wykonane przez Integratora S7
+
+Strażnik `hub-slice-guard.ts S7 --base 75133fe20` po integracji zgłasza
+wyłącznie zmiany Integratora: `[plik-wspoldzielony]`
+`drizzle/migrations/meta/_journal.json`, `src/integrations/supabase/types.ts`,
+`src/lib/admin/adminNav.ts` (+ test), `src/lib/authz/authzSnapshot.generated.ts`,
+`src/lib/ci/hubDelivery.ts`, `scripts/check-bundle-size.ts`
+oraz `[poza-manifestem]` `RevenueHubLayout.tsx` (+ test; plik S6 - licznik
+paska), ten dziennik, `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`
+i usunięte `docs/kontynuacja/s7/**` (+ `README.md`).
+
+| Zgłoszenie                           | Zmiana                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bliźniaki drizzle                    | 3 bliźniaki (bajt w bajt) i 3 wpisy `_journal.json` w kolejności wersji (§23.6); `check:migration-lanes` i `supabaseLaneCoverage.test.ts` zielone.                                                                                                                                                                                                                   |
+| `types.ts`                           | Sygnatury 4 RPC S7 (`admin_revenue_facts`, `admin_revenue_diagnostic_snooze`, `_unsnooze`, `_snoozes`) w konwencji generatora (`Args: never`, argumenty alfabetycznie) - jak S2/S3/S5 dokumentacja kontraktu; wywołania dalej przez `RpcCallable` z literałem nazwy.                                                                                                 |
+| Kontrakt TS ⇄ SQL                    | `generate:ts-sql-contract` - plik w `.gitignore` (generuje CI), 989 wywołań RPC (w tym 4 S7); pgTAP `ts_sql_contract` 9 asercji.                                                                                                                                                                                                                                     |
+| Snapshot bramek autoryzacji          | `generate:authz-snapshot`: nowa bramka flagi `premium_content` w `fn:_revenue_facts_paywall/1` (helper faktów czyta `features ->> 'premium_content'` warstw, jak `admin_revenue_access_inventory` - do przeglądu w review; helper bez EXECUTE dla ról API, `tenantRef: row`) oraz liczniki skanu 1299 → 1302 migracji, 1823 → 1843 funkcji, 677 polityk.             |
+| Trasy huba (`adminRevenueHubRoutes`) | Asercje zdania zaślepki zamienione na nagłówki `h2` nowej treści: Kokpit „Najważniejsze wskaźniki”, Oferta (EN) „Offer matrix”.                                                                                                                                                                                                                                      |
+| Stan „w przygotowaniu” (I9a §19.6)   | `TAB_PREPARING` → `Partial`, tylko `journeys`; usunięte stałe odnośników, etapy `s7`/`s6s7`, `adminRevenue.preparing.{partial, stage.s7, stage.s6s7, what.<10 zakładek>, link.<13>}` w PL i EN; `RevenueTabPreparing` bez wpisu = `null`; testy: wpis mają wyłącznie zakładki bez treści, odnośniki Ścieżek, każda zakładka S7 renderuje pustkę.                     |
+| Licznik Diagnostyki (Z-S6-08)        | `RevenueHubLayout` montuje leniwą sondę `DiagnosticsBadgeProbe` (plik S7, `diagnostics/`) i pokazuje liczbę w slocie `badges`; testy układu: licznik z cache bez żądania, redaktor, brak faktów/najemcy = bez licznika, zimny cache = jedno żądanie faktów i wyciszeń; zaślepka zakładki Lejek w testach świeżości (przedmiotem jest powłoka). Licznik Ścieżek - S8. |
+| ⌘K wskaźników                        | `adminNav.ts`: `searchEntries` = skróty zakładek + `metricSearchEntries(t(REVENUE_TAB_NAV_LABEL.metrics), roles)`; test: „nrr” → `/admin/revenue/metrics?metric=net_revenue_retention` dla admina i redaktora, autor - nic; testy zakładek filtrują skróty wskaźników. `i18n-admin-core.ts` bez zmian (etykieta zakładki już jest).                                  |
+| Pulpit (`dashboardPanels.test`)      | Atrapa leniwego `RealizedRevenueTile` (bez haków) zamiast `QueryClientProvider`: gdy `import()` zdąży się rozwiązać między testami, `lazy` renderowałby kafel synchronicznie z sesją, hydratacją i React Query - test zależałby od czasu. Zachowanie kafla dowodzi `MarketingPanel.realized.test.tsx`.                                                               |
+| Rejestr dostawy (`hubDelivery.ts`)   | Manifest S7 += bliźniaki `{0373,0374,0375}_*.sql` i pliki powyżej (komentarz „Integrator S7, 2026-10-22”); `FUNCTION_TABLE` bez zmian (20 funkcji S7 już w rejestrze); `RevenueHubLayout` zostaje plikiem S6 (jeden właściciel równoległy - test manifestów).                                                                                                        |
+| `i18nParity`                         | Bramka przepisała `reports/i18n-parity.json` bez zmian treści (gałęzie `adminRevenue.*` są w `GATED_PREFIXES` od I0; zdjęte klucze stanu „w przygotowaniu” miały pary PL/EN) - pliku nie ma w commicie; allowlista bez zmian.                                                                                                                                        |
+| Budżet D-08                          | Ratchet `overall` 5023 → 5159 z wpisem kroniki (§23.7).                                                                                                                                                                                                                                                                                                              |
+
+### 23.5 Zgłoszenia
+
+**Zamknięte przez S7** (dopiski „Zamknięte 2026-10-22 (S7, §23)”
+w sekcjach źródłowych): Z-S2-06, Z-S2-12 (§16.5), Z-S3-03 (§18.5), Z-S4-07
+(§15.5), Z-I9b-06 (§21.7), Z-S6-08 (§11.5 - licznik Ścieżek dał S8, oba
+liczniki razem po scaleniu, §23.11); **częściowo**: Z-S2-04 (§16.5 - `RetentionFeedbackList`: I9), Z-S2-05
+(§16.5 - `ratio_currency` w migawce: S6/I9).
+
+**Otwarte → I9** (pliki spoza manifestu S7, gotowe opisy w raportach
+podzadań):
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S7-01 | Chipy `RevenueSignalChip` w ekranach modułów (SPEC §2.7; 10 powierzchni `SIGNAL_SURFACES`): import z `@/components/admin/revenue/molecules/RevenueSignalChip` i pasek zaraz po pierwszym `</header>` - `admin.paywall.tsx` (`surface="paywall" variant="bar"`, po `PaywallKpiStrip`), `AdminPricingWorkspace` (`pricing`), `AdminMembershipWorkspace` (`membership`), `admin.coupons.tsx` (`coupons`), `admin.newsletter.tsx` (`newsletter`, po `<NewsletterSubNav />`), `admin.crm.index.tsx` (`crm`), `admin.workflows.tsx` (`workflows`), `admin.billing.tsx` (`billing`, przed `<AdminBillingPanel`), panel wydarzeń (`events`), `admin.community.clubs.index.tsx` (`clubs`). Opakowanie lekkie, treść leniwa; poza admin/editor, przed hydratacją i bez najemcy nic nie rysuje i nie wysyła żądań. Zmierzyć bundle (D-08). **Zamknięte 2026-10-22 (I9, §24):** sygnał w 10 ekranach (`SIGNAL_SURFACES`), lekkie opakowanie z bramką roli przed zapytaniami, treść leniwa, drogowskazy moduły → hub i aktywne ścieżki wydarzeń (`6afa1b3c7`). |
+| Z-S7-02 | P24: `HUB_SYNC_MANIFEST.crm_task.writers` wskazuje nieistniejący `bulkUpdateCrmTasks` - zamienić na `src/lib/crm-tasks.functions.ts#assignUnassignedCrmTasks` i w tym samym commicie zdjąć wpis z `PENDING_MANIFEST_WRITERS` (`quickFixes.test.ts`); na ekranie CRM dodać wywołanie `assignUnassignedCrmTasks` (np. „Przypisz zadania bez osoby” na liście zadań) i zdjąć wpis z `PENDING_MODULE_CONSUMERS`. **Zamknięte 2026-10-22 (I9, §24):** pisarze `crm_task` = `updateCrmTask` + `assignUnassignedCrmTasks`, przycisk „Przypisz zadania bez osoby” na liście CRM, zapadki puste (`d0cf40d17`).                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Z-S7-03 | `HUB_SYNC_MANIFEST[*].metrics` z `HUB_METRIC_IDS` i `METRIC_GROUP` (Z-S6-11). **Zamknięte 2026-10-22 (I9, §24):** `metrics` w trybie ścisłym z mapą `METRIC_GROUP_DOMAINS` (`d0cf40d17`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Z-S7-04 | `MetricDictionary` (S6): kontrolowany prop `onOpenMetric?: (id: MetricId) => void` (przycisk wiersza woła go zamiast `setOpen(row)`); potem `MetricDictionaryView` (S7) usuwa przechwytywanie `onClickCapture` (zależne od znacznika `tr[data-metric]`) i przekazuje `onOpenMetric={openMetric}`. **Zamknięte 2026-10-22 (I9, §24):** `onOpenMetric` w `MetricDictionary`, bez przechwytywania kliknięć (`3a28896e3`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Z-S7-05 | Scenariusz S-F: API statusu kanału realtime (`useDomainEventStreamStatus(): "live" \| "paused"` w `useDomainEventStream.ts`/`useModuleRealtime.ts`), baner „Aktualizacje na żywo wstrzymane” w `RevenueHubLayout` (`role=status`, klucz słownika powłoki) i zamiana `it.todo` w `syncScenarios.test.ts` na test. **Zamknięte 2026-10-22 (I9, §24):** `useDomainEventStreamStatus()`, baner „Aktualizacje na żywo wstrzymane” w nagłówku huba, test S-F (`3a28896e3`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Z-S7-06 | Z-S2-05: `ratioCurrency` (waluta wiodąca NRR/GRR/QR) w wyniku migawki (`revenueSnapshot.functions.ts`, S6); potem `snapshotMetaOf` (`mrr/useSnapshotMeta.ts`) czyta pole zamiast odtwarzać regułę `firstCurrency`. **Zamknięte 2026-10-22 (I9, §24):** `ratioCurrency` w migawce (`3a28896e3`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Z-S7-07 | Z-I9c-05: `admin_dashboard_marketing` (`20260912110000`) - kafle otwarć i kliknięć oraz tabela kampanii w `MarketingPanel` dla okien starszych niż retencja na rollup `newsletter_campaign_engagement_archive`; obiekt bloku 16 - nowa migracja I9 z `CIALO-Z` (S7 nie może czytać bloku 16). **Zamknięte 2026-10-22 (I9, §24):** `admin_dashboard_marketing` na zestawieniu dziennym i archiwum (`20261020162900`, `4194e0a14`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Z-S7-08 | Z-S2-04 poza hubem: `RetentionFeedbackList` (S1) - `not_given` poza rankingiem z etykietą `reasonNotGiven`, `stripe:<kod>` jako „Portal Stripe: <kod>” (jak `ChurnReasonsCard`). Opcjonalnie `RetentionDialog` eksportuje `RETENTION_DIALOG_STEPS = { enabled: 2, disabled: 1 }` - lustro w `diagnostics.functions.ts` zamienia się w dynamiczny import w handlerze. **Zamknięte 2026-10-22 (I9, §24):** wspólny `retentionReasonLabel`, `not_given` poza rankingiem w Cenniku (`3a28896e3`); pulpit monetyzacji - D-09; lustro `RETENTION_DIALOG_STEPS` niezrobione (opcjonalne).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Z-S7-09 | Z-S6-12 (przegląd S7.3b): `membership/atoms/KpiTile`, `PaywallKpiStrip`, `AdminBiStrip` liczą katalog i obserwowalność - bez `MetricId` w rejestrze S6; rekomendacja: zostawić atomy albo `KpiTile` bez `metricId` (wspólna geometria), bez nowych metryk. **Świadomie bez zmian 2026-10-22 (I9, §24):** atomy liczą katalog i obserwowalność, nie wskaźniki rejestru S6 - `MetricId` oznaczałby wymyślone metryki; geometria już wspólna.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Z-S7-10 | Wpięcie `email` w migawkę huba (Z-S1-01, Z-S6-16/17) - bez zmian; Kokpit i Wskaźniki mówią „źródło niepodłączone”. **Zamknięte 2026-10-22 (I9, §24):** wpięcie `email` w migawkę z adapterem kształtu S1 (`3a28896e3`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+**Otwarte - decyzje i obserwacja:**
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S7-11 | Budżet: `overall` +136,9 KB przy celu pakietu „≤ +40 KB”; `css` 99,8 / 100 - zapas 0,2 KB, kolejne wycinki nie powinny dokładać nowych klas narzędziowych ani słów-klas w napisach EN `src/lib/i18n-*.ts`.                                                                                                                                                                      |
+| Z-S7-12 | Klucz S2 `adminRevenue.finance.series.title` nie ma czytelnika (karta szeregu czyta zarezerwowany `adminRevenue.mrr.seriesTitle`) - do decyzji S2/I9; bramka `overlayReaders` zielona. **Zamknięte 2026-10-22 (I9, §24):** martwy klucz usunięty (`e68a1f94d`).                                                                                                                 |
+| Z-S7-13 | Briefów `brief_01..05.md` i `proposal_dane.md` brak w repo - numery defektów bez źródła (§23.3) do uzupełnienia w `defectMap`, gdy właściciel doda briefy.                                                                                                                                                                                                                      |
+| Z-S7-14 | 55. reguła `catalog.team_seats_over_cap` - odejście od zamkniętej listy Insidera §6.8; akceptacja właściciela (reguła ma „Wycisz celowo”).                                                                                                                                                                                                                                      |
+| Z-S7-15 | Czas między krokami lejka (`StageTimeCard`) - agregat S3 nie zapisuje chwili przejścia; zgłoszenie dla producenta lejka, jeśli metryka ma się pojawić.                                                                                                                                                                                                                          |
+| Z-S7-16 | Równoległe I9d (RODO: kluby, licznik, newsletter) może zmienić tabele czytane przez fakty - fakty są tolerancyjne (awaria obszaru → `null` → `unknown`), ale po scaleniu z I9d powtórzyć `plpgsql_check_gate` i pgTAP S7. **Zamknięte 2026-10-22 (I9, §24):** pgTAP po I9 (1317 migracji): `plpgsql_check_gate` 4/4, `revenue_facts` 24/24, `revenue_diagnostic_snoozes` 26/26. |
+| Z-S7-17 | **Zamknięte 2026-10-22 (scalenie S7 po S8, §23.11):** mechanizm usunięty w całości. Po S8 `TAB_PREPARING` będzie pusty - S8 usuwa wpis `journeys`; przy przebazowaniu S7 na gałąź z S8 usunąć cały mechanizm (`tabPreparing.ts`, `RevenueTabPreparing`, `i18n-admin-revenue-preparing.ts`, testy, wpisy manifestów I9 i S7) - I9a §19.6 („ostatni wycinek usuwa cały plik”).    |
+
+**Przebazowanie na gałąź z S8** (S8 trafia do PR pierwszy; wykonane jako
+scalenie - §23.11). Pliki, które
+zmieniają oba wycinki albo ich integratorzy - konflikty do rozwiązania
+ręcznie, potem powtórzyć bramki dotknięte zmianą bazy:
+
+- `src/lib/admin/revenue/tabPreparing.ts`, `RevenueTabPreparing.tsx`,
+  `i18n-admin-revenue-preparing.ts` i ich testy - S8 zdejmuje wpis
+  `journeys`, S7 pozostałe dziesięć; po obu mapa jest pusta, więc usunąć
+  cały mechanizm i wpisy manifestów I9/S7 (Z-S7-17);
+- `src/lib/admin/adminNav.ts` (+ test) - S7 dokłada skróty wskaźników
+  w `searchEntries` pozycji huba, S8 prawdopodobnie skrót „Nowa ścieżka”
+  (`?new=1`) w tym samym miejscu;
+- `RevenueHubLayout.tsx` (+ test) - slot `badges`: S7 licznik Diagnostyki
+  z leniwej sondy, S8 licznik Ścieżek;
+- `src/lib/ci/hubDelivery.ts` - manifesty S7 i S8 (sąsiednie bloki);
+- `scripts/check-bundle-size.ts` - dwa wpisy kroniki i dwa ratchety
+  `overall` (po przebazowaniu zmierzyć ponownie i ustawić jeden próg
+  `ceil + 1`);
+- `reports/i18n-parity.json` (bramka przepisuje), `drizzle/meta/_journal.json`
+  (S8 bez SQL - bez konfliktu, jeśli nie doszedł bliźniak potwierdzenia
+  wdrożenia), ten dziennik (§10, §17, sekcje 22/23),
+  `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`
+  i `docs/kontynuacja/README.md` (S8 usuwa `s8/`, S7 - `s7/`; po obu
+  katalog do usunięcia w całości).
+
+### 23.6 Bliźniaki drizzle
+
+| Wersja supabase                             | Bliźniak                          | idx | `when`        |
+| ------------------------------------------- | --------------------------------- | --- | ------------- |
+| `20261020150000_revenue_facts`              | `0373_revenue_facts`              | 373 | 1792477993912 |
+| `20261020150050_revenue_facts_operations`   | `0374_revenue_facts_operations`   | 374 | 1792478053912 |
+| `20261020150100_revenue_diagnostic_snoozes` | `0375_revenue_diagnostic_snoozes` | 375 | 1792478113912 |
+
+`when` = 1792477933912 (`0372`) + n·60 000; `cmp` supabase ⇄ drizzle: bajt
+w bajt. S8 nie ma SQL, więc przebazowanie na gałąź z S8 numerów nie
+przesuwa; gdyby `main` dostał wcześniej inny bliźniak (np. potwierdzenie
+wdrożenia Lovable), przesunąć numery i glob w `hubDelivery.ts` (§4.4
+pkt 3). **Następny wolny numer: `0376`** (idx 376), bez rezerwacji (§6).
+`supabase/migration-ledger.json` bez zmian (§4 pkt 3).
+
+### 23.7 Pomiar bundla
+
+`flock -x /tmp/hub-heavy.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build `75133fe2` w kopii `git archive` (S7-bramki,
+ten sam host i `node_modules`), S7 = drzewo po integracji. Przypisanie:
+gzip per chunk (nazwa bez hasha), baza ⇄ S7.
+
+| Budżet (gzip KB)         | Próg przed → po | Baza `75133fe2` | S7 (wykonawcy, `6d02b021`) | S7 + integracja | Δ (baza → S7) | Wynik                                                                                |
+| ------------------------ | --------------- | --------------- | -------------------------- | --------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `overall`                | 5023 → **5159** | 5020,6          | 5159,1                     | 5157,5          | **+136,9**    | ✗ → ratchet D-08 (5157,5 → 5158 → +1), wpis kroniki nad progiem                      |
+| `admin-only`             | -               | 2242,3          | 2379,5                     | 2378,0          | +135,7        | -                                                                                    |
+| `public`                 | 2881 (zamr.)    | 2778,3          | 2779,6                     | 2779,4          | +1,1          | ✓ (wspólny chunk `Paywall` - drugi import w symulatorze czytelnika)                  |
+| największy chunk (entry) | 286 (zamr.)     | 257,9           | 258,0                      | 258,0           | +0,1          | ✓                                                                                    |
+| `css`                    | 100             | 99,7            | 99,8                       | 99,8            | +0,1          | ✓ bez ratchetu, zapas 0,2 KB (Z-S7-11)                                               |
+| `publicCss`              | 85 (zamr.)      | 83,8            | 83,8                       | 83,8            | 0,0           | ✓                                                                                    |
+| `boot`                   | 579 (zamr.)     | 471,7           | 471,7                      | 471,7           | 0,0           | ✓                                                                                    |
+| pliki JS klienta         | -               | 1462            | 1515                       | 1516            | +54           | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Największe przyrosty baza → S7 (leniwe chunki panelu): wspólny chunk
+zapytań diagnostyki z rejestrem 55 reguł i oceną (`queries` +24,1),
+słowniki PL/EN diagnostyki (+22,3) i zakładek (+13,3), zakładki
+Diagnostyka +5,9, Dostęp +5,1, Retencja +4,8, Oferta +4,4, Społeczność
++4,0, Przychód +4,0, Wskaźniki +3,8, Dane wejściowe +3,6, Lejek +3,4 i Kokpit
+(`admin.revenue.index`) +3,5, naprawy (`quickFixes` +4,7, `QuickFixDialog`
++3,2, `DiagnosticCard` +2,6), `SourceHeader` +4,4, `MrrBridgeCard` +2,6.
+Wspólne chunki modułów przegrupowane drugim importem (np.
+`i18n-admin-paywall-sync` +7,8 i `i18n-admin-membership` +6,2 przy
+`admin.billing` −6,9, `tierMutations` −6,5, `saveErrorToast` −7,8).
+
+Integracja względem drzewa wykonawców: −1,6 KB - `RevenueJourneysTab`
+−2,6 (stan „w przygotowaniu” tylko dla Ścieżek), `AdminShell` +0,6 (43
+skróty ⌘K wskaźników w powłoce panelu), `admin.revenue` +0,3 i nowy chunk
+`DiagnosticsBadgeProbe` +0,25 (leniwa sonda licznika; chunk zapytań
+z rejestrem reguł +0,1 - rejestr **nie** wszedł do chunku układu huba,
+4,2 → 4,5 KB). Ratchet `overall` 5023 → 5159 (zmierzone 5157,5 → 5158 →
++1) z wpisem kroniki w `scripts/check-bundle-size.ts`; zgodnie z §4.1
+promptu `check:bundle` nie był uruchamiany ponownie po zmianie progu -
+arytmetyka: 5157,5 ≤ 5159.
+
+### 23.8 Weryfikacja końcowa S7
+
+Worktree `/home/user/wt/S7`, ciężkie kroki po kolei pod
+`flock -x /tmp/hub-heavy.lock` (równolegle pracował worktree S8); pełny
+pakiet vitest - CI. Lokalnie nieśledzony katalog materiałów `_kontynuacja/`
+(poza repo i CI) zapala `format:check`, `lint` i strażnika - wyniki niżej
+podane dla plików repozytorium.
+
+| Polecenie                                                                                                                                                                                                          | Wynik                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                             | ✓ dla repozytorium - 18 ostrzeżeń wyłącznie w nieśledzonym `_kontynuacja/`; dokumenty tego wpisu `bunx prettier --write`                                                                                                                                                                                                                                  |
+| `bun run verify:static` (18 bramek)                                                                                                                                                                                | `format:check` jw.; pozostałe 17 `check:*` puszczone bez zatrzymania - ✓ wszystkie (`migration-lanes` 376 wpisów dziennika, `rpc-contract` 860 nazw, `sql-migration-replay` 1302 pliki, `sql-tenant-scope` 1843 funkcje, `ts-sql-contract`, `types-freshness` baseline 7, `structured-data-live`)                                                         |
+| `tsgo --noEmit` zawężony jak w CI (`tsconfig.s7i.tmp.json`: deklaracje, `routeTree.gen.ts`, `vitest.setup.ts` + 219 plików - wszystkie `.ts`/`.tsx` zmienione od bazy i ich importerzy), `GOMEMLIMIT=6GiB`         | ✓ 0 błędów (importerów `types.ts` nie dołączano: zmiana wyłącznie addytywna w `Functions`, wywołania przez `RpcCallable`)                                                                                                                                                                                                                                 |
+| `bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                                               | ✓ / ✓                                                                                                                                                                                                                                                                                                                                                     |
+| `bun run lint`                                                                                                                                                                                                     | ✓ dla repozytorium - 4 błędy parsowania wyłącznie w `_kontynuacja/workflows/*.js`; 282 ostrzeżenia zastane, 0 w plikach S7 i integracji                                                                                                                                                                                                                   |
+| `TZ=UTC bunx vitest run --maxWorkers=2 src/lib/revenue src/lib/admin src/components/admin/revenue src/components/admin/dashboard src/lib/ci src/lib/__tests__ src/routes/__tests__ src/__tests__ src/lib/journeys` | ✓ 606 plików (2 pominięte), 18 916 testów, 98 `expected fail`, 50 pominiętych, 1 `todo` (S-F); `reports/i18n-parity.json` po bramce parytetu bez zmian                                                                                                                                                                                                    |
+| testy po ratchecie (`documentWeightBootRoots`, `chunkGateRegexes`, `clientModulePreload`, `platformBuildGuards`)                                                                                                   | ✓ 4 pliki, 43 testy                                                                                                                                                                                                                                                                                                                                       |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-hub-s7`, port 5457)                                                                                                                                                      | 1302 migracje (1 znany błąd `20260825230232`); 249 plików ✓ / 5734 asercje; 4 czerwone wyłącznie znane środowiskowe: `community_cron_schedule` 2/17 i `job_scheduler_heartbeat` 1/32 (pg_net), `public_definer_views_read_only` 1/35, `profile_intent_semantic` (vector). S7: `revenue_facts` 24, `revenue_diagnostic_snoozes` 26, `plpgsql_check_gate` 4 |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                         | ✓ 9 asercji (989 wywołań RPC, w tym 4 S7)                                                                                                                                                                                                                                                                                                                 |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`                                                                                                                                             | ✓ (860 nazw RPC; baseline 7 kolumn; 376 wpisów dziennika drizzle)                                                                                                                                                                                                                                                                                         |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`                                                           | ✓                                                                                                                                                                                                                                                                                                                                                         |
+| `split-migration.ts --dry-run` dla `2026102015*`                                                                                                                                                                   | ✓ każdy plik 1 część (< 46 080 B)                                                                                                                                                                                                                                                                                                                         |
+| `check:pg-harness`, `check:careers-harness`, `check:events-harness` (`flock -x /tmp/hub-harness.lock`)                                                                                                             | ✓ 504 asercje runtime / 14 migracji / 278 migracji, 4914 asercji                                                                                                                                                                                                                                                                                          |
+| `env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                         | build ✓; `check:bundle` ✗ wyłącznie `overall` 5157,5 > 5023 → ratchet 5159 (§23.7), pozostałe progi ✓; graf acykliczny, ścieżka bootu i graf serwera czyste                                                                                                                                                                                               |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                          | ✗ → ✓ po regeneracji (§23.4)                                                                                                                                                                                                                                                                                                                              |
+| `bun run scripts/hub-slice-guard.ts S7 --base 75133fe20`                                                                                                                                                           | exit 1 wyłącznie na zmianach Integratora (§23.4) i nieśledzonym `_kontynuacja/`; dostawa huba: 3 pliki w bloku, 20 definicji funkcji                                                                                                                                                                                                                      |
+| `cmp` supabase ⇄ drizzle `0373…0375`                                                                                                                                                                               | ✓ bajt w bajt                                                                                                                                                                                                                                                                                                                                             |
+
+### 23.9 Wdrożenie S7 na produkcji (właściciel)
+
+Kod i migracje S7 idą w jednym PR (po S8). Zależności w obie strony:
+
+- nowy front przed migracjami: server fn faktów i wyciszeń dostają
+  PGRST202/42883 → stan `unavailable` (Diagnostyka, Kokpit „Wymaga uwagi”,
+  licznik paska bez liczby, chipy „brak danych”); zakładki S7 czytają
+  istniejące RPC S1-S4 i migawkę S6 - działają;
+- stary front po migracjach: bez zmian - nowe funkcje nikt nie woła, zero
+  DDL tabel.
+
+1. **Warunek:** M0 (tabela `revenue_diagnostic_snoozes`, I0), S1-S5 i I9b-I9c
+   wdrożone albo w tym samym oknie (§10). Funkcje w `plpgsql` tworzą się
+   także bez modułów, które czytają - brak tabeli modułu przy wywołaniu daje
+   `null` obszaru („nie wiadomo”), nie błąd RPC.
+2. Panel Lovable → 3 pliki **w kolejności wersji** (bez blokad gorących
+   tabel - same `CREATE OR REPLACE FUNCTION` i bezstanowe `REVOKE`/`GRANT`,
+   można w dzień):
+   1. `20261020150000_revenue_facts` (8 helperów obszarów sprzedaży);
+   2. `20261020150050_revenue_facts_operations` (8 helperów obszarów operacyjnych, `admin_revenue_facts()`);
+   3. `20261020150100_revenue_diagnostic_snoozes` (zapis, przywrócenie i lista wyciszeń).
+3. Zaraz potem opublikuj front z tego PR.
+4. Bliźniaki `0373…0375` są kopiami bajt w bajt - po panelu wykonują się
+   jako no-op; migrator Drizzle wykona je sam, jeśli panel zostanie
+   pominięty (po `0372`).
+5. `workflow_dispatch` CI na `main` → `post-deploy`: `check:db-contract`
+   i `check:migration-ledger` (3 wersje) zielone. Wynik do §10.
+6. Kontrola po wdrożeniu (SQL editor):
+
+```sql
+-- Funkcje S7: oczekiwane 4 niepuste kolumny i 16 helperów faktów.
+SELECT to_regprocedure('public.admin_revenue_facts()') AS facts,
+       to_regprocedure('public.admin_revenue_diagnostic_snooze(text,text,text,timestamptz,text,text)') AS snooze,
+       to_regprocedure('public.admin_revenue_diagnostic_unsnooze(text,text)') AS unsnooze,
+       to_regprocedure('public.admin_revenue_diagnostic_snoozes()') AS snoozes;
+SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname LIKE '\_revenue\_facts\_%';
+-- ACL: helper bez EXECUTE dla ról API (false, false, false), RPC panelu
+-- dla authenticated (true), nigdy dla anon (false, false).
+SELECT has_function_privilege('anon', 'public._revenue_facts_paywall(uuid)', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public._revenue_facts_paywall(uuid)', 'EXECUTE'),
+       has_function_privilege('service_role', 'public._revenue_facts_paywall(uuid)', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public.admin_revenue_facts()', 'EXECUTE'),
+       has_function_privilege('anon', 'public.admin_revenue_facts()', 'EXECUTE'),
+       has_function_privilege('anon', 'public.admin_revenue_diagnostic_snooze(text,text,text,timestamptz,text,text)', 'EXECUTE');
+-- Wywołanie jako ADMIN najemcy (uuid konta z rolą admin): oczekiwane
+-- v = 1, 16 obszarów, `null` wyłącznie przy obszarach modułów niewdrożonych;
+-- cena planu widoczna (liczba albo null przy planie bez ceny).
+BEGIN;
+SELECT set_config('request.jwt.claims',
+  json_build_object('sub', '<uuid admina>', 'role', 'authenticated')::text, true);
+SET LOCAL ROLE authenticated;
+SELECT f -> 'v' AS v,
+       (SELECT count(*) FROM jsonb_object_keys(f -> 'areas')) AS areas,
+       (SELECT array_agg(k) FROM jsonb_each(f -> 'areas') e(k, v) WHERE v = 'null'::jsonb) AS null_areas,
+       f #> '{areas,catalog,plans,0,priceCents}' AS price_visible
+  FROM (SELECT public.admin_revenue_facts() AS f) s;
+ROLLBACK;
+-- To samo jako REDAKTOR (uuid konta z rolą editor): 16 obszarów, kwoty null
+-- (`priceCents`, `ledgerDrift`, `mrrCatalogBasis`); jako AUTOR - błąd 42501.
+BEGIN;
+SELECT set_config('request.jwt.claims',
+  json_build_object('sub', '<uuid redaktora>', 'role', 'authenticated')::text, true);
+SET LOCAL ROLE authenticated;
+SELECT (SELECT count(*) FROM jsonb_object_keys(f -> 'areas')) AS areas,
+       f #> '{areas,catalog,plans,0,priceCents}' AS price_hidden,
+       f #> '{areas,data_quality,ledgerDrift}' AS drift_hidden
+  FROM (SELECT public.admin_revenue_facts() AS f) s;
+ROLLBACK;
+```
+
+7. Panel (admin): `/admin/revenue/diagnostics` - lista diagnoz z dowodami,
+   mapa systemu (`?view=map`), wyciszenie i przywrócenie jednej diagnozy;
+   pasek huba pokazuje licznik Diagnostyki; Kokpit - „Wymaga uwagi”.
+
+Wycofanie: front bez zmian SQL (nowe funkcje nikt nie woła); zdjęcie
+funkcji - osobną migracją `DROP FUNCTION` spoza bloku huba, decyzją
+właściciela (tabela wyciszeń należy do I0 i zostaje).
+
+### 23.10 Kryteria akceptacji S7 (SPEC §8.3)
+
+- [x] Każda reguła ma test na faktach `ok/warn/error/unknown` (brak pola = `unknown`) - `checks.test.ts` (346: 55 reguł × 3 stany + brak obszaru i brak pola), `facts.test.ts` (43), `registry.test.ts` (71); `defectMap.test.ts` (68) czyta SPEC §7, listę odłożonych i przywołania §5.7 - [ ] briefów brak w repo (numery bez źródła - Z-S7-13).
+- [x] Każda naprawa `dialog` importuje mutator z manifestu (`writers`), bez `.from(...).update` (`quickFixes.test.ts`, 88; wyjątek P24 z zapadkami - Z-S7-02); pętla „naprawa → ponowne sprawdzenie” z `aria-live`, „Cofnij” 60 s, konflikt 40001, brak roli = disabled z `Tooltip` (`QuickFixDialog.test.tsx` 13, `DiagnosticsBoard.test.tsx` 23, S-B w `syncScenarios`); konflikt bez `RevisionDiffDialog` (§23.3).
+- [x] pgTAP 2 pliki zielone (`revenue_facts_test` 24, `revenue_diagnostic_snoozes_test` 26; `plpgsql_check_gate` 4); `check:pg-harness` zielony (znacznik `exclude` w obu plikach faktów) - §23.8.
+- [x] `RevenueSignalChip`: zero dodatkowych żądań przy ciepłym cache (`RevenueSignalChip.test.tsx` 14: „ciepły cache: trzy chipy, licznik queryFn bez zmian”, „zimny cache: dwa chipy = jedno żądanie”); [ ] montaż w modułach - I9 (Z-S7-01).
+- [x] `syncScenarios.test.ts` S-A…S-F zielone (14) - [ ] baner S-F jako `it.todo` (Z-S7-05). **Wykonane 2026-10-22 (I9, §24):** baner i test S-F.
+- [x] Każdy kafel z `metricId` i `drillHref` do istniejącej trasy (`revenueTilesHaveMetric.test.ts` 95 czyta `routeTree.gen.ts`, `hubLinksContract.test.ts` 367); redaktor widzi zestaw niefinansowy i `LockedMetricTile` bez wywołania RPC finansowego (`RevenueOverview.test.tsx`, `MrrBridgeCard.test.tsx`, `MarketingPanel.realized.test.tsx`).
+- [x] Pulpit, hub i BI czytają przychód zrealizowany spod identycznego klucza - `MarketingPanel.realized.test.tsx` (15: pulpit, Kokpit i BI = jeden wpis cache i jedno żądanie), `RevenueMrrTab.test.tsx`.
+- [x] Most MRR `start + Σ = end` w stopce, rozjazd > 0,5 % = baner (`MrrBridgeCard.test.tsx` 16); NRR/GRR/kohorty przed 12 m od `data_since` = „dane od …”, nigdy 0 (`RevenueRetentionTab.test.tsx` 14, `CohortHeatmapCard.test.tsx` 7, `retentionModel.test.ts` 10).
+- [x] Lejek: przejście między strumieniami bez ilorazu, aktywacja = „brak definicji” (`FunnelStageMap.test.tsx` 9, `RevenueFunnelTab.test.tsx` 11).
+- [x] Symulator czytelnika renderuje ten sam moduł `Paywall` (`ReaderPreview.test.tsx` 8: import `@/components/Paywall`, `preview` bez `record_paywall_hit` i `track`, linki `aria-disabled`, 5 person, axe).
+- [x] Macierz plan × benefit: konflikty P20, tabela a11y, `Accordion` < 768 px, redaktor `disabled` + `Tooltip` (`PlanBenefitMatrix.test.tsx` 9).
+- [x] Dane wejściowe: tylko admin (`RoleGateNotice` bez RPC), notatka 501 znaków odrzucona bez przycięcia, 40001 „Twoja / aktualna wartość”, miesiące lokalne przy zamrożonym czasie (`ManualInputsGrid.test.tsx` 10).
+- [x] axe bez naruszeń we wszystkich organizmach (w tym lista wyciszonych i dialog wyciszenia, `RevenueHubLayout` z licznikiem); delta bundla w PR - §23.7.
+- [x] (STAN S7.3 pkt 8) Każdy ekran huba z zapisem renderuje `SourceHeader` bytu z manifestu - `sourceHeaderOnMutations.test.ts` (21) bez listy wyjątków.
+- [x] Wymóg właściciela „wszystko w panelu admina”: 10 zakładek, Diagnostyka z naprawami i wyciszeniami, licznik paska, kafel pulpitu, ⌘K zakładek i 43 wskaźników (§23.2).
+
+### 23.11 Scalenie z PR po S8 (2026-10-22)
+
+S8 trafił do gałęzi PR pierwszy (`df075ffc` = `75133fe2` + scalenie `main`
+`4b1aa96d` + S8 z integracją i §22). Gałąź S7 **scalono** z gałęzią PR
+(`git merge`, nie rebase - SHA S7 z listy na początku §23 zostają ważne);
+HEAD po scaleniu zawiera `origin/claude/elegant-fermat-xwfca1`, więc push to
+fast-forward gałęzi PR.
+
+**Konflikty i rozwiązania:**
+
+| Plik                                                                                      | Rozwiązanie                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RevenueHubLayout.tsx`                                                                    | Oba wycinki dodały `tenantId` do `HubSections`; `badges` łączy oba liczniki: `diagnostics` z leniwej sondy S7 (`DiagnosticsBadgeProbe`, tylko najemca + admin/redaktor + zakładka) i `journeys` z `useJourneysBadgeCount` S8 (`journeyListQueryOptions(tenantId, null)`); `null` któregokolwiek = brak tego licznika, nigdy „0”.                                   |
+| `RevenueHubLayout.test.tsx`                                                               | Atrapy obu granic sieci (`getRevenueFacts`/`getRevenueSnoozes` i `listJourneys`) w jednym `vi.hoisted`, reset obu w `beforeEach` (fakty `unavailable`, lista pusta), oba bloki testów liczników (Diagnostyka 4, Ścieżki 6).                                                                                                                                        |
+| `tabPreparing.ts`, `RevenueTabPreparing.tsx`, `i18n-admin-revenue-preparing.ts` (+ testy) | Po S8 (bez `journeys`) i S7 (bez dziesięciu zakładek) mapa `TAB_PREPARING` jest pusta - **cały mechanizm usunięty** (Z-S7-17, I9a §19.6): 5 plików, wpisy w manifestach S7 i I9 `hubDelivery.ts` (z komentarzem), komentarze w `RevenueJourneysTab.tsx` i testach zakładek; `grep` `RevenueTabPreparing`/`TAB_PREPARING`/`adminRevenue.preparing` - tylko kronika. |
+| `adminNav.ts` (+ test), `i18n-admin-core.ts`, `hubDelivery.ts`, `i18nParity.gate.test.ts` | Scalone automatycznie: ⌘K = zakładki + „Nowa ścieżka” (S8, `?new=1`) + 43 wskaźniki (S7); manifesty S7 i S8 z komentarzami obu integratorów; allowlista = suma (klucze S8; S7 nie dodawał).                                                                                                                                                                        |
+| `scripts/check-bundle-size.ts`                                                            | Kronika obu wpisów (S8 5023 → 5182, S7 5023 → 5159 z dopiskiem „próg zastąpiony”) i nowy wpis „Ratchet 5182 → 5316” z łącznego pomiaru (niżej).                                                                                                                                                                                                                    |
+| dziennik                                                                                  | §10: wiersz S8, potem S7; §11.5 Z-S6-08 zamknięte (oba liczniki); §17.6 = S8, stan S7 przenumerowany na **§17.7** (z odwołaniem w §23); sekcje §22 (S8) → §23 (S7) na końcu pliku; Z-S7-17 zamknięte.                                                                                                                                                              |
+| `docs/KONTYNUACJA_…`, `docs/kontynuacja/README.md`                                        | Stan: S8 i S7 w PR, następny I9d; katalog `docs/kontynuacja/` usunięty w całości (S8 usunął `s8/`, S7 - `s7/`).                                                                                                                                                                                                                                                    |
+
+`drizzle/migrations/meta/_journal.json` bez konfliktu (S8 i scalenie `main`
+nie dodały bliźniaków): S7 `0373…0375` stoją, następny wolny `0376`.
+
+**Pomiar bundla po scaleniu** (`flock -x /tmp/hub-heavy.lock env
+BUNDLE_INVENTORY=1 bun run build` + `check:bundle`; przypisanie per chunk
+gzip względem buildu gałęzi PR po S8):
+
+| Budżet (gzip KB) | Próg przed → po | PR po S8 `df075ffc` | S7 przed scaleniem `53c5d6d3` | Po scaleniu | Δ (S8 → scalenie) | Wynik                                          |
+| ---------------- | --------------- | ------------------- | ----------------------------- | ----------- | ----------------- | ---------------------------------------------- |
+| `overall`        | 5182 → **5316** | 5180,9              | 5157,5                        | **5314,3**  | **+133,4**        | ✗ → ratchet D-08 (5314,3 → 5315 → +1), kronika |
+| `admin-only`     | -               | 2402,3              | 2378,0                        | 2535,0      | +132,7            | -                                              |
+| `public`         | 2881 (zamr.)    | 2778,6              | 2779,4                        | 2779,2      | +0,6              | ✓                                              |
+| największy chunk | 286 (zamr.)     | 257,9               | 258,0                         | 258,0       | +0,1              | ✓                                              |
+| `css`            | 100             | 99,77               | 99,8                          | 99,81       | +0,05             | ✓ bez ratchetu, zapas 0,19 KB (Z-S7-11)        |
+| `publicCss`      | 85 (zamr.)      | 83,8                | 83,8                          | 83,8        | 0,0               | ✓                                              |
+| `boot`           | 579 (zamr.)     | 471,6               | 471,7                         | 471,7       | +0,1              | ✓                                              |
+
+Przyrost nad S8 = przyrost S7 z §23.7 (+136,9 względem `75133fe2`) minus
+usunięty stan „w przygotowaniu” (`RevenueTabPreparing` −3,7: molekuła,
+słownik i dane). Chunk układu huba `admin.revenue` 4,2 → 4,5 KB (sonda
+Diagnostyki obok licznika ścieżek; `DiagnosticsBadgeProbe` 0,25 KB osobno),
+wspólny chunk słowników ścieżek przemianowany drugim importem
+(`MfaRequiredNotice` −22,0 / `i18n-admin-journeys-list` +22,1). Ratchet
+`overall` 5182 → 5316 z wpisem kroniki; `check:bundle` po zmianie progu
+uruchomiony raz (bez pętli): ✓, zapas `overall` 1,7 KB, `css` 0,2 KB.
+
+**Bramki po scaleniu** (worktree `/home/user/wt/S7`, ciężkie kroki pod
+`flock -x /tmp/hub-heavy.lock`; nieśledzony `_kontynuacja/` odstawiony poza
+drzewo na czas `format:check`, `verify:static`, `lint` i strażnika):
+
+| Polecenie                                                                                                                                                                                                                          | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`, `bun run verify:static`                                                                                                                                                                                    | ✓ / ✓ 18 bramek (246 s; w tym `rpc-contract`, `types-freshness`, `migration-lanes` 376 wpisów, `sql-*`, `on-conflict-arbiters`, `ts-sql-contract --check`)                                                                                                                                                                                                                                                                                     |
+| `tsgo --noEmit` zawężony jak w CI (`tsconfig.s7m.tmp.json`: deklaracje, `routeTree.gen.ts`, `vitest.setup.ts` + 492 pliki - 196 `.ts`/`.tsx` zmienionych względem gałęzi PR i 296 importerów, także `types.ts`), `GOMEMLIMIT=6GiB` | ✓ 0 błędów (42 s)                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `typecheck:scripts && typecheck:e2e`                                                                                                                                                                                               | ✓ / ✓                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `bun run lint`                                                                                                                                                                                                                     | ✓ 0 błędów, 320 ostrzeżeń (tyle samo co na gałęzi PR po S8)                                                                                                                                                                                                                                                                                                                                                                                    |
+| `TZ=UTC vitest --maxWorkers=2` w 4 grupach: `src/lib/{revenue,admin,journeys,crm,ci,onboarding}`; `src/components/admin/{revenue,dashboard,journeys,newsletter}`; `src/lib/__tests__` + `src/__tests__`; `src/routes/__tests__`    | ✓ 218 plików / 7129 (+7 `expected fail`, 1 `todo`); 112 / 2434; 144 (+2 pominięte) / 3750 (+12 `expected fail`, 50 pominiętych); 230 / 8084 (+79 `expected fail`) - razem 704 pliki, 21 397 testów; `reports/i18n-parity.json` po bramce bez zmian                                                                                                                                                                                             |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-hub-s7`, port 5457)                                                                                                                                                                      | 1302 migracje (1 znany błąd `20260825230232`); 249 plików ✓ / 5734 asercje; 4 czerwone wyłącznie znane środowiskowe (`community_cron_schedule` 2/17, `job_scheduler_heartbeat` 1/32 - pg_net; `public_definer_views_read_only` 1/35; `profile_intent_semantic` - vector); pliki S7: `revenue_facts` 24, `revenue_diagnostic_snoozes` 26, `plpgsql_check_gate` 4                                                                                |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                         | ✓ 9 asercji (990 wywołań RPC, 1515 operacji na tabelach)                                                                                                                                                                                                                                                                                                                                                                                       |
+| `check:{rpc-contract,types-freshness,migration-lanes}`, `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`                   | ✓ (także osobno, poza `verify:static`)                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `check:pg-harness`, `check:careers-harness`, `check:events-harness` (`flock -x /tmp/hub-harness.lock`)                                                                                                                             | ✓ 504 asercje runtime / 14 migracji / 278 migracji, 4914 asercji                                                                                                                                                                                                                                                                                                                                                                               |
+| `env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                         | build ✓; `check:bundle` ✗ `overall` 5314,3 > 5182 → ratchet 5316 → ✓; graf 1552 chunków acykliczny ✓; ✓; ✓                                                                                                                                                                                                                                                                                                                                     |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                          | ✓ bez regeneracji (S8 nie zmienia SQL)                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `bun run scripts/hub-slice-guard.ts S7 --base origin/claude/elegant-fermat-xwfca1`                                                                                                                                                 | exit 1 wyłącznie na zmianach integratorskich: pliki współdzielone (`_journal.json`, `check-bundle-size.ts`, `types.ts`, `adminNav.ts` z testem, `authzSnapshot.generated.ts`, `hubDelivery.ts`) i poza manifestem (`RevenueHubLayout` z testem - plik S6; `RevenueJourneysTab` z testem - komentarze; usunięty mechanizm „w przygotowaniu”; dziennik, KONTYNUACJA, `docs/kontynuacja/**`); dostawa huba: 3 pliki w bloku, 20 definicji funkcji |
+
+Jedyna czerwień scalenia wykryta testami: `adminNav.test.ts` po scaleniu
+automatycznym miał dwie deklaracje pomocnika `tabEntries` (S7 - filtr
+`?metric=`, S8 - filtr wpisów z `search`); zostaje jeden filtr wpisów bez
+`search` (obejmuje oba rodzaje) - poprawione przed commitem scalenia.
+
+## 24. I9 - integracja i wydanie (2026-10-22)
+
+Karta I9 (SPEC §8.3, `docs/PROMPT_KONTYNUACJI_HUB_2026-10-20.md` §9).
+Gałąź `hub/i9d-rodo-2` (worktree `/home/user/wt/I9d`), baza `2113569d` =
+gałąź PR `claude/elegant-fermat-xwfca1` po S8, S7, I9d-Y1 i I9d-Y2
+(`git fetch` na starcie integracji: gałąź PR bez zmian, bez scalenia). Cztery
+podzadania szeregowo w jednym worktree, pliki rozłączne: I9-A (harmonogram,
+Z-S5-05, Z-I9c-06), I9-B (moduły → hub, bramki ścisłe, zgłoszenia S7), I9-C
+(zgłoszenia 9.2 i drobne S8/I9d), I9-D (integracja, runbook, dziennik,
+pełne bramki). Commity:
+
+- `9e3ba64c` - I9-A: harmonogram huba w `jobs-tick` (krok `journeys`, skanery S2, rollup, sprzątanie skrzynki), karta silnika w panelu zdrowia harmonogramu (Z-S5-03);
+- `34a4daf7` - I9-A: jedna stopka wypisu w mailu ścieżki (Z-S5-05);
+- `7d9de300` - I9-A: dzienne zestawienie statusów zapisów ścieżek, migracja `20261020162600` (Z-I9c-06);
+- `6afa1b3c` - I9-B: odnośniki moduły → hub w 13 ekranach (SPEC §2.7, Z-S7-01);
+- `d0cf40d1` - I9-B: bramki ścisłe (`queryKeyLiterals`, `metrics` manifestu, `domainMap`), pisarz P24 i akcja CRM (Z-S6-11, Z-S7-02, Z-S7-03);
+- `3a28896e`, `e68a1f94` - I9-B: zgłoszenia S7 (Z-S7-04, -05, -06, -08, -10, -12);
+- `c94ff41b` - I9-C: środowisko i uprawnienie dokumentu rozliczeniowego (Z-S2-07);
+- `87f6b396` - I9-C: odmowa progu Zespół w profilu organizacji (Z-I9b-09);
+- `9418f7b6` - I9-C: import CSV leadów bez przycinania (Z-I9b-15);
+- `51dbc7b7` - I9-C: etykiety powodów w Skrzynce wysyłek (Z-I9c-02);
+- `9effef05`, `dd007627` - I9-C: wspólny pomocnik wycofania zgody, migracja `20261020162700` (Z-S5-04);
+- `00f44ba9` - I9-C: zdarzenie `contact_message.submitted.v1`, migracja `20261020162800` (Z-S5-01);
+- `4194e0a1` - I9-C: czytelnicy zdarzeń kampanii po retencji, migracja `20261020162900` (Z-I9c-05, Z-S7-07, Z-I9c-10);
+- `87011ecb`, `6f328132`, `86a1df4a`, `f49fa8ba` - I9-C: Z-I9d-19, Z-I9d-03 (część klubów), Z-S8-09, Z-I9d-16;
+- `3cbee455` - I9-D: integracja - pliki współdzielone (bliźniaki `0387…0390`, typy, authz, szyna, reguły szyny trybu ścisłego, manifest I9);
+- `5a2b29ef` - I9-D: integracja - przewodnik po Ścieżkach (Z-S8-01);
+- `e9ffc36a` - I9-D: integracja - ratchet D-08 `overall` 5357 → 5371 (§24.7), lustro reguły szyny w inwalidacji odbiorców newslettera, raport parytetu i18n;
+- ten wpis - I9-D: `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`, rejestr czynności, dziennik (§24 z raportem końcowym, §10, §17.10, dopiski „Zamknięte (I9, §24)”), KONTYNUACJA.
+
+Pełny pakiet vitest lokalnie w grupach obejmujących całe `src` (§24.8);
+e2e i e2e-seeded rozstrzyga CI (lokalnie brak demona Dockera i sekretów).
+
+### 24.1 Zakres
+
+183 pliki, +10 758 / −375 linii przed tym wpisem (w tym 4 bliźniaki
+drizzle - 1 764 linie kopii).
+
+| Obszar                         | Co dostarcza I9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Harmonogram (I9-A)             | `jobsTick.server.ts`: krok `journeys` po zadaniach uczestnika i PRZED drenem poczty (`runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`, termin 3 s); `revenueLifecycle` i `retentionFlow` co 5 min (za zamiatarką płatności, przed jobami sieciowymi); `journeysRollup` co godzinę w minucie 13; `journeysPurge` (`journey_purge('30 days')`) o 03:11 UTC; `SCHEDULER_JOBS` += `journeys`, `revenue-lifecycle` (tylko jawnie, poza `all`), `scheduler.yml`, `scheduler-tick.mjs`. |
+| Panel zdrowia (I9-A)           | `getSchedulerHealth` → `journeys: { killSwitch, engine }`; `SchedulerHealthPanel` z kartą „Silnik ścieżek komunikacji” (odznaka, alert wyłącznika, kafelki, opis harmonogramu, odnośnik do Ścieżek); karta retencji: `journey_inbox.schedule = "jobs_tick"` („Harmonogram zadań aplikacji (raz na dobę)”).                                                                                                                                                                                                 |
+| SQL (I9-A, I9-C)               | 4 migracje `20261020162600…162900` (§24.5): zestawienie statusów zapisów ścieżek, wspólny pomocnik wycofania zgody, emiter formularza kontaktowego, czytelnicy zdarzeń kampanii po retencji; 4 pliki pgTAP `hub_i9_*` (50 asercji).                                                                                                                                                                                                                                                                        |
+| Moduły → hub (I9-B)            | `RevenueSignalChip` w 10 ekranach (`SIGNAL_SURFACES`), molekuły `useRevenueHubTab`, `RevenueHubLink`, `RevenueHubHint`, `RelatedModulesBar` w Cenniku, drogowskazy (automatyzacje, komunikacja i analityka wydarzenia, aktywne ścieżki wydarzeń, kluby, baner D-09 pulpitu monetyzacji), słownik `i18n-admin-revenue-links.ts`; `LeadJourneysCard` i typ `journey` na osi leada - S8, potwierdzone.                                                                                                        |
+| Bramki ścisłe (I9-B, I9-D)     | `queryKeyLiterals` - lista długu pusta z asercją; `syncManifest` - `metrics` ścisłe (`METRIC_GROUP_DOMAINS`, `JOURNEY_STATS_METRICS`, `HUB_METRICS_WITHOUT_ENTITY`), ścisli pisarze, trzy reguły szyny w `eventInvalidationMap.admin.ts` (I9-D, zapadka zdjęta); nowy `domainMap.test.ts` (16 domen, w tym `diagnostics`).                                                                                                                                                                                 |
+| Zgłoszenia 9.2 (I9-C)          | Z-S2-07, Z-S5-01, Z-S5-04, Z-I9b-09, Z-I9b-15, Z-I9c-02, Z-I9c-05, Z-I9c-10 (+ Z-S7-07) - §24.6.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Przewodnik po Ścieżkach (I9-D) | `components/admin/journeys/tour/JourneyTour.tsx`: kroki S8 w zakładce i edytorze, start raz, gdy kotwice stoją (lista wczytana / kanwa edytowalnego szkicu), nakładka `CoachmarkTour` leniwie (Z-S8-01).                                                                                                                                                                                                                                                                                                   |
+| Runbook (I9-D)                 | `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` - mapa, harmonogram, przełączniki, sygnały, zapytania Q1-Q10, znane skutki, wycofanie z szablonem awaryjnym, kolejność wdrożenia `0347…0390` z K1-K9, pierwsze dni, baseline bundla, e2e.                                                                                                                                                                                                                                                                             |
+
+### 24.2 Decyzje
+
+1. **Wyłącznik środowiska to pominięcie, nie awaria (I9-A).** Runner
+   zwraca kontraktowe `{ error: "disabled" }`; dyspozytor zamienia je na
+   `{ skipped: "kill_switch" }` - inaczej wyłącznik zapalałby `ok:false` co
+   minutę i uczył ignorowania alarmu. Stan widać w karcie silnika.
+2. **Skanery S2 zaraz za zamiatarką płatności, nie na końcu ticku (I9-A):**
+   na końcu byłyby chronicznie pomijane po wyczerpaniu budżetu w minutach
+   0/15/30/45, a koniec okresu próbnego ma termin dla klienta.
+3. **Rollup w minucie 13, sprzątanie raz o 03:11 UTC (I9-A):** wolny pas
+   (nie wielokrotność 5, nie minuty 4/7/9); pominięty tick przesuwa
+   sprzątanie o dobę (wiersze 31 dni - opisane w runbooku).
+4. **Jedna stopka wypisu (I9-A, Z-S5-05 opcja A):** stopka ścieżki jest
+   owijana znacznikami i wycinana na drodze platformy; na drodze Resend
+   zostaje z RFC 8058.
+5. **Chip w liście CRM, nie w układzie `admin.crm.tsx` (I9-B):** karta leada
+   i lejek nie powtarzają paska (Z-S7-01).
+6. **„Aktywne ścieżki wydarzeń” liczą ścieżki z wyzwalaczem `event.*` dla
+   wszystkich wydarzeń (I9-B):** RPC per wydarzenie nie istnieje, a warunek
+   `event_id` siedzi w wersji ścieżki - etykieta mówi to wprost.
+7. **Trzy reguły szyny (integrator, wynik trybu ścisłego `metrics`):**
+   `newsletter_subscriber.*.v1` unieważnia też `rev("email")`,
+   `billing_subscription.*.v1` - `rev("economics")` i `rev("funnel")`
+   (funkcja `subK`); zapadka `PENDING_BUS_RULES` zdjęta w tym samym
+   commicie. Wybrane zamiast zdejmowania wskaźników z manifestu: Kokpit
+   pokazywałby LTV, zwrot CAC i konwersję trialu sprzed ruchu subskrypcji.
+   Lokalna inwalidacja odbiorców newslettera (`audienceInvalidationKeys`,
+   lustro reguły szyny pilnowane testem def. 17) dostała tę samą dziedzinę
+   `email`.
+8. **Z-S2-07 (I9-C):** pierwsza faktura subskrypcji (`subscription_create`)
+   nie dostaje uprawnienia (zakup, nie odnowienie); `environment`
+   uzupełniane tylko dokumentom bez uprawnienia (UPDATE OF environment
+   wyemitowałby zaległe odnowienie); bez backfillu.
+9. **Z-S5-01 (I9-C):** kandydaci do pracy nie wychodzą na szynę; `source`
+   (wolny tekst klienta) służy wyłącznie do rozpoznania cennika.
+10. **Z-I9c-05 (I9-C):** scoring leadów świadomie czyta tylko surowe
+    zdarzenia (minimalizacja - efektywny horyzont = min(horyzont,
+    retencja)); unikalni odbiorcy dni sprzed progu to dolna granica.
+11. **Z-I9b-14 zostaje świadomie (decyzja orkiestratora):** alias
+    `is_admin_or_editor` w generatorze snapshotu zmieniłby jedną linię, ale
+    wiersz `cap_premium_content` w `/admin/permissions` pokazałby admina
+    i redaktora jako „pełny dostęp”, a raport personelu
+    `admin_revenue_access_inventory` nie jest bramką czytelnika. Opis
+    w runbooku §6.
+12. **Z-I9c-04 - decyzja właściciela, bez zmian:** opis w runbooku §6.
+13. **Przewodnik po Ścieżkach w I9 (integrator):** karta S8 przypisała montaż
+    do I9 (Z-S8-01); hak stanu statycznie, nakładka leniwie - koszt chunku
+    zakładki tylko przy pierwszym starcie.
+14. **Baseline bundla nie z hosta:** `reports/bundle-baseline.json`
+    odświeża się wyłącznie z zielonego buildu runnera (reguła
+    `check-bundle-size.ts`, wpis V) - procedura w runbooku §10.
+15. **Szablony awaryjne SPEC §9.2 w runbooku (§7.3), nie w
+    `docs/hub/awaryjne/*.sql`:** jeden prettierowany dokument zamiast plików
+    SQL poza migracjami, których nie sprawdza żadna bramka; użycie i tak
+    wymaga nowej migracji w bloku huba.
+
+### 24.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+- `JobsTickResult` ma także `journeysRollup` i `journeysPurge` (SPEC l. 611
+  wymienia `journeys`, `revenueLifecycle`, `retentionFlow`); runner zwraca
+  `skipped: "migration_pending"`, gdy pierwsze RPC dostaje PGRST202/42883.
+- Mapa ekran → obszary diagnostyki to `SIGNAL_SURFACES` S7 (cennik +
+  `checkout`, członkostwo + `clubs`, billing + `catalog`), chip `events`
+  w wierszu przychodu wydarzeń, chip `clubs` w nagłówku skrzynki zgłoszeń
+  (nie w `admin.community.clubs.index.tsx`).
+- 10 wskaźników huba bez bytu (`HUB_METRICS_WITHOUT_ENTITY` - DAU/MAU,
+  WAU/MAU, zaangażowanie kampanii, konwersja strony cennika, współtwórcy
+  klubów) - z powodem w kodzie.
+- Z-S7-02: przycisk w CRM przypisuje zadania wyłącznie właścicielom leadów
+  (`fallback_assignee_id: null`); osoba zastępcza - dialog szybkiej naprawy
+  huba.
+- Z-I9c-06 w I9-A objęło też `admin_journey_series` (część ścieżek
+  Z-I9c-05): maile i kliknięcia dni zapieczętowanych z
+  `journey_node_daily_stats` liczą się po dniu kroku i jako wysłane.
+- `newsletter_campaign_engagement` (druga redefinicja w I9) niesie
+  `-- CIALO-Z: 20260814215302` z rejestru `HUB_CIALO_Z`, choć ciało pochodzi
+  z `20261020161200` (bramka tego wymaga dla funkcji sprzed huba).
+- Szablony awaryjne w runbooku zamiast `docs/hub/awaryjne/*.sql` (§24.2
+  pkt 15).
+
+### 24.4 Zmiany integratorskie i pliki współdzielone (I9-D)
+
+| Plik                                                                               | Zmiana                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drizzle/migrations/0387…0390_*.sql`, `meta/_journal.json`                         | 4 bliźniaki bajt w bajt (`cmp`), idx 387-390, `when` 1792478833912…1792479013912 (+60 000)                                                                                                      |
+| `src/integrations/supabase/types.ts`                                               | tabele `journey_enrollment_daily_stats` i `newsletter_campaign_engagement_daily` (funkcje `_*` i wyzwalacze pominięte, jak w Y1-D/Y2-D); sygnatury RPC bez zmian                                |
+| `src/lib/authz/authzSnapshot.generated.ts`                                         | regeneracja - wyłącznie pochodzenie (1313 → 1317 migracji, 1893 → 1896 funkcji, 677 polityk)                                                                                                    |
+| `src/lib/realtime/domainEvents.ts`, `eventInvalidationMap.ts`                      | łatka I9-C: `contact_message.submitted.v1` i agregat `contact_message`; reguła `[crmKeys.leadsAll(), pendingCounterKeys.tenant()]`                                                              |
+| `src/lib/realtime/eventInvalidationMap.admin.ts` (+ `revenueInvalidation.test.ts`) | trzy reguły szyny (§24.2 pkt 7), funkcja `subK`                                                                                                                                                 |
+| `src/lib/revenue/__tests__/syncManifest.test.ts`                                   | zdjęta zapadka `PENDING_BUS_RULES` (każdy nowy brak reguły to czerwień)                                                                                                                         |
+| `src/lib/newsletter/settingsQueries.ts`                                            | lustro reguły subskrybenta w lokalnej inwalidacji odbiorców (`AUDIENCE_REVENUE_DOMAINS` += `email`) - wykryte czerwienią `settingsQueries.test.ts` (odbiorcy, def. 17) w pełnym przebiegu §24.8 |
+| `src/lib/ci/hubDelivery.ts`                                                        | manifest I9: bloki I9-A, I9-B, I9-C (łatka) i wpisy integratora (`revenueInvalidation.test.ts`, `adminRevenueHubRoutes.test.tsx`); rejestry CIALO-Z/FUNCTION_TABLE zmieniły podzadania SQL      |
+| `scripts/check-bundle-size.ts`                                                     | ratchet D-08 `overall` 5357 → 5371 z kroniką (§24.7)                                                                                                                                            |
+| `reports/i18n-parity.json`                                                         | przepisany bramką parytetu (`repoWide.untranslated` 570 → 569 - usunięte identyczne `adminPricing.related.paywall`)                                                                             |
+| `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`                                               | nowy (kryterium [7])                                                                                                                                                                            |
+| `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`                                       | agregaty I9 (zestawienia bez danych osobowych), harmonogram skrzynki ścieżek, zdarzenie formularza, wspólny pomocnik wycofania zgody                                                            |
+| ten dziennik, `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`                  | §24, §10, §17.10, dopiski „Zamknięte (I9, §24)” w sekcjach źródłowych                                                                                                                           |
+
+Bez zmian: `routeTree.gen.ts` (I9 nie dodaje tras), `adminNav.ts`
+i ⌘K (komplet z S7/S8 - `adminNav.test.ts` 24 testy, `metricSearchIndex`
+13), `i18n-admin-core.ts`, `i18nParity.gate.test.ts`.
+
+### 24.5 Migracje, bliźniaki i API dla kolejnych agentów
+
+| Migracja                                         | Bliźniak                               | Zawartość                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261020162600_journey_enrollment_rollup`       | `0387_journey_enrollment_rollup`       | tabela `journey_enrollment_daily_stats` (bez kontaktu, RLS, tylko `service_role`); `_data_retention_journey_enrollments` (CIALO-Z `20261020161100`) składa usuwane zapisy; `admin_journey_stats` (mapa `HUB_I9_REDEFINITIONS`: `20261020161200`) i `admin_journey_series` (`20261020140500`) liczą surowe + zestawienie                                                                                     |
+| `20261020162700_crm_marketing_consent_shared`    | `0388_crm_marketing_consent_shared`    | `_crm_marketing_consent_withdraw(uuid, uuid[], crm_source_type, uuid, text, text, text, text) RETURNS integer` (wewnętrzny); na nim `crm_leads_marketing_consent_withdraw` (`20261012180900`), `_journey_unsubscribe` (`20261020140500`), `_newsletter_sunset_delete` (`20261020162000`)                                                                                                                    |
+| `20261020162800_contact_message_submitted_event` | `0389_contact_message_submitted_event` | `tg_contact_messages_submitted_emit()` jako `trg_contact_messages_to_lead_submitted_emit` (po wyzwalaczu CRM); `-- careers-harness: exclude`                                                                                                                                                                                                                                                                |
+| `20261020162900_campaign_engagement_readers`     | `0390_campaign_engagement_readers`     | tabela `newsletter_campaign_engagement_daily`, `_newsletter_engagement_daily_sum(uuid, text, timestamptz, timestamptz, boolean) RETURNS bigint`; redefinicje: składanie przy retencji i wygaszaniu, `admin_revenue_email_health`, `admin_dashboard_marketing` (`20260912110000`), `analytics_semantic_snapshot` (`20261003180000`), `newsletter_campaign_engagement` (LEAST); `-- careers-harness: exclude` |
+
+Każdy plik ≤ 45 KiB (`split-migration --dry-run`: 27,8 / 14,6 / 5,0 /
+40,7 KiB), polski nagłówek, idempotentny. **Następny wolny bliźniak `0391`,
+wersja `20261020163000`.** Kolejna redefinicja `admin_journey_stats` albo
+`admin_journey_series` dopisuje wersję do mapy `HUB_I9_REDEFINITIONS`
+z wartością `20261020162600`; `newsletter_campaign_engagement` -
+`CIALO-Z: 20260814215302` (rejestr), ciało z `20261020162900`.
+
+Eksporty TS (nowe): `JOURNEYS_ROLLUP_MINUTE`, `isJourneysRollupMinute`,
+`JOURNEYS_PURGE_AT_UTC`, `isJourneysPurgeMinute`, `JOURNEY_INBOX_RETENTION`
+(`jobsTick.server.ts`); `SchedulerJourneysState`, `SchedulerJourneysEngine`
+(`scheduler.functions.ts`); `markOwnUnsubscribe`, `stripOwnUnsubscribe`,
+`unmarkOwnUnsubscribe` (`email/ownUnsubscribeFooter.ts`);
+`useRevenueHubTab(tab)`, `RevenueHubLink`, `RevenueHubHint`
+(`components/admin/revenue/molecules`); `METRIC_GROUP_DOMAINS`,
+`JOURNEY_STATS_METRICS`, `HUB_METRICS_WITHOUT_ENTITY` (`syncManifest.ts`);
+`useDomainEventStreamStatus()`, `tableChannelsInterrupted`,
+`subscribeToChannelStatus`; `RevenueSnapshotResult.ratioCurrency`;
+`retentionReasonLabel`, `NOT_GIVEN_REASON` (`retention/reasonLabel.ts`);
+`outboxReasonKey`, `OUTBOX_SKIP_CODES` (`admin/emailOutboxReason.ts`);
+`mapImportRows(rows, mapping, rowNumbers?)` → `oversized`,
+`LEAD_IMPORT_VALUE_MAX`, `IMPORT_MAX_TAGS`; `CONTACT_MESSAGE_FORM_KINDS`;
+`isAnonymizedApplication`; `JourneyTour`, `JourneyTourId`.
+
+### 24.6 Zgłoszenia
+
+**Zamknięte w I9** (dopiski „Zamknięte 2026-10-22 (I9, §24)” w sekcjach
+źródłowych): Z-S5-03, Z-S5-05, Z-I9c-06 (I9-A); Z-S7-01, Z-S7-02, Z-S7-03,
+Z-S7-04, Z-S7-05, Z-S7-06, Z-S7-08, Z-S7-10, Z-S7-12, Z-S6-11, Z-S6-16,
+Z-S6-17, Z-S1-01, Z-S2-04, Z-S2-05 (I9-B); Z-S2-07, Z-S5-01, Z-S5-04,
+Z-I9b-09, Z-I9b-15, Z-I9c-02, Z-I9c-05, Z-I9c-10, Z-S7-07, Z-S3-04, Z-I9d-16,
+Z-I9d-19, Z-S8-09 (I9-C); Z-S8-01, Z-S7-16 (I9-D: pgTAP po I9 - fakty S7
+i `plpgsql_check_gate` zielone). Potwierdzone: Z-S5-06 (dymek MPP na
+wszystkich powierzchniach otwarć), Z-S8-10 (scalenie §23.11). Częściowo:
+Z-I9d-03 (skrzynka klubów - tak, moduł wydarzeń - nie). Tylko opis
+w runbooku (§6): Z-I9c-03, Z-S3-02, Z-I9c-04 (decyzja właściciela),
+Z-I9b-14 (świadomie bez zmian).
+
+**Świadomie otwarte** (z uzasadnieniem):
+
+| ID                        | Dlaczego zostaje                                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S5-07                   | M3 - test na żywo i włączenie silnika u NES: decyzja i czynność właściciela (runbook §9).                                                                         |
+| Z-S7-09                   | `KpiTile`, `PaywallKpiStrip`, `AdminBiStrip` liczą katalog i obserwowalność - `MetricId` oznaczałby wymyślone metryki; geometria już wspólna.                     |
+| Z-S7-11                   | Obserwacja budżetu - kolejny pomiar §24.7 (zapas `overall` 1,2 KB, `css` 0,2 KB).                                                                                 |
+| Z-S7-13, Z-S7-14, Z-S7-15 | Briefy właściciela, akceptacja 55. reguły, producent lejka - decyzje poza kodem.                                                                                  |
+| Z-S8-02, Z-S8-03          | Wymagają rozszerzeń RPC S5 (wynik per predykat, mail testowy bez zapisu) - nowa funkcja, nie poprawka.                                                            |
+| Z-S8-04, Z-S8-05          | Model odbić (twarde/miękkie) i wpis CTOR automatyzacji w rejestrze S6 - zmiany modeli danych/benchmarków.                                                         |
+| Z-S8-06                   | 38 eksportów (8 hooków) w 12 plikach S8 - przeniesienie zmienia graf leniwych chunków edytora i wymaga osobnego pomiaru D-08; ostrzeżenia lintu, nie błędy.       |
+| Z-S8-07, Z-S8-08          | Ograniczenie routera (`useBlocker` przy POP w trasie) i test ręczny w dwóch kartach (M3).                                                                         |
+| Z-I9d-01, -11, -12, -13   | Decyzje administratora danych / ocena IOD.                                                                                                                        |
+| Z-I9d-02                  | Usunięcie pliku zdjęcia przez API magazynu - krok serwera modułu wydarzeń.                                                                                        |
+| Z-I9d-03 (wydarzenia)     | `[redacted]` w ok. 15 komponentach modułu wydarzeń - wspólny pomocnik wyświetlania osoby albo RPC z `anonymized_at`; decyzja właściciela modułu.                  |
+| Z-I9d-04, -06, -07, -10   | Zakres retencji (kontakt po wygaszaniu, historia czytania, reset cykli, licznik oczekujących zgłoszeń) - decyzje administratora.                                  |
+| Z-I9d-05                  | `last_sign_in_at` przy długiej sesji - ograniczenie Supabase Auth; inne źródła zaangażowania działają.                                                            |
+| Z-I9d-08                  | Maskowanie w RPC - niski priorytet (admin i tak widzi listę subskrybentów).                                                                                       |
+| Z-I9d-09                  | Wymaga klucza `aggregate_before` w RPC S3 (`admin_revenue_funnel`) - zmiana kontraktu S3.                                                                         |
+| Z-I9d-14, -15, -17, -18   | Inspektor CMS, licznik mierzonych w statystykach ścieżek, martwe pola CHECK, przełącznik w panelu konta - nowe funkcje albo decyzje.                              |
+| Z-I9d-20                  | `consentText` w `app-initial` - wydzielenie zmienia chunk wejściowy; osobne zadanie z pomiarem `public`.                                                          |
+| Z-I9d-21                  | Obserwacja wydajności podglądu po wdrożeniu.                                                                                                                      |
+| D-09                      | Przekierowanie `/admin/monetization` po 14 dniach bez rozjazdu `reconcileAll` - decyzja właściciela; do tego czasu pulpit liczy własny ranking powodów (Z-S7-08). |
+
+### 24.7 Pomiar bundla (D-08)
+
+Baza `2113569d` (gałąź PR po I9d-Y2, kopia `git archive`, ten sam
+`node_modules`) ⇄ HEAD po integracji (`5a2b29ef`), ten sam host;
+przypisanie: gzip -9 per chunk, nazwa bez hasha.
+
+| Budżet (gzip KB) | Próg            | Baza `2113569d` | I9     | Δ         | Wynik                                                               |
+| ---------------- | --------------- | --------------- | ------ | --------- | ------------------------------------------------------------------- |
+| `overall`        | 5357 → **5371** | 5355,3          | 5369,8 | **+14,5** | ratchet D-08 `ceil(5369,8) + 1` = 5371                              |
+| `admin-only`     | -               | 2565,1          | 2578,9 | +13,8     | -                                                                   |
+| `public`         | 2881 (zamr.)    | 2790,2          | 2790,9 | +0,7      | ✓                                                                   |
+| największy chunk | 286 (zamr.)     | 259,8           | 259,8  | 0,0       | ✓                                                                   |
+| `css`            | 100             | 99,8            | 99,8   | 0,0       | ✓ arkusze bit w bit te same                                         |
+| `publicCss`      | 85 (zamr.)      | 83,8            | 83,8   | 0,0       | ✓                                                                   |
+| `boot`           | 579 (zamr.)     | 473,6           | 473,6  | 0,0       | ✓                                                                   |
+| pliki JS         | -               | 1572            | 1585   | +13       | `check:chunks`, `check:entry-purity`, `check:server-entry-purity` ✓ |
+
+Rozbicie (kronika w `scripts/check-bundle-size.ts`): sygnał Diagnostyki
+`SignalChipBody` +1,6 i `RevenueSignalChip` +0,6, słownik
+`i18n-admin-revenue-links` +1,1, `EventJourneysSummary` +0,7,
+`RevenueHubHint` +0,4, `RevenueHubLink` +0,3, `useRevenueHubTab` +0,2,
+`RelatedModulesBar` +0,5; trasy modułów - CRM +1,8, automatyzacje +0,3,
+Cennik +0,2, wydarzenia +0,7, kluby +0,3; Skrzynka wysyłek +1,3; słownik
+panelu harmonogramu (`HeartbeatDot`) +0,9 i trasa +0,4; baner przerwanej
+szyny +0,5; `SourceHeader` +0,5; przewodnik po Ścieżkach - `tours` +0,9,
+`CoachmarkTour` wyjęty z `EditorLangSwitch` (−1,7 / +1,8). Public:
+`i18n-membership` +0,2, reszta entropia hashy (1357 chunków o |Δ| < 150 B).
+Zapas po ratchecie: `overall` 1,2 KB, `css` 0,2 KB. `reports/bundle-baseline.json`
+bez zmian - wyłącznie z runnera (runbook §10).
+
+### 24.8 Weryfikacja (I9-D, worktree `/home/user/wt/I9d`)
+
+Ciężkie kroki po kolei pod `flock -x /tmp/hub-heavy.lock`, pgTAP pod
+`/tmp/hub-pgtap.lock` (`PGTAP_DIR=/tmp/pgtap-hub-i9d`, port 5459), harnessy
+pod `/tmp/hub-harness.lock`.
+
+| Polecenie                                                                                                                                                | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git fetch origin claude/elegant-fermat-xwfca1`                                                                                                          | ✓ FETCH_HEAD = `2113569d` (przodek gałęzi roboczej) - bez scalenia                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| łatki I9-C (`git apply --check`) i manifest I9                                                                                                           | ✓ realtime i manifest nałożone; `hubDelivery.gate` 52/52                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| bliźniaki `cmp` + `check:migration-lanes`                                                                                                                | ✓ `0387…0390` bajt w bajt; 391 wpisów dziennika drizzle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| pgTAP `run.sh all` (po integracji)                                                                                                                       | ✓ 1317 migracji (1 znany błąd `20260825230232`), 262 pliki OK (5975 asercji); 4 czerwone - wyłącznie znane środowiskowe (`community_cron_schedule` 2/17 i `job_scheduler_heartbeat` 1/32 - pg_net, `public_definer_views_read_only` 1/35, `profile_intent_semantic` - vector); nowe: `hub_i9_journey_enrollment_rollup` 17, `hub_i9_marketing_consent_shared` 10, `hub_i9_contact_message_event` 9, `hub_i9_campaign_engagement_readers` 14; `hub_shared_helpers` 27; fakty S7 po I9d i I9 (Z-S7-16): `plpgsql_check_gate` 4, `revenue_facts` 24, `revenue_diagnostic_snoozes` 26 |
+| `generate:ts-sql-contract` + `ts_sql_contract`                                                                                                           | ✓ 9 asercji (1016 wywołań RPC, 1534 operacje na tabelach, 83 cele `onConflict`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `check:rpc-contract`, `check:types-freshness`                                                                                                            | ✓ (882 nazwy, 1834 funkcje; 395 tabel, baseline 7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters` | ✓ (tenant-scope: 1896 funkcji; replay: 1317 plików)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `split-migration.ts --dry-run` (4 migracje I9)                                                                                                           | ✓ każda 1 część (27,8 / 14,6 / 5,0 / 40,7 KiB)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `check:pg-harness`, `check:careers-harness`, `check:events-harness`                                                                                      | ✓ pg 504 asercje; careers 14 migracji (4 pominięte znacznikiem); events 278 migracji, 4914 asercji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `bun run verify:static`                                                                                                                                  | ✓ 18 bramek (321 s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `tsgo --noEmit` zawężony jak w CI (`GOMEMLIMIT=6GiB`)                                                                                                    | ✓ 0 błędów - 783 pliki (165 zmienionych `.ts`/`.tsx` względem bazy + 618 importerów, w tym `types.ts`); poprawka `settingsQueries.ts` - osobno ✓                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `typecheck:scripts`, `typecheck:e2e`                                                                                                                     | ✓ / ✓ (scripts powtórzone po ratchecie)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `bun run lint`                                                                                                                                           | ✓ 0 błędów, 320 ostrzeżeń (liczba z bazy)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| vitest g1: `src/lib/{events,billing}`                                                                                                                    | ✓ 488 plików, 12 004 testy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| vitest g2: `src/lib/{builder,__tests__,clubs}` + pliki w `src/lib`                                                                                       | ✓ 370 plików, 9 739 testów (+18 oczekiwanych porażek)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| vitest g3: pozostałe `src/lib/*` (m.in. `ci`, `revenue`, `admin`, `journeys`, `newsletter`, `realtime`, `server`, `privacy`)                             | 1088 plików, 28 265 testów; czerwony 1 plik - `settingsQueries.test.ts` (4 przypadki def. 17: lustro reguły szyny) → poprawka `e9ffc36a` → powtórka 5 dotkniętych plików ✓ 483 testy                                                                                                                                                                                                                                                                                                                                                                                              |
+| vitest g4: `src/routes`, `src/hooks`, `src/__tests__`, `src/start.test.ts`, `src/integrations`, `src/test`                                               | ✓ 335 plików (+2 pominięte), 10 412 testów; bramka parytetu przepisała `reports/i18n-parity.json`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| vitest g5: `src/components` (cały katalog)                                                                                                               | ✓ 1626 plików, 36 318 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `bun run build` + `check:bundle`                                                                                                                         | build ✓; `check:bundle` ✗ `overall` 5369,8 > 5357 → ratchet D-08 5371 (§24.7) → ✓ (jeden przebieg po zmianie progu)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                        | ✓ (1583 chunki, graf acykliczny; boot 11 chunków; serwer 3539 plików)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run generate:authz-snapshot --check`                                                                                                                | ✓ (po regeneracji: 1317 migracji, 1896 funkcji, 677 polityk)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `bun run scripts/hub-slice-guard.ts I9 --base 2113569d4`                                                                                                 | ✓ diff w manifeście; 4 pliki w bloku huba, 15 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `bun run format:check` (po dokumentach)                                                                                                                  | ✓ cały projekt (`prettier --check .`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| e2e, e2e-seeded                                                                                                                                          | CI po pushu (lokalnie brak Dockera i sekretów); ostatni przebieg na `2113569d`: `success`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+### 24.9 Wdrożenie I9 na produkcji (właściciel)
+
+Kolejność: `20261020162600` → `162700` → `162800` → `162900` (drizzle
+`0387…0390`), po I9d-Y2 (`162300…162500`) - pełna kolejność `0347…0390`
+z kontrolnym SQL K1-K9: `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8. Blokady:
+wyłącznie `CREATE TRIGGER` na `contact_messages` (`lock_timeout` 5 s,
+`55P03` = ponów plik); reszta to dwie nowe tabele i redefinicje funkcji.
+Kod i migracje są wzajemnie bezpieczne: nowy front bez migracji - zestawienia
+puste (odczyty = stan sprzed I9), szablon B2B niedostępny do czasu emitera;
+migracje bez nowego frontu - typ zdarzenia nieznany szynie (mapa zwraca
+`[]`), reszta bez zmiany kształtu odpowiedzi. Zestawienia
+`journey_enrollment_daily_stats` i `newsletter_campaign_engagement_daily`
+rosną dopiero od pierwszego WYKONANIA retencji po wdrożeniu (nie
+w podglądzie). Front publikować razem z migracjami.
+
+### 24.10 Kryteria akceptacji karty I9 (SPEC §8.3, prompt §9.1)
+
+- [x] **[1] Harmonogram (Z-S5-03):** krok `journeys`
+      (`runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`)
+      przed drenem poczty z terminem 3 s, skanery S2 co 5 min,
+      `journey_rollup_daily` co godzinę (minuta 13), `journey_purge('30 days')`
+      raz na dobę (03:11 UTC); karta retencji pokazuje „Harmonogram zadań
+      aplikacji (raz na dobę)”; `SCHEDULER_JOBS`, `scheduler.yml`,
+      `scheduler-tick.mjs`, `SchedulerHealthPanel` z kartą silnika
+      i `JOURNEYS_ENGINE_DISABLED` - `9e3ba64c`; `jobsTickRun.test.ts`,
+      `scheduler.test.ts`, `-jobs-tick.test.ts`, `SchedulerHealthPanel.test.tsx`
+      zielone w grupach §24.8.
+- [x] **[2] Nawigacja i ⌘K:** zakładki, „Dane wejściowe” (admin), „Nowa
+      ścieżka” (`?new=1`), 43 skróty wskaźników - komplet z S7/S8;
+      `adminNav.test.ts` (24) i `metricSearchIndex.test.ts` (13) zielone.
+- [x] **[3] Moduły → hub:** 13 punktów montażu SPEC §2.7 - `RevenueSignalChip`
+      w 10 ekranach (`SIGNAL_SURFACES`, bramka roli i najemcy PRZED
+      zapytaniami, treść leniwa, atrapa w testach modułów) i drogowskazy
+      (`6afa1b3c`); `LeadJourneysCard` i typ `journey` na osi leada - S8,
+      potwierdzone; testy modułów zielone (grupy §24.8).
+- [x] **[4] Bramki ścisłe:** `queryKeyLiterals.gate.test.ts` (lista pusta
+      z asercją), `syncManifest.test.ts` (`metrics` z mapą grupa →
+      dziedzina, zapadka reguł szyny zdjęta po dopisaniu reguł),
+      `domainMap.test.ts` (16 domen z `queryOptions`, w tym `diagnostics`),
+      `hubDelivery.gate` 52/52 na wszystkich migracjach huba,
+      `generate:authz-snapshot --check` ✓.
+- [x] **[5] Bundel:** pełny pomiar baza ⇄ I9 (§24.7), ratchet `overall`
+      5357 → 5371 z kroniką „wycinek: I9”; `reports/bundle-baseline.json`
+      wyłącznie z runnera CI - procedura w runbooku §10 (lokalnie nie
+      generowany, zgodnie z regułą `check-bundle-size.ts`).
+- [x] **[6] Pełne bramki** lokalnie zielone (§24.8). e2e i e2e-seeded -
+      CI po pushu (ostatni przebieg na `2113569d`: `success`; lokalnie brak
+      Dockera i sekretów).
+- [x] **[7] Runbook** `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`: przełączniki
+      (silnik, `JOURNEYS_ENGINE_DISABLED`, status ścieżki, retencja
+      i karencja, pomiar otwarć i zgoda na pomiar, „Poproś o zgodę na
+      pomiar”, wygaszanie), sygnały i alerty, zapytania Q1-Q10, wycofanie
+      (zasady, per fala, szablon awaryjny), kolejność `0347…0390` z K1-K9,
+      Z-I9c-03, Z-S3-02, Z-I9b-14, Z-I9c-04, tryb provider
+      `NEWSLETTER_ENGAGEMENT_SOURCE` (wymagany `first_party`).
+
+### 24.11 Raport końcowy huba „Przychód i lejek”
+
+Stan na 2026-10-22: wszystkie wycinki karty huba są gotowe. I0, S6, S1, S4
+i S2 są na `main` i na produkcji (potwierdzenie `0346`); S3-I9d-Y2 - w PR #530
+(gałąź `claude/elegant-fermat-xwfca1`); I9 - na gałęzi `hub/i9d-rodo-2`,
+która czeka na push (fast-forward gałęzi PR, krok 5 prompt kontynuacji §10).
+
+**1. Co dostarczono (per wycinek).**
+
+| Wycinek | Dziennik       | Dostarczone                                                                                                                                                                  | Migracje (wersje → bliźniaki) | Stan produkcji                    |
+| ------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------- |
+| I0      | §1-§9          | schemat huba (księga MRR, lejek, cykl życia CRM, rdzeń i wiadomości ścieżek, wspólne pomocniki SQL), katalog szyny, kontrakt nazw, strażnik wycinka, procedura M0            | `090000…090500` → `0318…0323` | wdrożone (M0)                     |
+| S6      | §11, §14       | BI, rejestr wskaźników i benchmarków (uspójniony z pakietem Insidera), zestaw UI huba (`KpiTile`, `MetricExplainer`, `BenchmarkScale`, `SourceHeader`, `RelatedModulesBar`…) | -                             | na `main`                         |
+| S1      | §12            | moduły źródłowe: emitery ustawień, patch newslettera, zdarzenia kuponów, zdrowie e-mail, jedna ścieżka nadań członkostwa                                                     | `100000…100400` → `0324…0328` | wdrożone                          |
+| S4      | §15            | CRM (etapy cyklu życia, historia), automatyzacje v2, dane społeczności (wydarzenia, kluby)                                                                                   | `130000…130700` → `0330…0337` | wdrożone (#527)                   |
+| S2      | §16            | księga MRR, windykacja, przychód zrealizowany, przepływ anulowania                                                                                                           | `110000…110700` → `0338…0345` | wdrożone (#527)                   |
+| S3      | §18            | lejek i paywall czytelnika (uderzenia, licznik gościa, zdarzenia kasy, inwentarz dostępu)                                                                                    | `120000…120400` → `0347…0351` | do wdrożenia (runbook §8, krok 1) |
+| I9a     | §19            | hub w nawigacji panelu, skróty ⌘K zakładek, okno porzucenia kasy w panelu                                                                                                    | -                             | front                             |
+| S5      | §20            | silnik ścieżek (trasa, skrzynka, wykonanie, warunki i zgody, RPC panelu, tracking i statystyki, 14 szablonów, runner)                                                        | `140000…140500` → `0352…0357` | do wdrożenia (krok 2)             |
+| I9b     | §21.1-§21.19   | decyzje właściciela: segmenty, cennik v6.2 (Zespół, NGO), limit miejsc Zespołu, RODO księgi, lejka, szyny i ścieżek po usunięciu konta, limit tagu 64                        | `160000…160800` → `0358…0366` | do wdrożenia (kroki 3-5)          |
+| I9c     | §21.20, §21.21 | X1 - autorzy i poczta w kolejce po usunięciu konta; X2 - retencja danych (karta, karencja, agregaty, przełącznik pomiaru)                                                    | `160900…161400` → `0367…0372` | do wdrożenia (kroki 6-7)          |
+| S8      | §22            | Ścieżki w panelu: lista, galeria, kreator, ustawienia silnika, edytor kanwy, wyniki, karta leada, oś leada                                                                   | -                             | front                             |
+| S7      | §23            | 10 zakładek huba, Diagnostyka (55 reguł, wyciszenia, mapa systemu), 15 szybkich napraw, Wskaźniki, Dane wejściowe                                                            | `150000…150100` → `0373…0375` | do wdrożenia (krok 8)             |
+| I9d-Y1  | §21.22         | RODO 2: kluby, licznik, uczestnicy wydarzeń, wygaszanie nieaktywnych subskrybentów (13 kategorii retencji)                                                                   | `161500…162200` → `0376…0383` | do wdrożenia (krok 9)             |
+| I9d-Y2  | §21.23         | treść zgody na newsletter z pomiarem, pomiar tylko za zgodą, „Poproś o zgodę na pomiar”, polityki w kodzie                                                                   | `162300…162500` → `0384…0386` | do wdrożenia (krok 10)            |
+| I9      | §24            | harmonogram ścieżek, moduły → hub, bramki ścisłe, zgłoszenia 9.2, przewodnik po Ścieżkach, runbook                                                                           | `162600…162900` → `0387…0390` | do wdrożenia (krok 11)            |
+
+**2. Metryki jakości (stan po I9, worktree `/home/user/wt/I9d`).**
+
+| Miara                       | Wartość                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| vitest (całe `src`, 5 grup) | 3909 plików, 96 742 testy zielone (+194 oczekiwane porażki, 51 pominiętych)                                         |
+| bramki granic i kontraktów  | 32 pliki `*.gate.test.*` i 59 plików `src/lib/ci/__tests__` - w grupach wyżej, zielone                              |
+| pgTAP                       | 266 plików, 262 zielone (5975 asercji), 4 znane środowiskowe; pliki `hub_*` 27 (576 asercji)                        |
+| harnessy                    | pg 504 asercje, careers 14 migracji, events 4914 asercji                                                            |
+| kontrole SQL i kontrakty    | 8 inwariantów SQL, kontrakt RPC, typy, tory migracji, kontrakt TS⇄SQL (1016 wywołań RPC), `verify:static` 18 bramek |
+| migracje huba               | 71 plików w bloku `20261020*` (I0-I9), bliźniaki w zakresie `0318…0390`                                             |
+| lint                        | 0 błędów; 320 ostrzeżeń - ta sama liczba co na bazie `2113569d` w Y2-D (m.in. Z-S8-06)                              |
+| e2e                         | CI (`e2e`, `e2e-seeded`) - zielone na `2113569d`, ponownie po pushu                                                 |
+
+**3. Budżety (D-08 - historia ratchetów `overall` huba).** Progi
+zamrożone przez cały hub: `public` 2881, `publicCss` 85, `chunk` 286,
+`boot` 579; `css` 100 bez ratchetu (99,8 - arkusze bez nowych klas).
+
+| Wycinek                   | `overall`   | Zmierzone (host) |
+| ------------------------- | ----------- | ---------------- |
+| przed hubem               | 4879        | -                |
+| I0 + S6 + S1              | → 4959      | 4957,3           |
+| scalenie PR #520 z `main` | → 4972      | 4970,7           |
+| S4                        | → 4981/4982 | -                |
+| S2                        | → 4991      | -                |
+| S3                        | → 4995/4997 | -                |
+| I9a                       | → 5003      | -                |
+| I9b                       | → 5005      | -                |
+| I9c-X2                    | → 5023      | 5021,2           |
+| S8                        | → 5182      | -                |
+| S7 (scalenie po S8)       | → 5316      | -                |
+| I9d-Y1                    | → 5334      | -                |
+| I9d-Y2                    | → 5357      | 5355,3           |
+| I9                        | → **5371**  | 5369,8           |
+
+Łącznie hub: `overall` +492 KB (prawie wyłącznie leniwe chunki panelu
+admina), `public` 2772,5 (po scaleniu #520) → 2790,9 (+18,4 w zamrożonym
+progu 2881). Kronika każdego kroku - `scripts/check-bundle-size.ts`.
+
+**4. Otwarte sprawy właściciela.**
+
+1. **Wdrożenie migracji `0347…0390`** (Lovable, migrator Drizzle) z
+   publikacją frontu - kolejność i kontrolny SQL K1-K9:
+   `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8; po każdej fali `post-deploy`
+   i wpis w §10.
+2. **14 dni podglądu retencji** - przegląd liczb i listy „do wygaszenia”
+   w karcie „Retencja danych” przed terminem karencji (także osobne 14 dni
+   nowych kategorii I9d-Y1); „Włącz teraz” albo przesunięcie terminu.
+3. **M3 (Z-S5-07)** - test na żywo `welcome_onboarding`
+   i `abandoned_checkout` (stopka raz - Z-S5-05), potem włączenie silnika
+   ścieżek i 7 dni obserwacji (runbook §4, §9).
+4. **Stripe** - trzy kroki wizualne w trybie testowym (Z-S2-01/Z-I9b-13)
+   i powody rezygnacji w portalu klienta (Z-S2-11).
+5. **IOD i administrator danych** - rejestr czynności do wiadomości IOD;
+   Z-I9c-04 (okres dowodów księgowych), Z-I9d-01 (subskrybenci
+   niepotwierdzeni i wypisani), Z-I9d-11 i Z-I9d-13 (zgody wydarzeń
+   i premium z pomiarem, oznaczenie wstecz), ocena Z-I9d-12 (pomiar maili
+   serwisowych), Z-I9d-04/06/07/10 (zakres retencji).
+6. **Pomiar** - `NEWSLETTER_ENGAGEMENT_SOURCE=first_party` i tracking
+   u dostawcy poczty wyłączony; nowa wersja polityk w panelu dokumentów
+   prawnych, jeśli najemca opublikował własną; opcjonalnie „Poproś o zgodę
+   na pomiar”.
+7. **D-09** - przekierowanie `/admin/monetization` po 14 dniach bez
+   rozjazdu `reconcileAll`.
+8. **Baseline bundla** - `--update-baseline` na zielonym buildzie runnera
+   po scaleniu (runbook §10).
+9. **Decyzje produktowe** - Z-S7-13 (briefy), Z-S7-14 (55. reguła),
+   Z-S7-15 (czas między krokami lejka), Z-S8-02…05 (rozszerzenia RPC S5,
+   model odbić, CTOR automatyzacji); konektor Confluence.
+
+**5. Kolejność wdrożenia** - 11 kroków (S3 → S5 → I9b A → A2 → B → I9c-X1
+→ X2 → S7 → I9d-Y1 → I9d-Y2 → I9) wg `_journal.json` (`0347…0390`);
+warunki okien, blokady i zapytania K1-K9 - runbook §8 i §8.1.

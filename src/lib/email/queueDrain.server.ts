@@ -34,11 +34,21 @@
 //     nadaniem a drenem mogło dojść twarde odbicie albo skarga, a wtedy
 //     wysłanie tej wiadomości byłoby dokładnie tym sygnałem, którym psuje się
 //     reputację domeny.
+//   * ZAPIS I ZGODA (I9c-X1): poczta związana z kontem albo zapisem (kroki
+//     ścieżek, digest) przed wysyłką pyta bazę, czy zapis i zgoda nadal
+//     obowiązują i czy konto istnieje - wypis albo usunięcie konta w trakcie
+//     cyklu zatrzymuje wiadomość, a transakcyjnej nie dotyczy.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { emailProviderConfigured, sendEmail } from "./provider.server";
 import { checkSendAllowed } from "./suppression.server";
-import { emailCategoryForLabel, suppressionSkipReason } from "./suppressionPolicy";
+import {
+  REDACTED_RECIPIENT,
+  emailCategoryForLabel,
+  isAccountBoundEmailLabel,
+  isAccountDeletedVerdict,
+  suppressionSkipReason,
+} from "./suppressionPolicy";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -140,6 +150,7 @@ interface QueuePayload {
   idempotency_key?: unknown;
   unsubscribe_token?: unknown;
   unsubscribe_url?: unknown;
+  reply_to?: unknown;
   run_id?: unknown;
   tenant_id?: unknown;
   queued_at?: unknown;
@@ -267,6 +278,13 @@ async function logSend(
     status: "sent" | "failed" | "suppressed" | "dlq";
     error?: string | null;
     /**
+     * Identyfikator wiadomości u dostawcy (tylko `sent`). Bez niego webhook
+     * odbicia/skargi wiadomości 1:1 (ścieżki, transakcyjne) nie znajduje
+     * najemcy ani kroku ścieżki - `email_apply_delivery_event` dopasowuje po
+     * `email_send_log.provider_message_id` (D12, S5).
+     */
+    providerMessageId?: string | null;
+    /**
      * Najemca wiersza. WYMAGANY, nie opcjonalny: pole opcjonalne dałoby się
      * pominąć przy dopisywaniu kolejnej ścieżki wyniku, a pominięcie znaczy tu
      * „wiersz niewidoczny w panelu żadnego najemcy". `null` jest dozwolony
@@ -282,6 +300,7 @@ async function logSend(
     recipient_email: row.to,
     status: row.status,
     error_message: row.error ? row.error.slice(0, 1000) : null,
+    provider_message_id: row.providerMessageId ?? null,
     [TENANT_COLUMN]: row.tenantId,
   } as never);
   // Wysyłka już się stała - nieudany zapis logu nie może jej „odkręcić", ale
@@ -374,6 +393,33 @@ async function alreadySent(admin: DbClient, messageId: string): Promise<boolean>
     .eq("status", "sent")
     .maybeSingle();
   return Boolean(data);
+}
+
+/**
+ * Werdykt bazy dla poczty związanej z kontem albo zapisem
+ * (`email_queue_send_recheck`, migracja 20261020160900): `"ok"` albo powód
+ * pominięcia (`skipped:…`), który trafia wprost do dziennika wysyłek.
+ * `null` = brak odpowiedzi (błąd zapytania) - wiadomość czeka na kolejny cykl.
+ */
+async function recheckAccountBound(
+  admin: DbClient,
+  label: string,
+  idempotencyKey: unknown,
+): Promise<string | null> {
+  try {
+    const { data, error } = await rpcClient(admin).rpc("email_queue_send_recheck", {
+      p_label: label,
+      p_idempotency_key: nullableText(idempotencyKey),
+    });
+    if (error) {
+      console.error("[email-queue] account-bound recheck failed", label, error.message);
+      return null;
+    }
+    return typeof data === "string" && data.length > 0 ? data.slice(0, 200) : null;
+  } catch (err) {
+    console.error("[email-queue] account-bound recheck threw", label, err);
+    return null;
+  }
 }
 
 async function startCooldown(admin: DbClient, seconds: number): Promise<void> {
@@ -504,6 +550,36 @@ export async function drainEmailQueues(
         continue;
       }
 
+      // OBRONA W GŁĄB (I9c-X1): poczta związana z kontem albo zapisem (kroki
+      // ścieżek, digest). Lista wykluczeń nie wie, że zapis na ścieżkę się
+      // skończył (usunięcie konta, wypis linkiem, wyjście ręczne), że zgoda
+      // marketingowa wygasła albo że konta już nie ma - baza wie. Usunięcie
+      // konta wyjmuje takie wiadomości z kolejki samo; to pytanie łapie te,
+      // których tamten odczyt nie widział (w locie), i wypis w trakcie cyklu.
+      if (isAccountBoundEmailLabel(label)) {
+        const verdict = await recheckAccountBound(admin, label, payload.idempotency_key);
+        if (verdict === null) {
+          // Bez odpowiedzi bazy nie wysyłamy i nie kasujemy: wiadomość wraca
+          // po czasie niewidzialności, a TTL zamyka ją, gdyby awaria trwała.
+          continue;
+        }
+        if (verdict !== "ok") {
+          await logSend(admin, {
+            messageId,
+            label,
+            // Konto usunięte: wpis zatrzymania nie dopisuje jego adresu do
+            // dziennika (jak anulowanie przy usunięciu, migracja 160900).
+            to: isAccountDeletedVerdict(verdict) ? REDACTED_RECIPIENT : to,
+            status: "suppressed",
+            error: verdict,
+            tenantId: gate.tenantId,
+          });
+          await deleteMessage(admin, queue, msg.msgId);
+          result.suppressed += 1;
+          continue;
+        }
+      }
+
       const sendResult = await sendEmail({
         to,
         subject: text(payload.subject),
@@ -512,6 +588,7 @@ export async function drainEmailQueues(
         from: nullableText(payload.from) ?? undefined,
         senderDomain: nullableText(payload.sender_domain) ?? undefined,
         listUnsubscribeUrl: nullableText(payload.unsubscribe_url),
+        replyTo: nullableText(payload.reply_to),
         unsubscribeToken: nullableText(payload.unsubscribe_token) ?? undefined,
         idempotencyKey: nullableText(payload.idempotency_key) ?? undefined,
         runId: nullableText(payload.run_id) ?? undefined,
@@ -528,7 +605,14 @@ export async function drainEmailQueues(
       budget -= 1;
 
       if (sendResult.ok) {
-        await logSend(admin, { messageId, label, to, status: "sent", tenantId: gate.tenantId });
+        await logSend(admin, {
+          messageId,
+          label,
+          to,
+          status: "sent",
+          tenantId: gate.tenantId,
+          providerMessageId: sendResult.messageId ?? null,
+        });
         await deleteMessage(admin, queue, msg.msgId);
         result.sent += 1;
       } else if (sendResult.rateLimited) {

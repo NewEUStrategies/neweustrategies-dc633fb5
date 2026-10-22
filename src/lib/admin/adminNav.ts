@@ -42,6 +42,7 @@ import {
   Clock,
   CreditCard,
   Crown,
+  GitBranch,
   Gift,
   HandHeart,
   Inbox,
@@ -50,20 +51,49 @@ import {
   MessageCircle,
   MessagesSquare,
   Radio,
+  Route,
   ShieldCheck,
   TrendingUp,
   UserCheck,
   Workflow,
 } from "lucide-react";
 
+import { canSeeTab, hubTabsFor } from "@/lib/admin/revenue/hubTabs";
+import { metricSearchEntries } from "@/lib/admin/revenue/metricSearchIndex";
+import type { RevenueTabId } from "@/lib/revenue/search";
+
 export type AdminNavIcon = ComponentType<{ className?: string }>;
+
+/** Parametry adresu pozycji (`?tab=…`) - przekazywane `<Link search>` bez zmian. */
+export type AdminNavSearch = Readonly<Record<string, string>>;
+
+/**
+ * Skrót wyszukiwarki panelu (⌘K) do PODSTRONY pozycji - np. zakładki huba
+ * „Przychód i lejek". Nie stoi w pasku bocznym (pasek pokazuje tylko korzeń
+ * modułu), a w wynikach wyszukiwania dostaje nazwę pozycji-rodzica jako
+ * etykietę grupy, żeby „Retencja" było czytelne bez kontekstu ekranu.
+ */
+export type AdminNavSearchEntry = {
+  to: string;
+  search?: AdminNavSearch;
+  label: string;
+  keywords?: string[];
+};
 
 /**
  * Dwa rodzaje pozycji: wewnętrzna trasa panelu (`to`, TanStack <Link>) oraz
  * usługa zewnętrzna (`href`, nowa karta) - np. zbiórki żyjące poza panelem.
  */
 export type AdminNavItem =
-  | { to: string; icon: AdminNavIcon; label: string; badge?: number; keywords?: string[] }
+  | {
+      to: string;
+      search?: AdminNavSearch;
+      icon: AdminNavIcon;
+      label: string;
+      badge?: number;
+      keywords?: string[];
+      searchEntries?: AdminNavSearchEntry[];
+    }
   | { href: string; icon: AdminNavIcon; label: string; keywords?: string[] };
 
 export type AdminNavGroup = { id: string; label?: string; items: AdminNavItem[] };
@@ -73,11 +103,25 @@ export type BuildAdminNavArgs = {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   clubPending: number;
+  /**
+   * DOKŁADNE role sesji (`useAuth().roles`). Hub „Przychód i lejek" liczy
+   * widoczność z wierszy `admin`/`editor`, a nie z `isAdmin` - ten liczy też
+   * samego `super_admin`, którego polityki huba nie wpuszczają (pozycja
+   * prowadziłaby do `RoleGateNotice`). Ta sama reguła co pasek zakładek huba
+   * (`hubTabsFor`), więc menu i hub nie mogą się rozjechać.
+   */
+  roles: readonly string[];
 };
 
 /** Klucz pozycji - stabilny identyfikator używany przy filtrowaniu i renderze. */
 export function adminNavItemKey(item: AdminNavItem): string {
-  return "to" in item ? item.to : item.href;
+  if (!("to" in item)) return item.href;
+  if (!item.search) return item.to;
+  // Ten sam adres z innym `?tab=` to INNY cel - klucz musi je rozróżniać.
+  const query = Object.entries(item.search)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  return `${item.to}?${query}`;
 }
 
 /** Normalizacja pod wyszukiwarkę: bez znaków diakrytycznych, lowercase. */
@@ -102,21 +146,133 @@ export function searchAdminNav(groups: AdminNavGroup[], query: string): AdminNav
   const tokens = q.split(/\s+/).filter(Boolean);
   const hits: Array<AdminNavSearchHit & { score: number }> = [];
 
+  const consider = (
+    item: AdminNavItem,
+    context: string,
+    groupId: string,
+    groupLabel: string | undefined,
+  ) => {
+    const label = normalizeSearchText(item.label);
+    const haystack = normalizeSearchText(
+      [item.label, context, adminNavItemKey(item), ...(item.keywords ?? [])].join(" "),
+    );
+    if (!tokens.every((token) => haystack.includes(token))) return;
+    const score = label.startsWith(q) ? 0 : label.includes(q) ? 1 : 2;
+    hits.push({ item, groupId, groupLabel, score });
+  };
+
   for (const group of groups) {
     for (const item of group.items) {
-      const label = normalizeSearchText(item.label);
-      const haystack = normalizeSearchText(
-        [item.label, group.label ?? "", adminNavItemKey(item), ...(item.keywords ?? [])].join(" "),
-      );
-      if (!tokens.every((token) => haystack.includes(token))) continue;
-      const score = label.startsWith(q) ? 0 : label.includes(q) ? 1 : 2;
-      hits.push({ item, groupId: group.id, groupLabel: group.label, score });
+      consider(item, group.label ?? "", group.id, group.label);
+      if (!("to" in item)) continue;
+      // Skróty do podstron: dopasowanie wyłącznie po WŁASNEJ nazwie i słowach
+      // kluczowych, bez nazwy grupy i rodzica - inaczej „przychód" albo
+      // „monetyzacja" wypisałyby wszystkie jedenaście zakładek huba naraz.
+      // Rodzic wraca jako etykieta trafienia (kontekst w wynikach).
+      for (const entry of item.searchEntries ?? []) {
+        consider(
+          {
+            to: entry.to,
+            search: entry.search,
+            icon: item.icon,
+            label: entry.label,
+            keywords: entry.keywords,
+          },
+          "",
+          group.id,
+          item.label,
+        );
+      }
     }
   }
 
+  // Jeden cel = jedno trafienie. Zakładka „Ścieżki" huba i pozycja CRM
+  // „Ścieżki komunikacji" prowadzą pod ten sam adres; dwa wiersze do jednego
+  // ekranu to szum, więc zostaje lepiej dopasowany (pierwszy po sortowaniu).
+  const seen = new Set<string>();
   return hits
     .sort((a, b) => a.score - b.score || a.item.label.localeCompare(b.item.label))
+    .filter(({ item }) => {
+      const key = adminNavItemKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map(({ item, groupId, groupLabel }) => ({ item, groupId, groupLabel }));
+}
+
+/**
+ * Nazwy zakładek huba w wyszukiwarce panelu (⌘K). Literały, nie sklejanie
+ * klucza - bramka dryfu kluczy i parytet PL/EN widzą wtedy każdy brak.
+ * Słowniki `adminRevenue.*` ładuje dopiero hub, więc nawigacja (montowana na
+ * każdej trasie panelu) ma własne nazwy w `admin.nav.revenueTabs.*`.
+ */
+const REVENUE_TAB_NAV_LABEL: Readonly<Record<RevenueTabId, string>> = {
+  overview: "admin.nav.revenueTabs.overview",
+  mrr: "admin.nav.revenueTabs.mrr",
+  funnel: "admin.nav.revenueTabs.funnel",
+  retention: "admin.nav.revenueTabs.retention",
+  community: "admin.nav.revenueTabs.community",
+  diagnostics: "admin.nav.revenueTabs.diagnostics",
+  offer: "admin.nav.revenueTabs.offer",
+  access: "admin.nav.revenueTabs.access",
+  journeys: "admin.nav.revenueTabs.journeys",
+  metrics: "admin.nav.revenueTabs.metrics",
+  inputs: "admin.nav.revenueTabs.inputs",
+};
+
+/**
+ * Słowa, pod którymi administrator szuka zakładki (bez diakrytyków - tak je
+ * porównuje `normalizeSearchText`). Pojęcia z treści zakładki (SPEC §2.2),
+ * a nie z jej nazwy: kto szuka „churn", ma trafić w Retencję.
+ */
+const REVENUE_TAB_KEYWORDS: Readonly<Record<RevenueTabId, string[]>> = {
+  overview: ["przeglad", "overview", "kokpit", "wymaga uwagi", "kondycja", "kpi"],
+  mrr: ["mrr", "arr", "arpa", "arpu", "most mrr", "subskrypcje", "przychod zrealizowany"],
+  funnel: ["lejek", "funnel", "konwersja", "rejestracje", "paywall", "kasa", "checkout"],
+  retention: ["churn", "odejscia", "nrr", "grr", "kohorty", "windykacja", "anulowanie"],
+  community: ["wydarzenia", "bilety", "kluby", "zgloszenia", "events", "clubs"],
+  diagnostics: ["problemy", "naprawy", "mapa systemu", "diagnostics", "alerty"],
+  offer: ["drabina cen", "plany", "benefity", "rabaty", "kupony", "offer"],
+  access: ["paywall", "licznik", "metering", "symulator czytelnika", "access"],
+  journeys: ["journeys", "automatyzacje", "sekwencje", "e-maile", "porzucony koszyk"],
+  metrics: ["slownik", "benchmark", "kpi", "metrics", "ltv", "cac", "nrr"],
+  inputs: ["plan mrr", "koszty", "marza", "ebitda", "cogs", "inputs"],
+};
+
+/** Adres zakładki huba: kokpit to indeks (`/admin/revenue`), reszta - `$tab`. */
+function revenueTabPath(tab: RevenueTabId): string {
+  return tab === "overview" ? "/admin/revenue" : `/admin/revenue/${tab}`;
+}
+
+/**
+ * Skróty ⌘K do zakładek huba DLA RÓL SESJI - te same zakładki, które pokazuje
+ * pasek huba (`hubTabsFor`). Redaktor nie dostaje Przychodu, Retencji ani
+ * Danych wejściowych: hub dałby mu tam `RoleGateNotice`, a skrót do ekranu
+ * „brak dostępu" jest gorszy niż brak skrótu.
+ *
+ * „Nowa ścieżka" (`/admin/revenue/journeys?new=1`) - akcja, nie ekran:
+ * zakładka Ścieżek (S8) otwiera pod `?new=1` galerię szablonów z kreatorem
+ * (`RevenueJourneysTab`), więc skrót prowadzi wprost do tworzenia. Ta sama
+ * bramka co zakładka (`canSeeTab`): tworzyć szkic może admin i redaktor
+ * (`journeyCapabilities`), autor nie widzi huba wcale (Integrator S8).
+ */
+function revenueHubSearchEntries(t: TFunction, roles: readonly string[]): AdminNavSearchEntry[] {
+  const tabs: AdminNavSearchEntry[] = hubTabsFor(roles).map((spec) => ({
+    to: revenueTabPath(spec.id),
+    label: t(REVENUE_TAB_NAV_LABEL[spec.id]),
+    keywords: REVENUE_TAB_KEYWORDS[spec.id],
+  }));
+  if (!canSeeTab("journeys", roles)) return tabs;
+  return [
+    ...tabs,
+    {
+      to: revenueTabPath("journeys"),
+      search: { new: "1" },
+      label: t("admin.nav.newJourney"),
+      keywords: ["nowa sciezka", "new journey", "szablon"],
+    },
+  ];
 }
 
 /**
@@ -129,7 +285,47 @@ export function buildAdminNavGroups({
   isAdmin,
   isSuperAdmin,
   clubPending,
+  roles,
 }: BuildAdminNavArgs): AdminNavGroup[] {
+  // Hub „Przychód i lejek" (SPEC §2.4, decyzja właściciela 2026-10-20: I9a -
+  // nawigacja przed I9). Pozycję widzi dokładnie ten, kogo wpuszcza hub
+  // (macierz ról §2.5: admin i redaktor; redaktor bez zakładek z kwotami).
+  const hubVisible = hubTabsFor(roles).length > 0;
+  const revenueHub: AdminNavItem[] = hubVisible
+    ? [
+        {
+          to: "/admin/revenue",
+          icon: Route,
+          label: t("admin.nav.revenueHub"),
+          keywords: [
+            "przychod",
+            "lejek",
+            "mrr",
+            "churn",
+            "paywall",
+            "sciezki",
+            "journeys",
+            "benchmark",
+          ],
+          // Skróty wskaźników (⌘K „NRR · Wskaźniki" → arkusz `?metric=` na
+          // zakładce Wskaźniki; S7 `metricSearchIndex.ts`, Integrator S7
+          // 2026-10-22) - same pary kod/identyfikator, bez rejestru S6.
+          searchEntries: [
+            ...revenueHubSearchEntries(t, roles),
+            ...metricSearchEntries(t(REVENUE_TAB_NAV_LABEL.metrics), roles),
+          ],
+        },
+      ]
+    : [];
+  // Ścieżki komunikacji to zakładka huba, ale admin szuka ich obok CRM
+  // i automatyzacji - stąd druga pozycja w grupie CRM (SPEC §2.4). Ikona
+  // `GitBranch` (rozgałęziona ścieżka), nie `Workflow` z SPEC: tę nosi już
+  // „Automatyzacje" piętro wyżej, a w zwiniętym pasku ikona jest jedyną
+  // etykietą - dwie identyczne obok siebie byłyby nie do odróżnienia.
+  const journeys: AdminNavItem[] = canSeeTab("journeys", roles)
+    ? [{ to: "/admin/revenue/journeys", icon: GitBranch, label: t("admin.nav.journeys") }]
+    : [];
+
   const groups: AdminNavGroup[] = [
     {
       id: "overview",
@@ -227,6 +423,7 @@ export function buildAdminNavGroups({
       id: "monetization",
       label: t("admin.navGroups.monetization"),
       items: [
+        ...revenueHub,
         { to: "/admin/monetization", icon: TrendingUp, label: t("admin.nav.monetization") },
         {
           to: "/admin/monetization-ledger",
@@ -328,6 +525,7 @@ export function buildAdminNavGroups({
         { to: "/admin/crm/funnel", icon: Mail, label: t("admin.nav.crmFunnel") },
         { to: "/admin/companies", icon: Users, label: t("admin.nav.companies") },
         { to: "/admin/workflows", icon: Workflow, label: t("admin.nav.workflows") },
+        ...journeys,
         { to: "/admin/integrations", icon: Cable, label: t("admin.nav.integrations") },
         { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact") },
         {

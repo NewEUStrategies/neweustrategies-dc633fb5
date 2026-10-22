@@ -6,8 +6,12 @@
 //   2. nigdy nie przekracza 100%,
 //   3. mówi PO POLSKU i PO ANGIELSKU - brak klucza dałby surowy identyfikator
 //      w panelu, a nie widoczny błąd.
+//   4. (I9d-Y2) pomiar tylko za zgodą: mianownik = odbiorcy MIERZENI, gdy
+//      kampania zna stan pomiaru; kampania sprzed Y2 - wysłani jak dotąd;
+//      notka z dymkiem zawsze, liczba mierzonych - tylko gdy jest znana.
 import { describe, expect, it, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { axeViolations, summarize } from "@/test/axe";
 import i18n from "@/lib/i18n";
 import { CampaignEngagementCard } from "@/components/admin/newsletter/molecules/CampaignEngagementCard";
 
@@ -94,5 +98,41 @@ describe("CampaignEngagementCard", () => {
       />,
     );
     expect(screen.getByText("40% of delivered")).toBeInTheDocument();
+  });
+
+  it("I9d-Y2: mianownik = odbiorcy mierzeni, liczba mierzonych i notka o zgodzie", async () => {
+    await i18n.changeLanguage("pl");
+    // 40 unikalnych otwarć: 200 wysłanych, z czego 80 mierzonych - uczciwy
+    // wskaźnik to 40/80 = 50%, a nie 40/200 = 20% (niemierzeni nie mogą otworzyć).
+    const { container } = render(
+      <CampaignEngagementCard
+        engagement={{ opens: 50, clicks: 10, uniqueOpens: 40, uniqueClicks: 8 }}
+        delivered={200}
+        measurement={{ campaignId: "c", sent: 200, measured: 80, unmeasured: 120, unknown: 0 }}
+      />,
+    );
+    expect(screen.getByText("50% mierzonych")).toBeInTheDocument();
+    expect(screen.getByText("10% mierzonych")).toBeInTheDocument();
+    expect(screen.getByText("Mierzeni odbiorcy: 80 z 200 wysłanych")).toBeInTheDocument();
+    expect(screen.getByText("Tylko odbiorcy ze zgodą na pomiar")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Kogo obejmuje pomiar otwarć i kliknięć?" }),
+    ).toBeInTheDocument();
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("I9d-Y2: kampania sprzed wersji z pomiarem (stan nieznany) dzieli przez wysłanych", async () => {
+    await i18n.changeLanguage("pl");
+    render(
+      <CampaignEngagementCard
+        engagement={{ opens: 50, clicks: 10, uniqueOpens: 40, uniqueClicks: 8 }}
+        delivered={200}
+        measurement={{ campaignId: "c", sent: 200, measured: 0, unmeasured: 0, unknown: 200 }}
+      />,
+    );
+    expect(screen.getByText("20% dostarczonych")).toBeInTheDocument();
+    expect(screen.queryByText(/Mierzeni odbiorcy/)).not.toBeInTheDocument();
+    expect(screen.getByText("Tylko odbiorcy ze zgodą na pomiar")).toBeInTheDocument();
   });
 });

@@ -16,15 +16,46 @@ import type { Role } from "@/hooks/useAuth";
 
 const h = vi.hoisted(() => ({
   auth: { isAdmin: true, roles: ["admin"] as Role[], tenantId: undefined as string | undefined },
+  fetchFacts: vi.fn(),
+  fetchSnoozes: vi.fn(),
+  listJourneys: vi.fn(),
+  // (I9, Z-S7-05) Stan szyny zdarzeń - scenariusz S-F (baner).
+  streamStatus: "live" as "live" | "paused",
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+vi.mock("@/lib/realtime/useDomainEventStream", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/realtime/useDomainEventStream")>()),
+  useDomainEventStreamStatus: () => h.streamStatus,
+}));
+// Zakładki S7 pobierają dane (S7-B) - przedmiotem dowodu jest powłoka, więc
+// treść zakładek z zapytaniami zastępują zaślepki z tym samym data-testid.
+vi.mock("@/components/admin/revenue/tabs/RevenueFunnelTab", () => ({
+  RevenueFunnelTab: () => <div data-testid="revenue-tab-funnel" />,
+}));
+// Licznik Diagnostyki (Z-S6-08, Integrator S7): fakty i wyciszenia czyta
+// leniwa sonda układu - server fn atrapowane, żeby test nie wychodził do sieci.
+vi.mock("@/lib/revenue/diagnostics/diagnostics.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/revenue/diagnostics/diagnostics.functions")>()),
+  getRevenueFacts: () => h.fetchFacts(),
+  getRevenueSnoozes: () => h.fetchSnoozes(),
+}));
+// Licznik „Ścieżki = aktywne” (Integrator S8) czyta listę ścieżek - atrapa
+// jedynej server fn, którą układ woła (granica sieci).
+vi.mock("@/lib/journeys/journeys.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/journeys/journeys.functions")>()),
+  listJourneys: (input: unknown) => h.listJourneys(input),
+}));
 
 import "@/test/i18nReal";
 import i18n from "@/lib/i18n";
 import { renderRoute, type RouteHarnessContext } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
+import type { RevenueFacts } from "@/lib/revenue/diagnostics/facts";
 import { revenueKeys } from "@/lib/revenue/keys";
+import { journeyKeys } from "@/lib/journeys/keys";
+import { parseJourneyList } from "@/lib/journeys/parse";
+import { RPC_SHAPES } from "@/lib/journeys/__tests__/rpcShapes.fixture";
 import { resolveRevenueRange } from "@/lib/revenue/window";
 import { RevenueHubLayout } from "@/components/admin/revenue/organisms/RevenueHubLayout";
 import { Route as LayoutRoute } from "@/routes/admin.revenue";
@@ -52,6 +83,10 @@ afterAll(() => {
 
 beforeEach(async () => {
   asRole(["admin"]);
+  h.streamStatus = "live";
+  h.fetchFacts.mockReset().mockResolvedValue({ state: "unavailable" });
+  h.fetchSnoozes.mockReset().mockResolvedValue({ state: "unavailable" });
+  h.listJourneys.mockReset().mockResolvedValue({ state: "ready", data: [] });
   await i18n.changeLanguage("pl");
 });
 
@@ -225,6 +260,31 @@ describe("bramki ról", () => {
 // Okno czasu
 // ---------------------------------------------------------------------------
 
+describe("szyna zdarzeń przerwana (S-F, I9 - Z-S7-05)", () => {
+  it("kanał przerwany: baner „Aktualizacje na żywo wstrzymane” w nagłówku huba", async () => {
+    h.streamStatus = "paused";
+    await mountHub(`${HUB}/funnel`);
+
+    const notice = await screen.findByTestId("revenue-live-paused");
+    expect(notice).toHaveAttribute("role", "status");
+    expect(notice).toHaveTextContent("Aktualizacje na żywo wstrzymane");
+    expect(notice.closest("header")).not.toBeNull();
+  });
+
+  it("szyna działa - bez banera; autor nie dostaje banera nawet przy awarii", async () => {
+    await mountHub(`${HUB}/funnel`);
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByTestId("revenue-live-paused")).toBeNull();
+    cleanup();
+
+    h.streamStatus = "paused";
+    asRole(["author"]);
+    await mountHub(`${HUB}/funnel`);
+    await screen.findByTestId("revenue-role-gate");
+    expect(screen.queryByTestId("revenue-live-paused")).toBeNull();
+  });
+});
+
 describe("filtry okna", () => {
   it("okresy huba z REVENUE_PERIODS; domyślne okno zakładki, gdy adres go nie niesie", async () => {
     await mountHub(`${HUB}/mrr`);
@@ -330,6 +390,37 @@ function seedSnapshot(queryClient: QueryClient, tenantId: string, money: unknown
   queryClient.setQueryData(revenueKeys.query("snapshot", tenantId, range), { money });
 }
 
+/**
+ * Fakty i wyciszenia najemcy w cache (świeże - sonda licznika nie pobiera).
+ * Bez nich sonda Diagnostyki (Z-S6-08) pobierałaby fakty i wskaźnik świeżości
+ * mówiłby „Odświeżanie danych…".
+ */
+function seedDiagnostics(
+  queryClient: QueryClient,
+  tenantId: string,
+  facts: RevenueFacts | null = null,
+): void {
+  queryClient.setQueryData(
+    revenueKeys.facts(tenantId),
+    facts === null ? { state: "unavailable" } : { state: "ready", facts },
+  );
+  queryClient.setQueryData(revenueKeys.snoozes(tenantId), { state: "ready", snoozes: [] });
+}
+
+/** Dwa otwarte problemy (krytyczny i ważny) i jeden informacyjny - jak `queries.test.ts`. */
+const FACTS_WITH_PROBLEMS: RevenueFacts = {
+  v: 1,
+  computedAt: new Date().toISOString(),
+  areas: {
+    metering: { settingsRow: false, meteredRules: 2 },
+    crm: {
+      autoTasksUnassigned: { open: 3, overdue: 1 },
+      withoutUserId: { registered: 1, customer: 0 },
+      qualifiedWithoutOwner: { mqlSql: 0, opportunity: 0 },
+    },
+  },
+};
+
 describe("świeżość i waluta z cache huba", () => {
   it("bez najemcy w sesji: brak przełącznika waluty, „Odśwież” wyłączone", async () => {
     await mountHub(`${HUB}/funnel`);
@@ -349,6 +440,7 @@ describe("świeżość i waluta z cache huba", () => {
     });
     // Cudzy najemca w tym samym cache nie dokłada swoich walut.
     seedSnapshot(queryClient, OTHER_TENANT, { mrr: [{ currency: "USD", amount_minor: 1 }] });
+    seedDiagnostics(queryClient, TENANT);
 
     await mountHub(`${HUB}/funnel`, queryClient);
 
@@ -365,6 +457,7 @@ describe("świeżość i waluta z cache huba", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     seedSnapshot(queryClient, TENANT, { mrr: [] });
     seedSnapshot(queryClient, OTHER_TENANT, { mrr: [] });
+    seedDiagnostics(queryClient, TENANT);
     queryClient.setQueryData(["admin", "unrelated"], 1);
 
     await mountHub(`${HUB}/funnel`, queryClient);
@@ -380,6 +473,149 @@ describe("świeżość i waluta z cache huba", () => {
     expect(invalidated(revenueKeys.domainTenant("snapshot", TENANT))).toEqual([true]);
     expect(invalidated(revenueKeys.domainTenant("snapshot", OTHER_TENANT))).toEqual([false]);
     expect(invalidated(["admin", "unrelated"])).toEqual([false]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Licznik Diagnostyki na pasku (Z-S6-08, Integrator S7)
+// ---------------------------------------------------------------------------
+
+function diagnosticsLink(): HTMLElement {
+  return within(hubNav()).getByRole("link", { name: /^Diagnostyka/ });
+}
+
+describe("licznik Diagnostyki na pasku huba", () => {
+  it("otwarte krytyczne + ważne z faktów w cache - bez nowego żądania", async () => {
+    asRole(["admin"], TENANT);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    seedDiagnostics(queryClient, TENANT, FACTS_WITH_PROBLEMS);
+
+    await mountHub(`${HUB}/funnel`, queryClient);
+
+    await waitFor(() => expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka2/));
+    expect(within(diagnosticsLink()).getByText("2")).toHaveAttribute("aria-hidden", "true");
+    expect(h.fetchFacts).not.toHaveBeenCalled();
+    expect(h.fetchSnoozes).not.toHaveBeenCalled();
+  });
+
+  it("redaktor też widzi licznik (fakty są dla admina i redaktora)", async () => {
+    asRole(["editor"], TENANT);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    seedDiagnostics(queryClient, TENANT, FACTS_WITH_PROBLEMS);
+
+    await mountHub(`${HUB}/funnel`, queryClient);
+
+    await waitFor(() => expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka2/));
+  });
+
+  it("fakty niedostępne albo brak najemcy: bez licznika, nigdy fałszywe „0”", async () => {
+    asRole(["admin"], TENANT);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    seedDiagnostics(queryClient, TENANT);
+    await mountHub(`${HUB}/funnel`, queryClient);
+    // Sonda jest leniwa - asercja dopiero, gdy obserwuje wpis faktów.
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({ queryKey: revenueKeys.facts(TENANT) })
+          ?.getObserversCount(),
+      ).toBeGreaterThan(0),
+    );
+    expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka$/);
+    cleanup();
+
+    asRole(["admin"]);
+    await mountHub(`${HUB}/funnel`);
+    expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka$/);
+    expect(h.fetchFacts).not.toHaveBeenCalled();
+  });
+
+  it("zimny cache: sonda pobiera fakty i wyciszenia raz, a licznik pojawia się po odczycie", async () => {
+    asRole(["admin"], TENANT);
+    h.fetchFacts.mockResolvedValue({ state: "ready", facts: FACTS_WITH_PROBLEMS });
+    h.fetchSnoozes.mockResolvedValue({ state: "ready", snoozes: [] });
+
+    await mountHub(`${HUB}/funnel`);
+
+    await waitFor(() => expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka2/));
+    expect(h.fetchFacts).toHaveBeenCalledTimes(1);
+    expect(h.fetchSnoozes).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Licznik paska - Ścieżki (Z-S6-08, Integrator S8)
+// ---------------------------------------------------------------------------
+
+describe("licznik „Ścieżki = aktywne” na pasku", () => {
+  const journeysLink = () => within(hubNav()).getByRole("link", { name: /^Ścieżki/ });
+  const list = (...statuses: string[]) =>
+    parseJourneyList(
+      statuses.map((status, i) => ({
+        ...RPC_SHAPES.list[0],
+        id: `aaaaaaaa-0000-4000-8000-00000000000${i}`,
+        status,
+      })),
+    );
+
+  it.each([["admin"], ["editor"]] as const)(
+    "%s: liczba aktywnych z listy ścieżek (ten sam klucz co zakładka), z nazwą dla czytnika",
+    async (role) => {
+      asRole([role], TENANT);
+      h.listJourneys.mockResolvedValue({
+        state: "ready",
+        data: list("active", "paused", "active", "draft"),
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      await mountHub(`${HUB}/funnel`, queryClient);
+
+      await waitFor(() => expect(journeysLink()).toHaveTextContent("2"));
+      expect(journeysLink()).toHaveTextContent("2 aktywne ścieżki");
+      expect(h.listJourneys).toHaveBeenCalledWith({ data: { status: null } });
+      expect(queryClient.getQueryData(journeyKeys.list(TENANT, null))).toMatchObject({
+        state: "ready",
+      });
+    },
+  );
+
+  it("przy ciepłym cache zakładki - bez nowego żądania; zero aktywnych = brak licznika", async () => {
+    asRole(["admin"], TENANT);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(journeyKeys.list(TENANT, null), {
+      state: "ready",
+      data: list("paused", "archived"),
+    });
+    await mountHub(`${HUB}/funnel`, queryClient);
+
+    expect(journeysLink()).toHaveTextContent(/^Ścieżki$/);
+    expect(h.listJourneys).not.toHaveBeenCalled();
+  });
+
+  it("odmowa i błąd odczytu to brak licznika, nie „0”", async () => {
+    asRole(["admin"], TENANT);
+    h.listJourneys.mockResolvedValue({ state: "forbidden" });
+    await mountHub(`${HUB}/funnel`);
+    await waitFor(() => expect(h.listJourneys).toHaveBeenCalled());
+    expect(journeysLink()).toHaveTextContent(/^Ścieżki$/);
+  });
+
+  it("bez najemcy w sesji nie ma żądania listy ścieżek", async () => {
+    asRole(["admin"]);
+    await mountHub(`${HUB}/funnel`);
+    expect(h.listJourneys).not.toHaveBeenCalled();
+  });
+
+  it("angielski czytnik słyszy „active journeys”", async () => {
+    await i18n.changeLanguage("en");
+    asRole(["admin"], TENANT);
+    h.listJourneys.mockResolvedValue({ state: "ready", data: list("active") });
+    await mountHub(`${HUB}/funnel`);
+    const link = within(screen.getByRole("navigation", { name: "Hub sections" })).getByRole(
+      "link",
+      { name: /^Journeys/ },
+    );
+    await waitFor(() => expect(link).toHaveTextContent("1 active journey"));
   });
 });
 

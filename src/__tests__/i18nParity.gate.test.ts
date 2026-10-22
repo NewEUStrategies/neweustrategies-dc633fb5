@@ -43,6 +43,23 @@ const GATED_PREFIXES = [
   // Po przeniesieniu do nakładki `i18n-admin-cookie-banner.ts` wchodzi pod
   // twardą bramkę od razu, żeby dług nie narósł z powrotem.
   "adminCookieBanner",
+  // Karta „Retencja danych" (I9c-X2): podstawy prawne, okresy i ostrzeżenia
+  // o skutkach (usunięcie, anonimizacja) - surowy klucz zamiast zdania
+  // zostawiłby admina bez informacji, co dzieje się z danymi.
+  "adminDataRetention",
+  // Strona „Chcę dalej otrzymywać" (I9d-Y1, wygaszanie nieaktywnych
+  // subskrybentów): odbiorca bez tej strony w swoim języku nie potwierdzi
+  // subskrypcji i zostanie usunięty z listy.
+  "newsletterKeep",
+  // Strona linków pomiaru (I9d-Y2): odbiorca bez tej strony w swoim języku
+  // nie wyłączy pomiaru otwarć i kliknięć ani świadomie nie udzieli na niego
+  // zgody.
+  "newsletterMeasurement",
+  // Treść zgody i dymki pomiaru w panelu (I9d-Y2): surowy klucz zamiast
+  // zdania zostawiłby admina bez informacji, czy zapis z formularza daje
+  // zgodę na pomiar i kogo obejmują otwarcia i kliknięcia w statystykach.
+  "adminNewsletterMeasurement",
+  "adminMeasurementHint",
   // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
   // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
   // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd
@@ -335,6 +352,25 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // w obu językach (jak `adminEvents.list.columns.status`).
   "adminRepricing.columns.plan",
   "adminRepricing.logColumns.plan",
+  // Ścieżki komunikacji (Integrator S8, 2026-10-22): „Marketing”, „Newsletter”,
+  // „Status”, „Test” i „CTOR” to te same słowa w PL i EN, a liczniki, wersje,
+  // powiększenie i pozycje bloków to szablony złożone z samych miejsc
+  // interpolacji („{{count}}/{{max}}”, „v{{version}}”, „{{value}} %”).
+  "adminJourneys.canvas.step.labelStats",
+  "adminJourneys.canvas.zoom.value",
+  "adminJourneys.common.category.marketing",
+  "adminJourneys.common.counter",
+  "adminJourneys.common.palette.newsletter",
+  "adminJourneys.emailStep.addBlockType",
+  "adminJourneys.emailStep.blockItem",
+  "adminJourneys.enrollments.columns.status",
+  "adminJourneys.enrollments.test",
+  "adminJourneys.enrollments.versionValue",
+  "adminJourneys.lead.test",
+  "adminJourneys.list.columns.status",
+  "adminJourneys.list.versionValue",
+  "adminJourneys.results.emails.columns.ctor",
+  "adminJourneys.sheetField.condition.status",
 ];
 
 function loadOverlays(): void {

@@ -23,6 +23,10 @@ const CATALOG_SOURCES: ReadonlyArray<{ file: string; fn: string }> = [
   // Katalog v6.2 - od 18.10.2026 jedyne źródło seedu nowych najemców (pełne
   // features), więc jego flagi i rangi muszą zgadzać się ze stałymi TS.
   { file: "20261018160100_pricing_v62_catalog_rows.sql", fn: "pricing_catalog_v62_rows" },
+  // Redefinicja z decyzjami właściciela 2026-10-20 (I9b: Zespół z trackerem
+  // i pulą 3, NGO ranga 40) - PÓŹNIEJSZA, więc jej rangi wygrywają w mapie
+  // (`seededTierRanks` nadpisuje klucze w kolejności źródeł).
+  { file: "20261020160100_pricing_v62_catalog_decisions.sql", fn: "pricing_catalog_v62_rows" },
 ];
 
 /** Ciało funkcji katalogowej (od CREATE do zamykającego $$;). */

@@ -319,7 +319,7 @@ Dopełnienia, pary o innym mianowniku albo kanale oraz powiązania z tabel §5.1
 - Produkt: `b-pmf`, `b-burn` - bez metryki w hubie (burn wymaga danych gotówkowych).
 - Obsługa klienta: `b-csat`, `b-fcr` - bez strumienia danych.
 - Kanały (wyłącznie słownik, zakładka Wskaźniki): `b-ctr-li`, `b-cpc-li` (`referenceOnly`, USD), `b-fr-li-cold`, `b-fr-li-warm`, `b-fr-meta`, `b-erf-li`, `b-qs`, `b-hook-meta`, `b-hook-tt`, `b-vtr-yt`, `b-rating`. Rozstrzygnięte 2026-10-19 (§5.1.4a): `b-lgf-content` i `b-lgf-demo` są nowymi kontekstami S6 `signup_form_conversion_rate.linkedin_lgf_*`; `b-cvr-ecom-pl` i `b-lpcvr-ecom` - odniesienie (e-commerce, inny licznik lub mianownik).
-- Pozostałe przedziały tej listy nie mają wpisu S6, więc nie mają pola `hub` i zostają wiedzą słownikową; włączenie któregoś do oceny (np. `b-engr` dla metryki ruchu `engagement_rate`) wymagałoby nowego wpisu rejestru S6 (nowy klucz) - poza regułami uspójnienia.
+- Pozostałe przedziały tej listy nie mają wpisu S6, więc nie mają pola `hub` i zostają wiedzą słownikową; włączenie któregoś do oceny (np. `b-engr` dla metryki ruchu `engagement_rate`) wymagałoby nowego wpisu rejestru S6 (nowy klucz) - poza regułami uspójnienia. **Aktualizacja 2026-10-20 (I9b, Z-14-03):** `b-engr` ma już wpis S6 `engagement_rate` (kontekst `engagement_rate.site_all`, pole `hub` w `ranges.json`) - `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`, „Uzupełnienie 2026-10-20”.
 
 ### 5.2 Scenariusze → diagnostyka S7 (SPEC §5.7)
 

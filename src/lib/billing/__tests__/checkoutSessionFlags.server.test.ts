@@ -246,3 +246,90 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
     expect(lastSessionPayload().allow_promotion_codes).toBe(true);
   });
 });
+
+// S3, P22: porzucona kasa wygasa po oknie najemcy (`abandon_after_minutes`),
+// a nie po domyślnej dobie operatora - `checkout.session.expired` i ścieżka
+// porzuconego koszyka przychodzą wtedy, kiedy obiecuje ustawienie.
+describe("expires_at sesji z okna porzucenia (P22)", () => {
+  const NOW = Date.UTC(2026, 9, 20, 12, 0, 0);
+  const nowSeconds = NOW / 1000;
+  const withWindow = (minutes: number): CheckoutSettings => ({
+    ...SETTINGS.managed,
+    abandon_after_minutes: minutes,
+  });
+
+  it("okno najemcy + minuta zapasu; minimum operatora 30 min; doba = parametr pusty", async () => {
+    const { checkoutSessionExpiresAt } = await import("../adhocCheckout.server");
+    expect(checkoutSessionExpiresAt(withWindow(60), NOW)).toBe(nowSeconds + 60 * 60 + 60);
+    // Minimum operatora: 30 min co do sekundy byłoby po jego stronie za krótkie.
+    expect(checkoutSessionExpiresAt(withWindow(30), NOW)).toBe(nowSeconds + 30 * 60 + 60);
+    expect(checkoutSessionExpiresAt(withWindow(10), NOW)).toBe(nowSeconds + 30 * 60 + 60);
+    // Okno sięgające doby (domyślne 1440) zostawia domyślne 24 h operatora.
+    expect(checkoutSessionExpiresAt(withWindow(1440), NOW)).toBeUndefined();
+    expect(checkoutSessionExpiresAt(withWindow(1439), NOW)).toBeUndefined();
+    expect(checkoutSessionExpiresAt(withWindow(1438), NOW)).toBe(nowSeconds + 1438 * 60 + 60);
+    // Każde okno mieści się w granicach operatora (30 min - 24 h).
+    for (const minutes of [30, 45, 120, 720, 1438]) {
+      const at = checkoutSessionExpiresAt(withWindow(minutes), NOW) as number;
+      expect(at - nowSeconds).toBeGreaterThan(30 * 60);
+      expect(at - nowSeconds).toBeLessThan(24 * 60 * 60);
+    }
+    // Bez ustawień albo z wartością nie do odczytania - domyślne operatora.
+    expect(checkoutSessionExpiresAt(undefined, NOW)).toBeUndefined();
+    expect(checkoutSessionExpiresAt(SETTINGS.managed, NOW)).toBeUndefined();
+    expect(checkoutSessionExpiresAt(withWindow(90.5), NOW)).toBeUndefined();
+  });
+
+  it("sesja planu i sesja ad-hoc niosą expires_at z ustawień najemcy", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const { createAdhocCheckoutSession, createPlanCheckoutSession } =
+        await import("../adhocCheckout.server");
+      await createPlanCheckoutSession({
+        environment: "sandbox",
+        priceLookupKey: "pro_monthly",
+        planId: "plan-1",
+        orderId: "order-3",
+        userId: "user-1",
+        customerEmail: "buyer@example.com",
+        returnUrl: "https://example.com/checkout/success",
+        expectedAmountCents: 12900,
+        expectedCurrency: "PLN",
+        settings: withWindow(120),
+      });
+      expect(lastSessionPayload().expires_at).toBe(nowSeconds + 120 * 60 + 60);
+
+      await createAdhocCheckoutSession({
+        environment: "sandbox",
+        name: "Dostęp do treści",
+        amountCents: 4900,
+        currency: "PLN",
+        orderId: "order-4",
+        purpose: "content_unlock",
+        userId: "user-1",
+        customerEmail: "buyer@example.com",
+        returnUrl: "https://example.com/checkout/success",
+        settings: withWindow(45),
+      });
+      expect(lastSessionPayload().expires_at).toBe(nowSeconds + 45 * 60 + 60);
+
+      // Domyślne okno (brak pola, jak w panelu) - bez parametru, jak dotąd.
+      await createAdhocCheckoutSession({
+        environment: "sandbox",
+        name: "Dostęp do treści",
+        amountCents: 4900,
+        currency: "PLN",
+        orderId: "order-5",
+        purpose: "content_unlock",
+        userId: "user-1",
+        customerEmail: "buyer@example.com",
+        returnUrl: "https://example.com/checkout/success",
+        settings: SETTINGS.managed,
+      });
+      expect("expires_at" in lastSessionPayload()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

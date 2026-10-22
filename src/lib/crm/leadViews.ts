@@ -12,7 +12,7 @@ import {
   type LeadSortDir,
   type LeadSortKey,
 } from "@/lib/crm/leadListSpec";
-import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { CRM_TAG_MAX, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 
 /* ---------- Filtry ---------- */
 
@@ -32,7 +32,7 @@ export const LeadFilterSchema = z.object({
   // wczytać bez zmian; brak pola = brak filtra.
   lifecycle: z.enum(LIFECYCLE_STAGES).optional(),
   sourceType: z.enum(CRM_SOURCE_TYPES).optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   ownerIds: z.array(z.string().uuid()).max(50).optional(),
 });
 export type LeadFilter = z.infer<typeof LeadFilterSchema>;

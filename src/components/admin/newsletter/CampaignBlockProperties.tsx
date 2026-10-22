@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
@@ -195,10 +195,16 @@ function TextField({
   placeholder?: string;
   onChange: (v: string) => void;
 }) {
+  // Etykieta powiązana z polem (`htmlFor`/`id`) - nazwa pola dla czytnika
+  // to jego etykieta, a nie sam placeholder.
+  const id = useId();
   return (
     <div>
-      <Label className="text-[12px]">{label}</Label>
+      <Label htmlFor={id} className="text-[12px]">
+        {label}
+      </Label>
       <Input
+        id={id}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
@@ -219,11 +225,17 @@ function SelectField({
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
 }) {
+  // Wyzwalacz listy ma rolę `combobox`, której nazwa NIE bierze się z treści
+  // (wybranej wartości) - bez `htmlFor`/`id` axe zgłasza `button-name`
+  // w każdym edytorze maila (kampania i krok ścieżki, zgłoszenie S8.3c).
+  const id = useId();
   return (
     <div>
-      <Label className="text-[12px]">{label}</Label>
+      <Label htmlFor={id} className="text-[12px]">
+        {label}
+      </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-8 mt-1 text-[12px]">
+        <SelectTrigger id={id} className="h-8 mt-1 text-[12px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

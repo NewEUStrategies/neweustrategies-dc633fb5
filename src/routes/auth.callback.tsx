@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "@/lib/lucide-shim";
+import { safeNextPath } from "@/lib/access/paywallLinks";
 
 export const Route = createFileRoute("/auth/callback")({
   ssr: false,
@@ -58,6 +59,13 @@ function AuthCallbackPage() {
   // Komunikat o nieważnym linku. Subskrypcja sesji zostaje także po nim, więc
   // spóźniona sesja nadal przenosi na stronę powitalną.
   const [failed, setFailed] = useState(false);
+  // P15: rejestracja z paywalla/klubu/kasy niesie `?next` (AuthPortal,
+  // `signupRedirectPath`) - nowe konto wraca na treść, przez którą powstało.
+  // Ta sama sanitizacja co `/login` (tylko ścieżki względne). Bez `next` -
+  // strona powitalna, jak dotąd (zaproszenia, aktywacja konta).
+  const [next] = useState(() =>
+    safeNextPath(new URLSearchParams(window.location.search).get("next")),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +79,8 @@ function AuthCallbackPage() {
       cancelled = true;
       window.clearInterval(poll);
       window.clearTimeout(deadline);
-      void navigate({ to: "/welcome", search: { mode: undefined }, replace: true });
+      if (next) void navigate({ href: next, replace: true } as never);
+      else void navigate({ to: "/welcome", search: { mode: undefined }, replace: true });
     };
 
     // Komunikat NIE wypisuje subskrypcji - spóźniona sesja nadal przenosi.
@@ -111,7 +120,7 @@ function AuthCallbackPage() {
       window.clearTimeout(deadline);
       sub.subscription.unsubscribe();
     };
-  }, [navigate, urlError]);
+  }, [navigate, urlError, next]);
 
   return (
     <div className="container mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-3 px-4 text-center">

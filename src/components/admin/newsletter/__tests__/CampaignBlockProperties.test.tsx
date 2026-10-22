@@ -42,6 +42,7 @@ vi.mock("@/components/admin/media/MediaPickerDialog", () => ({
 }));
 
 import i18n from "@/lib/i18n";
+import { axeViolations, summarize } from "@/test/axe";
 import { CampaignBlockProperties } from "@/components/admin/newsletter/CampaignBlockProperties";
 import {
   createEmailBlock,
@@ -184,6 +185,20 @@ describe("nagłówek", () => {
 
     expect(lastPatch(onChange).level).toBe(2);
     expect(typeof lastPatch(onChange).level).toBe("number");
+  });
+
+  // Zgłoszenie S8.3c (Integrator S8): wyzwalacz listy to `combobox`, którego
+  // nazwa nie pochodzi z wybranej wartości - bez powiązanej etykiety czytnik
+  // słyszał „przycisk”, a axe zgłaszał `button-name` w każdym edytorze maila.
+  it("listy wyboru i pola tekstowe mają nazwę z etykiety; axe bez naruszeń", async () => {
+    const heading = mount(make("heading", { align: "left" }));
+    expect(screen.getByRole("combobox", { name: L("alignment") })).toBeTruthy();
+    const violations = await axeViolations(heading.container);
+    expect(violations, summarize(violations)).toEqual([]);
+    cleanup();
+
+    mount(make("image"));
+    expect(screen.getByRole("textbox", { name: L("altText") })).toBeTruthy();
   });
 
   it("wyrównanie patchuje wartość docelową", async () => {

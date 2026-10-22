@@ -128,6 +128,13 @@ vi.mock("@/components/ui/popover", () => {
   };
 });
 
+// Linia o oknie porzucenia kasy (I9b, Z-S3-07) ma własny plik testowy
+// (`EventTicketCheckoutWindowNote.test.tsx` - odczyt ustawień kasy przez
+// React Query); tu wystarcza znacznik, że panel ją montuje w nagłówku.
+vi.mock("@/components/admin/events/molecules/EventTicketCheckoutWindowNote", () => ({
+  EventTicketCheckoutWindowNote: () => <p data-testid="checkout-window-note" />,
+}));
+
 // Formularz biletu ma własny plik testowy. Tu liczy się STYK: czy panel podaje
 // mu wygląd i profil podatkowy edytowanego biletu i czy daje mu „duplikuj"
 // tylko przy edycji.

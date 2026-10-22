@@ -37,6 +37,27 @@ export const adminCorePl = {
       dashboard: "Kokpit",
       analyticsBi: "BI - dashboardy",
       analyticsReconciliation: "Uzgodnienie",
+      // Hub „Przychód i lejek" w pasku i w wyszukiwarce ⌘K (I9a, 2026-10-20).
+      // Nazwy zakładek są TU, a nie w `adminRevenue.tab.*`: słownik huba
+      // ładuje dopiero hub, a wyszukiwarka działa na każdej trasie panelu.
+      revenueHub: "Przychód i lejek",
+      journeys: "Ścieżki komunikacji",
+      // Skrót ⌘K do galerii szablonów (`/admin/revenue/journeys?new=1`) -
+      // akcja tworzenia, dlatego pełna nazwa, a nie nazwa zakładki (S8).
+      newJourney: "Nowa ścieżka komunikacji",
+      revenueTabs: {
+        overview: "Kokpit",
+        mrr: "Przychód (MRR)",
+        funnel: "Lejek",
+        retention: "Retencja",
+        community: "Społeczność",
+        diagnostics: "Diagnostyka",
+        offer: "Oferta",
+        access: "Dostęp",
+        journeys: "Ścieżki",
+        metrics: "Wskaźniki",
+        inputs: "Dane wejściowe",
+      },
       posts: "Wpisy",
       pages: "Strony",
       categories: "Kategorie",
@@ -290,6 +311,36 @@ export const adminCorePl = {
         navigator: {
           title: "Nawigator",
           body: "Nawigator pokazuje drzewo sekcji, kolumn i widgetów. Użyj go, aby szybko odnaleźć i zaznaczyć zagnieżdżone elementy.",
+        },
+      },
+      // Przewodnik po zakładce Ścieżki i edytorze ścieżki (Integrator S8) -
+      // kotwice `data-tour` w komponentach S8, kroki w `lib/onboarding/tours.ts`.
+      journeys: {
+        engine: {
+          title: "Stan silnika",
+          body: "Tu widać, czy silnik ścieżek jest włączony, ile kroków czeka i kiedy wykonał ostatni. Ostrzeżenie mówi, co zrobić dalej.",
+        },
+        list: {
+          title: "Lista ścieżek",
+          body: "Każda ścieżka ma status, wyzwalacz, osoby w toku i cel. Kliknij nazwę, aby otworzyć edytor kroków i wyniki.",
+        },
+        gallery: {
+          title: "Galeria szablonów",
+          body: "„Nowa ścieżka” otwiera galerię gotowych scenariuszy, np. porzuconej kasy albo powitania konta. Szablon niedostępny ma podany powód.",
+        },
+        settings: {
+          title: "Ustawienia silnika",
+          body: "Administrator włącza silnik, ustawia limit maili, ciszę nocną, nadawcę, adres odpowiedzi i pomiar otwarć.",
+        },
+      },
+      journeyEditor: {
+        canvas: {
+          title: "Kanwa ścieżki",
+          body: "Kroki układają się od wyzwalacza w dół. Przycisk „+” dodaje krok, a strzałki, Enter i Delete działają też z klawiatury.",
+        },
+        publish: {
+          title: "Publikacja",
+          body: "Przed publikacją zobaczysz blokady, szacunek odbiorców i przepisy do wyłączenia. Szkic zapisuje się sam dwie sekundy po ostatniej zmianie.",
         },
       },
       blocks: {
@@ -1292,6 +1343,22 @@ export const adminCoreEn = {
       dashboard: "Dashboard",
       analyticsBi: "BI dashboards",
       analyticsReconciliation: "Reconciliation",
+      revenueHub: "Revenue and funnel",
+      journeys: "Communication journeys",
+      newJourney: "New communication journey",
+      revenueTabs: {
+        overview: "Overview",
+        mrr: "Revenue (MRR)",
+        funnel: "Funnel",
+        retention: "Retention",
+        community: "Community",
+        diagnostics: "Diagnostics",
+        offer: "Offer",
+        access: "Access",
+        journeys: "Journeys",
+        metrics: "Metrics",
+        inputs: "Inputs",
+      },
       posts: "Posts",
       pages: "Pages",
       categories: "Categories",
@@ -1543,6 +1610,34 @@ export const adminCoreEn = {
         navigator: {
           title: "Navigator",
           body: "The Navigator shows the tree of sections, columns and widgets. Use it to quickly find and select nested elements.",
+        },
+      },
+      journeys: {
+        engine: {
+          title: "Engine status",
+          body: "See whether the journey engine is on, how many steps are waiting and when it ran the last one. A warning tells you what to do next.",
+        },
+        list: {
+          title: "Journey list",
+          body: "Each journey shows its status, trigger, people in progress and goal. Click a name to open the step editor and results.",
+        },
+        gallery: {
+          title: "Template gallery",
+          body: "“New journey” opens a gallery of ready scenarios, such as abandoned checkout or account welcome. An unavailable template states why.",
+        },
+        settings: {
+          title: "Engine settings",
+          body: "An administrator turns the engine on and sets the email cap, quiet hours, sender, reply address and open tracking.",
+        },
+      },
+      journeyEditor: {
+        canvas: {
+          title: "Journey canvas",
+          body: "Steps run down from the trigger. The “+” button adds a step, and arrows, Enter and Delete work from the keyboard too.",
+        },
+        publish: {
+          title: "Publishing",
+          body: "Before publishing you see blockers, the audience estimate and automations to switch off. The draft saves itself two seconds after your last change.",
         },
       },
       blocks: {

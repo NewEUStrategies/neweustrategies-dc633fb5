@@ -73,10 +73,12 @@ SELECT results_eq(
      WHERE tenant_id = '6e620000-0000-4000-8000-0000000000a1'
        AND key IN ('vip', 'ngo', 'team', 'partner', 'partner_general', 'presidents_circle')
      ORDER BY sort_order$$,
+  -- NGO po Partnerze (sort_order 85, I9b 20261020160100): remis rangi 40
+  -- rozstrzyga kolejność kart, Partner pierwszy.
   $$VALUES ('vip', 'od 6 000 zł rocznie', 'contact'),
-           ('ngo', '-50% stawki Partnera Instytucjonalnego · po weryfikacji KRS lub statutu', 'contact'),
            ('team', '3-20 miejsc · od 11 miejsc 79 zł za miejsce', 'contact'),
            ('partner', 'od 24 000 zł rocznie', 'contact'),
+           ('ngo', '-50% stawki Partnera Instytucjonalnego · po weryfikacji KRS lub statutu', 'contact'),
            ('partner_general', 'od 60 000 zł rocznie', 'contact'),
            ('presidents_circle', 'od 120 000 zł rocznie · na zaproszenie', 'none')$$,
   'seed: noty „od" i tryb CTA progów bez kasy'

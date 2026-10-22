@@ -167,6 +167,7 @@ function snapshot(role: "admin" | "editor" = "admin"): RevenueSnapshotResult {
     dataSince: "2024-01-01",
     computedAt: null,
     basisMix: null,
+    ratioCurrency: role === "admin" ? "PLN" : null,
     role,
   };
 }

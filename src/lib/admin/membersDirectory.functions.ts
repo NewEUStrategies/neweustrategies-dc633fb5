@@ -20,6 +20,7 @@ import { requireAdmin } from "@/integrations/supabase/require-staff";
 import { runMemberSyncBatch, type MemberSyncBatchResult } from "@/lib/crm/memberSyncBatch";
 import { syncMemberToCrm } from "@/lib/crm/memberSync.server";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 
 export interface MemberDirectoryRow {
   userId: string;
@@ -218,7 +219,7 @@ export const listMembers = createServerFn({ method: "GET" })
     // droplista filtra przestawiała się przy przejściu na stronę bez wyników.
     const tierCatalog = tiers
       .slice()
-      .sort((a, b) => a.rank - b.rank)
+      .sort(compareTierRank)
       .map((t) => ({ key: t.key, name: t.name, rank: t.rank }));
 
     let query = supabaseAdmin

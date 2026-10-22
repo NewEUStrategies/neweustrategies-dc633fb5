@@ -1,10 +1,18 @@
 // SEKCJA "MARKETING": newsletter, pop-upy, reklamy i pieniądze.
 //
+// PRZYCHÓD ZREALIZOWANY = LICZBA HUBA (karta S7). Kafel „Przychód
+// zrealizowany" czyta migawkę S6 spod TEGO SAMEGO klucza co Kokpit huba
+// i sekcja BI (`RealizedRevenueTile`), więc pulpit nie może pokazać innej
+// kwoty niż hub dla tego samego okresu. Kafel „Przychód" z zamówień zostaje
+// obok jako drugie źródło (zamówienia ≠ dokumenty rozliczeniowe). Kafel
+// huba jest LENIWY: rejestr wskaźników i objaśnienia nie wchodzą do chunku
+// pulpitu, a szkielet ma wysokość kafla (bez skoku siatki).
+//
 // WSKAŹNIKI ZAWSZE Z MIANOWNIKIEM. "Otwarcia 42%" bez informacji, z ilu wysyłek,
 // jest liczbą, której nie da się zważyć - 42% z dwunastu maili to nie jest ta
 // sama wiadomość, co 42% z dwunastu tysięcy. Każdy kafelek wskaźnikowy niesie
 // więc mianownik w podpowiedzi, a pusty mianownik daje kreskę, nie zero.
-import { useMemo } from "react";
+import { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-dashboard";
 import {
@@ -33,6 +41,20 @@ import { bucketLabel } from "@/lib/admin/dashboard/labels";
 import type { DashboardRange } from "@/lib/admin/dashboard/period";
 import type { MarketingReport, MoneyByCurrency } from "@/lib/admin/dashboard/types";
 import { StatTile } from "./StatTile";
+import { MeasurementConsentNote } from "@/components/admin/newsletter/measurement/MeasurementConsentNote";
+
+const RealizedRevenueTile = lazy(() =>
+  import("@/components/admin/revenue/metrics/RealizedRevenueTile").then((m) => ({
+    default: m.RealizedRevenueTile,
+  })),
+);
+
+/** Szkielet kafla huba na czas ładowania chunku - wysokość `KpiTile`. */
+function RealizedTilePending() {
+  return (
+    <div aria-hidden="true" className="h-[104px] rounded-[6px] border border-border bg-muted/40" />
+  );
+}
 
 /**
  * Waluta użyta wtedy, gdy ANI okres bieżący, ANI odniesienia nie ma żadnej
@@ -127,6 +149,13 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+        <div className="min-w-0" data-testid="marketing-realized">
+          <Suspense fallback={<RealizedTilePending />}>
+            <RealizedRevenueTile range={range} />
+          </Suspense>
+        </div>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
         <StatTile
           label={t("adminDashboard.marketing.subscribed")}
@@ -212,6 +241,11 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
           hint={t("adminDashboard.marketing.fromImpressions", { count: current.adImpressions })}
         />
       </div>
+
+      {/* Z-I9d-16 (I9): od I9d-Y2 otwarcia i kliknięcia mierzymy tylko za
+          zgodą na pomiar - bez notki spadek wskaźników po wdrożeniu
+          wyglądałby jak realny spadek zaangażowania. */}
+      <MeasurementConsentNote scope="dashboard" />
 
       <ChartCard
         title={t("adminDashboard.marketing.seriesTitle")}

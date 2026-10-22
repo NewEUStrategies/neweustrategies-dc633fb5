@@ -27,6 +27,8 @@ export const NOINDEX_CODE_ROUTE_PATHS: ReadonlySet<string> = new Set([
   "/messages",
   "/network",
   "/newsletter/confirm",
+  "/newsletter/keep",
+  "/newsletter/measurement",
   "/newsletter/unsubscribe",
   "/people",
   "/profile",

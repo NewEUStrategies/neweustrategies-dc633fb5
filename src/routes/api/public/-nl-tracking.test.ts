@@ -19,16 +19,28 @@
 // dostawcy.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const h = vi.hoisted(() => ({ recordCampaignEvent: vi.fn() }));
+const h = vi.hoisted(() => ({ recordCampaignEvent: vi.fn(), recordJourneyMessageEvent: vi.fn() }));
 
 vi.mock("@/lib/newsletter/trackingEvents.server", () => ({
   recordCampaignEvent: h.recordCampaignEvent,
+}));
+// Ścieżki komunikacji (S5): zapis zdarzeń maila 1:1 - atrapa samego zapisu,
+// rozpoznawanie serwerów pośredniczących poczty zostaje prawdziwe.
+vi.mock("@/lib/journeys/tracking.server", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("@/lib/journeys/tracking.server")),
+  recordJourneyMessageEvent: h.recordJourneyMessageEvent,
 }));
 
 import { routeServerHandlers } from "@/test/routeHarness";
 import { Route as OpenRoute } from "@/routes/api/public/nl-open";
 import { Route as ClickRoute } from "@/routes/api/public/nl-click";
-import { signTrackingLink, signTrackingToken } from "@/lib/newsletter/trackingToken.server";
+import {
+  signJourneyLink,
+  signJourneyMessageToken,
+  signJourneyUnsubscribeToken,
+  signTrackingLink,
+  signTrackingToken,
+} from "@/lib/newsletter/trackingToken.server";
 
 const CAMPAIGN = "11111111-2222-3333-4444-555555555555";
 const SUBSCRIBER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -52,6 +64,8 @@ const linkSig = (target = TARGET) => signTrackingLink(CAMPAIGN, SUBSCRIBER, targ
 beforeEach(() => {
   h.recordCampaignEvent.mockReset();
   h.recordCampaignEvent.mockResolvedValue(undefined);
+  h.recordJourneyMessageEvent.mockReset();
+  h.recordJourneyMessageEvent.mockResolvedValue({ ok: true, recorded: true, known: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -265,5 +279,108 @@ describe("przekierowanie kliknięcia - zapis zdarzenia", () => {
 
     expect(h.recordCampaignEvent).not.toHaveBeenCalled();
     expect(res.status).toBe(302);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ścieżki komunikacji (S5): `m=<message_id>.<podpis>` - tracking 1:1 po
+// wiadomości. Te same dwie reguły: obrazek zawsze, cel wyłącznie podpisany
+// (podpis wiąże wiadomość, numer linku i DOKŁADNY adres).
+const MESSAGE = "adcf4729-2d9b-4ef2-bf9a-bdd0cbfe79f9";
+const mToken = () => signJourneyMessageToken(MESSAGE);
+const jLink = (target = TARGET, index = 0) =>
+  `/api/public/nl-click?m=${mToken()}&i=${index}&u=${encodeURIComponent(target)}&k=${signJourneyLink(MESSAGE, target, index)}`;
+
+function requestWithUa(path: string, userAgent: string): Request {
+  ipCounter += 1;
+  return new Request(`https://redakcja.example.test${path}`, {
+    headers: {
+      "x-forwarded-for": `10.1.${Math.floor(ipCounter / 250)}.${ipCounter % 250}`,
+      "user-agent": userAgent,
+    },
+  });
+}
+
+describe("ścieżki: piksel otwarcia", () => {
+  it("ważny token wiadomości zapisuje otwarcie (człowiek), kampania nie jest dotykana", async () => {
+    const res = await openHandler({
+      request: requestWithUa(`/api/public/nl-open?m=${mToken()}`, "Mozilla/5.0 Safari/605"),
+    });
+    expect(res.headers.get("Content-Type")).toBe("image/gif");
+    expect(h.recordJourneyMessageEvent).toHaveBeenCalledWith({
+      messageId: MESSAGE,
+      kind: "open",
+      machine: false,
+    });
+    expect(h.recordCampaignEvent).not.toHaveBeenCalled();
+  });
+
+  it("otwarcie przez proxy obrazków poczty oznaczone jako maszynowe", async () => {
+    await openHandler({
+      request: requestWithUa(`/api/public/nl-open?m=${mToken()}`, "Mozilla/5.0 GoogleImageProxy"),
+    });
+    expect(h.recordJourneyMessageEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ machine: true }),
+    );
+  });
+
+  it("podrobiony podpis, token wypisu w miejscu trackingu i awaria zapisu - obrazek wychodzi", async () => {
+    for (const m of [`${MESSAGE}.${"0".repeat(32)}`, signJourneyUnsubscribeToken(MESSAGE), "x"]) {
+      const res = await openHandler({
+        request: request(`/api/public/nl-open?m=${encodeURIComponent(m)}`),
+      });
+      expect(res.status).toBe(200);
+    }
+    expect(h.recordJourneyMessageEvent).not.toHaveBeenCalled();
+    h.recordJourneyMessageEvent.mockRejectedValueOnce(new Error("baza padla"));
+    const res = await openHandler({ request: request(`/api/public/nl-open?m=${mToken()}`) });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("ścieżki: przekierowanie kliknięcia", () => {
+  it("podpisany link: 302 na cel i zapis kliknięcia z numerem linku", async () => {
+    const res = await clickHandler({ request: request(jLink(TARGET, 2)) });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(TARGET);
+    expect(h.recordJourneyMessageEvent).toHaveBeenCalledWith({
+      messageId: MESSAGE,
+      kind: "click",
+      linkIndex: 2,
+      url: TARGET,
+    });
+    expect(h.recordCampaignEvent).not.toHaveBeenCalled();
+  });
+
+  it("podmieniony cel, podmieniony numer, brak podpisu - powrót na naszą domenę bez zapisu", async () => {
+    const zly = "https://phishing.example.test/podaj-haslo";
+    const tampered = [
+      jLink(TARGET, 0).replace(encodeURIComponent(TARGET), encodeURIComponent(zly)),
+      jLink(TARGET, 0).replace("&i=0&", "&i=1&"),
+      `/api/public/nl-click?m=${mToken()}&i=0&u=${encodeURIComponent(zly)}`,
+      `/api/public/nl-click?m=${mToken()}&i=abc&u=${encodeURIComponent(TARGET)}&k=${signJourneyLink(MESSAGE, TARGET, 0)}`,
+      `/api/public/nl-click?m=${MESSAGE}.${"0".repeat(32)}&i=0&u=${encodeURIComponent(TARGET)}&k=${signJourneyLink(MESSAGE, TARGET, 0)}`,
+    ];
+    for (const path of tampered) {
+      const res = await clickHandler({ request: request(path) });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe("https://redakcja.example.test/");
+    }
+    expect(h.recordJourneyMessageEvent).not.toHaveBeenCalled();
+  });
+
+  it("podpis kampanii nie otwiera przekierowania ścieżki (inna domena HMAC)", async () => {
+    const res = await clickHandler({
+      request: request(
+        `/api/public/nl-click?m=${mToken()}&i=0&u=${encodeURIComponent(TARGET)}&k=${linkSig()}`,
+      ),
+    });
+    expect(res.headers.get("Location")).not.toBe(TARGET);
+  });
+
+  it("adres nie-http z poprawnym podpisem odpada", async () => {
+    const res = await clickHandler({ request: request(jLink("javascript:alert(1)", 0)) });
+    expect(res.headers.get("Location")).not.toContain("javascript");
+    expect(h.recordJourneyMessageEvent).not.toHaveBeenCalled();
   });
 });

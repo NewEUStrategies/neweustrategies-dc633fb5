@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/przychod.json, docs/benchmarki/2026-10-18/przychod.overlay.json, docs/benchmarki/2026-10-18/retencja.json, docs/benchmarki/2026-10-18/retencja.overlay.json, docs/benchmarki/2026-10-18/ekonomika.json, docs/benchmarki/2026-10-18/ekonomika.overlay.json, docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json, docs/benchmarki/2026-10-18/email.json, docs/benchmarki/2026-10-18/email.overlay.json, docs/benchmarki/2026-10-18/spolecznosc.json, docs/benchmarki/2026-10-18/spolecznosc.overlay.json
-// SHA-256 treści kanonicznej wejść: 01ea9b7ae231ed07137a1b36542ed3be26b687eb6d0e986f8742150f98949ca3
+// SHA-256 treści kanonicznej wejść: 1a6548e623e2ef2c09d0f98578be02ae782fcb013857109e8ad4a5ec96be6b00
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //
@@ -1611,6 +1611,20 @@ export const BENCHMARK_SOURCES: readonly BenchSource[] = [
     vendor: true,
     excerpt:
       "Ukończenie formularza = wysłane / otwarcia formularza („Submissions divided by form opens”); mediana konta, konta ze 100+ otwarciami formularza; 489 kont reklamodawców, 4010 kampanii z celem generowania leadów, 8 IX 2025 – 7 IX 2026. Feed, oferta treści (173 konta): P25 4,6%, mediana 10,8%, P75 18,7%, P90 31,6%. Feed, prośba o demo (87 kont): P25 1,0%, mediana 2,2%, P75 4,2%, P90 9,5%. Reklamy w wiadomości lub rozmowie (wszystkie oferty): mediana 40,7%. Źródło przejęte z pakietu Insider marketingowy (id 1196, autor Kiin Labs, wiarygodność B, dostęp 2026-10-09); P25 i liczby kont odczytano ze strony 2026-10-19 (pakiet ich nie zawiera). Raport dostawcy narzędzia do reklam LinkedIn.",
+  },
+  {
+    id: "siege_ga4_engagement_2026",
+    aliases: ["lejek:siege_ga4_engagement_2026"],
+    title: "What Is a Good GA4 Engagement Rate? (546 usług GA4)",
+    publisher: "Siege Media",
+    published: "2026-08-26",
+    url: "https://www.siegemedia.com/?p=46485",
+    accessed: "2026-10-18",
+    reliability: "B",
+    verification: "full",
+    vendor: true,
+    excerpt:
+      "Mediana współczynnika zaangażowania GA4: 51% („the median is 51%”); 546 usług GA4, ponad 16 mld sesji, okres 1 I 2024 – 1 VIII 2026, aktualizacja 26 VIII 2026; analiza własnych danych (zagregowane, zanonimizowane), domyślna definicja GA4 (sesje zaangażowane / sesje), mediana usług, nie średnia ważona sesjami; reguła kciuka: 50% i więcej – dobrze, powyżej 55% – mocno. Branże (min. 10 usług): e-commerce 54,4%, zdrowie 51,6%, finanse 51,0%, usługi domowe 49,4%, inne (ubezpieczenia, non-profit, podróże, media, prawo) 48,0%, SaaS/B2B 46,6%. Urządzenia: desktop 55,3%, tablet 51,2%, komórka 48,8%. Kanały: wyszukiwanie organiczne 63,4%, SMS 63,1%, wyszukiwanie płatne 60,4%, asystenci AI 60,3%, polecenia 59,1%, e-mail 50,9%, social organiczny 49,9%, bezpośredni 45,7%, display 31,9%, nieprzypisany 20,8%, social płatny 20,2%. Źródło przejęte z pakietu Insider marketingowy (id 1352, wiarygodność B, dostęp 2026-10-09, przedział b-engr); liczby i metodykę odczytano ze strony 2026-10-20. Agencja treści i SEO - dane własnych klientów.",
   },
   {
     id: "src_mailerlite_2025",

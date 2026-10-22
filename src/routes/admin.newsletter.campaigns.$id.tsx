@@ -46,6 +46,7 @@ import { adminPageHead } from "@/lib/adminPageHead";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { parseEmailDoc, createDefaultEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 import { newsletterKeys } from "@/lib/newsletter/keys";
+import { campaignMeasurementQueryOptions } from "@/lib/privacy/measurementQueries";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,6 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -178,6 +180,15 @@ function CampaignEditor() {
     queryKey: newsletterKeys.campaignEngagement(id),
     queryFn: () => engagement({ data: { id } }),
   });
+
+  // I9d-Y2: mianownik wskaźników = odbiorcy MIERZENI (zgoda na pomiar
+  // w chwili wysyłki). Odczyt wpuszcza admina i redaktora (bramka serwera) -
+  // innym rolom panel go nie wysyła, a kafelek zostaje przy wysłanych.
+  const { data: measurementRead } = useQuery({
+    ...campaignMeasurementQueryOptions(id),
+    enabled: canManage,
+  });
+  const measurement = measurementRead?.state === "ready" ? measurementRead.data : null;
 
   const saveMut = useMutation({
     mutationFn: (state: FormState) =>
@@ -675,7 +686,7 @@ function CampaignEditor() {
                     </SelectItem>
                     {[...(tiersQ.data ?? [])]
                       .filter((tier) => tier.rank > 0)
-                      .sort((a, b) => a.rank - b.rank)
+                      .sort(compareTierRank)
                       .map((tier) => (
                         <SelectItem key={tier.key} value={String(tier.rank)}>
                           {t("adminNewsletter.campaigns.tierFrom")}{" "}
@@ -700,6 +711,7 @@ function CampaignEditor() {
           <CampaignEngagementCard
             engagement={engagementStats}
             delivered={campaign.sent_count || 0}
+            measurement={measurement}
           />
 
           <Card>

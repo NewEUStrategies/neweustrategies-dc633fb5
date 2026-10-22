@@ -84,8 +84,10 @@ const pl = {
         currency_switch: "Zmiana waluty",
         backfill: "Saldo otwarcia",
       },
+      // (I9, Z-S7-12) Bez `title`: tytuł karty szeregu czyta
+      // `adminRevenue.mrr.seriesTitle` (słownik zakładek) - martwy klucz bez
+      // czytelnika był drugim miejscem tego samego napisu do poprawiania.
       series: {
-        title: "MRR w czasie",
         ledger: "Księga",
         snapshot: "Migawka dzienna",
         drift: "Różnica migawki i księgi",
@@ -297,7 +299,6 @@ const en: typeof pl = {
         backfill: "Opening balance",
       },
       series: {
-        title: "MRR over time",
         ledger: "Ledger",
         snapshot: "Daily snapshot",
         drift: "Snapshot vs ledger difference",

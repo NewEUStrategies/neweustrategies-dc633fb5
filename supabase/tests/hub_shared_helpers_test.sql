@@ -12,7 +12,8 @@
 --   * `metering_defaults()` = wartości kontraktu = wiersz `metering_settings`
 --     wstawiony z samym `tenant_id` (domyślne kolumn);
 --   * `revenue_segment_of_tier` dla 14 kluczy `TIER_RANKS` + `decision_lab`,
---     nieznanego klucza i NULL;
+--     nieznanego klucza i NULL (mapa po redefinicji I9b 20261020160000:
+--     partnerzy i NGO -> b2b_institution);
 --   * granty EXECUTE wg macierzy SPEC §4.4 i `search_path` z `pg_temp`;
 --   * strażnik `hub_grants`: żadna funkcja serwisowa, wewnętrzna ani
 --     wyzwalacz z rejestru bramki dostawy nie ma EXECUTE dla anon/authenticated.
@@ -84,15 +85,34 @@ SELECT is_empty(
       WHERE p.pronamespace = 'public'::regnamespace
         AND has_function_privilege(r, p.oid, 'EXECUTE')
         AND p.proname = ANY (ARRAY[
-          '_crm_source_type_rank', '_event_revenue_net', '_funnel_counts', '_log_emit_error',
-          '_membership_tier_for_user', '_revenue_facts_catalog', '_revenue_facts_checkout',
+          '_crm_source_type_rank', '_data_retention_admin_tenant', '_data_retention_anonymize_lead',
+          '_data_retention_audit_is_financial', '_data_retention_audit_log', '_data_retention_bounded',
+          '_data_retention_cancellation_surveys', '_data_retention_catalog', '_data_retention_consent_log',
+          '_data_retention_crm', '_data_retention_crm_candidates', '_data_retention_customer_until',
+          '_data_retention_effective', '_data_retention_email_engagement', '_data_retention_email_send_log',
+          '_data_retention_emit', '_data_retention_fold_campaign_events', '_data_retention_funnel_cut',
+          '_data_retention_journey_enrollments', '_data_retention_journey_sealed',
+          '_data_retention_paywall_metering', '_data_retention_run_tenant', '_data_retention_seal_funnel',
+          '_data_retention_seal_journeys', '_domain_events_erase_account', '_event_revenue_net',
+          '_funnel_counts', '_funnel_erase_account', '_hub_account_bound_email_labels', '_hub_account_erase',
+          '_hub_account_erase_mail_queue', '_hub_account_erase_modules', '_hub_account_erase_orphans',
+          '_hub_erasure_payload', '_hub_erasure_surrogate', '_hub_erasure_text', '_journey_edge',
+          '_journey_enroll', '_journey_eval_predicate', '_journey_exec_action', '_journey_rollup_days',
+          '_journey_marketing_consent', '_journey_message_id', '_journey_next_time', '_journey_node',
+          '_journey_num', '_journey_quiet_until', '_journey_send_verdict', '_journey_staff_tenant',
+          '_journey_unsubscribe', '_journeys_erase_account', '_log_emit_error',
+          '_membership_tier_for_user', '_pricing_v62_owner_decisions', '_revenue_facts_catalog',
+          '_revenue_facts_checkout',
           '_revenue_facts_clubs', '_revenue_facts_coupons', '_revenue_facts_crm',
           '_revenue_facts_data_quality', '_revenue_facts_dunning', '_revenue_facts_events',
           '_revenue_facts_funnel', '_revenue_facts_journeys', '_revenue_facts_metering',
           '_revenue_facts_newsletter', '_revenue_facts_paywall', '_revenue_facts_retention',
-          '_revenue_facts_sync', '_revenue_facts_workflows', '_revenue_movements',
-          '_revenue_mrr_at', '_revenue_realized', '_tier_rank_of', 'billing_catalog_entry',
-          'billing_months_per_interval', 'crm_set_lifecycle_stage', 'journey_advance',
+          '_revenue_facts_sync', '_revenue_facts_workflows', '_revenue_ledger_redact_orphans',
+          '_revenue_ledger_redact_subscription', '_revenue_movements', '_revenue_mrr_at',
+          '_revenue_realized', '_revenue_segments_recompute', '_tier_rank_of',
+          'billing_catalog_entry',
+          'billing_months_per_interval', 'crm_set_lifecycle_stage', 'data_retention_run',
+          'email_queue_send_recheck', 'journey_advance',
           'journey_can_send', 'journey_claim_due', 'journey_complete_email_step',
           'journey_contact_for_send', 'journey_eval_predicate', 'journey_fail_step',
           'journey_ingest_inbox', 'journey_purge', 'journey_record_message_event',
@@ -100,14 +120,40 @@ SELECT is_empty(
           'journey_validate_graph', 'metering_defaults', 'newsletter_subscriber_list_set',
           'record_paywall_hit_visitor', 'revenue_segment_of_tier', 'run_retention_flow_scanner',
           'run_revenue_lifecycle_scanner', 'subscription_mrr_minor', 'tg_b2b_coupon_campaigns_emit',
-          'tg_b2b_coupon_redemptions_emit', 'tg_b2b_coupons_emit',
+          'tg_auth_users_hub_erasure', 'tg_auth_users_revenue_redact', 'tg_b2b_coupon_redemptions_emit',
+          'tg_b2b_coupons_emit',
           'tg_billing_documents_renewed_emit', 'tg_checkout_settings_emit',
           'tg_club_applications_emit', 'tg_content_access_emit', 'tg_crm_leads_stage_history',
           'tg_event_registrations_attended_emit', 'tg_journey_route_event',
-          'tg_metering_settings_emit', 'tg_newsletter_settings_emit',
+          'tg_member_organizations_team_seat_cap', 'tg_metering_settings_emit',
+          'tg_newsletter_settings_emit', 'tg_organization_seats_team_seat_cap',
           'tg_payment_orders_checkout_emit', 'tg_profiles_account_registered_emit',
           'tg_retention_feedback_emit', 'tg_retention_reasons_emit', 'tg_retention_settings_emit',
-          'tg_subscriptions_revenue_history', 'tg_workflow_definitions_emit'
+          'tg_subscriptions_revenue_history', 'tg_subscriptions_revenue_redact',
+          'tg_workflow_definitions_emit',
+          -- (I9d-Y1) zgłoszenia do klubów, licznik, uczestnicy wydarzeń, wygaszanie newslettera.
+          '_club_applications_anonymize', '_data_retention_backfill_metered_views',
+          '_data_retention_club_applications', '_data_retention_club_candidates',
+          '_data_retention_event_attendee_candidates', '_data_retention_event_attendees',
+          '_data_retention_metered_views', '_data_retention_newsletter_candidates',
+          '_data_retention_newsletter_inactive', '_newsletter_engagement_touch', '_newsletter_last_engagement',
+          '_newsletter_sunset_delete', '_newsletter_sunset_fold_events', '_newsletter_track_opens',
+          'newsletter_engagement_touch', 'newsletter_sunset_claim', 'newsletter_sunset_keep',
+          'newsletter_sunset_mark', 'tg_club_applications_club_detached', 'tg_club_members_membership_end',
+          'tg_club_members_membership_gone',
+          -- (I9d-Y2) treść zgody i pomiar tylko za zgodą, ponowne potwierdzenie.
+          '_consent_covers_measurement', '_consent_measurement_versions', '_consent_text_sha256',
+          '_consent_text_version', '_email_measurement_consent', '_email_measurement_subject',
+          '_newsletter_consent_default', '_newsletter_consent_upgrade_defaults', '_newsletter_consent_version',
+          '_newsletter_log_consents', '_newsletter_measurement_candidates', '_newsletter_oneoff_mail_used',
+          'email_measurement_state', 'email_measurement_status', 'email_measurement_withdraw',
+          'newsletter_measurement_claim', 'newsletter_measurement_confirm', 'newsletter_measurement_mark',
+          'tg_crm_consent_log_measurement', 'tg_newsletter_consents_log', 'tg_newsletter_recipients_measured',
+          -- (I9-C) wspólny pomocnik wycofania zgody marketingowej (Z-S5-04),
+          -- emiter wiadomości z formularza kontaktowego (Z-S5-01).
+          '_crm_marketing_consent_withdraw', 'tg_contact_messages_submitted_emit',
+          -- (I9-C) suma dzienna zdarzeń kampanii złożonych przez retencję (Z-I9c-05).
+          '_newsletter_engagement_daily_sum'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end
@@ -251,11 +297,12 @@ SELECT results_eq(
       ORDER BY n $$,
   $$ VALUES ('reader', 'other'), ('supporter', 'other'), ('member', 'b2c_individual'),
             ('student', 'b2c_reduced'), ('educator', 'b2c_reduced'), ('pro', 'b2c_individual'),
-            ('ngo', 'other'), ('vip', 'other'), ('team', 'b2b_institution'),
-            ('business', 'b2b_institution'), ('corporate', 'b2b_institution'), ('partner', 'other'),
-            ('partner_general', 'other'), ('presidents_circle', 'other'),
+            ('ngo', 'b2b_institution'), ('vip', 'other'), ('team', 'b2b_institution'),
+            ('business', 'b2b_institution'), ('corporate', 'b2b_institution'),
+            ('partner', 'b2b_institution'), ('partner_general', 'b2b_institution'),
+            ('presidents_circle', 'b2b_institution'),
             ('decision_lab', 'other'), ('hub_unknown_tier', 'other') $$,
-  'segment: 14 kluczy TIER_RANKS, decision_lab i nieznany klucz wg kontraktu');
+  'segment: 14 kluczy TIER_RANKS, decision_lab i nieznany klucz wg mapy z typu klienta (I9b, 20261020160000)');
 SELECT is(public.revenue_segment_of_tier(NULL), 'other', 'segment: NULL -> other');
 SELECT is_empty(
   $$ SELECT mt.key FROM public.membership_tiers mt

@@ -6,6 +6,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { axeViolations, summarize } from "@/test/axe";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
 
 const h = vi.hoisted(() => ({
   created: [] as unknown[],
@@ -370,6 +372,73 @@ describe("ScoringSettingsDialog - wagi i przełączniki", () => {
     expect((h.savedScoring[0] as { data: { half_life_days: number } }).data.half_life_days).toBe(
       60,
     );
+  });
+});
+
+describe("ImportLeadsCsvDialog - wartości ponad limit pól (I9, Z-I9b-15)", () => {
+  function csvFile(content: string): File {
+    const file = new File([content], "leady.csv", { type: "text/csv" });
+    Object.defineProperty(file, "text", { value: async () => content });
+    return file;
+  }
+
+  async function uploadCsv(content: string) {
+    const view = renderWithQueryClient(
+      <ImportLeadsCsvDialog open onOpenChange={() => {}} lang="pl" />,
+    );
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, "files", { value: [csvFile(content)] });
+    fireEvent.change(input);
+    return view;
+  }
+
+  const LONG_TAG = "t".repeat(CRM_TAG_MAX + 1);
+
+  it("tag dłuższy niż limit: komunikat z numerem wiersza i kolumną, „Importuj” zablokowany", async () => {
+    await uploadCsv(`E-mail,Tagi\nanna@example.test,eu\njan@example.test,eu|${LONG_TAG}\n`);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Niektóre wartości są dłuższe, niż pozwalają pola");
+    expect(alert).toHaveTextContent(
+      `Wiersz 3, kolumna „Tagi”: tag dłuższy niż ${CRM_TAG_MAX} znaki`,
+    );
+    const button = screen.getByRole("button", { name: /Importuj 2/ });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(h.imported).toHaveLength(0);
+  });
+
+  it("inne pole ponad limit (nazwisko) blokuje tak samo - bez przycinania", async () => {
+    const long = "N".repeat(101);
+    await uploadCsv(`E-mail,Nazwisko\nanna@example.test,${long}\n`);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Wiersz 2, kolumna „Nazwisko”: wartość dłuższa niż 100 znaków",
+    );
+    expect(screen.getByRole("button", { name: /Importuj 1/ })).toBeDisabled();
+  });
+
+  it("ponad pięć zgłoszeń: pięć z nazwy i licznik reszty", async () => {
+    const lines = Array.from({ length: 7 }, (_, i) => `lead${i}@example.test,${LONG_TAG}`);
+    await uploadCsv(`E-mail,Tagi\n${lines.join("\n")}\n`);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.querySelectorAll("li")).toHaveLength(5);
+    expect(alert).toHaveTextContent("…i jeszcze 2");
+  });
+
+  it("plik bez wartości ponad limit nie pokazuje komunikatu", async () => {
+    await uploadCsv(`E-mail,Tagi\nanna@example.test,${"t".repeat(CRM_TAG_MAX)}\n`);
+    expect(await screen.findByRole("button", { name: /Importuj 1/ })).toBeEnabled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("axe bez naruszeń z komunikatem o wartościach ponad limit", async () => {
+    await uploadCsv(`E-mail,Tagi\nanna@example.test,${LONG_TAG}\n`);
+    await screen.findByRole("alert");
+    // Sam dialog: Radix ukrywa (`aria-hidden`) resztę strony za portalem.
+    const violations = await axeViolations(screen.getByRole("dialog"));
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });
 

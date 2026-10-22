@@ -137,6 +137,13 @@ vi.mock("@/lib/crm-tasks.functions", () => ({
   updateCrmTask: async () => ({ ok: true }),
   deleteCrmTask: async () => ({ ok: true }),
   importCrmLeads: async () => ({ ok: true, inserted: 0, updated: 0, skipped: 0 }),
+  // (I9, Z-S7-02) Akcja „Przypisz zadania bez osoby" - zachowanie w teście
+  // `AssignUnassignedTasksButton.test.tsx`; tu tylko miejsce na pasku.
+  assignUnassignedCrmTasks: async () => ({
+    assigned_to_owner: 0,
+    assigned_to_fallback: 0,
+    remaining: 0,
+  }),
 }));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ isAdmin: h.isAdmin, isSuperAdmin: h.isSuperAdmin }),
@@ -149,6 +156,17 @@ vi.mock("@/lib/realtime/useModuleRealtime", () => ({
 }));
 vi.mock("@/components/molecules/PresenceIndicator", () => ({
   PresenceIndicator: () => null,
+}));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
 }));
 vi.mock("@/components/molecules/LinkedItemsCard", () => ({ LinkedItemsCard: () => null }));
 // Radix `AvatarImage` w jsdom nie montuje <img> (obraz nigdy się nie „ładuje"),
@@ -310,6 +328,20 @@ describe("skrzynka CRM - lista", () => {
     });
     // Nazwa widoku wchodzi do klucza cache i adresu - długość jest ograniczona.
     expect(validate({ view: "v".repeat(80) }).view).toBeUndefined();
+  });
+
+  it("I9 (SPEC §2.7): pasek Diagnostyki CRM i windykacji pod nagłówkiem listy", async () => {
+    await mount();
+    const mount_ = await screen.findByTestId("revenue-signal-mount");
+    expect(mount_).toHaveAttribute("data-surface", "crm");
+    expect(mount_).toHaveAttribute("data-variant", "bar");
+  });
+
+  it('I9 (Z-S7-02, P24): pasek listy ma akcję „Przypisz zadania bez osoby"', async () => {
+    await mount();
+    expect(
+      await screen.findByRole("button", { name: "adminCrmTasks.assignUnassigned.action" }),
+    ).toBeInTheDocument();
   });
 
   it("pusta lista mówi wprost, że nic nie ma", async () => {
@@ -651,6 +683,53 @@ describe("skrzynka CRM - karta kontaktu (drawer)", () => {
     expect(screen.queryByText("Zgłoszenie wystąpienia")).toBeNull();
     expect(screen.getByText("Event")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open in the event studio" })).toBeInTheDocument();
+  });
+
+  it("zapis do ścieżki ma typ „Ścieżka”, zdanie w języku panelu i odnośnik do edytora (S8)", async () => {
+    const journeyId = "4cab3de7-f976-404a-b54e-c37337942b7e";
+    const timeline = {
+      lead: { id: LEAD_ID, email: "anna@example.test" },
+      events: [
+        {
+          id: "jr:e1:out",
+          type: "journey",
+          at: new Date(Date.UTC(2026, 7, 5, 10)).toISOString(),
+          title: "Ścieżka „Powitanie”: Ukończona - Koniec ścieżki",
+          detail: null,
+          meta: {
+            journey_id: journeyId,
+            current_node_id: null,
+            summary_pl: "Ścieżka „Powitanie”: Ukończona - Koniec ścieżki",
+            summary_en: "Journey “Powitanie”: Completed - End of journey",
+          },
+        },
+      ],
+    };
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Szybki podgląd"));
+    await openTab(/Oś czasu/);
+    expect(
+      await screen.findByText("Ścieżka „Powitanie”: Ukończona - Koniec ścieżki"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ścieżka")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Otwórz ścieżkę komunikacji" }).getAttribute("href"),
+    ).toContain(`/admin/revenue/journeys/${journeyId}`);
+
+    cleanup();
+    h.lang = "en";
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Quick preview"));
+    await openTab(/Timeline/);
+    expect(
+      await screen.findByText("Journey “Powitanie”: Completed - End of journey"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Journey")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open the communication journey" }),
+    ).toBeInTheDocument();
   });
 
   it("oś czasu ze zdarzeniami eksportuje się do CSV dla tego leada", async () => {

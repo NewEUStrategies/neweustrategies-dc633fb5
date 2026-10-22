@@ -16,6 +16,7 @@
 // Kolejność dostawców: gateway Resend jest PIERWSZY, bo zwraca identyfikator
 // wiadomości. Nadawca platformy zostaje jako zapas dla środowisk, w których
 // nie ma klucza Resend - wtedy poczta nadal wychodzi, tylko bez korelacji.
+import { stripOwnUnsubscribe, unmarkOwnUnsubscribe } from "@/lib/email/ownUnsubscribeFooter";
 
 /** Adres gatewaya connectora Resend (ten sam, którym wysyłają kampanie). */
 const RESEND_GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -104,6 +105,29 @@ async function readMessageId(res: Response): Promise<string | null> {
     // Gateway może zwrócić pustą odpowiedź - wysyłka i tak się powiodła.
   }
   return null;
+}
+
+/**
+ * Treść na drogę nadawcy platformy: platforma dokleja WŁASNĄ stopkę wypisu
+ * (z `unsubscribe_token`, nie da się jej wyłączyć), więc oznaczona stopka
+ * aplikacji (`markOwnUnsubscribe`, Z-S5-05) jest wycinana - jedna stopka
+ * w skrzynce zamiast dwóch z różnymi linkami.
+ */
+function forPlatform(input: SendEmailInput): SendEmailInput {
+  return {
+    ...input,
+    html: stripOwnUnsubscribe(input.html),
+    text: input.text === undefined ? undefined : stripOwnUnsubscribe(input.text),
+  };
+}
+
+/** Treść na drogę gatewaya (bez stopki dostawcy): stopka zostaje, znaczniki nie. */
+function forOwnFooter(input: SendEmailInput): SendEmailInput {
+  return {
+    ...input,
+    html: unmarkOwnUnsubscribe(input.html),
+    text: input.text === undefined ? undefined : unmarkOwnUnsubscribe(input.text),
+  };
 }
 
 function extraHeaders(input: SendEmailInput): Record<string, string> | undefined {
@@ -227,11 +251,11 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   // nadawcą jest platforma. Resend zostaje dla kampanii (bez `senderDomain`),
   // gdzie zwraca identyfikator wiadomości do korelacji webhooków.
   if (input.senderDomain && platformMailerConfigured()) {
-    return sendViaPlatformMailer(input);
+    return sendViaPlatformMailer(forPlatform(input));
   }
   if (resendConfigured()) {
     try {
-      const result = await sendViaResend(input);
+      const result = await sendViaResend(forOwnFooter(input));
       // Konto Resend nie ma zweryfikowanej NASZEJ domeny nadawczej (poczta
       // platformy jedzie z delegowanej subdomeny `notify.*`). Taki 403 to
       // odmowa KONFIGURACYJNA, nie odrzucenie tej jednej wiadomości: Resend
@@ -243,7 +267,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         /domain is not verified/i.test(result.error ?? "") &&
         platformMailerConfigured()
       ) {
-        return await sendViaPlatformMailer(input);
+        return await sendViaPlatformMailer(forPlatform(input));
       }
       return result;
     } catch (err) {
@@ -257,6 +281,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       };
     }
   }
-  if (platformMailerConfigured()) return sendViaPlatformMailer(input);
+  if (platformMailerConfigured()) return sendViaPlatformMailer(forPlatform(input));
   return { ok: false, error: "email_not_configured", permanent: true, provider: "none" };
 }

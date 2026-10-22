@@ -69,7 +69,6 @@ export const clubGatePl = {
     sentTitle: "Sprawdź skrzynkę",
     sentBody:
       "Wysłaliśmy link potwierdzający na {{email}}. Po potwierdzeniu wrócisz tutaj i wybierzesz plan.",
-    newsletterOptIn: "Chcę otrzymywać newsletter",
     errors: {
       email: "Podaj poprawny adres e-mail.",
       password: "Hasło musi mieć co najmniej 8 znaków.",
@@ -144,7 +143,6 @@ export const clubGateEn = {
     sentTitle: "Check your inbox",
     sentBody:
       "We sent a confirmation link to {{email}}. Once confirmed you come back here and choose a plan.",
-    newsletterOptIn: "I want to receive the newsletter",
     errors: {
       email: "Enter a valid email address.",
       password: "Password must be at least 8 characters.",

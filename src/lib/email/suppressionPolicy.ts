@@ -233,6 +233,12 @@ const RAW_LABEL_CATEGORY: Readonly<Record<string, EmailCategory>> = {
   digest_daily: "bulk",
   digest_weekly: "bulk",
   newsletter_campaign: "bulk",
+  // Ścieżki komunikacji (S5): marketing to wysyłka za zgodą (wypis ją
+  // zatrzymuje); usługa z podstawą prawną i test na żywo admina - poczta 1:1,
+  // którą zatrzymują wyłącznie blokady techniczne (twarde odbicie, skarga).
+  journey: "bulk",
+  journey_service: "transactional",
+  journey_test: "transactional",
   // Maile autoryzacyjne (magic link, reset hasła, zmiana adresu, zaproszenie):
   // odbiorca właśnie o nie poprosił i bez nich nie wejdzie na konto.
   auth_magic_link: "transactional",
@@ -270,4 +276,52 @@ export function emailCategoryForLabel(label: string | null | undefined): EmailCa
   }
   if (withoutLangSuffix === "free_rsvp") return "transactional";
   return "bulk";
+}
+
+// ----------------------------------------------------------------------------
+// Poczta związana z kontem albo zapisem (I9c-X1, RODO po usunięciu konta)
+//
+// Wiadomości, których podstawa wygasa razem z kontem albo zapisem odbiorcy:
+// kroki ścieżek komunikacji (marketing, usługa i test na żywo - zapis kończy
+// się przy usunięciu konta z powodem `account_deleted`) i digest powiadomień
+// konta. Dwie warstwy (migracja 20261020160900):
+//   1. usunięcie konta wyjmuje je z kolejki (`_hub_account_erase_mail_queue`),
+//   2. dren przed wysyłką pyta bazę (`email_queue_send_recheck`), czy zapis
+//      i zgoda nadal obowiązują - także po wypisie w trakcie cyklu.
+// Poczta transakcyjna (rozliczenia, bilety, autoryzacja) i potwierdzenie
+// newslettera (zgoda niezależna od konta) nie są na liście - wychodzą.
+// Lustro SQL: `_hub_account_bound_email_labels()`; parytet pilnuje
+// `accountBoundLabelsParity.test.ts`.
+// ----------------------------------------------------------------------------
+export const ACCOUNT_BOUND_EMAIL_LABELS = [
+  "journey",
+  "journey_service",
+  "journey_test",
+  "digest_daily",
+  "digest_weekly",
+] as const;
+export type AccountBoundEmailLabel = (typeof ACCOUNT_BOUND_EMAIL_LABELS)[number];
+
+const ACCOUNT_BOUND_LABEL_SET: ReadonlySet<string> = new Set(ACCOUNT_BOUND_EMAIL_LABELS);
+
+/** Czy etykieta wiadomości w kolejce należy do poczty związanej z kontem albo zapisem. */
+export function isAccountBoundEmailLabel(label: string | null | undefined): boolean {
+  return ACCOUNT_BOUND_LABEL_SET.has((label ?? "").trim().toLowerCase());
+}
+
+/**
+ * Powód anulowania niewysłanej wiadomości przy usunięciu konta (wpis
+ * `email_send_log` ze statusem `suppressed`) - ten sam napis pisze SQL.
+ */
+export const ACCOUNT_DELETED_CANCEL_REASON = "cancelled:account_deleted";
+
+/**
+ * Odbiorca w dzienniku wysyłek wiadomości zatrzymanej z powodu usunięcia
+ * konta (kolumna `recipient_email` jest NOT NULL) - ten sam napis pisze SQL.
+ */
+export const REDACTED_RECIPIENT = "[redacted]";
+
+/** Czy werdykt bazy dla poczty konta mówi o usuniętym koncie. */
+export function isAccountDeletedVerdict(verdict: string): boolean {
+  return verdict.endsWith("account_deleted");
 }

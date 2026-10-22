@@ -118,3 +118,13 @@ export const CRM_TASK_SOURCE_DEFAULT: CrmTaskSource = "manual";
  * nie tworzy drugiego zadania.
  */
 export const CRM_TASK_ORIGIN_REF_MAX = 200;
+
+/**
+ * Długość jednego tagu kontaktu (`crm_leads.tags`) - JEDEN limit dla panelu
+ * CRM, przepisów (`run_workflow_step`) i ścieżek (`journey_validate_graph`,
+ * warunek `has_tag`). Kolumna nie ma CHECK długości elementu, więc wygrał
+ * kontrakt I0 ścieżek (64, decyzja właściciela 2026-10-20, Z-S5-02): zapisane
+ * tagi zostają poprawne, a dłuższy jest ODRZUCANY, nigdy przycinany - licznik
+ * w UI zna limit, który egzekwuje baza (`tagLimitParity.test.ts`).
+ */
+export const CRM_TAG_MAX = 64;

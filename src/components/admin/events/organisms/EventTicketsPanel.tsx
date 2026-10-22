@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { EventTicketDialog } from "@/components/admin/events/molecules/EventTicketDialog";
+import { EventTicketCheckoutWindowNote } from "@/components/admin/events/molecules/EventTicketCheckoutWindowNote";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { formatDate } from "@/lib/i18n/format";
 import { eventTimeZone } from "@/lib/events/timezone";
@@ -273,6 +274,7 @@ export function EventTicketsPanel({
           <p className="max-w-2xl text-sm text-muted-foreground">
             {t("adminEventRegistration.tickets.subtitle")}
           </p>
+          <EventTicketCheckoutWindowNote />
         </div>
         <Button
           onClick={() => {

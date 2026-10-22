@@ -14,7 +14,7 @@
 //      agendy Kręgu Założycieli) jest widoczna w stanie ZWINIĘTYM - nie za
 //      „Pokaż więcej". `toBeVisible`, bo `getByText` znajduje też treść
 //      w panelu z atrybutem `hidden`.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,9 +34,21 @@ vi.mock("@/lib/analytics/track", () => ({ trackCta: () => undefined }));
 
 const { TierCard } = await import("@/components/pricing/organisms/TierCard");
 
+// NAJNOWSZA definicja `pricing_catalog_v62_benefits()` - funkcja jest
+// redefiniowana (20261018160200 -> I9b 20261020160200, karta Zespołu po
+// decyzji właściciela), a seed czyta ostatnią wersję, nie pierwszą.
+const MIGRATIONS = resolve(process.cwd(), "supabase/migrations");
 const MIGRATION = resolve(
-  process.cwd(),
-  "supabase/migrations/20261018160200_pricing_v62_catalog_benefits.sql",
+  MIGRATIONS,
+  readdirSync(MIGRATIONS)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .filter((name) =>
+      readFileSync(resolve(MIGRATIONS, name), "utf8").includes(
+        "CREATE OR REPLACE FUNCTION public.pricing_catalog_v62_benefits()",
+      ),
+    )
+    .at(-1) ?? "",
 );
 
 /** Benefity progu z migracji: literał `('key', '[...]'::jsonb)`, `''` = apostrof. */
@@ -137,5 +149,35 @@ describe("granica wpływu poza spotlightem - widoczna bez rozwijania", () => {
 
     expect(screen.queryByRole("button", { name: /pricing\.benefitsMore/ })).toBeNull();
     expect(screen.getByText("Miejsce w panelu recenzenckim publikacji")).toBeVisible();
+  });
+});
+
+describe("Zespół - karta po decyzji właściciela 2026-10-20 (I9b)", () => {
+  it("benefity czytane z najnowszej definicji katalogu", () => {
+    expect(MIGRATION).toMatch(/20261020160200_pricing_v62_decisions_tenants\.sql$/);
+  });
+
+  it.each([
+    ["pl", "Pełny zakres Członka Pro dla każdego miejsca", /bez monitoringu/],
+    ["en", "The full Member Pro scope for every seat", /without regulatory monitoring/],
+  ])(
+    "%s: pełny zakres Pro z trackerem, bez dopisku o braku monitoringu",
+    (language, first, gone) => {
+      lang = language;
+      const { benefits } = renderTier("team", "pro");
+
+      expect(benefits[0][language === "pl" ? "pl" : "en"]).toBe(first);
+      for (const benefit of benefits) {
+        expect(language === "pl" ? benefit.pl : benefit.en).not.toMatch(gone);
+      }
+    },
+  );
+
+  it("nowy najemca: korespondencja z ekspertami to pula 3 zapytań na miejsce (bramka seedu)", () => {
+    const { benefits } = renderTier("team", "pro");
+
+    expect(benefits.map((b) => b.pl)).toContain(
+      "Korespondencja z ekspertami: 3 zapytania miesięcznie na miejsce",
+    );
   });
 });

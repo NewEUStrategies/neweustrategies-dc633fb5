@@ -81,6 +81,11 @@ vi.mock("@/integrations/supabase/client", () => ({
 import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { defaultNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
+import {
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+  privacyAcceptanceHtml,
+} from "@/lib/newsletter/consentText";
 import { defaultPopupDesign } from "@/lib/newsletter/popupDesign";
 
 const MOUNTED_AT = new Date("2026-08-22T10:00:00.000Z");
@@ -134,12 +139,23 @@ function consentBoxes(): HTMLElement[] {
 
 const type = (el: HTMLInputElement, value: string) => fireEvent.change(el, { target: { value } });
 
+/**
+ * P08: newsletter jest domyślnie ODZNACZONY, więc testy ścieżki zapisu na
+ * listę zaznaczają go jawnie. Jedyny checkbox bez `aria-required` to opt-in
+ * newslettera; brak takiego pola (opt-in wyłączony) = nic do kliknięcia.
+ */
+function optInNewsletter() {
+  const box = consentBoxes().find((el) => el.getAttribute("aria-required") !== "true");
+  if (box && box.getAttribute("aria-checked") !== "true") fireEvent.click(box);
+}
+
 /** Minimalny komplet danych, przy którym rejestracja przechodzi walidację. */
-function fillMinimal(overrideEmail = "jan@firma.pl") {
+function fillMinimal(overrideEmail = "jan@firma.pl", { newsletter = true } = {}) {
   type(emailInput(), overrideEmail);
   const [password, confirm] = passwordInputs();
   type(password, "TajneHaslo1");
   type(confirm, "TajneHaslo1");
+  if (newsletter) optInNewsletter();
 }
 
 /** Przechodzi barierę antybotową bez wprowadzania niedeterminizmu. */
@@ -229,20 +245,25 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
     const { consents } = h.subscribe.mock.calls[0][0].data;
+    // I9d-Y2: domyślna etykieta = pełna treść zgody z pomiarem (jedno źródło,
+    // wersja z rejestru), a wymagana „prywatność" NIE niesie treści zgody
+    // marketingowej (`policy_html` jest od Y2 treścią zgody na newsletter).
     expect(consents).toMatchObject([
       {
         key: "newsletter",
-        text: "Chcę otrzymywać newsletter",
+        text: newsletterConsentHtml("pl"),
+        version: NEWSLETTER_CONSENT_VERSION,
         given: true,
         lang: "pl",
       },
       {
         key: "privacy",
-        text: defaultNewsletterSettings().policy_html_pl,
+        text: privacyAcceptanceHtml("pl"),
         given: true,
         lang: "pl",
       },
     ]);
+    expect(consents[1].text).not.toBe(defaultNewsletterSettings().policy_html_pl);
   });
 
   it("records the configured checkbox label and the same sanitized privacy text shown to the reader", async () => {
@@ -314,9 +335,10 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 
   it("zgoda OPCJONALNA odznaczona: konto powstaje, ale na listę mailingową nic nie leci", async () => {
     renderForm();
-    fillMinimal();
+    fillMinimal(undefined, { newsletter: false });
     const [newsletter, privacy] = consentBoxes();
-    fireEvent.click(newsletter);
+    // P08 (RODO): opt-in newslettera startuje odznaczony - bez kliknięcia nie ma zgody.
+    expect(newsletter).toHaveAttribute("aria-checked", "false");
     fireEvent.click(privacy);
     actLikeHuman();
     await submit();
@@ -394,6 +416,7 @@ describe("PopupSignupForm: walidacja pól zatrzymuje śmieciowe konta", () => {
     const [password, confirm] = passwordInputs();
     type(password, "TajneHaslo1");
     type(confirm, "TajneHaslo1");
+    optInNewsletter();
     acceptPrivacy();
     actLikeHuman();
     await submit();

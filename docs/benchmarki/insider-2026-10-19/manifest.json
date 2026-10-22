@@ -375,8 +375,8 @@
     },
     "counts": {
       "ranges": {
-        "withHub": 26,
-        "kontekst_s6": 2,
+        "withHub": 27,
+        "kontekst_s6": 3,
         "zastapilo_s6": 0,
         "zastapione_przez_s6": 16,
         "odniesienie": 8,
@@ -394,9 +394,11 @@
     },
     "newS6Contexts": [
       "signup_form_conversion_rate.linkedin_lgf_content",
-      "signup_form_conversion_rate.linkedin_lgf_demo"
+      "signup_form_conversion_rate.linkedin_lgf_demo",
+      "engagement_rate.site_all"
     ],
     "s6Corrections": [],
-    "untouched": "Przedziały z §5.1.5 bez wpisu S6 (b-engr, b-sqlopp, b-pipecov, b-pmf, b-burn, b-csat, b-fcr i kanałowe poza b-lgf-*, b-cvr-ecom-pl, b-lpcvr-ecom, b-deliv) oraz punkty bez metryki S6 nie mają pola hub - zostają wiedzą słownikową."
+    "untouched": "Przedziały z §5.1.5 bez wpisu S6 (b-sqlopp, b-pipecov, b-pmf, b-burn, b-csat, b-fcr i kanałowe poza b-lgf-*, b-cvr-ecom-pl, b-lpcvr-ecom, b-deliv) oraz punkty bez metryki S6 nie mają pola hub - zostają wiedzą słownikową.",
+    "addendum": "2026-10-20 (I9b, Z-14-03, decyzja właściciela - zgoda delegowana): b-engr dostał pole hub (kontekst_s6 → engagement_rate.site_all) po dodaniu wpisu engagement_rate do rejestru S6 (docs/benchmarki/2026-10-18/lejek.json); liczności ranges zaktualizowane (withHub 27, kontekst_s6 3)."
   }
 }

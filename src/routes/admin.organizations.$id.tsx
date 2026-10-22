@@ -1,7 +1,7 @@
 // Panel: pełna strona organizacji członkowskiej - premium edytor marki
 // (kolory, logo poziome/pionowe w wariantach light/dark), dane, kontakt i
 // zarządzanie miejscami. Wygląd zgodny z produkcyjnym layoutem admin (kompakt).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { uiLocale } from "@/lib/i18n/format";
@@ -43,7 +43,17 @@ import {
   sameReminderDays,
 } from "@/lib/organizations/teamSeats";
 
-import { clampSeats, seatsAtRisk, summarizeSeats } from "@/lib/organizations/teamSeats";
+import {
+  clampSeats,
+  isTeamSeatsMaxError,
+  organizationTierOptions,
+  seatsAtRisk,
+  summarizeSeats,
+  teamSeatAddBlocked,
+  teamSeatLimitRejected,
+  TEAM_TIER_MAX_SEATS,
+} from "@/lib/organizations/teamSeats";
+import { TeamSeatCapNotice } from "@/components/admin/organizations/TeamSeatCapNotice";
 import { billingKeys } from "@/lib/billing/keys";
 import { isPaymentOutcomeCode } from "@/lib/billing/planSwitch";
 import {
@@ -106,10 +116,9 @@ function AdminOrganizationDetailPage() {
 
   const tiersQ = useMembershipTiers();
   const tiers: MembershipTierRow[] = useMemo(() => tiersQ.data ?? [], [tiersQ.data]);
-  const tierOptions = useMemo<MembershipTierRow[]>(() => {
-    const high = tiers.filter((t) => t.rank >= 30);
-    return high.length > 0 ? high : tiers;
-  }, [tiers]);
+  // Progi organizacyjne: `corporate_seats` albo ranga >= 30 - także Zespół (25),
+  // który sama ranga pomijała (I9b: admin nadaje Zespół w panelu).
+  const tierOptions = useMemo<MembershipTierRow[]>(() => organizationTierOptions(tiers), [tiers]);
 
   const [draft, setDraft] = useState<OrganizationRow | null>(null);
   /**
@@ -210,6 +219,10 @@ function AdminOrganizationDetailPage() {
         void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(id) });
         return;
       }
+      if (isTeamSeatsMaxError(err.message)) {
+        toast.error(t("adminOrganizations.teamCap.rejected", { max: TEAM_TIER_MAX_SEATS }));
+        return;
+      }
       toast.error(err.message);
     },
   });
@@ -238,6 +251,12 @@ function AdminOrganizationDetailPage() {
   const patch = (mut: (d: OrganizationRow) => OrganizationRow) =>
     setDraft((d) => (d ? mut({ ...d }) : d));
   const isActive = draft.status === "active";
+  // Zespół 3-20 miejsc: wejście na Zespół z limitem > 20 odrzuci baza - zapis
+  // zablokowany z komunikatem przy progu, zamiast błędu po kliknięciu.
+  const teamCapRejected = teamSeatLimitRejected(
+    { tierKey: draft.tier_key, seatsLimit: draft.seats_limit },
+    { tierKey: orgQ.data.tier_key, seatsLimit: orgQ.data.seats_limit },
+  );
   const primary = draft.brand_primary ?? DEFAULT_PRIMARY;
   const accent = draft.brand_accent ?? DEFAULT_ACCENT;
   const ink = draft.brand_ink ?? DEFAULT_INK;
@@ -297,7 +316,7 @@ function AdminOrganizationDetailPage() {
           <Button
             size="sm"
             className="h-8"
-            disabled={!isDirty || save.isPending}
+            disabled={!isDirty || save.isPending || teamCapRejected}
             onClick={() => save.mutate()}
           >
             <Save className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
@@ -327,7 +346,13 @@ function AdminOrganizationDetailPage() {
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
-          <GeneralPane lang={lang} draft={draft} patch={patch} tierOptions={tierOptions} />
+          <GeneralPane
+            lang={lang}
+            draft={draft}
+            base={orgQ.data}
+            patch={patch}
+            tierOptions={tierOptions}
+          />
         </TabsContent>
 
         <TabsContent value="branding" className="mt-4">
@@ -351,6 +376,7 @@ function AdminOrganizationDetailPage() {
         <TabsContent value="seats" className="mt-4">
           <SeatsPane
             orgId={id}
+            tierKey={orgQ.data.tier_key}
             seatsLimit={draft.seats_limit}
             seatsSource={draft.seats_source}
             graceDays={draft.seats_grace_days ?? DEFAULT_GRACE_DAYS}
@@ -366,11 +392,14 @@ function AdminOrganizationDetailPage() {
 function GeneralPane({
   lang,
   draft,
+  base,
   patch,
   tierOptions,
 }: {
   lang: Lang;
   draft: OrganizationRow;
+  /** Wiersz w bazie - punkt odniesienia reguły Zespołu (podniesienie vs stan). */
+  base: OrganizationRow;
   patch: (mut: (d: OrganizationRow) => OrganizationRow) => void;
   tierOptions: MembershipTierRow[];
 }) {
@@ -517,6 +546,12 @@ function GeneralPane({
                   : t("adminOrganizations.changeSeatCountSeatsTab")}
               </p>
             </Field>
+            <TeamSeatCapNotice
+              tierKey={draft.tier_key}
+              requestedSeats={draft.seats_limit}
+              base={{ tierKey: base.tier_key, seatsLimit: base.seats_limit }}
+              activeSeats={null}
+            />
           </div>
         </Card>
 
@@ -834,12 +869,15 @@ function PreviewTile({
 // -------- Miejsca --------
 function SeatsPane({
   orgId,
+  tierKey,
   seatsLimit,
   seatsSource,
   graceDays,
   reminderDays,
 }: {
   orgId: string;
+  /** Próg organizacji w bazie - reguła Zespołu 3-20 (I9b). */
+  tierKey: string;
   seatsLimit: number;
   seatsSource: string;
   graceDays: number;
@@ -864,6 +902,17 @@ function SeatsPane({
     [seats, nextSeats],
   );
   const summary = useMemo(() => summarizeSeats(seats, seatsLimit), [seats, seatsLimit]);
+  // Zespół: 21. aktywne miejsce i limit ponad 20 odrzuca baza (20261020160300)
+  // - przyciski mówią to wcześniej, a komunikat wskazuje Enterprise.
+  const activeSeats = seats.filter(
+    (seat) => seat.status !== "suspended" && seat.status !== "grace",
+  ).length;
+  const teamAddBlocked = teamSeatAddBlocked(tierKey, activeSeats);
+  const teamLimitRejected = teamSeatLimitRejected(
+    { tierKey, seatsLimit: clampSeats(nextSeats) },
+    { tierKey, seatsLimit },
+  );
+  const teamCapAlertId = useId();
 
   const applySeats = useMutation({
     mutationFn: async () => {
@@ -926,6 +975,10 @@ function SeatsPane({
               }
             : undefined,
         );
+        return;
+      }
+      if (isTeamSeatsMaxError(err.message)) {
+        toast.error(t("adminOrganizations.teamCap.rejected", { max: TEAM_TIER_MAX_SEATS }));
         return;
       }
       toast.error(
@@ -1027,7 +1080,9 @@ function SeatsPane({
     },
     onError: (err: Error) => {
       const msg = err.message.toLowerCase();
-      if (msg.includes("limit")) toast.error(t("adminOrganizations.seatLimitReached"));
+      if (isTeamSeatsMaxError(err.message))
+        toast.error(t("adminOrganizations.teamCap.rejected", { max: TEAM_TIER_MAX_SEATS }));
+      else if (msg.includes("limit")) toast.error(t("adminOrganizations.seatLimitReached"));
       else if (msg.includes("exists")) toast.error(t("adminOrganizations.seatAlreadyExists"));
       else if (msg.includes("invalid email")) toast.error(t("adminOrganizations.invalidEmail"));
       else toast.error(t("adminOrganizations.couldAddSeat"));
@@ -1068,11 +1123,15 @@ function SeatsPane({
             onChange={(e) => setNextSeats(clampSeats(Number(e.target.value)))}
             className="h-8 w-24 text-sm"
             aria-label={t("adminOrganizations.seatCount")}
+            aria-invalid={teamLimitRejected || undefined}
+            aria-describedby={teamLimitRejected ? teamCapAlertId : undefined}
           />
           <Button
             size="sm"
             className="h-8"
-            disabled={applySeats.isPending || clampSeats(nextSeats) === seatsLimit}
+            disabled={
+              applySeats.isPending || clampSeats(nextSeats) === seatsLimit || teamLimitRejected
+            }
             onClick={() => applySeats.mutate()}
           >
             {applySeats.isPending
@@ -1090,6 +1149,13 @@ function SeatsPane({
             ? t("adminOrganizations.changeUpdatesPaidSubscriptionIncreases")
             : t("adminOrganizations.seatsAboveLimitStayOrganisation")}
         </p>
+        <TeamSeatCapNotice
+          tierKey={tierKey}
+          requestedSeats={clampSeats(nextSeats)}
+          base={{ tierKey, seatsLimit }}
+          activeSeats={activeSeats}
+          alertId={teamCapAlertId}
+        />
         {atRisk.length > 0 ? (
           <p className="text-[10px] font-medium text-destructive">
             {/* Przy subskrypcji zmniejszenie wchodzi od nowego okresu - „od
@@ -1299,7 +1365,7 @@ function SeatsPane({
         <Button
           size="sm"
           className="h-8 shrink-0"
-          disabled={!email.trim() || addSeat.isPending || atLimit}
+          disabled={!email.trim() || addSeat.isPending || atLimit || teamAddBlocked}
           onClick={() => addSeat.mutate()}
         >
           {t("adminOrganizations.addSeat")}

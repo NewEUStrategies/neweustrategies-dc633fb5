@@ -41,6 +41,14 @@ export const SCHEDULER_JOBS = [
   // Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14):
   // anulowanie, zwrot, nowy kod, odwołane wydarzenie.
   "event-wallet-passes",
+  // Hub „Przychód i lejek" (I9, SPEC §4.6): silnik ścieżek komunikacji
+  // i skanery S2 (cykl życia przychodu, przepływ anulowania). Oba biegną
+  // w `jobs-tick` (ścieżki co minutę, skanery co 5 minut); tu WYŁĄCZNIE do
+  // ręcznego wypchnięcia - NIE wchodzą do `all`, bo tę siatkę woła też
+  // pg_cron co 5 minut, a ona nie drenuje poczty (maile ścieżek i tak
+  // czekałyby na dren `jobs-tick`).
+  "journeys",
+  "revenue-lifecycle",
 ] as const;
 
 export type SchedulerJob = (typeof SCHEDULER_JOBS)[number];

@@ -1662,8 +1662,16 @@ describe("getRevenueSnapshot - scalenie pięciu odczytów", () => {
     );
   });
 
+  it("waluta wiodąca jedzie w odpowiedzi (`ratioCurrency`, I9 - Z-S7-06)", async () => {
+    // Bez filtra: pierwsza waluta danych bieżących (MRR) - ta sama, w której
+    // liczą się wpisy i delty; panel podpisuje NRR/GRR tym polem.
+    expect((await wywolajHub(klientHuba())).ratioCurrency).toBe("PLN");
+    expect((await wywolajHub(klientHuba(), { currency: "EUR" })).ratioCurrency).toBe("EUR");
+  });
+
   it("filtr waluty zmienia walutę wiodącą obu okien naraz", async () => {
     const res = await wywolajHub(klientHuba(), { currency: "EUR" });
+    expect(res.ratioCurrency).toBe("EUR");
     expect(wpisHuba(res, "mrr").canonicalValue).toBe(200_000);
     const delta = res.deltas.find((d) => d.metricId === "mrr");
     // Euro do euro: 200 000 wobec 250 000 - nie złotówki do euro.
@@ -1867,6 +1875,28 @@ describe("getRevenueSnapshot - wpięcia RPC odłożone do wycinków-właściciel
 });
 
 describe("revenueRaw - parsery i kontrakt `*_KEYS`", () => {
+  it("zdrowie poczty: kształt S1 (`campaigns`/`list`/`doi`) = ten sam wynik co płaski (Z-S7-10, Z-S6-17)", () => {
+    const zagniezdzony = {
+      since: "2026-10-01T00:00:00Z",
+      until: "2026-11-01T00:00:00Z",
+      campaigns: {
+        sent: 10_100,
+        delivered: 10_000,
+        unique_opens: 4_000,
+        unique_clicks: 500,
+        hard_bounces: 50,
+        soft_bounces: 150,
+        complaints: 5,
+        unsubscribes: 30,
+      },
+      list: { start: 10_000, end: 9_980, new: 10, unsubscribed: 30, net_growth: "-20" },
+      doi: { started: 100, confirmed_7d: 70 },
+    };
+    expect(parseRevenueEmailHealth(zagniezdzony)).toEqual(parseRevenueEmailHealth(EMAIL));
+    // Brak grupy = brak liczb tej grupy, nie zero.
+    expect(parseRevenueEmailHealth({ campaigns: { delivered: 5 } })?.counts.list_base).toBeNull();
+  });
+
   it("parsery trzymają kontrakt: pola wyniku = klucze `*_KEYS`", () => {
     const s = parseRevenueSemanticSnapshot(SNAPSHOT_HUBA);
     expect(Object.keys(s?.money ?? {})).toEqual([...REVENUE_SNAPSHOT_KEYS.money]);

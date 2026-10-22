@@ -134,6 +134,8 @@ const h = vi.hoisted(() => ({
   removeGate: null as Promise<void> | null,
   toastSuccess: [] as string[],
   toastError: [] as string[],
+  /** Opcje toasta błędu (opis, akcja) - w kolejności `toastError`. */
+  toastErrorOptions: [] as unknown[],
 }));
 
 vi.mock("react-i18next", async () =>
@@ -147,7 +149,10 @@ vi.mock("@/hooks/useAuth", () => ({
 vi.mock("sonner", () => ({
   toast: {
     success: (message: string) => h.toastSuccess.push(message),
-    error: (message: string) => h.toastError.push(message),
+    error: (message: string, options?: unknown) => {
+      h.toastError.push(message);
+      h.toastErrorOptions.push(options);
+    },
   },
 }));
 vi.mock("@/components/error/FriendlyErrorPage", () => ({
@@ -221,6 +226,8 @@ const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const BLAD_LIMITU = "orgs: seats limit reached";
 const BLAD_DUPLIKATU = "orgs: seat exists";
 const BLAD_INNY = "orgs: not allowed";
+/** Odmowa wyzwalacza progu Zespół (20261020160300, 23514). */
+const BLAD_ZESPOLU = "orgs: team seats max";
 
 /** Wiersz organizacji z sensownymi wartościami domyślnymi. */
 function organizacja(patch: Partial<AtrapaOrganizacji> = {}): AtrapaOrganizacji {
@@ -341,6 +348,7 @@ beforeEach(() => {
   h.removeGate = null;
   h.toastSuccess = [];
   h.toastError = [];
+  h.toastErrorOptions = [];
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   oczekujacyDialog = null;
   odsubskrybuj = subscribeAppDialog((pending) => {
@@ -685,6 +693,22 @@ describe("zaproszenie - odpowiedź serwera", () => {
     await zamontuj();
     await zapros();
     await waitFor(() => expect(h.toastError).toEqual(["membership.organization.seatLimitReached"]));
+  });
+
+  it("LIMIT PROGU ZESPÓŁ (20 miejsc) dostaje własny komunikat z drogą do Enterprise (Z-I9b-09)", async () => {
+    // Odmowa wyzwalacza `orgs: team seats max` to nie „dokup miejsca" ani
+    // awaria - kolejne miejsca daje dopiero Enterprise, więc toast ma opis
+    // i akcję prowadzącą do cennika.
+    h.inviteResult = { ok: false, error: BLAD_ZESPOLU };
+    await zamontuj();
+    await zapros();
+    await waitFor(() =>
+      expect(h.toastError).toEqual(["membership.organization.teamSeatsMax(max=20)"]),
+    );
+    expect(h.toastErrorOptions[0]).toMatchObject({
+      description: "membership.organization.teamSeatsMaxHint",
+      action: { label: "membership.organization.teamSeatsMaxCta" },
+    });
   });
 
   it("DUPLIKAT miejsca z definera dostaje komunikat o istniejącym miejscu", async () => {

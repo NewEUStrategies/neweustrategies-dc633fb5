@@ -18,6 +18,8 @@ import {
 import { useServerFn } from "@tanstack/react-start";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { submitContactMessage } from "@/lib/contact.functions";
+import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -65,7 +67,6 @@ const T = {
     subject: "Temat",
     message: "Wiadomość",
     consent: "Wyrażam zgodę na przetwarzanie danych w celu odpowiedzi na zapytanie.",
-    newsletter: "Zapisz mnie do newslettera",
     required: "Pole wymagane",
     invalidEmail: "Niepoprawny adres e-mail",
     sending: "Wysyłanie...",
@@ -81,7 +82,6 @@ const T = {
     subject: "Subject",
     message: "Message",
     consent: "I agree to processing of my data to receive a reply.",
-    newsletter: "Subscribe me to the newsletter",
     required: "Required field",
     invalidEmail: "Invalid email address",
     sending: "Sending...",
@@ -143,7 +143,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const submitLabel = s(data, `submitLabel_${lang}`, lang === "pl" ? "Wyślij" : "Send");
   const successMsg = s(data, `successMsg_${lang}`, lang === "pl" ? "Wysłano!" : "Sent!");
   const iconUrl = s(data, "iconUrl");
-  const newsletterLabel = s(data, `newsletterLabel_${lang}`, t.newsletter);
+  // Pole „newsletter" (I9d-Y2): etykieta pusta albo domyślna (rejestr
+  // buildera kopiował ją do treści strony) = pełna treść zgody z pomiarem
+  // z jednego źródła; etykieta własna - bez zmian i bez wersji pomiaru.
+  const newsletterConsent = resolveNewsletterConsent(s(data, `newsletterLabel_${lang}`), lang);
 
   // Backward compat: legacy `showName` toggled both name parts together.
   const legacyShowName = data.showName === undefined ? null : bool(data, "showName", true);
@@ -300,7 +303,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       consents.push({ key: "rodo", text: consentTextRaw, given: rodoGiven, lang });
     }
     if (showNewsletter && newsletterGiven) {
-      consents.push({ key: "newsletter", text: newsletterLabel, given: true, lang });
+      consents.push(newsletterConsentPayload(newsletterConsent, lang));
     }
     const requiredMap: Record<string, boolean> = {
       firstName: showFirstName && requireFirstName,
@@ -758,7 +761,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 {showNewsletter && (
                   <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
                     <Checkbox name="newsletter_optin" className="shrink-0" />
-                    <span>{newsletterLabel}</span>
+                    <span>
+                      {newsletterConsent.isDefault ? (
+                        <NewsletterConsentText lang={lang} />
+                      ) : (
+                        newsletterConsent.text
+                      )}
+                    </span>
                   </label>
                 )}
               </div>

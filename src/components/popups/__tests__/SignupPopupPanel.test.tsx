@@ -105,8 +105,9 @@ describe("SignupPopupPanel", () => {
     expect(screen.getByLabelText("Hasło *")).toBeTruthy();
     expect(screen.getByLabelText("Powtórz hasło *")).toBeTruthy();
     expect(screen.getByLabelText("Twój e-mail *")).toBeTruthy();
-    // Newsletter zostaje opcjonalnym checkboxem.
-    expect(screen.getByText("Chcę otrzymywać newsletter")).toBeTruthy();
+    // Newsletter zostaje opcjonalnym checkboxem - z pełną treścią zgody
+    // (pomiar, osobne wyłączenie, wycofanie) zamiast samej etykiety (I9d-Y2).
+    expect(screen.getByText(/Wiadomości mogą zawierać elementy mierzące otwarcia/)).toBeTruthy();
   });
 
   it("bierze teksty z ustawień w wybranym języku", () => {

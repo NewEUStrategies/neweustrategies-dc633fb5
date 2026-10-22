@@ -47,7 +47,13 @@ export const adminClubsPl = {
         // awaria zapisu, tylko drugie zgłoszenie tej osoby.
         duplicate_open:
           "Ta osoba ma już inne otwarte zgłoszenie w tej specjalizacji. Zamknij tamto zgłoszenie, zanim cofniesz tę decyzję.",
+        // RODO (I9d-Y1): zgłoszenie zanonimizowane albo osoby bez konta.
+        application_anonymized:
+          "To zgłoszenie zostało zanonimizowane - decyzja nie ma adresata, więc nie można jej zapisać.",
       },
+      anonymized: "Zgłoszenie zanonimizowane",
+      anonymizedNote:
+        "Dane osoby usunięto (usunięcie konta albo okres przechowywania) - zostały klub, specjalizacja, status i daty.",
       crmNote:
         "Każde zgłoszenie aktualizuje kartę osoby w CRM (specjalizacja, warstwa członkostwa i data wniosku).",
       status: {
@@ -616,7 +622,13 @@ export const adminClubsEn = {
         // not a failed write but another application by the same person.
         duplicate_open:
           "This person already has another open application in this specialisation. Close that one before reverting this decision.",
+        // GDPR (I9d-Y1): anonymised application or a person without an account.
+        application_anonymized:
+          "This application has been anonymised - the decision has no recipient, so it cannot be saved.",
       },
+      anonymized: "Anonymised application",
+      anonymizedNote:
+        "The person's data was removed (account deletion or retention period) - the club, specialisation, status and dates remain.",
       crmNote:
         "Every application updates the person's CRM record (specialisation, membership tier and application date).",
       status: {

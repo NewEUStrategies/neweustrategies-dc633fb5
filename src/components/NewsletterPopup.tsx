@@ -12,6 +12,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { useAuth } from "@/hooks/useAuth";
 import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import "@/lib/i18n-signup-popup";
 import { X, Send } from "@/lib/lucide-shim";
@@ -80,6 +81,12 @@ function markDismissed() {
 
 export function NewsletterPopup() {
   const { data: s } = useNewsletterSettings();
+  // P17: zaproszenie do założenia konta nie ma sensu dla kogoś, kto konto ma
+  // i jest zalogowany. Bramka czyta wyłącznie USTALONĄ sesję - w trakcie
+  // rozruchu (sesja jeszcze nieznana) popup i tak czeka na swój wyzwalacz,
+  // a zmiana sesji przerywa oczekujące żądanie slotu (zależność efektu).
+  const { session } = useAuth();
+  const signedIn = session !== null;
   const { theme } = useTheme();
   const { i18n, t } = useTranslation();
 
@@ -128,6 +135,7 @@ export function NewsletterPopup() {
     // steruje wyłącznie formularzem newslettera. Jedyną bramką jest własny
     // przełącznik popupu w Admin -> Popupy.
     if (!s?.popup_enabled) return;
+    if (signedIn) return;
 
     if (
       loc.pathname.startsWith("/admin") ||
@@ -283,7 +291,7 @@ export function NewsletterPopup() {
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
     };
-  }, [s, loc.pathname, lang]);
+  }, [s, loc.pathname, lang, signedIn]);
 
   // `pickLocalized` zamiast recznego warunku: puste tlumaczenie (albo ciag
   // z samych spacji) siega po drugi jezyk, zamiast pokazac popup bez tytulu.

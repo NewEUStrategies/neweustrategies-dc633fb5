@@ -207,6 +207,9 @@ function SidebarTooltip({
 /** Klucz preferencji zwiniętych grup nawigacji panelu. */
 const NAV_COLLAPSED_KEY = "nes.admin.nav.collapsedGroups";
 
+/** Stała tożsamość „brak ról" - nowa tablica w każdym renderze psułaby `useMemo` mapy. */
+const NO_ROLES: readonly string[] = [];
+
 /** Czy w grupie znajduje się trasa, na której właśnie jesteśmy. */
 function groupContainsPath(group: AdminNavGroup, path: string): boolean {
   return group.items.some(
@@ -255,6 +258,7 @@ function AdminNavRow({
     <Link
       {...rest}
       to={item.to}
+      search={item.search}
       activeOptions={{ exact: true }}
       onClick={onNavigate}
       title={compact ? undefined : item.label}
@@ -307,7 +311,9 @@ function AdminShellInner({
   hideSidebar?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const { signOut, isAdmin, isSuperAdmin } = useAuth();
+  const { signOut, isAdmin, isSuperAdmin, roles: sessionRoles } = useAuth();
+  // Dokładne role sesji - widoczność huba „Przychód i lejek" (`adminNav`).
+  const roles = sessionRoles ?? NO_ROLES;
   // Licznik kolejek klubów (premoderacja + prośby o dostęp) na skrócie w menu.
   const clubCounts = useClubPendingCounts(isAdmin);
   const clubPending =
@@ -368,8 +374,8 @@ function AdminShellInner({
   });
 
   const groups = useMemo(
-    () => buildAdminNavGroups({ t, isAdmin, isSuperAdmin, clubPending }),
-    [t, isAdmin, isSuperAdmin, clubPending],
+    () => buildAdminNavGroups({ t, isAdmin, isSuperAdmin, clubPending, roles }),
+    [t, isAdmin, isSuperAdmin, clubPending, roles],
   );
 
   // DOKŁADNIE JEDNA pomarańczowa pozycja: wygrywa najdłuższe dopasowanie, więc
@@ -505,7 +511,9 @@ function AdminShellInner({
                         const first = results[0]?.item;
                         if (first && "to" in first) {
                           setQuery("");
-                          void navigate({ to: first.to });
+                          // `search` jedzie razem z celem: skrót ⌘K do podstrony
+                          // z `?tab=` ma wylądować tam samo, co klik w wynik.
+                          void navigate({ to: first.to, search: first.search });
                         }
                       }
                     }}

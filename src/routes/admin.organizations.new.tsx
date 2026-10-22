@@ -19,6 +19,14 @@ import {
 } from "@/components/ui/select";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import { createOrganization } from "@/lib/admin/membership-admin";
+import { ensureI18n as ensureAdminOrganizationsI18n } from "@/lib/i18n-admin-organizations";
+import {
+  TEAM_TIER_MAX_SEATS,
+  isTeamSeatsMaxError,
+  organizationTierOptions,
+  teamSeatLimitRejected,
+} from "@/lib/organizations/teamSeats";
+import { TeamSeatCapNotice } from "@/components/admin/organizations/TeamSeatCapNotice";
 
 export const Route = createFileRoute("/admin/organizations/new")({
   component: AdminOrganizationNewPage,
@@ -28,17 +36,17 @@ type Lang = "pl" | "en";
 const tr = (lang: Lang) => (pl: string, en: string) => (lang === "pl" ? pl : en);
 
 function AdminOrganizationNewPage() {
-  const { i18n } = useTranslation();
+  // Słownik organizacji (komunikaty reguły Zespołu) w chunku trasy, nie w entry.
+  ensureAdminOrganizationsI18n();
+  const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const L = tr(lang);
   const navigate = useNavigate();
 
   const tiersQ = useMembershipTiers();
   const tiers: MembershipTierRow[] = useMemo(() => tiersQ.data ?? [], [tiersQ.data]);
-  const tierOptions = useMemo<MembershipTierRow[]>(() => {
-    const high = tiers.filter((t) => t.rank >= 30);
-    return high.length > 0 ? high : tiers;
-  }, [tiers]);
+  // Progi organizacyjne (`corporate_seats` albo ranga >= 30) - z Zespołem (I9b).
+  const tierOptions = useMemo<MembershipTierRow[]>(() => organizationTierOptions(tiers), [tiers]);
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -52,8 +60,15 @@ function AdminOrganizationNewPage() {
   const [country, setCountry] = useState("");
   const [note, setNote] = useState("");
 
+  // Zespół 3-20 miejsc (cennik v6.2): powyżej 20 baza odrzuci zapis - formularz
+  // blokuje go wcześniej i mówi, że to Enterprise (odrzucenie, nie przycięcie).
+  const teamCapRejected = teamSeatLimitRejected({ tierKey, seatsLimit }, null);
   const canSubmit =
-    name.trim().length > 0 && tierKey.length > 0 && seatsLimit >= 1 && seatsLimit <= 500;
+    name.trim().length > 0 &&
+    tierKey.length > 0 &&
+    seatsLimit >= 1 &&
+    seatsLimit <= 500 &&
+    !teamCapRejected;
 
   const create = useMutation({
     mutationFn: () =>
@@ -74,7 +89,12 @@ function AdminOrganizationNewPage() {
       toast.success(L("Utworzono organizację", "Organization created"));
       void navigate({ to: "/admin/organizations/$id", params: { id: org.id } });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) =>
+      toast.error(
+        isTeamSeatsMaxError(err.message)
+          ? t("adminOrganizations.teamCap.rejected", { max: TEAM_TIER_MAX_SEATS })
+          : err.message,
+      ),
   });
 
   return (
@@ -211,6 +231,23 @@ function AdminOrganizationNewPage() {
                 onChange={(e) =>
                   setSeatsLimit(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
                 }
+                error={
+                  teamCapRejected
+                    ? t("adminOrganizations.teamCap.aboveMax", {
+                        max: TEAM_TIER_MAX_SEATS,
+                        requested: seatsLimit,
+                      })
+                    : null
+                }
+              />
+              {/* Odmowę niesie pole (`error` = alert powiązany z polem); notka
+                  dokłada ostrzeżenie o minimum v6.2. */}
+              <TeamSeatCapNotice
+                tierKey={tierKey}
+                requestedSeats={seatsLimit}
+                base={null}
+                activeSeats={null}
+                showRejection={false}
               />
               <div className="rounded-md border border-dashed border-border/70 bg-muted/30 p-3 text-[11px] text-muted-foreground">
                 <Building2 className="mb-1 h-3.5 w-3.5" aria-hidden="true" />

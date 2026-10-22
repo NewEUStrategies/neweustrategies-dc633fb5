@@ -2,7 +2,13 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const h = vi.hoisted(() => ({ lang: "pl", rpc: vi.fn() }));
+const h = vi.hoisted(() => ({
+  lang: "pl",
+  rpc: vi.fn(),
+  // (I9) Sesja bramki banera „przeniesione do huba"; domyślnie bez roli huba.
+  auth: { roles: [] as string[], tenantId: null as string | null },
+}));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: h.lang } }),
   initReactI18next: { type: "3rdParty", init() {} },
@@ -45,6 +51,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-09-06T12:00:00Z"));
   h.lang = "pl";
+  h.auth = { roles: [], tenantId: null };
   db.reset();
   db.setResponse(
     "access_plans",
@@ -73,6 +80,26 @@ function mount() {
     </QueryClientProvider>,
   );
 }
+
+describe("przeniesione do huba (I9, SPEC §2.7, D-09)", () => {
+  it("rola huba z najemcą widzi baner z odnośnikiem do kokpitu huba", async () => {
+    h.auth = { roles: ["admin"], tenantId: "tenant-1" };
+    mount();
+    await screen.findByText("123");
+    const hint = screen.getByTestId("revenue-hub-hint");
+    expect(hint).toHaveTextContent("adminRevenue.moduleLinks.monetization.movedHint");
+    expect(
+      screen.getByRole("link", { name: "adminRevenue.moduleLinks.monetization.movedAction" }),
+    ).toHaveAttribute("href", "/admin/revenue");
+  });
+
+  it("bez roli huba (sam super_admin) - bez banera, pulpit działa jak dotąd", async () => {
+    h.auth = { roles: ["super_admin"], tenantId: "tenant-1" };
+    mount();
+    await screen.findByText("123");
+    expect(screen.queryByTestId("revenue-hub-hint")).toBeNull();
+  });
+});
 
 describe("monetization read contract and truthful status", () => {
   it.each(["pl", "en"])("renders confirmed metrics and checkout flags in %s", async (lang) => {
@@ -210,5 +237,33 @@ describe("monetization read contract and truthful status", () => {
     mount();
     await screen.findByText("Inne");
     expect(screen.queryByText(/\(\d+%\)/)).toBeNull();
+  });
+  it("I9d-Y1: okno przed granicą `aggregate_before` dostaje notkę agregatu dobowego", async () => {
+    // Odczyty licznika żyją krócej (domyślnie 3 mies.) - dni sprzed granicy
+    // liczy anonimowy agregat; bez notki spadek „kont" wyglądałby na zjawisko.
+    h.rpc.mockResolvedValue(ok({ ...dashboard, aggregate_before: "2026-08-15" }));
+    mount();
+    await screen.findByText("123");
+    expect(screen.getByText("adminDataRetention.aggregateNote.short")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "adminDataRetention.aggregateNote.label" }),
+    ).toBeTruthy();
+    // Okno od granicy: całe z surowych wierszy - notki nie ma.
+    fireEvent.change(screen.getByLabelText("Od"), { target: { value: "2026-08-15" } });
+    await waitFor(() =>
+      expect(h.rpc).toHaveBeenLastCalledWith(
+        "monetization_dashboard",
+        expect.objectContaining({
+          _from: "2026-08-15T00:00:00.000Z",
+        }),
+      ),
+    );
+    await screen.findByText("123");
+    expect(screen.queryByText("adminDataRetention.aggregateNote.short")).toBeNull();
+  });
+  it("I9d-Y1: baza sprzed migracji (bez `aggregate_before`) - bez notki", async () => {
+    mount();
+    await screen.findByText("123");
+    expect(screen.queryByText("adminDataRetention.aggregateNote.short")).toBeNull();
   });
 });

@@ -24,6 +24,11 @@ import {
   runEventReminders,
 } from "@/lib/notifications/dispatch.server";
 import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
+import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
+import { isNewsletterSunsetMailWindow } from "@/lib/privacy/newsletterSunset";
+import type { NewsletterSunsetMailResult } from "@/lib/privacy/newsletterSunsetMail.server";
+import { isNewsletterMeasurementMailWindow } from "@/lib/privacy/measurementReconfirm";
+import type { NewsletterMeasurementMailResult } from "@/lib/privacy/measurementReconfirmMail.server";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
@@ -31,6 +36,13 @@ import type { WebhookSweepResult } from "@/lib/billing/webhookReplay.server";
 import type { WalletRevocationsResult } from "@/lib/events/wallet/walletRevocationJob.server";
 
 type DbClient = SupabaseClient<Database>;
+
+/**
+ * Liczniki runnera ścieżek - typ przez `import()` w pozycji typu, nie górnym
+ * `import type`: moduł runnera wchodzi do ticku WYŁĄCZNIE leniwie, a test
+ * granicy (`-jobs-tick.test.ts`) czyta górne importy tego pliku tekstowo.
+ */
+type JourneysTickCounts = import("@/lib/server/journeysRunner.server").JourneysTickCounts;
 
 export interface JobsTickResult {
   newsletter: { fired: number; continued: number; sent: number } | { error: string };
@@ -51,6 +63,15 @@ export interface JobsTickResult {
   eventParticipantReminders: ParticipantJobResult | { error: string };
   eventTicketLifecycle: ParticipantJobResult | { error: string };
   eventFollowUp: ParticipantJobResult | { error: string };
+  /**
+   * Silnik ścieżek komunikacji (S5, SPEC §4.6, Z-S5-03): skrzynka zdarzeń ->
+   * zapisy -> kroki -> maile ścieżek. Co tick, PO zadaniach uczestnika
+   * i PRZED drenem poczty - maile ścieżki wychodzą w tym samym ticku.
+   * `skipped: "kill_switch"` = awaryjny wyłącznik `JOURNEYS_ENGINE_DISABLED=1`
+   * (decyzja operatora, nie awaria - panel zdrowia harmonogramu pokazuje go
+   * osobno); `skipped: "migration_pending"` = baza bez migracji silnika.
+   */
+  journeys: JourneysTickCounts | { skipped: "kill_switch" } | { error: string };
   /**
    * `skipped: "vapid_not_configured"` zamiast cichego zera: brak kluczy VAPID
    * wygląda w logu identycznie jak pusta kolejka, a to najczęstsza przyczyna
@@ -84,6 +105,27 @@ export interface JobsTickResult {
    * zapas) chroni joby po niej i zapis przebiegu przed zerwanym połączeniem.
    */
   webhookSweep: WebhookSweepResult | { error: string };
+  /**
+   * Skaner cyklu życia przychodu (S2, SPEC §4.6): koniec okresu próbnego
+   * (T-3 dni), wygaśnięcia z powodem, windykacja przegrana po 30 dniach
+   * i dzienna migawka MRR. Co 5 minut; idempotencję trzymają znaczniki
+   * `revenue_event_marks` w bazie. `skipped: "migration_pending"` = baza bez
+   * migracji 20261020110500.
+   */
+  revenueLifecycle:
+    | {
+        trialEnding: number;
+        expired: number;
+        dunningLost: number;
+        snapshots: number;
+        skipped?: "migration_pending";
+      }
+    | { error: string };
+  /**
+   * Skaner przepływu anulowania (S2): przepływ `started` starszy niż 24 h ->
+   * `abandoned`. Co 5 minut, razem ze skanerem cyklu życia.
+   */
+  retentionFlow: { abandoned: number; skipped?: "migration_pending" } | { error: string };
   /**
    * Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14):
    * anulowanie, zwrot, nowy kod, odwołane wydarzenie. Zgłasza je baza
@@ -141,6 +183,50 @@ export interface JobsTickResult {
         hotness_refreshed: number;
       }
     | { error: string };
+  /**
+   * Wygaszanie nieaktywnych subskrybentów newslettera (I9d-Y1, Z-I9c-08):
+   * prośby o potwierdzenie subskrypcji w oknie dziennym (08-17 czasu
+   * polskiego, minuta 9 co 10 minut - `isNewsletterSunsetMailWindow`).
+   * Cykle zakłada nocny przebieg retencji; dzienny limit na najemcę
+   * (reputacja domeny) trzyma baza przy zajęciu porcji. `deferred` = porcja
+   * nieobsłużona przed terminem kroku (wraca po dzierżawie 15 min);
+   * `skipped: "migration_pending"` = baza bez migracji 20261020162000.
+   */
+  newsletterSunset: NewsletterSunsetMailResult | { error: string };
+  /**
+   * Prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2, „Poproś o zgodę na
+   * pomiar" z panelu newslettera): okno dzienne 08-17 czasu polskiego,
+   * minuta 4 co 10 minut (`isNewsletterMeasurementMailWindow`) - nigdy
+   * w ticku próśb wygaszania; dzienny limit najemcy WSPÓLNY z prośbami
+   * wygaszania trzyma baza przy zajęciu; `skipped: "migration_pending"` =
+   * baza bez 20261020162500.
+   */
+  newsletterMeasurement: NewsletterMeasurementMailResult | { error: string };
+  /**
+   * Dzienny rollup statystyk ścieżek (`journey_rollup_daily`: 7 dni wstecz,
+   * dni zapieczętowane retencją nietykalne). Co godzinę, w minucie
+   * `JOURNEYS_ROLLUP_MINUTE` (wolny pas - poza wielokrotnościami 5 i oknami
+   * próśb newslettera). `rows` = wiersze upsertu.
+   */
+  journeysRollup: { rows: number; skipped?: "migration_pending" } | { error: string };
+  /**
+   * Sprzątanie skrzynki zdarzeń ścieżek (`journey_purge`, 30 dni - rejestr
+   * czynności i karta „Retencja danych"): raz na dobę o 03:11 UTC.
+   * `inbox`/`errors` = usunięte wiersze skrzynki i dziennika błędów silnika.
+   */
+  journeysPurge:
+    { inbox: number; errors: number; skipped?: "migration_pending" } | { error: string };
+  /**
+   * Retencja danych (I9c-X2, Z-I9b-10): jedno zadanie dzienne w oknie nocnym
+   * (`isDataRetentionWindow`) - `data_retention_run` przechodzi najemców bez
+   * przebiegu z 20 h, każda kategoria osobno (podgląd do `enforce_after`).
+   * `more: true` = budżet czasu wyczerpany, reszta w kolejnym wywołaniu okna;
+   * `skipped: "migration_pending"` = baza bez migracji 20261020161100.
+   * Stan każdej kategorii pokazuje karta „Retencja danych" w
+   * /admin/settings/privacy (dziennik `data_retention_runs`).
+   */
+  dataRetention:
+    { tenants: number; more: boolean; skipped?: "migration_pending" } | { error: string };
 }
 
 /** Kto wywołał tick - ląduje w logu przebiegów (public.job_runner_runs). */
@@ -233,6 +319,16 @@ const WEBHOOK_SWEEP_TAIL_RESERVE_MS = 2_000;
  */
 const WALLET_REVOCATIONS_DEADLINE_MS = 22_000;
 
+/**
+ * Okno kroku wygaszania newslettera, liczone od JEGO startu (ms). Prośba to
+ * render maila i kilka zapytań, więc 4 s mieści sensowną porcję, a reszta
+ * wraca po dzierżawie bazy - krok stoi za jobami sieciowymi i nie może zjeść
+ * zapasu na zapis przebiegu (termin przycięty jak u zamiatarki płatności).
+ * Ten sam termin ma krok próśb o zgodę na pomiar (I9d-Y2) - mail tej samej
+ * wagi, inna minuta okna.
+ */
+const NEWSLETTER_SUNSET_WINDOW_MS = 4_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -256,6 +352,82 @@ async function runJobStep<T>(
  */
 export function everyNthMinute(n: number, now = new Date()): boolean {
   return now.getUTCMinutes() % n === 0;
+}
+
+/**
+ * Okno nocne retencji danych: 02:07-02:57 UTC co 10 minut (sześć szans na
+ * dobę). Jedna minuta wypadająca z ticku (awaria, budżet) nie przesuwa
+ * zadania o dobę, a baza i tak przyjmuje najemcę tylko raz na 20 h (albo
+ * ponownie przy zaległości). Minuta 7 omija pełne godziny i dziesiątki, na
+ * których stoją inne zadania; godzina 2 UTC - przed czyszczeniami pg_cron
+ * (03:20-03:53 UTC), które nie dotykają tych samych tabel.
+ */
+export function isDataRetentionWindow(now = new Date()): boolean {
+  return now.getUTCHours() === 2 && now.getUTCMinutes() % 10 === 7;
+}
+
+/**
+ * Minuta rollupu statystyk ścieżek (co godzinę). 13 to wolny pas: nie jest
+ * wielokrotnością 5 (digesty, zamiatarka, indeksy, kluby, skanery S2 - tłok
+ * w minucie 0, gdy otwierają się wszystkie bramki) ani minutą okien próśb
+ * newslettera (4 i 9 co 10 minut) czy retencji (7 co 10 minut o 2 UTC).
+ * Rollup liczy 7 dni po wszystkich najemcach - w tłocznej minucie wypierałby
+ * wysyłki z budżetu ticku albo sam wypadał z niego co godzinę.
+ */
+export const JOURNEYS_ROLLUP_MINUTE = 13;
+
+export function isJourneysRollupMinute(now = new Date()): boolean {
+  return now.getUTCMinutes() === JOURNEYS_ROLLUP_MINUTE;
+}
+
+/**
+ * Sprzątanie skrzynki zdarzeń ścieżek: RAZ na dobę, 03:11 UTC - po nocnej
+ * retencji (02:07-02:57) i przed czyszczeniami pg_cron (03:20-03:53), które
+ * nie dotykają tych tabel. Jedna minuta, nie okno jak przy retencji:
+ * `journey_purge` nie ma znacznika „już dziś", więc sześć szans na dobę to
+ * sześć przebiegów DELETE. Tick pominięty o 03:11 przesuwa sprzątanie
+ * o dobę - wiersze żyją wtedy 31, nie 30 dni (runbook: znana granica).
+ */
+export const JOURNEYS_PURGE_AT_UTC = { hour: 3, minute: 11 } as const;
+
+export function isJourneysPurgeMinute(now = new Date()): boolean {
+  return (
+    now.getUTCHours() === JOURNEYS_PURGE_AT_UTC.hour &&
+    now.getUTCMinutes() === JOURNEYS_PURGE_AT_UTC.minute
+  );
+}
+
+/**
+ * Okres skrzynki zdarzeń ścieżek przekazywany do `journey_purge`. Ten sam
+ * literał stoi w karcie „Retencja danych" (`DATA_RETENTION_EXISTING`,
+ * pozycja `journey_inbox`) i w rejestrze czynności - test dyspozytora
+ * pilnuje zgodności, żeby karta nie obiecywała innego okresu niż tick.
+ */
+export const JOURNEY_INBOX_RETENTION = "30 days";
+
+/** Licznik z `jsonb` RPC: PostgREST potrafi oddać `numeric` jako napis. */
+function sqlCount(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sqlRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Błąd RPC kroku czysto bazowego: brak funkcji (okno wdrożenia „kod przed
+ * migracją", migracje produkcji idą osobno) = zaplanowane
+ * `migration_pending`; każdy inny błąd rzuca, a `runJobStep` zamienia go na
+ * `{ error }` - awarię w logu przebiegów.
+ */
+async function migrationPendingOrThrow(error: unknown): Promise<boolean> {
+  if (!error) return false;
+  const { isMigrationPending } = await import("@/lib/supabase/migrationPending");
+  if (isMigrationPending(error)) return true;
+  throw error;
 }
 
 export async function runJobsTick(
@@ -286,6 +458,27 @@ export async function runJobsTick(
   const eventFollowUp = await runJobStep(overBudget, async () => {
     const { runEventFollowUp } = await import("@/lib/events/jobs/followUpJob.server");
     return runEventFollowUp(admin, { deadlineAt: participantDeadlineAt });
+  });
+  // Silnik ścieżek (S5, SPEC §4.6, Z-S5-03): PO zadaniach uczestnika i PRZED
+  // drenem poczty - maile, które runner zakolejkuje, dren wyśle w tym samym
+  // ticku. Termin 3 s liczony od startu kroku (`JOURNEYS_DEADLINE_MS`):
+  // zadania uczestnika mogą zjeść swoje 6 s, a dren i tak dostaje minimum
+  // 4 s od teraz. Termin blokuje START nowej pracy - zapisy pod dzierżawą
+  // wracają w następnym ticku. Moduł leniwie (render maili, podpisy, reputacja).
+  const journeys = await runJobStep(overBudget, async () => {
+    const { runJourneysTick, JOURNEYS_DEADLINE_MS } =
+      await import("@/lib/server/journeysRunner.server");
+    const outcome = await runJourneysTick(admin, {
+      deadlineAt: Date.now() + JOURNEYS_DEADLINE_MS,
+      ingestLimit: 200,
+      claimLimit: 50,
+    });
+    // Wyłącznik awaryjny to decyzja operatora w incydencie, nie awaria: jako
+    // `{ error }` zapalałby `ok:false` i serię porażek co minutę, a operator
+    // uczyłby się ignorować alarm. Stan wyłącznika pokazuje panel zdrowia.
+    return "error" in outcome && outcome.error === "disabled"
+      ? { skipped: "kill_switch" as const }
+      : outcome;
   });
   // Poczta 1:1 (autoryzacja, transakcyjne, digesty) idzie zaraz po kampaniach
   // i zadaniach uczestnika: link do logowania i ostrzeżenie o nieudanej
@@ -346,6 +539,39 @@ export async function runJobsTick(
             startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
           ),
         });
+      })
+    : skipped;
+
+  // Skanery S2 (SPEC §4.6, K-06): czysto bazowe, literałem RPC, co 5 minut.
+  // SPEC: „po drenie" - stoją tuż za wysyłkami 1:1 i zamiatarką płatności,
+  // a PRZED jobami kosztownymi sieciowo, nie na końcu ticku: w minutach
+  // 0/15/30/45 sieć potrafi wyczerpać budżet i skaner na końcu byłby
+  // chronicznie pomijany, a koniec okresu próbnego (T-3 dni) ma termin dla
+  // klienta. Idempotencję trzymają znaczniki `revenue_event_marks`.
+  const revenueScannersDue = everyNthMinute(5, tickTime);
+  const revenueLifecycle = revenueScannersDue
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("run_revenue_lifecycle_scanner");
+        const zero = { trialEnding: 0, expired: 0, dunningLost: 0, snapshots: 0 };
+        if (await migrationPendingOrThrow(error)) {
+          return { ...zero, skipped: "migration_pending" as const };
+        }
+        const row = sqlRecord(data);
+        return {
+          trialEnding: sqlCount(row.trial_ending),
+          expired: sqlCount(row.expired),
+          dunningLost: sqlCount(row.dunning_lost),
+          snapshots: sqlCount(row.snapshots),
+        };
+      })
+    : skipped;
+  const retentionFlow = revenueScannersDue
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("run_retention_flow_scanner");
+        if (await migrationPendingOrThrow(error)) {
+          return { abandoned: 0, skipped: "migration_pending" as const };
+        }
+        return { abandoned: sqlCount(sqlRecord(data).abandoned) };
       })
     : skipped;
 
@@ -422,11 +648,95 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Wygaszanie newslettera (I9d-Y1): prośby o potwierdzenie subskrypcji
+  // w oknie dziennym. Poczta masowa o najniższym priorytecie - ZA wysyłkami
+  // 1:1 i jobami sieciowymi; wiadomości wychodzą drenem w następnym ticku.
+  // Moduł ładowany leniwie (render React Email, podpis linku).
+  const newsletterSunset = isNewsletterSunsetMailWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { runNewsletterSunsetMail } =
+          await import("@/lib/privacy/newsletterSunsetMail.server");
+        return runNewsletterSunsetMail(admin, {
+          deadlineAt: Math.min(
+            Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
+          ),
+        });
+      })
+    : skipped;
+
+  // Prośby o zgodę na pomiar (I9d-Y2): ta sama klasa poczty co wygaszanie
+  // (masowa, najniższy priorytet, za jobami sieciowymi) i ten sam termin
+  // kroku - inna minuta okna, więc oba kroki nigdy nie dzielą jednego ticku,
+  // a wspólny dzienny limit najemcy pilnuje baza. Moduł ładowany leniwie.
+  const newsletterMeasurement = isNewsletterMeasurementMailWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { runNewsletterMeasurementMail } =
+          await import("@/lib/privacy/measurementReconfirmMail.server");
+        return runNewsletterMeasurementMail(admin, {
+          deadlineAt: Math.min(
+            Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
+          ),
+        });
+      })
+    : skipped;
+
+  // Rollup statystyk ścieżek: co godzinę w wolnej minucie, czysto bazowy -
+  // za wszystkim, co ma termin dla czytelnika. Ten sam `_journey_rollup_days`
+  // woła pieczęć retencji, więc dni zapieczętowane zostają nietykalne.
+  const journeysRollup = isJourneysRollupMinute(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("journey_rollup_daily");
+        if (await migrationPendingOrThrow(error)) {
+          return { rows: 0, skipped: "migration_pending" as const };
+        }
+        return { rows: sqlCount(data) };
+      })
+    : skipped;
+  // Sprzątanie skrzynki zdarzeń ścieżek: raz na dobę (03:11 UTC), okres
+  // z karty retencji i rejestru czynności (baza nie schodzi poniżej 7 dni).
+  const journeysPurge = isJourneysPurgeMinute(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("journey_purge", {
+          p_older_than: JOURNEY_INBOX_RETENTION,
+        });
+        if (await migrationPendingOrThrow(error)) {
+          return { inbox: 0, errors: 0, skipped: "migration_pending" as const };
+        }
+        const row = sqlRecord(data);
+        return { inbox: sqlCount(row.inbox), errors: sqlCount(row.errors) };
+      })
+    : skipped;
+
+  // Retencja danych: OSTATNIA - czysto bazowa, raz na dobę, z własnym budżetem
+  // czasu w SQL (8 s); stoi za wszystkim, co ma termin dla czytelnika.
+  const dataRetention = isDataRetentionWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("data_retention_run", {
+          p_limit: DATA_RETENTION_RULES.batchDefault,
+        });
+        if (error) {
+          const { isMigrationPending } = await import("@/lib/supabase/migrationPending");
+          if (isMigrationPending(error)) {
+            return { tenants: 0, more: false, skipped: "migration_pending" as const };
+          }
+          throw error;
+        }
+        const row = (data ?? {}) as Record<string, unknown>;
+        return {
+          tenants: typeof row.tenants === "number" ? row.tenants : Number(row.tenants ?? 0),
+          more: row.more === true,
+        };
+      })
+    : skipped;
+
   const result: JobsTickResult = {
     newsletter,
     eventParticipantReminders,
     eventTicketLifecycle,
     eventFollowUp,
+    journeys,
     emailQueue,
     push,
     digestDaily,
@@ -436,6 +746,8 @@ export async function runJobsTick(
     eventTicketCodes,
     eventTicketRevocations,
     webhookSweep,
+    revenueLifecycle,
+    retentionFlow,
     walletPassRevocations,
     linkCheck,
     integrations,
@@ -443,6 +755,11 @@ export async function runJobsTick(
     profileIndex,
     clubThreadIndex,
     clubScheduler,
+    newsletterSunset,
+    newsletterMeasurement,
+    journeysRollup,
+    journeysPurge,
+    dataRetention,
   };
 
   // Heartbeat: KAŻDY tick (cron bazy, scheduler repo, ręczny z panelu) zostawia

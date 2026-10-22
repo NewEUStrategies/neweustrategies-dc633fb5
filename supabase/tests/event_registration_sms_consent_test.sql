@@ -252,8 +252,13 @@ SELECT ok((
     FROM (SELECT public.event_registration_preferences(
             jsonb_build_object('manage_token', rpad('smsc-t2', 32, 'x'))) AS v) x),
   'preferencje (klucz): komplet przelacznikow, zgoda, flagi organizatora, phone_hint = 3 ostatnie cyfry');
+-- Szukamy fragmentu NUMERU (601 222, z separatorem do 3 znaków albo bez), a
+-- nie pojedynczych trójek cyfr: JSON preferencji niesie znaczniki czasu i
+-- identyfikatory, w których „601” albo „222” pojawia się przypadkowo
+-- (czerwony pgtap PR #530 przy niezmienionej funkcji).
 SELECT ok((
-  SELECT NOT (v ? 'phone') AND v::text NOT LIKE '%601%' AND v::text NOT LIKE '%222%'
+  SELECT NOT (v ? 'phone')
+         AND v::text !~ '601[^0-9]{0,3}222'
     FROM (SELECT public.event_registration_preferences(
             jsonb_build_object('manage_token', rpad('smsc-t2', 32, 'x'))) AS v) x),
   'preferencje: numer nie wychodzi - ani klucz phone, ani cyfry poza podpowiedzia');

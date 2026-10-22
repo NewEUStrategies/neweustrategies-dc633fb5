@@ -1,8 +1,14 @@
 import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { ensureI18n } from "@/lib/i18n-admin-monetization";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
+import { RevenueHubHint } from "@/components/admin/revenue/molecules/RevenueHubHint";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
+//
+// PRZENIESIONE DO HUBA (I9, SPEC §2.7, D-09): baner pod nagłówkiem prowadzi do
+// kokpitu huba „Przychód i lejek" (rola huba). Przekierowanie tej trasy to
+// osobna decyzja właściciela - warunek „14 dni bez rozjazdu `reconcileAll`".
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +23,7 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { retentionFeedbackWindowQueryOptions } from "@/components/admin/pricing/retentionFeedbackWindow";
+import { RetentionAggregateNote } from "@/components/admin/settings/dataRetention/RetentionAggregateNote";
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
@@ -43,6 +50,12 @@ export const Route = createFileRoute("/admin/monetization")({
 
 interface DashboardShape {
   range: { from: string; to: string };
+  /**
+   * (I9d-Y1) Pierwszy dzień liczony z surowych wierszy - dni wcześniejsze
+   * pochodzą z anonimowego agregatu dobowego (retencja odczytów licznika
+   * i dziennika licznika). Brak klucza = baza sprzed migracji 20261020161700.
+   */
+  aggregate_before?: string | null;
   metered_views: { total: number; members: number; anonymous: number };
   metering_events: { consumed: number; denied: number; reg_wall: number };
   orders: { total: number; paid: number; revenue_cents: number };
@@ -55,6 +68,7 @@ const ALL = "__all__";
 
 function AdminMonetizationPage() {
   ensureI18n();
+  ensureRevenueLinksI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
@@ -134,6 +148,12 @@ function AdminMonetizationPage() {
           )}
         </p>
       </header>
+
+      <RevenueHubHint
+        tab="overview"
+        hint={t("adminRevenue.moduleLinks.monetization.movedHint")}
+        action={t("adminRevenue.moduleLinks.monetization.movedAction")}
+      />
 
       <Card>
         <CardContent className="pt-4">
@@ -247,6 +267,8 @@ function AdminMonetizationPage() {
               )}
             />
           </div>
+          {/* Okno sięgające przed granicę retencji: skąd liczby starszych dni. */}
+          <RetentionAggregateNote before={dashQ.data.aggregate_before ?? null} from={from} />
 
           <Card>
             <CardHeader>

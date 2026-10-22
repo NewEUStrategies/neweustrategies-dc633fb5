@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import type { PricingAudienceRow } from "@/lib/pricing/queries";
 import { audienceName } from "@/lib/pricing/selectors";
 import { audienceIcon, audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
 
 export function AudienceSwitcher({
   audiences,
@@ -21,6 +23,18 @@ export function AudienceSwitcher({
   label: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  // P18: wybór segmentu to sygnał lejka cennika (kto ogląda ofertę dla firm,
+  // a kto dla siebie) - mierzony wyłącznie przy zgodzie analitycznej.
+  const select = (key: string) => {
+    if (key !== value && hasAnalyticsConsent()) {
+      track({
+        type: "interaction",
+        name: "pricing_audience_change",
+        meta: { audience: key, from: value },
+      });
+    }
+    onChange(key);
+  };
 
   const focusTab = (key: string) => {
     const el = listRef.current?.querySelector<HTMLButtonElement>(`#${audienceTabId(key)}`);
@@ -43,7 +57,7 @@ export function AudienceSwitcher({
     }
     if (next === null) return;
     event.preventDefault();
-    onChange(keys[next]);
+    select(keys[next]);
     focusTab(keys[next]);
   };
 
@@ -68,7 +82,7 @@ export function AudienceSwitcher({
               aria-selected={active}
               aria-controls={audiencePanelId(audience.key)}
               tabIndex={active ? 0 : -1}
-              onClick={() => onChange(audience.key)}
+              onClick={() => select(audience.key)}
               className={cn(
                 "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all sm:rounded-full",
                 active

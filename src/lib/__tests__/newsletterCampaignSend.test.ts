@@ -682,3 +682,116 @@ describe("kreator treści (editor=doc)", () => {
     });
   });
 });
+
+describe("pomiar otwarć i kliknięć tylko za zgodą (I9d-Y2)", () => {
+  const SUB_A = "a1a1a1a1-0000-4000-8000-000000000001";
+  const SUB_B = "b2b2b2b2-0000-4000-8000-000000000002";
+
+  beforeEach(() => {
+    plan.claimed = campaign({
+      html_pl: '<p>Czytaj <a href="https://nes.example/raport">raport</a></p>',
+    });
+    plan.audience = [
+      subscriber({ id: SUB_A, email: "Zgoda@Example.test", unsubscribe_token: "unsub-a" }),
+      subscriber({ id: SUB_B, email: "bez-zgody@example.test", unsubscribe_token: "unsub-b" }),
+    ];
+    // Baza: zgoda na pomiar i przełącznik najemcy tylko dla pierwszego adresu.
+    h.rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) =>
+      fn === "email_measurement_status"
+        ? {
+            data: (args.p_emails as string[]).map((email) => ({
+              email,
+              consent: email === "zgoda@example.test",
+              measured: email === "zgoda@example.test",
+            })),
+            error: null,
+          }
+        : { data: null, error: null },
+    );
+  });
+
+  function sentTo(email: string): { html: string } {
+    const call = h.sendEmail.mock.calls.find((c) => c[0]?.to === email);
+    expect(call, email).toBeTruthy();
+    return call?.[0] as { html: string };
+  }
+
+  it("stan pomiaru czyta baza RAZ na porcję, dla najemcy kampanii, adresy znormalizowane", async () => {
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const calls = h.rpc.mock.calls.filter((c) => c[0] === "email_measurement_status");
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual({
+      p_tenant: TENANT,
+      p_emails: ["zgoda@example.test", "bez-zgody@example.test"],
+    });
+  });
+
+  it("odbiorca ze zgodą: piksel i linki przez przekierowanie z tokenem", async () => {
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const { html } = sentTo("Zgoda@Example.test");
+    expect(html).toContain("/api/public/nl-open?c=");
+    expect(html).toContain("/api/public/nl-click?c=");
+    expect(html).not.toContain('href="https://nes.example/raport"');
+  });
+
+  it("odbiorca bez zgody: bez piksela, link wprost do celu, bez identyfikatora odbiorcy", async () => {
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const { html } = sentTo("bez-zgody@example.test");
+    expect(html).not.toContain("nl-open");
+    expect(html).not.toContain("nl-click");
+    expect(html).toContain('href="https://nes.example/raport"');
+    expect(html).not.toContain(SUB_B);
+  });
+
+  it('KAŻDY mail ma link „Nie mierz moich otwarć i kliknięć" z tokenem subskrybenta', async () => {
+    const { verifyMeasurementToken } = await import("@/lib/privacy/measurementToken.server");
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    for (const [email, id] of [
+      ["Zgoda@Example.test", SUB_A],
+      ["bez-zgody@example.test", SUB_B],
+    ] as const) {
+      const { html } = sentTo(email);
+      expect(html).toContain("Nie mierz moich otwarć i kliknięć</a>");
+      const href = /href="(https:\/\/example\.test\/api\/public\/newsletter\/measurement[^"]+)"/
+        .exec(html)?.[1]
+        ?.replace(/&amp;/g, "&");
+      const url = new URL(href as string);
+      expect(url.searchParams.get("lang")).toBe("pl");
+      expect(verifyMeasurementToken(url.searchParams.get("token"))).toEqual({
+        ok: true,
+        action: "withdraw",
+        subject: { kind: "subscriber", subscriberId: id },
+      });
+    }
+  });
+
+  it("log odbiorców zapisuje, czy mail był mierzony (mianownik wskaźników)", async () => {
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const sent = logsWithStatus("sent");
+    expect(sent.find((r) => r.subscriber_id === SUB_A)).toMatchObject({ measured: true });
+    expect(sent.find((r) => r.subscriber_id === SUB_B)).toMatchObject({ measured: false });
+  });
+
+  it("błąd odczytu zgody = wysyłka BEZ pomiaru (nigdy pomiar bez potwierdzonej zgody)", async () => {
+    h.rpc.mockImplementation(async (fn: string) =>
+      fn === "email_measurement_status"
+        ? { data: null, error: { message: "boom", code: "XX000" } }
+        : { data: null, error: null },
+    );
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    expect(h.sendEmail).toHaveBeenCalledTimes(2);
+    for (const call of h.sendEmail.mock.calls) {
+      expect(call[0].html).not.toContain("nl-open");
+      expect(call[0].html).not.toContain("nl-click");
+    }
+    spy.mockRestore();
+  });
+});

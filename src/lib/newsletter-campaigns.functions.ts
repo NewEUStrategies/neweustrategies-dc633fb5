@@ -1429,6 +1429,21 @@ async function runCampaignSend(
       couponPool = pool;
     }
 
+    // POMIAR TYLKO ZA ZGODĄ (I9d-Y2, EDPB 2/2023): piksel i linki z tokenem
+    // odbiorcy wyłącznie dla adresów ze zgodą na pomiar przy włączonym
+    // wspólnym przełączniku najemcy (Z-I9c-09) - stan liczy baza w chwili
+    // wysyłki porcji. Pozostali dostają mail jak wysyłka testowa: bez
+    // piksela, linki wprost do celu (bez identyfikatora odbiorcy).
+    const [{ fetchMeasuredEmails }, { measurementOptOutUrl }] = await Promise.all([
+      import("@/lib/privacy/measurementStatus.server"),
+      import("@/lib/privacy/measurementToken.server"),
+    ]);
+    const measuredEmails = await fetchMeasuredEmails(
+      admin,
+      tenantId,
+      pending.map((sub) => sub.email),
+    );
+
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
       const chunk = pending.slice(i, i + BATCH_SIZE);
       await Promise.all(
@@ -1481,6 +1496,12 @@ async function runCampaignSend(
             sub.unsubscribe_token && origin
               ? newsletterUnsubscribeUrl(origin, sub.unsubscribe_token)
               : null;
+          const measured = measuredEmails.has(normalizeEmail(sub.email));
+          // „Nie mierz moich otwarć i kliknięć" w KAŻDYM mailu kampanii (także
+          // niemierzonym - link prowadzi wtedy do „pomiar jest wyłączony").
+          const optOutUrl = origin
+            ? measurementOptOutUrl(origin, { kind: "subscriber", subscriberId: sub.id }, lang)
+            : null;
           const html = renderCampaignHtml(
             rawHtml,
             {
@@ -1494,7 +1515,7 @@ async function runCampaignSend(
             // Token trackingu jest ODDZIELNY od tokenu wypisu: podpisany HMAC-em
             // per (kampania, subskrybent), więc jego wyciek w URL-u nie pozwala
             // wypisać odbiorcy (unsubscribe dalej wymaga unsubscribe_token).
-            origin
+            origin && measured
               ? {
                   origin,
                   campaignId: camp.id,
@@ -1504,6 +1525,7 @@ async function runCampaignSend(
                   signLink: (target: string) => signTrackingLink(camp.id, sub.id, target),
                 }
               : null,
+            optOutUrl,
           );
           const result = await sendEmail({
             to: sub.email,
@@ -1525,6 +1547,8 @@ async function runCampaignSend(
               status: "sent",
               sentAt: new Date().toISOString(),
               providerMessageId: result.messageId ?? null,
+              // To, co faktycznie wyrenderowano (mianownik wskaźników panelu).
+              measured: measured && Boolean(origin),
             });
           } else {
             failed++;
@@ -1676,6 +1700,11 @@ async function logRecipient(
     sentAt?: string;
     /** Resend email id - klucz korelacji zdarzeń dostarczalności. */
     providerMessageId?: string | null;
+    /**
+     * Czy mail miał piksel i linki z tokenem (I9d-Y2). Brak = NULL, a przy
+     * statusie `sent` stan liczy wyzwalacz bazy tą samą regułą.
+     */
+    measured?: boolean;
   },
 ): Promise<void> {
   // provider_message_id / delivery_state pochodzą z migracji nowszej niż
@@ -1692,6 +1721,7 @@ async function logRecipient(
       sent_at: row.sentAt ?? null,
       provider_message_id: row.providerMessageId ?? null,
       delivery_state: row.status === "sent" ? "sent" : row.status,
+      measured: row.status === "sent" ? (row.measured ?? null) : null,
     } as never,
     { onConflict: "campaign_id,email" },
   );

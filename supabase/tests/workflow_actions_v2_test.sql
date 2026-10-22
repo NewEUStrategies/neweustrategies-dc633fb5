@@ -3,8 +3,9 @@
 --
 -- Sprawdza:
 --   * każdą nową akcję: set_lifecycle_stage (z pierwszeństwem), set_crm_stage
---     (historia ze źródłem `workflow`), add_tag / remove_tag (limit 40 znaków
---     odrzucany, nie przycinany), assign_owner (tylko personel, bez nadpisania
+--     (historia ze źródłem `workflow`), add_tag / remove_tag (limit
+--     `CRM_TAG_MAX` = 64 znaki od I9b 20261020160800, Z-S5-02 - odrzucany,
+--     nie przycinany), assign_owner (tylko personel, bez nadpisania
 --     domyślnie), newsletter_list_add / _remove (meta + lustro tagu CRM,
 --     nieznana lista i przekroczony limit 500 znaków odrzucone);
 --   * create_crm_task: `assignee_id` / właściciel / domyślna osoba ścieżek
@@ -116,8 +117,8 @@ SELECT ok(
   'remove_tag: tag usunięty');
 SELECT throws_like(
   $$ SELECT public.run_workflow_step(pg_temp.lead_ev(),
-       jsonb_build_object('action', 'add_tag', 'params', jsonb_build_object('tag', repeat('x', 41)))) $$,
-  '%1-40 characters%', 'add_tag: tag dłuższy niż 40 znaków odrzucony (nie przycięty)');
+       jsonb_build_object('action', 'add_tag', 'params', jsonb_build_object('tag', repeat('x', 65)))) $$,
+  '%1-64 characters%', 'add_tag: tag dłuższy niż 64 znaki odrzucony (nie przycięty)');
 
 -- ── 4. Właściciel ────────────────────────────────────────────────────────────
 SELECT public.run_workflow_step(pg_temp.lead_ev(),

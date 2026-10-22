@@ -195,6 +195,7 @@ vi.mock("@/lib/server/rate-limit.server", () => ({
 }));
 
 import { submitContactMessage } from "@/lib/contact.functions";
+import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 import { CAREERS_FORM_ID } from "@/lib/careers/recruitmentShared";
 
 // ---------------------------------------------------------------------------
@@ -1620,6 +1621,52 @@ describe("formularz kontaktowy - newsletter i double opt-in", () => {
         .filter((c) => c.has("upsert")),
     ).toEqual([]);
     expect(sentTo()).toEqual([PII.senderEmail]);
+  });
+
+  it("zgoda na newsletter z formularza idzie do subskrybenta - rejestr loguje TĘ treść, nie zastępczą (I9d-Y2)", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit({
+      newsletterOptIn: true,
+      consents: [
+        { key: "rodo", text: "Zgoda na odpowiedź", given: true, lang: "pl" },
+        {
+          key: "newsletter",
+          text: newsletterConsentHtml("pl"),
+          given: true,
+          lang: "pl",
+          version: NEWSLETTER_CONSENT_VERSION,
+        },
+      ],
+    });
+    const consents = fieldOf(subscriberRow(), "consents") as Record<string, unknown>[];
+    expect(consents).toHaveLength(1);
+    expect(consents[0]).toMatchObject({
+      key: "newsletter",
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
+    expect(typeof consents[0].received_at).toBe("string");
+  });
+
+  it("wersja z pomiarem przy obcej treści znika także w zgłoszeniu kontaktu (I9d-Y2)", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit({
+      newsletterOptIn: true,
+      consents: [
+        {
+          key: "newsletter",
+          text: "Zapisz mnie",
+          given: true,
+          version: NEWSLETTER_CONSENT_VERSION,
+        },
+      ],
+    });
+    const messageConsents = fieldOf(insertedRow(), "consents") as Record<string, unknown>[];
+    expect(messageConsents[0]).not.toHaveProperty("version");
+    const subscriberConsents = fieldOf(subscriberRow(), "consents") as Record<string, unknown>[];
+    expect(subscriberConsents[0]).not.toHaveProperty("version");
   });
 
   it("subskrybent w stanie `pending` dostaje NOWY token", async () => {

@@ -232,6 +232,42 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
       return runWalletPassRevocations(supabaseAdmin, { limit: 25 });
     });
   }
+  // Hub „Przychód i lejek" (I9): tylko jawnie (`?job=journeys`,
+  // `?job=revenue-lifecycle`) - podstawowa ścieżka to `jobs-tick`. Bez `all`:
+  // ta siatka nie drenuje poczty, a `all` woła też pg_cron co 5 minut - drugi
+  // przebieg runnera dzieliłby tylko dzierżawy zapisów (SKIP LOCKED).
+  if (job === "journeys") {
+    await step("journeys", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { runJourneysTick, JOURNEYS_DEADLINE_MS } =
+        await import("@/lib/server/journeysRunner.server");
+      const outcome = await runJourneysTick(supabaseAdmin, {
+        deadlineAt: Date.now() + JOURNEYS_DEADLINE_MS,
+        ingestLimit: 200,
+        claimLimit: 50,
+      });
+      // Wyłącznik awaryjny = decyzja operatora, nie awaria (jak w jobs-tick).
+      return "error" in outcome && outcome.error === "disabled"
+        ? { skipped: "kill_switch" }
+        : outcome;
+    });
+  }
+  if (job === "revenue-lifecycle") {
+    // Skanery S2 - czyste SQL literałem (SPEC K-06), idempotentne znacznikami
+    // `revenue_event_marks`, więc ręczne wypchnięcie obok ticku niczego nie dubluje.
+    await step("revenueLifecycle", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data, error } = await supabaseAdmin.rpc("run_revenue_lifecycle_scanner");
+      if (error) throw error;
+      return data;
+    });
+    await step("retentionFlow", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data, error } = await supabaseAdmin.rpc("run_retention_flow_scanner");
+      if (error) throw error;
+      return data;
+    });
+  }
   if (job === "all" || job === "career-cv-retention") {
     // Dane osobowe kandydatów: plik CV ląduje w buckecie przy WYBORZE, przed
     // wysyłką formularza, więc bez tego kroku porzucony kreator zostawiał CV na

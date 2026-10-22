@@ -2425,7 +2425,232 @@ const FROZEN_BUDGET_KB = {
   // 2773,9 (+0,9: słownik i trasy profilu, leniwie), chunk 257,9, css 99,7,
   // publicCss 83,8 i boot 471,6 w zamrożonych progach.
   // Host 4989,6 -> 4990 -> +1.
-  overall: 4991,
+  // Ratchet 4991 -> 4995 (2026-10-20, wycinek S3 huba „Przychód i lejek”:
+  // lejek i paywall czytelnika), decyzją zamawiającego D-08. Baza f149a004
+  // (= main po PR #527, kod = drzewo końcowe S2) 4989,6 / public 2773,9, po
+  // S3 4994,0: +4,4 KB, w całości `public` (+4,6; admin-only -0,1):
+  // paywall z ofertą per persona, powrotem po logowaniu i pomiarem (`_`
+  // +1,6), leniwy moduł oferty i pomiaru `paywallOffer` (+1,2), wspólne
+  // linki powrotu `paywallLinks` (+0,8), bramka klubu (+0,4), portal
+  // logowania (+0,2), kasa (+0,1), wejście (+0,1: walidator `/login`
+  // z `next`/`intent`/`plan`, nazwy GA4). Cel karty S3 (public <= +1,2) NIE
+  // jest spełniony - odchylenie z rozbiciem w dzienniku wdrożenia (Z-S3-01);
+  // statyczne importy w `paywallOffer` zdjęły już 1,4 KB chunków-fasad.
+  // Progi public 2881, chunk 286 (258,1), css 100 (99,7), publicCss 85
+  // (83,8) i boot 579 (471,8) bez zmian i zielone.
+  // Host 4994,0 -> 4994 -> +1.
+  // Korekta 4995 -> 4997 (ten sam wpis, 2026-10-20): przed wypchnięciem
+  // `main` przesunął się o PR #528 (JoinUsForm, informacja zwrotna zapisu
+  // newslettera) i potwierdzenie wdrożenia #527 - baza a39a10bf 4989,8 /
+  // public 2774,4, S3 przebazowany na nią 4995,6 / public 2779,8. Moduły S3
+  // bez zmian (rozbicie jak wyżej, ok. +4,7 KB); różnica względem pomiaru na
+  // f149a004 to entropia nowych hashy w nazwach importów (kilka bajtów na
+  // każdy z ~700 chunków). Pozostałe progi bez zmian i zielone (chunk 258,1,
+  // css 99,7, publicCss 83,8, boot 471,8).
+  // Host 4995,6 -> 4996 -> +1.
+  // Ratchet 4997 -> 5003 (2026-10-20, krok I9a huba „Przychód i lejek”:
+  // nawigacja i widoczność huba w panelu przed I9 - decyzja właściciela
+  // „wszystko, co robimy, ma być w panelu admina”), decyzją zamawiającego
+  // D-08. Baza 848cbf7e (= drzewo końcowe S3) 4995,6 / public 2779,8, po I9a
+  // 5001,8: +6,2 KB, w całości admin-only (+6,8; public -0,7 - entropia
+  // hashy). Rozbicie: leniwy stan „w przygotowaniu” zakładek
+  // (`RevenueTabPreparing` +4,1: słownik PL/EN opisu, etapu i odnośników
+  // jedenastu zakładek, dane `tabPreparing`), powłoka panelu z pozycjami huba
+  // i skrótami ⌘K (`AdminShell` +0,9, `admin` +0,25 - napisy `admin.nav.*`),
+  // `hubTabs` jako wspólny chunk nawigacji i huba (+0,8, -0,4 z
+  // `admin.revenue`), słownik wskaźników S6 w zakładce Wskaźniki (leniwie,
+  // +0,5), okno porzucenia w karcie kasy (`saveErrorToast` +0,5,
+  // `admin.paywall` +0,3, wspólny chunk `limits` +0,4). Arkusze CSS bit
+  // w bit te same (css 99,7, publicCss 83,8); chunk 258,0 i boot 471,8
+  // w zamrożonych progach.
+  // Host 5001,8 -> 5002 -> +1.
+  // Ratchet 5003 -> 5005 (2026-10-20, I9b: decyzje właściciela huba
+  // „Przychód i lejek”, część B - Z-S3-07 jedno okno porzucenia kasy
+  // pokazane w karcie biletów wydarzenia), decyzją zamawiającego D-08.
+  // Baza d7efcba5 (gałąź PR po częściach A i A2) 5003,0 / public 2778,0 -
+  // stała dokładnie na progu; po części B 5003,2: +0,3 KB, w całości
+  // admin-only (2225,0 -> 2225,3; public 2777,9 - entropia hashy).
+  // Rozbicie: `EventStudioModuleSections` +190 B (molekuła
+  // `EventTicketCheckoutWindowNote` i jej montaż w karcie biletów),
+  // `i18n-admin-event-registration` +149 B (dwa napisy PL/EN), `limits`
+  // +13 B (`effectiveCheckoutAbandonMinutes`); wpis `engagement_rate`
+  // i `CRM_TAG_MAX` w granicach entropii hashy (783 chunki o |Δ| ≤ 20 B,
+  // razem -79 B). Arkusze CSS bit w bit te same (css 99,7, publicCss 83,8);
+  // chunk 257,9 i boot 471,6 w zamrożonych progach.
+  // Host 5003,2 -> 5004 -> +1.
+  // Ratchet 5005 -> 5023 (2026-10-20, I9c-X2: retencja danych huba
+  // „Przychód i lejek”, Z-I9b-10 - polecenie właściciela „tak, zaproponuj
+  // zgodnie z polskim i europejskim prawem oraz rynkowymi standardami”),
+  // decyzją zamawiającego D-08. Baza 763ecda0 (gałąź PR po I9c-X1) 5002,9 /
+  // public 2777,8; po X2 5021,2: +18,3 KB, w tym admin-only +17,4
+  // (2225,2 -> 2242,6) i public +0,8 (entropia hashy: 1261 chunków
+  // o |Δ| <= 20 B, razem +1,2 KB w obu koszykach; `app-initial` +55 B).
+  // Rozbicie: NOWY leniwy chunk karty „Retencja danych” w
+  // `/admin/settings/privacy` (`DataRetentionCard` +15,9: słownik PL/EN
+  // dziewięciu kategorii z podstawą prawną, standardem i skutkiem upływu
+  // okresu oraz okresów z innych modułów - ok. 8 KB; wiersz kategorii, lista
+  // „do anonimizacji” z dialogiem przedłużenia, parsery odpowiedzi RPC,
+  // stałe okresów, zapytania i mutatory), trasa ustawień prywatności
+  // (`admin.settings.privacy` +0,6: leniwy import i `Suspense`, sekcyjny
+  // `adminPageHead`), wspólne chunki wydzielone przez drugi import
+  // (`SectionCard` +0,4, `lifecycle` +0,1; `FieldGroupRule` -0,2,
+  // `admin` -0,2), klucze zapytań (`keys` +0,3). Arkusze CSS bit w bit te
+  // same (css 99,7, publicCss 83,8); chunk 257,9 i boot 471,7 w zamrożonych
+  // progach.
+  // Host 5021,2 -> 5022 -> +1.
+  // Ratchet 5023 -> 5182 (2026-10-22, wycinek S8 huba „Przychód i lejek”:
+  // Ścieżki - lista, galeria, edytor kanwy, ustawienia silnika, wyniki,
+  // karta leada), decyzją zamawiającego D-08. Baza 75133fe2 (gałąź PR #530)
+  // 5020,6 / public 2778,3; po S8 z integracją 5180,9: +160,3 KB, w tym
+  // admin-only +160,0 (2242,3 -> 2402,3) i public +0,3 (entropia hashy;
+  // `app-initial` 257,9 bez zmian). Cały przyrost to NOWE leniwe chunki
+  // panelu (29 chunków z nowymi modułami, 160,5 KB gz): edytor ścieżki
+  // osiągalny wyłącznie z trasy edytora ok. 95 KB w 18 chunkach (leniwy
+  // `JourneyEditor` 22,4 - kanwa, lista kroków, pasek i słownik kanwy;
+  // `PredicateRow` ze słownikiem paneli 15,2; `JourneyStepSheet` z edytorem
+  // maila i zakładkami wyników 12,7; słowniki publikacji 6,1 i edytora 3,6;
+  // wyniki 4,7 + tabela maili 3,9; sesja szkicu 4,7; dialogi publikacji,
+  // symulacji i panel testu 10,2; arkusze 4,9), wspólny chunk zakładki,
+  // edytora i karty leada 22,4 (słowniki ścieżek S5 i listy, graf
+  // i predykaty S5), zakładka Ścieżki 9,5 (lista, galeria, kreator,
+  // ustawienia silnika), model kanwy i operacje 6,5, słownik wyników 6,2,
+  // opisy kroków 3,5, układ i lista 3,3; karta „Ścieżki” w CRM 2,3
+  // (leniwie, zakładka Analityka). Układ huba dostaje licznik aktywnych
+  // ścieżek bez modułu opisów (liść `activeCount`, klient server fn listy
+  // 1,9 + zapytania 0,8 - te same chunki co zakładka). Arkusz panelu +19 B
+  // (css 99,77 / 100), publicCss 83,8, chunk 257,9 i boot 471,6
+  // w zamrożonych progach.
+  // Host 5180,9 -> 5181 -> +1.
+  // Ratchet 5023 -> 5159 (2026-10-22, gałąź S7 przed scaleniem z S8 - próg
+  // zastąpiony wpisem scalenia niżej; wycinek S7 huba „Przychód i lejek” -
+  // dziesięć zakładek, diagnostyka 55 reguł z szybkimi naprawami, licznik
+  // paska i ⌘K wskaźników), decyzją zamawiającego D-08. Baza 75133fe2
+  // (gałąź PR po I9c, kopia `git archive`) 5020,6 / public 2778,3; po S7
+  // z integracją 5157,5: +136,9 KB, w tym admin-only +135,7 (2242,3 ->
+  // 2378,0) i public +1,1 (wspólny chunk `Paywall` wydzielony drugim
+  // importem - symulator czytelnika `<Paywall preview>`; reszta to entropia
+  // hashy). CAŁOŚĆ to leniwe chunki panelu. Rozbicie: wspólny chunk
+  // zapytań diagnostyki z rejestrem 55 reguł i oceną (`queries` +24,1),
+  // słowniki PL/EN diagnostyki (+22,3) i zakładek (+13,3), dziesięć zakładek
+  // (`RevenueDiagnosticsTab` +5,9, `Access` +5,1, `Retention` +4,8, `Offer`
+  // +4,4, `Community` +4,0, `Mrr` +4,0, `Metrics` +3,8, `Inputs` +3,6,
+  // `Funnel` +3,4, Kokpit `admin.revenue.index` +3,5), naprawy
+  // (`quickFixes` +4,7, `QuickFixDialog` +3,2, `DiagnosticCard` +2,6),
+  // `SourceHeader` +4,4, `MrrBridgeCard` +2,6; wspólne chunki modułów
+  // przegrupowane drugim importem (np. `i18n-admin-paywall-sync` +7,8,
+  // `i18n-admin-membership` +6,2 przy `admin.billing` -6,9, `tierMutations`
+  // -6,5, `saveErrorToast` -7,8). Integracja względem drzewa wykonawców
+  // 5159,1: -1,6 KB (stan „w przygotowaniu” tylko dla Ścieżek -
+  // `RevenueJourneysTab` -2,6; 43 skróty ⌘K wskaźników w powłoce
+  // `AdminShell` +0,6; leniwa sonda licznika Diagnostyki: `admin.revenue`
+  // +0,3 i nowy chunk `DiagnosticsBadgeProbe` +0,25 - rejestr reguł
+  // zostaje w chunku zapytań, nie w układzie huba). Cel pakietu S7 „≤ +40
+  // KB” przekroczony świadomie (Z-S7-11). Arkusze CSS: css 99,8 (+0,1;
+  // zapas 0,2 KB), publicCss 83,8; chunk 258,0 i boot 471,7 w zamrożonych
+  // progach; public 2779,4 / 2881.
+  // Host 5157,5 -> 5158 -> +1.
+  // Ratchet 5182 -> 5316 (2026-10-22, scalenie S7 po S8: gałąź S7
+  // `hub/s7-zakladki-diagnostyka-c` scalona z gałęzią PR po S8 `df075ffc`),
+  // decyzją zamawiającego D-08. Próg 5159 z wpisu S7 wyżej nie wszedł do PR -
+  // zastępuje go ten łączny pomiar. Baza = gałąź PR po S8 5180,9 / public
+  // 2778,6; po scaleniu 5314,3: +133,4 KB, w tym admin-only +132,7
+  // (2402,3 -> 2535,0) i public +0,6 (wspólny chunk `Paywall` symulatora
+  // czytelnika, reszta to entropia hashy). Rozbicie = przyrost S7 z wpisu
+  // wyżej (+136,9 względem 75133fe2) minus stan „w przygotowaniu” usunięty
+  // w całości po obu wycinkach (`RevenueTabPreparing` -3,7: molekuła,
+  // słownik PL/EN i dane `tabPreparing`; Z-S7-17). Chunk układu huba
+  // `admin.revenue` 4,2 -> 4,5 (oba liczniki paska: leniwa sonda Diagnostyki
+  // + `DiagnosticsBadgeProbe` 0,25 i licznik aktywnych ścieżek S8),
+  // wspólny chunk słowników ścieżek przemianowany drugim importem
+  // (`MfaRequiredNotice` -22,0 / `i18n-admin-journeys-list` +22,1).
+  // Arkusze: css 99,8 / 100 bez ratchetu, publicCss 83,8; chunk 258,0
+  // i boot 471,7 w zamrożonych progach; public 2779,2 / 2881.
+  // Host 5314,3 -> 5315 -> +1.
+  // Ratchet 5316 -> 5334 (2026-10-22, wycinek: I9d-Y1 huba „Przychód
+  // i lejek” - RODO, decyzje właściciela 2: retencja i anonimizacja
+  // zgłoszeń do klubów, odczytów licznika, uczestników wydarzeń i wygaszanie
+  // nieaktywnych subskrybentów newslettera), decyzją zamawiającego D-08.
+  // Baza 70bdccbb (gałąź PR po S8 i S7, kopia `git archive`) 5314,3 / public
+  // 2779,2; po I9d-Y1 z integracją 5332,2: +17,9 KB, w tym admin-only +14,1
+  // (2535,0 -> 2549,1) i public +3,8. Rozbicie: wspólny leniwy chunk karty
+  // retencji i edytora prośby (`sunsetCopyRules` +15,7: słownik PL/EN
+  // czterech nowych kategorii, listy „do wygaszenia”, okna powodu i edytora,
+  // stałe `newsletterSunset`, zapytania i mutatory wygaszania) przy
+  // `DataRetentionCard` -6,6 (słownik przeszedł do chunku wspólnego) i
+  // `dataRetentionQueries` -0,8; edytor treści prośby
+  // (`NewsletterSunsetCopyEditor` +2,2, trasa `admin.newsletter.email-content`
+  // +0,4), notka agregatu dobowego (`RetentionAggregateNote` +1,3), stałe
+  // `dataRetention` +1,0, `maskEmail` (`model` +0,4). Public: NOWA trasa
+  // „Chcę dalej otrzymywać” (`newsletter.keep` +2,5 - leniwy chunk strony ze
+  // słownikiem PL/EN) i `app-initial` +0,3 (definicja trasy, `head()`
+  // z dwuzdaniową nakładką `i18n-newsletter-keep-head`; integrator wyniósł
+  // słownik strony z chunku startowego, gdzie dawał +1,6 KB na każdej
+  // stronie czytelnika), reszta to entropia hashy (964 chunki o |Δ| < 150 B,
+  // razem +1,7 KB w obu koszykach). Arkusze CSS bit w bit te same (css 99,8
+  // / 100, publicCss 83,8 / 85); chunk 258,3 / 286, boot 472,1 / 579,
+  // public 2783,0 / 2881 w zamrożonych progach.
+  // Host 5332,2 -> 5333 -> +1.
+  // Ratchet 5334 -> 5357 (2026-10-22, wycinek: I9d-Y2 huba „Przychód
+  // i lejek” - RODO, decyzje właściciela 2: treść zgody na newsletter
+  // z pomiarem otwarć i kliknięć, pomiar tylko za zgodą, „Poproś o zgodę na
+  // pomiar”), decyzją zamawiającego D-08. Baza 7390ecf0 (gałąź PR po
+  // I9d-Y1, kopia `git archive`, ten sam `node_modules`) 5332,2 / public
+  // 2783,0; po I9d-Y2 z integracją 5355,3: +23,1 KB, w tym admin-only +16,0
+  // (2549,1 -> 2565,1) i public +7,2 (2783,0 -> 2790,2). Rozbicie admin-only:
+  // wspólny leniwy chunk panelu treści zgody `consentTextRules` +4,7
+  // (słownik PL/EN panelu zgody i pomiaru, reguły pól), sekcja
+  // `NewsletterMeasurementPanel` +3,6, edytor treści maila prośby
+  // `NewsletterMeasurementCopyEditor` +1,8 i wspólne ciało edytorów próśb
+  // `MailCopyEditorBody` +1,8 (wydzielone z edytora wygaszania Y1:
+  // `NewsletterSunsetCopyEditor` -1,2, `sunsetCopyRules` -1,5, przecięcie
+  // chunków przez Rolldown: `newsletterSunset` +1,1, `newsletterSunsetQueries`
+  // +1,0), zapytania i mutatory `measurementQueries` +1,2, dymki
+  // `i18n-admin-measurement-hint` +1,0 i `MeasurementConsentNote` +0,4,
+  // trasy `admin.newsletter.overview` +0,7, `.campaigns._id` +0,2,
+  // `.email-content` +0,2, rejestr wskaźników `metrics` +0,3. Public: NOWA
+  // trasa linków pomiaru `newsletter.measurement` +3,1 (leniwy chunk strony
+  // ze słownikiem PL/EN), liść `measurement` +0,5, `NewsletterConsentText`
+  // +0,3, polityka komunikacji `communications` +0,9 i prywatności `privacy`
+  // +0,3 (akapity o pomiarze - leniwe chunki dokumentów), `app-initial` +1,4
+  // (moduł treści zgody `consentText` w domyślnych ustawieniach newslettera
+  // hooka korzenia - jedno źródło zamiast dwóch literałów, definicja trasy
+  // i dwuzdaniowa nakładka `i18n-newsletter-measurement-head`), formularze
+  // +0,3, reszta to entropia hashy (1348 chunków o |Δ| < 150 B, razem
+  // +1,1 KB w obu koszykach). Arkusze CSS bit w bit te same (css 99,8 /
+  // 100, publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
+  // 2790,2 / 2881 w zamrożonych progach.
+  // Host 5355,3 -> 5356 -> +1.
+  //
+  // Ratchet 5357 -> 5371 (2026-10-22, wycinek: I9 huba „Przychód i lejek” -
+  // integracja i wydanie: odnośniki moduły → hub, harmonogram ścieżek
+  // w panelu zdrowia, zgłoszenia 9.2, przewodnik po Ścieżkach), decyzją
+  // zamawiającego D-08. Baza 2113569d (gałąź PR po I9d-Y2, kopia
+  // `git archive`, ten sam `node_modules`) 5355,3 / public 2790,2; po I9
+  // z integracją 5369,8: +14,5 KB, w tym admin-only +13,8 (2565,1 ->
+  // 2578,9) i public +0,7 (2790,2 -> 2790,9). Rozbicie admin-only:
+  // odnośniki moduły → hub (SPEC §2.7) - leniwa treść sygnału
+  // `SignalChipBody` +1,6 i lekkie opakowanie `RevenueSignalChip` +0,6,
+  // słownik `i18n-admin-revenue-links` +1,1, `EventJourneysSummary` +0,7,
+  // `RevenueHubHint` +0,4, `RevenueHubLink` +0,3, `useRevenueHubTab` +0,2,
+  // wspólny `RelatedModulesBar` we własnym chunku +0,5 (Cennik), trasy
+  // modułów: CRM +1,8 (przypisanie zadań bez osoby, import CSV z raportem
+  // wartości ponad limit), automatyzacje +0,3, Cennik +0,2, wydarzenia
+  // +0,7, kluby +0,3; Skrzynka wysyłek z etykietami powodów +1,3; słownik
+  // panelu harmonogramu z kartą silnika ścieżek (`i18n-admin-scheduler`
+  // w chunku `HeartbeatDot`) +0,9 i trasa `admin.community.notifications`
+  // +0,4; baner przerwanej szyny (`useDomainEventStream` wydzielony +0,5,
+  // `useModuleRealtime` -0,2, `tableChannelHub` +0,2); `SourceHeader`
+  // +0,5; powody rezygnacji `reasonLabel` +0,2; przewodnik po Ścieżkach
+  // (Z-S8-01): kroki `tours` we własnym chunku +0,9, nakładka
+  // `CoachmarkTour` wyjęta z chunku edytora treści (`EditorLangSwitch`
+  // -1,7, nowy leniwy chunk +1,8). Public: słownik profilu organizacji
+  // `i18n-membership` +0,2 (odmowa progu Zespół z drogą do Enterprise),
+  // reszta to entropia hashy (1357 chunków o |Δ| < 150 B, razem +0,6 KB
+  // w obu koszykach). Arkusze CSS bit w bit te same (css 99,8 / 100,
+  // publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
+  // 2790,9 / 2881 w zamrożonych progach.
+  // Host 5369,8 -> 5370 -> +1.
+  overall: 5371,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

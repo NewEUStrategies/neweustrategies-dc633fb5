@@ -69,6 +69,19 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-clubs-admin", () => ({ ensureAdminClubsI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+// (I9) Drogowskaz do huba ma własny test (`revenueModuleLinks.test.tsx`: rola,
+// hydratacja, adres) - tu wyłącznie MIEJSCE montażu i parametry galerii.
+vi.mock("@/components/admin/revenue/molecules/RevenueHubHint", () => ({
+  RevenueHubHint: (props: { tab: string; search?: Record<string, string>; action: string }) => (
+    <div
+      data-testid="revenue-hub-hint-mount"
+      data-tab={props.tab}
+      data-search={new URLSearchParams(props.search).toString()}
+    >
+      {props.action}
+    </div>
+  ),
+}));
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
@@ -288,6 +301,16 @@ beforeEach(() => {
   Object.defineProperty(globalThis.navigator, "clipboard", {
     value: { writeText: h.schowek },
     configurable: true,
+  });
+});
+
+describe('hub „Przychód i lejek" (I9, SPEC §2.7)', () => {
+  it("nad panelami stoi drogowskaz do galerii ścieżek z szablonem potwierdzenia zgłoszenia", () => {
+    panel();
+    const mount = screen.getByTestId("revenue-hub-hint-mount");
+    expect(mount).toHaveAttribute("data-tab", "journeys");
+    expect(mount).toHaveAttribute("data-search", "new=1&template=club_application_received");
+    expect(mount).toHaveTextContent("adminRevenue.moduleLinks.clubs.automateAction");
   });
 });
 

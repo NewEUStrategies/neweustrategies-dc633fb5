@@ -1,8 +1,14 @@
 // Zakładka "Pola": widoczność, wymagalność oraz etykiety i podpowiedzi PL/EN
 // każdego pola formularza rejestracji. Pola e-mail i hasła są zablokowane -
 // bez nich nie da się utworzyć konta.
+//
+// I9d-Y2: etykieta pola „newsletter" jest treścią zgody na newsletter.
+// Etykieta domyślna (albo pusta) daje w popupie pełną treść zgody z pomiarem
+// otwarć i kliknięć i wersją; WŁASNA etykieta zostaje bez zmian i bez wersji,
+// więc zapis z popupu nie obejmie pomiaru - pole pokazuje to ostrzeżeniem
+// (rozstrzyga jedno źródło `isNewsletterConsentDefault`, nie heurystyka słów).
 import { useTranslation } from "react-i18next";
-import { ListChecks } from "lucide-react";
+import { AlertTriangle, ListChecks } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { SectionCard, ToggleRow } from "./controls";
 import type { SignupPopupTabProps } from "./types";
@@ -12,12 +18,15 @@ import {
   resolvePopupFields,
   type PopupFieldConfig,
 } from "@/lib/newsletter/popupFields";
+import { isNewsletterConsentDefault } from "@/lib/newsletter/consentText";
+import { ensureI18n as ensureMeasurementHintI18n } from "@/lib/i18n-admin-measurement-hint";
 // Zakładka woła klucze `adminPopupSignup.*`, a nakładkę wciągał dotąd
 // wyłącznie rodzic (`SignupPopupEditor`). Taka zależność znika w chwili,
 // w której zakładka trafi do innego chunka - wtedy ekran pokazuje klucze.
 import "@/lib/i18n-admin-popup-signup";
 
 export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value" | "onChange">) {
+  ensureMeasurementHintI18n();
   const { t } = useTranslation();
   const fields = resolvePopupFields(value.popup_fields);
 
@@ -41,6 +50,10 @@ export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value"
         {fields.map((field) => {
           const locked = isPopupFieldLocked(field.key);
           const neverRequired = isPopupFieldNeverRequired(field.key);
+          const ownConsentLabel =
+            field.key === "newsletter_optin" &&
+            (!isNewsletterConsentDefault(field.label_pl) ||
+              !isNewsletterConsentDefault(field.label_en));
           return (
             <div key={field.key} className="space-y-2 rounded-md border border-border p-2.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -96,6 +109,16 @@ export function FieldsTab({ value, onChange }: Pick<SignupPopupTabProps, "value"
                   placeholder={t("adminPopupSignup.fields.placeholderEn")}
                 />
               </div>
+              {ownConsentLabel ? (
+                <p
+                  role="note"
+                  data-measurement-warning=""
+                  className="flex items-start gap-1.5 text-xs text-muted-foreground"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {t("adminMeasurementHint.popupLabel")}
+                </p>
+              ) : null}
             </div>
           );
         })}

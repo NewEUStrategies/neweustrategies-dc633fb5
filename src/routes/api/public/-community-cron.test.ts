@@ -90,6 +90,19 @@ const db = vi.hoisted(() => ({ current: null as SupabaseFromStub | null }));
 /** Stała tożsamość klienta service role - dowód, że zadania uczestnika dostają TEN obiekt. */
 const adminClient = vi.hoisted(() => ({
   from: (table: string) => db.current!.from(table),
+  // Skanery S2 (`?job=revenue-lifecycle`, I9) wołają RPC literałem - nazwa
+  // funkcji jest krokiem w tej samej liście co reszta kanałów.
+  rpc: (fn: string) => rpcReplies.call(fn),
+}));
+const rpcReplies = vi.hoisted(() => ({
+  replies: new Map<string, { data: unknown; error: unknown }>(),
+  call(fn: string): Promise<{ data: unknown; error: unknown }> {
+    return jobs.run(
+      `rpc:${fn}`,
+      [],
+      rpcReplies.replies.get(fn) ?? { data: {}, error: null },
+    ) as Promise<{ data: unknown; error: unknown }>;
+  },
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: adminClient }));
 
@@ -188,6 +201,17 @@ vi.mock("@/lib/events/wallet/walletRevocationJob.server", () => ({
       closed: 0,
       reactivated: 0,
     }),
+}));
+
+// Runner ścieżek (S5) - własny dowód w `journeysRunner.server.test.ts`; tu
+// tylko klient, termin, limity i mapowanie wyłącznika awaryjnego.
+const journeysOutcome = vi.hoisted(() => ({
+  current: { ingested: 1, enrolled: 1, advanced: 2, emailsQueued: 1 } as Record<string, unknown>,
+}));
+vi.mock("@/lib/server/journeysRunner.server", () => ({
+  JOURNEYS_DEADLINE_MS: 3_000,
+  runJourneysTick: (admin: unknown, opts: unknown) =>
+    jobs.run("journeys", [admin, opts], journeysOutcome.current),
 }));
 
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
@@ -918,6 +942,73 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     expect(payload).toHaveProperty(key);
     // Odznaki reputacji jadą WYŁĄCZNIE w "all" - pojedynczy job ich nie budzi.
     expect(payload).not.toHaveProperty("reputationBadges");
+  });
+
+  it("`?job=journeys` (I9): runner ścieżek z klientem service role, terminem 3 s i limitami 200/50", async () => {
+    const startedAt = Date.now();
+    const res = await tick({ query: "?job=journeys" });
+
+    expect(jobs.calls).toEqual([
+      {
+        step: "journeys",
+        args: [adminClient, { deadlineAt: startedAt + 3_000, ingestLimit: 200, claimLimit: 50 }],
+      },
+    ]);
+    const payload = await body(res);
+    expect(payload).toMatchObject({ ok: true, job: "journeys", journeys: { advanced: 2 } });
+    expect(payload).not.toHaveProperty("reputationBadges");
+  });
+
+  it("`?job=journeys` przy wyłączniku awaryjnym: pominięcie `kill_switch`, nie błąd", async () => {
+    journeysOutcome.current = { error: "disabled" };
+    try {
+      const res = await tick({ query: "?job=journeys" });
+      const payload = await body(res);
+      expect(payload).toMatchObject({ ok: true, journeys: { skipped: "kill_switch" } });
+    } finally {
+      journeysOutcome.current = { ingested: 1, enrolled: 1, advanced: 2, emailsQueued: 1 };
+    }
+  });
+
+  it("`?job=revenue-lifecycle` (I9): oba skanery S2 literałem RPC, błąd bazy jest błędem joba", async () => {
+    rpcReplies.replies.set("run_revenue_lifecycle_scanner", {
+      data: { trial_ending: 1, expired: 0, dunning_lost: 0, snapshots: 2 },
+      error: null,
+    });
+    rpcReplies.replies.set("run_retention_flow_scanner", { data: { abandoned: 3 }, error: null });
+    try {
+      const res = await tick({ query: "?job=revenue-lifecycle" });
+      expect(jobs.steps()).toEqual([
+        "rpc:run_revenue_lifecycle_scanner",
+        "rpc:run_retention_flow_scanner",
+      ]);
+      const payload = await body(res);
+      expect(payload).toMatchObject({
+        ok: true,
+        job: "revenue-lifecycle",
+        revenueLifecycle: { trial_ending: 1, snapshots: 2 },
+        retentionFlow: { abandoned: 3 },
+      });
+
+      jobs.reset();
+      rpcReplies.replies.set("run_retention_flow_scanner", {
+        data: null,
+        error: Object.assign(new Error("permission denied"), { code: "42501" }),
+      });
+      const failed = await body(await tick({ query: "?job=revenue-lifecycle" }));
+      expect(failed).toMatchObject({ retentionFlow: { error: "permission denied" } });
+      expect(failed).toMatchObject({ revenueLifecycle: { trial_ending: 1 } });
+    } finally {
+      rpcReplies.replies.clear();
+    }
+  });
+
+  it("`?job=all` NIE uruchamia ścieżek ani skanerów S2 - ich ścieżką podstawową jest jobs-tick", async () => {
+    // Siatkę woła też pg_cron co 5 minut, a ona nie drenuje poczty.
+    await tick({ query: "?job=all" });
+
+    expect(jobs.steps()).not.toContain("journeys");
+    expect(jobs.steps().filter((s) => s.startsWith("rpc:"))).toEqual([]);
   });
 
   it("`?job=event-ticket-codes` wysyła bilety, zawiadomienia o odwołanych (partie po 50) i zwalnia porzucone bilety z puli", async () => {

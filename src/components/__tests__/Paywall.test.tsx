@@ -39,15 +39,14 @@ const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
   plans: [] as unknown[],
   hint: null as { hint_pl: string | null; hint_en: string | null } | null,
-  planQueries: [] as Array<{
-    table: string;
-    ids: readonly string[];
-    active: boolean;
-    order: string;
-  }>,
+  // Każde pobranie katalogu planów (`fetchActivePlans`, ten sam odczyt co
+  // /pricing - oferta S3 filtruje go po regule w `resolvePaywallOffer`).
+  planQueries: [] as string[],
   // Odpowiedź zapytania o plany - domyślnie `h.plans`; testy błędów i wyścigów
   // podmieniają ją na odmowę, odrzucenie albo odroczoną obietnicę.
   planResponse: vi.fn(),
+  track: vi.fn(),
+  consent: true,
   rpc: vi.fn(),
   navigate: vi.fn(),
   checkout: vi.fn(),
@@ -88,21 +87,28 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: (table: string) => ({
-      select: () => ({
-        in: (_col: string, ids: readonly string[]) => ({
-          eq: (_c: string, active: boolean) => ({
-            order: (order: string) => {
-              h.planQueries.push({ table, ids, active, order });
-              return h.planResponse(ids);
-            },
-          }),
-        }),
-      }),
-    }),
     rpc: (name: string, args: Record<string, unknown>) => h.rpc(name, args),
   },
 }));
+// Oferta ściany (S3) czyta katalog tymi samymi funkcjami co cennik i profil.
+vi.mock("@/lib/billing/queries", () => ({
+  fetchActivePlans: async () => {
+    h.planQueries.push("access_plans");
+    const result = (await h.planResponse()) as SupabaseResult<AccessPlan[]>;
+    if (result.error) throw result.error;
+    return result.data;
+  },
+}));
+vi.mock("@/lib/billing/tiers", () => ({
+  fetchMembershipTiers: async () => [],
+  fetchCurrentTier: async () => null,
+}));
+vi.mock("@/lib/billing/membership", () => ({ fetchMyOrganization: async () => null }));
+vi.mock("@/lib/access/paywallHits.functions", () => ({
+  recordPaywallHitVisitor: async () => true,
+}));
+vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
+vi.mock("@/lib/ads/consent", () => ({ hasAnalyticsConsent: () => h.consent }));
 
 import { Paywall } from "@/components/Paywall";
 
@@ -148,6 +154,8 @@ beforeEach(() => {
   h.hint = null;
   h.planQueries = [];
   h.planResponse.mockReset().mockImplementation(() => Promise.resolve(ok(h.plans)));
+  h.track.mockClear();
+  h.consent = true;
   h.rpc.mockReset().mockImplementation(() => Promise.resolve({ data: h.hint ? [h.hint] : [] }));
   h.navigate.mockClear();
   h.checkout.mockReset();
@@ -173,16 +181,30 @@ describe("Paywall - tryby reguły dostępu (anonim)", () => {
     }
   });
 
-  it("paid: komunikat premium, bez siatki planów i bez zakupu przed zalogowaniem", () => {
-    renderPaywall({
-      rule: accessRule({ mode: "paid", one_time_price_cents: 1900, one_time_currency: "PLN" }),
+  it("paid: komunikat premium; gość WIDZI cenę, ale kupuje przez konto (P14)", async () => {
+    // Zmiana oczekiwania ŚWIADOMA (SPEC P14): ściana bez cen gubiła gościa
+    // przed rejestracją. Zakup nadal wymaga konta (checkout wiąże zamówienie
+    // z auth.uid()), więc zamiast przycisku zakupu jest rejestracja.
+    h.plans = [accessPlan()];
+    const { container } = renderPaywall({
+      rule: accessRule({
+        mode: "paid",
+        plan_ids: [PAYWALL_IDS.plan],
+        one_time_price_cents: 1900,
+        one_time_currency: "PLN",
+      }),
     });
     expect(screen.getByRole("heading", { name: k("paywall.paidOnly") })).toBeInTheDocument();
     expect(screen.getByText(k("paywall.paidDesc"))).toBeInTheDocument();
-    // Zakup wymaga konta (checkout wiąże zamówienie z auth.uid()), więc anonim
-    // dostaje wyłącznie wejście przez logowanie.
-    expect(screen.queryByText(k("paywall.buy"), { exact: false })).not.toBeInTheDocument();
+    expect(container.textContent).toContain(formatMoney(1900, "PLN", "pl"));
+    expect(screen.queryByRole("button", { name: k("paywall.buy") })).not.toBeInTheDocument();
     expect(screen.getByText(k("paywall.signin"))).toBeInTheDocument();
+    expect(await screen.findByText("Miesięczny")).toBeInTheDocument();
+    expect(container.textContent).toContain(formatMoney(4900, "PLN", "pl"));
+    expect(screen.getByRole("link", { name: k("paywall.offer.signupBuy") })).toHaveAttribute(
+      "href",
+      "/login",
+    );
   });
 
   it("members z sesją: sama informacja, zero CTA (body odblokuje się z serwera)", () => {
@@ -456,16 +478,9 @@ describe("Paywall - plany i zakup (zalogowany, tryb paid)", () => {
     // Trial tylko tam, gdzie plan go deklaruje.
     expect(screen.getByText(k("paywall.trialBadge", { days: 14 }))).toBeInTheDocument();
 
-    // Zapytanie o plany jest zawężone do reguły: tylko wskazane, aktywne,
-    // w kolejności redakcyjnej (tenant odcina RLS po stronie serwera).
-    expect(h.planQueries).toEqual([
-      {
-        table: "access_plans",
-        ids: [PAYWALL_IDS.plan, PAYWALL_IDS.planAlt],
-        active: true,
-        order: "sort_order",
-      },
-    ]);
+    // Jeden odczyt katalogu (ten sam co /pricing; tenant odcina RLS), oferta
+    // zawężona do planów reguły w `resolvePaywallOffer`.
+    expect(h.planQueries).toEqual(["access_plans"]);
 
     const subscribe = screen.getAllByRole("link", { name: k("paywall.subscribe") });
     expect(subscribe[0]).toHaveAttribute("href", `/checkout/${PAYWALL_IDS.plan}`);
@@ -770,6 +785,9 @@ describe("Paywall - plany: błąd, ponowienie, wyścig i zbędne zapytania", () 
         Promise.resolve(ok([accessPlan({ id: PAYWALL_IDS.planAlt, name_pl: "Roczny" })])),
       );
     const view = renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    // Oferta ładuje się przez `import()` - czekamy, aż PIERWSZE zapytanie
+    // wyjdzie, żeby kolejność odpowiedzi była deterministyczna.
+    await waitFor(() => expect(h.planQueries).toHaveLength(1));
     view.rerender(<Paywall rule={paidRule([PAYWALL_IDS.planAlt])} lang="pl" />);
     expect(await screen.findByText("Roczny")).toBeInTheDocument();
 
@@ -778,7 +796,7 @@ describe("Paywall - plany: błąd, ponowienie, wyścig i zbędne zapytania", () 
     });
     expect(screen.getByText("Roczny")).toBeInTheDocument();
     expect(screen.queryByText("Miesięczny")).not.toBeInTheDocument();
-    expect(h.planQueries.map((q) => q.ids)).toEqual([[PAYWALL_IDS.plan], [PAYWALL_IDS.planAlt]]);
+    expect(h.planQueries).toHaveLength(2);
   });
 
   it("reguła bez planów nie pokazuje planów poprzedniego wpisu", async () => {
@@ -790,15 +808,26 @@ describe("Paywall - plany: błąd, ponowienie, wyścig i zbędne zapytania", () 
       <Paywall rule={accessRule({ mode: "paid", plan_ids: [], entity_id: "post-2" })} lang="pl" />,
     );
     expect(screen.queryByText("Miesięczny")).not.toBeInTheDocument();
-    expect(h.planQueries).toHaveLength(1);
+    // Reguła bez planów czyta katalog po swojemu (warstwy z premium_content);
+    // plan bez warstwy do niej nie należy.
+    await waitFor(() => expect(h.planQueries).toHaveLength(2));
+    expect(screen.queryByText("Miesięczny")).not.toBeInTheDocument();
   });
 
-  it("anonim nie wysyła zapytania o plany, których i tak nie zobaczy", () => {
+  it("anonim też dostaje ofertę z cenami (P14), obok wejścia przez logowanie", async () => {
     h.session = null;
     h.plans = [accessPlan()];
     renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
-    expect(h.planQueries).toEqual([]);
     expect(screen.getByText(k("paywall.signin"))).toBeInTheDocument();
+    expect(await screen.findByText("Miesięczny")).toBeInTheDocument();
+    expect(h.planQueries).toEqual(["access_plans"]);
+    expect(screen.queryByRole("link", { name: k("paywall.subscribe") })).not.toBeInTheDocument();
+  });
+
+  it("members bez progu nie czyta katalogu (wystarczy konto)", () => {
+    h.session = null;
+    renderPaywall({ rule: accessRule({ mode: "members" }) });
+    expect(h.planQueries).toEqual([]);
   });
 
   it("nowa tożsamość obiektu reguły z tymi samymi planami nie powtarza zapytania", async () => {

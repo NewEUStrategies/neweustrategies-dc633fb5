@@ -20,6 +20,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
 import type { MembershipTierRow } from "@/lib/billing/tierMutations";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 
 /** Wszystkie warstwy najemcy (także nieaktywne) z tokenem `updated_at`. */
 export function adminMembershipTiersQueryOptions() {
@@ -31,7 +32,9 @@ export function adminMembershipTiersQueryOptions() {
         .select("*")
         .order("rank", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      // Ranga nie jest unikalna (Partner/NGO 40, Rada/Zespół 25) - remis
+      // kolejności z bazy przestawiał kafle katalogu między odświeżeniami.
+      return [...(data ?? [])].sort(compareTierRank);
     },
   });
 }

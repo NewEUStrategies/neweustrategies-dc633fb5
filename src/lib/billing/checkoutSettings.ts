@@ -22,6 +22,16 @@ export interface CheckoutSettings {
   tax_id_collection: boolean;
   billing_address_collection: "auto" | "required";
   invoice_creation: boolean;
+  /**
+   * `checkout_settings.abandon_after_minutes` (hub I0, CHECK 30-1440): po ilu
+   * minutach otwarta sesja kasy wygasa jako PORZUCONA (S3, P22 - `expires_at`
+   * sesji operatora, potem `checkout.session.expired` -> `cancel_reason`).
+   * Opcjonalne celowo: `CHECKOUT_SETTINGS_COLUMNS` (dokumenty, migawka) go
+   * nie wybiera; czytają je serwer kasy (`loadCheckoutSettings`) i karta kasy
+   * w panelu (`useCheckoutSettings`, edycja od I9a). Brak = domyślne okno
+   * operatora (24 h).
+   */
+  abandon_after_minutes?: number;
 }
 
 /**

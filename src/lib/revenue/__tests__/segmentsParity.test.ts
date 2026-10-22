@@ -1,11 +1,13 @@
 // PARYTET SEGMENTÓW DANYCH: TS ⇄ SQL (SPEC §8.3, tabela PLAN_I0 §2.2).
 //
-// Segment ruchu MRR liczy baza (`revenue_segment_of_tier`, 20261020090500),
-// a panel opisuje go etykietami i filtrami z `segments.ts`. Rozjazd = kafel
-// „B2B" w hubie liczony z innej listy warstw niż wiersze księgi. Test czyta
-// pliki migracji jako tekst (bez bazy): komentarze wycięte, białe znaki
-// sprowadzone do zapisu kanonicznego po obu stronach porównania.
-import { existsSync, readFileSync } from "node:fs";
+// Segment ruchu MRR liczy baza (`revenue_segment_of_tier`), a panel opisuje
+// go etykietami i filtrami z `segments.ts`. Rozjazd = kafel „B2B" w hubie
+// liczony z innej listy warstw niż wiersze księgi. Test czyta pliki migracji
+// jako tekst (bez bazy): komentarze wycięte, białe znaki sprowadzone do
+// zapisu kanonicznego po obu stronach porównania. Funkcja jest
+// redefiniowana (I0 090500 -> I9b 160000), więc porównanie bierze NAJNOWSZĄ
+// definicję - jak baza po migracjach forward-only.
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { TIER_RANKS } from "@/lib/billing/tierRanks";
@@ -15,7 +17,18 @@ import { REVENUE_DATA_SEGMENTS, REVENUE_SEGMENT_BY_TIER, revenueSegmentOfTier } 
 
 const KSIEGA = "supabase/migrations/20261020090000_hub_schema_revenue_ledger.sql";
 const LEJEK = "supabase/migrations/20261020090100_hub_schema_funnel_ops.sql";
-const HELPERY = "supabase/migrations/20261020090500_hub_shared_sql_helpers.sql";
+const MIGRACJE = "supabase/migrations";
+const DEFINICJA = "FUNCTION public.revenue_segment_of_tier(";
+
+/** Plik z najnowszą definicją funkcji (kolejność wersji = kolejność wdrożenia). */
+function najnowszaDefinicja(): string {
+  const pliki = readdirSync(MIGRACJE)
+    .filter((f) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f))
+    .sort()
+    .filter((f) => stripSqlComments(readFileSync(`${MIGRACJE}/${f}`, "utf8")).includes(DEFINICJA));
+  expect(pliki.length, "brak definicji revenue_segment_of_tier").toBeGreaterThan(0);
+  return `${MIGRACJE}/${pliki[pliki.length - 1]}`;
+}
 
 /** Zapis kanoniczny: jedna spacja, bez spacji przy nawiasach i przecinkach. */
 const kanon = (sql: string) =>
@@ -53,11 +66,11 @@ describe("segmenty danych - parytet z CHECK", () => {
   });
 });
 
-describe("revenue_segment_of_tier ⇄ REVENUE_SEGMENT_BY_TIER (090500)", () => {
+describe("revenue_segment_of_tier ⇄ REVENUE_SEGMENT_BY_TIER (najnowsza migracja)", () => {
   /** Ciało `CASE … END` funkcji, rozłożone na mapę warstwa → segment. */
   function mapaZSql(): { mapa: Record<string, string>; inne: string | null } {
-    const sql = migracja(HELPERY);
-    const start = sql.indexOf("FUNCTION public.revenue_segment_of_tier(");
+    const sql = migracja(najnowszaDefinicja());
+    const start = sql.indexOf(DEFINICJA);
     expect(start, "brak definicji revenue_segment_of_tier").toBeGreaterThanOrEqual(0);
     const cialo = sql.slice(start, sql.indexOf(" END", sql.indexOf("CASE", start)) + 4);
     const mapa: Record<string, string> = {};
@@ -71,6 +84,12 @@ describe("revenue_segment_of_tier ⇄ REVENUE_SEGMENT_BY_TIER (090500)", () => {
     const { mapa, inne } = mapaZSql();
     expect(mapa).toEqual(REVENUE_SEGMENT_BY_TIER);
     expect(inne).toBe("other");
+  });
+
+  it("najnowsza definicja to redefinicja I9b (decyzja właściciela 2026-10-20)", () => {
+    expect(najnowszaDefinicja()).toBe(
+      "supabase/migrations/20261020160000_revenue_segment_institutions.sql",
+    );
   });
 
   it("każdy segment z mapy jest segmentem danych", () => {
@@ -92,15 +111,23 @@ describe("revenueSegmentOfTier", () => {
     }
   });
 
-  it("przypisania z kontraktu SPEC (V21)", () => {
+  it("przypisania z typu klienta (decyzja właściciela 2026-10-20, Z-01)", () => {
     expect(revenueSegmentOfTier("student")).toBe("b2c_reduced");
     expect(revenueSegmentOfTier("educator")).toBe("b2c_reduced");
     expect(revenueSegmentOfTier("member")).toBe("b2c_individual");
     expect(revenueSegmentOfTier("pro")).toBe("b2c_individual");
-    expect(revenueSegmentOfTier("team")).toBe("b2b_institution");
-    expect(revenueSegmentOfTier("business")).toBe("b2b_institution");
-    expect(revenueSegmentOfTier("corporate")).toBe("b2b_institution");
-    for (const tier of ["reader", "partner", "presidents_circle", "decision_lab", "nieznana"]) {
+    for (const tier of [
+      "team",
+      "business",
+      "corporate",
+      "partner",
+      "partner_general",
+      "presidents_circle",
+      "ngo",
+    ]) {
+      expect(revenueSegmentOfTier(tier), tier).toBe("b2b_institution");
+    }
+    for (const tier of ["reader", "supporter", "vip", "decision_lab", "nieznana"]) {
       expect(revenueSegmentOfTier(tier), tier).toBe("other");
     }
   });

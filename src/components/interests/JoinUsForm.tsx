@@ -15,6 +15,8 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 
 import { useNewsletterInlineSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
@@ -234,6 +236,9 @@ export function JoinUsForm({
 
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
+  // Treść zgody z JEDNEGO źródła (I9d-Y2): pusta albo dawna domyślna = bieżąca
+  // treść z pomiarem i wersją; tekst z buildera zostaje bez zmian.
+  const resolvedConsent = resolveNewsletterConsent(consentText, lang);
   // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
   const { data: nl } = useNewsletterInlineSettings();
   const my = useMyInterests();
@@ -408,11 +413,6 @@ export function JoinUsForm({
     }
 
     try {
-      const nlText =
-        lang === "en"
-          ? "I subscribe to the newsletter and accept receiving marketing messages."
-          : "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.";
-
       // Extras with no first-class column go into meta (persisted verbatim
       // in newsletter_subscribers.meta by the server fn).
       const meta: Record<string, string> = {};
@@ -478,7 +478,10 @@ export function JoinUsForm({
           lastName: lastName || undefined,
           language: lang,
           source,
-          consents: [{ key: "newsletter", text: nlText, given: true, lang }],
+          // Dowód = DOKŁADNIE tekst przy zaznaczonym polu (I9d-Y2). Dotąd
+          // rejestr dostawał zaszyty tekst „Zapisuję się do newslettera…",
+          // a osoba widziała inny (art. 7 ust. 1 RODO).
+          consents: [newsletterConsentPayload(resolvedConsent, lang)],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
           requiredFields,
@@ -579,7 +582,6 @@ export function JoinUsForm({
   const iLabel = interestsLabel || t("joinUs.interestsLabel");
   const btnLabel = submitLabel || t("joinUs.submit");
   const btnLoading = submittingLabel || t("joinUs.submitting");
-  const consent = consentText || t("joinUs.consent");
   const okText = successText || t("joinUs.success");
   // Etykiety pól = globalna konfiguracja (Admin → Popupy) z możliwością
   // nadpisania per-widget. Ten sam zestaw obowiązuje w każdym widgecie newslettera.
@@ -929,7 +931,11 @@ export function JoinUsForm({
             className="h-[16px] w-[16px] shrink-0"
           />
           <span>
-            {consent}
+            {resolvedConsent.isDefault ? (
+              <NewsletterConsentText lang={lang} />
+            ) : (
+              resolvedConsent.text
+            )}
             <span className="ml-1 text-destructive">*</span>
           </span>
         </label>

@@ -448,6 +448,20 @@ export interface RawEmailInput {
   tenantId?: string | null;
   /** Adres wypisu -> nagłówki RFC 8058 dla wysyłki masowej. */
   unsubscribeUrl?: string | null;
+  /**
+   * Nazwa nadawcy (ścieżki komunikacji, S5: `journey_settings.sender_name`
+   * z panelu). Domena nadawcza zostaje zweryfikowana - zmienia się tylko
+   * wyświetlana nazwa; znaki łamiące nagłówek From są odrzucane.
+   */
+  fromName?: string | null;
+  /** Adres odpowiedzi (`journey_settings.reply_to`); `null` = bez Reply-To. */
+  replyTo?: string | null;
+}
+
+/** Nazwa nadawcy bezpieczna dla nagłówka From (bez `<>"` i nowych linii). */
+export function senderDisplayName(name: string | null | undefined): string {
+  const trimmed = (name ?? "").trim();
+  return trimmed && !/[<>"\r\n]/.test(trimmed) ? trimmed : SITE_NAME;
 }
 
 /**
@@ -496,7 +510,7 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         // (400 `missing_unsubscribe`) - stopkę wypisu dokleja platforma.
         unsubscribe_token: await ensureUnsubscribeToken(supabase, to),
         to,
-        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+        from: `${senderDisplayName(input.fromName)} <noreply@${FROM_DOMAIN}>`,
         sender_domain: SENDER_DOMAIN,
         subject: input.subject,
         html: input.html,
@@ -506,6 +520,7 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
         idempotency_key: input.idempotencyKey,
         tenant_id: gate.tenantId,
         unsubscribe_url: input.unsubscribeUrl ?? null,
+        reply_to: input.replyTo ?? null,
         queued_at: new Date().toISOString(),
       },
     });

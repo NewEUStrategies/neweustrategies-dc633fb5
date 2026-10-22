@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json
-// SHA-256 treści kanonicznej wejść: ae838d0109daf364c795c3ff0b68ab5a2d613aa6b3dddab6d91edcba79bc47e4
+// SHA-256 treści kanonicznej wejść: 83ced85c4a540fd21481a2cabe20565d68532e2b5527a15c0df7a43cc43d741e
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //
@@ -2800,6 +2800,145 @@ export const FUNNEL_BENCHMARKS: readonly GeneratedBenchmark[] = [
       paywall: "paywall_hit_rate.metered_freemium",
       b2c_individual: "paywall_hit_rate.metered_freemium",
       b2c_reduced: "paywall_hit_rate.metered_freemium",
+    },
+  },
+  {
+    key: "engagement_rate",
+    metricId: "engagement_rate",
+    group: "funnel",
+    abbr: "ER (GA4)",
+    name: {
+      pl: "Współczynnik zaangażowania (GA4)",
+      en: "Engagement rate (GA4)",
+    },
+    expansion: {
+      pl: "ER – Engagement Rate: odsetek sesji zaangażowanych (dłuższych niż 10 s, z co najmniej dwiema odsłonami albo z konwersją) we wszystkich sesjach witryny – definicja Google Analytics 4",
+      en: "ER – Engagement Rate: share of engaged sessions (longer than 10 s, with at least two page views or a conversion) among all site sessions – the Google Analytics 4 definition",
+    },
+    formula: {
+      pl: "sesje zaangażowane (GA4 engagedSessions) / wszystkie sesje (GA4 sessions) × 100% – metryka GA4 engagementRate z Data API, liczona przez Google",
+      en: "engaged sessions (GA4 engagedSessions) / all sessions (GA4 sessions) × 100% – the GA4 metric engagementRate from the Data API, computed by Google",
+    },
+    interpretation: {
+      pl: "Mówi, czy ruch, który przyciągamy, w ogóle wchodzi w treść – to pierwszy filtr lejka przed rejestracją, paywallem i zakupem. Niski wynik zwykle oznacza ruch niskiej intencji (social płatny, display, nieprzypisany) albo stronę wejścia, która nie odpowiada na obietnicę z linku; wysoki – ruch z wyszukiwarek, poleceń i newslettera. Pułapki: wynik zależy od mieszanki kanałów i urządzeń (komórki niżej niż desktop), a bez zgody analitycznej GA4 widzi tylko część sesji – porównuj okresy przy tej samej konfiguracji zgód i oceniaj kanały osobno.",
+      en: "Shows whether the traffic we attract actually engages with the content – the first filter of the funnel before registration, the paywall and purchase. A low result usually means low-intent traffic (paid social, display, unassigned) or a landing page that does not deliver what the link promised; a high one – search, referral and newsletter traffic. Pitfalls: the result depends on the channel and device mix (mobile lower than desktop), and without analytics consent GA4 sees only part of the sessions – compare periods under the same consent setup and judge channels separately.",
+    },
+    levers: {
+      pl: "Oceniaj wynik w podziale na kanały i strony wejścia: kampanie social i display o niskim zaangażowaniu kieruj na treści, które spełniają obietnicę linku, albo ogranicz ich budżet. Na stronach wejścia pokaż od razu lead, spis treści i powiązane analizy, żeby czytelnik wszedł w drugą odsłonę; skróć czas ładowania na komórkach. Porównuj okresy przy tej samej konfiguracji zgód i odfiltruj ruch wewnętrzny oraz boty, zanim uznasz zmianę za efekt treści.",
+      en: "Judge the result by channel and landing page: point low-engagement social and display campaigns at content that keeps the link's promise, or cut their budget. On landing pages show the lead, an outline of sections and related analysis straight away so readers open a second page; shorten mobile load time. Compare periods under the same consent setup and filter out internal traffic and bots before treating a change as a content effect.",
+    },
+    caveats: [
+      {
+        text: {
+          pl: "Źródło podaje tylko mediany (całość, branże, urządzenia, kanały) – bez kwartyli; progi krytyczny i optymalny są heurystyką.",
+          en: "The source reports medians only (overall, industries, devices, channels) – no quartiles; the critical and optimal thresholds are heuristics.",
+        },
+        sourceIds: ["siege_ga4_engagement_2026"],
+      },
+      {
+        text: {
+          pl: "Mediany branżowe w tym samym badaniu: e-commerce 54,4%, zdrowie 51,6%, finanse 51,0%, usługi domowe 49,4%, inne (w tym media i organizacje non-profit) 48,0%, SaaS/B2B 46,6% – serwis treści eksperckich porównuj raczej z grupą „inne”.",
+          en: "Industry medians in the same study: e-commerce 54.4%, health 51.6%, finance 51.0%, home services 49.4%, other (incl. media and non-profit) 48.0%, SaaS/B2B 46.6% – compare an expert content site with the 'other' group rather than e-commerce.",
+        },
+        sourceIds: ["siege_ga4_engagement_2026"],
+      },
+      {
+        text: {
+          pl: "Urządzenia: desktop 55,3%, tablet 51,2%, komórka 48,8% – przesunięcie ruchu na komórki obniża wynik bez zmiany jakości treści.",
+          en: "Devices: desktop 55.3%, tablet 51.2%, mobile 48.8% – a shift of traffic to mobile lowers the result without any change in content quality.",
+        },
+        sourceIds: ["siege_ga4_engagement_2026"],
+      },
+      {
+        text: {
+          pl: "Bez zgody analitycznej GA4 nie widzi części sesji (tryb zgody), więc wynik opisuje sesje ze zgodą; porównuj okresy przy tej samej konfiguracji banera zgód.",
+          en: "Without analytics consent GA4 does not see part of the sessions (consent mode), so the result describes consented sessions; compare periods under the same consent-banner setup.",
+        },
+      },
+      {
+        text: {
+          pl: "Wskaźnika nie da się odtworzyć z własnych zdarzeń (brak czasu trwania sesji) – jedynym źródłem jest GA4 Data API.",
+          en: "The indicator cannot be rebuilt from our own events (no session duration) – the GA4 Data API is the only source.",
+        },
+      },
+    ],
+    direction: "higher",
+    confidence: "medium",
+    asOf: "2026-10-18",
+    reviewBy: "2027-10-18",
+    contexts: [
+      {
+        id: "engagement_rate.site_all",
+        label: {
+          pl: "Cała witryna – wszystkie sesje (GA4)",
+          en: "Whole site – all sessions (GA4)",
+        },
+        segments: ["all"],
+        measure: "level",
+        unit: "percent_pt",
+        window: "month",
+        direction: "higher",
+        method: {
+          pl: "Siege Media 2026 (546 usług GA4, ponad 16 mld sesji, I 2024 – VIII 2026; mediana usług, domyślna definicja GA4): mediana 51%, reguła kciuka „50% i więcej – dobrze, powyżej 55% – mocno”; pakiet Insider marketingowy (b-engr, źródło 1352): poniżej 50% słaby, 50–55% normalny, powyżej 55% dobry. Progi krytyczny (25% – połowa dolnej granicy normalnego, jak próg krytyczny kontekstów LinkedIn) i optymalny (60% – poziom median kanałów wysokiej intencji w tym samym badaniu: wyszukiwanie płatne 60,4%, asystenci AI 60,3%, wyszukiwanie organiczne 63,4%) – heurystyka; źródło nie podaje kwartyli. Okres: miesięcznie.",
+          en: "Siege Media 2026 (546 GA4 properties, over 16 bn sessions, Jan 2024 – Aug 2026; property-level median, GA4 default definition): median 51%, rule of thumb '50% or more is good, above 55% is strong'; Insider marketing package (b-engr, source 1352): below 50% weak, 50–55% normal, above 55% good. Critical (25% – half of the lower bound of normal, like the critical threshold of the LinkedIn contexts) and optimal (60% – the level of high-intent channel medians in the same study: paid search 60.4%, AI assistants 60.3%, organic search 63.4%) are heuristics; the source gives no quartiles. Period: monthly.",
+        },
+        sourceIds: ["siege_ga4_engagement_2026"],
+        bands: [
+          {
+            tier: "critical",
+            min: null,
+            max: 25,
+            note: {
+              pl: "heurystyka – połowa dolnej granicy normalnego; poziom median kanałów niskiej intencji w badaniu (social płatny 20,2%, nieprzypisany 20,8%)",
+              en: "heuristic – half of the lower bound of normal; the level of low-intent channel medians in the study (paid social 20.2%, unassigned 20.8%)",
+            },
+            basis: "E",
+          },
+          {
+            tier: "weak",
+            min: 25,
+            max: 50,
+            note: {
+              pl: "poniżej 50% – poniżej mediany (51%) wg Insidera (b-engr) i Siege Media",
+              en: "below 50% – below the median (51%) according to the Insider package (b-engr) and Siege Media",
+            },
+            basis: "B",
+          },
+          {
+            tier: "normal",
+            min: 50,
+            max: 55,
+            note: {
+              pl: "50–55% – okolice mediany 546 usług GA4 (51%)",
+              en: "50–55% – around the median of 546 GA4 properties (51%)",
+            },
+            basis: "B",
+          },
+          {
+            tier: "good",
+            min: 55,
+            max: 60,
+            note: {
+              pl: "powyżej 55% – „mocno” wg Siege Media",
+              en: "above 55% – 'strong' according to Siege Media",
+            },
+            basis: "B",
+          },
+          {
+            tier: "optimal",
+            min: 60,
+            max: null,
+            note: {
+              pl: "heurystyka – poziom median kanałów wysokiej intencji (60,3–63,4%)",
+              en: "heuristic – the level of high-intent channel medians (60.3–63.4%)",
+            },
+            basis: "E",
+          },
+        ],
+      },
+    ],
+    defaultContextBySegment: {
+      all: "engagement_rate.site_all",
     },
   },
 ];

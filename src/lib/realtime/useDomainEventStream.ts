@@ -6,8 +6,12 @@
 // postgres_changes); aggregate_id doprecyzowujemy po stronie klienta.
 // RLS na domain_events i tak tnie strumień per użytkownik (staff widzi
 // zdarzenia tenanta, zwykły użytkownik tylko własne).
-import { useEffect, useRef } from "react";
-import { subscribeToTable } from "./tableChannelHub";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  subscribeToChannelStatus,
+  subscribeToTable,
+  tableChannelsInterrupted,
+} from "./tableChannelHub";
 import { feedCorrelationTracker } from "./correlation";
 import type { DomainEventRow } from "./domainEvents";
 
@@ -68,4 +72,21 @@ export function useDomainEventStream(options: DomainEventStreamOptions): void {
       onEventRef.current(row);
     });
   }, [aggregateType, aggregateId, enabled]);
+}
+
+/**
+ * Stan szyny zdarzeń domenowych (I9, Z-S7-05): `paused`, gdy kanał
+ * `domain_events` jest przerwany - ekran mówi wtedy „aktualizacje na żywo
+ * wstrzymane" (mutacje lokalne i powrót karty dalej odświeżają dane).
+ * Serwer i pierwszy render klienta: `live` - baner nie zmienia znacznika
+ * hydratacji, a przed połączeniem nie ma czego zgłaszać.
+ */
+export type DomainEventStreamStatus = "live" | "paused";
+
+function streamStatus(): DomainEventStreamStatus {
+  return tableChannelsInterrupted("domain_events") ? "paused" : "live";
+}
+
+export function useDomainEventStreamStatus(): DomainEventStreamStatus {
+  return useSyncExternalStore(subscribeToChannelStatus, streamStatus, () => "live");
 }

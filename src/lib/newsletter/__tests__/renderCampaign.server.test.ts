@@ -253,6 +253,32 @@ describe("renderCampaignHtml - kod kuponu (P04)", () => {
     }
   });
 
+  it('linia „Nie mierz moich otwarć i kliknięć" (I9d-Y2): poza przekierowaniem, PL i EN, brak = bajt w bajt jak dotąd', () => {
+    const optOut = "https://nes.example.test/api/public/newsletter/measurement?token=ws1&lang=pl";
+    for (const [key, render] of matrix()) {
+      const [lang, tk, uk, vk, hk] = key.split("|") as [
+        "pl" | "en",
+        keyof typeof TRACKING,
+        keyof typeof UNSUB,
+        keyof typeof VARS,
+        keyof typeof HTML,
+      ];
+      // Jawne `null` = ten sam wynik co dotąd (skróty SHA-256 macierzy wyżej).
+      expect(renderCampaignHtml(HTML[hk], VARS[vk], lang, UNSUB[uk], TRACKING[tk], null)).toBe(
+        render(),
+      );
+      const html = renderCampaignHtml(HTML[hk], VARS[vk], lang, UNSUB[uk], TRACKING[tk], optOut);
+      expect(html).toContain(`href="${optOut.replace(/&/g, "&amp;")}"`);
+      expect(html).toContain(
+        lang === "pl"
+          ? "Nie mierz moich otwarć i kliknięć</a>"
+          : "Don&#39;t measure my opens and clicks</a>",
+      );
+      // Adres wycofania nie trafia do przekierowania trackingu.
+      expect(html).not.toContain(`u=${encodeURIComponent(optOut)}`);
+    }
+  });
+
   it("przykładowy kod wysyłki testowej jest stały i czytelny", () => {
     expect(SAMPLE_COUPON_CODE).toBe("PRZYKLAD-KOD");
   });

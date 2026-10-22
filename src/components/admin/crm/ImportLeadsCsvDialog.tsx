@@ -7,6 +7,11 @@
 //
 // Duplikaty WEWNĄTRZ pliku odpadają po stronie klienta (pierwszy wiersz
 // wygrywa), duplikaty względem bazy są scalane (merge), nie duplikowane.
+//
+// Wartość ponad limit pola (I9, Z-I9b-15) - tag > 64 znaki, nazwisko > 100,
+// ponad 20 tagów w komórce - dialog pokazuje z numerem wiersza i kolumną
+// i blokuje „Importuj" do poprawy pliku. Nie przycinamy: przycięta wartość to
+// inna dana osobowa niż w pliku, a serwer odrzuciłby całą porcję.
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +42,7 @@ import {
   mapImportRows,
   type LeadImportFieldChoice,
   type LeadImportMapping,
+  type OversizedImportValue,
 } from "@/lib/crm/importMapping";
 import {
   CRM_IMPORT_CHUNK_SIZE,
@@ -82,6 +88,19 @@ const FIELD_LABELS: Record<"pl" | "en", Record<FieldKey, string>> = {
 // kolumn NIE RENDERUJE SIĘ WCALE (cały dialog padał po wybraniu pliku).
 const SKIP_VALUE = "__skip__";
 
+/** Ile wartości ponad limit wypisujemy z nazwy - resztę podsumowuje licznik. */
+const OVERSIZED_LISTED = 5;
+
+const PL_PLURAL = new Intl.PluralRules("pl");
+
+/** Liczebnik PL: forma `one` / `few` / `many` (ułamki nie występują). */
+function plForm(n: number, one: string, few: string, many: string): string {
+  const form = PL_PLURAL.select(n);
+  return form === "one" ? one : form === "few" ? few : many;
+}
+
+type OversizedText = (issue: OversizedImportValue, column: string) => string;
+
 const TXT = {
   pl: {
     open: "Import CSV",
@@ -103,6 +122,19 @@ const TXT = {
     done: (s: CrmImportSummary) =>
       `Nowe: ${s.imported}, scalone: ${s.merged}, pominięte: ${s.skipped}`,
     errors: (n: number) => `Błędy: ${n} - szczegóły w konsoli`,
+    oversizedTitle:
+      "Niektóre wartości są dłuższe, niż pozwalają pola. Popraw plik i wgraj go ponownie - import niczego nie przycina.",
+    oversized: ((issue, column) => {
+      const where = `Wiersz ${issue.row}, kolumna „${column}”`;
+      if (issue.kind === "count") {
+        return `${where}: więcej niż ${issue.limit} ${plForm(issue.limit, "tag", "tagi", "tagów")}`;
+      }
+      const chars = plForm(issue.limit, "znak", "znaki", "znaków");
+      return issue.field === "tags"
+        ? `${where}: tag dłuższy niż ${issue.limit} ${chars}`
+        : `${where}: wartość dłuższa niż ${issue.limit} ${chars}`;
+    }) satisfies OversizedText,
+    oversizedMore: (n: number) => `…i jeszcze ${n}`,
   },
   en: {
     open: "Import CSV",
@@ -123,6 +155,19 @@ const TXT = {
     importing: (done: number, total: number) => `Importing ${done}/${total}…`,
     done: (s: CrmImportSummary) => `New: ${s.imported}, merged: ${s.merged}, skipped: ${s.skipped}`,
     errors: (n: number) => `Errors: ${n} - details in the console`,
+    oversizedTitle:
+      "Some values are longer than the fields allow. Fix the file and upload it again - the import never truncates data.",
+    oversized: ((issue, column) => {
+      const where = `Row ${issue.row}, column "${column}"`;
+      if (issue.kind === "count") {
+        return `${where}: more than ${issue.limit} ${issue.limit === 1 ? "tag" : "tags"}`;
+      }
+      const chars = issue.limit === 1 ? "character" : "characters";
+      return issue.field === "tags"
+        ? `${where}: a tag longer than ${issue.limit} ${chars}`
+        : `${where}: a value longer than ${issue.limit} ${chars}`;
+    }) satisfies OversizedText,
+    oversizedMore: (n: number) => `…and ${n} more`,
   },
 };
 
@@ -150,8 +195,14 @@ export function ImportLeadsCsvDialog({
   const mapped = useMemo(
     () =>
       parsed && emailIdx >= 0
-        ? mapImportRows(parsed.rows, mapping)
-        : { rows: [], inFileDuplicates: 0, skippedWithoutEmail: 0, droppedOverLimit: 0 },
+        ? mapImportRows(parsed.rows, mapping, parsed.rowNumbers)
+        : {
+            rows: [],
+            oversized: [],
+            inFileDuplicates: 0,
+            skippedWithoutEmail: 0,
+            droppedOverLimit: 0,
+          },
     [parsed, mapping, emailIdx],
   );
 
@@ -169,11 +220,14 @@ export function ImportLeadsCsvDialog({
     setProgress(null);
   };
 
+  const blocked = mapped.oversized.length > 0;
+
   const doImport = async () => {
     if (!parsed || emailIdx < 0 || mapped.rows.length === 0) {
       toast.error(t.needEmail);
       return;
     }
+    if (blocked) return;
     setBusy(true);
     const total = mapped.rows.length;
     const summary: CrmImportSummary = { imported: 0, merged: 0, skipped: 0, errors: [] };
@@ -283,6 +337,26 @@ export function ImportLeadsCsvDialog({
 
             {emailIdx < 0 && <p className="text-xs text-destructive">{t.needEmail}</p>}
 
+            {blocked && (
+              <div
+                role="alert"
+                data-import-oversized
+                className="rounded-lg border border-destructive/40 p-3 text-xs text-destructive space-y-1"
+              >
+                <p className="font-medium">{t.oversizedTitle}</p>
+                <ul className="space-y-0.5">
+                  {mapped.oversized.slice(0, OVERSIZED_LISTED).map((issue) => (
+                    <li key={`${issue.row}:${issue.column}:${issue.kind}`}>
+                      {t.oversized(issue, parsed.header[issue.column] || `col_${issue.column + 1}`)}
+                    </li>
+                  ))}
+                </ul>
+                {mapped.oversized.length > OVERSIZED_LISTED && (
+                  <p>{t.oversizedMore(mapped.oversized.length - OVERSIZED_LISTED)}</p>
+                )}
+              </div>
+            )}
+
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground bg-muted/40 px-3 py-1.5 border-b border-border">
                 {t.preview}
@@ -306,7 +380,7 @@ export function ImportLeadsCsvDialog({
           </Button>
           <Button
             onClick={doImport}
-            disabled={busy || !parsed || emailIdx < 0 || mapped.rows.length === 0}
+            disabled={busy || !parsed || emailIdx < 0 || mapped.rows.length === 0 || blocked}
           >
             {busy && progress
               ? t.importing(Math.min(progress.done, progress.total), progress.total)

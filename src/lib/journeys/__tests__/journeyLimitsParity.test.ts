@@ -1,5 +1,7 @@
 // PARYTET LIMITÓW I SŁOWNIKÓW ŚCIEŻEK: `limits.ts` ⇄ CHECK-i migracji
-// 20261020090300 / 20261020090400 (SPEC §8.3, tabela PLAN_I0 §2.2).
+// 20261020090300 / 20261020090400 (SPEC §8.3, tabela PLAN_I0 §2.2);
+// słownik powodów wyjścia - z NAJNOWSZEJ definicji CHECK (20261020160600,
+// I9b-A2: `account_deleted` po usunięciu konta).
 //
 // Te same stałe czytają zod grafu, liczniki znaków edytora i komunikaty
 // błędów. Fragmenty niżej są budowane ze stałych TS i muszą wystąpić
@@ -25,6 +27,7 @@ import {
 
 const RDZEN = "supabase/migrations/20261020090300_hub_schema_journeys_core.sql";
 const WIADOMOSCI = "supabase/migrations/20261020090400_hub_schema_journeys_messaging.sql";
+const RODO = "supabase/migrations/20261020160600_domain_events_account_erasure.sql";
 
 /** Zapis kanoniczny: jedna spacja, bez spacji przy nawiasach i przecinkach. */
 const kanon = (sql: string) =>
@@ -66,7 +69,6 @@ const RDZEN_FRAGMENTY: Fragmenty = [
   ],
   ["journey_event_routes.role", `CHECK (role IN (${lista(JOURNEY_ROUTE_ROLES)}))`],
   ["journey_enrollments.status", `CHECK (status IN (${lista(JOURNEY_ENROLLMENT_STATUSES)}))`],
-  ["journey_enrollments.exit_reason", `CHECK (exit_reason IN (${lista(JOURNEY_EXIT_REASONS)}))`],
   ["journey_step_runs.status", `CHECK (status IN (${lista(JOURNEY_STEP_STATUSES)}))`],
   ["journey_step_runs.outcome", `CHECK (outcome IN (${lista(JOURNEY_STEP_OUTCOMES)}))`],
   [
@@ -92,9 +94,15 @@ const WIADOMOSCI_FRAGMENTY: Fragmenty = [
   ["journey_message_events.kind", `CHECK (kind IN (${lista(JOURNEY_MESSAGE_EVENT_KINDS)}))`],
 ];
 
+// CHECK zastąpiony w 20261020160600 (DROP + ADD) - jego słownik żyje tam.
+const RODO_FRAGMENTY: Fragmenty = [
+  ["journey_enrollments.exit_reason", `CHECK (exit_reason IN (${lista(JOURNEY_EXIT_REASONS)}))`],
+];
+
 describe.each([
   [RDZEN, RDZEN_FRAGMENTY],
   [WIADOMOSCI, WIADOMOSCI_FRAGMENTY],
+  [RODO, RODO_FRAGMENTY],
 ] as const)("%s", (plik, fragmenty) => {
   it.each(fragmenty)("%s", (_opis, fragment) => {
     expect(migracja(plik)).toContain(kanon(fragment));

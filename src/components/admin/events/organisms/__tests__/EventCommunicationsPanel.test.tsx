@@ -34,7 +34,11 @@ const h = vi.hoisted(() => ({
   sms: vi.fn<() => Promise<{ smsEnabled: boolean }>>(),
   /** RPC, które nigdy nie odpowiadają (stan „wczytywanie"). */
   wisi: new Set<string>(),
+  // (I9) Sesja bramki odnośnika do huba; domyślnie bez roli huba.
+  auth: { roles: [] as string[], tenantId: null as string | null },
 }));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -179,6 +183,7 @@ beforeEach(() => {
   h.sms.mockResolvedValue({ smsEnabled: false });
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
+  h.auth = { roles: [], tenantId: null };
 });
 
 afterEach(cleanup);
@@ -207,6 +212,30 @@ describe("EventCommunicationsPanel - stany wczytania", () => {
     fireEvent.click(within(alert).getByRole("button", { name: "adminEventParticipant.retry" }));
     await formularz();
     expect(stub().lastCall(GET)?.arg("p_event_id")).toBe(STUDIO_EVENT_ID);
+  });
+});
+
+describe("EventCommunicationsPanel - automatyzacja z huba (I9, SPEC §2.7)", () => {
+  it('rola huba z najemcą: wiersz „Zautomatyzuj komunikację" prowadzi do zakładki Ścieżki', async () => {
+    h.auth = { roles: ["admin"], tenantId: "tenant-1" };
+    pokaz();
+    await formularz();
+
+    const link = screen.getByRole("link", {
+      name: "adminRevenue.moduleLinks.events.automateAction",
+    });
+    expect(link.getAttribute("href")).toBe("/admin/revenue/journeys");
+    expect(link.getAttribute("data-hub-tab")).toBe("journeys");
+  });
+
+  it("organizator bez roli huba (autor, sam super_admin) nie widzi wiersza", async () => {
+    for (const roles of [["author"], ["super_admin"]]) {
+      h.auth = { roles, tenantId: "tenant-1" };
+      pokaz();
+      await formularz();
+      expect(screen.queryByText("adminRevenue.moduleLinks.events.automateLabel")).toBeNull();
+      cleanup();
+    }
   });
 });
 

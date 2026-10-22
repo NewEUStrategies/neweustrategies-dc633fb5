@@ -1905,6 +1905,34 @@ describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
     expect(h.grants).toHaveLength(0);
   });
 
+  it("S3 (P22): wygaśnięcie zapisuje cancel_reason=session_expired W TYM SAMYM zapisie co status", async () => {
+    givenOrder(
+      orderRow({
+        metadata: { coupon_id: "kupon-1", event_id: null },
+        status: "pending",
+        provider_session_id: "cs_wygasla",
+      }),
+    );
+
+    expect(await expireCheckoutOrder(expired(), "sandbox")).toBe(true);
+
+    // Wyzwalacz `payment_orders_checkout_emit` czyta powód z wiersza NEW, więc
+    // powód musi przyjść razem ze statusem; metadane są scalane, nie zastępowane.
+    expect(paidPatch()).toMatchObject({
+      status: "canceled",
+      metadata: { coupon_id: "kupon-1", cancel_reason: "session_expired" },
+    });
+  });
+
+  it("S3 (P22): odrzucona płatność (failed) nie udaje porzuconej kasy", async () => {
+    givenOrder(orderRow({ status: "pending", metadata: { coupon_id: "kupon-1" } }));
+
+    await markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox");
+
+    expect(paidPatch()).toMatchObject({ status: "failed" });
+    expect(paidPatch()).not.toHaveProperty("metadata");
+  });
+
   it("bilet: wygaśnięcie oddaje bilet z puli (`unpaid`) BEZ maila „płatność odrzucona”", async () => {
     givenOrder(orderRow({ status: "pending" }));
 

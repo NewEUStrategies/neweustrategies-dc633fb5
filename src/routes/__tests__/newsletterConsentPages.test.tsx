@@ -222,6 +222,30 @@ describe("strona wypisu z newslettera", () => {
     expect(screen.queryByText(/undefined/)).toBeNull();
   });
 
+  it("preferencje (I9d-Y2): link „Nie mierz moich otwarć i kliknięć” obok wypisu", async () => {
+    const link = "/api/public/newsletter/measurement?token=ws00&lang=pl&via=preferences";
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true, measurementUrl: link }));
+    await mount();
+
+    const anchor = await screen.findByRole("link", { name: "Nie mierz moich otwarć i kliknięć" });
+    expect(anchor.getAttribute("href")).toBe(link);
+    // Samo wejście nie zapisuje niczego - ani wypisu, ani wycofania pomiaru.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("adres spoza endpointu pomiaru z odpowiedzi jest ignorowany", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        measurementUrl: "https://zly.example/api/public/newsletter/measurement?token=x",
+      }),
+    );
+    await mount();
+
+    await screen.findByText("newsletter.unsubscribePage.title");
+    expect(screen.queryByRole("link", { name: "Nie mierz moich otwarć i kliknięć" })).toBeNull();
+  });
+
   it("adres już wypisany pomija przycisk potwierdzenia", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ok: true, already: true }));
     await mount();

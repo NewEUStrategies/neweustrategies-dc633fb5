@@ -80,6 +80,8 @@ const CONTRACT: Readonly<Record<BenchGroup, Readonly<Record<string, MetricId | n
     activation_rate: null,
     time_to_value: null,
     paywall_hit_rate: "paywall_hit_rate",
+    // Z-14-03 (I9b): współczynnik zaangażowania GA4 - metryka BI z Data API.
+    engagement_rate: "engagement_rate",
   },
   email: {
     open_rate: "email_open_rate",

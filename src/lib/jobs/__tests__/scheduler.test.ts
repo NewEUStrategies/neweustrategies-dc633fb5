@@ -107,6 +107,22 @@ describe("parseSchedulerJob", () => {
     expect(driver).toContain("event-wallet-passes");
   });
 
+  it("zna joby huba (I9, Z-S5-03): ścieżki i skanery S2 - w workflow i sterowniku", () => {
+    // Job w kontrakcie bez opcji w workflow jest nieosiągalny z panelu
+    // Actions; bez wzmianki w sterowniku `SCHEDULER_JOB` nie jest udokumentowany,
+    // a bez linii `summarize` ręczny przebieg meldowałby „brak pracy".
+    const workflow = readFileSync(".github/workflows/scheduler.yml", "utf8");
+    const driver = readFileSync("scripts/scheduler-tick.mjs", "utf8");
+    for (const job of ["journeys", "revenue-lifecycle"]) {
+      expect(SCHEDULER_JOBS).toContain(job);
+      expect(parseSchedulerJob(job)).toBe(job);
+      expect(workflow).toMatch(new RegExp(`\\n\\s+- ${job}\\n`));
+      expect(driver).toContain(job);
+    }
+    expect(driver).toContain("payload.journeys");
+    expect(driver).toContain("payload.revenueLifecycle");
+  });
+
   it("nieznany job to null - endpoint musi zwrócić 400, nie cicho zrobić 'all'", () => {
     expect(parseSchedulerJob("drop-database")).toBeNull();
     expect(parseSchedulerJob("push;all")).toBeNull();
@@ -181,6 +197,26 @@ describe("countTickFailures", () => {
         integrations: { error: "fetch failed" },
       }),
     ).toEqual(["push: claim_push_jobs: permission denied", "integrations: fetch failed"]);
+  });
+
+  it("wyłącznik awaryjny ścieżek i baza bez migracji to pominięcie (pole `skipped`), nie awaria", () => {
+    // Dyspozytor mapuje `{ error: "disabled" }` runnera na `skipped:
+    // "kill_switch"` - tu przypinamy, że ten kształt nie zapala alarmu.
+    expect(
+      countTickFailures({
+        journeys: { skipped: "kill_switch" },
+        revenueLifecycle: {
+          trialEnding: 0,
+          expired: 0,
+          dunningLost: 0,
+          snapshots: 0,
+          skipped: "migration_pending",
+        },
+      }),
+    ).toEqual([]);
+    // Kontrola: surowy wynik runnera NIE jest pominięciem - gdyby dyspozytor
+    // przestał mapować, alarm zapaliłby się i ten test to pokazuje.
+    expect(countTickFailures({ journeys: { error: "disabled" } })).toEqual(["journeys: disabled"]);
   });
 
   it("pominięcie push z braku VAPID nie jest błędem joba (osobne pole)", () => {

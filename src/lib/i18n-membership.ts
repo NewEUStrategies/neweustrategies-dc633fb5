@@ -55,6 +55,9 @@ export const membershipPl = {
       inviteError: "Nie udało się dodać miejsca.",
       inviteSuccess: "Dodano miejsce.",
       seatExists: "To miejsce już istnieje.",
+      teamSeatsMax: "Plan Zespół obejmuje najwyżej {{max}} aktywnych miejsc - wszystkie są zajęte.",
+      teamSeatsMaxHint: "Większy zespół obsłużymy w planie Enterprise - porozmawiajmy o nim.",
+      teamSeatsMaxCta: "Zobacz plan Enterprise",
       openPanel: "Panel organizacji",
     },
     // Panel samoobsługi organizacji (/profile/organization)
@@ -167,6 +170,9 @@ export const membershipEn: typeof membershipPl = {
       inviteError: "Could not add the seat.",
       inviteSuccess: "Seat added.",
       seatExists: "That seat already exists.",
+      teamSeatsMax: "The Team plan includes at most {{max}} active seats - they are all taken.",
+      teamSeatsMaxHint: "A larger team fits the Enterprise plan - let's talk about it.",
+      teamSeatsMaxCta: "See the Enterprise plan",
       openPanel: "Organisation panel",
     },
     orgPanel: {

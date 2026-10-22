@@ -11,6 +11,8 @@ import { z } from "zod";
 import { looseClient, looseTable, rowsOf } from "@/lib/supabase/looseQuery";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
+import { IMPORT_MAX_TAGS, LEAD_IMPORT_VALUE_MAX } from "@/lib/crm/importMapping";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
@@ -274,16 +276,20 @@ export const assignUnassignedCrmTasks = createServerFn({ method: "POST" })
 /** Porcja per wywołanie RPC - crm_import_leads odrzuca większe (timeouty). */
 export const CRM_IMPORT_CHUNK_SIZE = 500;
 
+// Limity pól z JEDNEGO źródła z mapowaniem pliku (`importMapping.ts`, I9
+// Z-I9b-15): dialog zgłasza wartość ponad limit z numerem wiersza i blokuje
+// import, więc serwer nie wywraca całej porcji na wartości, której klient
+// nie znał - i nikt niczego nie przycina.
 const ImportRowInput = z.object({
-  email: z.string().trim().min(3).max(320),
-  first_name: z.string().trim().max(100).optional(),
-  last_name: z.string().trim().max(100).optional(),
-  phone: z.string().trim().max(40).optional(),
-  company: z.string().trim().max(200).optional(),
-  position: z.string().trim().max(150).optional(),
-  linkedin_url: z.string().trim().max(300).optional(),
-  country: z.string().trim().max(80).optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  email: z.string().trim().min(3).max(LEAD_IMPORT_VALUE_MAX.email),
+  first_name: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.first_name).optional(),
+  last_name: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.last_name).optional(),
+  phone: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.phone).optional(),
+  company: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.company).optional(),
+  position: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.position).optional(),
+  linkedin_url: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.linkedin_url).optional(),
+  country: z.string().trim().max(LEAD_IMPORT_VALUE_MAX.country).optional(),
+  tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(IMPORT_MAX_TAGS).optional(),
 });
 
 export type CrmImportRow = z.infer<typeof ImportRowInput>;

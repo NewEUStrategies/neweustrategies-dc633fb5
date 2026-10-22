@@ -35,7 +35,24 @@ import { revenueKeys } from "@/lib/revenue/keys";
  */
 export type CheckoutSettingsState = CheckoutSettings & { updated_at: string | null };
 
-const STATE_COLUMNS = `${CHECKOUT_SETTINGS_COLUMNS}, updated_at` as const;
+// `abandon_after_minutes` (okno porzucenia kasy, I9a) jedzie w TYM SAMYM
+// odczycie co token `updated_at`: pole edytuje karta kasy w panelu, a zapis
+// warunkowany tokenem chroni cały wiersz. Osobne zapytanie dawałoby dwie
+// kopie jednego wiersza z różnymi tokenami - zapis mógłby wtedy nadpisać
+// cudzą zmianę okna, której admin nie widział.
+const STATE_COLUMNS = `${CHECKOUT_SETTINGS_COLUMNS}, abandon_after_minutes, updated_at` as const;
+
+/**
+ * Okno porzucenia z wiersza. Bez walidacji zakresu - tę robi formularz
+ * (`isCheckoutAbandonMinutes`) i CHECK bazy; tu tylko kształt, żeby moduł kasy
+ * czytelnika nie importował modułu limitów panelu.
+ */
+function abandonOf(row: { abandon_after_minutes?: unknown } | null): {
+  abandon_after_minutes?: number;
+} {
+  const raw = row?.abandon_after_minutes;
+  return typeof raw === "number" ? { abandon_after_minutes: raw } : {};
+}
 
 async function fetchCheckoutSettingsState(): Promise<CheckoutSettingsState> {
   const { data, error } = await supabase
@@ -43,7 +60,11 @@ async function fetchCheckoutSettingsState(): Promise<CheckoutSettingsState> {
     .select(STATE_COLUMNS)
     .maybeSingle();
   if (error) throw error;
-  return { ...normalizeCheckoutSettings(data), updated_at: data?.updated_at ?? null };
+  return {
+    ...normalizeCheckoutSettings(data),
+    ...abandonOf(data),
+    updated_at: data?.updated_at ?? null,
+  };
 }
 
 export async function fetchCheckoutSettings(): Promise<CheckoutSettings> {
@@ -80,7 +101,10 @@ function staleWrite(): Error & { code: "40001" } {
 
 /**
  * Zapis ustawień (bez haka - testy i naprawy huba). Patch to wyłącznie pięć
- * kolumn ustawień + `updated_by`. Dawny `upsert(onConflict: tenant_id)`
+ * kolumn ustawień, okno porzucenia (gdy formularz je podał) i `updated_by`.
+ * Okno idzie BEZ przycinania: wartość spoza 30-1440 odrzuca CHECK bazy
+ * (`23514`), a formularz nie dopuszcza do takiego zapisu tym samym
+ * predykatem co serwer (`isCheckoutAbandonMinutes`). Dawny `upsert(onConflict: tenant_id)`
  * nadpisywał wiersz bez względu na to, co admin widział - teraz UPDATE
  * warunkowany tokenem (0 wierszy = `40001`), a przy braku wiersza INSERT,
  * w którym wyścig dwóch kart kończy się 23505 → `40001`. Najemca przy INSERT
@@ -91,12 +115,15 @@ export async function saveCheckoutSettings(
 ): Promise<CheckoutSettingsState> {
   const { data: auth } = await supabase.auth.getSession();
   const s = normalizeCheckoutSettings(input.settings);
+  const abandon = input.settings.abandon_after_minutes;
   const patch = {
     allow_promotion_codes: s.allow_promotion_codes,
     automatic_tax: s.automatic_tax,
     tax_id_collection: s.tax_id_collection,
     billing_address_collection: s.billing_address_collection,
     invoice_creation: s.invoice_creation,
+    // Brak pola = kolumna bez zmian (UPDATE) albo domyślna bazy (INSERT).
+    ...(abandon === undefined ? {} : { abandon_after_minutes: abandon }),
     updated_by: auth.session?.user.id ?? null,
   };
 
@@ -108,7 +135,7 @@ export async function saveCheckoutSettings(
       .single();
     if (error?.code === "23505") throw staleWrite();
     if (error) throw error;
-    return { ...normalizeCheckoutSettings(data), updated_at: data.updated_at };
+    return { ...normalizeCheckoutSettings(data), ...abandonOf(data), updated_at: data.updated_at };
   }
 
   const { data, error } = await supabase
@@ -119,7 +146,7 @@ export async function saveCheckoutSettings(
   if (error) throw error;
   const row = data?.[0];
   if (!row) throw staleWrite();
-  return { ...normalizeCheckoutSettings(row), updated_at: row.updated_at };
+  return { ...normalizeCheckoutSettings(row), ...abandonOf(row), updated_at: row.updated_at };
 }
 
 /**

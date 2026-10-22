@@ -48,6 +48,7 @@ import {
   applicationStatusErrorKey,
   applicationStatusTone,
   bilingualLabel,
+  isAnonymizedApplication,
   crmChipView,
   crmRetryToast,
   crmTone,
@@ -147,6 +148,12 @@ describe("odmowa zapisu statusu", () => {
 
   it("kod nierozpoznany schodzi na ogólny komunikat", () => {
     expect(applicationStatusErrorKey("unknown")).toBe("adminClubs.applications.statusError");
+  });
+
+  it("zgłoszenie zanonimizowane ma własne zdanie (I9, Z-I9d-03)", () => {
+    expect(applicationStatusErrorKey("application_anonymized")).toBe(
+      "adminClubs.applications.statusErrors.application_anonymized",
+    );
   });
 
   it("dwa kody NIE dzielą jednego zdania", () => {
@@ -417,5 +424,16 @@ describe("kontrakt typów statusu", () => {
   it("każdy status ze słownika daje się użyć jako ClubApplicationStatus", () => {
     const statuses: readonly ClubApplicationStatus[] = APPLICATION_STATUSES;
     expect(statuses).toHaveLength(5);
+  });
+});
+
+describe("zgłoszenie zanonimizowane (I9, Z-I9d-03)", () => {
+  it("pseudonim konta w wersji 8 UUID = zanonimizowane; konto zwykłe (v4) - nie", () => {
+    expect(isAnonymizedApplication({ user_id: "1b4e28ba-2fa1-81d2-883f-0016d3cca427" })).toBe(true);
+    expect(isAnonymizedApplication({ user_id: "1b4e28ba-2fa1-41d2-883f-0016d3cca427" })).toBe(
+      false,
+    );
+    // Identyfikator spoza formatu UUID nie jest pseudonimem (atrapy testów).
+    expect(isAnonymizedApplication({ user_id: "user-member-8xx" })).toBe(false);
   });
 });

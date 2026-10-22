@@ -106,6 +106,20 @@ const pl = {
     couldSendReminders: "Nie udało się wysłać przypomnień",
     seatAdded: "Dodano miejsce",
     seatLimitReached: "Osiągnięto limit miejsc",
+    // Zespół 3-20 miejsc (cennik v6.2, decyzja właściciela 2026-10-20, I9b):
+    // ta sama reguła co wyzwalacze bazy - odrzucenie, nigdy przycięcie.
+    teamCap: {
+      status: "Zespół: {{active}}/{{max}} aktywnych miejsc (cennik v6.2: {{min}}-{{max}}).",
+      aboveMax:
+        "Zespół ma najwyżej {{max}} miejsc - {{requested}} to oferta Enterprise. Zmień próg organizacji na Enterprise albo zmniejsz liczbę miejsc.",
+      belowMin:
+        "Poniżej minimum v6.2 ({{min}}). Minimum to warunek sprzedaży, nie przydziału - miejsca można dodawać po jednym.",
+      addBlocked:
+        "Zespół ma już {{max}} aktywnych miejsc - kolejne miejsce dopiero po zwolnieniu albo na progu Enterprise.",
+      legacyOver:
+        "Limit {{limit}} miejsc sprzed reguły 3-20 zostaje (bez usuwania miejsc) - można go tylko obniżać.",
+      rejected: "Zespół ma najwyżej {{max}} miejsc. Powyżej {{max}} wybierz próg Enterprise.",
+    },
     seatAlreadyExists: "Miejsce już istnieje",
     invalidEmail: "Nieprawidłowy e-mail",
     couldAddSeat: "Nie udało się dodać miejsca",
@@ -260,6 +274,18 @@ const en = {
     couldSendReminders: "Could not send reminders",
     seatAdded: "Seat added",
     seatLimitReached: "Seat limit reached",
+    teamCap: {
+      status: "Team: {{active}}/{{max}} active seats (pricing v6.2: {{min}}-{{max}}).",
+      aboveMax:
+        "Team allows at most {{max}} seats - {{requested}} is an Enterprise offer. Switch the organisation to Enterprise or reduce the number of seats.",
+      belowMin:
+        "Below the v6.2 minimum ({{min}}). The minimum is a sales condition, not an allocation rule - seats can be added one at a time.",
+      addBlocked:
+        "This Team already has {{max}} active seats - another seat needs a freed seat or the Enterprise tier.",
+      legacyOver:
+        "The limit of {{limit}} seats set before the 3-20 rule stays (no seats removed) - it can only be lowered.",
+      rejected: "Team allows at most {{max}} seats. Above {{max}}, choose the Enterprise tier.",
+    },
     seatAlreadyExists: "Seat already exists",
     invalidEmail: "Invalid email",
     couldAddSeat: "Could not add seat",

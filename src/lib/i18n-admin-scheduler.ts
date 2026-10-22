@@ -138,6 +138,34 @@ export const adminSchedulerPl = {
       loadFailed: "Nie udało się odczytać stanu harmonogramu.",
     },
     loading: "Wczytywanie stanu harmonogramu...",
+    // Silnik ścieżek komunikacji (I9, Z-S5-03) - krok `journeys` tego ticku.
+    journeys: {
+      title: "Silnik ścieżek komunikacji",
+      scope:
+        "Kroki ścieżek wykonuje ten sam tick dla wszystkich najemców; liczby poniżej dotyczą tego najemcy.",
+      state: {
+        killSwitch: "Wyłącznik awaryjny",
+        enabled: "Włączony",
+        disabled: "Wyłączony",
+        unavailable: "Niedostępny",
+      },
+      killSwitchAlert:
+        "Awaryjny wyłącznik środowiska (JOURNEYS_ENGINE_DISABLED=1) zatrzymał silnik dla wszystkich najemców: tick pomija kroki ścieżek, a log przebiegów zapisuje to jako pominięcie, nie awarię. Wyłącznik zdejmuje się w zmiennych środowiska wdrożenia; na co dzień silnik włącza się i wyłącza w ustawieniach silnika ścieżek.",
+      disabledHint:
+        "Silnik jest wyłączony w ustawieniach silnika ścieżek: żaden kontakt nie wejdzie na ścieżkę ani nie dostanie maila (poza testem na sobie).",
+      unavailableHint:
+        "Stanu silnika nie udało się odczytać - baza może jeszcze nie mieć migracji silnika ścieżek.",
+      metrics: {
+        dueNow: "Do wykonania",
+        inboxPending: "Zdarzenia w skrzynce",
+        lastStep: "Ostatni krok",
+        failures24h: "Błędy / 24 h",
+        never: "jeszcze nie było",
+      },
+      schedule:
+        "Kroki ścieżek co minutę, przed drenem poczty (termin 3 s); statystyki dzienne co godzinę (minuta 13); sprzątanie skrzynki zdarzeń raz na dobę (03:11 UTC, 30 dni). Skanery przychodu co 5 minut.",
+      open: "Ścieżki i ustawienia silnika",
+    },
   },
 };
 
@@ -266,6 +294,33 @@ export const adminSchedulerEn = {
       loadFailed: "Could not read the scheduler state.",
     },
     loading: "Loading scheduler state...",
+    journeys: {
+      title: "Communication journeys engine",
+      scope:
+        "The same tick runs journey steps for every workspace; the figures below are for this workspace.",
+      state: {
+        killSwitch: "Emergency switch",
+        enabled: "On",
+        disabled: "Off",
+        unavailable: "Unavailable",
+      },
+      killSwitchAlert:
+        "The environment emergency switch (JOURNEYS_ENGINE_DISABLED=1) stopped the engine for every workspace: the tick skips journey steps and the run log records this as a skip, not a failure. The switch is removed in the deployment environment variables; day to day the engine is switched on and off in the journey engine settings.",
+      disabledHint:
+        "The engine is off in the journey engine settings: no contact enters a journey or receives an email (except the self test).",
+      unavailableHint:
+        "The engine state could not be read - the database may not have the journey engine migration yet.",
+      metrics: {
+        dueNow: "Due now",
+        inboxPending: "Events in the inbox",
+        lastStep: "Last step",
+        failures24h: "Errors / 24 h",
+        never: "not yet",
+      },
+      schedule:
+        "Journey steps every minute, before the mail drain (3 s limit); daily statistics every hour (minute 13); event inbox cleanup once a day (03:11 UTC, 30 days). Revenue scanners every 5 minutes.",
+      open: "Journeys and engine settings",
+    },
   },
 };
 

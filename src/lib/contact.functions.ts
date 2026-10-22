@@ -8,6 +8,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
 import { CONTACT_FIELD_LIMITS, contactTextSchema } from "@/lib/forms/contactLimits";
+import { normalizeConsentVersion } from "@/lib/newsletter/consentText";
 
 // Celowo `recruitmentShared`, nie `recruitmentLayer`: ten moduł importuje
 // pięć publicznych powierzchni formularzy, więc pełna warstwa (parsowanie
@@ -344,6 +345,20 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       if (!recipientOk) throw new Error("rate_limited");
     }
 
+    // Wersja z pomiarem (I9d-Y2) zostaje wyłącznie przy treści z rejestru
+    // treści zgody (`normalizeConsentVersion`) - fałszywa wersja z ładunku
+    // nie nada zgody na pomiar. Te same pozycje zgody na newsletter idą do
+    // subskrybenta niżej (wyzwalacz rejestru loguje DOKŁADNIE tę treść
+    // zamiast tekstu zastępczego).
+    const normalizedConsents = (data.consents ?? []).map((entry) => {
+      const { version: _claimed, ...rest } = entry;
+      const version = normalizeConsentVersion(entry);
+      return version ? { ...rest, version } : rest;
+    });
+    const newsletterConsents = normalizedConsents
+      .filter((entry) => /^(newsletter|marketing)/.test(entry.key) && entry.given !== false)
+      .map((entry) => ({ ...entry, received_at: new Date().toISOString() }));
+
     const { data: inserted, error } = await supabaseAdmin
       .from("contact_messages")
       .insert({
@@ -367,7 +382,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         referer: data.referer ?? null,
         ip: clientIp,
         user_agent: userAgent,
-        consents: data.consents ?? [],
+        consents: normalizedConsents,
         custom: Object.keys(customFields).length ? customFields : {},
         status: "new",
       })
@@ -506,6 +521,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
             source: "contact-form",
             confirmation_token: token,
             confirmation_expires_at: expires,
+            consents: newsletterConsents,
           },
           { onConflict: "tenant_id,email" },
         );
@@ -537,6 +553,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
             status: "subscribed",
             confirmed_at: new Date().toISOString(),
             source: "contact-form",
+            consents: newsletterConsents,
           },
           { onConflict: "tenant_id,email" },
         );

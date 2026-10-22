@@ -5,6 +5,12 @@
 // "lead") drive columns/filters/sort; the list is server-paginated with an
 // exact total. Super Admins can switch to a cross-tenant view via the scope
 // toggle.
+//
+// Hub „Przychód i lejek" (I9, SPEC §2.7): pasek Diagnostyki obszarów CRM
+// i windykacji pod nagłówkiem LISTY (nie w układzie `admin.crm.tsx` - karta
+// leada i lejek nie powtarzają paska). Lekkie opakowanie, treść w leniwym
+// chunku i tylko dla roli huba. Akcja „Przypisz zadania bez osoby" (P24)
+// woła ten sam zapis modułu, co szybka naprawa huba.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -46,6 +52,7 @@ import {
 } from "@/lib/crm/leadTimeline";
 import { eventActivitySummary } from "@/lib/crm/eventActivity";
 import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
+import { CrmJourneyActivityLink } from "@/components/admin/crm/CrmJourneyActivityLink";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
@@ -54,6 +61,7 @@ import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
 import { ScoringSettingsDialog } from "@/components/admin/crm/ScoringSettingsDialog";
 import { FollowUpsPanel } from "@/components/admin/crm/FollowUpsPanel";
+import { AssignUnassignedTasksButton } from "@/components/admin/crm/AssignUnassignedTasksButton";
 import { ImportLeadsCsvDialog } from "@/components/admin/crm/ImportLeadsCsvDialog";
 import { LeadTasksPanel } from "@/components/admin/crm/LeadTasksPanel";
 import { LeadViewTabs, type LeadSavedViewRow } from "@/components/admin/crm/LeadViewTabs";
@@ -124,6 +132,7 @@ import { adminPageHead } from "@/lib/adminPageHead";
 import { crmStaffUsersQueryOptions } from "@/lib/crm/leadMutations";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
 
 interface CrmSearch {
@@ -270,6 +279,7 @@ const PL = {
     tlExportCsv: "Eksport CSV",
     tlExportPdf: "Eksport PDF",
     tlOpenEvent: "Otwórz w studiu wydarzenia",
+    tlOpenJourney: "Otwórz ścieżkę komunikacji",
     tlTypes: {
       submit: "Zgłoszenie",
       consent: "Zgoda",
@@ -278,6 +288,7 @@ const PL = {
       webhook: "Webhook",
       newsletter: "Newsletter",
       event: "Wydarzenie",
+      journey: "Ścieżka",
     } as Record<string, string>,
   },
   integ: {
@@ -343,6 +354,7 @@ const EN = {
     tlExportCsv: "Export CSV",
     tlExportPdf: "Export PDF",
     tlOpenEvent: "Open in the event studio",
+    tlOpenJourney: "Open the communication journey",
     tlTypes: {
       submit: "Submission",
       consent: "Consent",
@@ -351,6 +363,7 @@ const EN = {
       webhook: "Webhook",
       newsletter: "Newsletter",
       event: "Event",
+      journey: "Journey",
     } as Record<string, string>,
   },
   integ: {
@@ -380,6 +393,7 @@ function AdminCrmPage() {
           <p className="text-[12px] text-muted-foreground">{L.subtitle}</p>
         </div>
       </header>
+      <RevenueSignalChip surface="crm" variant="bar" />
       <div className="flex items-center gap-1 border-b border-border/60">
         <span
           aria-current="page"
@@ -782,6 +796,8 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             <Download className="w-3.5 h-3.5 mr-1" />
             {L.export}
           </Button>
+          {/* I9 (Z-S7-02, P24): ten sam zapis modułu co szybka naprawa huba. */}
+          <AssignUnassignedTasksButton />
           <Button
             variant="outline"
             size="sm"
@@ -1581,6 +1597,8 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
     webhook: "bg-orange-500/15 text-brand dark:text-brand",
     newsletter: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
     event: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    // Zestaw klas etapu „propozycja" - już w arkuszu panelu (budżet `css`).
+    journey: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   };
 
   return (
@@ -1621,7 +1639,9 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
                   {L.detail.tlTypes[e.type] ?? e.type}
                 </Badge>
                 <span className="text-[12px] font-medium break-all">
-                  {e.type === "event" ? eventActivitySummary(e.meta, lang, e.title) : e.title}
+                  {e.type === "event" || e.type === "journey"
+                    ? eventActivitySummary(e.meta, lang, e.title)
+                    : e.title}
                 </span>
                 <time className="ml-auto text-[10px] text-muted-foreground">
                   {new Date(e.at).toLocaleString()}
@@ -1629,6 +1649,9 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
               </div>
               {e.type === "event" && (
                 <CrmEventActivityLink meta={e.meta} label={L.detail.tlOpenEvent} />
+              )}
+              {e.type === "journey" && (
+                <CrmJourneyActivityLink meta={e.meta} label={L.detail.tlOpenJourney} />
               )}
               {e.detail && (
                 <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere] leading-snug">

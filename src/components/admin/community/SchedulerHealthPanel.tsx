@@ -11,6 +11,13 @@
 //   3. głębokość kolejek w tenancie wołającego + log ostatnich przebiegów.
 // Przycisk „Uruchom tick teraz" woła TĘ SAMĄ funkcję co cron (runJobsTick), a
 // nie osobną, gorszą ścieżkę - i po drodze uzbraja runner bazy.
+//
+// SILNIK ŚCIEŻEK (I9, Z-S5-03). Runner ścieżek komunikacji jest krokiem tego
+// samego ticku, więc jego stan stoi tutaj: awaryjny wyłącznik środowiska
+// (`JOURNEYS_ENGINE_DISABLED`, wszyscy najemcy - w logu przebiegów to
+// pominięcie, nie awaria), przełącznik najemcy, kontakty do wykonania,
+// skrzynka zdarzeń, ostatni krok i błędy doby. Stan najemcy dociąga serwer
+// (`getSchedulerHealth`), więc panel nie ładuje modułów ścieżek (D-08).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -44,7 +51,11 @@ import {
 import { HeartbeatDot } from "@/components/admin/atoms/HeartbeatDot";
 import { AdminMetricTile, type MetricTone } from "@/components/admin/molecules/AdminMetricTile";
 import { useAuth } from "@/hooks/useAuth";
-import { getSchedulerHealth, runSchedulerTickNow } from "@/lib/admin/scheduler.functions";
+import {
+  getSchedulerHealth,
+  runSchedulerTickNow,
+  type SchedulerJourneysState,
+} from "@/lib/admin/scheduler.functions";
 import { countTickFailures } from "@/lib/jobs/scheduler";
 import { relTime } from "@/lib/chat/time";
 import { ensureI18n } from "@/lib/i18n-admin-scheduler";
@@ -76,6 +87,103 @@ function secondsLabel(seconds: number, lang: Lang): string {
 function tickReason(t: TFunction, code: string | null): string {
   if (!code) return "-";
   return t(`adminScheduler.runner.tickReason.${code}`, { defaultValue: code });
+}
+
+/**
+ * Karta silnika ścieżek. KOLOR NIGDY SAM: stan to ikona + słowo w odznace,
+ * wyłącznik dodatkowo alert z wyjaśnieniem. Liczby najemcy operatora - runner
+ * jest wspólny dla wszystkich najemców, stąd zdanie o zakresie pod tytułem.
+ */
+function JourneysEngineCard({
+  journeys,
+  lang,
+}: {
+  journeys: SchedulerJourneysState | undefined;
+  lang: Lang;
+}) {
+  const { t } = useTranslation();
+  const engine = journeys?.engine ?? null;
+  const state = journeys?.killSwitch
+    ? "killSwitch"
+    : engine === null
+      ? "unavailable"
+      : engine.enabled
+        ? "enabled"
+        : "disabled";
+  const StateIcon =
+    state === "killSwitch"
+      ? AlertTriangle
+      : state === "enabled"
+        ? CheckCircle2
+        : state === "disabled"
+          ? XCircle
+          : Info;
+  return (
+    <Card data-testid="scheduler-journeys">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-base">{t("adminScheduler.journeys.title")}</CardTitle>
+          {journeys ? (
+            <Badge
+              variant={state === "killSwitch" ? "destructive" : "outline"}
+              data-engine-state={state}
+            >
+              <StateIcon className="w-4 h-4 mr-2" aria-hidden="true" />
+              {t(`adminScheduler.journeys.state.${state}`)}
+            </Badge>
+          ) : null}
+        </div>
+        <p className="m-0 text-sm text-muted-foreground">{t("adminScheduler.journeys.scope")}</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {journeys?.killSwitch ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>{t("adminScheduler.journeys.killSwitchAlert")}</AlertDescription>
+          </Alert>
+        ) : null}
+        {journeys && !journeys.killSwitch && engine && !engine.enabled ? (
+          <p className="m-0 text-sm text-muted-foreground">
+            {t("adminScheduler.journeys.disabledHint")}
+          </p>
+        ) : null}
+        {journeys && engine === null ? (
+          <p className="m-0 text-sm text-muted-foreground">
+            {t("adminScheduler.journeys.unavailableHint")}
+          </p>
+        ) : null}
+        {engine ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <AdminMetricTile
+              icon={Clock}
+              label={t("adminScheduler.journeys.metrics.dueNow")}
+              value={engine.dueNow}
+            />
+            <AdminMetricTile
+              icon={Mail}
+              label={t("adminScheduler.journeys.metrics.inboxPending")}
+              value={engine.inboxPending}
+            />
+            <AdminMetricTile
+              icon={CalendarClock}
+              label={t("adminScheduler.journeys.metrics.lastStep")}
+              value={ago(engine.lastStepAt, lang, t("adminScheduler.journeys.metrics.never"))}
+            />
+            <AdminMetricTile
+              icon={XCircle}
+              label={t("adminScheduler.journeys.metrics.failures24h")}
+              value={engine.failures24h}
+              tone={engine.failures24h > 0 ? "danger" : "neutral"}
+            />
+          </div>
+        ) : null}
+        <p className="m-0 text-xs text-muted-foreground">{t("adminScheduler.journeys.schedule")}</p>
+        <Button asChild variant="outline" size="sm">
+          <a href="/admin/revenue/journeys">{t("adminScheduler.journeys.open")}</a>
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function SchedulerHealthPanel() {
@@ -469,6 +577,8 @@ export function SchedulerHealthPanel() {
           </CardContent>
         </Card>
       </div>
+
+      <JourneysEngineCard journeys={data?.journeys} lang={lang} />
 
       <Card>
         <CardHeader className="pb-3">

@@ -16,7 +16,16 @@ let lang = "pl";
 const trackCta = vi.fn();
 
 vi.mock("react-i18next", () => reactI18nextStub(() => lang));
-vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
+// Stub routera + `search` w atrybucie danych - kontrakt `/login?mode=signup`
+// (P15) jest częścią adresu, którego zwykły stub nie renderuje.
+vi.mock("@tanstack/react-router", () => ({
+  Link: (props: Parameters<typeof RouterLinkStub>[0]) => (
+    <RouterLinkStub
+      {...props}
+      {...(props.search ? { "data-search": JSON.stringify(props.search) } : {})}
+    />
+  ),
+}));
 vi.mock("@/lib/analytics/track", () => ({ trackCta: (...args: unknown[]) => trackCta(...args) }));
 
 const { TierCard } = await import("@/components/pricing/organisms/TierCard");
@@ -224,10 +233,14 @@ describe("TierCard - PRZYCISK ZAKUPU", () => {
   it("warstwa domyślna dla niezalogowanego prowadzi do REJESTRACJI", () => {
     renderCard({ tier: membershipTier({ is_default: true }), isAuthenticated: false });
 
-    expect(screen.getByRole("link", { name: "pricing.signupCta" })).toHaveAttribute(
-      "href",
-      "/login",
-    );
+    const link = screen.getByRole("link", { name: "pricing.signupCta" });
+    expect(link).toHaveAttribute("href", "/login");
+    // P15: tryb rejestracji (dotąd portal otwierał logowanie) i intencja
+    // cennika - źródło rejestracji `pricing` (P16).
+    expect(JSON.parse(link.getAttribute("data-search") ?? "null")).toEqual({
+      mode: "signup",
+      intent: "pricing",
+    });
   });
 
   it("kliknięcie rejestracji zgłasza własne zdarzenie", () => {

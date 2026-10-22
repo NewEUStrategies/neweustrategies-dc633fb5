@@ -400,8 +400,38 @@ export function parseRevenueClubsSummary(raw: unknown): RawRevenueClubs | null {
   };
 }
 
-export function parseRevenueEmailHealth(raw: unknown): RawRevenueEmailHealth | null {
-  if (!isRecord(raw)) return null;
+/**
+ * Adapter kształtu S1 (I9, Z-S7-10 / Z-S6-17 / Z-S1-01). Funkcja
+ * `admin_revenue_email_health` (S1, `EMAIL_HEALTH_KEYS`) oddaje grupy
+ * zagnieżdżone - `campaigns.*`, `list.{start,net_growth}`,
+ * `doi.{started,confirmed_7d}` - a kontrakt migawki (`REVENUE_EMAIL_KEYS`)
+ * jest płaski. Bez spłaszczenia tolerancyjny parser dałby ciche „brak danych"
+ * dla każdej liczby. Odpowiedź już płaska przechodzi bez zmian.
+ */
+function flattenEmailHealth(raw: Record<string, unknown>): Record<string, unknown> {
+  const { campaigns, list, doi } = raw;
+  if (!isRecord(campaigns) && !isRecord(list) && !isRecord(doi)) return raw;
+  const c = isRecord(campaigns) ? campaigns : {};
+  const l = isRecord(list) ? list : {};
+  const d = isRecord(doi) ? doi : {};
+  return {
+    delivered: c.delivered,
+    unique_opens: c.unique_opens,
+    unique_clicks: c.unique_clicks,
+    hard_bounces: c.hard_bounces,
+    soft_bounces: c.soft_bounces,
+    complaints: c.complaints,
+    unsubscribes: c.unsubscribes,
+    list_base: l.start,
+    list_net_growth: l.net_growth,
+    doi_started: d.started,
+    doi_confirmed: d.confirmed_7d,
+  };
+}
+
+export function parseRevenueEmailHealth(input: unknown): RawRevenueEmailHealth | null {
+  if (!isRecord(input)) return null;
+  const raw = flattenEmailHealth(input);
   return {
     counts: {
       delivered: count(raw.delivered),

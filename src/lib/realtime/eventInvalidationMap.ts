@@ -399,6 +399,10 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // Przepływ anulowania: odpowiedzi ankiety w zakładce Retencja cennika.
   "retention_flow.started.v1": () => [retentionKeys.admin.feedback()],
   "retention_flow.completed.v1": () => [retentionKeys.admin.feedback()],
+  // Wiadomość z formularza kontaktowego (I9, Z-S5-01): lead powstał albo
+  // dostał aktywność w tej samej transakcji (listy CRM), a skrzynka kolejek
+  // personelu liczy nieprzeczytane wiadomości.
+  "contact_message.submitted.v1": () => [crmKeys.leadsAll(), pendingCounterKeys.tenant()],
   // Zgłoszenie do klubu: skrzynka zgłoszeń (`applicationInboxKeys.all`),
   // kluby (licznik zgłoszeń), historia własnych zgłoszeń na /club/apply
   // i lead CRM (`club_application_crm_sync`). Inbox i historia mają klucze
@@ -437,6 +441,7 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "journey.stats_changed.v1": () => [],
   "revenue_input.changed.v1": () => [],
   "revenue_diagnostic.snoozed.v1": () => [],
+  "data_retention.changed.v1": () => [],
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,

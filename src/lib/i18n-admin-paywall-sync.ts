@@ -274,6 +274,15 @@ const pl = {
       save: "Zapisz ustawienia kasy",
       saved: "Zapisano ustawienia kasy",
       saveError: "Nie udało się zapisać ustawień kasy.",
+      // Okno porzucenia kasy (`checkout_settings.abandon_after_minutes`, I9a;
+      // skutki - S3 P22 i Z-S3-07).
+      abandonAfter: "Okno porzucenia kasy (minuty)",
+      abandonAfterHint: "Od {{min}} do {{max}} minut; domyślnie {{fallback}} (24 godziny).",
+      abandonAfterHelp: "Co zmienia okno porzucenia kasy?",
+      abandonAfterTooltip:
+        "Po tylu minutach otwarta, nieopłacona sesja kasy wygasa i liczy się jako porzucona - trafia do lejka i może uruchomić ścieżkę porzuconej kasy. Dotyczy każdego zakupu: planu, treści i biletu. Krótsze okno szybciej zwalnia też miejsce zarezerwowane dla nieopłaconego biletu. {{fallback}} minut (24 godziny) zostawia dotychczasowe zachowanie operatora płatności.",
+      abandonAfterInvalid:
+        "Podaj liczbę całkowitą od {{min}} do {{max}} minut. Wartość spoza zakresu nie zostanie zapisana ani przycięta.",
       plane: {
         title: "Płaszczyzna rozliczeniowa sesji",
         managed:
@@ -533,6 +542,13 @@ const en: typeof pl = {
       save: "Save checkout settings",
       saved: "Checkout settings saved",
       saveError: "Could not save the checkout settings.",
+      abandonAfter: "Checkout abandonment window (minutes)",
+      abandonAfterHint: "From {{min}} to {{max}} minutes; {{fallback}} by default (24 hours).",
+      abandonAfterHelp: "What does the checkout abandonment window change?",
+      abandonAfterTooltip:
+        "After this many minutes an open, unpaid checkout session expires and counts as abandoned - it enters the funnel and can start the abandoned checkout journey. It applies to every purchase: plan, article and ticket. A shorter window also releases a seat held for an unpaid ticket sooner. {{fallback}} minutes (24 hours) keeps the payment provider's current behaviour.",
+      abandonAfterInvalid:
+        "Enter a whole number from {{min}} to {{max}} minutes. A value outside this range is neither saved nor trimmed.",
       plane: {
         title: "Session billing plane",
         managed:

@@ -2430,6 +2430,314 @@
       "when": 1792476373912,
       "tag": "0346_pr527_deployment_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1792476433912,
+      "tag": "0347_account_registered_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1792476493912,
+      "tag": "0348_paywall_hits_rpc",
+      "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1792476553912,
+      "tag": "0349_metering_quota_rank_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1792476613912,
+      "tag": "0350_checkout_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1792476673912,
+      "tag": "0351_revenue_funnel_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1792476733912,
+      "tag": "0352_journeys_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1792476793912,
+      "tag": "0353_journeys_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1792476853912,
+      "tag": "0354_journeys_predicates_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1792476913912,
+      "tag": "0355_journeys_admin_rpc",
+      "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1792476973912,
+      "tag": "0356_journeys_admin_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1792477033912,
+      "tag": "0357_journeys_tracking_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 358,
+      "version": "7",
+      "when": 1792477093912,
+      "tag": "0358_revenue_segment_institutions",
+      "breakpoints": true
+    },
+    {
+      "idx": 359,
+      "version": "7",
+      "when": 1792477153912,
+      "tag": "0359_pricing_v62_catalog_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 360,
+      "version": "7",
+      "when": 1792477213912,
+      "tag": "0360_pricing_v62_decisions_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 361,
+      "version": "7",
+      "when": 1792477273912,
+      "tag": "0361_team_seat_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 362,
+      "version": "7",
+      "when": 1792477333912,
+      "tag": "0362_revenue_ledger_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 363,
+      "version": "7",
+      "when": 1792477393912,
+      "tag": "0363_funnel_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 364,
+      "version": "7",
+      "when": 1792477453912,
+      "tag": "0364_domain_events_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1792477513912,
+      "tag": "0365_hub_account_erasure_sweep",
+      "breakpoints": true
+    },
+    {
+      "idx": 366,
+      "version": "7",
+      "when": 1792477573912,
+      "tag": "0366_crm_tag_limit_shared",
+      "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1792477633912,
+      "tag": "0367_account_erasure_staff_mail_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1792477693912,
+      "tag": "0368_data_retention_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1792477753912,
+      "tag": "0369_data_retention_executor",
+      "breakpoints": true
+    },
+    {
+      "idx": 370,
+      "version": "7",
+      "when": 1792477813912,
+      "tag": "0370_data_retention_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1792477873912,
+      "tag": "0371_data_retention_open_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1792477933912,
+      "tag": "0372_data_retention_panel",
+      "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1792477993912,
+      "tag": "0373_revenue_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 374,
+      "version": "7",
+      "when": 1792478053912,
+      "tag": "0374_revenue_facts_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 375,
+      "version": "7",
+      "when": 1792478113912,
+      "tag": "0375_revenue_diagnostic_snoozes",
+      "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1792478173912,
+      "tag": "0376_club_applications_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1792478233912,
+      "tag": "0377_club_applications_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1792478293912,
+      "tag": "0378_metered_views_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1792478353912,
+      "tag": "0379_event_attendees_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1792478413912,
+      "tag": "0380_newsletter_sunset_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1792478473912,
+      "tag": "0381_newsletter_sunset_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1792478533912,
+      "tag": "0382_newsletter_sunset_panel",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1792478593912,
+      "tag": "0383_data_retention_y1_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1792478653912,
+      "tag": "0384_consent_measurement_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1792478713912,
+      "tag": "0385_consent_measurement_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1792478773912,
+      "tag": "0386_consent_measurement_reconfirm",
+      "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1792478833912,
+      "tag": "0387_journey_enrollment_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1792478893912,
+      "tag": "0388_crm_marketing_consent_shared",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1792478953912,
+      "tag": "0389_contact_message_submitted_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1792479013912,
+      "tag": "0390_campaign_engagement_readers",
+      "breakpoints": true
     }
   ]
 }

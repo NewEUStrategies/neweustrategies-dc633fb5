@@ -47,6 +47,7 @@ vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: h.sendTxEmail }));
 
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 
 const db = supabaseFromStub();
 const SETTINGS = "newsletter_settings";
@@ -279,6 +280,34 @@ describe("adres już zapisany", () => {
 
     expect(res).toEqual({ ok: true, status: "exists" });
     expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("upsert"))).toBe(false);
+  });
+
+  it("ponowny zapis istniejącego adresu = zaangażowanie (wygaszanie, I9d-Y1), odpowiedź bez zmian", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("upsert") ? ok(null) : ok({ id: "s-1", status: "subscribed" }),
+    );
+
+    const res = await subscribeToNewsletter({ data: input() });
+
+    expect(res).toEqual({ ok: true, status: "exists" });
+    const touch = h.rpc.mock.calls.find((c) => c[0] === "newsletter_engagement_touch");
+    expect(touch?.[1]).toEqual({
+      p_tenant: expect.any(String),
+      p_email: input().email.toLowerCase(),
+    });
+  });
+
+  it("awaria znacznika zaangażowania nie psuje formularza", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("upsert") ? ok(null) : ok({ id: "s-1", status: "subscribed" }),
+    );
+    h.rpc.mockImplementation(async (name: string) =>
+      name === "newsletter_engagement_touch"
+        ? { data: null, error: { message: "touch down" } }
+        : { data: [], error: null },
+    );
+
+    expect(await subscribeToNewsletter({ data: input() })).toEqual({ ok: true, status: "exists" });
   });
 
   it("adres `pending` może spróbować ponownie - token się odświeża", async () => {
@@ -855,4 +884,52 @@ it("preserves client interaction time and stamps receipt with the server clock",
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe("wersja treści zgody (I9d-Y2)", () => {
+  it("treść z rejestru zachowuje wersję z pomiarem w `consents`", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          {
+            key: "newsletter",
+            text: newsletterConsentHtml("pl"),
+            version: NEWSLETTER_CONSENT_VERSION,
+            given: true,
+            lang: "pl",
+          },
+        ],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry).toMatchObject({
+      key: "newsletter",
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
+    expect(typeof entry.received_at).toBe("string");
+  });
+
+  it("obca treść z wersją z pomiarem traci wersję - klient nie nada zgody na pomiar etykietą", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [{ key: "newsletter", text: "Cokolwiek.", version: NEWSLETTER_CONSENT_VERSION }],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry.text).toBe("Cokolwiek.");
+    expect(entry).not.toHaveProperty("version");
+  });
+
+  it("inna wersja (skrót popupu) przechodzi bez zmian", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          { key: "privacy", text: "Polityka", version: "sha256:0123456789abcdef01234567" },
+        ],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry.version).toBe("sha256:0123456789abcdef01234567");
+  });
 });

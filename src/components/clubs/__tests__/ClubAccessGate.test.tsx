@@ -86,11 +86,25 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children?: unknown; to?: string }) => (
+  Link: ({
+    children,
+    to,
+    search: _search,
+    hash: _hash,
+    ...rest
+  }: {
+    children?: unknown;
+    to?: string;
+    search?: unknown;
+    hash?: unknown;
+  }) => (
     <a href={to} {...rest}>
       {children as never}
     </a>
   ),
+  // Testy renderują stan PO hydratacji (AGENTS: bramka klubu czeka na
+  // `useHydrated`; stan przed hydratacją ma własny test w ClubAccessGate.funnel).
+  useHydrated: () => true,
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.preAuthGuard }));
 vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn() } }));
@@ -105,6 +119,9 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { signUp: h.signUp } },
 }));
 vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: h.preAuthGuard }));
+// Zapis na newsletter po rejestracji z zaznaczonym polem (I9d-Y2) - przez
+// `useServerFn`, czyli w tym pliku ten sam `h.preAuthGuard` (rozróżnia ładunek).
+vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@/lib/i18n-club-gate", () => ({}));
 // Konfiguracja pól rejestracji jedzie Z PANELU (`newsletter_settings.popup_fields`),
@@ -479,13 +496,13 @@ describe("pola rejestracji sterowane z panelu", () => {
     expect(czyJestPole("first_name")).toBe(false);
   });
 
-  it("zgoda newsletterowa jest domyślnie ZAZNACZONA i daje się wyłączyć", () => {
+  it("zgoda newsletterowa jest domyślnie ODZNACZONA (P08, RODO) i daje się włączyć", () => {
     h.enabled = [...WSZYSTKIE_POLA];
     gate();
     const checkbox = screen.getByRole("checkbox");
-    expect(checkbox.getAttribute("data-state")).toBe("checked");
-    fireEvent.click(checkbox);
     expect(checkbox.getAttribute("data-state")).toBe("unchecked");
+    fireEvent.click(checkbox);
+    expect(checkbox.getAttribute("data-state")).toBe("checked");
   });
 
   it("wyłączona zgoda newsletterowa nie renderuje pola wyboru", () => {
@@ -650,6 +667,7 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     wpisz("email", "kandydat@example.org");
     wpisz("password", "haslo12345");
     wpisz("password_confirm", "haslo12345");
+    // Zaznaczenie przez użytkownika - jedyna droga do zgody (domyślnie brak).
     fireEvent.click(screen.getByRole("checkbox"));
     wyslij();
     await waitFor(() => {
@@ -658,8 +676,38 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     const call = h.signUp.mock.calls[0]?.[0] as {
       options: { data: { newsletterOptIn: boolean; source: string } };
     };
-    expect(call.options.data.newsletterOptIn).toBe(false);
+    expect(call.options.data.newsletterOptIn).toBe(true);
     expect(call.options.data.source).toBe("club_gate");
+    // I9d-Y2: zgoda nie zostaje samą flagą - zapis na listę z treścią pola
+    // (etykieta z panelu = tekst własny, bez wersji z pomiarem).
+    await waitFor(() =>
+      expect(h.preAuthGuard).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          email: "kandydat@example.org",
+          source: "signup_club_gate",
+          consents: [
+            { key: "newsletter", text: "panel:newsletter_optin:", given: true, lang: "pl" },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("bez zaznaczonej zgody newsletterowej nikt nie trafia na listę", async () => {
+    h.enabled = [...WSZYSTKIE_POLA];
+    h.required = ["email", "password", "password_confirm"];
+    gate();
+    wpisz("email", "kandydat@example.org");
+    wpisz("password", "haslo12345");
+    wpisz("password_confirm", "haslo12345");
+    wyslij();
+    await waitFor(() => {
+      expect(h.signUp).toHaveBeenCalledTimes(1);
+    });
+    const subscribeCalls = h.preAuthGuard.mock.calls.filter(
+      ([arg]) => (arg as { data?: { consents?: unknown } })?.data?.consents !== undefined,
+    );
+    expect(subscribeCalls).toEqual([]);
   });
 
   it("wyłączone pole zgody wysyła `newsletterOptIn = false`, a nie domyślne `true`", async () => {

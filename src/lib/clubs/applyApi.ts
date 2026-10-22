@@ -130,10 +130,17 @@ export function clubApplyErrorCode(message: string): ClubApplySubmitError {
  * panel musi go nazwac, inaczej operator widzi wylacznie ogolne "nie udalo sie
  * zapisac statusu" i nie ma pojecia, ze przeszkoda jest drugie zgloszenie.
  */
-export type ClubApplicationStatusError = "duplicate_open" | "unknown";
+export type ClubApplicationStatusError = "duplicate_open" | "application_anonymized" | "unknown";
 
+/**
+ * `application_anonymized` (I9d-Y1, SQL 20261020161600): zgłoszenie
+ * zanonimizowane (pseudonim konta) albo osoby bez konta - decyzja nie ma
+ * adresata, więc baza jej odmawia; panel nazywa powód (I9, Z-I9d-03).
+ */
 export function clubApplicationStatusErrorCode(message: string): ClubApplicationStatusError {
-  return message.includes("duplicate_open") ? "duplicate_open" : "unknown";
+  if (message.includes("duplicate_open")) return "duplicate_open";
+  if (message.includes("application_anonymized")) return "application_anonymized";
+  return "unknown";
 }
 
 export async function submitClubApplication(

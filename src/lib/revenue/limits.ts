@@ -36,6 +36,50 @@ export const REVENUE_LIMITS = {
   snoozeMaxDays: 180,
 } as const;
 
+/**
+ * Czy wartość jest poprawnym oknem porzucenia kasy: liczba CAŁKOWITA
+ * w granicach CHECK-u `checkout_settings.abandon_after_minutes` (30-1440).
+ *
+ * JEDEN PREDYKAT DLA KLIENTA I SERWERA (I9a). Formularz panelu
+ * (`CheckoutSettingsCard`) blokuje zapis tą funkcją, serwerowy odczyt kasy
+ * (`loadCheckoutSettings`) odrzuca nią wartość spoza zakresu, a baza pilnuje
+ * tych samych liczb CHECK-iem (`revenueLimitsParity.test.ts`). Wartość spoza
+ * zakresu jest ODRZUCANA, nigdy przycinana (AGENTS: limit widoczny = limit
+ * zapisany) - przycięte 20 min zapisałoby się jako 30, czyli nie to, co admin
+ * wpisał.
+ */
+export function isCheckoutAbandonMinutes(raw: unknown): raw is number {
+  return (
+    typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= REVENUE_LIMITS.checkoutAbandonMinutesMin &&
+    raw <= REVENUE_LIMITS.checkoutAbandonMinutesMax
+  );
+}
+
+/**
+ * Okno porzucenia, które kasa STOSUJE: zapisana wartość, a bez poprawnej
+ * (brak wiersza najemcy) - domyślna bazy. Jedno źródło dla karty kasy
+ * paywalla i notki w karcie biletów wydarzenia (I9b, Z-S3-07), żeby obie
+ * pokazywały tę samą liczbę.
+ */
+export function effectiveCheckoutAbandonMinutes(raw: unknown): number {
+  return isCheckoutAbandonMinutes(raw) ? raw : REVENUE_LIMITS.checkoutAbandonMinutesDefault;
+}
+
+/**
+ * Napis z pola formularza → minuty albo `null` (odrzucone). Tylko cyfry: pole
+ * liczbowe przeglądarki przepuszcza `1e3`, `90.5` i `-30`, a `Number()`
+ * zamieniłby pusty napis na 0 - każdy z tych przypadków to błąd wpisu, nie
+ * wartość do poprawienia za admina.
+ */
+export function parseCheckoutAbandonMinutes(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^\d{1,5}$/.test(trimmed)) return null;
+  const minutes = Number(trimmed);
+  return isCheckoutAbandonMinutes(minutes) ? minutes : null;
+}
+
 /** `domain_event_emit_errors` - dziennik awarii emiterów zdarzeń (090500). */
 export const EMIT_ERROR_LIMITS = {
   sourceMax: 120,

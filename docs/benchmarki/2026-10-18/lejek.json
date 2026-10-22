@@ -1354,6 +1354,67 @@
         "Europa (Piano XII 2024: 20,4%) eksponuje oferty częściej niż USA (13,8%)."
       ],
       "confidence": "średnia"
+    },
+    {
+      "key": "engagement_rate",
+      "abbr": "ER (GA4)",
+      "name_pl": "Współczynnik zaangażowania (GA4)",
+      "name_en": "Engagement rate (GA4)",
+      "expansion_pl": "ER – Engagement Rate: odsetek sesji zaangażowanych (dłuższych niż 10 s, z co najmniej dwiema odsłonami albo z konwersją) we wszystkich sesjach witryny – definicja Google Analytics 4",
+      "expansion_en": "ER – Engagement Rate: share of engaged sessions (longer than 10 s, with at least two page views or a conversion) among all site sessions – the Google Analytics 4 definition",
+      "formula": "sesje zaangażowane (GA4 engagedSessions) / wszystkie sesje (GA4 sessions) × 100% – metryka GA4 engagementRate z Data API, liczona przez Google",
+      "unit": "%",
+      "interpretation_pl": "Mówi, czy ruch, który przyciągamy, w ogóle wchodzi w treść – to pierwszy filtr lejka przed rejestracją, paywallem i zakupem. Niski wynik zwykle oznacza ruch niskiej intencji (social płatny, display, nieprzypisany) albo stronę wejścia, która nie odpowiada na obietnicę z linku; wysoki – ruch z wyszukiwarek, poleceń i newslettera. Pułapki: wynik zależy od mieszanki kanałów i urządzeń (komórki niżej niż desktop), a bez zgody analitycznej GA4 widzi tylko część sesji – porównuj okresy przy tej samej konfiguracji zgód i oceniaj kanały osobno.",
+      "interpretation_en": "Shows whether the traffic we attract actually engages with the content – the first filter of the funnel before registration, the paywall and purchase. A low result usually means low-intent traffic (paid social, display, unassigned) or a landing page that does not deliver what the link promised; a high one – search, referral and newsletter traffic. Pitfalls: the result depends on the channel and device mix (mobile lower than desktop), and without analytics consent GA4 sees only part of the sessions – compare periods under the same consent setup and judge channels separately.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Cała witryna – wszystkie sesje (GA4)",
+          "period": "miesięcznie",
+          "method": "Siege Media 2026 (546 usług GA4, ponad 16 mld sesji, I 2024 – VIII 2026; mediana usług, domyślna definicja GA4): mediana 51%, reguła kciuka „50% i więcej – dobrze, powyżej 55% – mocno”; pakiet Insider marketingowy (b-engr, źródło 1352): poniżej 50% słaby, 50–55% normalny, powyżej 55% dobry. Progi krytyczny (25% – połowa dolnej granicy normalnego, jak próg krytyczny kontekstów LinkedIn) i optymalny (60% – poziom median kanałów wysokiej intencji w tym samym badaniu: wyszukiwanie płatne 60,4%, asystenci AI 60,3%, wyszukiwanie organiczne 63,4%) – heurystyka; źródło nie podaje kwartyli",
+          "source_ids": ["siege_ga4_engagement_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 25,
+              "note": "heurystyka – połowa dolnej granicy normalnego; poziom median kanałów niskiej intencji w badaniu (social płatny 20,2%, nieprzypisany 20,8%)"
+            },
+            {
+              "label": "słaby",
+              "min": 25,
+              "max": 50,
+              "note": "poniżej 50% – poniżej mediany (51%) wg Insidera (b-engr) i Siege Media"
+            },
+            {
+              "label": "normalny",
+              "min": 50,
+              "max": 55,
+              "note": "50–55% – okolice mediany 546 usług GA4 (51%)"
+            },
+            {
+              "label": "dobry",
+              "min": 55,
+              "max": 60,
+              "note": "powyżej 55% – „mocno” wg Siege Media"
+            },
+            {
+              "label": "optymalny",
+              "min": 60,
+              "max": null,
+              "note": "heurystyka – poziom median kanałów wysokiej intencji (60,3–63,4%)"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Źródło podaje tylko mediany (całość, branże, urządzenia, kanały) – bez kwartyli; progi krytyczny i optymalny są heurystyką.",
+        "Mediany branżowe w tym samym badaniu: e-commerce 54,4%, zdrowie 51,6%, finanse 51,0%, usługi domowe 49,4%, inne (w tym media i organizacje non-profit) 48,0%, SaaS/B2B 46,6% – serwis treści eksperckich porównuj raczej z grupą „inne”.",
+        "Urządzenia: desktop 55,3%, tablet 51,2%, komórka 48,8% – przesunięcie ruchu na komórki obniża wynik bez zmiany jakości treści.",
+        "Bez zgody analitycznej GA4 nie widzi części sesji (tryb zgody), więc wynik opisuje sesje ze zgodą; porównuj okresy przy tej samej konfiguracji banera zgód.",
+        "Wskaźnika nie da się odtworzyć z własnych zdarzeń (brak czasu trwania sesji) – jedynym źródłem jest GA4 Data API."
+      ],
+      "confidence": "średnia"
     }
   ],
   "sources": [
@@ -1671,6 +1732,15 @@
       "url": "https://kiin.co/research/linkedin-lead-gen-forms-benchmarks",
       "excerpt": "Ukończenie formularza = wysłane / otwarcia formularza („Submissions divided by form opens”); mediana konta, konta ze 100+ otwarciami formularza; 489 kont reklamodawców, 4010 kampanii z celem generowania leadów, 8 IX 2025 – 7 IX 2026. Feed, oferta treści (173 konta): P25 4,6%, mediana 10,8%, P75 18,7%, P90 31,6%. Feed, prośba o demo (87 kont): P25 1,0%, mediana 2,2%, P75 4,2%, P90 9,5%. Reklamy w wiadomości lub rozmowie (wszystkie oferty): mediana 40,7%. Źródło przejęte z pakietu Insider marketingowy (id 1196, autor Kiin Labs, wiarygodność B, dostęp 2026-10-09); P25 i liczby kont odczytano ze strony 2026-10-19 (pakiet ich nie zawiera). Raport dostawcy narzędzia do reklam LinkedIn.",
       "verification": "tak"
+    },
+    {
+      "id": "siege_ga4_engagement_2026",
+      "title": "What Is a Good GA4 Engagement Rate? (546 usług GA4)",
+      "publisher": "Siege Media",
+      "published": "2026-08-26",
+      "url": "https://www.siegemedia.com/?p=46485",
+      "excerpt": "Mediana współczynnika zaangażowania GA4: 51% („the median is 51%”); 546 usług GA4, ponad 16 mld sesji, okres 1 I 2024 – 1 VIII 2026, aktualizacja 26 VIII 2026; analiza własnych danych (zagregowane, zanonimizowane), domyślna definicja GA4 (sesje zaangażowane / sesje), mediana usług, nie średnia ważona sesjami; reguła kciuka: 50% i więcej – dobrze, powyżej 55% – mocno. Branże (min. 10 usług): e-commerce 54,4%, zdrowie 51,6%, finanse 51,0%, usługi domowe 49,4%, inne (ubezpieczenia, non-profit, podróże, media, prawo) 48,0%, SaaS/B2B 46,6%. Urządzenia: desktop 55,3%, tablet 51,2%, komórka 48,8%. Kanały: wyszukiwanie organiczne 63,4%, SMS 63,1%, wyszukiwanie płatne 60,4%, asystenci AI 60,3%, polecenia 59,1%, e-mail 50,9%, social organiczny 49,9%, bezpośredni 45,7%, display 31,9%, nieprzypisany 20,8%, social płatny 20,2%. Źródło przejęte z pakietu Insider marketingowy (id 1352, wiarygodność B, dostęp 2026-10-09, przedział b-engr); liczby i metodykę odczytano ze strony 2026-10-20. Agencja treści i SEO - dane własnych klientów.",
+      "verification": "tak"
     }
   ],
   "changelog": [
@@ -1756,6 +1826,7 @@
     "Źródło saasdash_2026: uzupełniono wartości segmentowe (self-serve, mid-market, enterprise z CTA demo, freemium).",
     "Dodano 3 nowe źródła wskazane przez weryfikatora (wszystkie za formularzem, liczby niezweryfikowane): mather_q1_2026 (Ameryka Płn., 26.05.2026), mather_de_2026_07 (Niemcy, lipiec 2026, publ. 20.08.2026), mather_uk_2026_07 (Wielka Brytania, lipiec 2026, publ. 01.09.2026); podpięte do kontekstu freemium w paywall_hit_rate.",
     "Wszystkim 31 dotychczasowym źródłom nadano pole verification wg weryfikatora (tak: 21, częściowo: 5, nie da się sprawdzić: 5 – strony INMA z HTTP 403); żadne źródło nie miało wyniku „nie” ani martwego linku, więc żadnego nie usunięto z source_ids poza odpięciem inma_ceiling_2026 od przedziałów PHR.",
-    "signup_form_conversion_rate: dodano 2 konteksty z pakietu Insider marketingowy (decyzja właściciela „uspójnij”, 2026-10-19; reguła 2 – inny kanał, istotny dla NES: lead B2B → oferta): linkedin_lgf_content (P25/P50/P75 = 4,6/10,8/18,7%, P90 31,6%) i linkedin_lgf_demo (1,0/2,2/4,2%, P90 9,5%) z Kiin Labs 2026 (źródło Insidera 1196, wiarygodność B). Pasma metodą kwartylową S6 (poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny), próg krytyczny = połowa P25 (heurystyka); P25 i liczby kont odczytano ze strony źródła 2026-10-19 (pakiet ich nie zawiera). Etykiety Insidera (P50–P75 normalny, P75–P90 dobry, od P90 b. dobry) zastąpiono konwencją S6. Dodano źródło kiin_lgf_benchmarks_2026 i zastrzeżenie o mianowniku (otwarcia formularza); domyślne konteksty segmentów bez zmian."
+    "signup_form_conversion_rate: dodano 2 konteksty z pakietu Insider marketingowy (decyzja właściciela „uspójnij”, 2026-10-19; reguła 2 – inny kanał, istotny dla NES: lead B2B → oferta): linkedin_lgf_content (P25/P50/P75 = 4,6/10,8/18,7%, P90 31,6%) i linkedin_lgf_demo (1,0/2,2/4,2%, P90 9,5%) z Kiin Labs 2026 (źródło Insidera 1196, wiarygodność B). Pasma metodą kwartylową S6 (poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny), próg krytyczny = połowa P25 (heurystyka); P25 i liczby kont odczytano ze strony źródła 2026-10-19 (pakiet ich nie zawiera). Etykiety Insidera (P50–P75 normalny, P75–P90 dobry, od P90 b. dobry) zastąpiono konwencją S6. Dodano źródło kiin_lgf_benchmarks_2026 i zastrzeżenie o mianowniku (otwarcia formularza); domyślne konteksty segmentów bez zmian.",
+    "engagement_rate (2026-10-20, I9b, Z-14-03 – decyzja właściciela, zgoda delegowana): nowy wpis rejestru dla metryki warstwy semantycznej `engagement_rate` (GA4 Data API, BI /admin/analytics) z przedziału b-engr pakietu Insider marketingowy (źródło 1352 → siege_ga4_engagement_2026, wiarygodność B). Pasma: poniżej 50 słaby, 50–55 normalny, 55–60 dobry (Insider/Siege: „powyżej 55% mocno”); krytyczny poniżej 25 (połowa dolnej granicy normalnego, heurystyka jak w kontekstach LinkedIn) i optymalny od 60 (mediany kanałów wysokiej intencji 60,3–63,4% w tym samym badaniu, heurystyka). Liczby odczytane ze strony źródła 2026-10-20."
   ]
 }

@@ -10,13 +10,13 @@
 import type { LegalDocContent } from "../types";
 import { COMMUNICATIONS_META } from "../meta";
 import { LEGAL_CONTACT_EMAIL, LEGAL_ENTITY } from "@/lib/legal/entity";
-import { COMPLIANCE_PACK_UPDATED, PRIVACY_HUB_PATH } from "@/lib/legal/registration";
+import { COMMUNICATIONS_UPDATED, PRIVACY_HUB_PATH } from "@/lib/legal/registration";
 
 export const COMMUNICATIONS_CONTENT: LegalDocContent = {
   pl: {
     eyebrow: "Komunikacja",
     ...COMMUNICATIONS_META.pl,
-    updated: `Ostatnia aktualizacja: ${COMPLIANCE_PACK_UPDATED}`,
+    updated: `Ostatnia aktualizacja: ${COMMUNICATIONS_UPDATED}`,
     footnote: `Zasady dotyczą wszystkich kanałów wychodzących ${LEGAL_ENTITY}: poczty elektronicznej, powiadomień w serwisie i powiadomień push. Pełny opis przetwarzania danych znajdziesz w polityce prywatności (/polityka-prywatnosci).`,
     sections: [
       {
@@ -55,6 +55,7 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
           "Przy każdej zgodzie zapisujemy jej treść w wersji, którą widziałeś, znacznik czasu, język i źródło decyzji. Zmiana treści zgody podbija jej wersję i wymaga nowej decyzji - starej zgody nie rozciągamy na nowy zakres.",
           "Pola oznaczone jako wymagane ograniczamy do adresu e-mail. Imię jest opcjonalne i służy wyłącznie personalizacji nagłówka.",
           "Nie stosujemy zgód domyślnie zaznaczonych ani zgód pakietowych - każda zgoda ma osobne pole i osobną treść.",
+          "Treść zgody na newsletter informuje także o pomiarze otwarć i kliknięć (sekcja „Pomiar skuteczności wysyłki”). Pomiar wyłączysz jednak osobno, w każdej chwili i bez rezygnacji z newslettera - zgoda na newsletter nie jest od niego uzależniona.",
           "Link potwierdzający jest jednorazowy i wygasa. Ponowne kliknięcie potwierdzonego linku pokazuje stan „już potwierdzono” zamiast błędu.",
         ],
       },
@@ -83,7 +84,7 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
           "Personalizację wyłączysz, cofając zgodę na personalizację. Newsletter wysyłamy wtedy w wersji nieprofilowanej, a nie przestajemy go wysyłać.",
         ],
         bullets: [
-          "Segmentacja opiera się na kategoriach treści, historii otwarć i preferencjach zadeklarowanych w profilu.",
+          "Segmentacja opiera się na kategoriach treści, historii otwarć (tylko przy zgodzie na pomiar) i preferencjach zadeklarowanych w profilu.",
           "Nie kupujemy baz adresowych i nie wzbogacamy naszych list danymi z brokerów danych.",
           "Nie przekazujemy adresów e-mail partnerom do ich własnych wysyłek. Jeśli partner ma do Ciebie dotrzeć, robi to przez nas albo na podstawie odrębnej zgody udzielonej jemu.",
         ],
@@ -92,10 +93,16 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
         id: "pomiar",
         icon: "Activity",
         heading: "Pomiar skuteczności wysyłki",
+        paragraphs: [
+          "Otwarcia i kliknięcia mierzymy wyłącznie u odbiorców, którzy się na to zgodzili. Pomiar wymaga dostępu do informacji w Twoim urządzeniu, więc jego podstawą jest zgoda (art. 6 ust. 1 lit. a RODO i art. 399 Prawa komunikacji elektronicznej; wytyczne EDPB 2/2023).",
+        ],
         bullets: [
-          "Mierzymy doręczenia, otwarcia, kliknięcia i wypisy - w celu poprawy jakości wysyłki i utrzymania reputacji nadawcy.",
-          "Pomiar otwarć wykorzystuje znacznik graficzny w wiadomości. Klient pocztowy blokujący obrazy skutecznie go wyłącza i nie ma to żadnego wpływu na dostarczanie treści.",
-          "Linki w wiadomościach mogą przechodzić przez przekierowanie zliczające kliknięcie. Adres docelowy jest zawsze naszym adresem albo adresem wskazanym wprost w treści.",
+          "Doręczenia, odbicia i wypisy rejestrujemy przy każdej wysyłce - bez nich nie da się dostarczyć wiadomości, uszanować rezygnacji ani utrzymać reputacji nadawcy.",
+          "Otwarcia (znacznik graficzny w wiadomości) i kliknięcia (link przechodzący przez przekierowanie zliczające) mierzymy tylko wtedy, gdy Twoja zgoda na newsletter obejmuje pomiar - informuje o nim treść zgody od wersji z 21 października 2026 r. Cel: dopasowanie treści i częstotliwości wysyłki oraz statystyka.",
+          "Bez takiej zgody wiadomość nie zawiera znacznika graficznego, a linki prowadzą wprost do celu, bez identyfikatora odbiorcy.",
+          "Pomiar wyłączysz osobno, bez rezygnacji z newslettera: link „Nie mierz moich otwarć i kliknięć” jest w stopce każdej wiadomości marketingowej i na stronie rezygnacji. Wyłączenie działa od razu i trafia do rejestru zgód, a newsletter przychodzi dalej.",
+          "Przy każdej zgodzie zapisujemy wersję treści, którą widziałeś - dzięki temu wiadomo, czy obejmowała pomiar. Zgoda na newsletter udzielona wcześniej nie obejmuje pomiaru; możemy raz poprosić Cię o zgodę na pomiar, a brak odpowiedzi niczego nie zmienia.",
+          "Klient pocztowy blokujący obrazy skutecznie wyłącza znacznik graficzny i nie ma to żadnego wpływu na dostarczanie treści. Adres docelowy linku jest zawsze naszym adresem albo adresem wskazanym wprost w treści.",
           "Statystyki analizujemy zbiorczo. Nie budujemy na ich podstawie ocen pojedynczych osób ani nie udostępniamy ich reklamodawcom w formie pozwalającej zidentyfikować odbiorcę.",
         ],
       },
@@ -135,7 +142,7 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
   en: {
     eyebrow: "Communications",
     ...COMMUNICATIONS_META.en,
-    updated: `Last updated: ${COMPLIANCE_PACK_UPDATED}`,
+    updated: `Last updated: ${COMMUNICATIONS_UPDATED}`,
     footnote: `These rules cover every outbound channel ${LEGAL_ENTITY} uses: email, in-service notifications and push notifications. The full description of data processing is in the privacy notice (/polityka-prywatnosci).`,
     sections: [
       {
@@ -174,6 +181,7 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
           "With every consent we store its text in the version you saw, a timestamp, the language and the source of the decision. Changing the text bumps the consent version and requires a fresh decision - we never stretch an old consent onto a new scope.",
           "Required fields are limited to the email address. A first name is optional and is used only to personalise the greeting.",
           "We use no pre-ticked boxes and no bundled consents - every consent has its own field and its own text.",
+          "The newsletter consent text also tells you about measuring opens and clicks (see Measuring delivery performance). You can, however, switch measurement off separately, at any time and without unsubscribing - your newsletter consent does not depend on it.",
           "The confirmation link is single-use and expires. Clicking a confirmed link again shows an already confirmed state rather than an error.",
         ],
       },
@@ -202,7 +210,7 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
           "You can switch personalisation off by withdrawing the personalisation consent. We then send the newsletter in a non-profiled version rather than stopping it.",
         ],
         bullets: [
-          "Segmentation is based on content categories, open history and preferences declared in your profile.",
+          "Segmentation is based on content categories, open history (only with consent to measurement) and preferences declared in your profile.",
           "We do not buy address lists and we do not enrich our lists with data from data brokers.",
           "We do not hand email addresses to partners for their own mailings. If a partner is to reach you, it happens through us or on the basis of a separate consent given to them.",
         ],
@@ -211,10 +219,16 @@ export const COMMUNICATIONS_CONTENT: LegalDocContent = {
         id: "pomiar",
         icon: "Activity",
         heading: "Measuring delivery performance",
+        paragraphs: [
+          "We measure opens and clicks only for recipients who have agreed to it. Measurement requires access to information on your device, so its legal basis is consent (Article 6(1)(a) GDPR and Article 399 of the Polish Electronic Communications Law; EDPB Guidelines 2/2023).",
+        ],
         bullets: [
-          "We measure deliveries, opens, clicks and unsubscribes - to improve the quality of our sending and maintain sender reputation.",
-          "Open measurement uses a tracking pixel in the message. A mail client that blocks images switches it off effectively, and this has no effect on content delivery.",
-          "Links in messages may pass through a redirect that counts the click. The destination is always our own address or an address stated explicitly in the message.",
+          "We record deliveries, bounces and unsubscribes for every mailing - without them we cannot deliver messages, honour opt-outs or maintain sender reputation.",
+          "We measure opens (a tracking pixel in the message) and clicks (a link passing through a counting redirect) only when your newsletter consent covers measurement - the consent text says so from the version of 21 October 2026. Purpose: tailoring the content and sending frequency, and statistics.",
+          "Without such consent the message carries no tracking pixel and links lead straight to their destination, with no recipient identifier.",
+          "You can switch measurement off separately, without unsubscribing: the “Don't measure my opens and clicks” link is in the footer of every marketing message and on the unsubscribe page. It takes effect immediately and is recorded in the consent log, and the newsletter keeps coming.",
+          "With every consent we store the version of the text you saw - so it is clear whether it covered measurement. A newsletter consent given earlier does not cover measurement; we may ask you once for consent to measurement, and not answering changes nothing.",
+          "A mail client that blocks images switches the tracking pixel off effectively, and this has no effect on content delivery. The link destination is always our own address or an address stated explicitly in the message.",
           "We analyse statistics in aggregate. We do not build assessments of individuals from them and do not share them with advertisers in a form that identifies a recipient.",
         ],
       },

@@ -29,6 +29,14 @@ describe("parseCsv", () => {
     expect(rows).toEqual([["jan@x.pl", "Firma, sp. z o.o."]]);
   });
 
+  it("numbers every data row by its record in the file - skipped empty lines keep the numbering", () => {
+    // The CRM import reports oversized values by row number; it must match the
+    // spreadsheet even after blank lines (Z-I9b-15).
+    const { rows, rowNumbers } = parseCsv("email\na@b.c\n\n\nd@e.f\n");
+    expect(rows).toEqual([["a@b.c"], ["d@e.f"]]);
+    expect(rowNumbers).toEqual([2, 5]);
+  });
+
   it("unescapes doubled quotes and skips CR and empty lines", () => {
     const { rows } = parseCsv('email,note\r\n\r\nx@y.z,"po ""cudzyslowie"""\r\n');
     expect(rows).toEqual([["x@y.z", 'po "cudzyslowie"']]);

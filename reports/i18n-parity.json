@@ -9,6 +9,11 @@
     "adminDashboard",
     "adminPermissions",
     "adminCookieBanner",
+    "adminDataRetention",
+    "newsletterKeep",
+    "newsletterMeasurement",
+    "adminNewsletterMeasurement",
+    "adminMeasurementHint",
     "network",
     "directMessage",
     "club",
@@ -259,6 +264,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 570
+    "untranslated": 569
   }
 }

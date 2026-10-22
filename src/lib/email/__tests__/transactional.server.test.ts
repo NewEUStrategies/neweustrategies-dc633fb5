@@ -67,6 +67,7 @@ import {
   formatDate,
   formatMoney,
   sendTxEmail,
+  senderDisplayName,
   type RawEmailInput,
   type TxSendInput,
 } from "@/lib/email/transactional.server";
@@ -1222,6 +1223,27 @@ describe("enqueueRawEmail", () => {
       label: "digest_daily",
       queued_at: "2026-08-22T10:00:00.000Z",
     });
+  });
+
+  // Ścieżki komunikacji (S5): nazwa nadawcy i adres odpowiedzi z panelu
+  // (`journey_settings`). Domena nadawcza zostaje zweryfikowana - zmienia się
+  // wyłącznie wyświetlana nazwa; znak łamiący nagłówek From wraca do nazwy serwisu.
+  it("nazwa nadawcy i Reply-To z ustawień ścieżek trafiają do ładunku", async () => {
+    await enqueueRawEmail(rawInput({ fromName: "Redakcja NES", replyTo: "redakcja@nes.example" }));
+
+    expect(queuedPayload()).toMatchObject({
+      from: "Redakcja NES <noreply@notify.mail.neweuropeanstrategies.com>",
+      reply_to: "redakcja@nes.example",
+    });
+  });
+
+  it("bez ustawień: nazwa serwisu i brak Reply-To; nazwa z `<>` odrzucona", async () => {
+    await enqueueRawEmail(rawInput());
+    expect(queuedPayload().reply_to).toBeNull();
+    expect(senderDisplayName("Zła <x@y.z>")).toBe("New European Strategies");
+    expect(senderDisplayName("  ")).toBe("New European Strategies");
+    expect(senderDisplayName(null)).toBe("New European Strategies");
+    expect(senderDisplayName(" Redakcja ")).toBe("Redakcja");
   });
 
   it("brak wersji tekstowej to pusty tekst, a nie 'undefined' w skrzynce", async () => {

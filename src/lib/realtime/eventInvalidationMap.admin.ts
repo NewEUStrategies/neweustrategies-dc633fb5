@@ -7,8 +7,9 @@
 // `routes/admin.tsx` (rejestracja po hydratacji i sesji). Nic stąd nie trafia
 // do bundla `public`.
 //
-// WYŁĄCZNIE PREFIKSY PANELU: `["admin-revenue", …]` (agregaty huba) i
-// `["admin", "journeys", …]` (ścieżki komunikacji). Klucze modułów, które hub
+// WYŁĄCZNIE PREFIKSY PANELU: `["admin-revenue", …]` (agregaty huba),
+// `["admin", "journeys", …]` (ścieżki komunikacji) i `["admin",
+// "data-retention", …]` (karta retencji danych, I9c-X2). Klucze modułów, które hub
 // czyta wspólnie z nimi, należą do rdzenia - inaczej druga karta modułu nie
 // odświeżyłaby się bez otwartego panelu. Pilnuje tego
 // `invalidationExtension.test.ts`.
@@ -21,6 +22,7 @@
 // koszt bazy bez zysku dla czytelnika wykresu.
 import type { QueryKey } from "@tanstack/react-query";
 import { journeyKeys } from "@/lib/journeys/keys";
+import { dataRetentionKeys } from "@/lib/privacy/keys";
 import { revenueKeys, type RevenueDomain } from "@/lib/revenue/keys";
 import type { DomainEventRow, DomainEventType } from "./domainEvents";
 import type { InvalidationExtension } from "./eventInvalidationMap";
@@ -34,6 +36,7 @@ export const PANEL_ONLY_EVENT_TYPES = [
   "journey.stats_changed.v1",
   "revenue_input.changed.v1",
   "revenue_diagnostic.snoozed.v1",
+  "data_retention.changed.v1",
 ] as const satisfies readonly DomainEventType[];
 
 /** `rev(d)`: dziedzina huba najemcy zdarzenia. */
@@ -52,6 +55,14 @@ function mrrK(event: DomainEventRow): QueryKey[] {
   ];
 }
 
+/**
+ * Ruch subskrypcji u operatora: księga MRR, ekonomika liczona z księgi
+ * i Lejek (konwersja okresu próbnego).
+ */
+function subK(event: DomainEventRow): QueryKey[] {
+  return [...mrrK(event), rev("economics", event), rev("funnel", event)];
+}
+
 /** Lejek huba i kokpit, który pokazuje jego górę. */
 function funK(event: DomainEventRow): QueryKey[] {
   return [rev("funnel", event), rev("snapshot", event)];
@@ -67,6 +78,10 @@ function diagK(event: DomainEventRow): QueryKey[] {
  * `aggregate_id`; pusty (uszkodzony wiersz) nie może zbudować `detail("")`,
  * który trafiłby w nic - wtedy reguła degraduje do całego korzenia ścieżek.
  */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function journeyId(event: DomainEventRow): string {
   return typeof event.aggregate_id === "string" ? event.aggregate_id : "";
 }
@@ -83,11 +98,14 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
   "subscription.updated.v1": (e) => [...mrrK(e), rev("realized", e)],
   "subscription.renewed.v1": (e) => [...mrrK(e), rev("realized", e)],
   "subscription.expired.v1": (e) => [...mrrK(e), rev("realized", e)],
-  // Subskrypcja u operatora: windykacja, trial i stan MRR.
-  "billing_subscription.status_changed.v1": (e) => mrrK(e),
-  "billing_subscription.payment_failed.v1": (e) => mrrK(e),
-  "billing_subscription.payment_recovered.v1": (e) => mrrK(e),
-  "billing_subscription.trial_ending.v1": (e) => mrrK(e),
+  // Subskrypcja u operatora: windykacja, trial i stan MRR. Do tego (I9,
+  // tryb ścisły `metrics` manifestu): ekonomika (LTV, LTV/CAC, zwrot CAC,
+  // R40 liczą się z księgi MRR) i Lejek (konwersja okresu próbnego) - bez
+  // nich Kokpit pokazywałby te wskaźniki sprzed ruchu subskrypcji.
+  "billing_subscription.status_changed.v1": (e) => subK(e),
+  "billing_subscription.payment_failed.v1": (e) => subK(e),
+  "billing_subscription.payment_recovered.v1": (e) => subK(e),
+  "billing_subscription.trial_ending.v1": (e) => subK(e),
 
   // Przychód zrealizowany: dokumenty i wpłaty.
   "billing_document.issued.v1": (e) => [rev("realized", e), rev("snapshot", e)],
@@ -112,10 +130,12 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
   "account.registered.v1": (e) => funK(e),
   "paywall.hit.v1": (e) => [...funK(e), rev("access", e)],
   "metering.quota_exhausted.v1": (e) => [...funK(e), rev("access", e)],
-  "newsletter_subscriber.subscribed.v1": (e) => funK(e),
-  "newsletter_subscriber.confirmed.v1": (e) => funK(e),
-  "newsletter_subscriber.unsubscribed.v1": (e) => funK(e),
-  "newsletter_subscriber.resubscribed.v1": (e) => funK(e),
+  // Subskrybent newslettera zasila też kartę Zdrowie poczty (przyrost listy,
+  // potwierdzenia DOI, wypisy) - dziedzina `email` (I9, tryb ścisły `metrics`).
+  "newsletter_subscriber.subscribed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.confirmed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.unsubscribed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.resubscribed.v1": (e) => [...funK(e), rev("email", e)],
   "crm_lead.created.v1": (e) => funK(e),
   "crm_lead.stage_changed.v1": (e) => funK(e),
   "crm_lead.updated.v1": (e) => funK(e),
@@ -143,6 +163,16 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
 
   // Typy czysto panelowe (rdzeń: `[]`).
   "journey.changed.v1": (e) => {
+    // Ustawienia silnika (S5, `admin_journey_settings_save`): agregatem jest
+    // najemca, nie ścieżka - odświeżamy kartę ustawień, zdrowie silnika
+    // i listę (włączenie silnika zmienia jej stan), a nie `detail(najemca)`.
+    if (isRecord(e.payload) && e.payload.op === "settings") {
+      return [
+        journeyKeys.settings(e.tenant_id),
+        journeyKeys.engineHealth(e.tenant_id),
+        journeyKeys.listAll(),
+      ];
+    }
     const id = journeyId(e);
     if (id === "") return [journeyKeys.root(), ...diagK(e)];
     return [journeyKeys.listAll(), journeyKeys.detail(id), ...diagK(e)];
@@ -164,4 +194,7 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
     revenueKeys.facts(e.tenant_id),
     revenueKeys.snoozes(e.tenant_id),
   ],
+  // Karta „Retencja danych" (I9c-X2): ustawienia, podgląd i lista „do
+  // anonimizacji" najemcy zdarzenia - jeden prefiks.
+  "data_retention.changed.v1": (e) => [dataRetentionKeys.tenant(e.tenant_id)],
 };

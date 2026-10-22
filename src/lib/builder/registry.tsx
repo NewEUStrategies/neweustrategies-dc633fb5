@@ -697,7 +697,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       columns: 2,
       buttonAlign: "left",
       buttonPosition: "bottom",
@@ -2173,7 +2173,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       redirectTo: "/",
       loginHref: "/login",
       customFields: toJson([]),
@@ -2331,7 +2331,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       showFirstName: true,
       showLastName: true,
       showEmail: true,
@@ -2349,8 +2349,11 @@ export const WIDGETS: WidgetDef[] = [
       requireMessage: true,
 
       showNewsletterOptIn: false,
-      newsletterLabel_pl: "Zapisz mnie do newslettera",
-      newsletterLabel_en: "Subscribe me to the newsletter",
+      // Puste = pełna treść zgody na newsletter z jednego źródła (I9d-Y2,
+      // `@/lib/newsletter/consentText`) - rejestr nie kopiuje treści zgody
+      // do strony; dawne kopie etykiety mapuje widok przy renderze.
+      newsletterLabel_pl: "",
+      newsletterLabel_en: "",
       columns: 2, // 1 | 2 | 3
       buttonAlign: "left", // left | center | right | full
       buttonPosition: "bottom", // bottom | inline-right

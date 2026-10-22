@@ -20,6 +20,10 @@
 //   * WIERSZE OBU TABEL mieszkają w `molecules/ClubRoster*`;
 //   * tutaj zostaje SKLEJENIE: co jedzie do której mutacji i co widać po
 //     odmowie z bazy.
+//
+// POTWIERDZENIA ZGŁOSZEŃ Z HUBA (I9, SPEC §2.7). Wiersz-drogowskaz nad
+// panelami otwiera galerię ścieżek huba „Przychód i lejek" z szablonem
+// `club_application_received`; widzi go tylko rola z zakładką Ścieżki.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -36,6 +40,7 @@ import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubRosterInviteHistoryRow } from "../molecules/ClubRosterInviteHistoryRow";
 import { ClubRosterInviteLinkRow } from "../molecules/ClubRosterInviteLinkRow";
 import { ClubSegmentCampaign } from "./ClubSegmentCampaign";
+import { RevenueHubHint } from "@/components/admin/revenue/molecules/RevenueHubHint";
 import {
   useClubInvitations,
   useClubInviteLinks,
@@ -58,9 +63,11 @@ import {
   type InvitableClubRole,
 } from "@/lib/clubs/adminClubInvites";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
 
 export function ClubInvitationsTab({ clubId }: { clubId: string }) {
   ensureAdminClubsI18n();
+  ensureRevenueLinksI18n();
   const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<ClubInviteMode>("person");
   const [userId, setUserId] = useState("");
@@ -154,6 +161,12 @@ export function ClubInvitationsTab({ clubId }: { clubId: string }) {
 
   return (
     <div className="space-y-6">
+      <RevenueHubHint
+        tab="journeys"
+        search={{ new: "1", template: "club_application_received" }}
+        hint={t("adminRevenue.moduleLinks.clubs.automateHint")}
+        action={t("adminRevenue.moduleLinks.clubs.automateAction")}
+      />
       {/* --- Panel 1: wyślij --- */}
       <Card>
         <CardHeader className="pb-3">

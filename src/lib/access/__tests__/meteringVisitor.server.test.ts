@@ -36,6 +36,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 import { signVisitorToken } from "@/lib/access/visitorToken";
 import {
   consumeVisitorView,
+  meteringVisitorDigest,
   meteringVisitorSecret,
   visitorQuota,
 } from "@/lib/access/meteringVisitor.server";
@@ -157,5 +158,30 @@ describe("visitorQuota", () => {
     h.rpc.mockResolvedValue({ data: [{ enabled: true }], error: null });
     await visitorQuota();
     expect((h.rpc.mock.calls[0][1] as { _visitor_id?: string })._visitor_id).toBe(VISITOR);
+  });
+});
+
+describe("meteringVisitorDigest (skrót gościa dla innych liczników, S3)", () => {
+  it("ważne cookie: skrót z etykietą celu, bez surowego uuid i bez Set-Cookie", () => {
+    h.cookie = signVisitorToken(SECRET, VISITOR, Math.floor(Date.now() / 1000));
+    const hit = meteringVisitorDigest("paywall_hit");
+    expect(hit).toMatch(/^[0-9a-f]{64}$/);
+    expect(hit).not.toContain(VISITOR.replace(/-/g, ""));
+    // Etykieta celu rozdziela liczniki: ten sam gość, inny skrót.
+    expect(meteringVisitorDigest("other_counter")).not.toBe(hit);
+    expect(meteringVisitorDigest("paywall_hit")).toBe(hit);
+    expect(h.setCookie).not.toHaveBeenCalled();
+  });
+
+  it("bez cookie, z podrobionym cookie albo bez sekretu - null i nic nie wystawione", () => {
+    expect(meteringVisitorDigest("paywall_hit")).toBeNull();
+    h.cookie = VISITOR;
+    expect(meteringVisitorDigest("paywall_hit")).toBeNull();
+    h.cookie = signVisitorToken("x".repeat(64), VISITOR, Math.floor(Date.now() / 1000));
+    expect(meteringVisitorDigest("paywall_hit")).toBeNull();
+    h.cookie = signVisitorToken(SECRET, VISITOR, Math.floor(Date.now() / 1000));
+    process.env = { ...env, SESSION_SECRET: "", SUPABASE_SERVICE_ROLE_KEY: "" };
+    expect(meteringVisitorDigest("paywall_hit")).toBeNull();
+    expect(h.setCookie).not.toHaveBeenCalled();
   });
 });

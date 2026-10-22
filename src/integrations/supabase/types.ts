@@ -2033,6 +2033,7 @@ export type Database = {
           last_name: string
           linkedin_url: string
           marketing_consent: boolean
+          membership_ended_at: string | null
           motivation: string
           notified_at: string | null
           notified_status: string | null
@@ -2078,6 +2079,7 @@ export type Database = {
           last_name?: string
           linkedin_url?: string
           marketing_consent?: boolean
+          membership_ended_at?: string | null
           motivation?: string
           notified_at?: string | null
           notified_status?: string | null
@@ -2123,6 +2125,7 @@ export type Database = {
           last_name?: string
           linkedin_url?: string
           marketing_consent?: boolean
+          membership_ended_at?: string | null
           motivation?: string
           notified_at?: string | null
           notified_status?: string | null
@@ -2904,6 +2907,7 @@ export type Database = {
           banned_reason: string | null
           club_id: string
           created_at: string
+          ended_at: string | null
           id: string
           invite_source: string
           invited_by: string | null
@@ -2923,6 +2927,7 @@ export type Database = {
           banned_reason?: string | null
           club_id: string
           created_at?: string
+          ended_at?: string | null
           id?: string
           invite_source?: string
           invited_by?: string | null
@@ -2942,6 +2947,7 @@ export type Database = {
           banned_reason?: string | null
           club_id?: string
           created_at?: string
+          ended_at?: string | null
           id?: string
           invite_source?: string
           invited_by?: string | null
@@ -5297,6 +5303,7 @@ export type Database = {
       crm_leads: {
         Row: {
           aliases: Json
+          anonymized_at: string | null
           club_application_count: number
           club_applied_at: string | null
           club_specializations: string[]
@@ -5334,6 +5341,7 @@ export type Database = {
         }
         Insert: {
           aliases?: Json
+          anonymized_at?: string | null
           club_application_count?: number
           club_applied_at?: string | null
           club_specializations?: string[]
@@ -5371,6 +5379,7 @@ export type Database = {
         }
         Update: {
           aliases?: Json
+          anonymized_at?: string | null
           club_application_count?: number
           club_applied_at?: string | null
           club_specializations?: string[]
@@ -5676,6 +5685,171 @@ export type Database = {
           width?: number
         }
         Relationships: []
+      }
+      data_retention_crm_extensions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          extended_until: string
+          lead_id: string
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          extended_until: string
+          lead_id: string
+          reason: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          extended_until?: string
+          lead_id?: string
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_crm_extensions_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: true
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "data_retention_crm_extensions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_runs: {
+        Row: {
+          affected: number
+          backlog: boolean
+          category: string
+          cutoff: string | null
+          error_code: string | null
+          finished_at: string | null
+          id: number
+          mode: string
+          run_trigger: string
+          started_at: string
+          tenant_id: string
+        }
+        Insert: {
+          affected?: number
+          backlog?: boolean
+          category: string
+          cutoff?: string | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: never
+          mode: string
+          run_trigger: string
+          started_at?: string
+          tenant_id: string
+        }
+        Update: {
+          affected?: number
+          backlog?: boolean
+          category?: string
+          cutoff?: string | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: never
+          mode?: string
+          run_trigger?: string
+          started_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_settings: {
+        Row: {
+          category: string
+          created_at: string
+          enabled: boolean
+          enforce_after: string
+          period_months: number | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          enabled?: boolean
+          enforce_after: string
+          period_months?: number | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          enabled?: boolean
+          enforce_after?: string
+          period_months?: number | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_state: {
+        Row: {
+          purged_before: string | null
+          scope: string
+          sealed_through: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          purged_before?: string | null
+          scope: string
+          sealed_through?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          purged_before?: string | null
+          scope?: string
+          sealed_through?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_state_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       domain_event_emit_errors: {
         Row: {
@@ -10238,6 +10412,7 @@ export type Database = {
       }
       event_people: {
         Row: {
+          anonymized_at: string | null
           bio_en: string | null
           bio_pl: string | null
           company_id: string | null
@@ -10274,6 +10449,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          anonymized_at?: string | null
           bio_en?: string | null
           bio_pl?: string | null
           company_id?: string | null
@@ -10310,6 +10486,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          anonymized_at?: string | null
           bio_en?: string | null
           bio_pl?: string | null
           company_id?: string | null
@@ -14277,6 +14454,50 @@ export type Database = {
           },
         ]
       }
+      funnel_paywall_daily: {
+        Row: {
+          active_accounts: number
+          computed_at: string
+          converted: Json
+          day: string
+          paywall_hit_accounts: number
+          paywall_hit_visitors: number
+          paywall_hits: number
+          reasons: Json
+          tenant_id: string
+        }
+        Insert: {
+          active_accounts?: number
+          computed_at?: string
+          converted?: Json
+          day: string
+          paywall_hit_accounts?: number
+          paywall_hit_visitors?: number
+          paywall_hits?: number
+          reasons?: Json
+          tenant_id: string
+        }
+        Update: {
+          active_accounts?: number
+          computed_at?: string
+          converted?: Json
+          day?: string
+          paywall_hit_accounts?: number
+          paywall_hit_visitors?: number
+          paywall_hits?: number
+          reasons?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_paywall_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_article_settings: {
         Row: {
           eligibility: string
@@ -14931,6 +15152,57 @@ export type Database = {
           },
         ]
       }
+      journey_enrollment_daily_stats: {
+        Row: {
+          enrollments: number
+          entered_day: string
+          exit_reason: string
+          finished_day: string
+          journey_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          enrollments: number
+          entered_day: string
+          exit_reason?: string
+          finished_day: string
+          journey_id: string
+          status: string
+          tenant_id: string
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          enrollments?: number
+          entered_day?: string
+          exit_reason?: string
+          finished_day?: string
+          journey_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_enrollment_daily_stats_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_enrollment_daily_stats_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journey_enrollments: {
         Row: {
           correlation_id: string
@@ -15345,8 +15617,11 @@ export type Database = {
           enabled: boolean
           machine_open_seconds: number
           marketing_cap_per_7d: number
+          open_tracking_enabled: boolean
           quiet_end: string
           quiet_start: string
+          reply_to: string | null
+          sender_name: string | null
           tenant_id: string
           timezone: string
           updated_at: string
@@ -15357,8 +15632,11 @@ export type Database = {
           enabled?: boolean
           machine_open_seconds?: number
           marketing_cap_per_7d?: number
+          open_tracking_enabled?: boolean
           quiet_end?: string
           quiet_start?: string
+          reply_to?: string | null
+          sender_name?: string | null
           tenant_id: string
           timezone?: string
           updated_at?: string
@@ -15369,8 +15647,11 @@ export type Database = {
           enabled?: boolean
           machine_open_seconds?: number
           marketing_cap_per_7d?: number
+          open_tracking_enabled?: boolean
           quiet_end?: string
           quiet_start?: string
+          reply_to?: string | null
+          sender_name?: string | null
           tenant_id?: string
           timezone?: string
           updated_at?: string
@@ -16613,6 +16894,41 @@ export type Database = {
           },
         ]
       }
+      metered_views_daily: {
+        Row: {
+          accounts: number
+          anonymous: number
+          computed_at: string
+          day: string
+          members: number
+          tenant_id: string
+        }
+        Insert: {
+          accounts?: number
+          anonymous?: number
+          computed_at?: string
+          day: string
+          members?: number
+          tenant_id: string
+        }
+        Update: {
+          accounts?: number
+          anonymous?: number
+          computed_at?: string
+          day?: string
+          members?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metered_views_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metering_event_log: {
         Row: {
           entity_id: string | null
@@ -16657,6 +16973,35 @@ export type Database = {
           visitor_id?: string | null
         }
         Relationships: []
+      }
+      metering_events_daily: {
+        Row: {
+          day: string
+          events: number
+          outcome: string
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          events: number
+          outcome: string
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          events?: number
+          outcome?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metering_events_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       metering_settings: {
         Row: {
@@ -16967,6 +17312,96 @@ export type Database = {
         }
         Relationships: []
       }
+      newsletter_campaign_engagement_archive: {
+        Row: {
+          archived_before: string | null
+          campaign_id: string
+          clicks: number
+          opens: number
+          tenant_id: string
+          unique_clickers: number
+          unique_openers: number
+          updated_at: string
+        }
+        Insert: {
+          archived_before?: string | null
+          campaign_id: string
+          clicks?: number
+          opens?: number
+          tenant_id: string
+          unique_clickers?: number
+          unique_openers?: number
+          updated_at?: string
+        }
+        Update: {
+          archived_before?: string | null
+          campaign_id?: string
+          clicks?: number
+          opens?: number
+          tenant_id?: string
+          unique_clickers?: number
+          unique_openers?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_engagement_archive_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_engagement_archive_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_campaign_engagement_daily: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          day: string
+          opens: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          day: string
+          opens?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          day?: string
+          opens?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_engagement_daily_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_engagement_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       newsletter_campaign_events: {
         Row: {
           campaign_id: string
@@ -17039,6 +17474,7 @@ export type Database = {
           error: string | null
           id: string
           language: string
+          measured: boolean | null
           provider_message_id: string | null
           sent_at: string | null
           status: string
@@ -17057,6 +17493,7 @@ export type Database = {
           error?: string | null
           id?: string
           language?: string
+          measured?: boolean | null
           provider_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -17075,6 +17512,7 @@ export type Database = {
           error?: string | null
           id?: string
           language?: string
+          measured?: boolean | null
           provider_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -17188,6 +17626,105 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      newsletter_consent_measurement_marks: {
+        Row: {
+          field: string
+          marked_at: string
+          marked_by: string | null
+          tenant_id: string
+          text_sha256: string
+        }
+        Insert: {
+          field: string
+          marked_at?: string
+          marked_by?: string | null
+          tenant_id: string
+          text_sha256: string
+        }
+        Update: {
+          field?: string
+          marked_at?: string
+          marked_by?: string | null
+          tenant_id?: string
+          text_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_consent_measurement_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_measurement_requests: {
+        Row: {
+          attempts: number
+          claimed_until: string | null
+          confirmed_at: string | null
+          consent_version: string
+          last_error: string | null
+          mail_outcome: string | null
+          mailed_at: string | null
+          nonce: string
+          requested_at: string
+          requested_by: string | null
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_until?: string | null
+          confirmed_at?: string | null
+          consent_version: string
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          requested_by?: string | null
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_until?: string | null
+          confirmed_at?: string | null
+          consent_version?: string
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          requested_by?: string | null
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_measurement_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_measurement_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_measurement_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       newsletter_popup_events: {
         Row: {
@@ -17448,6 +17985,8 @@ export type Database = {
           id: string
           ip: unknown
           language: string
+          last_engaged_at: string | null
+          last_human_open_at: string | null
           last_name: string | null
           meta: Json | null
           source: string | null
@@ -17473,6 +18012,8 @@ export type Database = {
           id?: string
           ip?: unknown
           language?: string
+          last_engaged_at?: string | null
+          last_human_open_at?: string | null
           last_name?: string | null
           meta?: Json | null
           source?: string | null
@@ -17498,6 +18039,8 @@ export type Database = {
           id?: string
           ip?: unknown
           language?: string
+          last_engaged_at?: string | null
+          last_human_open_at?: string | null
           last_name?: string | null
           meta?: Json | null
           source?: string | null
@@ -17512,6 +18055,110 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      newsletter_sunset_exclusions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          reason: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          reason: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          reason?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_sunset_requests: {
+        Row: {
+          attempts: number
+          claimed_until: string | null
+          last_error: string | null
+          mail_outcome: string | null
+          mailed_at: string | null
+          nonce: string
+          requested_at: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_until?: string | null
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_until?: string | null
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_sunset_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_preferences: {
         Row: {
@@ -18248,7 +18895,7 @@ export type Database = {
       paywall_hits: {
         Row: {
           day: string
-          entity_id: string
+          entity_id: string | null
           entity_type: string
           first_at: string
           hits: number
@@ -18263,7 +18910,7 @@ export type Database = {
         }
         Insert: {
           day: string
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
           first_at?: string
           hits?: number
@@ -18278,7 +18925,7 @@ export type Database = {
         }
         Update: {
           day?: string
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
           first_at?: string
           hits?: number
@@ -21809,7 +22456,7 @@ export type Database = {
           reason_label: string | null
           subscription_id: string | null
           tenant_id: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           comment?: string | null
@@ -21824,7 +22471,7 @@ export type Database = {
           reason_label?: string | null
           subscription_id?: string | null
           tenant_id: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           comment?: string | null
@@ -21839,7 +22486,7 @@ export type Database = {
           reason_label?: string | null
           subscription_id?: string | null
           tenant_id?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -21941,7 +22588,7 @@ export type Database = {
         Row: {
           check_id: string
           created_at: string
-          created_by: string
+          created_by: string | null
           id: string
           kind: string
           reason: string | null
@@ -21953,7 +22600,7 @@ export type Database = {
         Insert: {
           check_id: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           id?: string
           kind: string
           reason?: string | null
@@ -21965,7 +22612,7 @@ export type Database = {
         Update: {
           check_id?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           id?: string
           kind?: string
           reason?: string | null
@@ -22652,7 +23299,7 @@ export type Database = {
           occurred_at: string
           paused_after: boolean
           payment_failure_count_after: number
-          price_id_after: string
+          price_id_after: string | null
           price_id_before: string | null
           quantity_after: number
           quantity_before: number | null
@@ -22675,7 +23322,7 @@ export type Database = {
           occurred_at?: string
           paused_after: boolean
           payment_failure_count_after: number
-          price_id_after: string
+          price_id_after?: string | null
           price_id_before?: string | null
           quantity_after: number
           quantity_before?: number | null
@@ -22698,7 +23345,7 @@ export type Database = {
           occurred_at?: string
           paused_after?: boolean
           payment_failure_count_after?: number
-          price_id_after?: string
+          price_id_after?: string | null
           price_id_before?: string | null
           quantity_after?: number
           quantity_before?: number | null
@@ -27242,6 +27889,45 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_data_retention_crm_due: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      admin_data_retention_crm_extend: {
+        Args: { p_lead_id: string; p_reason: string }
+        Returns: Json
+      }
+      admin_data_retention_enforcement: {
+        Args: { p_action: string; p_until?: string }
+        Returns: Json
+      }
+      admin_data_retention_get: { Args: never; Returns: Json }
+      admin_data_retention_newsletter_due: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      admin_data_retention_newsletter_exclude: {
+        Args: { p_reason: string; p_subscriber_id: string }
+        Returns: Json
+      }
+      admin_data_retention_newsletter_include: {
+        Args: { p_reason: string; p_subscriber_id: string }
+        Returns: Json
+      }
+      admin_data_retention_preview: { Args: never; Returns: Json }
+      admin_data_retention_run_now: {
+        Args: { p_confirm: boolean }
+        Returns: Json
+      }
+      admin_data_retention_save: {
+        Args: {
+          p_category: string
+          p_enabled: boolean
+          p_expected_updated_at?: string
+          p_period_months: number
+        }
+        Returns: Json
+      }
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -29593,6 +30279,141 @@ export type Database = {
         Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
       }
+      admin_journey_create: {
+        Args: {
+          p_category?: string
+          p_description?: string
+          p_draft?: Json
+          p_key: string
+          p_legal_basis?: string
+          p_name: string
+          p_template_key?: string
+        }
+        Returns: Json
+      }
+      admin_journey_email_content_save: {
+        Args: {
+          p_doc: Json
+          p_journey_id: string
+          p_node_id: string
+          p_preheader_en: string
+          p_preheader_pl: string
+          p_subject_en: string
+          p_subject_pl: string
+          p_variant: string
+        }
+        Returns: Json
+      }
+      admin_journey_engine_health: { Args: never; Returns: Json }
+      admin_journey_enroll_test: {
+        Args: {
+          p_journey_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollment_exit: {
+        Args: {
+          p_enrollment_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollment_skip_wait: {
+        Args: {
+          p_enrollment_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollments: {
+        Args: {
+          p_journey_id: string
+          p_node_id?: string
+          p_page?: number
+          p_page_size?: number
+          p_status?: string
+        }
+        Returns: Json
+      }
+      admin_journey_lead_enrollments: {
+        Args: {
+          p_lead_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_list: {
+        Args: {
+          p_status?: string
+        }
+        Returns: Json
+      }
+      admin_journey_publish: {
+        Args: {
+          p_expected_updated_at: string
+          p_journey_id: string
+          p_mode?: string
+        }
+        Returns: Json
+      }
+      admin_journey_save_draft: {
+        Args: {
+          p_category?: string
+          p_description?: string
+          p_draft: Json
+          p_expected_updated_at: string
+          p_journey_id: string
+          p_legal_basis?: string
+          p_name?: string
+        }
+        Returns: Json
+      }
+      admin_journey_series: {
+        Args: {
+          p_journey_id: string
+          p_since?: string
+          p_until?: string
+        }
+        Returns: Json
+      }
+      admin_journey_set_status: {
+        Args: {
+          p_expected_updated_at?: string
+          p_journey_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      admin_journey_settings_get: { Args: never; Returns: Json }
+      admin_journey_settings_save: {
+        Args: {
+          p_expected_updated_at?: string
+          p_patch: Json
+        }
+        Returns: Json
+      }
+      admin_journey_simulate: {
+        Args: {
+          p_draft?: Json
+          p_journey_id: string
+          p_lead_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_stats: {
+        Args: {
+          p_journey_id: string
+          p_since?: string
+          p_until?: string
+          p_version_id?: string
+        }
+        Returns: Json
+      }
+      admin_journey_trigger_estimate: {
+        Args: {
+          p_condition?: Json
+          p_days?: number
+          p_event_type: string
+        }
+        Returns: Json
+      }
       admin_list_ad_slots: {
         Args: never
         Returns: {
@@ -29894,6 +30715,20 @@ export type Database = {
           responded_30d: number
         }[]
       }
+      admin_newsletter_campaign_measurement: {
+        Args: { p_campaign: string }
+        Returns: Json
+      }
+      admin_newsletter_consent_measurement_get: { Args: never; Returns: Json }
+      admin_newsletter_consent_measurement_mark: {
+        Args: { p_field: string; p_marked: boolean }
+        Returns: Json
+      }
+      admin_newsletter_measurement_preview: { Args: never; Returns: Json }
+      admin_newsletter_measurement_request: {
+        Args: { p_expected: number }
+        Returns: Json
+      }
       admin_newsletter_settings_patch: {
         Args: { p_expected_updated_at: string; p_group: string; p_patch: Json }
         Returns: Json
@@ -29906,6 +30741,7 @@ export type Database = {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
       }
+      admin_revenue_access_inventory: { Args: never; Returns: Json }
       admin_revenue_churn: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -29916,6 +30752,22 @@ export type Database = {
       }
       admin_revenue_cohorts: {
         Args: { p_from_month: string; p_to_month: string }
+        Returns: Json
+      }
+      admin_revenue_diagnostic_snooze: {
+        Args: {
+          p_check_id: string
+          p_kind: string
+          p_reason: string
+          p_scope_hash: string
+          p_scope_key: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_revenue_diagnostic_snoozes: { Args: never; Returns: Json }
+      admin_revenue_diagnostic_unsnooze: {
+        Args: { p_check_id: string; p_scope_key: string }
         Returns: Json
       }
       admin_revenue_dunning: {
@@ -29932,6 +30784,16 @@ export type Database = {
       }
       admin_revenue_events_summary: {
         Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
+      admin_revenue_facts: { Args: never; Returns: Json }
+      admin_revenue_funnel: {
+        Args: {
+          p_segment?: string
+          p_since: string
+          p_track?: string
+          p_until: string
+        }
         Returns: Json
       }
       admin_revenue_input_upsert: {
@@ -32200,6 +33062,7 @@ export type Database = {
       }
       current_tenant_id: { Args: never; Returns: string }
       current_tier_rank: { Args: never; Returns: number }
+      data_retention_run: { Args: { p_limit?: number }; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -32275,8 +33138,34 @@ export type Database = {
         Args: { p_email: string; p_tenant: string }
         Returns: boolean
       }
+      email_measurement_state: {
+        Args: { p_lead?: string; p_subscriber?: string }
+        Returns: Json
+      }
+      email_measurement_status: {
+        Args: { p_emails: string[]; p_tenant: string }
+        Returns: {
+          consent: boolean
+          email: string
+          measured: boolean
+        }[]
+      }
+      email_measurement_withdraw: {
+        Args: {
+          p_channel?: string
+          p_ip?: string
+          p_lead?: string
+          p_subscriber?: string
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
       email_queue_depth: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      email_queue_send_recheck: {
+        Args: { p_idempotency_key: string; p_label: string }
+        Returns: string
+      }
       email_record_suppression: {
         Args: {
           p_campaign?: string
@@ -33825,6 +34714,100 @@ export type Database = {
         }
         Returns: undefined
       }
+      journey_advance: {
+        Args: {
+          p_enrollment_id: string
+          p_lock_token: string
+          p_max_steps?: number
+        }
+        Returns: Json
+      }
+      journey_can_send: {
+        Args: {
+          p_category: string
+          p_enrollment_id: string
+        }
+        Returns: string
+      }
+      journey_claim_due: {
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+        }
+        Returns: {
+          enrollment_id: string
+          is_test: boolean
+          journey_id: string
+          lock_token: string
+          tenant_id: string
+        }[]
+      }
+      journey_complete_email_step: {
+        Args: {
+          p_detail?: Json
+          p_enrollment_id: string
+          p_locale?: string
+          p_lock_token: string
+          p_message_id?: string
+          p_node_id: string
+          p_result: string
+          p_variant?: string
+        }
+        Returns: Json
+      }
+      journey_contact_for_send: {
+        Args: {
+          p_enrollment_id: string
+          p_node_id: string
+        }
+        Returns: Json
+      }
+      journey_fail_step: {
+        Args: {
+          p_enrollment_id: string
+          p_error: string
+          p_lock_token: string
+          p_node_id: string
+          p_phase?: string
+        }
+        Returns: Json
+      }
+      journey_ingest_inbox: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: Json
+      }
+      journey_purge: {
+        Args: {
+          p_older_than?: unknown
+        }
+        Returns: Json
+      }
+      journey_record_message_event: {
+        Args: {
+          p_kind: string
+          p_link_index?: number
+          p_machine?: boolean
+          p_message_id: string
+          p_url?: string
+        }
+        Returns: Json
+      }
+      journey_resolve_lead: {
+        Args: {
+          p_inbox_id: number
+        }
+        Returns: string
+      }
+      journey_rollup_daily: { Args: never; Returns: number }
+      journey_tick_emit_stats: {
+        Args: {
+          p_counts?: Json
+          p_journey_ids: string[]
+        }
+        Returns: number
+      }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }
         Returns: Json
@@ -34328,6 +35311,42 @@ export type Database = {
         Args: { p_days?: number }
         Returns: Json
       }
+      newsletter_engagement_touch: {
+        Args: { p_email: string; p_tenant: string }
+        Returns: boolean
+      }
+      newsletter_measurement_claim: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt: number
+          consent_version: string
+          email: string
+          first_name: string
+          lang: string
+          nonce: string
+          subscriber_id: string
+          tenant_id: string
+          unsubscribe_token: string
+        }[]
+      }
+      newsletter_measurement_confirm: {
+        Args: {
+          p_ip?: string
+          p_nonce: string
+          p_subscriber: string
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
+      newsletter_measurement_mark: {
+        Args: {
+          p_error?: string
+          p_nonce: string
+          p_outcome: string
+          p_subscriber: string
+        }
+        Returns: Json
+      }
       newsletter_min_tier_emails: {
         Args: { p_min: number; p_tenant: string }
         Returns: {
@@ -34354,6 +35373,34 @@ export type Database = {
       }
       newsletter_subscriber_list_set: {
         Args: { p_list_key: string; p_op: string; p_subscriber_id: string }
+        Returns: Json
+      }
+      newsletter_sunset_claim: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt: number
+          delete_after: string
+          email: string
+          first_name: string
+          lang: string
+          nonce: string
+          requested_at: string
+          subscriber_id: string
+          tenant_id: string
+          unsubscribe_token: string
+        }[]
+      }
+      newsletter_sunset_keep: {
+        Args: { p_nonce: string; p_subscriber: string }
+        Returns: Json
+      }
+      newsletter_sunset_mark: {
+        Args: {
+          p_error?: string
+          p_nonce: string
+          p_outcome: string
+          p_subscriber: string
+        }
         Returns: Json
       }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }
@@ -34754,6 +35801,28 @@ export type Database = {
           p_tenant_id?: string
         }
         Returns: number
+      }
+      record_paywall_hit: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_reason: string
+          p_required_tier_key?: string
+          p_variant?: string
+        }
+        Returns: undefined
+      }
+      record_paywall_hit_visitor: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_reason: string
+          p_required_tier_key?: string
+          p_tenant: string
+          p_variant?: string
+          p_visitor_hash: string
+        }
+        Returns: undefined
       }
       record_post_dwell: {
         Args: {

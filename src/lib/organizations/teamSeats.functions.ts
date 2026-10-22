@@ -32,6 +32,7 @@ import {
   MIN_REMINDER_DAY,
   MIN_TEAM_SEATS,
   normalizeReminderDays,
+  teamSeatLimitRejected,
   type SeatsSource,
 } from "@/lib/organizations/teamSeats";
 
@@ -107,11 +108,23 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
 
     const { data: org, error: orgError } = await supabase
       .from("member_organizations")
-      .select("id, seats_limit, seats_source, provider_subscription_id")
+      .select("id, tier_key, seats_limit, seats_source, provider_subscription_id")
       .eq("id", data.org_id)
       .maybeSingle();
     if (orgError || !org) {
       return { ok: false as const, error: "orgs: not allowed" };
+    }
+    // Zespół: najwyżej 20 miejsc (cennik v6.2, decyzja właściciela
+    // 2026-10-20). Odmowa PRZED operatorem - inaczej klient dopłaciłby za
+    // miejsca, które baza i tak odrzuci (`orgs: team seats max`, ten sam
+    // komunikat co wyzwalacz 20261020160300).
+    if (
+      teamSeatLimitRejected(
+        { tierKey: org.tier_key, seatsLimit: data.seats },
+        { tierKey: org.tier_key, seatsLimit: org.seats_limit },
+      )
+    ) {
+      return { ok: false as const, error: "orgs: team seats max" };
     }
 
     let providerSynced = false;

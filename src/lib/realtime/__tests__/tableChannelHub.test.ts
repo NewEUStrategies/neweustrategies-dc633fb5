@@ -7,6 +7,8 @@ interface FakeChannel {
   on: ReturnType<typeof vi.fn>;
   subscribe: ReturnType<typeof vi.fn>;
   handler: ((payload: unknown) => void) | null;
+  /** Wywołanie zwrotne stanu z `.subscribe(status)` (I9, Z-S7-05). */
+  status: ((status: string) => void) | null;
 }
 
 // vi.mock jest hoistowany na początek pliku - stan współdzielony z fabryką
@@ -21,11 +23,15 @@ vi.mock("@/integrations/supabase/client", () => ({
     channel: vi.fn(() => {
       const fake: FakeChannel = {
         handler: null,
+        status: null,
         on: vi.fn((_type: string, _spec: unknown, cb: (payload: unknown) => void) => {
           fake.handler = cb;
           return fake;
         }),
-        subscribe: vi.fn(() => fake),
+        subscribe: vi.fn((cb?: (status: string) => void) => {
+          fake.status = cb ?? null;
+          return fake;
+        }),
       };
       channels.push(fake);
       return fake;
@@ -34,7 +40,12 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { activeChannelCount, subscribeToTable } from "@/lib/realtime/tableChannelHub";
+import {
+  activeChannelCount,
+  subscribeToChannelStatus,
+  subscribeToTable,
+  tableChannelsInterrupted,
+} from "@/lib/realtime/tableChannelHub";
 
 describe("tableChannelHub", () => {
   beforeEach(() => {
@@ -87,5 +98,43 @@ describe("tableChannelHub", () => {
     expect(channels).toHaveLength(2);
     expect(activeChannelCount()).toBe(1);
     off2();
+  });
+});
+
+describe("tableChannelHub - stan kanału (I9, Z-S7-05)", () => {
+  beforeEach(() => {
+    channels.length = 0;
+    removeChannel.mockClear();
+  });
+
+  it("awaria kanału tabeli powiadamia słuchaczy i znika po ponownym połączeniu", () => {
+    const notified = vi.fn();
+    const stop = subscribeToChannelStatus(notified);
+    const off = subscribeToTable({ table: "domain_events", event: "INSERT" }, () => undefined);
+
+    // Łączenie (brak stanu) to nie awaria.
+    expect(tableChannelsInterrupted("domain_events")).toBe(false);
+    channels[0].status?.("CHANNEL_ERROR");
+    expect(tableChannelsInterrupted("domain_events")).toBe(true);
+    expect(tableChannelsInterrupted("notifications")).toBe(false);
+    expect(notified).toHaveBeenCalledTimes(1);
+
+    channels[0].status?.("SUBSCRIBED");
+    expect(tableChannelsInterrupted("domain_events")).toBe(false);
+
+    channels[0].status?.("TIMED_OUT");
+    off();
+    // Zamknięty przez nas kanał - ani awaria, ani spóźniony stan po `removeChannel`.
+    expect(tableChannelsInterrupted("domain_events")).toBe(false);
+    channels[0].status?.("CLOSED");
+    expect(tableChannelsInterrupted("domain_events")).toBe(false);
+    stop();
+  });
+
+  it("nieznany stan biblioteki jest ignorowany", () => {
+    const off = subscribeToTable({ table: "domain_events", event: "INSERT" }, () => undefined);
+    channels[0].status?.("SOMETHING_NEW");
+    expect(tableChannelsInterrupted("domain_events")).toBe(false);
+    off();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { LogIn, Star } from "@/lib/lucide-shim";
@@ -30,7 +30,6 @@ import type { PasswordUnlockFailure, PasswordVerifyResult } from "@/hooks/usePas
 // /pricing i checkout (poprzedni, lokalny formatMoney hardkodował pl-PL, więc
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
-import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -41,7 +40,23 @@ import {
   type MeteringSettings,
 } from "@/lib/access/metering";
 import { QuotaMeter } from "@/components/atoms/QuotaMeter";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
+import { currentReturnPath, loginSearch, type LoginIntent } from "@/lib/access/paywallLinks";
+// Wyłącznie typy - reguła oferty i pomiar jadą w `import()` po pierwszym
+// renderze (plan B budżetu `public`, karta S3).
+import type { PaywallOffer, PaywallViewer } from "@/lib/access/paywallOffer";
 import "@/lib/i18n-paywall";
+
+/**
+ * Podgląd symulatora czytelnika (hub S7): persona zamiast sesji. Ten sam
+ * komponent co w artykule (AD-16), ale bez efektów - bez `record_paywall_hit`,
+ * bez `track()` (licznik konsumuje trasa, nie ściana), a linki są
+ * `aria-disabled`.
+ */
+export interface PaywallPreview {
+  viewer: PaywallViewer;
+}
 
 type Props = {
   rule: ContentAccessRule;
@@ -58,6 +73,7 @@ type Props = {
   meterApplies?: boolean;
   /** Stan licznika z próby odblokowania (null, gdy nie próbowano). */
   meterState?: MeterState | null;
+  preview?: PaywallPreview;
 };
 
 const MAX_ATTEMPTS = 5;
@@ -76,9 +92,10 @@ export function Paywall({
   meterSettings = null,
   meterApplies = false,
   meterState = null,
+  preview,
 }: Props) {
   const { t } = useTranslation();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
   // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
@@ -113,57 +130,63 @@ export function Paywall({
 
   // Oba zapytania ściany zapisują wynik razem z kluczem, dla którego wyszły,
   // a render bierze go tylko przy zgodnym kluczu. Trasa `$` nie przemontowuje
-  // Paywalla między wpisami, więc: spóźniona odpowiedź dla poprzednich
-  // plan_ids/wpisu nie nadpisze nowszej (flaga anulowania), a reguła bez
-  // planów nie pokaże planów poprzedniego wpisu. Błąd zapytania (lub odrzucona
+  // Paywalla między wpisami, więc: spóźniona odpowiedź dla poprzedniego
+  // wpisu/czytelnika nie nadpisze nowszej (flaga anulowania), a reguła bez
+  // oferty nie pokaże planów poprzedniego wpisu. Błąd zapytania (lub odrzucona
   // obietnica) daje stan z ponowieniem zamiast ściany bez oferty.
   //
-  // Plany widzi wyłącznie zalogowany (zakup wiąże zamówienie z kontem), więc
-  // anonim - najczęstszy gość ściany - nie wysyła zapytania, którego wyniku i
-  // tak by nie zobaczył. Klucz to lista id (uuid nie zawiera przecinka).
-  const signedIn = !!session;
-  const plansKey =
-    rule.mode === "paid" && signedIn && rule.plan_ids.length > 0 ? rule.plan_ids.join(",") : null;
-  const [plansLoad, setPlansLoad] = useState<Loaded<AccessPlan[]> | null>(null);
-  const [plansAttempt, setPlansAttempt] = useState(0);
+  // OFERTA (P14). Ceny widzi także gość - ściana bez cen gubiła lejek przed
+  // rejestracją. Oferty nie potrzebuje wyłącznie `members` bez progu rangi
+  // (wystarczy konto) i hasło; warunek jest lustrem `needsPaywallOffer`.
+  const signedIn = preview ? preview.viewer.signedIn : !!session;
+  const minRank = rule.min_tier_rank ?? 0;
+  const planIds = rule.plan_ids.join(",");
+  const offerKey =
+    rule.mode === "paid" || (rule.mode === "members" && minRank > 0)
+      ? [
+          rule.mode,
+          planIds,
+          minRank,
+          preview ? JSON.stringify(preview.viewer) : (session?.user?.id ?? "anon"),
+        ].join("|")
+      : null;
+  const [offerLoad, setOfferLoad] = useState<Loaded<PaywallOffer | null> | null>(null);
+  const [offerAttempt, setOfferAttempt] = useState(0);
+  const mode = rule.mode;
+  const persona = preview?.viewer ?? null;
   useEffect(() => {
-    if (!plansKey) return;
+    if (!offerKey) return;
     let cancelled = false;
-    const settle = (value: AccessPlan[], failed: boolean) => {
-      if (!cancelled) setPlansLoad({ key: plansKey, value, failed });
+    const settle = (value: PaywallOffer | null, failed: boolean) => {
+      if (!cancelled) setOfferLoad({ key: offerKey, value, failed });
     };
-    supabase
-      .from("access_plans")
-      .select("*")
-      .in("id", plansKey.split(","))
-      .eq("active", true)
-      .order("sort_order")
+    import("@/lib/access/paywallOffer")
+      .then((m) =>
+        m.loadPaywallOffer(
+          { mode, plan_ids: planIds ? planIds.split(",") : [], min_tier_rank: minRank },
+          signedIn,
+          persona,
+        ),
+      )
       .then(
-        ({ data, error }) =>
-          // Każda karta ściany prowadzi do kasy, więc odpadają plany, których
-          // kasa nie sprzeda (cennik v6.2): wycofane (`for_sale = false`)
-          // i wyłącznie na zapytanie. Reguła wskazująca taki plan pokaże
-          // pozostałe - albo uczciwy brak oferty.
-          settle(
-            error
-              ? []
-              : ((data as AccessPlan[] | null) ?? []).filter(
-                  (plan) => plan.for_sale !== false && !isEnquiryOnlyPlan(plan),
-                ),
-            !!error,
-          ),
-        () => settle([], true),
+        (value) => settle(value, false),
+        () => settle(null, true),
       );
     return () => {
       cancelled = true;
     };
-  }, [plansKey, plansAttempt]);
-  const plansState = plansLoad && plansLoad.key === plansKey ? plansLoad : null;
-  const plans = plansState?.value ?? [];
-  const plansFailed = plansState?.failed ?? false;
+    // Klucz niesie tryb, plany, próg i czytelnika - nowa tożsamość obiektu
+    // reguły z tymi samymi danymi nie powtarza zapytań.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerKey, offerAttempt]);
+  const offerState = offerLoad && offerLoad.key === offerKey ? offerLoad : null;
+  const offer = offerState?.value ?? null;
+  const plans = offer?.plans ?? [];
+  const plansFailed = offerState?.failed ?? false;
+  const ctaKind = offer?.ctaKind ?? null;
   const retryPlans = () => {
-    setPlansLoad(null);
-    setPlansAttempt((n) => n + 1);
+    setOfferLoad(null);
+    setOfferAttempt((n) => n + 1);
   };
 
   // Podpowiedź hasła (RPC nigdy nie zwraca hasha). Wiersz niesie oba języki,
@@ -235,15 +258,96 @@ export function Paywall({
   // Wariant komunikatu wynikający z meteringu: "register" (anonim - CTA na
   // darmowe konto z limitem N/mies.) lub "exhausted" (limit wyczerpany).
   const meterVariant = meterPaywallVariant({
-    isLoggedIn: !!session,
+    isLoggedIn: signedIn,
     settings: meterSettings,
     applies: meterApplies,
     state: meterState,
   });
 
+  // POMIAR (P18, AD-16). Serwerowy licznik uderzeń (`record_paywall_hit`) nie
+  // zależy od zgody i nie ma identyfikatora przeglądarki; zdarzenia klienta
+  // (`paywall_view`, `paywall_cta_click`) idą WYŁĄCZNIE przy zgodzie
+  // analitycznej - także kopia do GA4. Podgląd nie mierzy niczego.
+  const hitReason =
+    mode === "password"
+      ? "password"
+      : meterVariant === "exhausted"
+        ? "quota"
+        : meterVariant === "register"
+          ? "registration"
+          : minRank > 0
+            ? "tier_rank"
+            : mode === "members"
+              ? "members"
+              : "paid";
+  const variant = meterVariant ?? "default";
+  const measure = (type: string, meta: Record<string, unknown>) => {
+    if (preview || !hasAnalyticsConsent()) return;
+    track({
+      type,
+      name: type,
+      entityType: rule.entity_type,
+      entityId: rule.entity_id,
+      meta: { reason: hitReason, variant, ...meta },
+    });
+  };
+  const hitKey = preview ? null : `${rule.entity_type}:${rule.entity_id}:${hitReason}`;
+  const hitTier = offerKey ? (offerState ? (offer?.requiredTier?.key ?? null) : undefined) : null;
+  const recordedHit = useRef<string | null>(null);
+  useEffect(() => {
+    // Czekamy na ofertę (klucz wymaganej warstwy), ale tylko raz na wpis.
+    // Także na ustaloną sesję: uderzenie z rozruchu (sesja jeszcze nieznana)
+    // policzyłoby zalogowanego czytelnika jako gościa.
+    if (!hitKey || hitTier === undefined || authLoading || recordedHit.current === hitKey) return;
+    recordedHit.current = hitKey;
+    measure("paywall_view", {});
+    if (
+      rule.entity_type === "post" ||
+      rule.entity_type === "page" ||
+      rule.entity_type === "media"
+    ) {
+      const entityType = rule.entity_type;
+      // Pomiar nigdy nie psuje ściany - także chunk, który się nie wczytał.
+      void import("@/lib/access/paywallOffer")
+        .then((m) =>
+          m.recordPaywallHit(signedIn, {
+            entityType,
+            entityId: rule.entity_id,
+            reason: hitReason,
+            requiredTierKey: hitTier,
+            variant,
+          }),
+        )
+        .catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hitKey, hitTier, authLoading]);
+
+  // Ścieżka powrotu po zalogowaniu (P15). Czytana PO montażu: SSR nie zna
+  // `window`, a różny `href` serwera i klienta to błąd hydratacji.
+  const [here, setHere] = useState<string | undefined>(undefined);
+  useEffect(() => setHere(currentReturnPath()), []);
+  const intent: LoginIntent = meterVariant === "register" ? "meter" : "paywall";
+  const loginTo = (mode: "signin" | "signup", next = here, planId?: string) =>
+    loginSearch({ mode, next, intent, planId });
+  // Linki podglądu są martwe (`aria-disabled`); w artykule klik mierzy CTA.
+  const ctaProps = (cta: string, planId?: string, then?: () => void) =>
+    preview
+      ? {
+          "aria-disabled": true,
+          tabIndex: -1,
+          onClick: (e: React.MouseEvent) => e.preventDefault(),
+        }
+      : {
+          onClick: () => {
+            then?.();
+            measure("paywall_cta_click", { cta, plan: planId ?? null });
+          },
+        };
+
   const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
   const startOneTime = async () => {
-    if (!session) return;
+    if (!session || preview) return;
     // Narrow entity_type to the checkout-supported union ("post" | "page").
     if (rule.entity_type !== "post" && rule.entity_type !== "page") return;
     const entityType = rule.entity_type;
@@ -277,6 +381,29 @@ export function Paywall({
     }
   };
 
+  // Tytuł i opis: wariant licznika, potem próg rangi zalogowanego (P14:
+  // „wymaga planu X" zamiast „zaloguj się"), potem tryb reguły.
+  const tierName = offer?.requiredTier
+    ? (lang === "pl" ? offer.requiredTier.name_pl : offer.requiredTier.name_en) ||
+      offer.requiredTier.key
+    : null;
+  const tierWall = signedIn && tierName && (ctaKind === "upgrade" || ctaKind === "checkout");
+  const intervalLabel = (interval: AccessPlan["interval"]) =>
+    interval === "month"
+      ? t("paywall.perMonth")
+      : interval === "two_weeks"
+        ? t("paywall.perTwoWeeks")
+        : interval === "quarter"
+          ? t("paywall.perQuarter")
+          : interval === "year"
+            ? t("paywall.perYear")
+            : t("paywall.oneTime");
+  const oneTimePrice =
+    buyableEntity && rule.one_time_price_cents != null && rule.one_time_price_cents > 0
+      ? formatMoney(rule.one_time_price_cents, rule.one_time_currency || "PLN", lang)
+      : null;
+  const enquiry = offer?.enquiryPlan ?? null;
+
   return (
     <>
       <LazyEmbeddedCheckoutDialog
@@ -300,11 +427,13 @@ export function Paywall({
               ? t("paywall.meter.registerTitle")
               : meterVariant === "exhausted"
                 ? t("paywall.meter.exhaustedTitle")
-                : rule.mode === "members"
-                  ? t("paywall.membersOnly")
-                  : rule.mode === "password"
-                    ? t("paywall.passwordOnly")
-                    : t("paywall.paidOnly")}
+                : tierWall
+                  ? t("paywall.offer.upgradeTitle", { tier: tierName })
+                  : rule.mode === "members"
+                    ? t("paywall.membersOnly")
+                    : rule.mode === "password"
+                      ? t("paywall.passwordOnly")
+                      : t("paywall.paidOnly")}
           </h2>
           <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
             {meterVariant === "register"
@@ -314,13 +443,14 @@ export function Paywall({
                     used: meterState?.used ?? 0,
                     limit: meterState?.monthlyLimit ?? 0,
                   })
-                : rule.mode === "members"
-                  ? t("paywall.membersDesc")
-                  : rule.mode === "password"
-                    ? t("paywall.passwordDesc")
-                    : t("paywall.paidDesc")}
+                : tierWall && ctaKind === "upgrade"
+                  ? t("paywall.offer.upgradeDesc")
+                  : rule.mode === "members" && !tierWall
+                    ? t("paywall.membersDesc")
+                    : rule.mode === "password"
+                      ? t("paywall.passwordDesc")
+                      : t("paywall.paidDesc")}
           </p>
-
           {/* Wyczerpany limit: wizualny licznik zużycia (ten sam atom co baner w
             warstwie treści) + konkretna data odnowienia - czytelnik widzi, ILE
             przeczytał i KIEDY limit wróci, zanim zdecyduje o planie. */}
@@ -433,17 +563,18 @@ export function Paywall({
             </form>
           )}
 
-          {/* Members-only / not logged in. Wariant "register" odwraca akcenty:
-            rejestracja (wejście do darmowego limitu meteringu) jest primary. */}
-          {rule.mode !== "password" && !session && (
+          {/* Gość (poza hasłem): logowanie z powrotem na ten tekst (P15).
+            Wariant "register" odwraca akcenty: rejestracja (wejście do
+            darmowego limitu meteringu) jest primary. */}
+          {rule.mode !== "password" && !signedIn && (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {meterVariant === "register" ? (
                   <>
-                    <Link to="/login" search={{ mode: "signup" }}>
+                    <Link to="/login" search={loginTo("signup")} {...ctaProps("signup")}>
                       <Button>{t("paywall.signup")}</Button>
                     </Link>
-                    <Link to="/login">
+                    <Link to="/login" search={loginTo("signin")} {...ctaProps("signin")}>
                       <Button variant="outline">
                         <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
                       </Button>
@@ -451,12 +582,12 @@ export function Paywall({
                   </>
                 ) : (
                   <>
-                    <Link to="/login">
+                    <Link to="/login" search={loginTo("signin")} {...ctaProps("signin")}>
                       <Button>
                         <LogIn className="w-4 h-4 mr-2" /> {t("paywall.signin")}
                       </Button>
                     </Link>
-                    <Link to="/login" search={{ mode: "signup" }}>
+                    <Link to="/login" search={loginTo("signup")} {...ctaProps("signup")}>
                       <Button variant="outline">{t("paywall.signup")}</Button>
                     </Link>
                   </>
@@ -468,9 +599,27 @@ export function Paywall({
             </div>
           )}
 
-          {/* Paid - logged in, show plans + one-time */}
-          {session && rule.mode === "paid" && (
-            <div className="space-y-4">
+          {signedIn && ctaKind === "granted" && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t("paywall.offer.granted")}
+            </p>
+          )}
+          {signedIn && ctaKind === "contact_org" && (
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+              {t("paywall.offer.org", { name: offer?.orgName ?? "" })}{" "}
+              <Link
+                to="/profile/organization"
+                className="text-brand-ink hover:underline"
+                {...ctaProps("contact_org")}
+              >
+                {t("paywall.offer.orgLink")}
+              </Link>
+            </p>
+          )}
+
+          {/* Oferta: płatna treść albo próg rangi - ceny widzi też gość. */}
+          {offerKey && (
+            <div className="space-y-4 mt-4">
               {plansFailed && (
                 <div
                   role="alert"
@@ -482,21 +631,11 @@ export function Paywall({
                   </Button>
                 </div>
               )}
-              {plans.length > 0 && (
+              {ctaKind !== "granted" && plans.length > 0 && (
                 <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
                   {plans.map((p) => {
                     const name = planName(p, lang);
                     const desc = planDescription(p, lang);
-                    const intervalLabel =
-                      p.interval === "month"
-                        ? t("paywall.perMonth")
-                        : p.interval === "two_weeks"
-                          ? t("paywall.perTwoWeeks")
-                          : p.interval === "quarter"
-                            ? t("paywall.perQuarter")
-                            : p.interval === "year"
-                              ? t("paywall.perYear")
-                              : t("paywall.oneTime");
                     return (
                       <div
                         key={p.id}
@@ -504,11 +643,16 @@ export function Paywall({
                       >
                         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-ink mb-1">
                           <Star className="w-3.5 h-3.5" /> {name}
+                          {plans.length > 1 && offer?.recommendedPlan?.id === p.id && (
+                            <span className="ml-auto normal-case tracking-normal">
+                              {t("paywall.offer.recommended")}
+                            </span>
+                          )}
                         </div>
                         <div className="text-2xl font-bold">
                           {formatMoney(p.price_cents, p.currency, lang)}
                           <span className="text-xs font-normal text-muted-foreground ml-1">
-                            {intervalLabel}
+                            {intervalLabel(p.interval)}
                           </span>
                         </div>
                         {p.trial_days > 0 && p.interval !== "one_time" && (
@@ -520,50 +664,82 @@ export function Paywall({
                           <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
                         )}
                         <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
-                          <Link
-                            to="/checkout/$planId"
-                            params={{ planId: p.id }}
-                            onClick={rememberReturn}
-                          >
-                            {t("paywall.subscribe")}
-                          </Link>
+                          {signedIn ? (
+                            <Link
+                              to="/checkout/$planId"
+                              params={{ planId: p.id }}
+                              {...ctaProps(ctaKind ?? "checkout", p.id, rememberReturn)}
+                            >
+                              {ctaKind === "upgrade"
+                                ? t("paywall.offer.upgrade")
+                                : t("paywall.subscribe")}
+                            </Link>
+                          ) : (
+                            <Link
+                              to="/login"
+                              search={loginTo("signup", `/checkout/${p.id}`, p.id)}
+                              {...ctaProps("signup_then_checkout", p.id, rememberReturn)}
+                            >
+                              {t("paywall.offer.signupBuy")}
+                            </Link>
+                          )}
                         </Button>
                       </div>
                     );
                   })}
                 </div>
               )}
-              {buyableEntity &&
-                rule.one_time_price_cents != null &&
-                rule.one_time_price_cents > 0 && (
-                  <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
-                    <span className="text-sm">
-                      {t("paywall.buy")}:{" "}
-                      <strong>
-                        {formatMoney(
-                          rule.one_time_price_cents,
-                          rule.one_time_currency || "PLN",
-                          lang,
-                        )}
-                      </strong>
-                      <span className="text-xs text-muted-foreground ml-1">
-                        {t("paywall.oneTime")}
-                      </span>
+              {ctaKind === "contact_sales" && enquiry && (
+                <p className="text-sm text-muted-foreground">
+                  {t("paywall.offer.sales")}{" "}
+                  <Link
+                    to="/plans/$planId"
+                    params={{ planId: enquiry.id }}
+                    className="text-brand-ink hover:underline"
+                    {...ctaProps("contact_sales", enquiry.id)}
+                  >
+                    {t("paywall.offer.salesCta")}
+                  </Link>
+                </p>
+              )}
+              {rule.mode === "paid" && oneTimePrice && ctaKind !== "granted" && (
+                <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
+                  <span className="text-sm">
+                    {t("paywall.buy")}: <strong>{oneTimePrice}</strong>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {t("paywall.oneTime")}
                     </span>
-                    <Button size="sm" onClick={startOneTime} disabled={busy}>
+                  </span>
+                  {signedIn ? (
+                    <Button size="sm" onClick={startOneTime} disabled={busy || !!preview}>
                       {busy ? t("paywall.processing") : t("paywall.buy")}
                     </Button>
-                  </div>
-                )}
-              <p className="text-xs text-muted-foreground italic max-w-md mx-auto">
-                {t("paywall.secureNote")}
-              </p>
+                  ) : (
+                    <Link to="/login" search={loginTo("signup")} {...ctaProps("one_time")}>
+                      <Button size="sm" variant="outline">
+                        {t("paywall.signup")}
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              )}
+              {/* P09: kwota idzie w walucie planu - EN dostaje jawny napis. */}
+              {lang === "en" && plans[0] && (
+                <p className="text-xs text-muted-foreground">
+                  {t("paywall.offer.chargedIn", { currency: plans[0].currency })}
+                </p>
+              )}
+              {signedIn && (
+                <p className="text-xs text-muted-foreground italic max-w-md mx-auto">
+                  {t("paywall.secureNote")}
+                </p>
+              )}
               {/* Kanoniczny lejek: paywall odsyła do pełnego cennika (porównanie
                 planów, FAQ) zamiast być równoległym, ślepym lejkiem. */}
               <Link
                 to="/pricing"
                 className="inline-block text-sm text-brand-ink hover:underline"
-                onClick={rememberReturn}
+                {...ctaProps("pricing", undefined, rememberReturn)}
               >
                 {t("paywall.seeAllPlans")} →
               </Link>

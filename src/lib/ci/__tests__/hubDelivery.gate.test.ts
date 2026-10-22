@@ -21,6 +21,7 @@ import {
   checkSliceDiff,
   globToRegExp,
   hubDeliveryFailed,
+  hubI9RedefinitionCialoZ,
   maskSqlComments,
   renderHubDeliveryReport,
   renderSliceDiff,
@@ -400,6 +401,88 @@ describe("bramka dostawy huba - fikstury zaczerwieniają bramkę", () => {
       file("20261020110400_x.sql", fnSql("admin_revenue_churn", { cialoZ: "20261001000000" })),
     ]).violations;
     expect(violations.map((v) => v.kind)).toContain("brak-cialo-z");
+  });
+
+  // Rezerwa I9 (SPEC §4.2): Integrator redefiniuje funkcję innego wycinka
+  // WYŁĄCZNIE z rejestru `HUB_I9_REDEFINITIONS`, z CIALO-Z najnowszej
+  // definicji w hubie - i tylko w bloku I9.
+  it("rezerwa I9: redefinicja z rejestru przechodzi, poza rejestrem albo blokiem - nie", () => {
+    const i0 = file("20261020090500_i0.sql", fnSql("revenue_segment_of_tier"));
+    const i9 = (cialoZ?: string) =>
+      file("20261020160000_i9.sql", fnSql("revenue_segment_of_tier", { cialoZ }));
+    expect(kinds([i0, i9("20261020090500")])).toEqual([]);
+    expect(kinds([i0, i9()])).toEqual(["brak-cialo-z"]);
+    expect(kinds([i0, i9("20261001000000")])).toEqual(["zly-cialo-z"]);
+    // Rejestr musi wskazywać NAJNOWSZĄ definicję: późniejsza w innym wycinku = czerwień.
+    expect(
+      kinds([
+        i0,
+        file("20261020110000_s2.sql", fnSql("revenue_segment_of_tier")),
+        i9("20261020090500"),
+      ]),
+    ).toEqual(expect.arrayContaining(["zly-blok", "funkcja-w-dwoch-blokach", "zly-cialo-z"]));
+    // Funkcja spoza rejestru w bloku I9 to nadal zły blok i drugi blok.
+    expect(
+      kinds([
+        file("20261020090500_i0.sql", fnSql("_tier_rank_of")),
+        file("20261020160000_i9.sql", fnSql("_tier_rank_of", { cialoZ: "20261020090500" })),
+      ]),
+    ).toEqual(["zly-blok", "funkcja-w-dwoch-blokach"]);
+  });
+
+  // Funkcja sprzed huba redefiniowana najpierw w wycinku właściciela
+  // (`HUB_CIALO_Z`), potem w I9 (Z-S5-02): znacznik I9 wskazuje ciało
+  // wycinka, nie sprzed huba - inaczej I9 przepisałby stare ciało.
+  it("rezerwa I9: funkcja sprzed huba po redefinicji w wycinku - CIALO-Z wycinka", () => {
+    const service = { grant: "service_role" };
+    const preHub = file("20261007140700_old.sql", fnSql("run_workflow_step"));
+    const s4 = file(
+      "20261020130200_s4.sql",
+      fnSql("run_workflow_step", { ...service, cialoZ: "20261007140700" }),
+    );
+    const i9 = (cialoZ?: string) =>
+      file("20261020160800_i9.sql", fnSql("run_workflow_step", { ...service, cialoZ }));
+    expect(kinds([preHub, s4, i9("20261020130200")])).toEqual([]);
+    expect(kinds([preHub, s4, i9("20261007140700")])).toEqual(["zly-cialo-z"]);
+    expect(kinds([preHub, s4, i9()])).toEqual(["brak-cialo-z"]);
+  });
+
+  // (I9d) Druga i kolejna redefinicja tej samej funkcji innego wycinka w I9
+  // (zapis zdarzeń ścieżek: I9c-X2, potem I9d-Y1): mapa wersji per plik.
+  // Każdy plik ma własny CIALO-Z = najnowsza WCZEŚNIEJSZA definicja w hubie,
+  // więc ochrona przed przepisaniem starego ciała zostaje ta sama.
+  it("rezerwa I9: mapa wersji per plik - kolejne redefinicje z własnym CIALO-Z", () => {
+    const service = { grant: "service_role" };
+    const name = "journey_record_message_event";
+    const s5 = file("20261020140500_s5.sql", fnSql(name, service));
+    const first = (cialoZ?: string) =>
+      file("20261020161300_i9.sql", fnSql(name, { ...service, cialoZ }));
+    const second = (cialoZ?: string, version = "20261020161900") =>
+      file(`${version}_i9.sql`, fnSql(name, { ...service, cialoZ }));
+    expect(hubI9RedefinitionCialoZ(name, "20261020161300")).toBe("20261020140500");
+    expect(hubI9RedefinitionCialoZ(name, "20261020161900")).toBe("20261020161300");
+    expect(hubI9RedefinitionCialoZ(name, "20261020165900")).toBeUndefined();
+    expect(hubI9RedefinitionCialoZ("revenue_segment_of_tier", "20261020165900")).toBe(
+      "20261020090500",
+    );
+    // Dwie redefinicje, każda z CIALO-Z poprzedniej - zieleń.
+    expect(kinds([s5, first("20261020140500"), second("20261020161300")])).toEqual([]);
+    // Druga redefinicja przepisuje ciało S5 zamiast I9c - czerwień.
+    expect(kinds([s5, first("20261020140500"), second("20261020140500")])).toEqual(["zly-cialo-z"]);
+    // Brak znacznika w drugiej - czerwień.
+    expect(kinds([s5, first("20261020140500"), second()])).toEqual(["brak-cialo-z"]);
+    // Kolejna redefinicja bez wpisu w mapie - czerwień, nawet z poprawnym znacznikiem.
+    expect(
+      kinds([
+        s5,
+        first("20261020140500"),
+        second("20261020161300"),
+        second("20261020161900", "20261020165900"),
+      ]),
+    ).toEqual(["brak-cialo-z"]);
+    // Pominięta redefinicja z mapy (plik 161300 nie istnieje): wpis 161900
+    // wskazuje 161300, a najnowsza wcześniejsza to S5 - czerwień.
+    expect(kinds([s5, second("20261020161300")])).toEqual(["zly-cialo-z"]);
   });
 
   it("ta sama funkcja w dwóch blokach", () => {

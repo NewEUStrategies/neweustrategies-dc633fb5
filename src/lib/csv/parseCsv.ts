@@ -9,6 +9,12 @@
 export interface ParsedCsv {
   header: string[];
   rows: string[][];
+  /**
+   * Numer rekordu każdego wiersza `rows` w pliku (1 = pierwszy rekord, licząc
+   * puste linie) - numer, który użytkownik zobaczy w arkuszu, gdy dialog
+   * zgłasza błąd wiersza (pominięte puste linie nie przesuwają numeracji).
+   */
+  rowNumbers: number[];
 }
 
 /** Separator , lub ; - wygrywa częstszy w PIERWSZEJ linii poza cudzysłowami. */
@@ -59,7 +65,14 @@ export function parseCsv(text: string): ParsedCsv {
     cur.push(field);
     lines.push(cur);
   }
-  const nonEmpty = lines.filter((r) => r.some((v) => v.trim().length));
-  const header = nonEmpty[0] ?? [];
-  return { header, rows: nonEmpty.slice(1) };
+  const nonEmpty = lines
+    .map((record, index) => ({ record, number: index + 1 }))
+    .filter(({ record }) => record.some((v) => v.trim().length));
+  const header = nonEmpty[0]?.record ?? [];
+  const data = nonEmpty.slice(1);
+  return {
+    header,
+    rows: data.map(({ record }) => record),
+    rowNumbers: data.map(({ number }) => number),
+  };
 }

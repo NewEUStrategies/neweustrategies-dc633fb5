@@ -284,6 +284,33 @@ describe("walidacja wejścia", () => {
     expect(insertedRows()[0]).toMatchObject({ event_name: "b" });
   });
 
+  it.each([
+    "paywall_view",
+    "paywall_cta_click",
+    "pricing_view",
+    "checkout_view",
+    "checkout_submit",
+    "signup_completed",
+    "login_completed",
+    "newsletter_signup",
+  ])("krok lejka czytelnika `%s` przechodzi jako typ (S3, P18)", async (type) => {
+    await post({ events: [{ type, name: type }] });
+
+    expect(insertedRows()).toHaveLength(1);
+    expect(insertedRows()[0]).toMatchObject({ event_type: type, event_name: type });
+  });
+
+  it("bramka klubu (`club`) jest dozwoloną encją zdarzenia paywalla", async () => {
+    await postOne({
+      type: "paywall_view",
+      name: "paywall_view",
+      entity_type: "club",
+      entity_id: "c-1",
+    });
+
+    expect(insertedRows()[0]).toMatchObject({ entity_type: "club", entity_id: "c-1" });
+  });
+
   it("BRAK typu domyślnie wpada w `interaction`, które jest dozwolone", async () => {
     await post({ events: [{ name: "bez_typu" }] });
 
