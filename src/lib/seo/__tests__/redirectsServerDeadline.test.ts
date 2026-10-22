@@ -10,7 +10,12 @@
 //      sprzed TTL): odpowiedź od ręki z migawki i DOKŁADNIE JEDNO odświeżenie
 //      w tle, także przy równoległych żądaniach (single-flight
 //      `startIndexRefresh`),
-//   3. limit 5 000 wierszy: ostrzeżenie dokładnie od progu, nie przed nim.
+//   3. limit 5 000 wierszy: ostrzeżenie dokładnie od progu, nie przed nim,
+//   4. ZIMNY izolat na żądaniu dokumentu (`resolveRedirectForRequest`): odczyt
+//      reguł wszystkich tenantów leci równolegle z katalogiem, a migawka L2
+//      ŚCIGA się z nim - nieświeża odpowiada od ręki i ten sam odczyt staje
+//      się jej odświeżeniem (jeden odczyt, nie dwa), świeża wygrywa bez
+//      publikowania czegokolwiek z odczytu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //   * `src/lib/server/__tests__/serviceRolePlaneBudget.test.ts` - ten sam
@@ -21,6 +26,9 @@
 //     prawdziwym Cache API (walidacja kształtu, doba przetrwania, zimny
 //     izolat po ciszy). Tu Cache API jest atrapą, bo przedmiotem dowodu jest
 //     LICZBA odświeżeń przy współbieżności, a nie zapis do Cache API.
+//   * `redirectsServerRequest.test.ts` - odczyt zimnego izolatu bez migawek:
+//     równoległość z katalogiem, izolacja tenantów, zejścia (limit, błąd,
+//     termin), brak odczytu na ciepłym izolacie.
 //
 // Moduł jest importowany od nowa w każdym teście (`vi.resetModules`):
 // `invalidateRedirectCache` celowo wyłącza odczyt migawek współdzielonych do
@@ -30,12 +38,17 @@ import type { RedirectRule } from "@/lib/seo/redirects";
 
 type Mode = "rows" | "hang" | "hold" | "error";
 
+/** Wiersz tabeli `redirects`, jak go oddaje baza - z `tenant_id`. */
+type RedirectRow = RedirectRule & { tenant_id: string };
+
 const state = vi.hoisted(() => ({
   mode: "rows" as Mode,
-  rows: [] as RedirectRule[],
+  rows: [] as RedirectRow[],
   /** Liczba odczytów tabeli `redirects` (round-tripy planu service-role). */
   reads: 0,
   limits: [] as number[],
+  /** Filtr `tenant_id` każdego odczytu; null = odczyt wszystkich tenantów (zimny izolat). */
+  scopes: [] as Array<string | null>,
   /** Wstrzymane odczyty (`mode: "hold"`) - test zwalnia je ręcznie. */
   held: [] as Array<() => void>,
   snapshot: null as { at: number; value: RedirectRule[]; stale: boolean } | null,
@@ -45,29 +58,45 @@ const state = vi.hoisted(() => ({
   background: [] as Array<Promise<unknown>>,
 }));
 
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            limit: (count: number) => {
-              state.reads += 1;
-              state.limits.push(count);
-              const reply = { data: state.rows, error: null };
-              if (state.mode === "hang") return new Promise(() => {});
-              if (state.mode === "error") return Promise.reject(new Error("PostgREST unreachable"));
-              if (state.mode === "hold") {
-                return new Promise((resolve) => state.held.push(() => resolve(reply)));
-              }
-              return Promise.resolve(reply);
-            },
-          }),
-        }),
-      }),
-    }),
-    rpc: () => Promise.resolve({ data: null, error: null }),
-  },
+vi.mock("@/integrations/supabase/client.server", () => {
+  // Filtr `tenant_id` działa jak w bazie: odczyt per tenant i odczyt
+  // wszystkich tenantów (zimny izolat) oddają różne zbiory wierszy.
+  function query() {
+    const filters: Record<string, unknown> = {};
+    const builder = {
+      eq(column: string, value: unknown) {
+        filters[column] = value;
+        return builder;
+      },
+      limit(count: number) {
+        const scope = typeof filters.tenant_id === "string" ? filters.tenant_id : null;
+        state.reads += 1;
+        state.limits.push(count);
+        state.scopes.push(scope);
+        const rows = state.rows.filter((row) => scope === null || row.tenant_id === scope);
+        const reply = { data: rows.slice(0, count), error: null };
+        if (state.mode === "hang") return new Promise(() => {});
+        if (state.mode === "error") return Promise.reject(new Error("PostgREST unreachable"));
+        if (state.mode === "hold") {
+          return new Promise((resolve) => state.held.push(() => resolve(reply)));
+        }
+        return Promise.resolve(reply);
+      },
+    };
+    return builder;
+  }
+  return {
+    supabaseAdmin: {
+      from: () => ({ select: () => query() }),
+      rpc: () => Promise.resolve({ data: null, error: null }),
+    },
+  };
+});
+
+// Host -> tenant bez bazy: przedmiotem dowodu jest indeks reguł, nie katalog.
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveTenantForHost: () =>
+    Promise.resolve({ id: "t-nes", slug: "nes", domain: "nes.example", isDefault: true }),
 }));
 
 vi.mock("@/lib/http/bootstrapCache.server", () => ({
@@ -98,17 +127,19 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 const TENANT = "t-nes";
 const TTL_MS = 30_000;
 const BUDGET_MS = 1_500;
-const RULE_OLD: RedirectRule = {
+const RULE_OLD: RedirectRow = {
   id: "r1",
   source_path: "/stary",
   target_path: "/nowy",
   status_code: 301,
+  tenant_id: TENANT,
 };
-const RULE_NEW: RedirectRule = {
+const RULE_NEW: RedirectRow = {
   id: "r2",
   source_path: "/inny",
   target_path: "/cel",
   status_code: 301,
+  tenant_id: TENANT,
 };
 
 let warns: string[];
@@ -128,13 +159,19 @@ function watch<T>(promise: Promise<T>): { settled: () => boolean; value: () => T
   return { settled: () => done, value: () => result };
 }
 
-function rules(count: number): RedirectRule[] {
+function rules(count: number): RedirectRow[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `r${i}`,
     source_path: `/s${i}`,
     target_path: `/t${i}`,
     status_code: 301,
+    tenant_id: TENANT,
   }));
+}
+
+/** Żądanie dokumentu na hoście tenanta (atrapa katalogu oddaje `TENANT`). */
+function documentRequest(path: string): Request {
+  return new Request(`https://nes.example${path}`);
 }
 
 beforeEach(() => {
@@ -145,6 +182,7 @@ beforeEach(() => {
   state.rows = [RULE_OLD];
   state.reads = 0;
   state.limits = [];
+  state.scopes = [];
   state.held = [];
   state.snapshot = null;
   state.snapshotReads = 0;
@@ -309,6 +347,77 @@ describe("zimny izolat z NIEŚWIEŻĄ migawką L2", () => {
     expect(a.exact.has("/stary")).toBe(true);
     expect(b).toBe(a);
     expect(state.reads).toBe(1);
+  });
+});
+
+describe("zimny izolat na żądaniu dokumentu: migawka L2 ściga się z odczytem wszystkich reguł", () => {
+  it("NIEŚWIEŻA migawka odpowiada od ręki, a odczyt w locie JEST jej odświeżeniem - jeden odczyt, nie dwa", async () => {
+    state.snapshot = { at: Date.now() - (TTL_MS + 5_000), value: [RULE_OLD], stale: true };
+    state.rows = [RULE_NEW];
+    // Odczyt bazy WSTRZYMANY: gdyby żądanie na niego czekało, nie wróciłoby.
+    state.mode = "hold";
+    const { getRedirectIndexForTenant, resolveRedirectForRequest } = await freshModule();
+
+    await expect(resolveRedirectForRequest(documentRequest("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+    await vi.waitFor(() => expect(state.reads).toBe(1));
+    // Jedyny odczyt to odczyt wszystkich tenantów - odświeżenie per tenant nie
+    // startuje osobno, bo odczyt w locie już jest odświeżeniem.
+    expect(state.scopes).toEqual([null]);
+
+    for (const release of state.held) release();
+    await Promise.all(state.background);
+
+    const refreshed = await getRedirectIndexForTenant(TENANT);
+    expect(refreshed.exact.has("/inny")).toBe(true);
+    expect(refreshed.exact.has("/stary")).toBe(false);
+    expect(state.reads).toBe(1);
+    expect(state.snapshotWrites).toEqual([
+      { key: `redirects:${TENANT}`, at: Date.now(), count: 1 },
+    ]);
+  });
+
+  it("ŚWIEŻA migawka wygrywa: odczyt w locie niczego nie zasiewa i nie publikuje migawki", async () => {
+    state.snapshot = { at: Date.now() - 1_000, value: [RULE_OLD], stale: false };
+    state.rows = [RULE_NEW];
+    state.mode = "hold";
+    const { getRedirectIndexForTenant, resolveRedirectForRequest } = await freshModule();
+
+    await expect(resolveRedirectForRequest(documentRequest("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+    // KOSZT, świadomy i przypięty: zimny izolat wysyła odczyt, zanim wie,
+    // czy migawka jest - przy działającym L2 to jeden odczyt w tle.
+    await vi.waitFor(() => expect(state.reads).toBe(1));
+
+    for (const release of state.held) release();
+    await Promise.all(state.background);
+
+    const index = await getRedirectIndexForTenant(TENANT);
+    expect(index.exact.has("/stary")).toBe(true);
+    expect(index.exact.has("/inny")).toBe(false);
+    expect(state.reads).toBe(1);
+    expect(state.snapshotWrites).toHaveLength(0);
+  });
+
+  it("brak migawki: odpowiada odczyt wszystkich reguł i to on publikuje migawkę tenanta", async () => {
+    state.rows = [RULE_OLD, { ...RULE_NEW, id: "obcy", tenant_id: "t-obcy" }];
+    const { resolveRedirectForRequest } = await freshModule();
+
+    await expect(resolveRedirectForRequest(documentRequest("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+    await Promise.all(state.background);
+
+    expect(state.scopes).toEqual([null]);
+    // Migawka `redirects:<tenant>` niesie WYŁĄCZNIE reguły tenanta hosta.
+    expect(state.snapshotWrites).toEqual([
+      { key: `redirects:${TENANT}`, at: Date.now(), count: 1 },
+    ]);
   });
 });
 

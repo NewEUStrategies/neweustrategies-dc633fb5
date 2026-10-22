@@ -19,7 +19,15 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 }));
 const entries = new Map<string, Response>();
 const tenant = { id: "tenant-a", slug: "a", domain: "a.example", is_default: true };
-const rule = { id: "r-a", source_path: "/old", target_path: "/new", status_code: 301 };
+// `tenant_id`: odczyt zimnego izolatu czyta reguły WSZYSTKICH tenantów i filtr
+// tenanta hosta nakłada kod (`redirects.server.ts`), więc wiersz musi go nieść.
+const rule = {
+  id: "r-a",
+  source_path: "/old",
+  target_path: "/new",
+  status_code: 301,
+  tenant_id: "tenant-a",
+};
 
 beforeEach(() => {
   vi.resetModules();
@@ -121,7 +129,7 @@ describe("first document on a new Worker", () => {
     expect(h.from).toHaveBeenCalledTimes(2);
   });
 
-  it("restores the same tenant and redirect without either database round trip", async () => {
+  it("restores the same tenant and redirect without waiting for either database round trip", async () => {
     const first = await import("@/lib/seo/redirects.server");
     const request = new Request("https://a.example/old");
     expect(await first.resolveRedirectForRequest(request)).toEqual({ target: "/new", status: 301 });
@@ -130,9 +138,18 @@ describe("first document on a new Worker", () => {
 
     vi.resetModules(); // New isolate; only the colo cache survives.
     h.from.mockClear();
+    // Baza WISI: gdyby nowy izolat na nią czekał, odpowiedź nigdy by nie wróciła.
+    h.from.mockImplementation(() => {
+      const query = { select: () => query, eq: () => query, limit: () => new Promise(() => {}) };
+      return query;
+    });
     const next = await import("@/lib/seo/redirects.server");
     expect(await next.resolveRedirectForRequest(request)).toEqual({ target: "/new", status: 301 });
-    expect(h.from).not.toHaveBeenCalled();
+    // Zimny izolat wysyła odczyt reguł WSZYSTKICH tenantów, zanim wie, że
+    // migawki są świeże (równolegle z katalogiem). Świeża migawka wygrywa
+    // wyścig, więc to jedyny round-trip - w tle, nie na ścieżce odpowiedzi;
+    // katalog tenantów z migawki nie dotyka bazy wcale.
+    expect(h.from.mock.calls).toEqual([["redirects"]]);
     const tenants = await import("@/lib/server/tenant.server");
     expect(
       await tenants.resolveTrustedRequestHost(new Request("https://unknown.example/")),
@@ -221,6 +238,22 @@ describe("first document on a new Worker", () => {
         before.set(key, ((await entry.clone().json()) as { at: number }).at);
       }
       h.rows.redirects = [{ ...rule, target_path: "/renewed" }];
+      // Baza odpowiada WOLNIEJ niż Cache API kolonii (jak w produkcji: magazyn
+      // kolonii vs eu-west-1). Bez tego atrapa bazy rozstrzyga się w mikrozadaniach,
+      // szybciej niż odczyt migawki, a odczyt reguł zimnego izolatu - który
+      // ściga się z migawką - wygrałby wyścig i podał od razu świeże reguły.
+      const held: Array<() => void> = [];
+      h.from.mockImplementation((table: keyof typeof h.rows) => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          limit: () =>
+            new Promise((resolve) =>
+              held.push(() => resolve({ data: h.rows[table], error: null })),
+            ),
+        };
+        return query;
+      });
 
       const next = await import("@/lib/seo/redirects.server");
       const request = new Request("https://a.example/old");
@@ -229,6 +262,11 @@ describe("first document on a new Worker", () => {
         target: "/new",
         status: 301,
       });
+      await vi.advanceTimersByTimeAsync(0);
+      // Odświeżenie katalogu i odczyt reguł wszystkich tenantów (zimny izolat),
+      // który jest zarazem odświeżeniem nieświeżej migawki reguł - nie trzeci.
+      expect(h.from.mock.calls.map(([table]) => table).sort()).toEqual(["redirects", "tenants"]);
+      for (const release of held) release();
       await Promise.all(h.background);
       expect(h.from).toHaveBeenCalledTimes(2);
       // Druga: już po odświeżeniu w tle - bez kolejnego round-tripu.
