@@ -42,7 +42,16 @@
 // ekran pasek odnośników (`hidden md:flex`) - oba są w znaczniku od początku,
 // a przełącza je CSS. Pomiar szerokości w JS dawałby inny znacznik serwera
 // i klienta przy pierwszym renderze.
-import { useEffect, useId, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import {
   Link,
   Outlet,
@@ -91,6 +100,15 @@ import {
 } from "@/lib/revenue/search";
 import { resolveRevenueRange, type RevenueRange } from "@/lib/revenue/window";
 import { cn } from "@/lib/utils";
+
+// Licznik Diagnostyki (Z-S6-08) liczy ocena rejestru 55 reguł - sonda jest
+// leniwa, żeby rejestr nie jechał w chunku układu ładowanym z każdą zakładką
+// (budżet D-08). Integrator S7, 2026-10-22.
+const DiagnosticsBadgeProbe = lazy(() =>
+  import("@/components/admin/revenue/diagnostics/DiagnosticsBadgeProbe").then((m) => ({
+    default: m.DiagnosticsBadgeProbe,
+  })),
+);
 
 // ---------------------------------------------------------------------------
 // Jawne mapy kluczy (zakaz sklejania kluczy i18n)
@@ -292,7 +310,7 @@ function RevenueHubShell() {
       </header>
       {canSeeHub ? (
         <>
-          <HubSections roles={roles} current={tab} search={search} />
+          <HubSections roles={roles} current={tab} search={search} tenantId={tenant} />
           {tab !== null && tabAllowed && defaultPeriodOf(tab) !== null ? (
             <HubFilters tab={tab} search={search} tenantId={tenant} />
           ) : null}
@@ -376,18 +394,28 @@ function HubSections({
   roles,
   current,
   search,
+  tenantId,
 }: {
   roles: readonly string[];
   current: RevenueTabId | null;
   search: RevenueHubSearch;
+  tenantId: string | null;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const navId = useId();
   const tabs = hubTabsFor(roles);
-  // Slot liczników paska (Diagnostyka: otwarte krytyczne + ważne; Ścieżki:
-  // aktywne). Dane dają S7 i S5 - do I9 slot jest pusty (Z-S6-08).
-  const badges: Partial<Record<RevenueTabId, number>> = {};
+  // Slot liczników paska (Z-S6-08). Diagnostyka (S7, Integrator S7
+  // 2026-10-22): otwarte krytyczne + ważne bez obowiązujących wyciszeń
+  // z leniwej sondy - `null` = nie wiadomo (ładowanie, odmowa), wtedy pasek
+  // nie pokazuje „0". Ścieżki (aktywne) dokłada S8.
+  const [diagnosticsBadge, setDiagnosticsBadge] = useState<number | null>(null);
+  // Ta sama bramka co `admin_revenue_facts()`: wiersz `admin` albo `editor`.
+  const factsRoleOk = roles.includes("admin") || roles.includes("editor");
+  const probeDiagnostics =
+    tenantId !== null && factsRoleOk && tabs.some((spec) => spec.id === "diagnostics");
+  const badges: Partial<Record<RevenueTabId, number>> =
+    probeDiagnostics && diagnosticsBadge !== null ? { diagnostics: diagnosticsBadge } : {};
 
   const groups = REVENUE_TAB_GROUPS.map((group) => ({
     group,
@@ -403,6 +431,15 @@ function HubSections({
 
   return (
     <>
+      {probeDiagnostics ? (
+        <Suspense fallback={null}>
+          <DiagnosticsBadgeProbe
+            tenantId={tenantId}
+            roleOk={factsRoleOk}
+            onCount={setDiagnosticsBadge}
+          />
+        </Suspense>
+      ) : null}
       <div className="md:hidden">
         <FormSelect
           aria-label={t("adminRevenue.nav.sections")}

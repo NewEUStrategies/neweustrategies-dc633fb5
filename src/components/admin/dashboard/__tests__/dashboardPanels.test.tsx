@@ -59,6 +59,16 @@ vi.mock("@/components/admin/analytics/ChartCard", () => ({
   },
 }));
 
+// Kafel przychodu zrealizowanego (S7) ładuje się leniwie i czyta sesję,
+// hydratację i React Query - jego zachowanie (klucz migawki, role, okresy bez
+// odczytu) dowodzi `MarketingPanel.realized.test.tsx`. Tu atrapa bez haków:
+// gdy `import()` zdąży się rozwiązać między testami, `lazy` renderuje kafel
+// synchronicznie i bez atrapy test zależałby od kolejności i czasu (Integrator
+// S7, 2026-10-22).
+vi.mock("@/components/admin/revenue/metrics/RealizedRevenueTile", () => ({
+  RealizedRevenueTile: () => <div data-testid="realized-revenue-tile" />,
+}));
+
 vi.mock("@/components/charts/ChoroplethMap", () => ({
   ChoroplethMap: (props: { config: DataMapConfig; lang: string }) => {
     h.maps.push(props);

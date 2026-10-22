@@ -149,9 +149,14 @@ describe("hub „Przychód i lejek” - pozycje paska bocznego", () => {
 describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
   const tabPath = (tab: string) =>
     tab === "overview" ? "/admin/revenue" : `/admin/revenue/${tab}`;
+  // Skróty zakładek bez skrótów wskaźników (`?metric=`, S7 - test niżej).
+  const tabEntries = (groups: ReturnType<typeof build>) =>
+    (routeItem(groups, "/admin/revenue")?.searchEntries ?? []).filter(
+      (e) => e.search?.metric === undefined,
+    );
 
   it("admin: skrót do KAŻDEJ z 11 zakładek (kokpit = indeks huba), w kolejności paska", () => {
-    const entries = routeItem(build(SESSIONS.admin), "/admin/revenue")?.searchEntries ?? [];
+    const entries = tabEntries(build(SESSIONS.admin));
     expect(entries.map((e) => e.to)).toEqual(REVENUE_TABS.map(tabPath));
     expect(entries.map((e) => e.label)).toEqual(
       REVENUE_TABS.map((tab) => `admin.nav.revenueTabs.${tab}`),
@@ -160,7 +165,7 @@ describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
   });
 
   it("redaktor: te same zakładki co pasek huba - bez Przychodu, Retencji i Danych wejściowych", () => {
-    const entries = routeItem(build(SESSIONS.editor), "/admin/revenue")?.searchEntries ?? [];
+    const entries = tabEntries(build(SESSIONS.editor));
     const targets = entries.map((e) => e.to);
     expect(targets).toEqual(hubTabsFor(["editor"]).map((spec) => tabPath(spec.id)));
     for (const tab of ["mrr", "retention", "inputs"]) {
@@ -218,6 +223,20 @@ describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
   it("„Nowa ścieżka” (`?new=1`) nie ma skrótu, dopóki zakładka Ścieżek go nie obsłuży (S8)", () => {
     const entries = routeItem(build(SESSIONS.admin), "/admin/revenue")?.searchEntries ?? [];
     expect(entries.some((e) => e.search?.new === "1")).toBe(false);
+  });
+
+  it("⌘K „nrr” → arkusz NRR na zakładce Wskaźniki (admin i redaktor); autor - nic", () => {
+    for (const session of [SESSIONS.admin, SESSIONS.editor]) {
+      const hit = searchAdminNav(build(session), "nrr").find(
+        (h) => adminNavItemKey(h.item) === "/admin/revenue/metrics?metric=net_revenue_retention",
+      );
+      expect(hit?.item.label).toBe("NRR · admin.nav.revenueTabs.metrics");
+      expect(hit?.groupLabel).toBe("admin.nav.revenueHub");
+    }
+    const authorKeys = searchAdminNav(build(SESSIONS.author), "nrr").map((h) =>
+      adminNavItemKey(h.item),
+    );
+    expect(authorKeys.filter((k) => k.startsWith("/admin/revenue"))).toEqual([]);
   });
 
   it("klucz pozycji rozróżnia ten sam adres z innym `search`", () => {

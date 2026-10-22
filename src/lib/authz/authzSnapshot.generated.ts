@@ -71,6 +71,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"gift_links","ref":"fn:can_gift_articles/0","kind":"function","object":"can_gift_articles","file":"20260723170000_expert_request_capability.sql","bypassRoles":[],"tenantRef":"none"},
     {"capability":"included_event_tickets","ref":"fn:my_ticket_allowance/0","kind":"function","object":"my_ticket_allowance","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"included_event_tickets_org","ref":"fn:my_ticket_allowance/0","kind":"function","object":"my_ticket_allowance","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":[],"tenantRef":"row"},
+    {"capability":"premium_content","ref":"fn:_revenue_facts_paywall/1","kind":"function","object":"_revenue_facts_paywall","file":"20261020150000_revenue_facts.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"premium_content","ref":"fn:admin_revenue_access_inventory/0","kind":"function","object":"admin_revenue_access_inventory","file":"20261020120400_revenue_funnel_access.sql","bypassRoles":[],"tenantRef":"caller"},
     {"capability":"premium_content","ref":"fn:has_content_access/2","kind":"function","object":"has_content_access","file":"20261013090200_tier_entitlement_seat_status_tenant.sql","bypassRoles":[],"tenantRef":"row"},
     {"capability":"pro_briefings","ref":"fn:event_session_access/1","kind":"function","object":"event_session_access","file":"20260829071657_34f9a348-3e43-46d2-b139-d1ea90b352e5.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
@@ -81,5 +82,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":1299,"functions":1823,"policies":677},
+  stats: {"migrations":1302,"functions":1843,"policies":677},
 };

@@ -1,15 +1,15 @@
 // Stan „w przygotowaniu" zakładek huba (I9a): dane z `tabPreparing.ts`.
 //
 // CO TEN PLIK DOWODZI.
-//   1. Każda zakładka ma etap zgodny z kolejką (S7; Ścieżki S5+S8; Wskaźniki
-//      - słownik S6 już działa, wartości S7) - zmiana planu bez zmiany tu ma
-//      się zapalić.
+//   1. Wpis mają WYŁĄCZNIE zakładki bez treści - po S7 (Integrator S7,
+//      2026-10-22) to same Ścieżki z etapem S5+S8; zakładka S7 z wpisem albo
+//      zmiana planu bez zmiany tu ma się zapalić.
 //   2. Każdy odnośnik prowadzi na STAŁĄ trasę z `routeTree.gen.ts` (nie 404,
 //      nie szablon z parametrem) z parametrami z kontraktu deep linków SPEC
 //      §2.6 i nigdy z powrotem do huba.
-//   3. Razem odnośniki pokrywają moduły, w których dane huba są dziś
-//      (paywall, cennik, rozliczenia, CRM, newsletter, kupony, wydarzenia,
-//      kluby, BI) - zakładka nie zostawia admina bez następnego kroku.
+//   3. Odnośniki Ścieżek pokrywają moduły, w których komunikacja żyje dziś
+//      (automatyzacje, newsletter ze skrzynką nadawczą, CRM) - zakładka nie
+//      zostawia admina bez następnego kroku.
 //   4. Każdy klucz ma napis PL i EN, różny w obu językach.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -47,27 +47,32 @@ function bothLanguages(key: string): { pl: string; en: string } {
   return { pl: i18n.getFixedT("pl")(key), en: i18n.getFixedT("en")(key) };
 }
 
-const EXPECTED_STAGE: Readonly<Record<RevenueTabId, RevenueTabStage>> = {
-  overview: "s7",
-  mrr: "s7",
-  funnel: "s7",
-  retention: "s7",
-  community: "s7",
-  diagnostics: "s7",
-  offer: "s7",
-  access: "s7",
+const EXPECTED_STAGE: Readonly<Partial<Record<RevenueTabId, RevenueTabStage>>> = {
   journeys: "s5s8",
-  metrics: "s6s7",
-  inputs: "s7",
 };
 
+/** Zakładki, które wciąż pokazują stan „w przygotowaniu". */
+const PREPARING_TABS: readonly RevenueTabId[] = REVENUE_TABS.filter(
+  (tab) => TAB_PREPARING[tab] !== undefined,
+);
+
+function specOf(tab: RevenueTabId) {
+  const spec = TAB_PREPARING[tab];
+  if (!spec) throw new Error(`brak wpisu TAB_PREPARING dla ${tab}`);
+  return spec;
+}
+
 describe("TAB_PREPARING - etap, opis i odnośniki każdej zakładki", () => {
-  it.each(REVENUE_TABS)("%s: etap zgodny z kolejką S5 → S7 → S8 → I9", (tab) => {
-    expect(TAB_PREPARING[tab].stage).toBe(EXPECTED_STAGE[tab]);
+  it("wpis mają wyłącznie zakładki bez treści - po S7 same Ścieżki", () => {
+    expect(PREPARING_TABS).toEqual(Object.keys(EXPECTED_STAGE));
   });
 
-  it.each(REVENUE_TABS)("%s: odnośniki na stałe trasy z parametrami z kontraktu", (tab) => {
-    const { links } = TAB_PREPARING[tab];
+  it.each(PREPARING_TABS)("%s: etap zgodny z kolejką S5 → S7 → S8 → I9", (tab) => {
+    expect(specOf(tab).stage).toBe(EXPECTED_STAGE[tab]);
+  });
+
+  it.each(PREPARING_TABS)("%s: odnośniki na stałe trasy z parametrami z kontraktu", (tab) => {
+    const { links } = specOf(tab);
     expect(links.length).toBeGreaterThan(0);
     expect(new Set(links.map((l) => l.labelKey)).size).toBe(links.length);
     for (const link of links) {
@@ -79,28 +84,18 @@ describe("TAB_PREPARING - etap, opis i odnośniki każdej zakładki", () => {
     }
   });
 
-  it("razem pokrywają moduły, w których dane huba są już dziś", () => {
-    const targets = new Set(
-      REVENUE_TABS.flatMap((tab) => TAB_PREPARING[tab].links.map((link) => link.to)),
-    );
+  it("Ścieżki prowadzą do modułów, w których komunikacja żyje już dziś", () => {
+    const targets = new Set(specOf("journeys").links.map((link) => link.to));
     for (const module of [
-      "/admin/paywall",
-      "/admin/pricing",
-      "/admin/billing",
-      "/admin/crm",
+      "/admin/workflows",
       "/admin/newsletter",
-      "/admin/coupons",
-      "/admin/events",
-      "/admin/community/clubs",
-      "/admin/analytics/bi",
+      "/admin/newsletter/outbox",
+      "/admin/crm",
     ]) {
       expect(targets.has(module), module).toBe(true);
     }
-  });
-
-  it("dostęp prowadzi do ustawień kasy - tam admin ustawia okno porzucenia", () => {
-    expect(TAB_PREPARING.access.links).toContainEqual(
-      expect.objectContaining({ to: "/admin/paywall", search: { tab: "checkout" } }),
+    expect(specOf("journeys").links).toContainEqual(
+      expect.objectContaining({ to: "/admin/workflows", search: { tab: "definitions" } }),
     );
   });
 });
@@ -108,15 +103,14 @@ describe("TAB_PREPARING - etap, opis i odnośniki każdej zakładki", () => {
 describe("słownik stanu „w przygotowaniu” - PL i EN", () => {
   const keys = new Set<string>([
     "adminRevenue.common.pending",
-    "adminRevenue.preparing.partial",
     "adminRevenue.preparing.whatLabel",
     "adminRevenue.preparing.whenLabel",
     "adminRevenue.preparing.todayLabel",
     ...Object.values(TAB_STAGE_KEY),
     ...Object.values(TAB_TITLE_KEY),
-    ...REVENUE_TABS.flatMap((tab) => [
-      TAB_PREPARING[tab].whatKey,
-      ...TAB_PREPARING[tab].links.map((link) => link.labelKey),
+    ...PREPARING_TABS.flatMap((tab) => [
+      specOf(tab).whatKey,
+      ...specOf(tab).links.map((link) => link.labelKey),
     ]),
   ]);
 
@@ -128,7 +122,7 @@ describe("słownik stanu „w przygotowaniu” - PL i EN", () => {
   });
 
   it("etap mówi o kolejności prac, a Ścieżki o obu wycinkach (S5 i S8)", () => {
-    expect(bothLanguages(TAB_STAGE_KEY.s7).pl).toContain("S5 → S7 → S8 → I9");
+    expect(bothLanguages(TAB_STAGE_KEY.s5s8).pl).toContain("S5 → S7 → S8 → I9");
     const journeys = bothLanguages(TAB_STAGE_KEY.s5s8);
     expect(journeys.pl).toMatch(/S5.*S8/);
     expect(journeys.en).toMatch(/S5.*S8/);
