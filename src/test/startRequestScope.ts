@@ -30,7 +30,7 @@
 //
 // W fabrykach `vi.mock` importuj dynamicznie (`await import("@/test/startRequestScope")`):
 // moduł sam importuje `@tanstack/react-start/server`, nie atrapowane
-// `@tanstack/react-start/server-entry`.
+// `@/lib/ssr/serverEntry` (entry handlera ładowane leniwie przez src/server.ts).
 import type { Register } from "@tanstack/react-router";
 import { createServerEntry, handleStartError } from "@tanstack/react-start/server";
 import type { RequestHandler, RequestOptions } from "@tanstack/react-start/server";

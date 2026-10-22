@@ -51,7 +51,7 @@ const entryHarness = vi.hoisted(() => ({
   render: null as null | ((request: Request) => Response | Promise<Response>),
 }));
 
-vi.mock("@tanstack/react-start/server-entry", async () => {
+vi.mock("@/lib/ssr/serverEntry", async () => {
   const cache = await import("../documentCache.server");
   return {
     default: {

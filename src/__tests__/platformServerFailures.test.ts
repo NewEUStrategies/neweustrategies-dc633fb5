@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   revalidate: undefined as undefined | ((r: Request) => Promise<boolean>),
   work: undefined as Promise<boolean> | undefined,
 }));
-vi.mock("@tanstack/react-start/server-entry", () => ({ default: { fetch: h.fetch } }));
+vi.mock("@/lib/ssr/serverEntry", () => ({ default: { fetch: h.fetch } }));
 vi.mock("../lib/error-capture", () => ({ consumeLastCapturedError: () => h.captured }));
 vi.mock("../lib/error-page", () => ({ renderErrorPage: () => "<html>safe error</html>" }));
 vi.mock("../lib/http/documentCache.server", () => ({

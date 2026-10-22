@@ -55,7 +55,7 @@ const hoisted = vi.hoisted(() => ({
   failBeforeDispatch: undefined as unknown,
 }));
 
-vi.mock("@tanstack/react-start/server-entry", async () => {
+vi.mock("@/lib/ssr/serverEntry", async () => {
   const { startRequestScope } = await import("@/test/startRequestScope");
   // Ta sama granica, którą build wstawia w wirtualne entry (`createServerEntry`).
   const boundary = startRequestScope(async (request) => {

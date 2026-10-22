@@ -62,8 +62,8 @@
 // po `router.load()` (dopasowania i loadery gotowe), przed renderem Reacta, raz na żądanie.
 // Wynik czeka w rejestrze kluczowanym routerem żądania (`bootSetRegistry.ts`), a renderuje go
 // `BootSetNode` w `<head>` zaraz po `<HeadContent />`, przed sondą i loaderem bootu. Powłoka
-// dokumentu wychodzi tak samo na ścieżce strumieniowej, `allReady` (boty, w tym
-// `Chrome-Lighthouse`, którego PSI dostaje na MISS) i `renderToString`, więc węzeł stoi w tym
+// dokumentu wychodzi tak samo na ścieżce strumieniowej (przeglądarki, także Lighthouse/PSI -
+// lib/http/lighthouseStreaming.ts), `allReady` (crawlery) i `renderToString`, więc węzeł stoi w tym
 // samym miejscu na każdej z nich. Router-core 1.171.37 nie ma już kanału HTML (`injectHtml`
 // zniknęło), a skrypty hydratacji (`<Scripts>`) stoją w `<body>` - za późno dla loadera.
 //

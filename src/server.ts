@@ -85,9 +85,9 @@ let serverEntryReady = false;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then((m) => {
+    serverEntryPromise = import("./lib/ssr/serverEntry").then((m) => {
       serverEntryReady = true;
-      return (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry);
+      return m.default;
     });
   }
   return serverEntryPromise;
