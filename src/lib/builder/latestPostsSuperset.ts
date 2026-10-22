@@ -199,6 +199,45 @@ export function fetchLatestSupersetAuthors(
 }
 
 /**
+ * ROZGRZANIE W PIERWSZEJ FALI LOADERA STRONY GŁÓWNEJ (tylko serwer, bez
+ * czekania).
+ *
+ * Nadzbiór nie zależy od niczego, co loader czyta: to „20 najnowszych
+ * opublikowanych wpisów" tenanta hosta. Widgety pytają o niego dopiero po
+ * trzech szeregowych falach (ustawienia -> strona -> treść kanwy), czyli na
+ * zimnym izolacie daleko od eu-west-1 już po wspólnym terminie widgetów nad
+ * zgięciem - sekcja z hero idzie wtedy strumieniem za powłoką, a razem z nią
+ * odkrycie obrazu LCP. Start zaraz po trybie strony głównej sprawia, że gdy
+ * widgety o niego zapytają, wiersze leżą już w L1 izolatu albo są w locie
+ * (single-flight). Wołający pomija tryb „najnowsze wpisy" (tam treścią jest
+ * archiwum, nadzbioru nikt nie czyta).
+ *
+ * TYLKO WPISY, bez profili autorów: profile czyta pierwszy widget z bylinem
+ * (ten sam wspólny odczyt, single-flight). Profile w rozgrzewce trafiały na
+ * kanwach bez bylinu w próżnię, a przy limicie 6 połączeń Workera zajmowały
+ * miejsce w fali, w której lecą odczyty krytyczne.
+ *
+ * ZA ODPOWIEDZIĄ (`runAfterResponse`): rozgrzewka jest jedynym właścicielem
+ * swojego lotu, dopóki nie dołączy do niego widget. Lot ucięty razem
+ * z domknięciem odpowiedzi nigdy by się nie rozstrzygnął, a kolejne żądania
+ * tego izolatu dołączałyby do niego bez terminu (`serveStale: false`
+ * kieruje je właśnie do lotu). Błąd jest połykany - widgety wracają wtedy do
+ * własnych zapytań.
+ */
+export function warmLatestPostsSuperset(): void {
+  if (!(import.meta.env.SSR && typeof window === "undefined")) return;
+  const work = fetchLatestPostsSuperset().then(
+    () => undefined,
+    () => undefined,
+  );
+  // Import dynamiczny, jak `completeAfterResponse` w `ssrCache.ts`: ten moduł
+  // jest współdzielony z klientem, statyczna krawędź wciągnęłaby .server.
+  void import("@/lib/http/waitUntil.server")
+    .then((m) => m.runAfterResponse(work))
+    .catch(() => undefined);
+}
+
+/**
  * Profile podanych autorów ze wspólnego odczytu nadzbioru albo `null`, gdy nie
  * da się ich tak obsłużyć dokładnie (nadzbioru nie ma w L1, któryś autor spoza
  * nadzbioru, błąd odczytu) - wołający pyta wtedy jak dotąd. Wynik zawiera

@@ -1156,7 +1156,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // the pre-render sweep cancels this work and HeaderSkeleton later
         // grows by ~180 px (CMS artifact trace). The existing 500 ms budget
         // still bounds the wait. Homepage retains its shared deadline.
-        if (isServer && homeDeadline === undefined) await initialChromeWarmup;
+        //
+        // STRONA GŁÓWNA TEŻ CZEKA (2026-10-22). Dopóki loader strony głównej
+        // zawsze kończył się PO rozgrzewce chrome'u, korzeń nie musiał na nią
+        // czekać. Od kiedy wspólny odczyt najnowszych wpisów startuje w
+        // pierwszej fali (`warmLatestPostsSuperset`), loader strony głównej
+        // potrafi skończyć się wcześniej - zamiatanie przed renderem anulowało
+        // wtedy lecące zapytanie paska „Na czasie", a nagłówek szedł
+        // strumieniem za powłoką (szkielet w pierwszym malowaniu, dokument
+        // `s-maxage=30`). Czekanie jest ograniczone tak samo jak `warm()`:
+        // min(start + CHROME_WARM_BUDGET_MS, `homeDeadline`) - nigdy dłużej niż
+        // wspólny termin strony głównej.
+        if (isServer) await initialChromeWarmup;
         // Sanity-guard: jeżeli którekolwiek zapytanie menu zostało anulowane
         // przez HMR i zostało w stanie `pending`, zresetuj je - inaczej klient
         // po hydratacji zawiesi się czekając na strumień, który już nie wróci.

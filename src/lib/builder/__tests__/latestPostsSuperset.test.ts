@@ -25,6 +25,14 @@ import { QueryClient } from "@tanstack/react-query";
 import type { RecordedChain, SupabaseFromStub, SupabaseResult } from "@/test/supabase";
 
 const sb = vi.hoisted(() => ({ from: null as SupabaseFromStub | null }));
+/** Prace oddane `runAfterResponse` (rozgrzewka nadzbioru musi się tam rejestrować). */
+const afterResponse = vi.hoisted(() => ({ work: [] as Promise<unknown>[] }));
+
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: Promise<unknown>) => {
+    afterResponse.work.push(work);
+  },
+}));
 
 vi.mock("@/lib/http/requestHost", () => ({
   currentTenantHost: () => Promise.resolve("tenant.test"),
@@ -45,6 +53,7 @@ import {
   LATEST_POSTS_SUPERSET_COLUMNS,
   LATEST_POSTS_SUPERSET_LIMIT,
   selectColumnNames,
+  warmLatestPostsSuperset,
 } from "@/lib/builder/latestPostsSuperset";
 import {
   POST_LIST_COLUMNS,
@@ -205,6 +214,7 @@ async function legacy<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 beforeEach(() => {
+  afterResponse.work.length = 0;
   db().reset();
   clearEdgeTtlCache();
   vi.stubEnv("SSR", true);
@@ -599,6 +609,59 @@ describe("świeżość: nieświeżość nie sumuje się z dwóch warstw cache", 
     await fallback(3);
 
     expect(supersetChains()).toHaveLength(1);
+  });
+});
+
+// Rozgrzanie na starcie loadera strony głównej: odczyt startuje w pierwszej
+// fali, a widgety (po trzech falach strony i kanwy) biorą go z L1 albo
+// dołączają do lotu - bez drugiego odczytu wpisów i profili.
+describe("warmLatestPostsSuperset", () => {
+  it("serwer: jeden odczyt wpisów (bez profili), z którego korzystają potem widgety", async () => {
+    warmLatestPostsSuperset();
+    await vi.waitFor(() => expect(supersetChains()).toHaveLength(1));
+    // Rozgrzewka nie czyta profili - robi to pierwszy widget z bylinem.
+    expect(db().chainsFor("profiles_public")).toHaveLength(0);
+
+    await postList({ variant: "card", limit: 3 });
+    await slider({ source: "posts", limit: 4 });
+
+    expect(supersetChains()).toHaveLength(1);
+    expect(db().chainsFor("posts")).toHaveLength(1);
+    expect(db().chainsFor("profiles_public")).toHaveLength(1);
+  });
+
+  it("praca rozgrzewki jest zarejestrowana za odpowiedzią (waitUntil) i nie odrzuca", async () => {
+    warmLatestPostsSuperset();
+    await vi.waitFor(() => expect(afterResponse.work).toHaveLength(1));
+    await expect(afterResponse.work[0]).resolves.toBeUndefined();
+  });
+
+  it("widget zapytany w trakcie rozgrzewania dołącza do lotu (single-flight)", async () => {
+    warmLatestPostsSuperset();
+    await postList({ variant: "numbered", limit: 2 });
+
+    expect(supersetChains()).toHaveLength(1);
+  });
+
+  it("błąd odczytu jest połykany (bez odrzuconej obietnicy), widget pyta sam", async () => {
+    db().setResponse("posts", (chain) =>
+      chain.argsOf("limit")?.[0] === LATEST_POSTS_SUPERSET_LIMIT
+        ? fail("statement timeout", "57014")
+        : emulate(anonVisible(postsTable), chain),
+    );
+    warmLatestPostsSuperset();
+    await vi.waitFor(() => expect(afterResponse.work).toHaveLength(1));
+    await expect(afterResponse.work[0]).resolves.toBeUndefined();
+
+    const rows = await postList({ variant: "numbered", limit: 2 });
+    expect(rows.map((r) => r.id)).toEqual(["p1", "p2"]);
+  });
+
+  it("przeglądarka: no-op", () => {
+    vi.stubGlobal("window", {});
+    warmLatestPostsSuperset();
+    expect(db().chainsFor("posts")).toHaveLength(0);
+    expect(afterResponse.work).toHaveLength(0);
   });
 });
 

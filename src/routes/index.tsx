@@ -16,6 +16,7 @@ import { HomeNotFoundNotice } from "@/components/home/molecules/HomeNotFoundNoti
 import { HomeLoadingNotice } from "@/components/home/molecules/HomeLoadingNotice";
 import { LatestPostsHome } from "@/components/home/organisms/LatestPostsHome";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { warmLatestPostsSuperset } from "@/lib/builder/latestPostsSuperset";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import {
   ABOVE_FOLD_SECTION_COUNT,
@@ -159,15 +160,26 @@ export const Route = createFileRoute("/")({
     // Root and home execute concurrently, but all serial phases within home
     // share ONE deadline. Settings start alongside the page/mode, never as a
     // new unbounded SEO request at the end of the loader.
+    const homeModeLoad = loadResilient(queryClient, homepageModeQueryOptions(), "", {
+      deadlineAt: contentDeadlineAt,
+      label: "home.mode",
+    });
+    // Wspólny odczyt najnowszych wpisów (post-listy, hero-slider, okładki)
+    // startuje zaraz po trybie strony głównej, RÓWNOLEGLE ze stroną i treścią
+    // kanwy, a nie po nich - opis przy `warmLatestPostsSuperset`. W trybie
+    // „najnowsze wpisy" (treścią jest archiwum) i przy zdegradowanym trybie
+    // nie startuje. Na kliencie no-op. `loadResilient` nigdy nie odrzuca.
+    if (isServer) {
+      void homeModeLoad.then(({ data, degraded }) => {
+        if (!degraded && data !== "latest_posts") warmLatestPostsSuperset();
+      });
+    }
     const [homePageRes, homeModeRes, settingsRes] = await Promise.all([
       loadResilient(queryClient, homePageQueryOptions(), null, {
         deadlineAt: contentDeadlineAt,
         label: "home.page",
       }),
-      loadResilient(queryClient, homepageModeQueryOptions(), "", {
-        deadlineAt: contentDeadlineAt,
-        label: "home.mode",
-      }),
+      homeModeLoad,
       loadResilient(queryClient, siteSettingsQueryOptions, emptySettings, {
         deadlineAt,
         label: "home.settings",
