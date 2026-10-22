@@ -13,6 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
+import { normalizeConsentVersion } from "@/lib/newsletter/consentText";
 import { z } from "zod";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -375,10 +376,18 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       source_form_name: data.formName ?? null,
       ip: clientIp,
       user_agent: userAgent,
-      consents: (data.consents ?? []).map((entry) => ({
-        ...entry,
-        received_at: new Date().toISOString(),
-      })),
+      // Wersja z pomiarem (I9d-Y2) zostaje wyłącznie przy treści z rejestru
+      // treści zgody - klient nie nada sobie (ani komuś) zgody na pomiar
+      // samą etykietą wersji. Bez wersji baza zapisze skrót treści.
+      consents: (data.consents ?? []).map((entry) => {
+        const { version: _claimed, ...rest } = entry;
+        const version = normalizeConsentVersion(entry);
+        return {
+          ...rest,
+          ...(version ? { version } : {}),
+          received_at: new Date().toISOString(),
+        };
+      }),
       ...(userId ? { user_id: userId } : {}),
       ...(Object.keys(mergedMeta).length > 0 ? { meta: mergedMeta } : {}),
     };

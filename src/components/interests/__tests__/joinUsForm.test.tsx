@@ -33,6 +33,11 @@
 // - POLA WŁASNYCH: `CustomFieldsRenderer` i `validateCustomFields` mają testy
 //   przy konfiguracji pól; tutaj sprawdzamy tylko, że formularz respektuje wynik.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+  newsletterConsentPlain,
+} from "@/lib/newsletter/consentText";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -44,7 +49,7 @@ interface SubscribePayload {
   lastName?: string;
   language: string;
   source: string;
-  consents: { key: string; text: string; given: boolean; lang: string }[];
+  consents: { key: string; text: string; given: boolean; lang: string; version?: string }[];
   meta?: Record<string, string>;
   custom?: Record<string, string>;
   requiredFields: string[];
@@ -409,6 +414,37 @@ describe("kształt payloadu", () => {
       lang: "pl",
     });
     expect(lastPayload()?.consents[0].text.length).toBeGreaterThan(20);
+  });
+
+  it("zapisuje DOKŁADNIE treść pokazaną przy polu zgody - domyślną z wersją pomiaru (I9d-Y2)", async () => {
+    mount();
+    // Widoczna treść = jedno źródło treści domyślnej (bez zaszytej kopii).
+    expect(screen.getByRole("checkbox").closest("label")?.textContent).toContain(
+      newsletterConsentPlain("pl"),
+    );
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
+    expect(lastPayload()?.consents[0]).toEqual({
+      key: "newsletter",
+      text: newsletterConsentHtml("pl"),
+      given: true,
+      lang: "pl",
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
+  });
+
+  it("własna treść zgody z buildera jest zapisywana jako dowód, bez wersji pomiaru", async () => {
+    mount({ consentText: "Moja zgoda na newsletter" });
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
+    expect(lastPayload()?.consents[0]).toEqual({
+      key: "newsletter",
+      text: "Moja zgoda na newsletter",
+      given: true,
+      lang: "pl",
+    });
   });
 
   it("niesie źródło i typ formularza - CRM musi wiedzieć, skąd przyszedł lead", async () => {

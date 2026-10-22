@@ -2349,8 +2349,11 @@ export const WIDGETS: WidgetDef[] = [
       requireMessage: true,
 
       showNewsletterOptIn: false,
-      newsletterLabel_pl: "Zapisz mnie do newslettera",
-      newsletterLabel_en: "Subscribe me to the newsletter",
+      // Puste = pełna treść zgody na newsletter z jednego źródła (I9d-Y2,
+      // `@/lib/newsletter/consentText`) - rejestr nie kopiuje treści zgody
+      // do strony; dawne kopie etykiety mapuje widok przy renderze.
+      newsletterLabel_pl: "",
+      newsletterLabel_en: "",
       columns: 2, // 1 | 2 | 3
       buttonAlign: "left", // left | center | right | full
       buttonPosition: "bottom", // bottom | inline-right

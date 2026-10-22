@@ -47,6 +47,7 @@ vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: h.sendTxEmail }));
 
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 
 const db = supabaseFromStub();
 const SETTINGS = "newsletter_settings";
@@ -883,4 +884,52 @@ it("preserves client interaction time and stamps receipt with the server clock",
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe("wersja treści zgody (I9d-Y2)", () => {
+  it("treść z rejestru zachowuje wersję z pomiarem w `consents`", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          {
+            key: "newsletter",
+            text: newsletterConsentHtml("pl"),
+            version: NEWSLETTER_CONSENT_VERSION,
+            given: true,
+            lang: "pl",
+          },
+        ],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry).toMatchObject({
+      key: "newsletter",
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
+    expect(typeof entry.received_at).toBe("string");
+  });
+
+  it("obca treść z wersją z pomiarem traci wersję - klient nie nada zgody na pomiar etykietą", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [{ key: "newsletter", text: "Cokolwiek.", version: NEWSLETTER_CONSENT_VERSION }],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry.text).toBe("Cokolwiek.");
+    expect(entry).not.toHaveProperty("version");
+  });
+
+  it("inna wersja (skrót popupu) przechodzi bez zmian", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          { key: "privacy", text: "Polityka", version: "sha256:0123456789abcdef01234567" },
+        ],
+      }),
+    });
+    const [entry] = upserted().consents as Record<string, unknown>[];
+    expect(entry.version).toBe("sha256:0123456789abcdef01234567");
+  });
 });

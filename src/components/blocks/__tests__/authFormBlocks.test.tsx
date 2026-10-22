@@ -57,6 +57,9 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.guard }));
 vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: {} }));
+// Zapis na newsletter po rejestracji (I9d-Y2) idzie przez `useServerFn` -
+// w tym pliku to ten sam `h.guard`, więc wołania rozróżnia ładunek.
+vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -85,6 +88,7 @@ import {
 import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/content-model/authFormSettings";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { WIDGETS } from "@/lib/builder/registry";
+import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 
 type Data = Record<string, unknown>;
 type Lang = "pl" | "en";
@@ -443,21 +447,30 @@ describe("register-form: rozjazdy kluczy działają z obu stron", () => {
     expect(document.getElementById("reg-confirm")).toBeTruthy();
   });
 
+  // Domyślne pole „newsletter" pokazuje pełną treść zgody z pomiarem (I9d-Y2).
+  const NEWSLETTER_DEFAULT = /Wiadomości mogą zawierać elementy mierzące otwarcia/;
+
   it("newsletterOptIn (schemat) i showNewsletterOptIn (komponent) sterują tym samym", () => {
     register({ newsletterOptIn: "0" });
-    expect(screen.queryByText("authForms.newsletterOptIn")).toBeNull();
+    expect(screen.queryByText(NEWSLETTER_DEFAULT)).toBeNull();
     cleanup();
     register({ showNewsletterOptIn: false });
-    expect(screen.queryByText("authForms.newsletterOptIn")).toBeNull();
+    expect(screen.queryByText(NEWSLETTER_DEFAULT)).toBeNull();
     cleanup();
     register({});
-    expect(screen.queryByText("authForms.newsletterOptIn")).not.toBeNull();
+    expect(screen.queryByText(NEWSLETTER_DEFAULT)).not.toBeNull();
   });
 
-  it("newsletterLabel z ustawień zastępuje tłumaczenie", () => {
+  it("newsletterLabel z ustawień zastępuje treść domyślną", () => {
     register({ newsletterLabel_pl: "Chcę biuletyn co piątek" });
     expect(screen.getByText("Chcę biuletyn co piątek")).toBeTruthy();
-    expect(screen.queryByText("authForms.newsletterOptIn")).toBeNull();
+    expect(screen.queryByText(NEWSLETTER_DEFAULT)).toBeNull();
+  });
+
+  it("dawna domyślna etykieta z buildera pokazuje bieżącą treść zgody", () => {
+    register({ newsletterLabel_pl: "Chcę otrzymywać newsletter" });
+    expect(screen.queryByText("Chcę otrzymywać newsletter")).toBeNull();
+    expect(screen.getByText(NEWSLETTER_DEFAULT)).toBeTruthy();
   });
 
   it("consentText (schemat) renderuje własną treść RODO, z linkami markdown", () => {
@@ -577,6 +590,43 @@ describe("register-form: walidacja i payload", () => {
     expect(payload.options.data.company).toBe("NES");
     expect(payload.options.data.signup_type).toBe("reader");
     expect(h.navigate).toHaveBeenCalledWith({ to: "/panel" });
+  });
+
+  it("zaznaczony newsletter zapisuje na listę z treścią i wersją zgody (I9d-Y2)", async () => {
+    register({ requireConsent: false });
+    fillMinimal();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(h.guard).toHaveBeenCalledWith({
+        data: {
+          email: "jan@example.com",
+          firstName: "Jan",
+          lastName: "Kowalski",
+          name: "Jan Kowalski",
+          language: "pl",
+          source: "signup_register_widget",
+          consents: [
+            {
+              key: "newsletter",
+              text: newsletterConsentHtml("pl"),
+              given: true,
+              lang: "pl",
+              version: NEWSLETTER_CONSENT_VERSION,
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it("bez zaznaczenia newslettera nikt nie trafia na listę", async () => {
+    register({ requireConsent: false });
+    fillMinimal();
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+    expect(h.guard).not.toHaveBeenCalled();
   });
 
   it("nie wysyła telefonu ani firmy, gdy pola są wyłączone", async () => {

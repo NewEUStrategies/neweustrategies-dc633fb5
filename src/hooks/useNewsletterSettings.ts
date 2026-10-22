@@ -7,6 +7,7 @@ import {
   type PopupFieldConfig,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
+import { newsletterConsentHtml } from "@/lib/newsletter/consentText";
 import { defaultPopupDesign, type PopupDesign } from "@/lib/newsletter/popupDesign";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
@@ -116,10 +117,10 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     heading_en: "Subscribe to our Newsletter",
     description_pl: "Otrzymuj najnowsze artykuły prosto na swoją skrzynkę.",
     description_en: "Get the latest articles delivered to your inbox.",
-    policy_html_pl:
-      'Zapisując się akceptujesz <a href="/polityka-prywatnosci">Politykę prywatności</a>. Możesz wypisać się w każdej chwili.',
-    policy_html_en:
-      'By signing up, you agree to our <a href="/privacy-policy">Privacy Policy</a>. You may unsubscribe at any time.',
+    // Treść zgody z JEDNEGO źródła (I9d-Y2) - ta sama co DEFAULT kolumn w SQL
+    // (`_newsletter_consent_default`, test parytetu w `consentText.test.ts`).
+    policy_html_pl: newsletterConsentHtml("pl"),
+    policy_html_en: newsletterConsentHtml("en"),
     success_message_pl: "Dziękujemy! Sprawdź swoją skrzynkę.",
     success_message_en: "Thanks! Please check your inbox.",
     double_opt_in: false,

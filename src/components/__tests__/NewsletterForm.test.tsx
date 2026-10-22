@@ -208,6 +208,12 @@ import {
   subscribeSuccessCopy,
 } from "@/lib/newsletter/subscribeFeedback";
 import { NewsletterForm } from "@/components/NewsletterForm";
+import {
+  LEGACY_NEWSLETTER_CONSENT_DEFAULTS,
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+  newsletterConsentPlain,
+} from "@/lib/newsletter/consentText";
 
 h.t = (lang: "pl" | "en") => realT(lang);
 
@@ -538,16 +544,37 @@ describe("NewsletterForm - co dokładnie leci na serwer", () => {
     expect(payload.custom).toBeUndefined();
   });
 
-  it("bez treści polityki w ustawieniach zgoda dostaje domyślne brzmienie ze słownika", async () => {
+  it("bez treści polityki formularz POKAZUJE i zapisuje treść domyślną z pomiarem (I9d-Y2)", async () => {
     h.settings = withSettings({ policy_html_pl: null, policy_html_en: null });
+    const { container } = renderForm({ widgetConfig: { showFirstName: true } });
+    // Treść widoczna pod formularzem = dowód zapisany w rejestrze.
+    expect(container.querySelector(".nl-consent")?.textContent).toBe(newsletterConsentPlain("pl"));
+    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
+
+    await submit();
+
+    expect(h.submissions[0].consents).toEqual([
+      {
+        key: "newsletter",
+        text: newsletterConsentHtml("pl"),
+        given: true,
+        lang: "pl",
+        version: NEWSLETTER_CONSENT_VERSION,
+      },
+    ]);
+  });
+
+  it("dawna treść domyślna zapisana w ustawieniach = bieżąca treść z wersją", async () => {
+    h.settings = withSettings({ policy_html_pl: LEGACY_NEWSLETTER_CONSENT_DEFAULTS[0] });
     renderForm({ widgetConfig: { showFirstName: true } });
     fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
 
     await submit();
 
-    const consents = h.submissions[0].consents;
-    expect(Array.isArray(consents)).toBe(true);
-    expect(JSON.stringify(consents)).toContain(dict("pl", "newsletterForm.consentDefault"));
+    expect((h.submissions[0].consents as unknown[])[0]).toMatchObject({
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
   });
 
   it("treść polityki z ustawień jest renderowana jako link, a nie surowy HTML", () => {

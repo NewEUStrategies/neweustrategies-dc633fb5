@@ -27,6 +27,8 @@ import {
 import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { NewsletterSubscribedPanel } from "@/components/newsletter/NewsletterSubscribedPanel";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
 import { useMyNewsletterStatus } from "@/hooks/useMyNewsletterStatus";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -260,9 +262,6 @@ export function NewsletterForm({
     }
 
     try {
-      const consentText =
-        pickLocalized(s, "policy_html", lang) || t("newsletterForm.consentDefault");
-
       const displayName =
         [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || name.trim() || undefined;
 
@@ -295,7 +294,9 @@ export function NewsletterForm({
           language: lang,
           source,
           formName: pickLocalized(s, "heading", lang) || undefined,
-          consents: [{ key: "newsletter", text: consentText, given: true, lang }],
+          // Dowód = DOKŁADNIE treść pokazana pod formularzem (I9d-Y2): treść
+          // domyślna z wersją z pomiarem albo tekst admina bez wersji.
+          consents: [newsletterConsentPayload(consent, lang)],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
           // Tematy zapisujemy kanonicznie: profil użytkownika + CRM.
@@ -324,7 +325,11 @@ export function NewsletterForm({
 
   const heading = pickLocalized(s, "heading", lang);
   const description = pickLocalized(s, "description", lang);
-  const policy = pickLocalized(s, "policy_html", lang);
+  // Puste pole i dawna treść domyślna -> bieżąca treść z pomiarem (jedno
+  // źródło); dotąd przy pustym polu formularz nie pokazywał żadnej treści,
+  // a zapisywał w rejestrze tekst ze słownika - dowód zgody na tekst, którego
+  // osoba nie widziała (art. 7 ust. 1 RODO).
+  const consent = resolveNewsletterConsent(pickLocalized(s, "policy_html", lang), lang);
   const success = pickLocalized(s, "success_message", lang);
 
   const containerCls =
@@ -571,10 +576,14 @@ export function NewsletterForm({
           </div>
         </div>
       )}
-      {policy && (
+      {consent.isDefault ? (
+        <p className="nl-consent nl-fineprint mt-3 text-muted-foreground">
+          <NewsletterConsentText lang={lang} />
+        </p>
+      ) : (
         <p
           className="nl-consent nl-fineprint mt-3 text-muted-foreground"
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(consent.text) }}
         />
       )}
     </section>

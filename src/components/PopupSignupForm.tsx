@@ -29,6 +29,13 @@ import { trackNewsletterPopupEvent } from "@/lib/newsletter/popupTelemetry";
 import { FieldBox } from "@/components/ui/field-box";
 import { publicAuthError } from "@/lib/auth/publicAuthError";
 import { snapshotConsents, type ConsentSnapshotInput } from "@/lib/newsletter/consentSnapshot";
+import {
+  isNewsletterConsentDefault,
+  newsletterConsentPayload,
+  privacyAcceptanceHtml,
+  resolveNewsletterConsent,
+} from "@/lib/newsletter/consentText";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
 import { SignupSuccessPanel } from "@/components/auth/SignupSuccessPanel";
 
 import { SubscribeButton } from "@/components/ui/subscribe-button";
@@ -133,9 +140,19 @@ export function PopupSignupForm({
   // Bliźniacze kolumny przez kanoniczny wybieracz: gdy redaktor wypełnił tylko
   // jedną wersję, zgoda pokazuje ją zamiast pustki (pusta zgoda RODO to zgoda,
   // której użytkownik nie mógł przeczytać).
+  //
+  // I9d-Y2: `policy_html` jest od Y2 treścią zgody na NEWSLETTER (pomiar,
+  // wycofanie) - wymagane pole „prywatność" rejestracji nie może jej nieść
+  // (uzależnienie konta od zgody marketingowej, art. 7 ust. 4 RODO). Własny
+  // tekst polityki admina zostaje źródłem zastępczym; domyślny - nie.
+  const globalPolicy = pickLocalized(settings, "policy_html", lang);
   const privacyHtml =
     pickLocalized(settings, "popup_privacy_html", lang) ||
-    pickLocalized(settings, "policy_html", lang);
+    (isNewsletterConsentDefault(globalPolicy) ? privacyAcceptanceHtml(lang) : globalPolicy);
+  // Pole „newsletter": etykieta domyślna (albo jej kopia w `popup_fields`)
+  // = pełna treść zgody z pomiarem z jednego źródła; etykieta własna - bez
+  // zmian i bez wersji pomiaru.
+  const newsletterConsent = resolveNewsletterConsent(label("newsletter_optin"), lang);
   const termsHtml = pickLocalized(settings, "popup_terms_html", lang);
   // Krótkie pola (imię/nazwisko, hasło/powtórz) stoją w dwóch kolumnach także
   // na telefonie - to skraca scroll popupu o ~2 wiersze. Pary z długą treścią
@@ -285,10 +302,12 @@ export function PopupSignupForm({
       }
 
       const consentEntries: ConsentSnapshotInput[] = [];
-      if (showNewsletter && v.newsletter) {
+      // Treść domyślna ma wersję z rejestru (pomiar) - nie skrót z migawki.
+      const newsletterDefault = showNewsletter && v.newsletter && newsletterConsent.isDefault;
+      if (showNewsletter && v.newsletter && !newsletterConsent.isDefault) {
         consentEntries.push({
           key: "newsletter",
-          text: label("newsletter_optin"),
+          text: newsletterConsent.text,
           given: true,
           lang,
         });
@@ -304,7 +323,14 @@ export function PopupSignupForm({
       if (requireTerms && termsHtml) {
         consentEntries.push({ key: "terms", text: sanitizeHtml(termsHtml), given: v.terms, lang });
       }
-      const consents = await snapshotConsents(consentEntries, new Date().toISOString());
+      const consentAt = new Date().toISOString();
+      const snapshots = await snapshotConsents(consentEntries, consentAt);
+      const consents = newsletterDefault
+        ? [
+            { ...newsletterConsentPayload(newsletterConsent, lang), timestamp: consentAt },
+            ...snapshots,
+          ]
+        : snapshots;
       const { error } = await supabase.auth.signUp({
         email,
         password: v.password,
@@ -581,7 +607,13 @@ export function PopupSignupForm({
               onCheckedChange={(checked) => upd("newsletter", checked === true)}
               className="mt-px h-[16px] w-[16px] shrink-0"
             />
-            <span>{label("newsletter_optin")}</span>
+            <span>
+              {newsletterConsent.isDefault ? (
+                <NewsletterConsentText lang={lang} />
+              ) : (
+                newsletterConsent.text
+              )}
+            </span>
           </label>
         )}
 
