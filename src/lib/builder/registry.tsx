@@ -697,7 +697,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       columns: 2,
       buttonAlign: "left",
       buttonPosition: "bottom",
@@ -2173,7 +2173,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       redirectTo: "/",
       loginHref: "/login",
       customFields: toJson([]),
@@ -2331,7 +2331,7 @@ export const WIDGETS: WidgetDef[] = [
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
-        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/en/polityka-prywatnosci).",
       showFirstName: true,
       showLastName: true,
       showEmail: true,
