@@ -13,6 +13,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { GPC_COOKIE, GPC_COOKIE_VALUE } from "@/lib/consent/gpc";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 const sb = vi.hoisted(() => ({
   userId: null as string | null,
@@ -102,6 +106,8 @@ beforeEach(() => {
   sb.prefs = {};
   sb.updates = [];
   sb.bulk = [];
+  __resetSupabaseClientRegistryForTests();
+  markSupabaseClientCreated();
 });
 
 afterEach(() => {

@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { onSupabaseClientCreated } from "@/integrations/supabase/sessionHint";
 import {
   clampCategoriesForGpc,
   isGpcClampedCategory,
@@ -653,17 +654,30 @@ export function useConsent() {
     const sync = () => setState(readLocal());
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
-        void hydrateConsentFromProfileOnce().then((r) => {
-          if (r) setState(r);
-        });
-      }
+    // Nasłuch sesji podpina się, gdy klienta Supabase utworzy KTOKOLWIEK
+    // (AuthProvider zalogowanego, formularz logowania, zapytanie o dane) - ten
+    // sam rejestr co w `useAuth` (szybka ścieżka gościa, F7). Do 2026-10-22
+    // hook sam tworzył klienta w efekcie hydratacji: u gościa na stronie
+    // głównej zadanie hydratacji czekało przez to na chunk vendor-supabase
+    // i instalowało timer auto-odświeżania sesji (plan P3.1 B, zmierzone
+    // w Lantern: późniejszy koniec zadania z Layoutem -> wyższy Speed Index).
+    // Słuchacz biegnie przed pierwszym zdarzeniem SDK (INITIAL_SESSION), więc
+    // hydracja decyzji z profilu zalogowanego działa bez zmian.
+    let sub: { subscription: { unsubscribe(): void } } | null = null;
+    const stopWaitingForClient = onSupabaseClientCreated(() => {
+      ({ data: sub } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
+          void hydrateConsentFromProfileOnce().then((r) => {
+            if (r) setState(r);
+          });
+        }
+      }));
     });
     return () => {
       window.removeEventListener(EVENT, sync);
       window.removeEventListener("storage", sync);
-      sub.subscription.unsubscribe();
+      stopWaitingForClient();
+      sub?.subscription.unsubscribe();
     };
   }, []);
 
