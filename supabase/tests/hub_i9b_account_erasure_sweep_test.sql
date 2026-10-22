@@ -33,11 +33,16 @@
 --     tabeli `public` z `tenant_id` nie znajduje uid ani e-maila poza
 --     wyjątkami z podstawą prawną (kontakt CRM); przegląd kolumn wzorca
 --     autora bez klucza obcego jest kompletny (nowa kolumna = czerwień,
---     dopóki nie trafi do redakcji albo na listę z uzasadnieniem).
+--     dopóki nie trafi do redakcji albo na listę z uzasadnieniem);
+--   * I9d (20261020161500, Z-I9c-01, decyzja właściciela 2026-10-20):
+--     zgłoszenia usuwanej osoby do klubów zanonimizowane (dane i teksty
+--     własne puste, `user_id` -> ten sam pseudonim v8, status, daty, warstwa
+--     i pola zgrubne zostają), także konta usuniętego przed I9d (domknięcie
+--     wstecz); kolumna wypada z wyjątków przeglądu.
 --
 -- Uruchamianie: PGTAP_DIR=... PGTAP_PORT=... bash scripts/pgtap-local/run.sh test hub_i9b_account_erasure_sweep
 BEGIN;
-SELECT plan(40);
+SELECT plan(41);
 
 -- ── Fikstura ─────────────────────────────────────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -330,6 +335,19 @@ SELECT is(
                        WHERE c.table_schema = 'public' AND c.table_name = t AND c.column_name = 'tenant_id')),
   NULL, 'przegląd: każda tabela ma tenant_id - skan po najemcy niczego nie pomija');
 
+-- I9d: zgłoszenia osoby U do klubów (w toku i odrzucone) z KOMPLETEM danych.
+INSERT INTO public.club_applications (tenant_id, user_id, specialization_slug, status, reviewed_at, first_name, last_name,
+  email, phone, company, job_position, seniority, industry, country, city, linkedin_url, years_experience, expertise,
+  languages, motivation, goals, contribution, availability, referral_source, tier_key, tier_rank, admin_note,
+  crm_lead_id, crm_error, notify_error)
+SELECT '19b50000-0000-4000-8000-0000000000a1', '19b50000-0000-4000-8000-00000000d001', x.spec, x.st,
+       CASE WHEN x.st = 'rejected' THEN now() - interval '1 month' END, 'Usuwana', 'Osoba', 'usuwana@i9b-sweep.test',
+       '+48 600 700 800', 'Firma U', 'Analityczka', 'senior', 'energia', 'PL', 'Kraków',
+       'https://www.linkedin.com/in/usuwana', 7, 'Rynek mocy', 'polski', 'Motywacja U', 'Cele U', 'Wkład U', 'Weekendy',
+       'Polecenie', 'pro', 20, 'Notatka o usuwanej@i9b-sweep.test', gen_random_uuid(), 'crm: usuwana@i9b-sweep.test',
+       'notify: usuwana@i9b-sweep.test'
+  FROM (VALUES ('i9d-policy', 'pending'), ('i9d-tech', 'rejected')) x(spec, st);
+
 -- ── Usunięcie konta U (wyzwalacze RODO włączone) ────────────────────────────
 ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_deleted_retain_accounting;
 ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_deleted_redact_revenue;
@@ -387,6 +405,23 @@ SELECT ok(
         WHERE a.tenant_id = '19b50000-0000-4000-8000-0000000000a1' AND a.action = 'membership.manual_grant'
           AND a.metadata ->> 'user_id' = (SELECT s::text FROM sur)) = 1,
   'jeden pseudonim v8 konta: paywall_hits, dziennik licznika (bez visitor_id), paywall.hit.v1 (user_id i agregat), audyt nadania');
+
+-- I9d (Z-I9c-01): zgłoszenia do klubów - anonimizacja, nie kasowanie.
+SELECT ok(
+  (SELECT count(*) = 2
+          AND bool_and(a.user_id = (SELECT s FROM sur) AND a.first_name = '' AND a.last_name = '' AND a.email = ''
+                       AND a.phone = '' AND a.company = '' AND a.job_position = '' AND a.city = ''
+                       AND a.linkedin_url = '' AND a.expertise = '' AND a.languages = '' AND a.motivation = ''
+                       AND a.goals = '' AND a.contribution = '' AND a.availability = '' AND a.referral_source = ''
+                       AND a.admin_note = '' AND a.crm_lead_id IS NULL AND a.crm_error IS NULL
+                       AND a.notify_error IS NULL
+                       AND a.seniority = 'senior' AND a.industry = 'energia' AND a.country = 'PL'
+                       AND a.years_experience = 7 AND a.tier_key = 'pro' AND a.tier_rank = 20)
+          AND array_agg(a.status || ':' || (a.reviewed_at IS NOT NULL)::text ORDER BY a.status)
+              = ARRAY['pending:false', 'rejected:true']
+     FROM public.club_applications a
+    WHERE a.tenant_id = '19b50000-0000-4000-8000-0000000000a1' AND a.specialization_slug IN ('i9d-policy', 'i9d-tech')),
+  'I9d: zgłoszenia osoby do klubów zanonimizowane - ten sam pseudonim v8 co w lejku, dane i teksty własne puste, CRM i błędy NULL; status, data decyzji, warstwa i pola zgrubne zostają');
 
 -- 8. Zdarzenia zostają (typ, czas, treść, powód), mają NOWE identyfikatory.
 SELECT ok(
@@ -660,7 +695,8 @@ SELECT is(
 -- I9c-2. Z-I9b-11: decyzja i kwota zostają, autor znika.
 SELECT ok(
   (SELECT count(*) = 2 AND bool_and(reviewed_by IS NULL AND status = 'accepted' AND reviewed_at IS NOT NULL)
-     FROM public.club_applications WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+     FROM public.club_applications WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'
+      AND user_id = '19b50000-0000-4000-8000-00000000d002')
   AND (SELECT count(*) = 2 AND bool_and(paid_amount_recorded_by IS NULL AND paid_amount_cents = 5000
                                         AND paid_amount_currency = 'PLN' AND paid_amount_recorded_at IS NOT NULL)
          FROM public.event_registrations WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'),
@@ -743,13 +779,13 @@ SELECT is(
         'user_invitations.auth_user_id', 'user_invitations.invited_by', 'user_notes.user_id', 'user_read_history.user_id',
         'user_read_later.user_id', 'user_reports.resolved_by', 'user_todos.user_id', 'verification_domains.created_by',
         'workflow_definitions.created_by', 'wp_import_jobs.actor_id', 'payment_webhook_events.user_id',
+        -- I9d (Z-I9c-01, 20261020161500): zgłoszenie do klubu -> pseudonim konta
+        -- (`_club_applications_anonymize` z `_hub_account_erase_modules`).
+        'club_applications.user_id',
         -- Księga MRR: redakcja 20261020160400 (`_revenue_ledger_redact_subscription`).
         'dunning_cycles.user_id', 'mrr_movements.user_id', 'subscription_state_history.user_id',
         -- Wyjątek księgowy z podstawą (rejestr czynności): dokument sprzedaży.
-        'billing_documents.user_id',
-        -- Zgłoszenie Z-I9c-01 (decyzja administratora danych, dziennik §21.20):
-        -- zgłoszenie osoby do klubu z danymi zgłoszenia.
-        'club_applications.user_id']))),
+        'billing_documents.user_id']))),
   NULL,
   'przegląd kompletny: każda kolumna uuid wzorca autora/osoby bez klucza obcego jest redagowana albo ma uzasadnienie');
 
@@ -797,6 +833,10 @@ INSERT INTO public.pages (tenant_id, slug, author_id)
 VALUES ('19b50000-0000-4000-8000-0000000000a1', 'i9c-strona-dawna', '19b50000-0000-4000-8000-00000000d006');
 UPDATE public.club_applications SET reviewed_by = '19b50000-0000-4000-8000-00000000d006'
  WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1';
+-- I9d: zgłoszenie do klubu konta usuniętego „przed I9d".
+INSERT INTO public.club_applications (tenant_id, user_id, specialization_slug, status, first_name, email, motivation)
+VALUES ('19b50000-0000-4000-8000-0000000000a1', '19b50000-0000-4000-8000-00000000d006', 'i9d-dawne', 'rejected',
+        'Dawne', 'dawne@i9b-sweep.test', 'Motywacja dawnej osoby');
 
 SELECT ok(
   pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', ARRAY['19b50000-0000-4000-8000-00000000d006'], '{}') IS NOT NULL,
@@ -814,9 +854,12 @@ SELECT ok(
   (SELECT author_id IS NULL FROM public.pages WHERE slug = 'i9c-strona-dawna')
   AND NOT EXISTS (SELECT 1 FROM public.club_applications WHERE reviewed_by IS NOT NULL
                    AND tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND (SELECT substr(user_id::text, 15, 1) = '8' AND email = '' AND first_name = '' AND motivation = ''
+              AND status = 'rejected'
+         FROM public.club_applications WHERE specialization_slug = 'i9d-dawne')
   AND pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', ARRAY['19b50000-0000-4000-8000-00000000d006'],
                     pg_temp.exceptions(), true) IS NULL,
-  'wstecz (I9c): autor strony i recenzent zgłoszenia konta usuniętego wcześniej -> NULL; cała baza bez śladu');
+  'wstecz (I9c, I9d): autor strony i recenzent konta usuniętego wcześniej -> NULL, jego zgłoszenie do klubu zanonimizowane; cała baza bez śladu');
 SELECT is(public._hub_account_erase_orphans(), 0, 'wstecz: druga runda nic nie zmienia');
 
 -- ── Wyzwalacz i ACL ─────────────────────────────────────────────────────────
@@ -837,12 +880,14 @@ SELECT ok(
              'public._domain_events_erase_account(uuid, uuid, text)', 'public._journeys_erase_account(uuid, text)',
              'public._hub_account_erase(uuid, uuid, text)', 'public._hub_account_erase_orphans()',
              'public.tg_auth_users_hub_erasure()', 'public._hub_account_erase_modules(uuid, uuid)',
-             'public._hub_account_erase_mail_queue(uuid, text)', 'public._hub_account_bound_email_labels()']) f,
+             'public._hub_account_erase_mail_queue(uuid, text)', 'public._hub_account_bound_email_labels()',
+             'public._club_applications_anonymize(uuid[], uuid)']) f,
            unnest(ARRAY['anon', 'authenticated']) r
      WHERE has_function_privilege(r, f, 'EXECUTE'))
   AND NOT has_function_privilege('service_role', 'public._hub_account_erase(uuid, uuid, text)', 'EXECUTE')
   AND NOT has_function_privilege('service_role', 'public._hub_account_erase_orphans()', 'EXECUTE')
-  AND NOT has_function_privilege('service_role', 'public._hub_account_erase_modules(uuid, uuid)', 'EXECUTE'),
+  AND NOT has_function_privilege('service_role', 'public._hub_account_erase_modules(uuid, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('service_role', 'public._club_applications_anonymize(uuid[], uuid)', 'EXECUTE'),
   'acl: redakcja, pseudonim i wyzwalacz bez EXECUTE dla anon i authenticated (wewnętrzne - także service_role)');
 
 SELECT throws_ok(

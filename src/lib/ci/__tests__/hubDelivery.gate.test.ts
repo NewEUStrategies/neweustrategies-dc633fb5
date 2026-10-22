@@ -21,6 +21,7 @@ import {
   checkSliceDiff,
   globToRegExp,
   hubDeliveryFailed,
+  hubI9RedefinitionCialoZ,
   maskSqlComments,
   renderHubDeliveryReport,
   renderSliceDiff,
@@ -444,6 +445,44 @@ describe("bramka dostawy huba - fikstury zaczerwieniają bramkę", () => {
     expect(kinds([preHub, s4, i9("20261020130200")])).toEqual([]);
     expect(kinds([preHub, s4, i9("20261007140700")])).toEqual(["zly-cialo-z"]);
     expect(kinds([preHub, s4, i9()])).toEqual(["brak-cialo-z"]);
+  });
+
+  // (I9d) Druga i kolejna redefinicja tej samej funkcji innego wycinka w I9
+  // (zapis zdarzeń ścieżek: I9c-X2, potem I9d-Y1): mapa wersji per plik.
+  // Każdy plik ma własny CIALO-Z = najnowsza WCZEŚNIEJSZA definicja w hubie,
+  // więc ochrona przed przepisaniem starego ciała zostaje ta sama.
+  it("rezerwa I9: mapa wersji per plik - kolejne redefinicje z własnym CIALO-Z", () => {
+    const service = { grant: "service_role" };
+    const name = "journey_record_message_event";
+    const s5 = file("20261020140500_s5.sql", fnSql(name, service));
+    const first = (cialoZ?: string) =>
+      file("20261020161300_i9.sql", fnSql(name, { ...service, cialoZ }));
+    const second = (cialoZ?: string, version = "20261020161900") =>
+      file(`${version}_i9.sql`, fnSql(name, { ...service, cialoZ }));
+    expect(hubI9RedefinitionCialoZ(name, "20261020161300")).toBe("20261020140500");
+    expect(hubI9RedefinitionCialoZ(name, "20261020161900")).toBe("20261020161300");
+    expect(hubI9RedefinitionCialoZ(name, "20261020165900")).toBeUndefined();
+    expect(hubI9RedefinitionCialoZ("revenue_segment_of_tier", "20261020165900")).toBe(
+      "20261020090500",
+    );
+    // Dwie redefinicje, każda z CIALO-Z poprzedniej - zieleń.
+    expect(kinds([s5, first("20261020140500"), second("20261020161300")])).toEqual([]);
+    // Druga redefinicja przepisuje ciało S5 zamiast I9c - czerwień.
+    expect(kinds([s5, first("20261020140500"), second("20261020140500")])).toEqual(["zly-cialo-z"]);
+    // Brak znacznika w drugiej - czerwień.
+    expect(kinds([s5, first("20261020140500"), second()])).toEqual(["brak-cialo-z"]);
+    // Kolejna redefinicja bez wpisu w mapie - czerwień, nawet z poprawnym znacznikiem.
+    expect(
+      kinds([
+        s5,
+        first("20261020140500"),
+        second("20261020161300"),
+        second("20261020161900", "20261020165900"),
+      ]),
+    ).toEqual(["brak-cialo-z"]);
+    // Pominięta redefinicja z mapy (plik 161300 nie istnieje): wpis 161900
+    // wskazuje 161300, a najnowsza wcześniejsza to S5 - czerwień.
+    expect(kinds([s5, second("20261020161300")])).toEqual(["zly-cialo-z"]);
   });
 
   it("ta sama funkcja w dwóch blokach", () => {
