@@ -3,7 +3,7 @@
 // zaproszenia i zwalnia miejsca - bez udziału redakcji. Autorytet egzekwuje
 // baza (org_add_seat / org_touch_seat_invite / RLS na organization_seats);
 // zwykły członek widzi wariant informacyjny.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import {
 import { billingKeys } from "@/lib/billing/keys";
 import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
 import { inviteOrgSeat, resendOrgSeatInvite } from "@/lib/organizations/selfservice.functions";
+import { isTeamSeatsMaxError, TEAM_TIER_MAX_SEATS } from "@/lib/organizations/teamSeats";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensureMembershipI18n } from "@/lib/i18n-membership";
 
@@ -181,6 +182,7 @@ function SeatAdministration({
   const removeSeat = useRemoveSeat(org.org_id);
   const invite = useServerFn(inviteOrgSeat);
   const resend = useServerFn(resendOrgSeatInvite);
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -200,7 +202,20 @@ function SeatAdministration({
       const res = await invite({ data: { org_id: org.org_id, email: value, lang } });
       if (!res.ok) {
         const msg = res.error ?? "";
-        if (msg.includes("limit")) toast.error(t("membership.organization.seatLimitReached"));
+        // Próg Zespół (cennik v6.2) kończy się na 20 aktywnych miejscach -
+        // odmowa wyzwalacza `orgs: team seats max` (Z-I9b-09). To nie jest
+        // „wyczerpany limit do dokupienia" ani awaria: kolejne miejsca daje
+        // dopiero Enterprise, więc komunikat od razu prowadzi do cennika.
+        if (isTeamSeatsMaxError(msg)) {
+          toast.error(t("membership.organization.teamSeatsMax", { max: TEAM_TIER_MAX_SEATS }), {
+            description: t("membership.organization.teamSeatsMaxHint"),
+            action: {
+              label: t("membership.organization.teamSeatsMaxCta"),
+              onClick: () => void navigate({ to: "/pricing" }),
+            },
+          });
+        } else if (msg.includes("limit"))
+          toast.error(t("membership.organization.seatLimitReached"));
         else if (msg.includes("exists")) toast.error(t("membership.organization.seatExists"));
         else toast.error(t("membership.organization.inviteError"));
         return;
