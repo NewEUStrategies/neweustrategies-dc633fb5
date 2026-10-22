@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po I9c)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S7)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5) i §21 (I9b - decyzje właściciela, I9c - §21.20-21.21); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21) i §23 (S7); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -69,6 +69,22 @@ klucz w ustawieniach silnika S5 - UI ustawień w S8). Otwarte: Z-I9c-05, 06,
 i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21. Następny
 krok: S8.
 
+**S7 (2026-10-22, §23 dziennika) - zintegrowany lokalnie, push po S8:**
+gałąź `hub/s7-zakladki-diagnostyka-c` (worktree `/home/user/wt/S7`, baza
+`75133fe2`). Dziesięć zakładek huba (Kokpit, Przychód, Lejek, Retencja,
+Społeczność, Diagnostyka, Oferta, Dostęp, Wskaźniki, Dane wejściowe),
+fakty diagnostyki i wyciszenia w SQL (3 migracje `20261020150000…150100`,
+bliźniaki `0373…0375`, **następny wolny `0376`**), 55 reguł z 15 szybkimi
+naprawami na mutatorach modułów, `RevenueSignalChip` (montaż w modułach -
+I9), licznik Diagnostyki na pasku huba (leniwa sonda), ⌘K 43 wskaźników,
+przychód zrealizowany na pulpicie spod klucza migawki BI. Stan „w
+przygotowaniu” został tylko Ścieżkom. Ratchet `overall` {{RATCHETK}}. Otwarte
+Z-S7-01…17 (§23.5). Przy przebazowaniu na gałąź z S8 uwaga na pliki
+współdzielone obu wycinków (`adminNav.ts`, `tabPreparing.ts` z molekułą
+i słownikiem - po obu wycinkach do usunięcia w całości, `RevenueHubLayout`,
+`hubDelivery.ts`, `check-bundle-size.ts`, `reports/i18n-parity.json`,
+dziennik §10/§17, ten plik, `docs/kontynuacja/README.md`).
+
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
 ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
@@ -88,20 +104,21 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    `open_tracking_enabled` (pomiar otwarć, I9c-X2 - ten sam zapis co
    przełącznik w karcie retencji); wyniki ścieżki dla okien starszych niż
    retencja zapisów czytają rollup (Z-I9c-06).
-2. S7 - zakładki huba (w tym lejek i inwentarz dostępu na `queryOptions` S3),
-   50 reguł diagnostyki (w tym `checkout.display_currency_mismatch` - P09,
-   Z-S3-03), dialogi napraw (w tym okno porzucenia kasy - pole w karcie kasy
-   już jest od I9a, dialog może je reużyć), symulator czytelnika
-   (`<Paywall preview>`), tooltipy ze słownika S6 (+ scenariusze naprawy
-   z pakietu Insidera), odnośniki hub ⇄ moduły. Podmieniając zaślepkę
-   zakładki, usuń jej wpis z `TAB_PREPARING` (`src/lib/admin/revenue/tabPreparing.ts`)
-   i gałąź `adminRevenue.preparing.what.*`; Wskaźniki - wartości z oceną
-   i `?metric=&ctx=` obok słownika; skróty wskaźników ⌘K
-   (`metricSearchIndex.ts`) wpina I9.
+2. S7 - **zintegrowany lokalnie (§23 dziennika)**, czeka na S8: przebazuj
+   `hub/s7-zakladki-diagnostyka-c` na gałąź PR z S8, rozwiąż konflikty
+   plików współdzielonych (lista wyżej; po obu wycinkach `TAB_PREPARING`
+   jest pusty - usuń cały mechanizm „w przygotowaniu”, Z-S7-17), powtórz
+   bramki dotknięte zmianą bazy (vitest katalogów huba, zawężony typecheck,
+   build + `check:bundle` - ratchet D-08 po pomiarze), potem push i CI.
 3. I9 - **runner ścieżek w `jobs-tick`** (po zadaniach uczestnika, przed
    drenem kolejki maili: `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`),
    `journey_rollup_daily` co godzinę, `journey_purge` raz na dobę, stan
-   silnika w panelu zdrowia schedulera (§20.4); chipy w modułach (SPEC §2.7),
+   silnika w panelu zdrowia schedulera (§20.4); chipy `RevenueSignalChip`
+   w modułach (SPEC §2.7, gotowe miejsca wpięcia - Z-S7-01), P24 w manifeście
+   i ekranie CRM (Z-S7-02), `HUB_SYNC_MANIFEST.metrics` (Z-S7-03),
+   `onOpenMetric` w słowniku S6 (Z-S7-04), baner realtime S-F (Z-S7-05),
+   `ratioCurrency` migawki (Z-S7-06), `admin_dashboard_marketing` na rollupie
+   (Z-S7-07), `RetentionFeedbackList` (Z-S7-08),
    baner `/admin/monetization` (D-09), jobs-tick/scheduler (skanery S2!),
    authz/ownership (wpis `premium_content` S3 potwierdzony w I9b - Z-S3-06), tryb ścisły
    literałów, `billingDocuments.server.ts` (Z-S2-07), ratchet końcowy,
@@ -127,7 +144,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `161400`), bliźniak drizzle od `0373` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `161400`), bliźniak drizzle od `0376` + `_journal.json`; tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
