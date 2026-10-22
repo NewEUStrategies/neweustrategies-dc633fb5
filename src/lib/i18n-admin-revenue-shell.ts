@@ -44,6 +44,9 @@ const pl = {
       updatedAt: "Dane z {{time}}",
       refreshing: "Odświeżanie danych…",
       stale: "Dane mogą być nieaktualne - odśwież widok.",
+      // (I9, Z-S7-05) Kanał szyny zdarzeń przerwany - scenariusz S-F.
+      livePaused:
+        "Aktualizacje na żywo wstrzymane - zmiany z innych kart pokażą się po odświeżeniu widoku albo powrocie połączenia.",
       noData: "Jeszcze nie wczytano danych huba.",
     },
     provenance: {
@@ -398,6 +401,8 @@ const en: typeof pl = {
       updatedAt: "Data as of {{time}}",
       refreshing: "Refreshing data…",
       stale: "The data may be out of date - refresh the view.",
+      livePaused:
+        "Live updates paused - changes from other tabs will show after you refresh the view or the connection returns.",
       noData: "The hub data has not loaded yet.",
     },
     provenance: {

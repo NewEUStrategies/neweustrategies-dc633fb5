@@ -80,6 +80,7 @@ export function metricsSnapshot(
     dataSince: overrides.dataSince ?? "2025-01-01",
     computedAt: "2026-10-15T11:00:00.000Z",
     basisMix: admin ? { provider: 10, catalog: 0 } : null,
+    ratioCurrency: admin ? "PLN" : null,
     role,
   };
 }

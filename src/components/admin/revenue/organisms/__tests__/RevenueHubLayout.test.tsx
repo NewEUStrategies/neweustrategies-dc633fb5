@@ -19,9 +19,15 @@ const h = vi.hoisted(() => ({
   fetchFacts: vi.fn(),
   fetchSnoozes: vi.fn(),
   listJourneys: vi.fn(),
+  // (I9, Z-S7-05) Stan szyny zdarzeń - scenariusz S-F (baner).
+  streamStatus: "live" as "live" | "paused",
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+vi.mock("@/lib/realtime/useDomainEventStream", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/realtime/useDomainEventStream")>()),
+  useDomainEventStreamStatus: () => h.streamStatus,
+}));
 // Zakładki S7 pobierają dane (S7-B) - przedmiotem dowodu jest powłoka, więc
 // treść zakładek z zapytaniami zastępują zaślepki z tym samym data-testid.
 vi.mock("@/components/admin/revenue/tabs/RevenueFunnelTab", () => ({
@@ -77,6 +83,7 @@ afterAll(() => {
 
 beforeEach(async () => {
   asRole(["admin"]);
+  h.streamStatus = "live";
   h.fetchFacts.mockReset().mockResolvedValue({ state: "unavailable" });
   h.fetchSnoozes.mockReset().mockResolvedValue({ state: "unavailable" });
   h.listJourneys.mockReset().mockResolvedValue({ state: "ready", data: [] });
@@ -252,6 +259,31 @@ describe("bramki ról", () => {
 // ---------------------------------------------------------------------------
 // Okno czasu
 // ---------------------------------------------------------------------------
+
+describe("szyna zdarzeń przerwana (S-F, I9 - Z-S7-05)", () => {
+  it("kanał przerwany: baner „Aktualizacje na żywo wstrzymane” w nagłówku huba", async () => {
+    h.streamStatus = "paused";
+    await mountHub(`${HUB}/funnel`);
+
+    const notice = await screen.findByTestId("revenue-live-paused");
+    expect(notice).toHaveAttribute("role", "status");
+    expect(notice).toHaveTextContent("Aktualizacje na żywo wstrzymane");
+    expect(notice.closest("header")).not.toBeNull();
+  });
+
+  it("szyna działa - bez banera; autor nie dostaje banera nawet przy awarii", async () => {
+    await mountHub(`${HUB}/funnel`);
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByTestId("revenue-live-paused")).toBeNull();
+    cleanup();
+
+    h.streamStatus = "paused";
+    asRole(["author"]);
+    await mountHub(`${HUB}/funnel`);
+    await screen.findByTestId("revenue-role-gate");
+    expect(screen.queryByTestId("revenue-live-paused")).toBeNull();
+  });
+});
 
 describe("filtry okna", () => {
   it("okresy huba z REVENUE_PERIODS; domyślne okno zakładki, gdy adres go nie niesie", async () => {

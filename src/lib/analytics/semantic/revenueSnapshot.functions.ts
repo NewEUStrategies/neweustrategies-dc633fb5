@@ -105,6 +105,14 @@ export interface RevenueSnapshotResult {
   readonly dataSince: string | null;
   readonly computedAt: string | null;
   readonly basisMix: { readonly provider: number; readonly catalog: number } | null;
+  /**
+   * Waluta wiodąca wskaźników ilorazowych (NRR, GRR, quick ratio) i delt
+   * kwot - filtr `?cur=`, a bez niego pierwsza waluta danych bieżących
+   * (I9, Z-S7-06 / Z-S2-05). `null` = migawka nie zna żadnej kwoty. Panel
+   * czyta to pole zamiast odtwarzać regułę - odtworzenie pomijało zamówienia
+   * i bilety wydarzeń, więc podpis mógł wskazać inną walutę niż liczba.
+   */
+  readonly ratioCurrency: string | null;
   readonly role: "admin" | "editor";
 }
 
@@ -292,7 +300,13 @@ export const REVENUE_DOMAIN_READS: RevenueDomainReads = {
     c.rpc("admin_revenue_events_summary", { p_since: w.sinceIso, p_until: w.untilIso }),
   clubs: (c, w) =>
     c.rpc("admin_revenue_clubs_summary", { p_since: w.sinceIso, p_until: w.untilIso }),
-  email: null,
+  // I9 (2026-10-22, Z-S7-10 / Z-S1-01 / Z-S6-16): migracja 20261020100300 (S1)
+  // tworzy `admin_revenue_email_health` z grupami zagnieżdżonymi
+  // (`EMAIL_HEALTH_KEYS`); parser migawki spłaszcza je do `REVENUE_EMAIL_KEYS`
+  // (`parseRevenueEmailHealth`, Z-S6-17). Przed wdrożeniem migracji
+  // PGRST202 = `not_configured`, ten sam stan co dawne `null`.
+  email: (c, w) =>
+    c.rpc("admin_revenue_email_health", { p_since: w.sinceIso, p_until: w.untilIso }),
 };
 
 // ---------------------------------------------------------------------------
@@ -596,6 +610,7 @@ export async function revenueSnapshotHandler(
     dataSince: snap?.dataSince ?? null,
     computedAt: snap?.computedAt ?? null,
     basisMix: snap?.basisMix ?? null,
+    ratioCurrency: currency ?? null,
     role,
   };
 }

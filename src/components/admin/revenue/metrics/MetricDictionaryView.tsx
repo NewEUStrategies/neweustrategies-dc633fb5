@@ -10,19 +10,17 @@
 // nie zna i nie wymyśla: ocena idzie przez rejestr S6.
 //
 // ADRES JEST STANEM (`?metric=&ctx=`). Kliknięcie nazwy wskaźnika w wierszu
-// słownika przejmujemy w fazie przechwytywania (`onClickCapture`) i zamiast
-// lokalnego arkusza słownika otwieramy `MetricSheet` przez adres - inaczej
-// widoku nie dałoby się udostępnić, a „Wstecz" nie zamykałby arkusza.
-// Przechwytujemy WYŁĄCZNIE przycisk wiersza metryki (`tr[data-metric]`,
-// atrybut kontraktu testów S6); wpisy rejestru bez metryki (NPS, aktywacja)
-// otwierają arkusz słownika jak dotąd. Gdyby S6 zmienił znacznik, słownik
-// wraca do własnego arkusza - nic się nie psuje, ginie tylko adres
-// (zgłoszenie: kontrolowany `onOpenMetric` w `MetricDictionary`).
+// słownika otwiera `MetricSheet` przez adres zamiast lokalnego arkusza
+// słownika - inaczej widoku nie dałoby się udostępnić, a „Wstecz" nie
+// zamykałby arkusza. Od I9 (Z-S7-04) słownik S6 ma kontrolowany prop
+// `onOpenMetric` - koniec przechwytywania kliknięć po znaczniku
+// `tr[data-metric]`, które cicho przestałoby działać po zmianie znacznika.
+// Wpisy rejestru bez metryki (NPS, aktywacja) otwierają arkusz słownika.
 //
 // SŁOWNIK LENIWIE (jak w zaślepce I0 i w BI): rejestr, indeks benchmarków
 // i arkusz to osobny chunk, a karta powodów maluje się bez czekania na niego.
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, lazy, type MouseEvent } from "react";
+import { Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
 
 import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
@@ -125,16 +123,6 @@ export function MetricDictionaryView({
   } else status = "loading";
 
   const openMetric = (id: MetricId) => onSearchChange({ metric: id, ctx: undefined });
-  const openFromRow = (event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const button = target.closest('button[aria-haspopup="dialog"]');
-    const id = metricOfParam(button?.closest("tr[data-metric]")?.getAttribute("data-metric") ?? "");
-    if (button === null || id === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    openMetric(id);
-  };
 
   const benchSegment = benchSegmentOf(segment);
   const emptyValues = new Map<MetricId, number | null>();
@@ -171,7 +159,7 @@ export function MetricDictionaryView({
             onOpenMetric={openMetric}
           />
         ) : null}
-        <div onClickCapture={openFromRow} data-testid="metrics-dictionary">
+        <div data-testid="metrics-dictionary">
           <Suspense fallback={<RevenueTabPending />}>
             <MetricDictionary
               groups={HUB_DICTIONARY_GROUPS}
@@ -179,6 +167,7 @@ export function MetricDictionaryView({
               samples={model?.samples}
               currency={model?.currency ?? undefined}
               segment={benchSegment}
+              onOpenMetric={openMetric}
             />
           </Suspense>
         </div>

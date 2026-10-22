@@ -515,6 +515,26 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
     expect(sheet.textContent).toContain(t("adminRevenue.benchmark.explainer.sources"));
   });
 
+  it("kontrolowany `onOpenMetric` (I9, Z-S7-04): wiersz metryki woła go zamiast lokalnego arkusza", async () => {
+    const onOpenMetric = vi.fn();
+    dictionary({ groups: ["retention"], onOpenMetric });
+    fireEvent.click(screen.getByRole("button", { name: metricById("logo_churn_monthly").labelPl }));
+
+    expect(onOpenMetric).toHaveBeenCalledWith("logo_churn_monthly");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("wpis rejestru bez metryki otwiera arkusz słownika także przy `onOpenMetric`", async () => {
+    const onOpenMetric = vi.fn();
+    dictionary({ onOpenMetric });
+    const row = document.querySelector(`tr[data-bench-key="${NO_METRIC[0].key}"]`);
+    if (!row) throw new Error("test: brak wiersza wpisu bez metryki");
+    fireEvent.click(within(row as HTMLElement).getByRole("button"));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(onOpenMetric).not.toHaveBeenCalled();
+  });
+
   it("w EN etykiety i definicje są angielskie, bez polskiej awaryjnej treści", async () => {
     await i18n.changeLanguage("en");
     const en = realT("en");

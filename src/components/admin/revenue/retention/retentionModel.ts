@@ -11,6 +11,12 @@
 import { MAX_SERIES } from "@/lib/charts/types";
 import type { CohortsDto, RetentionReasonRow } from "@/lib/revenue/finance/dto";
 import type { RevenueRange } from "@/lib/revenue/window";
+import {
+  NOT_GIVEN_REASON,
+  STRIPE_REASON_PREFIX,
+  retentionReasonLabel,
+  type ReasonLabel as RetentionReasonLabel,
+} from "@/lib/retention/reasonLabel";
 
 // ── Kohorty ─────────────────────────────────────────────────────────────────
 
@@ -80,12 +86,12 @@ export function cohortGrid(dto: CohortsDto): CohortGrid {
 
 // ── Powody rezygnacji ───────────────────────────────────────────────────────
 
-/** Odpowiedź „Anuluj mimo to" przed wyborem powodu (Z-09) - to nie powód. */
-export const NOT_GIVEN_REASON = "not_given";
-/** Prefiks odpowiedzi z ankiety portalu Stripe (`stripe:<kod>`). */
-export const STRIPE_REASON_PREFIX = "stripe:";
+// Reguła etykiety jest wspólna z modułem Cennika (I9, Z-S7-08): liść
+// `lib/retention/reasonLabel.ts`, re-eksport dla dotychczasowych importów.
+export { NOT_GIVEN_REASON, STRIPE_REASON_PREFIX };
 
-export type ReasonLabel = { kind: "text"; text: string } | { kind: "stripe"; code: string };
+/** Etykieta pozycji RANKINGU - `not_given` do rankingu nie wchodzi. */
+export type ReasonLabel = Exclude<RetentionReasonLabel, { kind: "not_given" }>;
 
 export interface RankedReason {
   rank: number;
@@ -97,11 +103,9 @@ export interface RankedReason {
 }
 
 function labelOf(reasonLabel: string): ReasonLabel {
-  if (reasonLabel.startsWith(STRIPE_REASON_PREFIX)) {
-    const code = reasonLabel.slice(STRIPE_REASON_PREFIX.length).trim();
-    return { kind: "stripe", code: code === "" ? "-" : code };
-  }
-  return { kind: "text", text: reasonLabel };
+  const label = retentionReasonLabel(reasonLabel);
+  // `not_given` jest odfiltrowany przed rankingiem; gdyby jednak dotarł, zostaje tekstem.
+  return label.kind === "not_given" ? { kind: "text", text: reasonLabel } : label;
 }
 
 /**

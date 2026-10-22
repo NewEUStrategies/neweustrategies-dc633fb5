@@ -21,6 +21,12 @@
 //
 // Przy zerze pokazanych ofert skuteczność to `null`, nie 0% - brak próby nie
 // jest porażką i nie ma prawa wyglądać w panelu jak porażka.
+//
+//   RANKING BEZ „NIE PODANO" (Z-S2-04, I9 - Z-S7-08). `not_given` to
+//   „Anuluj mimo to" przed wyborem powodu - odpowiedź (liczy się do `total`
+//   i skuteczności), ale NIE powód: w rankingu wypchnęłaby prawdziwe powody,
+//   więc stoi osobno w `notGiven` (jak w hubie, `ChurnReasonsCard`).
+import { NOT_GIVEN_REASON } from "@/lib/retention/reasonLabel";
 import type { RetentionFeedbackRow } from "@/lib/retention/queries";
 
 /**
@@ -52,8 +58,10 @@ export interface RetentionStats {
   accepted: number;
   /** Odsetek przyjęć wśród POKAZANYCH ofert; `null`, gdy nie było żadnej. */
   acceptRate: number | null;
-  /** Trzy najczęstsze powody odejścia: `[etykieta, liczba]`. */
+  /** Trzy najczęstsze powody odejścia: `[etykieta, liczba]` - bez `not_given`. */
   topReasons: [string, number][];
+  /** Odpowiedzi „bez podanego powodu" (`not_given`) - poza rankingiem. */
+  notGiven: number;
 }
 
 export function retentionStats(
@@ -68,7 +76,12 @@ export function retentionStats(
   const shown = recent.filter((row) => row.offer_shown);
   const accepted = recent.filter((row) => row.offer_accepted);
   const byReason = new Map<string, number>();
+  let notGiven = 0;
   for (const row of recent) {
+    if (row.reason_label === NOT_GIVEN_REASON) {
+      notGiven += 1;
+      continue;
+    }
     byReason.set(row.reason_label, (byReason.get(row.reason_label) ?? 0) + 1);
   }
   const topReasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
@@ -77,5 +90,6 @@ export function retentionStats(
     accepted: accepted.length,
     acceptRate: shown.length > 0 ? Math.round((accepted.length / shown.length) * 100) : null,
     topReasons,
+    notGiven,
   };
 }

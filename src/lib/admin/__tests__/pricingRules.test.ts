@@ -489,8 +489,32 @@ describe("retentionStats - skuteczność kontroferty", () => {
   it("pusta lista daje zera i brak powodów, nie wyjątek", () => {
     const stats = retentionStats([], BASE_NOW);
 
-    expect(stats).toEqual({ total: 0, accepted: 0, acceptRate: null, topReasons: [] });
+    expect(stats).toEqual({
+      total: 0,
+      accepted: 0,
+      acceptRate: null,
+      topReasons: [],
+      notGiven: 0,
+    });
     expect(stats.topReasons).toEqual([]);
+  });
+
+  it("„Anuluj mimo to” bez powodu (`not_given`) to odpowiedź, ale NIE powód rankingu (Z-S7-08)", () => {
+    // Policzony jako powód wypchnąłby prawdziwe powody w dół - ta sama reguła
+    // co karta powodów w hubie (`ChurnReasonsCard`, Z-S2-04).
+    const stats = retentionStats(
+      [
+        feedbackRow({ id: "a", reason_label: "not_given" }),
+        feedbackRow({ id: "b", reason_label: "not_given" }),
+        feedbackRow({ id: "c", reason_label: "not_given" }),
+        feedbackRow({ id: "d", reason_label: "Za drogo" }),
+      ],
+      BASE_NOW,
+    );
+
+    expect(stats.total).toBe(4);
+    expect(stats.notGiven).toBe(3);
+    expect(stats.topReasons).toEqual([["Za drogo", 1]]);
   });
 
   it("przepływ anulowania bez powodu (started/abandoned) nie jest odpowiedzią ani odejściem", () => {

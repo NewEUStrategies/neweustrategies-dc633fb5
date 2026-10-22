@@ -25,8 +25,9 @@
 //       wcześniej unieważniło listę planów drugiej karty.
 //   S-F bez szyny: mutacje lokalne nadal unieważniają (read-your-own-writes),
 //       a powrót karty na pierwszy plan (`visibilitychange`) opróżnia wolny
-//       pas od razu. Baner „Aktualizacje na żywo wstrzymane" - zgłoszenie
-//       (brak API statusu kanału), `it.todo`.
+//       pas od razu. Status kanału szyny (`useDomainEventStreamStatus`, I9 -
+//       Z-S7-05) przechodzi w `paused` przy awarii i wraca do `live` po
+//       ponownym połączeniu - z tego czyta baner huba.
 import { act } from "@testing-library/react";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,10 +37,27 @@ import type { RecordedChain, SupabaseFromStub } from "@/test/supabaseChain";
 const h = vi.hoisted(() => ({
   db: null as SupabaseFromStub | null,
   tenantId: "11111111-1111-4111-8111-111111111111",
+  /** Wywołanie zwrotne `.subscribe(status)` ostatniego kanału realtime. */
+  channelStatus: null as ((status: string) => void) | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (table: string) => h.db!.from(table) },
+  supabase: {
+    from: (table: string) => h.db!.from(table),
+    // Kanał realtime szyny (S-F): zapamiętuje wywołanie zwrotne stanu, żeby
+    // scenariusz mógł zasymulować awarię i powrót połączenia.
+    channel: () => {
+      const channel = {
+        on: () => channel,
+        subscribe: (cb: (status: string) => void) => {
+          h.channelStatus = cb;
+          return channel;
+        },
+      };
+      return channel;
+    },
+    removeChannel: async () => "ok",
+  },
 }));
 vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => h.tenantId }));
 // Producent faktów S7 liczy z TEGO SAMEGO modelu wiersza planu - po zapisie
@@ -68,6 +86,10 @@ import {
 } from "@/lib/realtime/eventInvalidationMap";
 import { ADMIN_HUB_INVALIDATION } from "@/lib/realtime/eventInvalidationMap.admin";
 import { SLOW_INVALIDATION_MS, useDebouncedInvalidation } from "@/lib/realtime/useModuleRealtime";
+import {
+  subscribeToDomainEvents,
+  useDomainEventStreamStatus,
+} from "@/lib/realtime/useDomainEventStream";
 import { revenueAccessInventoryQueryOptions } from "@/lib/revenue/access/queries";
 import { evaluateFindings, revenueFactsQueryOptions } from "@/lib/revenue/diagnostics/queries";
 import type { RevenueFacts } from "@/lib/revenue/diagnostics/facts";
@@ -446,7 +468,22 @@ describe("S-F realtime niedostępny", () => {
     }
   });
 
-  it.todo(
-    "baner „Aktualizacje na żywo wstrzymane” - zgłoszenie I9: `subscribeToDomainEvents` nie wystawia statusu kanału",
-  );
+  it("status szyny: awaria kanału = `paused` (baner huba), ponowne połączenie = `live`", () => {
+    const { result: status } = renderHookWithQueryClient(() => useDomainEventStreamStatus());
+    expect(status.current).toBe("live");
+
+    const off = subscribeToDomainEvents(undefined, () => undefined);
+    // Kanał się łączy - jeszcze bez stanu, więc bez fałszywego alarmu.
+    expect(status.current).toBe("live");
+    act(() => h.channelStatus?.("CHANNEL_ERROR"));
+    expect(status.current).toBe("paused");
+    act(() => h.channelStatus?.("SUBSCRIBED"));
+    expect(status.current).toBe("live");
+    act(() => h.channelStatus?.("TIMED_OUT"));
+    expect(status.current).toBe("paused");
+
+    // Ostatni słuchacz zamyka kanał - zamknięty przez nas kanał nie jest awarią.
+    act(() => off());
+    expect(status.current).toBe("live");
+  });
 });

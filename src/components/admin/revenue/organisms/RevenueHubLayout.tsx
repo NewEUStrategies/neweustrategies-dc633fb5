@@ -91,6 +91,7 @@ import { schedulerFreshness } from "@/lib/jobs/scheduler";
 import { journeyListQueryOptions } from "@/lib/journeys/queries";
 import { revenueKeys } from "@/lib/revenue/keys";
 import { parseMoneyByCurrency } from "@/lib/revenue/money";
+import { useDomainEventStreamStatus } from "@/lib/realtime/useDomainEventStream";
 import {
   REVENUE_PERIODS,
   REVENUE_SEGMENTS,
@@ -323,6 +324,7 @@ function RevenueHubShell() {
           {canSeeHub ? <HubFreshness tenantId={tenant} /> : null}
         </div>
         {canSeeHub ? <RelatedModulesBar items={RELATED_MODULES} /> : null}
+        {canSeeHub ? <HubLivePausedNotice /> : null}
       </header>
       {canSeeHub ? (
         <>
@@ -341,6 +343,27 @@ function RevenueHubShell() {
         <RoleGateNotice requiredRole="admin_or_editor" />
       )}
     </div>
+  );
+}
+
+/**
+ * Scenariusz S-F (I9, Z-S7-05): kanał szyny zdarzeń przerwany. Hub dalej
+ * działa (mutacje lokalne unieważniają klucze, powrót karty opróżnia wolny
+ * pas), ale zmiany zrobione w INNEJ karcie albo przez innego admina nie
+ * dotrą same - admin musi o tym wiedzieć, zamiast ufać liczbom „na żywo".
+ */
+function HubLivePausedNotice() {
+  const { t } = useTranslation();
+  const status = useDomainEventStreamStatus();
+  if (status !== "paused") return null;
+  return (
+    <p
+      role="status"
+      data-testid="revenue-live-paused"
+      className="rounded-[6px] border bg-card px-3 py-2 text-xs text-muted-foreground"
+    >
+      {t("adminRevenue.status.livePaused")}
+    </p>
   );
 }
 

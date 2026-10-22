@@ -98,6 +98,13 @@ export interface MetricDictionaryProps {
   segment?: BenchContextSegment;
   /** Dzień odniesienia alertu „do przeglądu” (lokalny `YYYY-MM-DD`); domyślnie dziś. */
   today?: string;
+  /**
+   * Kontrolowane otwarcie wskaźnika (I9, Z-S7-04): podany - przycisk wiersza
+   * metryki woła go zamiast lokalnego arkusza słownika (hub otwiera arkusz
+   * przez adres `?metric=`, więc widok da się udostępnić, a „Wstecz" go
+   * zamyka). Wpisy rejestru bez metryki zawsze otwierają arkusz słownika.
+   */
+  onOpenMetric?: (id: MetricId) => void;
 }
 
 export function MetricDictionary({
@@ -107,6 +114,7 @@ export function MetricDictionary({
   currency,
   segment,
   today,
+  onOpenMetric,
 }: MetricDictionaryProps = {}) {
   ensureShellI18n();
   const { t, i18n } = useTranslation();
@@ -371,7 +379,7 @@ export function MetricDictionary({
                         type="button"
                         aria-haspopup="dialog"
                         className={detailsButton}
-                        onClick={() => setOpen(row)}
+                        onClick={() => (onOpenMetric ? onOpenMetric(row.id) : setOpen(row))}
                       >
                         <span>{label}</span>
                       </button>
