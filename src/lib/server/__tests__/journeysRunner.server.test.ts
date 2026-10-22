@@ -562,6 +562,46 @@ describe("tick", () => {
     await expect(run(completeFail)).resolves.toMatchObject({ failed: 1, emailsQueued: 1 });
   });
 
+  it("baza bez migracji silnika (PGRST202/42883 przy skrzynce): pominięcie bez dalszych RPC, nie awaria", async () => {
+    // I9 (harmonogram): runner biegnie co minutę z `jobs-tick`. Bez tej gałęzi
+    // okno „kod przed migracją" dawałoby `failed: 1` i `console.error` w każdym
+    // ticku, a log przebiegów nie odróżniałby go od realnej awarii skrzynki.
+    for (const code of ["PGRST202", "42883"]) {
+      const db = fakeDb(
+        happyHandlers({
+          journey_ingest_inbox: () => ({
+            data: null,
+            error: { message: "Could not find the function", code } as Rpc["error"],
+          }),
+        }),
+      );
+      await expect(run(db)).resolves.toEqual({
+        ingested: 0,
+        enrolled: 0,
+        advanced: 0,
+        emailsQueued: 0,
+        deferred: 0,
+        failed: 0,
+        journeysTouched: 0,
+        skipped: "migration_pending",
+      });
+      expect(db.names()).toEqual(["journey_ingest_inbox"]);
+    }
+    // Kontrola: inny błąd skrzynki dalej jest awarią etapu, a tick jedzie dalej.
+    const other = fakeDb(
+      happyHandlers({
+        journey_ingest_inbox: () => ({
+          data: null,
+          error: { message: "permission denied", code: "42501" } as Rpc["error"],
+        }),
+      }),
+    );
+    const result = await run(other);
+    expect(result).toMatchObject({ failed: 1 });
+    expect(result).not.toHaveProperty("skipped");
+    expect(other.names()).toContain("journey_claim_due");
+  });
+
   it("termin ticku: po przekroczeniu nic nowego nie startuje (dzierżawa wraca sama)", async () => {
     const db = fakeDb(happyHandlers());
     const result = await runJourneysTick(db.client as never, { deadlineAt: Date.now() - 1 });

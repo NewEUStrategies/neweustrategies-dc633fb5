@@ -71,15 +71,29 @@ const ENV_KEYS = [
   "PUBLIC_SITE_URL",
   "SITE_URL",
   "URL",
+  "JOURNEYS_ENGINE_DISABLED",
 ] as const;
 const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {};
+
+/** Odpowiedź `admin_journey_engine_health` (I9); `undefined` = RPC bez odpowiedzi. */
+let engineReply: { data: unknown; error: { message: string; code?: string } | null } | undefined;
+const engineCalls: string[] = [];
 
 function healthContext(result: {
   data: unknown;
   error: { message: string } | null;
 }): ServerFnContext {
   return {
-    supabase: { rpc: async (name: string) => (name === "job_scheduler_health" ? result : null) },
+    supabase: {
+      rpc: async (name: string) => {
+        if (name === "job_scheduler_health") return result;
+        if (name === "admin_journey_engine_health") {
+          engineCalls.push(name);
+          return engineReply ?? null;
+        }
+        return null;
+      },
+    },
     userId: USER,
   };
 }
@@ -99,6 +113,8 @@ beforeEach(() => {
   h.emailConfigured = true;
   h.armedWith = [];
   h.ticks = [];
+  engineReply = undefined;
+  engineCalls.length = 0;
 });
 
 afterEach(() => {
@@ -335,6 +351,71 @@ describe("getSchedulerHealth - mapowanie RPC", () => {
       error: null,
     });
     expect(result.freshness).toBe("stale");
+  });
+});
+
+describe("getSchedulerHealth - silnik ścieżek (I9, Z-S5-03)", () => {
+  const ENGINE = {
+    enabled: true,
+    journeys_active: 2,
+    inbox_pending: "4",
+    inbox_oldest_at: null,
+    last_ingest_at: "2026-06-15T11:59:00Z",
+    due_now: 3,
+    active: 5,
+    waiting: 2,
+    locked: 0,
+    last_step_at: "2026-06-15T11:58:00Z",
+    failed_24h: 1,
+    dead_steps_24h: 1,
+    messages_24h: 9,
+    errors_24h: { email: 2, ingest: 1 },
+    last_errors: [],
+  };
+
+  it("stan najemcy z tego samego RPC co pasek ścieżek, klientem sesji; błędy doby zsumowane", async () => {
+    engineReply = { data: ENGINE, error: null };
+    const result = await health({ data: {}, error: null });
+
+    expect(engineCalls).toEqual(["admin_journey_engine_health"]);
+    expect(result.journeys).toEqual({
+      killSwitch: false,
+      engine: {
+        enabled: true,
+        dueNow: 3,
+        inboxPending: 4,
+        lastStepAt: "2026-06-15T11:58:00Z",
+        // 1 nieudany zapis + 1 martwy krok + 3 błędy faz.
+        failures24h: 5,
+      },
+    });
+  });
+
+  it("wyłącznik awaryjny środowiska widać nawet wtedy, gdy baza nie ma silnika", async () => {
+    process.env.JOURNEYS_ENGINE_DISABLED = "1";
+    engineReply = {
+      data: null,
+      error: { message: "Could not find the function", code: "PGRST202" },
+    };
+    const result = await health({ data: {}, error: null });
+
+    expect(result.journeys).toEqual({ killSwitch: true, engine: null });
+  });
+
+  it("odmowa albo zły kształt odczytu silnika NIE gasi zdrowia harmonogramu", async () => {
+    engineReply = { data: null, error: { message: "permission denied", code: "42501" } };
+    const denied = await health({ data: { capabilities: { pg_cron: true } }, error: null });
+    expect(denied.journeys).toEqual({ killSwitch: false, engine: null });
+    expect(denied.capabilities.pgCron).toBe(true);
+
+    // Parser odrzuca zły kształt wyjątkiem - panel dostaje `engine: null`.
+    engineReply = { data: { ...ENGINE, last_errors: [{ phase: "nieznana" }] }, error: null };
+    const malformed = await health({ data: {}, error: null });
+    expect(malformed.journeys.engine).toBeNull();
+
+    // RPC bez odpowiedzi (atrapa starszego klienta) - też bez wyjątku.
+    engineReply = undefined;
+    expect((await health({ data: {}, error: null })).journeys.engine).toBeNull();
   });
 });
 

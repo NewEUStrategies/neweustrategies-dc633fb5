@@ -26,7 +26,8 @@
  *                             event-reminders | crm-task-reminders |
  *                             event-ticket-codes |
  *                             event-participant-reminders | event-ticket-lifecycle |
- *                             event-follow-up | event-wallet-passes
+ *                             event-follow-up | event-wallet-passes |
+ *                             journeys | revenue-lifecycle
  *   SCHEDULER_SOURCE          domyślnie github_actions (ląduje w logu przebiegów)
  *   SCHEDULER_TICKS           liczba ticków w jednym przebiegu (domyślnie 1)
  *   SCHEDULER_INTERVAL_MS     odstęp między tickami (domyślnie 60000)
@@ -187,6 +188,30 @@ function summarize(payload) {
           (wallet.gaveUp ? ` (porzucone po 8 próbach: ${wallet.gaveUp})` : ""),
       );
     }
+  }
+  // Hub „Przychód i lejek" (I9): silnik sciezek i skanery S2. Wylacznik
+  // awaryjny i baza bez migracji to zaplanowane pominiecie - osobna linia,
+  // zeby reczny `journeys` nie meldowal „brak pracy w kolejce".
+  const journeys = payload.journeys;
+  if (journeys && typeof journeys === "object" && !journeys.error) {
+    parts.push(
+      journeys.skipped
+        ? `ścieżki: pominięte (${journeys.skipped})`
+        : `ścieżki: kroki ${journeys.advanced ?? 0}, maile ${journeys.emailsQueued ?? 0}` +
+            (journeys.deferred ? ` (odłożone: ${journeys.deferred})` : "") +
+            (journeys.failed ? ` (błędy: ${journeys.failed})` : ""),
+    );
+  }
+  const lifecycle = payload.revenueLifecycle;
+  if (lifecycle && typeof lifecycle === "object" && !lifecycle.error) {
+    parts.push(
+      `cykl życia przychodu: próby ${lifecycle.trial_ending ?? lifecycle.trialEnding ?? 0}, ` +
+        `wygasłe ${lifecycle.expired ?? 0}, windykacja ${lifecycle.dunning_lost ?? lifecycle.dunningLost ?? 0}`,
+    );
+  }
+  const retentionFlow = payload.retentionFlow;
+  if (retentionFlow && typeof retentionFlow === "object" && !retentionFlow.error) {
+    parts.push(`porzucone anulowania: ${retentionFlow.abandoned ?? 0}`);
   }
   // Bilety z puli planu porzuconych kas - linia tylko, gdy cos wrocilo.
   const seats = payload.eventPlanSeatRelease;

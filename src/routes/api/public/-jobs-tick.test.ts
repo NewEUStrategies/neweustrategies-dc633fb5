@@ -249,6 +249,8 @@ function tickResult(): JobsTickResult {
     eventParticipantReminders: { claimed: 0, sent: 0, skipped: 0, failed: 0, note: "stub" },
     eventTicketLifecycle: { claimed: 0, sent: 0, skipped: 0, failed: 0, note: "stub" },
     eventFollowUp: { error: "skipped_time_budget" },
+    // Silnik ścieżek (I9): wyłącznik awaryjny to pominięcie, nie błąd.
+    journeys: { skipped: "kill_switch" },
     emailQueue: { sent: 3, failed: 0, suppressed: 1, dlq: 0, duplicates: 0, stopped: null },
     push: { claimed: 4, sent: 4 },
     digestDaily: { claimed: 2, sent: 2 },
@@ -258,6 +260,15 @@ function tickResult(): JobsTickResult {
     eventTicketCodes: { registrations: 2, sent: 2, deferred: 0 },
     eventTicketRevocations: { notices: 1, sent: 1, failed: 0, deferred: 0 },
     webhookSweep: { error: "skipped_duty_cycle" },
+    // Skanery S2 (I9): co 5 minut; baza bez migracji to zaplanowane pominięcie.
+    revenueLifecycle: {
+      trialEnding: 0,
+      expired: 0,
+      dunningLost: 0,
+      snapshots: 0,
+      skipped: "migration_pending",
+    },
+    retentionFlow: { abandoned: 1 },
     walletPassRevocations: {
       skipped: "not_configured",
       claimed: 0,
@@ -285,6 +296,9 @@ function tickResult(): JobsTickResult {
     newsletterSunset: { error: "skipped_duty_cycle" },
     // Prośby o zgodę na pomiar (I9d-Y2): poza oknem dziennym krok jest pominięty.
     newsletterMeasurement: { error: "skipped_duty_cycle" },
+    // Rollup i sprzątanie ścieżek (I9): minuta 13 / 03:11 UTC.
+    journeysRollup: { rows: 12 },
+    journeysPurge: { error: "skipped_duty_cycle" },
     // Retencja danych (I9c-X2): poza oknem nocnym krok jest pominięty.
     dataRetention: { error: "skipped_duty_cycle" },
   };
@@ -959,5 +973,46 @@ describe("dyspozytor: zadania uczestnika wchodzą leniwie, przed drenem poczty",
     expect(helper).toMatch(
       /deadlineAt: Math\.max\(\s*startedAt \+ EMAIL_DRAIN_DEADLINE_MS,\s*Date\.now\(\) \+ EMAIL_DRAIN_MIN_WINDOW_MS,?\s*\)/,
     );
+  });
+});
+
+// I9 (Z-S5-03): runner ścieżek w dyspozytorze. Zachowanie (kolejność, termin,
+// wyłącznik) dowodzi `jobsTickRun.test.ts`; tutaj - granica bundla i miejsce
+// w źródle: runner (render maili, podpisy, bramka reputacji) wchodzi WYŁĄCZNIE
+// leniwie i stoi między zadaniami uczestnika a drenem poczty.
+describe("dyspozytor: runner ścieżek wchodzi leniwie, przed drenem poczty", () => {
+  const helper = readFileSync(TICK_MODULE_FILE, "utf8");
+  const RUNNER = "@/lib/server/journeysRunner.server";
+
+  it("`@/lib/server/journeysRunner.server` tylko przez `await import(...)` (także typy)", () => {
+    expect(helper).toContain(`await import("${RUNNER}")`);
+    expect(importyGorne(helper)).not.toContain(RUNNER);
+  });
+
+  it("kolejność w źródle: follow-up -> runner ścieżek -> dren poczty", () => {
+    const positions = [
+      helper.indexOf('await import("@/lib/events/jobs/followUpJob.server")'),
+      helper.indexOf(`await import("${RUNNER}")`),
+      helper.indexOf("drainEmailQueues(admin"),
+    ];
+    expect(positions.every((p) => p > 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it("wywołanie z kartą SPEC §4.6: termin 3 s od startu kroku, limity 200/50", () => {
+    expect(helper).toMatch(
+      /runJourneysTick\(admin, \{\s*deadlineAt: Date\.now\(\) \+ JOURNEYS_DEADLINE_MS,\s*ingestLimit: 200,\s*claimLimit: 50,?\s*\}\)/,
+    );
+  });
+
+  it("skanery S2, rollup i sprzątanie - literały RPC (bramka generate:ts-sql-contract)", () => {
+    for (const rpc of [
+      'admin.rpc("run_revenue_lifecycle_scanner")',
+      'admin.rpc("run_retention_flow_scanner")',
+      'admin.rpc("journey_rollup_daily")',
+      'admin.rpc("journey_purge", {',
+    ]) {
+      expect(helper).toContain(rpc);
+    }
   });
 });

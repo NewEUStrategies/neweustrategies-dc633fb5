@@ -471,7 +471,7 @@ const pl = {
         disabled:
           "Silnik jest wyłączony: żaden kontakt nie wejdzie na ścieżkę ani nie dostanie maila. Włącz go w ustawieniach silnika.",
         scheduler_pending:
-          "Kontakty czekają na wykonanie, ale żaden krok jeszcze się nie wykonał - kroki ruszą po podpięciu harmonogramu (I9).",
+          "Kontakty czekają na wykonanie, a żaden krok jeszcze się nie wykonał - harmonogram zadań wykonuje kroki co minutę. Jeśli stan się utrzymuje, sprawdź panel zdrowia harmonogramu (Społeczność - Powiadomienia).",
         stalled:
           "Kontakty czekają, a ostatni krok wykonał się ponad kwadrans temu - harmonogram silnika mógł stanąć.",
         errors: "W ostatniej dobie wystąpiły błędy wykonania - sprawdź ostatnie błędy poniżej.",
@@ -931,7 +931,7 @@ const en: typeof pl = {
         disabled:
           "The engine is off: no contact enters a journey or receives an email. Switch it on in the engine settings.",
         scheduler_pending:
-          "Contacts are due, but no step has run yet - steps will start once the scheduler is connected (I9).",
+          "Contacts are due and no step has run yet - the job scheduler runs steps every minute. If this persists, check the scheduler health panel (Community - Notifications).",
         stalled:
           "Contacts are due and the last step ran more than a quarter of an hour ago - the engine scheduler may have stopped.",
         errors: "Run errors happened in the last day - check the latest errors below.",

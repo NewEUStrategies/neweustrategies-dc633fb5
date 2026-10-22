@@ -174,9 +174,9 @@ const pl = {
       notPublished: "Najpierw opublikuj ścieżkę - test działa na opublikowanej wersji.",
       prefix: "Maile testowe mają w temacie prefiks „[TEST] ” i trafiają tylko na Twój adres.",
       scheduler:
-        "Kroki testu wykonuje harmonogram silnika co minutę. Dopóki nie jest podpięty (wdrożenie I9), zapis testowy powstanie, ale kroki nie ruszą.",
+        "Kroki testu wykonuje harmonogram zadań co minutę - także przy silniku wyłączonym w ustawieniach (zapis testowy nie czeka na przełącznik).",
       runnerIdle:
-        "Silnik nie wykonał jeszcze żadnego kroku - kroki testu ruszą po podpięciu harmonogramu (I9).",
+        "Silnik nie wykonał jeszcze żadnego kroku - pierwszy tick harmonogramu wykona kroki w ciągu minuty. Jeśli stan się utrzymuje, sprawdź panel zdrowia harmonogramu (Społeczność - Powiadomienia).",
       start: "Zapisz mnie na test",
       restart: "Zacznij test od nowa",
       restartHint: "Nowy test kończy poprzedni test tej ścieżki.",
@@ -359,9 +359,9 @@ const en: typeof pl = {
       notPublished: "Publish the journey first - the test runs on the published version.",
       prefix: "Test emails carry the “[TEST] ” prefix in the subject and go only to your address.",
       scheduler:
-        "Test steps are run by the engine scheduler every minute. Until it is connected (I9 rollout), the test enrolment is created, but no steps run.",
+        "Test steps are run by the job scheduler every minute - also while the engine is off in the settings (a test enrolment does not wait for the switch).",
       runnerIdle:
-        "The engine has not run any step yet - test steps will start once the scheduler is connected (I9).",
+        "The engine has not run any step yet - the next scheduler tick runs the steps within a minute. If this persists, check the scheduler health panel (Community - Notifications).",
       start: "Enrol me in a test",
       restart: "Start the test again",
       restartHint: "A new test ends the previous test of this journey.",

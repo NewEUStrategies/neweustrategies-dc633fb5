@@ -583,11 +583,13 @@ export type JourneyEngineNotice =
 export const ENGINE_STALL_MS = 15 * 60_000;
 
 /**
- * Jeden komunikat paska zdrowia, od najważniejszego. Z-S5-03: runner nie jest
- * jeszcze podpięty do `jobs-tick` (I9), więc włączony silnik z kontaktami
- * „do wykonania” i bez ŻADNEGO wykonanego kroku znaczy „kroki ruszą po
- * podpięciu harmonogramu”, a nie awarię. Gdy znamy poprzedni odczyt, liczba
- * do wykonania musi rosnąć (albo stać) - spadek znaczy, że ktoś je wykonuje.
+ * Jeden komunikat paska zdrowia, od najważniejszego. Z-S5-03 (zamknięte w I9:
+ * runner jest krokiem `journeys` w `jobs-tick`, co minutę): włączony silnik
+ * z kontaktami „do wykonania” i bez ŻADNEGO wykonanego kroku znaczy, że tick
+ * jeszcze nie przyszedł (świeżo włączony silnik) albo harmonogram stoi -
+ * komunikat odsyła do panelu zdrowia harmonogramu. Gdy znamy poprzedni
+ * odczyt, liczba do wykonania musi rosnąć (albo stać) - spadek znaczy, że
+ * ktoś je wykonuje.
  */
 export function engineHealthNotice(
   health: Pick<

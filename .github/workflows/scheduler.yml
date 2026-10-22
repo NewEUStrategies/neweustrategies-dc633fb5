@@ -73,6 +73,10 @@ on:
           # Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14);
           # ten sam krok biegnie co minutę w jobs-tick.
           - event-wallet-passes
+          # Hub „Przychód i lejek" (I9): silnik ścieżek i skanery S2 - biegną
+          # w jobs-tick (co minutę / co 5 minut); tu do ręcznego wypchnięcia.
+          - journeys
+          - revenue-lifecycle
           - billing
       ticks:
         description: Liczba ticków w przebiegu (1-10)

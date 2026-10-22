@@ -7,10 +7,10 @@
 // (`engineHealthNotice`, od najważniejszego), zanim admin zacznie szukać
 // błędu w samej ścieżce.
 //
-// Z-S5-03. Runner ścieżek nie jest jeszcze podpięty do `jobs-tick` (I9), więc
-// włączony silnik z kontaktami „do wykonania” i bez żadnego wykonanego kroku
-// to stan oczekiwany, nie awaria - komunikat mówi wprost, że kroki ruszą po
-// podpięciu harmonogramu. Odczyt odświeża się co minutę
+// Z-S5-03 (zamknięte w I9). Runner ścieżek jest krokiem `jobs-tick` (co
+// minutę), więc włączony silnik z kontaktami „do wykonania” i bez żadnego
+// wykonanego kroku znaczy „tick jeszcze nie przyszedł albo harmonogram stoi”
+// - komunikat odsyła do panelu zdrowia harmonogramu. Odczyt odświeża się co minutę
 // (`JOURNEY_HEALTH_REFETCH_MS`), a poprzednia liczba „do wykonania” pozwala
 // odróżnić kolejkę rosnącą od opróżnianej.
 //

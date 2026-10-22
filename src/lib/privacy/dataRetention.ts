@@ -217,16 +217,16 @@ export function normalizeExtensionReason(raw: string): string | null {
  * wskazanej w `source`; `dataRetentionParity.test.ts` sprawdza, że literał
  * okresu (`periodLiteral`) nadal stoi w tej migracji - zmiana okresu w SQL bez
  * zmiany tutaj zaczerwieni test.
- *   * `schedule`: `pg_cron` - zadanie bazy; `pending` - funkcja istnieje,
- *     harmonogram podpina I9 (runner ścieżek w `jobs-tick`); `none` - brak
- *     usuwania z założenia.
+ *   * `schedule`: `pg_cron` - zadanie bazy; `jobs_tick` - krok harmonogramu
+ *     zadań aplikacji (`jobs-tick`, I9: skrzynka ścieżek raz na dobę, stan
+ *     w panelu zdrowia harmonogramu); `none` - brak usuwania z założenia.
  */
 export interface DataRetentionExistingItem {
   readonly key: string;
   readonly mechanism: string | null;
   readonly source: string | null;
   readonly periodLiteral: string | null;
-  readonly schedule: "pg_cron" | "pending" | "none";
+  readonly schedule: "pg_cron" | "jobs_tick" | "none";
 }
 
 export const DATA_RETENTION_EXISTING: readonly DataRetentionExistingItem[] = [
@@ -270,7 +270,7 @@ export const DATA_RETENTION_EXISTING: readonly DataRetentionExistingItem[] = [
     mechanism: "journey_purge",
     source: "20261020140100",
     periodLiteral: "interval '30 days'",
-    schedule: "pending",
+    schedule: "jobs_tick",
   },
   {
     key: "integration_deliveries",

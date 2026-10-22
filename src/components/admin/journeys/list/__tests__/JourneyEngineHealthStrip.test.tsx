@@ -2,7 +2,7 @@
 //
 // CO TEN PLIK DOWODZI.
 //   1. Z-S5-03: włączony silnik, kontakty „do wykonania” i ŻADEN wykonany
-//      krok -> komunikat „kroki ruszą po podpięciu harmonogramu (I9)”
+//      krok -> komunikat „harmonogram wykonuje kroki co minutę” (I9)
 //      (kształt z prawdziwego RPC, `RPC_SHAPES.health`).
 //   2. Stan silnika słowem i ikoną: włączony, wyłączony, wyłącznik awaryjny
 //      (kolor nigdy sam).
@@ -174,7 +174,7 @@ describe("JourneyEngineHealthStrip", () => {
     h.health.mockResolvedValue(healthOf());
     mount();
     expect(
-      await screen.findByText(/steps will start once the scheduler is connected/),
+      await screen.findByText(/the job scheduler runs steps every minute/),
     ).toBeInTheDocument();
   });
 });

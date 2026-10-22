@@ -105,6 +105,17 @@ const fixtures = vi.hoisted(() => ({
   eventParticipantReminders: { claimed: 3, sent: 2, skipped: 1, failed: 0, note: "a" },
   eventTicketLifecycle: { claimed: 4, sent: 3, skipped: 0, failed: 1, note: "b" },
   eventFollowUp: { claimed: 5, sent: 5, skipped: 0, failed: 0, note: "c" },
+  // Wynik runnera ścieżek: typ jawny, bo testy wyłącznika i okna wdrożenia
+  // podmieniają go na `{ error: "disabled" }` / pole `skipped`.
+  journeys: {
+    ingested: 6,
+    enrolled: 4,
+    advanced: 5,
+    emailsQueued: 3,
+    deferred: 1,
+    failed: 0,
+    journeysTouched: 2,
+  } as import("@/lib/server/journeysRunner.server").JourneysTickResult,
   drain: { sent: 11, failed: 1, suppressed: 2, dlq: 0, duplicates: 3, stopped: null },
   push: { claimed: 9, sent: 8 },
   digestDaily: { claimed: 4, sent: 4 },
@@ -302,6 +313,16 @@ vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
     jobs.run("eventFollowUp", [admin, opts], fixtures.eventFollowUp),
 }));
 
+// Runner ścieżek (S5, Z-S5-03) - własny dowód w
+// `server/__tests__/journeysRunner.server.test.ts`; tu wyłącznie miejsce
+// w kolejności (przed drenem poczty), termin 3 s, limity i mapowanie
+// wyłącznika awaryjnego. Stała terminu wchodzi tym samym leniwym importem.
+vi.mock("@/lib/server/journeysRunner.server", () => ({
+  JOURNEYS_DEADLINE_MS: 3_000,
+  runJourneysTick: (admin: unknown, opts: unknown) =>
+    jobs.run("journeys", [admin, opts], fixtures.journeys),
+}));
+
 vi.mock("@/lib/privacy/newsletterSunsetMail.server", () => ({
   runNewsletterSunsetMail: (admin: unknown, opts: unknown) =>
     jobs.run("newsletterSunset", [admin, opts], fixtures.newsletterSunset),
@@ -322,9 +343,15 @@ vi.mock("@/lib/server/embeddings.server", () => ({
 }));
 
 import { fail, ok, supabaseFromStub, supabaseRpcStub } from "@/test/supabase";
+import { DATA_RETENTION_EXISTING } from "@/lib/privacy/dataRetention";
 import {
+  JOURNEYS_PURGE_AT_UTC,
+  JOURNEYS_ROLLUP_MINUTE,
+  JOURNEY_INBOX_RETENTION,
   PARTICIPANT_JOBS_DEADLINE_MS,
   isDataRetentionWindow,
+  isJourneysPurgeMinute,
+  isJourneysRollupMinute,
   runJobsTick,
   type JobsTickMeta,
   type JobsTickResult,
@@ -367,6 +394,9 @@ const FULL_ORDER = [
   "eventParticipantReminders",
   "eventTicketLifecycle",
   "eventFollowUp",
+  // Silnik ścieżek (S5, SPEC §4.6): po zadaniach uczestnika, PRZED drenem -
+  // maile ścieżek wychodzą w tym samym ticku.
+  "journeys",
   "emailQueue",
   "push",
   "digestDaily",
@@ -377,6 +407,9 @@ const FULL_ORDER = [
   "eventTicketRevocations",
   // Zamiatarka dziennika płatności: po wysyłkach 1:1, przed jobami sieciowymi.
   "webhookSweep",
+  // Skanery S2 (co 5 minut): czysto bazowe, przed jobami sieciowymi.
+  "revenueLifecycle",
+  "retentionFlow",
   "walletPassRevocations",
   "linkCheck",
   "integrations",
@@ -392,6 +425,7 @@ const CRITICAL_SENDS = [
   "eventParticipantReminders",
   "eventTicketLifecycle",
   "eventFollowUp",
+  "journeys",
   "emailQueue",
   "push",
   "digestDaily",
@@ -418,6 +452,8 @@ const FIVE_MINUTE_JOBS = [
   "digestDaily",
   "digestWeekly",
   "webhookSweep",
+  "revenueLifecycle",
+  "retentionFlow",
   "semanticIndex",
   "clubScheduler",
 ] as const;
@@ -429,6 +465,7 @@ const EVERY_MINUTE_JOBS = [
   "eventParticipantReminders",
   "eventTicketLifecycle",
   "eventFollowUp",
+  "journeys",
   "emailQueue",
   "push",
   "eventReminders",
@@ -438,6 +475,10 @@ const EVERY_MINUTE_JOBS = [
   "walletPassRevocations",
   "integrations",
 ] as const;
+
+/** Wiersze skanerów S2 (`run_revenue_lifecycle_scanner`, `run_retention_flow_scanner`). */
+const LIFECYCLE_ROW = { trial_ending: 2, expired: 1, dunning_lost: 3, snapshots: 4 } as const;
+const RETENTION_ROW = { abandoned: 5 } as const;
 
 /** Kompletny wiersz z `club_scheduler_tick` - wszystkie sześć liczników. */
 const CLUB_ROW = {
@@ -456,6 +497,11 @@ let rpc: SupabaseRpcStub;
 let admin: SupabaseClient<Database>;
 /** Odpowiedź `club_scheduler_tick`; podmieniana w testach normalizacji. */
 let clubTick: SupabaseResult = ok(CLUB_ROW);
+/**
+ * Odpowiedzi kroków czysto bazowych huba (skanery S2, rollup i sprzątanie
+ * ścieżek) - po nazwie RPC; podmieniane w testach normalizacji i błędów.
+ */
+let sqlReplies: Record<string, SupabaseResult> = {};
 
 /**
  * Zamrożone „teraz" w UTC. Minuta jest JEDYNYM wejściem bramki cyklu pracy,
@@ -524,12 +570,30 @@ beforeEach(() => {
   rpc = supabaseRpcStub();
   clubTick = ok(CLUB_ROW);
   // Odpowiedź RPC dopisuje harmonogram klubów do TEJ SAMEJ listy wywołań, co
-  // pozostałe szesnaście jobów - inaczej kolejność ostatniego joba byłaby
-  // niemierzalna, a to właśnie on jest pomijany pierwszy.
+  // pozostałe joby - inaczej kolejność ostatniego joba byłaby niemierzalna,
+  // a to właśnie on jest pomijany pierwszy.
   rpc.setResponse("club_scheduler_tick", (call) => {
     jobs.note("clubScheduler", [call.name]);
     return clubTick;
   });
+  // Kroki huba wołane literałem RPC - ta sama lista wywołań co reszta (I9).
+  sqlReplies = {
+    run_revenue_lifecycle_scanner: ok(LIFECYCLE_ROW),
+    run_retention_flow_scanner: ok(RETENTION_ROW),
+    journey_rollup_daily: ok(42),
+    journey_purge: ok({ inbox: 7, errors: 2 }),
+  };
+  for (const [name, step] of [
+    ["run_revenue_lifecycle_scanner", "revenueLifecycle"],
+    ["run_retention_flow_scanner", "retentionFlow"],
+    ["journey_rollup_daily", "journeysRollup"],
+    ["journey_purge", "journeysPurge"],
+  ] as const) {
+    rpc.setResponse(name, (call) => {
+      jobs.note(step, [call.name, call.args]);
+      return sqlReplies[name];
+    });
+  }
   admin = adminClient(from, rpc);
 });
 
@@ -541,7 +605,7 @@ afterEach(() => {
 // KOLEJNOŚĆ JOBÓW
 // ===========================================================================
 describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
-  it("pełny tick (minuta 0) wykonuje siedemnaście jobów w przypiętej kolejności", async () => {
+  it("pełny tick (minuta 0) wykonuje wszystkie joby bramek 1/5/15/60 w przypiętej kolejności", async () => {
     // Minuta 0 otwiera WSZYSTKIE bramki (0 % 5 = 0 % 15 = 0 % 60 = 0), więc
     // to jedyny moment, w którym kolejność da się przypiąć w całości.
     await tickAt(0);
@@ -561,14 +625,15 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
     expect(lastSend).toBeLessThan(firstCostly);
   });
 
-  it("newsletter, zadania uczestnika i dren poczty są PIERWSZE - link do logowania starzeje się najszybciej", async () => {
+  it("newsletter, zadania uczestnika, ścieżki i dren poczty są PIERWSZE - link do logowania starzeje się najszybciej", async () => {
     await tickAt(0);
 
-    expect(jobs.steps().slice(0, 6)).toEqual([
+    expect(jobs.steps().slice(0, 7)).toEqual([
       "newsletter",
       "eventParticipantReminders",
       "eventTicketLifecycle",
       "eventFollowUp",
+      "journeys",
       "emailQueue",
       "push",
     ]);
@@ -595,6 +660,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       eventParticipantReminders: fixtures.eventParticipantReminders,
       eventTicketLifecycle: fixtures.eventTicketLifecycle,
       eventFollowUp: fixtures.eventFollowUp,
+      journeys: fixtures.journeys,
       emailQueue: fixtures.drain,
       push: fixtures.push,
       digestDaily: fixtures.digestDaily,
@@ -604,6 +670,8 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       eventTicketCodes: fixtures.eventTicketCodes,
       eventTicketRevocations: fixtures.eventTicketRevocations,
       webhookSweep: fixtures.webhookSweep,
+      revenueLifecycle: { trialEnding: 2, expired: 1, dunningLost: 3, snapshots: 4 },
+      retentionFlow: { abandoned: 5 },
       walletPassRevocations: fixtures.walletPassRevocations,
       linkCheck: fixtures.linkCheck,
       integrations: fixtures.integrations,
@@ -616,6 +684,9 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       newsletterSunset: { error: "skipped_duty_cycle" },
       // Prośby o zgodę na pomiar tylko w minucie 4 okna dziennego.
       newsletterMeasurement: { error: "skipped_duty_cycle" },
+      // Rollup ścieżek w minucie 13, sprzątanie skrzynki o 03:11 UTC.
+      journeysRollup: { error: "skipped_duty_cycle" },
+      journeysPurge: { error: "skipped_duty_cycle" },
       // Retencja danych biegnie wyłącznie w oknie nocnym (godzina 2 UTC);
       // tick testu jest o 10:00 - zaplanowane pominięcie (sekcja na końcu).
       dataRetention: { error: "skipped_duty_cycle" },
@@ -633,6 +704,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       "eventParticipantReminders",
       "eventTicketLifecycle",
       "eventFollowUp",
+      "journeys",
       "emailQueue",
       "walletPassRevocations",
       "linkCheck",
@@ -659,15 +731,20 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
     expect(jobs.argsOf("clubThreadIndex")?.[1]).toBe(16);
   });
 
-  it("dyspozytor NIE dotyka tabel wprost - cała jego baza to jeden RPC", async () => {
+  it("dyspozytor NIE dotyka tabel wprost - jego baza to wyłącznie RPC literałem", async () => {
     // Gdyby ktoś dołożył tu odczyt tabeli „na skróty", omijałby moduł, który
     // ma własny test i własne zakresowanie po tenancie. Atrapa łańcucha nie ma
     // zaplanowanej ANI JEDNEJ odpowiedzi, więc taki odczyt wróciłby błędem -
-    // ale zapaliłby się dopiero tutaj, na pustej liście łańcuchów.
+    // ale zapaliłby się dopiero tutaj, na pustej liście łańcuchów. Skanery S2
+    // to czyste SQL wołane literałem (SPEC K-06) - bez nowych plików TS.
     await tickAt(0);
 
     expect(from.chains).toEqual([]);
-    expect(rpc.names()).toEqual(["club_scheduler_tick"]);
+    expect(rpc.names()).toEqual([
+      "run_revenue_lifecycle_scanner",
+      "run_retention_flow_scanner",
+      "club_scheduler_tick",
+    ]);
   });
 });
 
@@ -925,10 +1002,12 @@ describe("zamiatarka dziennika płatności (co 5 minut, termin = okno 8 s, nie d
 // PRZEPUSTKI GOOGLE WALLET UNIEWAŻNIONYCH BILETÓW (OPS-14)
 // ===========================================================================
 describe("dezaktywacja przepustek Google (WALLET_REVOCATIONS_DEADLINE_MS = 22 s)", () => {
-  it("biegnie zaraz po zamiatarce dziennika płatności, z klientem service role, partią 10 i terminem 22 s", async () => {
+  it("biegnie zaraz po zamiatarce dziennika płatności i skanerach S2, z klientem service role, partią 10 i terminem 22 s", async () => {
     await tickAt(0);
 
-    expect(orderOf("walletPassRevocations")).toBe(orderOf("webhookSweep") + 1);
+    // Między zamiatarką a portfelem stoją tylko skanery S2 (czysto bazowe, I9).
+    expect(orderOf("walletPassRevocations")).toBe(orderOf("retentionFlow") + 1);
+    expect(orderOf("retentionFlow")).toBe(orderOf("webhookSweep") + 2);
     const [client, options] = jobs.argsOf("walletPassRevocations") ?? [];
     expect(client).toBe(admin);
     expect(options).toEqual({ limit: 10, deadlineAt: at(0).getTime() + 22_000 });
@@ -1500,5 +1579,264 @@ describe("prośby o zgodę na pomiar: okno dzienne (minuta 4)", () => {
 
     expect(jobError(result.newsletterMeasurement)).toContain("newsletter measurement claim");
     expect(lastRun().ok).toBe(false);
+  });
+});
+
+// ===========================================================================
+// SILNIK ŚCIEŻEK (S5, Z-S5-03): co tick, przed drenem poczty, termin 3 s
+// ===========================================================================
+describe("silnik ścieżek: krok `journeys` przed drenem poczty (SPEC §4.6)", () => {
+  const ENGINE_COUNTS = fixtures.journeys;
+
+  afterEach(() => {
+    fixtures.journeys = ENGINE_COUNTS;
+  });
+
+  it("biegnie zaraz po zadaniach uczestnika i tuż PRZED drenem - także w minucie bez bramek", async () => {
+    // Maile, które runner zakolejkuje, dren ma wysłać w TYM SAMYM ticku -
+    // krok po drenie przesuwałby każdy mail ścieżki o minutę.
+    await tickAt(3);
+
+    expect(orderOf("journeys")).toBe(orderOf("eventFollowUp") + 1);
+    expect(orderOf("emailQueue")).toBe(orderOf("journeys") + 1);
+  });
+
+  it("dostaje klienta service role, termin 3 s od startu KROKU i limity 200/50", async () => {
+    await tickAt(0);
+
+    expect(jobs.argsOf("journeys")).toEqual([
+      admin,
+      { deadlineAt: at(0).getTime() + 3_000, ingestLimit: 200, claimLimit: 50 },
+    ]);
+    expect(jobs.argsOf("journeys")?.[0]).toBe(admin);
+
+    // Po wolnych zadaniach uczestnika termin liczy się od startu kroku, nie
+    // od startu ticku - inaczej runner startowałby z terminem w przeszłości.
+    jobs.reset();
+    slowJob("eventFollowUp", 8_000);
+    await tickAt(0);
+    expect(jobs.argsOf("journeys")?.[1]).toMatchObject({
+      deadlineAt: at(0).getTime() + 8_000 + 3_000,
+    });
+  });
+
+  it("wolny krok ścieżek nie zabiera drenowi minimum 4 s od teraz", async () => {
+    slowJob("journeys", 7_000);
+
+    await tickAt(0);
+
+    expect(jobs.argsOf("emailQueue")?.[1]).toEqual({
+      maxMessages: 60,
+      deadlineAt: at(0).getTime() + 7_000 + 4_000,
+    });
+  });
+
+  it("wyłącznik awaryjny (`disabled`) to zaplanowane pominięcie `kill_switch`, nie awaria", async () => {
+    // Bez mapowania wyłącznik zapalałby `ok:false` co minutę i serię porażek
+    // w panelu - operator uczyłby się ignorować alarm w trakcie incydentu.
+    fixtures.journeys = { error: "disabled" };
+
+    const result = await tickAt(3);
+
+    expect(result.journeys).toEqual({ skipped: "kill_switch" });
+    expect(result.emailQueue).toEqual(fixtures.drain);
+    expect(lastRun()).toMatchObject({ ok: true, error: null });
+  });
+
+  it("baza bez migracji silnika: `migration_pending` z runnera przechodzi bez zmian i nie jest awarią", async () => {
+    fixtures.journeys = { ...ENGINE_COUNTS, skipped: "migration_pending" } as never;
+
+    const result = await tickAt(3);
+
+    expect(result.journeys).toMatchObject({ skipped: "migration_pending" });
+    expect(lastRun()).toMatchObject({ ok: true });
+  });
+
+  it("rzut z runnera (render, kolejka) jest `{ error }`, a dren i reszta ticku jadą dalej", async () => {
+    jobs.failures.set("journeys", "journeys: render crashed");
+
+    const result = await tickAt(0);
+
+    expect(result.journeys).toEqual({ error: "journeys: render crashed" });
+    expect(result.emailQueue).toEqual(fixtures.drain);
+    expect(jobs.steps()).toEqual([...FULL_ORDER]);
+    expect(lastRun()).toMatchObject({ ok: false, error: "journeys: journeys: render crashed" });
+  });
+
+  it("budżet wyczerpany przed krokiem: runner nie jest wołany", async () => {
+    slowJob("eventFollowUp", 25_001);
+
+    const result = await tickAt(3);
+
+    expect(jobs.steps()).not.toContain("journeys");
+    expect(result.journeys).toEqual({ error: "skipped_time_budget" });
+  });
+});
+
+// ===========================================================================
+// SKANERY S2: cykl życia przychodu i przepływ anulowania (co 5 minut)
+// ===========================================================================
+describe("skanery S2: literał RPC co 5 minut, przed jobami sieciowymi", () => {
+  it("minuta 0: oba skanery BEZ argumentów, zaraz po zamiatarce płatności, liczniki znormalizowane", async () => {
+    sqlReplies.run_revenue_lifecycle_scanner = ok({
+      trial_ending: "2",
+      expired: null,
+      dunning_lost: 3,
+    });
+
+    const result = await tickAt(0);
+
+    expect(rpc.lastCall("run_revenue_lifecycle_scanner")?.args).toBeUndefined();
+    expect(rpc.lastCall("run_retention_flow_scanner")?.args).toBeUndefined();
+    expect(orderOf("revenueLifecycle")).toBe(orderOf("webhookSweep") + 1);
+    expect(orderOf("retentionFlow")).toBe(orderOf("revenueLifecycle") + 1);
+    expect(orderOf("retentionFlow")).toBeLessThan(Math.min(...NETWORK_COSTLY.map(orderOf)));
+    // Napis, `null` i BRAK klucza dają liczby - log przebiegów bez `undefined`.
+    expect(result.revenueLifecycle).toEqual({
+      trialEnding: 2,
+      expired: 0,
+      dunningLost: 3,
+      snapshots: 0,
+    });
+    expect(result.retentionFlow).toEqual({ abandoned: 5 });
+  });
+
+  it("minuta 3: bramka PRZED wywołaniem - baza nietknięta, wynik to zaplanowane pominięcie", async () => {
+    const result = await tickAt(3);
+
+    expect(rpc.callsFor("run_revenue_lifecycle_scanner")).toHaveLength(0);
+    expect(rpc.callsFor("run_retention_flow_scanner")).toHaveLength(0);
+    expect(result.revenueLifecycle).toEqual({ error: "skipped_duty_cycle" });
+    expect(result.retentionFlow).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("baza bez migracji S2 (PGRST202 / 42883): `migration_pending` z zerami, przebieg `ok`", async () => {
+    sqlReplies.run_revenue_lifecycle_scanner = fail("Could not find the function", "PGRST202");
+    sqlReplies.run_retention_flow_scanner = fail("function does not exist", "42883");
+
+    const result = await tickAt(5);
+
+    expect(result.revenueLifecycle).toEqual({
+      trialEnding: 0,
+      expired: 0,
+      dunningLost: 0,
+      snapshots: 0,
+      skipped: "migration_pending",
+    });
+    expect(result.retentionFlow).toEqual({ abandoned: 0, skipped: "migration_pending" });
+    expect(lastRun()).toMatchObject({ ok: true, error: null });
+  });
+
+  it("inny błąd bazy: `{ error }`, awaria w logu - i drugi skaner biegnie mimo to", async () => {
+    sqlReplies.run_revenue_lifecycle_scanner = fail("permission denied", "42501");
+
+    const result = await tickAt(5);
+
+    expect(result.revenueLifecycle).toEqual({ error: "permission denied" });
+    expect(result.retentionFlow).toEqual({ abandoned: 5 });
+    expect(lastRun()).toMatchObject({ ok: false, error: "revenueLifecycle: permission denied" });
+  });
+});
+
+// ===========================================================================
+// ROLLUP STATYSTYK ŚCIEŻEK: co godzinę w wolnej minucie
+// ===========================================================================
+describe("rollup statystyk ścieżek: co godzinę w minucie 13", () => {
+  it("bramka: wolny pas - nie wielokrotność 5 i nie minuta okien newslettera/retencji", () => {
+    expect(JOURNEYS_ROLLUP_MINUTE).toBe(13);
+    expect(JOURNEYS_ROLLUP_MINUTE % 5).not.toBe(0);
+    expect([4, 7, 9]).not.toContain(JOURNEYS_ROLLUP_MINUTE % 10);
+    expect(isJourneysRollupMinute(at(13))).toBe(true);
+    expect(isJourneysRollupMinute(new Date(Date.UTC(2026, 8, 4, 23, 13)))).toBe(true);
+    expect(isJourneysRollupMinute(at(0))).toBe(false);
+    expect(isJourneysRollupMinute(at(14))).toBe(false);
+  });
+
+  it("minuta 13: jedno wywołanie BEZ argumentów, ostatni krok ticku, wynik = wiersze upsertu", async () => {
+    const result = await tickAt(13);
+
+    expect(rpc.callsFor("journey_rollup_daily")).toHaveLength(1);
+    expect(rpc.lastCall("journey_rollup_daily")?.args).toBeUndefined();
+    expect(jobs.steps().at(-1)).toBe("journeysRollup");
+    expect(result.journeysRollup).toEqual({ rows: 42 });
+    expect(result.journeysPurge).toEqual({ error: "skipped_duty_cycle" });
+    expect(lastRun()).toMatchObject({ ok: true, error: null });
+  });
+
+  it("minuta 0 (tłok wszystkich bramek): rollup nie rusza", async () => {
+    const result = await tickAt(0);
+
+    expect(rpc.callsFor("journey_rollup_daily")).toHaveLength(0);
+    expect(result.journeysRollup).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("baza bez funkcji: `migration_pending`; timeout: awaria w logu", async () => {
+    sqlReplies.journey_rollup_daily = fail("Could not find the function", "PGRST202");
+    const pending = await tickAt(13);
+    expect(pending.journeysRollup).toEqual({ rows: 0, skipped: "migration_pending" });
+    expect(lastRun().ok).toBe(true);
+
+    sqlReplies.journey_rollup_daily = fail("canceling statement due to statement timeout", "57014");
+    const failed = await tickAt(13);
+    expect(jobError(failed.journeysRollup)).toBe("canceling statement due to statement timeout");
+    expect(lastRun().ok).toBe(false);
+  });
+});
+
+// ===========================================================================
+// SPRZĄTANIE SKRZYNKI ZDARZEŃ ŚCIEŻEK: raz na dobę, 03:11 UTC, 30 dni
+// ===========================================================================
+describe("sprzątanie skrzynki ścieżek: raz na dobę o 03:11 UTC", () => {
+  function purgeAt(hour: number, minute: number): Date {
+    return new Date(Date.UTC(2026, 8, 4, hour, minute, 0, 0));
+  }
+
+  it("bramka: JEDNA minuta na dobę, po retencji (2 UTC) i przed czyszczeniami pg_cron (03:20+)", () => {
+    expect(JOURNEYS_PURGE_AT_UTC).toEqual({ hour: 3, minute: 11 });
+    expect(isJourneysPurgeMinute(purgeAt(3, 11))).toBe(true);
+    expect(isJourneysPurgeMinute(purgeAt(3, 12))).toBe(false);
+    expect(isJourneysPurgeMinute(purgeAt(10, 11))).toBe(false);
+    expect(isJourneysPurgeMinute(purgeAt(2, 11))).toBe(false);
+    let perDay = 0;
+    for (let minute = 0; minute < 24 * 60; minute += 1) {
+      if (isJourneysPurgeMinute(purgeAt(Math.floor(minute / 60), minute % 60))) perDay += 1;
+    }
+    expect(perDay).toBe(1);
+  });
+
+  it("okres = literał karty retencji i rejestru czynności (30 dni), harmonogram karty = jobs-tick", () => {
+    const item = DATA_RETENTION_EXISTING.find((entry) => entry.key === "journey_inbox");
+    expect(item?.mechanism).toBe("journey_purge");
+    expect(item?.periodLiteral).toBe(`interval '${JOURNEY_INBOX_RETENTION}'`);
+    // Karta „Retencja danych" przestaje pokazywać „Harmonogram w przygotowaniu".
+    expect(item?.schedule).toBe("jobs_tick");
+  });
+
+  it("03:11 UTC: `journey_purge` z `p_older_than: '30 days'`, ostatni krok, liczniki znormalizowane", async () => {
+    sqlReplies.journey_purge = ok({ inbox: "7" });
+    vi.setSystemTime(purgeAt(3, 11));
+
+    const result = await runJobsTick(admin);
+
+    expect(rpc.callsFor("journey_purge")).toHaveLength(1);
+    expect(rpc.lastCall("journey_purge")?.args).toEqual({ p_older_than: "30 days" });
+    expect(jobs.steps().at(-1)).toBe("journeysPurge");
+    expect(result.journeysPurge).toEqual({ inbox: 7, errors: 0 });
+    expect(result.journeysRollup).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("poza 03:11: nie rusza; błąd bazy w oknie = awaria w logu", async () => {
+    const outside = await tickAt(11);
+    expect(rpc.callsFor("journey_purge")).toHaveLength(0);
+    expect(outside.journeysPurge).toEqual({ error: "skipped_duty_cycle" });
+
+    sqlReplies.journey_purge = fail("permission denied for function journey_purge", "42501");
+    vi.setSystemTime(purgeAt(3, 11));
+    const failed = await runJobsTick(admin);
+    expect(jobError(failed.journeysPurge)).toBe("permission denied for function journey_purge");
+    expect(lastRun()).toMatchObject({
+      ok: false,
+      error: "journeysPurge: permission denied for function journey_purge",
+    });
   });
 });

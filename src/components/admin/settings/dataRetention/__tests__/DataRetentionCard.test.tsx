@@ -514,6 +514,19 @@ describe("karta retencji - bezpieczny start, przebieg, piksel, CRM", () => {
     );
   });
 
+  it("skrzynka ścieżek: harmonogram zadań aplikacji, nie „w przygotowaniu” (I9, Z-S5-03)", async () => {
+    // `journey_purge` biegnie raz na dobę z `jobs-tick` (03:11 UTC) - karta
+    // nie może już obiecywać harmonogramu „w przygotowaniu”.
+    mount();
+    const name = await screen.findByText("Skrzynka zdarzeń ścieżek i błędy silnika");
+    const row = name.closest("li");
+    expect(row).not.toBeNull();
+    expect(
+      within(row as HTMLElement).getByText("Harmonogram zadań aplikacji (raz na dobę)"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Harmonogram w przygotowaniu")).toBeNull();
+  });
+
   it("baza bez migracji: stan „niewdrożone”, bez kontrolek", async () => {
     h.get.mockResolvedValue({ state: "unavailable" });
     mount();

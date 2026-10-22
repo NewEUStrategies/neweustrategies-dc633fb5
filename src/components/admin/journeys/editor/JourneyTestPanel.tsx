@@ -11,11 +11,11 @@
 // kontakt), dlatego panel nazywa numer wersji i opisuje kroki według niej
 // (`journeyVersionQueryOptions` - wersja jest niezmienna).
 //
-// UCZCIWIE O SILNIKU (Z-S5-03 -> I9). Runner ścieżek nie jest jeszcze podpięty
-// do `jobs-tick`, a prefiks „[TEST] ” w temacie maila testowego dopisze runner
-// po zmianie integratora - panel mówi więc, że kroki wykonuje harmonogram,
-// i pokazuje bieżący komunikat zdrowia silnika (`engineHealthNotice`), w tym
-// „silnik nie wykonał jeszcze żadnego kroku”.
+// UCZCIWIE O SILNIKU (Z-S5-03, zamknięte w I9). Kroki wykonuje runner ścieżek
+// w `jobs-tick` (co minutę), a prefiks „[TEST] ” w temacie dopisuje runner -
+// panel mówi więc, że kroki wykonuje harmonogram, i pokazuje bieżący
+// komunikat zdrowia silnika (`engineHealthNotice`), w tym „silnik nie
+// wykonał jeszcze żadnego kroku” z odesłaniem do panelu harmonogramu.
 //
 // „POMIŃ OCZEKIWANIE” tylko admin (`skipJourneyWait` = `requireAdmin`):
 // redaktor widzi przycisk wyłączony z WIDOCZNYM wyjaśnieniem - wyłączony

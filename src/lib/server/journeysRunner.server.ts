@@ -42,6 +42,7 @@ import {
 } from "@/lib/journeys/render.server";
 import { journeyUrlVariables, type JourneyVariableValues } from "@/lib/journeys/variables";
 import { measurementOptOutUrl } from "@/lib/privacy/measurementToken.server";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -77,6 +78,12 @@ export interface JourneysTickCounts {
   deferred: number;
   failed: number;
   journeysTouched: number;
+  /**
+   * Baza bez migracji silnika (PGRST202/42883 już przy skrzynce): runner nie
+   * ma czego wykonać, a tick ma to zapisać jako zaplanowane pominięcie, nie
+   * jako `failed` co minutę (okno „kod przed migracją", jak retencja I9c).
+   */
+  skipped?: "migration_pending";
 }
 
 export type JourneysTickResult = JourneysTickCounts | { error: string };
@@ -197,6 +204,11 @@ export async function runJourneysTick(
 
   // ── 1. Skrzynka -> zapisy ──
   const ingest = await db.rpc("journey_ingest_inbox", { p_limit: opts.ingestLimit ?? 200 });
+  if (ingest.error && isMigrationPending(ingest.error)) {
+    // Pierwsze RPC silnika nie istnieje = cała migracja S5 jeszcze nie weszła;
+    // kolejne wywołania dałyby ten sam błąd, więc kończymy od razu.
+    return { ...counts, skipped: "migration_pending" };
+  }
   if (ingest.error) {
     counts.failed += 1;
     console.error("[journeys] ingest failed", ingest.error.message);

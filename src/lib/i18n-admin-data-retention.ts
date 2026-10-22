@@ -235,7 +235,7 @@ const pl = {
         "Mechanizmy, które już działają w innych modułach, i dane przechowywane bezterminowo z mocy prawa - tylko do odczytu, żeby okres nie był ustawiany w dwóch miejscach.",
       schedule: {
         pg_cron: "Zadanie bazy (pg_cron)",
-        pending: "Harmonogram w przygotowaniu",
+        jobs_tick: "Harmonogram zadań aplikacji (raz na dobę)",
         none: "Bez usuwania",
       },
       items: {
@@ -646,7 +646,7 @@ const en: typeof pl = {
         "Mechanisms already running in other modules and data kept indefinitely by law - read-only, so a period is never set in two places.",
       schedule: {
         pg_cron: "Database job (pg_cron)",
-        pending: "Schedule being prepared",
+        jobs_tick: "App job scheduler (once a day)",
         none: "No deletion",
       },
       items: {
