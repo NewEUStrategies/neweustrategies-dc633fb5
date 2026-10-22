@@ -24,7 +24,11 @@
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
-import { newsletterMeasurementUrl, type MeasurementLang } from "./measurement";
+import {
+  newsletterMeasurementUrl,
+  type MeasurementLang,
+  type MeasurementLinkChannel,
+} from "./measurement";
 
 const WITHDRAW_DOMAIN = "mw:";
 const CONFIRM_DOMAIN = "mc:";
@@ -92,10 +96,11 @@ export function measurementOptOutUrl(
   origin: string,
   subject: MeasurementSubject,
   lang?: MeasurementLang,
+  via?: MeasurementLinkChannel,
 ): string | null {
   const { id } = subjectCode(subject);
   if (!UUID_RE.test(id)) return null;
-  return newsletterMeasurementUrl(origin, signMeasurementWithdrawToken(subject), lang);
+  return newsletterMeasurementUrl(origin, signMeasurementWithdrawToken(subject), lang, via);
 }
 
 export interface MeasurementConfirmTokenInput {

@@ -175,7 +175,7 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: sub, error } = await supabaseAdmin
           .from("newsletter_subscribers")
-          .select("id, status")
+          .select("id, status, language")
           .eq("unsubscribe_token", token)
           .maybeSingle();
         if (error || !sub) {
@@ -187,10 +187,24 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
         // inboxes); echoing even a masked address would let any token holder
         // recover the recipient's domain + initials. The friendly page falls
         // back to a generic prompt when no e-mail is supplied.
-        return Response.json({
-          ok: true,
-          already: sub.status === "unsubscribed",
-        });
+        const already = sub.status === "unsubscribed";
+        // Preferencje (I9d-Y2, wariant (a)): zamiast wypisu można wyłączyć
+        // SAM pomiar otwarć i kliknięć. Link (ścieżka względna, podpisany
+        // token wycofania - pseudonimowy identyfikator, bez adresu) tylko dla
+        // aktywnej subskrypcji; posiadacz tokenu wypisu i tak może więcej.
+        let measurementUrl: string | null = null;
+        if (!already) {
+          const { measurementOptOutUrl } = await import("@/lib/privacy/measurementToken.server");
+          measurementUrl = measurementOptOutUrl(
+            "",
+            { kind: "subscriber", subscriberId: sub.id },
+            sub.language === "en" ? "en" : "pl",
+            "preferences",
+          );
+        }
+        return Response.json(
+          measurementUrl ? { ok: true, already, measurementUrl } : { ok: true, already },
+        );
       },
       POST: async ({ request }) => {
         const { token, oneClick } = await readUnsubscribePost(request);

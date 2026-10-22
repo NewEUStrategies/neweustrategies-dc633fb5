@@ -41,6 +41,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 interface SubscriberRow {
   id: string;
   status: string;
+  language?: string;
 }
 
 interface UnsubscribeOutcome {
@@ -295,7 +296,7 @@ describe("GET - nigdy nie mutuje", () => {
     // z nagłówka List-Unsubscribe, który wskazuje właśnie ten endpoint.
     const response = await handlers().GET(getRequest(`?token=${TOKEN}`));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, already: false });
+    await expect(response.json()).resolves.toMatchObject({ ok: true, already: false });
     expect(db.state.updates).toEqual([]);
     expect(db.state.unsubscribeCalls).toEqual([]);
   });
@@ -318,12 +319,42 @@ describe("GET - nigdy nie mutuje", () => {
     expect(JSON.stringify(payload)).not.toMatch(/@|email|mail/i);
   });
 
+  it("preferencje (I9d-Y2): aktywna subskrypcja dostaje link „Nie mierz moich otwarć i kliknięć”", async () => {
+    vi.stubEnv("SESSION_SECRET", "sekret-testowy");
+    const id = "6f9e6f6e-0000-4000-8000-0000000000b1";
+    db.state.row = { id, status: "subscribed", language: "en" };
+    const response = await handlers().GET(getRequest(`?token=${TOKEN}`));
+    const payload = (await response.json()) as Record<string, unknown>;
+    // Wyłącznie podpisany link wycofania pomiaru (pseudonimowy identyfikator,
+    // bez adresu) - ścieżka względna z kanałem preferencji i językiem.
+    expect(Object.keys(payload).sort()).toEqual(["already", "measurementUrl", "ok"]);
+    expect(JSON.stringify(payload)).not.toMatch(/@|email|mail/i);
+    const url = new URL(String(payload.measurementUrl), "https://nes.example");
+    expect(url.pathname).toBe("/api/public/newsletter/measurement");
+    expect(url.searchParams.get("lang")).toBe("en");
+    expect(url.searchParams.get("via")).toBe("preferences");
+    const { verifyMeasurementToken } = await import("@/lib/privacy/measurementToken.server");
+    expect(verifyMeasurementToken(url.searchParams.get("token"))).toEqual({
+      ok: true,
+      action: "withdraw",
+      subject: { kind: "subscriber", subscriberId: id },
+    });
+    // Wypisany - bez linku (nie ma czego mierzyć).
+    db.state.row = { id, status: "unsubscribed", language: "en" };
+    const gone = (await (await handlers().GET(getRequest(`?token=${TOKEN}`))).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(gone.measurementUrl).toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+
   it("czyta wiersz PO TOKENIE i pobiera wyłącznie identyfikator ze statusem", async () => {
     await handlers().GET(getRequest(`?token=${TOKEN}`));
     expect(db.state.selects).toEqual([
       {
         table: "newsletter_subscribers",
-        columns: "id, status",
+        columns: "id, status, language",
         filter: ["unsubscribe_token", TOKEN],
       },
     ]);
