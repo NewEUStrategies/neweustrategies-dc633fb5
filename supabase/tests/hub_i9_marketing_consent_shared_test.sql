@@ -134,6 +134,11 @@ UPDATE public.crm_leads SET marketing_consent = true
 DELETE FROM public.crm_consent_log
  WHERE tenant_id = '19e90000-0000-4000-8000-0000000004a0' AND lower(email) = 'sun@i9-zgoda.test'
    AND consent_key = 'marketing';
+-- Zgody z zapisu - z chwilą zapisu, nie testu: wpis wygaśnięcia z tą samą
+-- chwilą co zgoda dawałby losowe „ostatnie słowo" (remis `created_at`,
+-- rozstrzyga losowy identyfikator).
+UPDATE public.crm_consent_log SET created_at = now() - interval '20 months'
+ WHERE tenant_id = '19e90000-0000-4000-8000-0000000004a0' AND lower(email) = 'sun@i9-zgoda.test';
 -- Osobna instrukcja: zapytanie, które woła funkcję zapisującą, nie widzi jej
 -- zmian w podzapytaniach (migawka instrukcji).
 INSERT INTO r VALUES ('sunset', to_jsonb(public._newsletter_sunset_delete(
