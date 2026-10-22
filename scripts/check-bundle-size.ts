@@ -2498,7 +2498,30 @@ const FROZEN_BUDGET_KB = {
   // same (css 99,7, publicCss 83,8); chunk 257,9 i boot 471,7 w zamrożonych
   // progach.
   // Host 5021,2 -> 5022 -> +1.
-  overall: 5023,
+  // Ratchet 5023 -> 5182 (2026-10-22, wycinek S8 huba „Przychód i lejek”:
+  // Ścieżki - lista, galeria, edytor kanwy, ustawienia silnika, wyniki,
+  // karta leada), decyzją zamawiającego D-08. Baza 75133fe2 (gałąź PR #530)
+  // 5020,6 / public 2778,3; po S8 z integracją 5180,9: +160,3 KB, w tym
+  // admin-only +160,0 (2242,3 -> 2402,3) i public +0,3 (entropia hashy;
+  // `app-initial` 257,9 bez zmian). Cały przyrost to NOWE leniwe chunki
+  // panelu (29 chunków z nowymi modułami, 160,5 KB gz): edytor ścieżki
+  // osiągalny wyłącznie z trasy edytora ok. 95 KB w 18 chunkach (leniwy
+  // `JourneyEditor` 22,4 - kanwa, lista kroków, pasek i słownik kanwy;
+  // `PredicateRow` ze słownikiem paneli 15,2; `JourneyStepSheet` z edytorem
+  // maila i zakładkami wyników 12,7; słowniki publikacji 6,1 i edytora 3,6;
+  // wyniki 4,7 + tabela maili 3,9; sesja szkicu 4,7; dialogi publikacji,
+  // symulacji i panel testu 10,2; arkusze 4,9), wspólny chunk zakładki,
+  // edytora i karty leada 22,4 (słowniki ścieżek S5 i listy, graf
+  // i predykaty S5), zakładka Ścieżki 9,5 (lista, galeria, kreator,
+  // ustawienia silnika), model kanwy i operacje 6,5, słownik wyników 6,2,
+  // opisy kroków 3,5, układ i lista 3,3; karta „Ścieżki” w CRM 2,3
+  // (leniwie, zakładka Analityka). Układ huba dostaje licznik aktywnych
+  // ścieżek bez modułu opisów (liść `activeCount`, klient server fn listy
+  // 1,9 + zapytania 0,8 - te same chunki co zakładka). Arkusz panelu +19 B
+  // (css 99,77 / 100), publicCss 83,8, chunk 257,9 i boot 471,6
+  // w zamrożonych progach.
+  // Host 5180,9 -> 5181 -> +1.
+  overall: 5182,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
