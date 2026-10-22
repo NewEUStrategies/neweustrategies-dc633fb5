@@ -41,6 +41,10 @@ const h = vi.hoisted(() => ({
   getJourneyDetail: vi.fn(),
 }));
 
+// Przewodnik (I9, Z-S8-01): nakładka przejmuje fokus - atrapa; montaż
+// sprawdzają `RevenueJourneysTab.test`, `JourneyEditorRoute.test`
+// i `JourneyTour.test`.
+vi.mock("@/components/admin/journeys/tour/JourneyTour", () => ({ JourneyTour: () => null }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 // Edytor ścieżki (S8) czyta szczegół przez server fn - atrapa jedynego odczytu,
 // którego potrzebuje szkic bez wyzwalacza (pozostałe zapytania edytora ruszają

@@ -73,6 +73,13 @@ vi.mock("@/lib/crm/leadMutations", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
+// Przewodnik (I9, Z-S8-01): nakładka przejmuje fokus, więc w testach
+// zakładki stoi atrapa z propsami - sam przewodnik testuje `JourneyTour.test`.
+vi.mock("@/components/admin/journeys/tour/JourneyTour", () => ({
+  JourneyTour: (props: { id: string; ready: boolean }) => (
+    <div data-testid="journey-tour" data-tour-id={props.id} data-ready={String(props.ready)} />
+  ),
+}));
 
 import { RevenueJourneysTab } from "@/components/admin/revenue/tabs/RevenueJourneysTab";
 import { toCatalogEntry } from "@/lib/admin/journeys/journeyEditor.functions";
@@ -149,6 +156,9 @@ describe("kontrakt zakładki", () => {
     ).toBeInTheDocument();
     expect(tab).not.toHaveTextContent("w przygotowaniu");
     expect(tab.querySelector('[data-tour="journeys-list"]')).not.toBeNull();
+    // Przewodnik (Z-S8-01) zamontowany i gotowy dopiero po wczytaniu listy.
+    expect(screen.getByTestId("journey-tour")).toHaveAttribute("data-tour-id", "journeys");
+    expect(screen.getByTestId("journey-tour")).toHaveAttribute("data-ready", "true");
     expect(screen.queryByTestId("journey-template-gallery")).toBeNull();
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);

@@ -34,6 +34,13 @@ const h = vi.hoisted(() => ({
   saveDraft: vi.fn(),
 }));
 
+// Przewodnik (I9, Z-S8-01): nakładka przejmuje fokus, więc w testach
+// zakładki stoi atrapa z propsami - sam przewodnik testuje `JourneyTour.test`.
+vi.mock("@/components/admin/journeys/tour/JourneyTour", () => ({
+  JourneyTour: (props: { id: string; ready: boolean }) => (
+    <div data-testid="journey-tour" data-tour-id={props.id} data-ready={String(props.ready)} />
+  ),
+}));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFn")).serverFnModuleMock(),
@@ -260,6 +267,11 @@ describe("JourneyEditorRoute - hydratacja i bramka roli", () => {
       name: t("adminJourneys.editor.toolbar.publish"),
     });
     expect(publish).toHaveAttribute("data-tour", "journey-publish");
+    // Przewodnik edytora (I9, Z-S8-01): gotowy na kanwie edytowalnego szkicu.
+    await waitFor(() =>
+      expect(screen.getByTestId("journey-tour")).toHaveAttribute("data-ready", "true"),
+    );
+    expect(screen.getByTestId("journey-tour")).toHaveAttribute("data-tour-id", "journey-editor");
     expect(summarize(await axeViolations(container))).toBe("");
   });
 
@@ -291,6 +303,8 @@ describe("JourneyEditorRoute - widok domyślny", () => {
     const editor = await screen.findByTestId("journey-editor");
     expect(editor).toHaveAttribute("data-view", "list");
     expect(await within(editor).findByRole("tree")).toBeInTheDocument();
+    // Lista kroków nie ma kotwicy kanwy - przewodnik czeka (Z-S8-01).
+    expect(screen.getByTestId("journey-tour")).toHaveAttribute("data-ready", "false");
   });
 
   it.each([

@@ -68,6 +68,7 @@ import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDial
 import { recallJourneyListSearch } from "@/components/admin/journeys/list/JourneyList";
 import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
 import { MfaRequiredNotice } from "@/components/admin/revenue/molecules/MfaRequiredNotice";
+import { JourneyTour } from "@/components/admin/journeys/tour/JourneyTour";
 import { RoleGateNotice } from "@/components/admin/revenue/molecules/RoleGateNotice";
 import {
   Breadcrumb,
@@ -115,6 +116,7 @@ import type {
 import type { JourneyDraft, JourneyNode, JourneySettings } from "@/lib/journeys/graph";
 import { journeyKeys } from "@/lib/journeys/keys";
 import { journeyStatsQueryOptions } from "@/lib/journeys/queries";
+import { JOURNEY_EDITOR_TOUR_STEPS } from "@/lib/onboarding/tours";
 import { clampJourneyZoom, fitJourneyZoom, JourneyCanvas } from "./JourneyCanvas";
 import { JourneyConflictDialog } from "./JourneyConflictDialog";
 import {
@@ -999,6 +1001,13 @@ export function JourneyEditor({
         onOpenChange={(open) => {
           if (!open) setConfirm(null);
         }}
+      />
+      {/* Przewodnik (I9, Z-S8-01): tylko na kanwie edytowalnego szkicu - tam
+          stoją kotwice kanwy i przycisku publikacji. */}
+      <JourneyTour
+        id="journey-editor"
+        steps={JOURNEY_EDITOR_TOUR_STEPS}
+        ready={editable && view === "canvas" && shown !== null}
       />
     </div>
   );

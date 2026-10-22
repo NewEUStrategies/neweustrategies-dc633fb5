@@ -1268,6 +1268,10 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // `metrics` (subskrybent newslettera → `email`, subskrypcja u operatora
     // → `economics` i `funnel`) - asercje rozszerzenia panelu.
     "src/lib/realtime/__tests__/revenueInvalidation.test.ts",
+    // (Integrator I9, 2026-10-22) Przewodnik po Ścieżkach (Z-S8-01): montaż
+    // w zakładce i edytorze (`components/admin/journeys/tour/**` jest już
+    // w globie huba) - atrapa nakładki w teście tras huba.
+    "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
   ],
 };
 

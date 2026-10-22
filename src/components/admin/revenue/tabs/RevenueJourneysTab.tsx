@@ -38,6 +38,7 @@ import { JourneyEngineHealthStrip } from "@/components/admin/journeys/list/Journ
 import { JourneyList } from "@/components/admin/journeys/list/JourneyList";
 import { JourneySettingsDialog } from "@/components/admin/journeys/list/JourneySettingsDialog";
 import { JourneyTemplateGallery } from "@/components/admin/journeys/list/JourneyTemplateGallery";
+import { JourneyTour } from "@/components/admin/journeys/tour/JourneyTour";
 import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
 import { MfaRequiredNotice } from "@/components/admin/revenue/molecules/MfaRequiredNotice";
 import { RevenueSection } from "@/components/admin/revenue/molecules/RevenueSection";
@@ -49,6 +50,7 @@ import { journeyTemplateCatalogQueryOptions } from "@/lib/admin/journeys/journey
 import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
 import { ensureI18n } from "@/lib/i18n-admin-journeys-list";
 import { journeyListQueryOptions } from "@/lib/journeys/queries";
+import { JOURNEYS_TOUR_STEPS } from "@/lib/onboarding/tours";
 import { JOURNEY_TEMPLATE_KEYS, type JourneyTemplateKey } from "@/lib/journeys/templates/types";
 import type { RevenueHubSearch } from "@/lib/revenue/search";
 
@@ -201,6 +203,10 @@ function JourneysTabContent() {
         tenantId={tenant}
         canManage={caps.canManageEngine}
       />
+
+      {/* Przewodnik (I9, Z-S8-01) rusza raz, gdy lista już stoi - kotwice
+          paska zdrowia i listy są wtedy w drzewie. */}
+      <JourneyTour id="journeys" steps={JOURNEYS_TOUR_STEPS} ready={items !== null} />
     </>
   );
 }

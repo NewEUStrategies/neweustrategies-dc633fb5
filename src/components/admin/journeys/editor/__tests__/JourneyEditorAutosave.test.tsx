@@ -29,6 +29,10 @@ const h = vi.hoisted(() => ({
   guard: vi.fn(),
 }));
 
+// Przewodnik (I9, Z-S8-01): nakładka przejmuje fokus - atrapa; montaż
+// sprawdzają `RevenueJourneysTab.test`, `JourneyEditorRoute.test`
+// i `JourneyTour.test`.
+vi.mock("@/components/admin/journeys/tour/JourneyTour", () => ({ JourneyTour: () => null }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: h.fixedT?.("pl"), i18n: { language: "pl" }, ready: true }),
   initReactI18next: { type: "3rdParty" as const, init: () => {} },
