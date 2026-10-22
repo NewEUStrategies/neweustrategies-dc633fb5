@@ -359,25 +359,10 @@ describe("EmailStepEditor - stany", () => {
     for (const panel of [...container.querySelectorAll('[role="tabpanel"][hidden]')]) {
       panel.remove();
     }
-    // Panel właściwości bloku to komponent kreatora kampanii
-    // (`CampaignBlockProperties`): jego listy wyboru nie mają nazwy dostępnej
-    // (etykieta bez `htmlFor`) - zgłoszone integratorowi, poza tym plikiem.
-    const blockPanel = (target: unknown) =>
-      document.querySelector(String(target))?.closest('[data-testid="journey-email-block"]');
-    const all = await axeViolations(container);
-    const violations = all
-      .map((violation) => ({
-        ...violation,
-        nodes: violation.nodes.filter((node) => !blockPanel(node.target[0])),
-      }))
-      .filter((violation) => violation.nodes.length > 0);
-    // Wyjątek obejmuje WYŁĄCZNIE brak nazwy list wyboru w panelu kreatora.
-    const excluded = all.filter((violation) =>
-      violation.nodes.some((node) => blockPanel(node.target[0])),
-    );
-    expect(excluded.map((violation) => violation.id)).toEqual(
-      excluded.length > 0 ? ["button-name"] : [],
-    );
+    // Panel właściwości bloku (`CampaignBlockProperties`) audytujemy razem
+    // z resztą: listy wyboru mają nazwę z etykiety od poprawki integratora S8
+    // (wcześniej filtr wyjmował stąd `button-name`).
+    const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 });

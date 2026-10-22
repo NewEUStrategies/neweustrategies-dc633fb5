@@ -814,6 +814,18 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/journeys/editorSearch.ts",
     "src/lib/journeys/__tests__/editorSearch.test.ts",
     "src/lib/i18n-admin-journeys-editor.ts",
+    // (Integrator S8, 2026-10-22): słownik podzielony na podzadania - lista,
+    // galeria i ustawienia silnika (S8.1), wyniki i karta leada (S8.2), kanwa
+    // (S8.3b), panele kroku (S8.3c), publikacja, symulacja i test (S8.3c2);
+    // `-editor` = sesja szkicu i złożenie edytora (S8.3a/d). Jeden plik na
+    // podzadanie - rozłączne pliki przy pracy kolejnych agentów.
+    "src/lib/i18n-admin-journeys-{list,results,canvas,steps,publish}.ts",
+    // (Integrator S8, 2026-10-22): Z-S5-08 - czysta część podstawiania
+    // zmiennych maila (`substituteDocVariables`, `journeyUrlVariables`) mieszka
+    // w liściu klienckim `variables.ts`, a `render.server.ts` ją importuje
+    // i re-eksportuje: podgląd edytora i wysyłka mają jedną implementację.
+    // Pliki S5 zmienione przez S8.3a (precedens: S4 i migawka S6).
+    "src/lib/journeys/{variables,render.server}.ts",
   ],
   I9: [
     ...HUB_SHARED_FILES,

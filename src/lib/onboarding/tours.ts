@@ -64,3 +64,56 @@ export const BLOCK_TOUR_STEPS: TourStep[] = [
     placement: "left",
   },
 ];
+
+// Zakładka „Ścieżki” huba (S8): pasek zdrowia, lista, galeria i ustawienia
+// silnika. Galeria i dialog ustawień są w drzewie tylko otwarte - wtedy krok
+// bez kotwicy rysuje się jako karta na środku (zachowanie `CoachmarkTour`).
+export const JOURNEYS_TOUR_STEPS: TourStep[] = [
+  {
+    id: "engine",
+    anchor: "journeys-engine",
+    titleKey: "admin.onboarding.journeys.engine.title",
+    bodyKey: "admin.onboarding.journeys.engine.body",
+    placement: "bottom",
+  },
+  {
+    id: "list",
+    anchor: "journeys-list",
+    titleKey: "admin.onboarding.journeys.list.title",
+    bodyKey: "admin.onboarding.journeys.list.body",
+    placement: "top",
+  },
+  {
+    id: "gallery",
+    anchor: "journeys-gallery",
+    titleKey: "admin.onboarding.journeys.gallery.title",
+    bodyKey: "admin.onboarding.journeys.gallery.body",
+    placement: "top",
+  },
+  {
+    id: "settings",
+    anchor: "journeys-engine-settings",
+    titleKey: "admin.onboarding.journeys.settings.title",
+    bodyKey: "admin.onboarding.journeys.settings.body",
+    placement: "left",
+  },
+];
+
+// Edytor ścieżki (S8): kanwa i przycisk publikacji w pasku (ten sam atrybut
+// nosi otwarty dialog publikacji).
+export const JOURNEY_EDITOR_TOUR_STEPS: TourStep[] = [
+  {
+    id: "canvas",
+    anchor: "journey-canvas",
+    titleKey: "admin.onboarding.journeyEditor.canvas.title",
+    bodyKey: "admin.onboarding.journeyEditor.canvas.body",
+    placement: "top",
+  },
+  {
+    id: "publish",
+    anchor: "journey-publish",
+    titleKey: "admin.onboarding.journeyEditor.publish.title",
+    bodyKey: "admin.onboarding.journeyEditor.publish.body",
+    placement: "bottom",
+  },
+];

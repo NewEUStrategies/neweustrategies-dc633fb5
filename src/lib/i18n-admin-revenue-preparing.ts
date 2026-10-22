@@ -32,7 +32,6 @@ const pl = {
       todayLabel: "Gdzie te dane są już dziś",
       stage: {
         s7: "Etap S7 - zakładki huba, diagnostyka i szybkie naprawy. Kolejność prac: S5 → S7 → S8 → I9.",
-        s5s8: "Etap S5 (silnik ścieżek: wyzwalacze, wysyłka, statystyki), potem S8 (lista, galeria szablonów i edytor kanwy). Kolejność prac: S5 → S7 → S8 → I9.",
         s6s7: "Słownik wskaźników działa od etapu S6. Bieżące wartości z oceną i kontekst porównania otwierany z adresu dołoży etap S7.",
       },
       what: {
@@ -51,8 +50,6 @@ const pl = {
           "Drabinę cen, macierz planów i benefitów z konfliktami, rabaty i kupony oraz kasę opisaną jednym zdaniem.",
         access:
           "Politykę dostępu do treści w jednym zdaniu, symulator czytelnika (pięć person), licznik darmowych artykułów, inwentarz treści i pomiar paywalla.",
-        journeys:
-          "Stan silnika wysyłki, listę ścieżek ze statusem, wyzwalaczem, osobami w toku i celem, galerię szablonów (m.in. porzucona kasa, powitanie konta, wyczerpany limit) oraz ustawienia silnika.",
         metrics:
           "Słownik wskaźników z definicją, wzorem, źródłem danych i benchmarkiem; od etapu S7 także bieżącą wartość z oceną i powód, gdy brak danych.",
         inputs:
@@ -72,7 +69,6 @@ const pl = {
         checkout: "Ustawienia kasy",
         metering: "Licznik artykułów",
         overrides: "Wyjątki dla treści",
-        outbox: "Skrzynka nadawcza e-maili",
       },
     },
   },
@@ -88,7 +84,6 @@ const en: typeof pl = {
       todayLabel: "Where this data lives today",
       stage: {
         s7: "Stage S7 - hub tabs, diagnostics and quick fixes. Work order: S5 → S7 → S8 → I9.",
-        s5s8: "Stage S5 (journey engine: triggers, sending, statistics), then S8 (list, template gallery and canvas editor). Work order: S5 → S7 → S8 → I9.",
         s6s7: "The metrics dictionary has worked since stage S6. Stage S7 adds current values with ratings and comparison context opened from the address.",
       },
       what: {
@@ -107,8 +102,6 @@ const en: typeof pl = {
           "The price ladder, the plan and benefit matrix with conflicts, discounts and coupons, and checkout described in one sentence.",
         access:
           "The content access policy in one sentence, a reader simulator (five personas), the free article meter, the content inventory and paywall measurement.",
-        journeys:
-          "Engine status, the list of journeys with status, trigger, people in progress and goal, a template gallery (including abandoned checkout, account welcome, exhausted limit) and engine settings.",
         metrics:
           "A metrics dictionary with definition, formula, data source and benchmark; from stage S7 also the current value with a rating and the reason when data is missing.",
         inputs:
@@ -128,7 +121,6 @@ const en: typeof pl = {
         checkout: "Checkout settings",
         metering: "Article meter",
         overrides: "Content exceptions",
-        outbox: "Email outbox",
       },
     },
   },

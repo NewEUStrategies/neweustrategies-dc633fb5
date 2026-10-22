@@ -19,7 +19,7 @@
 // maili): kategoria, liczba maili, wymagania, „czego NIE wysyła” i przepis,
 // który szablon zastępuje. Wskazówki Insidera to własne zdania słownika
 // (parafraza, BEZ liczb benchmarków - liczby daje wyłącznie zestaw S6).
-import type { JourneyEngineHealthDto, JourneyListItem } from "@/lib/journeys/dto";
+import type { JourneyEngineHealthDto } from "@/lib/journeys/dto";
 import { NODE_PARAMS_SCHEMAS, type JourneySettings } from "@/lib/journeys/graph";
 import { journeyLabelKey, journeyTriggerLabelKey } from "@/lib/journeys/labels";
 import type { JourneyCategory, JourneyReentry } from "@/lib/journeys/limits";
@@ -422,12 +422,11 @@ export const JOURNEY_REENTRY_LABEL_KEY: Readonly<Record<JourneyReentry, string>>
   cooldown: "adminJourneys.common.reentry.cooldown",
 };
 
-/** Licznik paska huba „Ścieżki = aktywne” (Z-S6-08 - podpięcie w I9). */
-export function activeJourneyCount(
-  list: readonly Pick<JourneyListItem, "status">[] | null | undefined,
-) {
-  return (list ?? []).filter((item) => item.status === "active").length;
-}
+/**
+ * Licznik paska huba „Ścieżki = aktywne” (Z-S6-08). Definicja w liściu
+ * `activeCount.ts`, żeby układ huba nie ciągnął całego modułu opisów.
+ */
+export { activeJourneyCount } from "./activeCount";
 
 // ── Fakty szablonu (galeria) ─────────────────────────────────────────────────
 

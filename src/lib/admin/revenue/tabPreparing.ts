@@ -18,16 +18,19 @@
 //
 // PRZEJŚCIOWE. Wycinek, który podmienia zaślepkę zakładki na treść, usuwa jej
 // wpis tutaj (albo zostawia odnośniki jako „Powiązane moduły" zakładki).
+// Integrator S8 (2026-10-22): Ścieżki mają treść (lista, galeria, edytor), więc
+// ich wpis, etap `s5s8` i odnośnik do skrzynki nadawczej zniknęły. Mapa jest
+// `Partial`: zakładka bez wpisu nie rysuje tego stanu (`RevenueTabPreparing`).
 // Plik leży w `src/lib/admin/**` - poza skanem arkusza CSS czytelnika.
 import { AREA_OWNER_LINK, type RelatedModule } from "@/lib/admin/revenue/hubTabs";
 import type { RevenueTabId } from "@/lib/revenue/search";
 
 /**
  * Etap, który dowiezie treść zakładki: `s7` - zakładki i diagnostyka,
- * `s5s8` - silnik ścieżek i ich ekrany, `s6s7` - słownik działa (S6), wartości
- * z oceną dokłada S7.
+ * `s6s7` - słownik działa (S6), wartości z oceną dokłada S7. Etap `s5s8`
+ * (Ścieżki) zniknął razem z ich zaślepką (Integrator S8).
  */
-export type RevenueTabStage = "s7" | "s5s8" | "s6s7";
+export type RevenueTabStage = "s7" | "s6s7";
 
 export interface TabPreparingSpec {
   stage: RevenueTabStage;
@@ -39,7 +42,6 @@ export interface TabPreparingSpec {
 
 export const TAB_STAGE_KEY: Readonly<Record<RevenueTabStage, string>> = {
   s7: "adminRevenue.preparing.stage.s7",
-  s5s8: "adminRevenue.preparing.stage.s5s8",
   s6s7: "adminRevenue.preparing.stage.s6s7",
 };
 
@@ -79,7 +81,6 @@ const SUBSCRIPTIONS: RelatedModule = {
   labelKey: "adminRevenue.preparing.link.subscriptions",
 };
 const BILLING: RelatedModule = { to: "/admin/billing", labelKey: "adminRevenue.related.billing" };
-const CRM: RelatedModule = { ...AREA_OWNER_LINK.crm, labelKey: "adminRevenue.related.crm" };
 const CRM_FUNNEL: RelatedModule = {
   to: "/admin/crm/funnel",
   labelKey: "adminRevenue.preparing.link.crmFunnel",
@@ -123,18 +124,6 @@ const SIGNUP_POPUP: RelatedModule = {
   ...AREA_OWNER_LINK.funnel,
   labelKey: "adminRevenue.preparing.link.signupPopup",
 };
-const NEWSLETTER: RelatedModule = {
-  ...AREA_OWNER_LINK.newsletter,
-  labelKey: "adminRevenue.related.newsletter",
-};
-const OUTBOX: RelatedModule = {
-  to: "/admin/newsletter/outbox",
-  labelKey: "adminRevenue.preparing.link.outbox",
-};
-const WORKFLOWS: RelatedModule = {
-  ...AREA_OWNER_LINK.workflows,
-  labelKey: "adminRevenue.related.workflows",
-};
 const EVENTS: RelatedModule = {
   ...AREA_OWNER_LINK.events,
   labelKey: "adminRevenue.preparing.link.events",
@@ -155,7 +144,7 @@ const CLUB_APPLICATIONS: RelatedModule = {
  * Dane wejściowe) widzi i tak wyłącznie admin - hub daje redaktorowi
  * `RoleGateNotice` przed tym stanem.
  */
-export const TAB_PREPARING: Readonly<Record<RevenueTabId, TabPreparingSpec>> = {
+export const TAB_PREPARING: Readonly<Partial<Record<RevenueTabId, TabPreparingSpec>>> = {
   overview: {
     stage: "s7",
     whatKey: "adminRevenue.preparing.what.overview",
@@ -195,11 +184,6 @@ export const TAB_PREPARING: Readonly<Record<RevenueTabId, TabPreparingSpec>> = {
     stage: "s7",
     whatKey: "adminRevenue.preparing.what.access",
     links: [METERING, OVERRIDES, CHECKOUT, MEMBERSHIP],
-  },
-  journeys: {
-    stage: "s5s8",
-    whatKey: "adminRevenue.preparing.what.journeys",
-    links: [WORKFLOWS, NEWSLETTER, OUTBOX, CRM],
   },
   metrics: {
     stage: "s6s7",

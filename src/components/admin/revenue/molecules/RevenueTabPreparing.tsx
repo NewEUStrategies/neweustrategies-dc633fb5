@@ -38,6 +38,9 @@ export function RevenueTabPreparing({ tab }: RevenueTabPreparingProps) {
   const { t } = useTranslation();
   const headingId = useId();
   const spec = TAB_PREPARING[tab];
+  // Zakładka z treścią nie ma już wpisu (od Integratora S8: Ścieżki) - stanu
+  // „w przygotowaniu" nie ma, więc molekuła nie rysuje niczego.
+  if (!spec) return null;
 
   return (
     <section
