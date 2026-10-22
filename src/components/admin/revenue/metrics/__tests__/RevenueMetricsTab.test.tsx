@@ -78,6 +78,7 @@ import { RevenueMetricsTab } from "@/components/admin/revenue/tabs/RevenueMetric
 import { localized } from "@/components/admin/analytics/semantic/__tests__/benchmarkFixtures";
 import { evaluateMetricValue } from "@/components/admin/analytics/semantic/hooks/useBenchmark";
 import { primaryBenchmarkFor } from "@/lib/analytics/semantic/benchmarks/index";
+import { HUB_METRIC_IDS } from "@/lib/analytics/semantic/metrics";
 import { NOW_MS, TENANT, clone } from "../../overview/__tests__/hubFixtures";
 import { ECONOMICS, metricsSnapshot } from "./metricsFixtures";
 
@@ -247,6 +248,28 @@ describe("arkusz wskaźnika z adresu ?metric=&ctx=", () => {
     expect(lastNavigation({ w: "prev-month", metric: "net_revenue_retention", ctx: "x" })).toEqual({
       search: { w: "prev-month", metric: undefined, ctx: undefined },
       replace: undefined,
+    });
+  });
+
+  it("zmiana kontekstu porównania w arkuszu pisze ?ctx= (podmiana wpisu historii)", async () => {
+    // Pierwszy wskaźnik huba, którego wpis rejestru ma co najmniej dwa konteksty.
+    const target = HUB_METRIC_IDS.map((id) => ({ id, entry: primaryBenchmarkFor(id) })).find(
+      ({ entry }) => entry && localized(entry.group, entry.key, "pl").contexts.length > 1,
+    );
+    if (!target?.entry) throw new Error("rejestr: brak wpisu z dwoma kontekstami");
+    const contexts = localized(target.entry.group, target.entry.key, "pl").contexts;
+    h.search = { metric: target.id };
+    renderTab();
+    const sheet = await screen.findByRole("dialog");
+    const trigger = await within(sheet).findByText(
+      (_, el) => el?.hasAttribute("data-bench-context") ?? false,
+    );
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    const other = contexts.find((c) => c.label !== trigger.textContent) ?? contexts[1];
+    fireEvent.click(await screen.findByRole("option", { name: other.label }));
+    expect(lastNavigation({ metric: target.id })).toEqual({
+      search: { metric: target.id, ctx: other.id },
+      replace: true,
     });
   });
 
