@@ -1,38 +1,25 @@
 // Molekuła: kontakty CRM, które najbliższe przebiegi zanonimizują (30 dni
 // wcześniej), z przedłużeniem o 12 miesięcy i obowiązkowym powodem.
 //
-// Powód: licznik znaków jak w bazie (punkty kodowe), wartość spoza 3-500
-// blokuje zapis z komunikatem - nigdy nie jest skracana (AGENTS: limit
-// odrzuca, nie przycina). Przedłużenie trafia do dziennika audytu.
+// Powód: wspólne okno `ReasonDialog` (licznik znaków jak w bazie, wartość
+// spoza 3-500 blokuje zapis z komunikatem - nigdy nie jest skracana; AGENTS:
+// limit odrzuca, nie przycina). Przedłużenie trafia do dziennika audytu.
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/i18n/format";
-import { DATA_RETENTION_RULES, normalizeExtensionReason } from "@/lib/privacy/dataRetention";
+import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
 import type { DataRetentionCrmDueItem } from "@/lib/privacy/dataRetentionParse";
 import {
   dataRetentionCrmDueQueryOptions,
   useExtendDataRetentionContact,
 } from "@/lib/privacy/dataRetentionQueries";
+import { ReasonDialog } from "./ReasonDialog";
 
-const {
-  crmExtensionMonths: MONTHS,
-  crmExtensionReasonMin: MIN,
-  crmExtensionReasonMax: MAX,
-} = DATA_RETENTION_RULES;
+const { crmExtensionMonths: MONTHS } = DATA_RETENTION_RULES;
 
 function contactName(item: DataRetentionCrmDueItem): string {
   const full = [item.firstName, item.lastName].filter(Boolean).join(" ").trim();
@@ -45,18 +32,10 @@ export function CrmDueList({ tenantId }: { tenantId: string }) {
   const dueQ = useQuery(dataRetentionCrmDueQueryOptions(tenantId));
   const extendM = useExtendDataRetentionContact(tenantId);
   const [target, setTarget] = useState<DataRetentionCrmDueItem | null>(null);
-  const [reason, setReason] = useState("");
-  const length = [...reason.trim()].length;
-  const valid = normalizeExtensionReason(reason) !== null;
   const days = DATA_RETENTION_RULES.crmNoticeDays;
 
-  const close = () => {
-    setTarget(null);
-    setReason("");
-  };
-
-  const submit = async () => {
-    if (!target || !valid) return;
+  const submit = async (reason: string): Promise<boolean> => {
+    if (!target) return false;
     const result = await extendM.mutateAsync({ leadId: target.leadId, reason });
     if (result.ok) {
       toast.success(
@@ -64,14 +43,14 @@ export function CrmDueList({ tenantId }: { tenantId: string }) {
           date: formatDate(result.data.extendedUntil, i18n.language),
         }),
       );
-      close();
-      return;
+      return true;
     }
     toast.error(
       result.error === "not_found"
         ? t("adminDataRetention.crm.notFound")
         : t("adminDataRetention.crm.extendError"),
     );
+    return false;
   };
 
   const data = dueQ.data?.state === "ready" ? dueQ.data.data : null;
@@ -153,41 +132,16 @@ export function CrmDueList({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
-      <Dialog open={target !== null} onOpenChange={(open) => (open ? undefined : close())}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("adminDataRetention.crm.extendTitle", { months: MONTHS })}</DialogTitle>
-            <DialogDescription>
-              {target ? contactName(target) : ""} - {t("adminDataRetention.crm.extendBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1">
-            <Label htmlFor={`${id}-reason`}>{t("adminDataRetention.crm.reasonLabel")}</Label>
-            <Textarea
-              id={`${id}-reason`}
-              value={reason}
-              rows={3}
-              aria-invalid={reason !== "" && !valid ? true : undefined}
-              aria-describedby={`${id}-reason-hint`}
-              onChange={(event) => setReason(event.target.value)}
-            />
-            <p id={`${id}-reason-hint`} className="text-xs text-muted-foreground">
-              {reason !== "" && !valid
-                ? t("adminDataRetention.crm.reasonInvalid", { min: MIN, max: MAX })
-                : t("adminDataRetention.crm.reasonHint", { min: MIN, max: MAX })}{" "}
-              {t("adminDataRetention.crm.reasonCount", { count: length, max: MAX })}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={close}>
-              {t("adminDataRetention.toggle.cancel")}
-            </Button>
-            <Button disabled={!valid || extendM.isPending} onClick={() => void submit()}>
-              {t("adminDataRetention.crm.extendSave", { months: MONTHS })}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReasonDialog
+        open={target !== null}
+        title={t("adminDataRetention.crm.extendTitle", { months: MONTHS })}
+        description={`${target ? contactName(target) : ""} - ${t("adminDataRetention.crm.extendBody")}`}
+        reasonLabel={t("adminDataRetention.crm.reasonLabel")}
+        confirmLabel={t("adminDataRetention.crm.extendSave", { months: MONTHS })}
+        pending={extendM.isPending}
+        onClose={() => setTarget(null)}
+        onConfirm={submit}
+      />
     </section>
   );
 }

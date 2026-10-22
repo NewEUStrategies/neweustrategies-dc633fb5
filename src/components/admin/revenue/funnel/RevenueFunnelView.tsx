@@ -14,11 +14,16 @@
 //
 // Kwoty widzi administrator (`amountsVisible` z SQL), tor Sprzedaż wymaga
 // `aal2` przy MFA (`MfaRequiredNotice` jako stan karty).
+//
+// (I9d-Y1) Pod mapą lejka notka z dymkiem, gdy okno (bieżące albo
+// porównawcze) sięga dalej niż najkrótszy okres odczytów licznika: dni sprzed
+// granicy retencji liczy anonimowy agregat dobowy (konto raz na dzień).
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { RevenueSection } from "@/components/admin/revenue/molecules/RevenueSection";
+import { RetentionAggregateNote } from "@/components/admin/settings/dataRetention/RetentionAggregateNote";
 import { Button } from "@/components/ui/button";
 import { ensureI18n as ensureFunnelI18n } from "@/lib/i18n-admin-revenue-funnel";
 import { ensureI18n } from "@/lib/i18n-admin-revenue-tabs";
@@ -103,7 +108,7 @@ export function RevenueFunnelView({
         actions={trackSwitch}
       >
         {track === "sales" ? null : (
-          <div className="rounded-[6px] border border-border p-3">
+          <div className="space-y-2 rounded-[6px] border border-border p-3">
             <FunnelStageMap
               tenantId={tenantId}
               range={range}
@@ -111,6 +116,9 @@ export function RevenueFunnelView({
               track={track}
               variant="full"
               onOpenStage={(next) => onSearchChange({ stage: next })}
+            />
+            <RetentionAggregateNote
+              windowStarts={[range.current.sinceIso, range.previous?.sinceIso]}
             />
           </div>
         )}
