@@ -64,6 +64,15 @@ function mayImportContent(file: string): boolean {
   );
 }
 
+/**
+ * Inne server fn z prawem WYŁĄCZNIE do rejestru źródeł (bez treści grup)
+ * i WYŁĄCZNIE importem dynamicznym w handlerze: diagnostyka S7 liczy wiek
+ * źródeł benchmarków (`data_quality.benchmarkSources`) z dat publikacji.
+ * Import w handlerze kompilator wycina z chunku klienta, jak w
+ * `benchmarks.functions.ts` - statyczny import nadal czerwieni bramkę.
+ */
+const SOURCES_READERS: readonly string[] = ["src/lib/revenue/diagnostics/diagnostics.functions.ts"];
+
 function sourceFiles(): string[] {
   return readdirSync(path.join(ROOT, "src"), { recursive: true, encoding: "utf8" })
     .filter((rel) => /\.(ts|tsx)$/.test(rel) && !rel.endsWith(".d.ts"))
@@ -84,12 +93,30 @@ describe("granica treści benchmarków", () => {
     for (const file of files) {
       if (mayImportContent(file)) continue;
       const code = bezKomentarzy(readFileSync(path.join(ROOT, file), "utf8"));
-      for (const { spec } of importSpecifiers(code)) {
+      for (const { spec, dynamic } of importSpecifiers(code)) {
         const resolved = resolveSpec(file, spec);
-        if (resolved && isContent(resolved)) offenders.push(`${file} → ${spec}`);
+        if (!resolved || !isContent(resolved)) continue;
+        const sourcesReader =
+          SOURCES_READERS.includes(file) && dynamic && resolved === SOURCES_MODULE;
+        if (!sourcesReader) offenders.push(`${file} → ${spec}`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("czytelnicy rejestru źródeł istnieją i sięgają po niego wyłącznie dynamicznie", () => {
+    for (const file of SOURCES_READERS) {
+      expect(files).toContain(file);
+      const code = bezKomentarzy(readFileSync(path.join(ROOT, file), "utf8"));
+      const content = importSpecifiers(code).filter(({ spec }) => {
+        const resolved = resolveSpec(file, spec);
+        return resolved !== null && isContent(resolved);
+      });
+      expect(content.length).toBeGreaterThan(0);
+      expect(content.every((c) => c.dynamic && resolveSpec(file, c.spec) === SOURCES_MODULE)).toBe(
+        true,
+      );
+    }
   });
 
   it("server fn sięga po treść WYŁĄCZNIE dynamicznie: sześć literalnych grup i rejestr źródeł", () => {
