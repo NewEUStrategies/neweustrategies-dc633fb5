@@ -256,6 +256,32 @@ const pl = {
       sectionLabel: "Sekcja społeczności",
       journeysNote:
         "Przypomnienia przed wydarzeniem i odpowiedzi na zgłoszenia do klubów wysyłają ścieżki komunikacji.",
+      journeysLink: "Otwórz ścieżki komunikacji",
+      kpiHeading: "Wskaźniki społeczności",
+      kpiDescription:
+        "Frekwencja, przychód z biletów i aktywność klubów w wybranym okresie - z oceną względem benchmarku z rejestru wskaźników.",
+      allSegmentsNote:
+        "Przekroje wydarzeń i klubów nie dzielą się na segmenty klientów - karty obejmują wszystkich uczestników.",
+      openEvents: "Otwórz moduł wydarzeń",
+      openStudio: "{{name}} - otwórz w studiu wydarzenia",
+      revenueColumn: "Przychód netto",
+      eventsCaption: "Wydarzenia w okresie - zgłoszenia, obecność i przychód",
+      pool: {
+        share: "Udział w zgłoszeniach dopuszczonych: {{value}}",
+        shareNone: "Udział w zgłoszeniach dopuszczonych: brak danych (brak zgłoszeń w okresie)",
+        empty: "W tym okresie nikt nie skorzystał z puli biletów planu.",
+        caption: "Wydarzenia z biletami z puli planu",
+        configure: "Pule biletów w planach - Członkostwo",
+      },
+      clubs: {
+        decided: "Decyzje w okresie",
+        decisionsNote:
+          "Decyzje obejmują też zgłoszenia złożone przed okresem, dlatego nie liczymy ich udziału w złożonych. Udział przyjętych liczymy wśród decyzji.",
+        decisionNone: "Brak decyzji w okresie",
+        openInbox: "Zgłoszenia czekające na decyzję",
+        openAnalytics: "{{name}} - analityka klubu",
+        caption: "Kluby - członkowie, aktywność i zgłoszenia",
+      },
     },
     funnelTab: {
       trackLabel: "Tor lejka",
@@ -734,6 +760,32 @@ const en: typeof pl = {
       sectionLabel: "Community section",
       journeysNote:
         "Reminders before events and replies to club applications are sent by communication journeys.",
+      journeysLink: "Open communication journeys",
+      kpiHeading: "Community indicators",
+      kpiDescription:
+        "Attendance, ticket revenue and club activity in the selected period - rated against the benchmark from the indicator registry.",
+      allSegmentsNote:
+        "Event and club breakdowns are not split by customer segment - the cards cover every participant.",
+      openEvents: "Open the events module",
+      openStudio: "{{name}} - open in the event studio",
+      revenueColumn: "Net revenue",
+      eventsCaption: "Events in the period - registrations, attendance and revenue",
+      pool: {
+        share: "Share of admitted registrations: {{value}}",
+        shareNone: "Share of admitted registrations: no data (no registrations in the period)",
+        empty: "Nobody used a plan ticket pool in this period.",
+        caption: "Events with tickets from a plan pool",
+        configure: "Ticket pools in plans - Membership",
+      },
+      clubs: {
+        decided: "Decisions in the period",
+        decisionsNote:
+          "Decisions also cover applications submitted before the period, so their share of submitted ones is not computed. The acceptance share is computed among decisions.",
+        decisionNone: "No decisions in the period",
+        openInbox: "Applications awaiting a decision",
+        openAnalytics: "{{name}} - club analytics",
+        caption: "Clubs - members, activity and applications",
+      },
     },
     funnelTab: {
       trackLabel: "Funnel track",
