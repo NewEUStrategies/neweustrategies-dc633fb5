@@ -6,6 +6,14 @@
 // Wyłączenie kategorii idzie przez potwierdzenie z ostrzeżeniem o zasadzie
 // ograniczenia przechowywania; włączenie i zmiana okresu - od razu (obie
 // skracają albo przywracają usuwanie, a podgląd pokazuje skutek).
+//
+// KARENCJA PER KATEGORIA (I9d-Y1). Nowa kategoria dostaje własne 14 dni
+// podglądu, także u najemcy, którego stare kategorie już usuwają - nagłówek
+// karty pokazuje najbliższy termin, a wiersz mówi, której kategorii dotyczy.
+//
+// Reguły stałe (np. dni na reakcję po prośbie o potwierdzenie) wchodzą do
+// opisu skutków jako zmienne ze stałej TS - liczba w dymku nie rozjedzie się
+// z liczbą, którą stosuje baza (parytet `DATA_RETENTION_RULES`).
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,7 +22,11 @@ import { FormSelect } from "@/components/atoms/FormSelect";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { isEditableCategory, retentionPeriodOptions } from "@/lib/privacy/dataRetention";
+import {
+  DATA_RETENTION_RULES,
+  isEditableCategory,
+  retentionPeriodOptions,
+} from "@/lib/privacy/dataRetention";
 import type {
   DataRetentionCategoryDto,
   DataRetentionPreviewItem,
@@ -27,6 +39,11 @@ export interface RetentionCategoryRowProps {
   previewState: "loading" | "error" | "ready";
   cap: number;
   busy: boolean;
+  /**
+   * Termin karencji w wierszu - tylko gdy kategorie mają RÓŻNE terminy
+   * (nagłówek karty pokazuje wtedy najbliższy, a nie ten z wiersza).
+   */
+  showGrace?: boolean;
   onPeriodChange: (months: number) => void;
   onEnabledChange: (enabled: boolean) => void;
 }
@@ -37,6 +54,7 @@ export function RetentionCategoryRow({
   previewState,
   cap,
   busy,
+  showGrace = false,
   onPeriodChange,
   onEnabledChange,
 }: RetentionCategoryRowProps) {
@@ -49,7 +67,7 @@ export function RetentionCategoryRow({
   const editableKey = category.editable && isEditableCategory(category.key) ? category.key : null;
   const editable = editableKey !== null;
   const hint = t("adminDataRetention.hintBody", {
-    after: t(`${base}.after`),
+    after: t(`${base}.after`, { responseDays: DATA_RETENTION_RULES.newsletterResponseDays }),
     basis: t(`${base}.basis`),
     standard: t(`${base}.standard`),
   });
@@ -76,6 +94,13 @@ export function RetentionCategoryRow({
             {t("adminDataRetention.statutory")}
           </Badge>
         )}
+        {showGrace && category.enabled && !category.enforced ? (
+          <p className="text-xs text-muted-foreground">
+            {t("adminDataRetention.categoryGrace", {
+              date: formatDateTime(category.enforceAfter, i18n.language),
+            })}
+          </p>
+        ) : null}
       </div>
 
       <div className="min-w-0 space-y-2">

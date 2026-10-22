@@ -15,12 +15,17 @@
 // - zapytanie mostu ma bramkę `roleOk: false`, więc RPC finansowe nie jest
 // wołane wcale (test w `RevenueOverview.test.tsx`).
 //
+// (I9d-Y1) Pod mini lejkiem ta sama notka agregatu dobowego co na zakładce
+// Lejek (`RetentionAggregateNote`) - te same liczby, to samo wyjaśnienie
+// dni sprzed granicy retencji odczytów licznika.
+//
 // Hierarchia nagłówków: `h1` układu, `h2` sekcji (`RevenueSection`), `h3`
 // kart w sekcji - jak w każdej zakładce huba.
 import { AttentionCard } from "@/components/admin/revenue/overview/AttentionCard";
 import { FunnelStageMap } from "@/components/admin/revenue/funnel/FunnelStageMap";
 import { MrrBridgeCard } from "@/components/admin/revenue/mrr/MrrBridgeCard";
 import { RevenueSection } from "@/components/admin/revenue/molecules/RevenueSection";
+import { RetentionAggregateNote } from "@/components/admin/settings/dataRetention/RetentionAggregateNote";
 import { ensureI18n } from "@/lib/i18n-admin-revenue-tabs";
 import type { RevenueSegment } from "@/lib/revenue/search";
 import type { RevenueRange } from "@/lib/revenue/window";
@@ -63,8 +68,11 @@ export function RevenueOverview({
         descriptionKey="adminRevenue.overview.flow.description"
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="min-w-0 rounded-[6px] border border-border p-3">
+          <div className="min-w-0 space-y-2 rounded-[6px] border border-border p-3">
             <FunnelStageMap tenantId={tenantId} range={range} segment={segment} variant="compact" />
+            <RetentionAggregateNote
+              windowStarts={[range.current.sinceIso, range.previous?.sinceIso]}
+            />
           </div>
           <div className="min-w-0 rounded-[6px] border border-border p-3">
             <MrrBridgeCard

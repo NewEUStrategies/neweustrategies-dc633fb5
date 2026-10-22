@@ -9,6 +9,9 @@
 //      adresu; tor Sprzedaż pokazuje etapy CRM i zadania, samoobsługa - nie.
 //   5. `?stage=` otwiera arkusz kroku; wartość spoza listy - nic.
 //   6. Bez najemcy karty nie wysyłają zapytań; axe bez naruszeń.
+//   7. (I9d-Y1) Okno sięgające dalej niż najkrótszy okres odczytów licznika
+//      dostaje notkę z dymkiem „starsze dni z agregatu dobowego"; miesiąc
+//      (domyślny) - nie.
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RevenueHubSearch } from "@/lib/revenue/search";
@@ -170,6 +173,21 @@ describe("RevenueFunnelTab - tor i krok w adresie", () => {
     renderWithClient(<RevenueFunnelTab />);
     await screen.findByTestId("funnel-stage-map");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("okno roczne: notka „starsze dni z agregatu dobowego” z dymkiem; miesiąc - bez notki", async () => {
+    renderWithClient(<RevenueFunnelTab />);
+    await screen.findByTestId("funnel-stage-map");
+    expect(screen.queryByText("Starsze dni z agregatu dobowego")).toBeNull();
+    cleanup();
+    h.search = { w: "year" };
+    renderWithClient(<RevenueFunnelTab />);
+    await screen.findByTestId("funnel-stage-map");
+    expect(screen.getByText("Starsze dni z agregatu dobowego")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Skąd liczby starszych dni?" })).toBeTruthy();
+    expect(
+      screen.getByText(/konto czytające albo z uderzeniem w paywall liczy się raz na dzień/),
+    ).toBeTruthy();
   });
 
   it("nie ma naruszeń dostępności", async () => {

@@ -12,6 +12,8 @@
 //   4. „Zacznij tutaj" z faktów, „Wymaga uwagi", kondycja obszarów (obszar
 //      bez faktów = brak danych), karty Ścieżek i Społeczności.
 //   5. Bez najemcy - zero zapytań; axe bez naruszeń dla obu ról.
+//   6. (I9d-Y1) Mini lejek z oknem sięgającym przed najkrótszy okres odczytów
+//      licznika ma tę samą notkę agregatu dobowego co zakładka Lejek.
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -102,13 +104,17 @@ import { revenueFunnelQueryOptions } from "@/lib/revenue/funnel/queries";
 import { FUNNEL_DTO, MRR_BRIDGE, TENANT, clone, testRange } from "./hubFixtures";
 import { CLUBS_SUMMARY, EVENTS_SUMMARY, FACTS, JOURNEYS, snapshot } from "./overviewMocks";
 
-function renderOverview(roles: string[], tenantId: string | null = TENANT) {
+function renderOverview(
+  roles: string[],
+  tenantId: string | null = TENANT,
+  range: ReturnType<typeof testRange> = testRange(),
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui: ReactNode = (
     <RevenueOverview
       tenantId={tenantId}
       roles={roles}
-      range={testRange()}
+      range={range}
       currency={null}
       segment={null}
     />
@@ -194,6 +200,18 @@ describe("Kokpit - administrator", () => {
     expect(await within(community).findByText("3 wydarzenia")).toBeVisible();
     expect(within(community).getByText(/Frekwencja: 80\s?%/)).toBeVisible();
     expect(within(community).getByText("2 zgłoszenia czekają na decyzję")).toBeVisible();
+  });
+
+  it("I9d-Y1: okno kwartalne (porównanie sprzed 2 mies.) - notka agregatu dobowego pod mini lejkiem", async () => {
+    // Kwartał porównawczy zaczyna się dalej niż najkrótszy dozwolony okres
+    // odczytów licznika - niezależnie od dnia uruchomienia testu.
+    renderOverview(["admin"], TENANT, testRange("quarter"));
+    const map = await screen.findByTestId("funnel-stage-map");
+    const card = map.parentElement as HTMLElement;
+    expect(within(card).getByText("Starsze dni z agregatu dobowego")).toBeVisible();
+    expect(
+      within(card).getByRole("button", { name: "Skąd liczby starszych dni?" }),
+    ).toBeInTheDocument();
   });
 
   it("nie ma naruszeń dostępności", async () => {
