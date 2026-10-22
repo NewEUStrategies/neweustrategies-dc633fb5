@@ -17,6 +17,7 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { retentionFeedbackWindowQueryOptions } from "@/components/admin/pricing/retentionFeedbackWindow";
+import { RetentionAggregateNote } from "@/components/admin/settings/dataRetention/RetentionAggregateNote";
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,12 @@ export const Route = createFileRoute("/admin/monetization")({
 
 interface DashboardShape {
   range: { from: string; to: string };
+  /**
+   * (I9d-Y1) Pierwszy dzień liczony z surowych wierszy - dni wcześniejsze
+   * pochodzą z anonimowego agregatu dobowego (retencja odczytów licznika
+   * i dziennika licznika). Brak klucza = baza sprzed migracji 20261020161700.
+   */
+  aggregate_before?: string | null;
   metered_views: { total: number; members: number; anonymous: number };
   metering_events: { consumed: number; denied: number; reg_wall: number };
   orders: { total: number; paid: number; revenue_cents: number };
@@ -247,6 +254,8 @@ function AdminMonetizationPage() {
               )}
             />
           </div>
+          {/* Okno sięgające przed granicę retencji: skąd liczby starszych dni. */}
+          <RetentionAggregateNote before={dashQ.data.aggregate_before ?? null} from={from} />
 
           <Card>
             <CardHeader>

@@ -5,7 +5,8 @@
 // „włącz teraz", przesunięcie terminu), harmonogram (ostatni przebieg zadania
 // dziennego), kategorie z okresem i przełącznikiem, kategorie ustawowe tylko
 // do odczytu, piksel otwarć (ustawienie silnika ścieżek), kontakty CRM „do
-// anonimizacji" z przedłużeniem, okresy ustalone w innych modułach i ręczne
+// anonimizacji" z przedłużeniem, nieaktywnych subskrybentów „do wygaszenia"
+// z wykluczeniem (I9d-Y1), okresy ustalone w innych modułach i ręczne
 // uruchomienie przebiegu z potwierdzeniem.
 //
 // LENIWY CHUNK: trasa ładuje kartę przez `lazy()`, więc słownik, zapytania
@@ -47,6 +48,7 @@ import {
   useSaveOpenTracking,
 } from "@/lib/privacy/dataRetentionQueries";
 import { CrmDueList } from "./CrmDueList";
+import { NewsletterSunsetList } from "./NewsletterSunsetList";
 import { RetentionCategoryRow } from "./RetentionCategoryRow";
 
 /** Lokalny dzień natywnego pola daty (bez UTC - dzień się nie przesuwa). */
@@ -203,6 +205,16 @@ function RetentionBody({ tenantId, state }: { tenantId: string; state: DataReten
   };
 
   const busy = saveM.isPending || enforcementM.isPending;
+  // Lista „do wygaszenia" tylko wtedy, gdy baza zna kategorię - front nowszy
+  // niż migracja wygaszania pokazałby zamiast niej błąd odczytu RPC.
+  const sunset = state.categories.find((c) => c.key === "newsletter_inactive") ?? null;
+  // Karencja w wierszach tylko przy terminach RÓŻNYCH (nowe kategorie I9d
+  // dostają własne 14 dni, gdy stare już usuwają) - przy jednym wspólnym
+  // terminie wystarczy nagłówek, a 13 identycznych zdań byłoby szumem.
+  const enabled = state.categories.filter((c) => c.enabled);
+  const mixedGrace =
+    (enabled.some((c) => c.enforced) && enabled.some((c) => !c.enforced)) ||
+    new Set(enabled.filter((c) => !c.enforced).map((c) => c.enforceAfter)).size > 1;
 
   return (
     <div className="space-y-6">
@@ -313,6 +325,7 @@ function RetentionBody({ tenantId, state }: { tenantId: string; state: DataReten
             previewState={previewState}
             cap={preview?.cap ?? 0}
             busy={busy}
+            showGrace={mixedGrace}
             onPeriodChange={(months) => void save(category, months, category.enabled)}
             onEnabledChange={(enabled) =>
               enabled ? void save(category, category.periodMonths ?? 0, true) : askDisable(category)
@@ -345,6 +358,10 @@ function RetentionBody({ tenantId, state }: { tenantId: string; state: DataReten
       </div>
 
       <CrmDueList tenantId={tenantId} />
+
+      {sunset ? (
+        <NewsletterSunsetList tenantId={tenantId} enforceAfter={sunset.enforceAfter} />
+      ) : null}
 
       {/* Okresy ustalone w innych modułach. */}
       <div role="region" aria-labelledby={`${id}-existing`} className="space-y-2">
