@@ -105,6 +105,17 @@ export type L2Store = "named" | "default";
 export type L2SelfTestLabel = "pending" | L2Store | "off";
 
 /**
+ * KROK, na którym samotest oblał (2026-10-22). Produkcja na hostingu Lovable
+ * melduje w każdej odpowiedzi `nes-l2;desc="off"`, a samo „off" nie mówi, czy
+ * zapis rzucił (`put`), odczyt rzucił (`read`), wpis nigdy nie wrócił
+ * (`miss` - magazyn-atrapa albo opóźnienie dłuższe niż wszystkie ponowienia),
+ * wrócił z obcą treścią (`mismatch`), czy wybuchło coś innego (`error`).
+ * To rozstrzyga, czy L2 da się naprawić w kodzie, czy wyłącznie hostingiem -
+ * jednym `curl`, bez dostępu do Workers Logs.
+ */
+export type L2SelfTestFailure = "put" | "read" | "miss" | "mismatch" | "error";
+
+/**
  * Nazwa cache'u w Cache API. Zmiana nazwy to świadomy reset całej L2 we
  * wszystkich koloniach (nowa przestrzeń kluczy, stara wygasa TTL-em).
  */
@@ -129,11 +140,15 @@ const VERSION_MEMO_TTL_MS = 2_000;
 /** Wpis samotestu wygasa sam - nie ma czego sprzątać. */
 const SELF_TEST_TTL_SECONDS = 60;
 /**
- * Jedno ponowienie odczytu samotestu po krótkiej przerwie: fałszywe „nie
- * działa" wyłączyłoby L2 na całe życie izolatu, a ponowienie kosztuje jeden
- * odczyt pod `waitUntil`, nigdy czas czytelnika.
+ * Ponowienia odczytu samotestu (opóźnienia przed kolejnymi próbami): fałszywe
+ * „nie działa" wyłączyłoby L2 na całe życie izolatu, a ponowienie kosztuje
+ * jeden odczyt pod `waitUntil`, nigdy czas czytelnika. Do 2026-10-22 było
+ * jedno ponowienie po 100 ms - magazyn z opóźnieniem zapis->odczyt dłuższym niż
+ * 100 ms był nieodróżnialny od martwego i wyłączany. Trzy próby rozpięte na
+ * ~2,6 s rozstrzygają to bez kosztu dla czytelnika; do werdyktu L2 działa
+ * optymistycznie, jak dotąd.
  */
-const SELF_TEST_RETRY_MS = 100;
+const SELF_TEST_RETRY_DELAYS_MS = [100, 500, 2_000] as const;
 /** Segment buildu poza buildem (vitest): stały napis, nigdy zegar. */
 const DEV_BUILD_ID = "dev";
 const BUILD_ID_MAX_LENGTH = 64;
@@ -181,6 +196,8 @@ interface RuntimeState {
   opened: ColoCache | null | undefined;
   /** Wynik samotestu; null = trwa albo nie dotyczy. */
   verified: boolean | null;
+  /** Krok, na którym samotest oblał; null = przeszedł, trwa albo nie dotyczy. */
+  failure: L2SelfTestFailure | null;
   selfTestScheduled: boolean;
 }
 
@@ -279,6 +296,7 @@ function resolveRuntime(source: RuntimeCaches): RuntimeState {
       store: null,
       opened: undefined,
       verified: null,
+      failure: null,
       selfTestScheduled: false,
     };
     state.cache = namedCacheFacade(state);
@@ -294,6 +312,7 @@ function resolveRuntime(source: RuntimeCaches): RuntimeState {
     store: cache ? "default" : null,
     opened: cache,
     verified: null,
+    failure: null,
     selfTestScheduled: false,
   };
 }
@@ -313,9 +332,19 @@ function selfTestNonce(): string {
   }
 }
 
-async function selfTestHit(cache: ColoCache, request: Request, nonce: string): Promise<boolean> {
-  const hit = await cache.match(request);
-  return hit ? (await hit.text()) === nonce : false;
+/** Jeden odczyt samotestu: trafienie albo krok porażki (nigdy nie rzuca). */
+async function selfTestRead(
+  cache: ColoCache,
+  request: Request,
+  nonce: string,
+): Promise<"hit" | Extract<L2SelfTestFailure, "read" | "miss" | "mismatch">> {
+  try {
+    const hit = await cache.match(request);
+    if (!hit) return "miss";
+    return (await hit.text()) === nonce ? "hit" : "mismatch";
+  } catch {
+    return "read";
+  }
 }
 
 /**
@@ -325,34 +354,53 @@ async function selfTestHit(cache: ColoCache, request: Request, nonce: string): P
  */
 async function runSelfTest(state: RuntimeState, cache: ColoCache): Promise<void> {
   const startedAt = Date.now();
-  let ok = false;
+  let failure: L2SelfTestFailure | null = null;
+  let attempts = 0;
   try {
     const nonce = selfTestNonce();
     const request = new Request(`${KEY_ORIGIN}${SELF_TEST_PATH}/${nonce}`);
-    await cache.put(
-      request,
-      new Response(nonce, {
-        headers: {
-          "content-type": "text/plain; charset=utf-8",
-          "cache-control": `public, max-age=${SELF_TEST_TTL_SECONDS}`,
-        },
-      }),
-    );
-    ok = await selfTestHit(cache, request, nonce);
-    if (!ok) {
-      await new Promise((resolve) => setTimeout(resolve, SELF_TEST_RETRY_MS));
-      ok = await selfTestHit(cache, request, nonce);
+    try {
+      await cache.put(
+        request,
+        new Response(nonce, {
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": `public, max-age=${SELF_TEST_TTL_SECONDS}`,
+          },
+        }),
+      );
+    } catch {
+      failure = "put";
+    }
+    if (failure === null) {
+      attempts = 1;
+      let outcome = await selfTestRead(cache, request, nonce);
+      for (const delay of SELF_TEST_RETRY_DELAYS_MS) {
+        if (outcome === "hit") break;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        attempts += 1;
+        outcome = await selfTestRead(cache, request, nonce);
+      }
+      if (outcome !== "hit") failure = outcome;
     }
   } catch {
-    ok = false;
+    failure ??= "error";
   }
-  state.verified = ok;
+  state.failure = failure;
+  state.verified = failure === null;
   try {
-    // Jedna linia na izolat (Workers Logs): czy L2 w ogóle działa i na którym
-    // magazynie. Bez niej „brak L2" w liniach dokumentów nie odróżnia martwego
-    // magazynu od braku wpisu.
+    // Jedna linia na izolat (Workers Logs): czy L2 w ogóle działa, na którym
+    // magazynie, na którym kroku oblał i po ilu odczytach. Bez niej „brak L2"
+    // w liniach dokumentów nie odróżnia martwego magazynu od braku wpisu.
     console.log(
-      JSON.stringify({ kind: "l2", verified: ok, store: state.store, ms: Date.now() - startedAt }),
+      JSON.stringify({
+        kind: "l2",
+        verified: failure === null,
+        store: state.store,
+        failure,
+        attempts,
+        ms: Date.now() - startedAt,
+      }),
     );
   } catch {
     /* telemetria nie może zerwać pracy w tle */
@@ -626,6 +674,15 @@ export function l2SelfTestLabel(): L2SelfTestLabel | null {
   if (!state?.selfTest) return null;
   if (state.verified === null) return "pending";
   return state.verified && state.store ? state.store : "off";
+}
+
+/**
+ * Krok porażki samotestu L2 tego izolatu (`nes-l2-fail` w Server-Timing
+ * dokumentu); null = samotest przeszedł, trwa albo nie dotyczy.
+ */
+export function l2SelfTestFailure(): L2SelfTestFailure | null {
+  if (injectedCache !== undefined) return null;
+  return runtimeState()?.failure ?? null;
 }
 
 /**

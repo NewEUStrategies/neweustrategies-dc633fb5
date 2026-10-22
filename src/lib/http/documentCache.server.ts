@@ -78,6 +78,7 @@ import {
   l2Delete,
   l2Match,
   l2Put,
+  l2SelfTestFailure,
   l2SelfTestLabel,
   l2Stats,
   recordL2Serve,
@@ -580,12 +581,17 @@ function evictGoneDocument(host: string | null, key: string): void {
  * Stan samotestu L2 izolatu jako ostatnia metryka Server-Timing dokumentu
  * (`nes-l2;desc="named"|"default"|"pending"|"off"`, R7b) - sonda produkcyjna:
  * jedno `curl` mówi, czy L2 izolatu, który odpowiedział, w ogóle działa.
- * Bez samotestu (atrapa w testach, runtime bez `caches.open`, poza Workers)
- * wartość jest bajt w bajt dawnym napisem.
+ * Przy "off" dochodzi krok porażki (`nes-l2-fail;desc="put"|"read"|"miss"|
+ * "mismatch"|"error"`): czy magazyn jest martwy na tym hostingu, czy tylko
+ * zawodzi jeden krok. Bez samotestu (atrapa w testach, runtime bez
+ * `caches.open`, poza Workers) wartość jest bajt w bajt dawnym napisem.
  */
 function withL2SelfTest(serverTiming: string): string {
   const label = l2SelfTestLabel();
-  return label ? `${serverTiming}, nes-l2;desc="${label}"` : serverTiming;
+  if (!label) return serverTiming;
+  const failure = label === "off" ? l2SelfTestFailure() : null;
+  const failed = failure ? `, nes-l2-fail;desc="${failure}"` : "";
+  return `${serverTiming}, nes-l2;desc="${label}"${failed}`;
 }
 
 /**

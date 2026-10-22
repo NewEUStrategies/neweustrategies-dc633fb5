@@ -214,6 +214,54 @@ describe("fasada nazwanego cache'u (`caches.open`)", () => {
   });
 });
 
+// KROK PORAŻKI SAMOTESTU (2026-10-22). Produkcja na hostingu Lovable melduje
+// wyłącznie `nes-l2;desc="off"`; bez kroku nie wiadomo, czy magazyn jest
+// martwy (`miss`), czy zawodzi zapis (`put`) albo odczyt (`read`), ani czy
+// wpis wraca dopiero po opóźnieniu (wtedy samotest przechodzi).
+describe("samotest L2: krok porażki i opóźniony odczyt", () => {
+  it('zapis rzuca: `nes-l2-fail;desc="put"` i jedna linia logu z krokiem', async () => {
+    const named = {
+      match: vi.fn(async (): Promise<Response | undefined> => undefined),
+      put: vi.fn(async (): Promise<void> => {
+        throw new Error("put zablokowany przez runtime");
+      }),
+    };
+    vi.stubGlobal("caches", { default: inertCache(), open: async () => named });
+    const render = vi.fn(() => htmlResponse("<html>r</html>"));
+
+    await (await renderThroughEdge("/zapis", render)).text();
+    await vi.waitFor(() => expect(l2Stats().verified).toBe(false));
+    resetDocumentCacheForTests();
+    const miss = await renderThroughEdge("/zapis", render);
+    expect(miss.headers.get("server-timing")).toMatch(/nes-l2;desc="off", nes-l2-fail;desc="put"$/);
+    await miss.text();
+    const lines = log.mock.calls
+      .map((call) => JSON.parse(String(call[0])) as { kind?: string })
+      .filter((line) => line.kind === "l2");
+    expect(lines).toEqual([
+      expect.objectContaining({ kind: "l2", verified: false, failure: "put", attempts: 0 }),
+    ]);
+  });
+
+  it("wpis wraca dopiero po opóźnieniu: samotest przechodzi zamiast wyłączać L2", async () => {
+    const named = memoryCache();
+    let reads = 0;
+    const lagging = {
+      ...named,
+      match: vi.fn(async (request: Request) => {
+        // Pierwsze dwa odczyty samotestu chybiają (opóźnienie zapis->odczyt).
+        if (request.url.includes("/selftest/") && reads++ < 2) return undefined;
+        return named.match(request);
+      }),
+    };
+    vi.stubGlobal("caches", { default: inertCache(), open: async () => lagging });
+
+    await (await renderThroughEdge("/opoznienie", () => htmlResponse("<html>o</html>"))).text();
+    await vi.waitFor(() => expect(l2Stats().verified).toBe(true), { timeout: 2_000 });
+    expect(l2Stats()).toMatchObject({ enabled: true, store: "named" });
+  });
+});
+
 describe("`caches.open` niedostępne: powrót do `caches.default`", () => {
   it.each([
     ["odrzuca obietnicę", async () => Promise.reject(new Error("disabled"))],
@@ -232,7 +280,9 @@ describe("`caches.open` niedostępne: powrót do `caches.default`", () => {
       const render = vi.fn(() => htmlResponse("<html>render</html>"));
 
       await (await renderThroughEdge("/martwe", render)).text();
-      await vi.waitFor(() => expect(l2Stats().verified).toBe(false));
+      // Werdykt „martwy" zapada dopiero po wszystkich ponowieniach odczytu
+      // (100 + 500 + 2 000 ms) - do tego czasu L2 działa optymistycznie.
+      await vi.waitFor(() => expect(l2Stats().verified).toBe(false), { timeout: 5_000 });
       expect(l2Stats()).toMatchObject({ enabled: false, verified: false, store: "default" });
       expect(getColoCache()).toBeNull();
       expect(getDocumentCacheSnapshot().l2).toMatchObject({ enabled: false, verified: false });
@@ -242,7 +292,9 @@ describe("`caches.open` niedostępne: powrót do `caches.default`", () => {
       resetDocumentCacheForTests();
       const miss = await renderThroughEdge("/martwe", render);
       expect(miss.headers.get(NES_CACHE_HEADER)).toBe("MISS");
-      expect(miss.headers.get("server-timing")).toMatch(/nes-l2;desc="off"$/);
+      expect(miss.headers.get("server-timing")).toMatch(
+        /nes-l2;desc="off", nes-l2-fail;desc="miss"$/,
+      );
       await miss.text();
       expect(fallback.match.mock.calls.length + fallback.put.mock.calls.length).toBe(touched);
       // L1 działa bez zmian: kolejne żądanie tego izolatu to HIT z pamięci.
