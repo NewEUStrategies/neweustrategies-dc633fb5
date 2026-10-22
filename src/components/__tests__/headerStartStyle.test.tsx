@@ -670,6 +670,111 @@ describe("Header - leniwa pierwsza publikacja --sticky-header-h (P3.1 A, PB5)", 
   });
 });
 
+// LENIWY POMIAR WYMIARÓW ZWIJANIA (2026-10-22, Speed Index). Zapis --hdr-* i
+// data-metrics w zadaniu hydratacji, a zaraz po nim odczyt `document.fonts.ready`
+// wymuszały Layout nagłówka - jedyny Layout w tym zadaniu, który Lantern liczy
+// do Speed Indexu z końcem zadania po całym bootcie JS.
+describe("Header - leniwa pierwsza publikacja wymiarów zwijania (--hdr-*)", () => {
+  const hdrVars = () =>
+    ["--hdr-nat", "--hdr-tt", "--hdr-extra"].map((name) => headerEl().style.getPropertyValue(name));
+
+  /** Geometria jak w przeglądarce: header 261, chrome 259, pasek "na czasie" 40. */
+  function mockHeaderGeometry(): void {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.classList.contains("cms-trending")) return rect(40);
+      if (this.matches("header[data-site-header]")) return rect(261);
+      return rect(259);
+    });
+  }
+
+  function spyFontsAccess(): () => number {
+    let reads = 0;
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return { ready: Promise.resolve() };
+      },
+    });
+    return () => reads;
+  }
+
+  it("montaż nie mierzy, nie zapisuje i nie czyta document.fonts; zatrzask publikuje raz", async () => {
+    mockHeaderGeometry();
+    const fontsReads = spyFontsAccess();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+
+    expect(headerEl().dataset.metrics).toBeUndefined();
+    expect(hdrVars()).toEqual(["", "", ""]);
+    expect(fontsReads()).toBe(0);
+
+    openLatch();
+    expect(headerEl().dataset.metrics).toBe("ready");
+    expect(hdrVars()[0]).toBe("259px");
+    expect(fontsReads()).toBe(1);
+  });
+
+  it("pierwszy scroll publikuje synchronicznie (przed rAF zwijania), fonts.ready przed pomiarem", async () => {
+    const order: string[] = [];
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      order.push("measure");
+      if (this.classList.contains("cms-trending")) return rect(40);
+      if (this.matches("header[data-site-header]")) return rect(261);
+      return rect(259);
+    });
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      get: () => {
+        order.push("fonts");
+        return { ready: Promise.resolve() };
+      },
+    });
+    stubFrames();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    expect(headerEl().dataset.metrics).toBeUndefined();
+    order.length = 0;
+
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+    expect(headerEl().dataset.metrics).toBe("ready");
+    expect(hdrVars()[0]).toBe("259px");
+    expect(order[0]).toBe("fonts");
+    expect(order.filter((step) => step === "fonts")).toHaveLength(1);
+  });
+
+  it.each([
+    ["pointerdown", () => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }))],
+    [
+      "keydown",
+      () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true })),
+    ],
+    ["focusin", () => document.body.dispatchEvent(new FocusEvent("focusin", { bubbles: true }))],
+  ])("%s nie mierzy synchronicznie (pomiar nie trafia do INP)", async (_type, fire) => {
+    mockHeaderGeometry();
+    stubFrames();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+
+    act(() => fire());
+    expect(headerEl().dataset.metrics).toBeUndefined();
+  });
+
+  it("strona przewinięta przy wejściu mierzy od razu (header ma się zwinąć)", async () => {
+    mockHeaderGeometry();
+    stubScroll(400, 4000);
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    expect(headerEl().dataset.metrics).toBe("ready");
+  });
+});
+
 describe("Header - zwijanie bez przeliczeń stylu dokumentu (P1.2, F2/F2b)", () => {
   it("montaż nie przełącza data-settled (true -> false -> true) - tylko zmiana scrolled to robi", async () => {
     vi.useFakeTimers();
