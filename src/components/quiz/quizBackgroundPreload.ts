@@ -7,10 +7,15 @@
 // pomiar entry 2026-10-02). Tutaj zostają tylko cztery adresy AVIF, których
 // `head()` naprawdę potrzebuje; komponent importuje stąd i re-eksportuje
 // obie stałe, więc testy i dotychczasowi importerzy widzą to samo API.
-import lightMobileAvif from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
-import lightDesktopAvif from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
-import darkMobileAvif from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
-import darkDesktopAvif from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
+//
+// IMPORT NAZWANY `url`, NIE DOMYŚLNY. Domyślny import manifestu to cały obiekt
+// (asset_id, project_id, r2_key, rozmiar, daty), a ten moduł jest w chunku
+// wejściowym - każdy czytelnik pobierał cztery komplety metadanych, z których
+// czytamy jedno pole. Import nazwany wiąże tylko `url`, resztę Rollup usuwa.
+import { url as lightMobileAvifUrl } from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
+import { url as lightDesktopAvifUrl } from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
+import { url as darkMobileAvifUrl } from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
+import { url as darkDesktopAvifUrl } from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
 import { THEME_RESOLVE_JS } from "@/lib/theme/themeChoice";
 
 /** Preload dla LCP tła - wariant LIGHT (SSR default) w formacie AVIF (najlżejszy).
@@ -21,7 +26,7 @@ export const QUIZ_BG_PRELOAD_LINKS = [
   {
     rel: "preload",
     as: "image",
-    href: lightMobileAvif.url,
+    href: lightMobileAvifUrl,
     type: "image/avif",
     media: "(max-width: 767px)",
     fetchpriority: "high",
@@ -29,7 +34,7 @@ export const QUIZ_BG_PRELOAD_LINKS = [
   {
     rel: "preload",
     as: "image",
-    href: lightDesktopAvif.url,
+    href: lightDesktopAvifUrl,
     type: "image/avif",
     media: "(min-width: 768px)",
     fetchpriority: "high",
@@ -50,7 +55,7 @@ export const QUIZ_BG_PRELOAD_SCRIPT = `(function(){try{
 ${THEME_RESOLVE_JS}
 if(!d)return;
 var isMobile=window.matchMedia&&window.matchMedia('(max-width: 767px)').matches;
-var href=isMobile?${JSON.stringify(darkMobileAvif.url)}:${JSON.stringify(darkDesktopAvif.url)};
+var href=isMobile?${JSON.stringify(darkMobileAvifUrl)}:${JSON.stringify(darkDesktopAvifUrl)};
 var l=document.createElement('link');
 l.rel='preload';l.as='image';l.href=href;l.type='image/avif';l.setAttribute('fetchpriority','high');
 document.head.appendChild(l);

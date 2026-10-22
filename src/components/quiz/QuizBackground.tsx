@@ -14,28 +14,32 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import lightMobileJpg from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
-import lightDesktopJpg from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
-import darkMobileJpg from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
-import darkDesktopJpg from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
-import lightMobileWebp from "@/assets/quiz/quiz-bg-light-mobile.webp.asset.json";
-import lightDesktopWebp from "@/assets/quiz/quiz-bg-light-desktop.webp.asset.json";
-import darkMobileWebp from "@/assets/quiz/quiz-bg-dark-mobile.webp.asset.json";
-import darkDesktopWebp from "@/assets/quiz/quiz-bg-dark-desktop.webp.asset.json";
-import lightMobileAvif from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
-import lightDesktopAvif from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
-import darkMobileAvif from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
-import darkDesktopAvif from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
+import { url as lightMobileJpgUrl } from "@/assets/quiz/quiz-bg-light-mobile.jpg.asset.json";
+import { url as lightDesktopJpgUrl } from "@/assets/quiz/quiz-bg-light-desktop.jpg.asset.json";
+import { url as darkMobileJpgUrl } from "@/assets/quiz/quiz-bg-dark-mobile.jpg.asset.json";
+import { url as darkDesktopJpgUrl } from "@/assets/quiz/quiz-bg-dark-desktop.jpg.asset.json";
+import { url as lightMobileWebpUrl } from "@/assets/quiz/quiz-bg-light-mobile.webp.asset.json";
+import { url as lightDesktopWebpUrl } from "@/assets/quiz/quiz-bg-light-desktop.webp.asset.json";
+import { url as darkMobileWebpUrl } from "@/assets/quiz/quiz-bg-dark-mobile.webp.asset.json";
+import { url as darkDesktopWebpUrl } from "@/assets/quiz/quiz-bg-dark-desktop.webp.asset.json";
+import { url as lightMobileAvifUrl } from "@/assets/quiz/quiz-bg-light-mobile.avif.asset.json";
+import { url as lightDesktopAvifUrl } from "@/assets/quiz/quiz-bg-light-desktop.avif.asset.json";
+import { url as darkMobileAvifUrl } from "@/assets/quiz/quiz-bg-dark-mobile.avif.asset.json";
+import { url as darkDesktopAvifUrl } from "@/assets/quiz/quiz-bg-dark-desktop.avif.asset.json";
 
+// Z manifestów importujemy tylko `url` (import nazwany): cztery manifesty AVIF
+// dzieli z tym leniwym chunkiem `quizBackgroundPreload.ts` z chunku wejściowego,
+// a domyślny import tutaj zmuszał bundler do eksportu z wejścia całych
+// obiektów (asset_id, project_id, r2_key, rozmiary, daty).
 // Formaty w kolejności negocjacji: AVIF > WebP > JPG (fallback dla <img src>).
 const BG = {
   light: {
-    mobile: { avif: lightMobileAvif.url, webp: lightMobileWebp.url, jpg: lightMobileJpg.url },
-    desktop: { avif: lightDesktopAvif.url, webp: lightDesktopWebp.url, jpg: lightDesktopJpg.url },
+    mobile: { avif: lightMobileAvifUrl, webp: lightMobileWebpUrl, jpg: lightMobileJpgUrl },
+    desktop: { avif: lightDesktopAvifUrl, webp: lightDesktopWebpUrl, jpg: lightDesktopJpgUrl },
   },
   dark: {
-    mobile: { avif: darkMobileAvif.url, webp: darkMobileWebp.url, jpg: darkMobileJpg.url },
-    desktop: { avif: darkDesktopAvif.url, webp: darkDesktopWebp.url, jpg: darkDesktopJpg.url },
+    mobile: { avif: darkMobileAvifUrl, webp: darkMobileWebpUrl, jpg: darkMobileJpgUrl },
+    desktop: { avif: darkDesktopAvifUrl, webp: darkDesktopWebpUrl, jpg: darkDesktopJpgUrl },
   },
 } as const;
 
