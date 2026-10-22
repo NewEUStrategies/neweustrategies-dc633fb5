@@ -2620,7 +2620,37 @@ const FROZEN_BUDGET_KB = {
   // 100, publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
   // 2790,2 / 2881 w zamrożonych progach.
   // Host 5355,3 -> 5356 -> +1.
-  overall: 5357,
+  //
+  // Ratchet 5357 -> 5371 (2026-10-22, wycinek: I9 huba „Przychód i lejek” -
+  // integracja i wydanie: odnośniki moduły → hub, harmonogram ścieżek
+  // w panelu zdrowia, zgłoszenia 9.2, przewodnik po Ścieżkach), decyzją
+  // zamawiającego D-08. Baza 2113569d (gałąź PR po I9d-Y2, kopia
+  // `git archive`, ten sam `node_modules`) 5355,3 / public 2790,2; po I9
+  // z integracją 5369,8: +14,5 KB, w tym admin-only +13,8 (2565,1 ->
+  // 2578,9) i public +0,7 (2790,2 -> 2790,9). Rozbicie admin-only:
+  // odnośniki moduły → hub (SPEC §2.7) - leniwa treść sygnału
+  // `SignalChipBody` +1,6 i lekkie opakowanie `RevenueSignalChip` +0,6,
+  // słownik `i18n-admin-revenue-links` +1,1, `EventJourneysSummary` +0,7,
+  // `RevenueHubHint` +0,4, `RevenueHubLink` +0,3, `useRevenueHubTab` +0,2,
+  // wspólny `RelatedModulesBar` we własnym chunku +0,5 (Cennik), trasy
+  // modułów: CRM +1,8 (przypisanie zadań bez osoby, import CSV z raportem
+  // wartości ponad limit), automatyzacje +0,3, Cennik +0,2, wydarzenia
+  // +0,7, kluby +0,3; Skrzynka wysyłek z etykietami powodów +1,3; słownik
+  // panelu harmonogramu z kartą silnika ścieżek (`i18n-admin-scheduler`
+  // w chunku `HeartbeatDot`) +0,9 i trasa `admin.community.notifications`
+  // +0,4; baner przerwanej szyny (`useDomainEventStream` wydzielony +0,5,
+  // `useModuleRealtime` -0,2, `tableChannelHub` +0,2); `SourceHeader`
+  // +0,5; powody rezygnacji `reasonLabel` +0,2; przewodnik po Ścieżkach
+  // (Z-S8-01): kroki `tours` we własnym chunku +0,9, nakładka
+  // `CoachmarkTour` wyjęta z chunku edytora treści (`EditorLangSwitch`
+  // -1,7, nowy leniwy chunk +1,8). Public: słownik profilu organizacji
+  // `i18n-membership` +0,2 (odmowa progu Zespół z drogą do Enterprise),
+  // reszta to entropia hashy (1357 chunków o |Δ| < 150 B, razem +0,6 KB
+  // w obu koszykach). Arkusze CSS bit w bit te same (css 99,8 / 100,
+  // publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
+  // 2790,9 / 2881 w zamrożonych progach.
+  // Host 5369,8 -> 5370 -> +1.
+  overall: 5371,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
