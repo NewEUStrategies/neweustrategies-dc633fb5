@@ -1145,6 +1145,9 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // zmiany treści tych dwóch dokumentów.
     "src/lib/legal/content/{communications,privacy}.ts",
     "src/lib/legal/{entity,registration}.ts",
+    // (Integrator I9d-Y2, 2026-10-22) Tabela fabryk kluczy huba: wiersze
+    // kluczy pomiaru newslettera (Y2-B) i prefiksy ich unieważniania.
+    "src/lib/__tests__/hubKeyFactories.test.ts",
   ],
 };
 

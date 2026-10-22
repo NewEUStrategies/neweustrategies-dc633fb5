@@ -226,6 +226,38 @@ const PARY: readonly Para[] = [
     expected: ["admin", "newsletter-popup-events", 30],
     zrodlo: "src/components/admin/newsletter/PopupEventsPanel.tsx:40",
   },
+  // Pomiar tylko za zgodą (I9d-Y2): klucze pod prefiksem `settings()` -
+  // reguła `newsletter_settings.changed.v1` unieważnia je bez nowej reguły.
+  {
+    fn: "newsletterKeys.measurementAll",
+    actual: newsletterKeys.measurementAll(),
+    expected: ["newsletter-settings", "measurement"],
+    zrodlo: "nowy prefiks (I9d-Y2: src/lib/privacy/dataRetentionQueries.ts:140)",
+  },
+  {
+    fn: "newsletterKeys.consentMeasurement",
+    actual: newsletterKeys.consentMeasurement(),
+    expected: ["newsletter-settings", "measurement", "consent"],
+    zrodlo: "src/lib/privacy/measurementQueries.ts:51",
+  },
+  {
+    fn: "newsletterKeys.measurementPreview",
+    actual: newsletterKeys.measurementPreview(),
+    expected: ["newsletter-settings", "measurement", "preview"],
+    zrodlo: "src/lib/privacy/measurementQueries.ts:40",
+  },
+  {
+    fn: "newsletterKeys.measurementCopy",
+    actual: newsletterKeys.measurementCopy(),
+    expected: ["newsletter-settings", "measurement", "copy"],
+    zrodlo: "src/lib/privacy/measurementQueries.ts:61",
+  },
+  {
+    fn: "newsletterKeys.campaignMeasurement",
+    actual: newsletterKeys.campaignMeasurement(ID),
+    expected: ["admin", "newsletter-campaigns", ID, "measurement"],
+    zrodlo: "src/lib/privacy/measurementQueries.ts:71",
+  },
 
   // ── Dostęp, metering, kasa (`src/lib/access/keys.ts`) ─────────────────────
   {
@@ -765,6 +797,13 @@ describe("fabryki kluczy huba - inwarianty", () => {
       [newsletterKeys.campaign(ID), newsletterKeys.campaignEngagement(ID)],
       [newsletterKeys.campaign(ID), newsletterKeys.campaignAudience(ID, AUDIENCE)],
       [newsletterKeys.popupEventsAll(), newsletterKeys.popupEvents(7)],
+      // I9d-Y2: zdarzenie ustawień newslettera odświeża stan treści zgody
+      // i podgląd prośby; zdarzenie kampanii - mianownik mierzonych.
+      [newsletterKeys.settings(), newsletterKeys.measurementAll()],
+      [newsletterKeys.measurementAll(), newsletterKeys.consentMeasurement()],
+      [newsletterKeys.measurementAll(), newsletterKeys.measurementPreview()],
+      [newsletterKeys.measurementAll(), newsletterKeys.measurementCopy()],
+      [newsletterKeys.campaign(ID), newsletterKeys.campaignMeasurement(ID)],
       [accessKeys.ruleAll(), accessKeys.rule("page", ID)],
       [meteringKeys.impactPreviewAll(), meteringKeys.impactPreview(3)],
       [workflowKeys.runsAll(), workflowKeys.runs(null, "failed")],
