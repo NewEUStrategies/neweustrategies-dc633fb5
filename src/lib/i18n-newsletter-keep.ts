@@ -1,9 +1,12 @@
 // i18n strony „Chcę dalej otrzymywać" (/newsletter/keep, I9d-Y1 - wygaszanie
 // nieaktywnych subskrybentów newslettera) - PL/EN.
 //
-// Nakładka ładowana WYŁĄCZNIE z chunku strony (import w pliku trasy): napisy
-// nie trafiają do słownika rdzenia ani na ścieżkę bootowania żadnej innej
-// strony czytelnika.
+// Nakładka ładowana WYŁĄCZNIE z chunku komponentu strony: plik trasy woła
+// `ensureI18n()` tylko w komponencie, więc automatyczny podział kodu wynosi
+// import do chunku strony - napisy nie trafiają do słownika rdzenia ani na
+// ścieżkę bootowania żadnej innej strony czytelnika. Dwa zdania nagłówka
+// dokumentu (`head()` jedzie w chunku startowym) żyją osobno:
+// `i18n-newsletter-keep-head.ts`.
 //
 // UWAGA NA ARKUSZ CSS. Pliki `src/lib/i18n-*.ts` skanuje generator arkusza
 // PUBLICZNEGO - angielskie słowo równe klasie narzędziowej Tailwinda dokłada
@@ -13,8 +16,6 @@ import i18n from "@/lib/i18n";
 
 const pl = {
   newsletterKeep: {
-    metaTitle: "Newsletter - potwierdzenie subskrypcji",
-    metaDescription: "Potwierdź, że chcesz dalej otrzymywać newsletter New European Strategies.",
     loading: "Sprawdzamy link…",
     title: "Czy chcesz dalej otrzymywać nasz newsletter?",
     body: "Potwierdź jednym kliknięciem, a Twój adres zostanie na liście newslettera New European Strategies.",
@@ -45,9 +46,6 @@ const pl = {
 
 const en: typeof pl = {
   newsletterKeep: {
-    metaTitle: "Newsletter - subscription confirmation",
-    metaDescription:
-      "Confirm that you want to keep receiving the New European Strategies newsletter.",
     loading: "Checking the link…",
     title: "Do you want to keep receiving our newsletter?",
     body: "Confirm with one click and your address will stay on the New European Strategies newsletter list.",

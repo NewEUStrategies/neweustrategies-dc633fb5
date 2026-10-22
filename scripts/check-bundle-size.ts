@@ -2566,7 +2566,31 @@ const FROZEN_BUDGET_KB = {
   // Arkusze: css 99,8 / 100 bez ratchetu, publicCss 83,8; chunk 258,0
   // i boot 471,7 w zamrożonych progach; public 2779,2 / 2881.
   // Host 5314,3 -> 5315 -> +1.
-  overall: 5316,
+  // Ratchet 5316 -> 5334 (2026-10-22, wycinek: I9d-Y1 huba „Przychód
+  // i lejek” - RODO, decyzje właściciela 2: retencja i anonimizacja
+  // zgłoszeń do klubów, odczytów licznika, uczestników wydarzeń i wygaszanie
+  // nieaktywnych subskrybentów newslettera), decyzją zamawiającego D-08.
+  // Baza 70bdccbb (gałąź PR po S8 i S7, kopia `git archive`) 5314,3 / public
+  // 2779,2; po I9d-Y1 z integracją 5332,2: +17,9 KB, w tym admin-only +14,1
+  // (2535,0 -> 2549,1) i public +3,8. Rozbicie: wspólny leniwy chunk karty
+  // retencji i edytora prośby (`sunsetCopyRules` +15,7: słownik PL/EN
+  // czterech nowych kategorii, listy „do wygaszenia”, okna powodu i edytora,
+  // stałe `newsletterSunset`, zapytania i mutatory wygaszania) przy
+  // `DataRetentionCard` -6,6 (słownik przeszedł do chunku wspólnego) i
+  // `dataRetentionQueries` -0,8; edytor treści prośby
+  // (`NewsletterSunsetCopyEditor` +2,2, trasa `admin.newsletter.email-content`
+  // +0,4), notka agregatu dobowego (`RetentionAggregateNote` +1,3), stałe
+  // `dataRetention` +1,0, `maskEmail` (`model` +0,4). Public: NOWA trasa
+  // „Chcę dalej otrzymywać” (`newsletter.keep` +2,5 - leniwy chunk strony ze
+  // słownikiem PL/EN) i `app-initial` +0,3 (definicja trasy, `head()`
+  // z dwuzdaniową nakładką `i18n-newsletter-keep-head`; integrator wyniósł
+  // słownik strony z chunku startowego, gdzie dawał +1,6 KB na każdej
+  // stronie czytelnika), reszta to entropia hashy (964 chunki o |Δ| < 150 B,
+  // razem +1,7 KB w obu koszykach). Arkusze CSS bit w bit te same (css 99,8
+  // / 100, publicCss 83,8 / 85); chunk 258,3 / 286, boot 472,1 / 579,
+  // public 2783,0 / 2881 w zamrożonych progach.
+  // Host 5332,2 -> 5333 -> +1.
+  overall: 5334,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

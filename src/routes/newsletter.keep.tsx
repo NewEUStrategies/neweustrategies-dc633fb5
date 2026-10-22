@@ -11,6 +11,12 @@
 // subskrybenta przychodzi parametrem `lang` z linku (inaczej - język
 // interfejsu). Ten sam parametr czyta SSR i klient (`validateSearch`), więc
 // napisy nie zmieniają się przy hydratacji.
+//
+// Chunk startowy: `head()` i `validateSearch` jadą w nim na KAŻDEJ stronie
+// czytelnika, więc czytają wyłącznie maleńką nakładkę nagłówka i literał
+// ścieżki. Słownik strony i logika odpowiedzi endpointu są używane tylko
+// w komponencie - automatyczny podział kodu wynosi je do chunku strony
+// (pomiar D-08, dziennik §21.22).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,19 +24,17 @@ import { CheckCircle2, Loader2, MailCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import i18n from "@/lib/i18n";
 import { ensureI18n } from "@/lib/i18n-newsletter-keep";
+import "@/lib/i18n-newsletter-keep-head";
 import { normalizeLang, type AppLang } from "@/lib/i18n/localePath";
 import {
   keepStateOf,
   NEWSLETTER_KEEP_API_PATH,
-  NEWSLETTER_KEEP_PAGE_PATH,
   type KeepPageState,
   type KeepResponseBody,
 } from "@/lib/privacy/newsletterKeep";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
-
-ensureI18n();
 
 interface KeepSearch {
   token?: string;
@@ -43,7 +47,10 @@ export const Route = createFileRoute("/newsletter/keep")({
     lang: normalizeLang(typeof search.lang === "string" ? search.lang : null) ?? undefined,
   }),
   head: () => {
-    const url = getRequestUrl() || NEWSLETTER_KEEP_PAGE_PATH;
+    // Literał ścieżki (= `NEWSLETTER_KEEP_PAGE_PATH`), nie import: moduł
+    // stałych niesie też logikę odpowiedzi, która nie ma czego szukać
+    // w chunku startowym.
+    const url = getRequestUrl() || "/newsletter/keep";
     let lang = activeLang(url);
     try {
       lang = normalizeLang(new URL(url, "http://x").searchParams.get("lang")) ?? lang;
@@ -94,6 +101,7 @@ const BODY_KEY: Record<Exclude<KeepPageState, "loading" | "confirm">, string> = 
 };
 
 function NewsletterKeepPage() {
+  ensureI18n();
   const search = Route.useSearch();
   const { i18n: instance } = useTranslation();
   const lang: AppLang = search.lang ?? normalizeLang(instance.language) ?? "pl";

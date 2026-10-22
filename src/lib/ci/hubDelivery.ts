@@ -1036,7 +1036,7 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (`newsletter_engagement_touch` przy istniejącym adresie).
     "src/routes/{api.public.newsletter.keep.ts,newsletter.keep.tsx,-api.public.newsletter.keep.test.ts}",
     "src/routes/__tests__/newsletterKeepPage.test.tsx",
-    "src/lib/i18n-newsletter-keep.ts",
+    "src/lib/i18n-newsletter-keep{,-head}.ts",
     "src/lib/newsletter.functions.ts",
     "src/lib/__tests__/newsletter.functions.test.ts",
     "src/lib/seo/noindexCodeRoutes.ts",
