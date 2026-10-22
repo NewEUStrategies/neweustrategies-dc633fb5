@@ -109,12 +109,26 @@ export function applicationListFilters(
   };
 }
 
-/** Klucz i18n odmowy zapisu statusu - `duplicate_open` MUSI być nazwany. */
+/** Klucz i18n odmowy zapisu statusu - nazwane kody MUSZĄ mieć własne zdanie. */
 export function applicationStatusErrorKey(code: ClubApplicationStatusError): string {
-  return code === "duplicate_open"
-    ? "adminClubs.applications.statusErrors.duplicate_open"
-    : "adminClubs.applications.statusError";
+  return code === "unknown"
+    ? "adminClubs.applications.statusError"
+    : `adminClubs.applications.statusErrors.${code}`;
 }
+
+/**
+ * Zgłoszenie zanonimizowane (I9d-Y1, RODO): anonimizacja zamienia konto na
+ * pseudonim w wersji 8 UUID i czyści dane osoby - ta sama reguła co odmowa
+ * decyzji w bazie (`substr(user_id::text, 15, 1) = '8'`). Panel pokazuje
+ * etykietę zamiast pustego nazwiska i nie proponuje decyzji bez adresata
+ * (I9, Z-I9d-03).
+ */
+export function isAnonymizedApplication(row: Pick<ClubApplicationAdminRow, "user_id">): boolean {
+  return ANONYMIZED_USER_ID.test(row.user_id);
+}
+
+/** UUID w wersji 8 (pseudonim konta po anonimizacji). */
+const ANONYMIZED_USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Komunikat po zapisie statusu: klucz i18n + ton toastu. */
 export interface InboxToast {
