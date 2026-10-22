@@ -105,7 +105,11 @@ REVOKE ALL ON FUNCTION public._newsletter_track_opens(uuid) FROM PUBLIC, anon, a
 -- B) Kandydaci (zadanie, podgląd, lista w panelu).
 -- ----------------------------------------------------------------------------
 -- Najpierw tanie odsiewanie po kolumnach wiersza (zaangażowani odpadają bez
--- zapytań do innych tabel), potem pełna definicja A.
+-- zapytań do innych tabel), potem pełna definicja A. Kolejność po dacie
+-- zapisu (kolumna wiersza), nie po wyniku A - LIMIT przerywa liczenie
+-- definicji A po zebraniu porcji, zamiast liczyć ją dla całej listy.
+-- Kampania „w oknie" po subskrybencie ALBO po adresie: adres odbiorcy
+-- redaguje retencja dziennika wysyłek (od 6 mies.), identyfikator zostaje.
 CREATE OR REPLACE FUNCTION public._data_retention_newsletter_candidates(
   p_tenant uuid, p_cutoff timestamptz, p_limit integer)
 RETURNS TABLE (subscriber_id uuid, last_engaged timestamptz)
@@ -116,7 +120,7 @@ SET search_path = public, pg_temp
 AS $$
   WITH cfg AS (SELECT public._newsletter_track_opens(p_tenant) AS track),
   quiet AS (
-    SELECT s.id, s.email, s.tenant_id
+    SELECT s.id, s.email, s.tenant_id, s.created_at
       FROM public.newsletter_subscribers s CROSS JOIN cfg
      WHERE s.tenant_id = p_tenant AND s.status IN ('subscribed', 'confirmed')
        AND s.created_at < p_cutoff
@@ -125,15 +129,17 @@ AS $$
        AND (NOT cfg.track OR COALESCE(s.last_human_open_at, '-infinity'::timestamptz) < p_cutoff)
        AND NOT EXISTS (SELECT 1 FROM public.newsletter_sunset_exclusions x WHERE x.subscriber_id = s.id)
        AND NOT EXISTS (SELECT 1 FROM public.newsletter_sunset_requests q WHERE q.subscriber_id = s.id)
-       AND EXISTS (SELECT 1 FROM public.newsletter_campaign_recipients r
-                    WHERE r.tenant_id = s.tenant_id AND lower(r.email) = lower(s.email)
-                      AND r.status = 'sent' AND r.sent_at >= p_cutoff)
+       AND (EXISTS (SELECT 1 FROM public.newsletter_campaign_recipients r
+                     WHERE r.subscriber_id = s.id AND r.status = 'sent' AND r.sent_at >= p_cutoff)
+            OR EXISTS (SELECT 1 FROM public.newsletter_campaign_recipients r
+                        WHERE r.tenant_id = s.tenant_id AND lower(r.email) = lower(s.email)
+                          AND r.status = 'sent' AND r.sent_at >= p_cutoff))
   )
   SELECT q.id, e.at
     FROM quiet q CROSS JOIN cfg
    CROSS JOIN LATERAL (SELECT public._newsletter_last_engagement(q.id, cfg.track) AS at) e
    WHERE e.at < p_cutoff
-   ORDER BY e.at, q.id
+   ORDER BY q.created_at, q.id
    LIMIT GREATEST(p_limit, 0)
 $$;
 
