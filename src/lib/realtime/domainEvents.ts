@@ -266,6 +266,12 @@ export const DOMAIN_EVENT_TYPES = [
   // też 'exclusion' (wykluczenie adresu z wygaszania newslettera i jego
   // cofnięcie, SQL 20261020162100); inwalidacja idzie po prefiksie najemcy.
   "data_retention.changed.v1",
+  // Formularz kontaktowy (I9, Z-S5-01): AFTER INSERT ON contact_messages
+  // (`tg_contact_messages_submitted_emit`, SQL 20261020162800) - po
+  // wyzwalaczu CRM, więc ładunek niesie `lead_id`. Ładunek bez danych
+  // osobowych: `message_id`, `lead_id`, `form_kind` (biała lista
+  // `CONTACT_MESSAGE_FORM_KINDS`), `form_id`. Kandydaci do pracy poza szyną.
+  "contact_message.submitted.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -345,6 +351,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "workflow_definition",
   // Retencja danych (I9c-X2): agregatem jest najemca.
   "data_retention",
+  // Formularz kontaktowy (I9, Z-S5-01): agregatem jest wiadomość.
+  "contact_message",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];
