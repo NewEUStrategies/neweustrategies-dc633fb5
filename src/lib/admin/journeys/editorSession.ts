@@ -591,6 +591,12 @@ export interface JourneyUpdateOptions {
   label: string;
   /** Kolejne zmiany z tym samym kluczem = jeden wpis historii (pisanie w polu). */
   coalesceKey?: string;
+  /**
+   * `false` - komunikat ogłasza widok, który wykonał operację (kanwa i lista
+   * mówią „Wykonano: …” albo powód odmowy i przenoszą fokus), więc sesja go
+   * nie powtarza; etykieta zostaje w historii dla „Cofnięto: …”.
+   */
+  announce?: boolean;
 }
 
 export type JourneySessionActionResult = { ok: true } | { ok: false; message: string };
@@ -927,7 +933,7 @@ export function useJourneyEditorSession(
         coalesceKey: opts.coalesceKey,
       });
       // Pisanie w polu nie zalewa czytnika - ogłaszamy operacje, nie znaki.
-      if (!opts.coalesceKey) announce(opts.label);
+      if (!opts.coalesceKey && opts.announce !== false) announce(opts.label);
       return true;
     },
     [announce, setHistory],
