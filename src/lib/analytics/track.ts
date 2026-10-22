@@ -263,6 +263,10 @@ export function track(input: AnalyticsEventInput): void {
   };
   if (input.name === "page_view") {
     ga4PageView(mirrored.path, undefined, mirrored.lang);
+    // Cele odsłon Google Ads (fragmenty z panelu Ads, 2026-10-22):
+    // `ads_conversion_www` + `ads_conversion_PAGE_VIEW_1` - raz na
+    // wyrenderowana strone, patrz `adsGoals.ts`.
+    trackAdsPageViewGoals();
   } else {
     mirrorToGa4(mirrored);
   }
