@@ -59,12 +59,12 @@ describe("katalog", () => {
     expect(journeyTemplate("nie_ma")).toBeNull();
   });
 
-  it("niedostępny jest wyłącznie B2B (czeka na zdarzenie formularza)", () => {
+  it("wszystkie szablony są dostępne - B2B startuje od wiadomości z cennika (I9, Z-S5-01)", () => {
     const unavailable = ALL.filter((t) => !isTemplateAvailable(t));
-    expect(unavailable.map((t) => t.key)).toEqual(["pricing_enquiry_b2b"]);
-    expect(unavailable[0].availability).toEqual({
-      status: "unavailable",
-      awaitedEvent: "contact_message.submitted.v1",
+    expect(unavailable.map((t) => t.key)).toEqual([]);
+    expect(JOURNEY_TEMPLATES.pricing_enquiry_b2b.settings).toMatchObject({
+      triggerEventType: "contact_message.submitted.v1",
+      triggerCondition: { form_kind: "pricing" },
     });
   });
 });

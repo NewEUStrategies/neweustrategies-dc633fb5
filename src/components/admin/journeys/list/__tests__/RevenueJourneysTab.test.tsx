@@ -290,6 +290,21 @@ describe("adres zakładki", () => {
   });
 
   it("szablon niedostępny z adresu nie otwiera instalacji (karta mówi dlaczego)", async () => {
+    // Od I9 (Z-S5-01) każdy szablon katalogu jest dostępny - kopia karty B2B
+    // oznaczona jako czekająca na zdarzenie dowodzi gałęzi odmowy.
+    h.catalog.mockResolvedValue(
+      CATALOG.map((entry) =>
+        entry.key === "pricing_enquiry_b2b"
+          ? {
+              ...entry,
+              availability: {
+                status: "unavailable" as const,
+                awaitedEvent: "contact_message.submitted.v1",
+              },
+            }
+          : entry,
+      ),
+    );
     h.search = { new: "1", template: "pricing_enquiry_b2b" };
     mount();
     const gallery = await screen.findByTestId("journey-template-gallery");

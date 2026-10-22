@@ -3,10 +3,10 @@
 // pierwsza próba kontaktu w ciągu godziny - zadanie liczy dni, więc godzinę
 // zapewnia powiadomienie) i zadanie, eskalacja po 2 dniach bez ruchu etapu.
 //
-// NIEDOSTĘPNY do czasu zdarzenia `contact_message.submitted.v1` (SPEC §5.6):
-// formularz kontaktowy zakłada leada bez śladu, że chodzi o ofertę, więc
-// wyzwalacz `crm_lead.created.v1` łapałby każdy nowy kontakt. Graf jest
-// gotowy - instalację odblokuje zmiana wyzwalacza po dodaniu zdarzenia.
+// Wyzwalacz: `contact_message.submitted.v1` z warunkiem `form_kind = pricing`
+// (I9, Z-S5-01; SPEC §5.6). Formularz kontaktowy zakłada leada bez śladu, że
+// chodzi o ofertę, więc `crm_lead.created.v1` łapałby każdy nowy kontakt -
+// dopiero zdarzenie wiadomości mówi, z którego formularza przyszła.
 import { DAY, chain, edge, node } from "./doc";
 import type { JourneyTemplate } from "./types";
 
@@ -14,11 +14,11 @@ export const pricingEnquiryB2b: JourneyTemplate = {
   key: "pricing_enquiry_b2b",
   category: "marketing",
   legalBasis: null,
-  availability: { status: "unavailable", awaitedEvent: "contact_message.submitted.v1" },
+  availability: { status: "available" },
   replacesWorkflowTemplate: null,
   settings: {
-    triggerEventType: "crm_lead.created.v1",
-    triggerCondition: {},
+    triggerEventType: "contact_message.submitted.v1",
+    triggerCondition: { form_kind: "pricing" },
     entryFilter: [],
     reentry: "never",
     goal: { eventType: "crm_lead.stage_changed.v1", condition: { new_stage: "proposal" } },

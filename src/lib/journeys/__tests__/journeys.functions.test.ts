@@ -305,16 +305,27 @@ describe("zapisy: ścieżka", () => {
   });
 
   it("instalacja: szablon niedostępny odmawia bez RPC; błąd create/treści przerywa", async () => {
-    await expect(
-      installJourneyTemplate({
-        data: { templateKey: "pricing_enquiry_b2b", key: "b2b", name: "B2B" },
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      error: "template_unavailable",
-      reason: "pricing_enquiry_b2b",
-      detail: null,
+    // Od I9 (Z-S5-01) żaden szablon katalogu nie czeka na zdarzenie - gałąź
+    // odmowy dowodzimy szablonem tymczasowo oznaczonym jako niedostępny.
+    const template = JOURNEY_TEMPLATES.pricing_enquiry_b2b;
+    const availability = template.availability;
+    Object.assign(template, {
+      availability: { status: "unavailable", awaitedEvent: "partner.synced.v1" },
     });
+    try {
+      await expect(
+        installJourneyTemplate({
+          data: { templateKey: "pricing_enquiry_b2b", key: "b2b", name: "B2B" },
+        }),
+      ).resolves.toEqual({
+        ok: false,
+        error: "template_unavailable",
+        reason: "pricing_enquiry_b2b",
+        detail: null,
+      });
+    } finally {
+      Object.assign(template, { availability });
+    }
     expect(h.rpc).not.toHaveBeenCalled();
 
     h.rpc.mockResolvedValueOnce(err("23505", "key_taken"));

@@ -9,10 +9,10 @@
 // maili tu nie ma: katalog jedzie do przeglądarki bez dokumentów
 // (`listJourneyTemplateCatalog`).
 //
-// SZABLON NIEDOSTĘPNY (Z-S5-01: `pricing_enquiry_b2b` czeka na zdarzenie
-// `contact_message.submitted.v1`) jest widoczny, ale wyszarzony, z powodem
-// podpiętym do przycisku (`aria-describedby`) - admin wie, że istnieje i co
-// go odblokuje, zamiast szukać go w kodzie. „Zainstalowany” liczy zakładka
+// SZABLON NIEDOSTĘPNY (czeka na zdarzenie szyny - do I9 `pricing_enquiry_b2b`
+// czekał na `contact_message.submitted.v1`, Z-S5-01) jest widoczny, ale
+// wyszarzony, z powodem podpiętym do przycisku (`aria-describedby`) - admin
+// wie, że istnieje i co go odblokuje, zamiast szukać go w kodzie. „Zainstalowany” liczy zakładka
 // z listy ścieżek (`JourneyListItem.templateKey`).
 //
 // Wybór to przycisk z `aria-pressed` - zaznaczona karta jest też zaznaczona

@@ -404,6 +404,10 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // i lead CRM (`club_application_crm_sync`). Inbox i historia mają klucze
   // w plikach z logiką (inbox) albo w trasie, więc stoją literałem przypiętym
   // w `revenueInvalidation.test.ts`.
+  // Wiadomość z formularza kontaktowego (I9, Z-S5-01): lead powstał albo
+  // dostał aktywność w tej samej transakcji (listy CRM), a skrzynka kolejek
+  // personelu liczy nieprzeczytane wiadomości.
+  "contact_message.submitted.v1": () => [crmKeys.leadsAll(), pendingCounterKeys.tenant()],
   "club_application.submitted.v1": () => clubApplicationKeys(),
   "club_application.decided.v1": () => clubApplicationKeys(),
 

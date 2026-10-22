@@ -149,6 +149,7 @@ const pl = {
       crm_lead_created: "Nowy kontakt w CRM",
       crm_lead_stage_changed: "Zmiana etapu sprzedaży",
       crm_lead_lifecycle_changed: "Zmiana etapu cyklu życia",
+      contact_message_submitted: "Wiadomość z formularza kontaktowego",
     },
     variable: {
       first_name: "Imię",
@@ -466,6 +467,7 @@ const en = {
       crm_lead_created: "New CRM contact",
       crm_lead_stage_changed: "Sales stage change",
       crm_lead_lifecycle_changed: "Lifecycle stage change",
+      contact_message_submitted: "Contact form message",
     },
     variable: {
       first_name: "First name",
