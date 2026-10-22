@@ -211,4 +211,32 @@ describe("monetization read contract and truthful status", () => {
     await screen.findByText("Inne");
     expect(screen.queryByText(/\(\d+%\)/)).toBeNull();
   });
+  it("I9d-Y1: okno przed granicą `aggregate_before` dostaje notkę agregatu dobowego", async () => {
+    // Odczyty licznika żyją krócej (domyślnie 3 mies.) - dni sprzed granicy
+    // liczy anonimowy agregat; bez notki spadek „kont" wyglądałby na zjawisko.
+    h.rpc.mockResolvedValue(ok({ ...dashboard, aggregate_before: "2026-08-15" }));
+    mount();
+    await screen.findByText("123");
+    expect(screen.getByText("adminDataRetention.aggregateNote.short")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "adminDataRetention.aggregateNote.label" }),
+    ).toBeTruthy();
+    // Okno od granicy: całe z surowych wierszy - notki nie ma.
+    fireEvent.change(screen.getByLabelText("Od"), { target: { value: "2026-08-15" } });
+    await waitFor(() =>
+      expect(h.rpc).toHaveBeenLastCalledWith(
+        "monetization_dashboard",
+        expect.objectContaining({
+          _from: "2026-08-15T00:00:00.000Z",
+        }),
+      ),
+    );
+    await screen.findByText("123");
+    expect(screen.queryByText("adminDataRetention.aggregateNote.short")).toBeNull();
+  });
+  it("I9d-Y1: baza sprzed migracji (bez `aggregate_before`) - bez notki", async () => {
+    mount();
+    await screen.findByText("123");
+    expect(screen.queryByText("adminDataRetention.aggregateNote.short")).toBeNull();
+  });
 });
