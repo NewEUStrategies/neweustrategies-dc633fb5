@@ -978,7 +978,9 @@ describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
     const timing = response.headers.get("server-timing") ?? "";
     expect(timing.startsWith('nes-edge;desc="MISS"')).toBe(true);
     expect(timing).toContain('nes-layer;desc="render"');
-    expect(timing).toMatch(/server-init;dur=\d+, app;dur=\d+, colo;desc="WAW"$/);
+    expect(timing).toMatch(
+      /server-init;dur=\d+, app;dur=\d+, nes-iso;desc="req=\d+ cold=[01]", colo;desc="WAW"$/,
+    );
     expect(timing).not.toMatch(/stream/);
 
     const reader = response.body!.getReader();

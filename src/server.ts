@@ -578,7 +578,10 @@ export default {
       const colo = requestColo(request);
       const headers = new Headers(guarded.headers);
       // Bez metryki końca strumienia: nagłówki wychodzą PRZED body.
-      headers.append("server-timing", buildEntryServerTimingValue(serverInitMs, appMs, colo));
+      headers.append(
+        "server-timing",
+        buildEntryServerTimingValue(serverInitMs, appMs, colo, isolate),
+      );
       const timing: DocumentLogTiming = { serverInitMs, appMs, isolate, colo };
       // Linia logu powstaje PO KOŃCU body, żeby niosła `streamMs`. Owijka
       // siedzi na JUŻ przebudowanym Response - za tee zapisu i za strażnikiem,

@@ -148,7 +148,9 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       });
     };
     const response = await entryFetch(new Request("https://tenant-a.eu/"));
-    expect(response.headers.get("server-timing")).toBe("ssr;dur=12, server-init;dur=0, app;dur=37");
+    expect(response.headers.get("server-timing")).toMatch(
+      /^ssr;dur=12, server-init;dur=0, app;dur=37, nes-iso;desc="req=\d+ cold=[01]"$/,
+    );
     expect(await response.text()).toContain("ok");
   });
 
