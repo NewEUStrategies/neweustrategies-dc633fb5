@@ -376,6 +376,11 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["newsletter_measurement_confirm", "I9", "service"],
   ["admin_newsletter_consent_measurement_get", "I9", "panel"],
   ["admin_newsletter_consent_measurement_mark", "I9", "panel"],
+  // (I9-C, 2026-10-22) Z-S5-04: jeden pomocnik wycofania zgody marketingowej
+  // kontaktu CRM (personel, wypis ze ścieżki, wygaszanie newslettera) i RPC
+  // personelu sprzed huba przepisany na niego.
+  ["_crm_marketing_consent_withdraw", "I9", "internal"],
+  ["crm_leads_marketing_consent_withdraw", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -428,6 +433,9 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   // (I9d-Y2, 2026-10-22) Wersja treści przy każdej zgodzie newslettera
   // (wspólny pisarz rejestru zgód z wyzwalacza subskrybenta).
   newsletter_to_lead: "20260708151417",
+  // (I9-C, 2026-10-22) Z-S5-04: RPC personelu CRM zapisuje wycofanie zgody
+  // wspólnym pomocnikiem (`_crm_marketing_consent_withdraw`).
+  crm_leads_marketing_consent_withdraw: "20261012180900",
 };
 
 /**
@@ -487,6 +495,9 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> =
   },
   admin_journey_settings_get: "20261020140300",
   admin_journey_settings_save: "20261020140300",
+  // (I9-C, 2026-10-22) Z-S5-04: wypis ze ścieżki wycofuje zgodę wspólnym
+  // pomocnikiem z RPC personelu CRM i wygaszaniem newslettera.
+  _journey_unsubscribe: "20261020140500",
 };
 
 /**
