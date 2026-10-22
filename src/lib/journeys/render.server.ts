@@ -13,12 +13,11 @@
 //     adres wypisu doklejany PO przepisaniu linków (RFC 8058 nie idzie przez
 //     przekierowanie trackingu).
 // Plik `.server`: render widzi adres, token wiadomości i adres wypisu.
-import {
-  parseEmailDoc,
-  type EmailBlock,
-  type EmailDoc,
-  type EmailI18n,
-} from "@/lib/newsletter/emailDoc";
+//
+// Podstawianie zmiennych w dokumencie (`substituteDocVariables`) jest czystym
+// kodem liścia `variables.ts` (Z-S5-08) - ten sam kod liczy podgląd edytora S8
+// w przeglądarce. Re-eksport niżej zachowuje dotychczasowy import z tego pliku.
+import { parseEmailDoc } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml } from "@/lib/newsletter/renderEmailHtml";
 import { esc } from "@/lib/newsletter/renderCampaign.server";
 import { NEWSLETTER_UNSUBSCRIBE_API_PATH } from "@/lib/newsletter/unsubscribeUrl";
@@ -28,10 +27,12 @@ import {
   signJourneyUnsubscribeToken,
 } from "@/lib/newsletter/trackingToken.server";
 import {
+  substituteDocVariables,
   substituteJourneyVariables,
   type JourneyVariableValues,
-  type SubstituteMode,
 } from "./variables";
+
+export { substituteDocVariables };
 
 export type JourneyLocale = "pl" | "en";
 
@@ -100,55 +101,6 @@ export function journeyUnsubscribeUrl(origin: string, messageId: string): string
   const url = new URL(NEWSLETTER_UNSUBSCRIBE_API_PATH, origin);
   url.searchParams.set("token", signJourneyUnsubscribeToken(messageId));
   return url.toString();
-}
-
-function sub(value: EmailI18n, vars: JourneyVariableValues, mode: SubstituteMode): EmailI18n {
-  return {
-    pl: substituteJourneyVariables(value.pl, vars, mode),
-    en: substituteJourneyVariables(value.en, vars, mode),
-  };
-}
-
-function subUrl(value: string | null, vars: JourneyVariableValues): string | null {
-  return value === null ? null : substituteJourneyVariables(value, vars, "url");
-}
-
-/** Zmienne w dokumencie, pole po polu (tryb wg rodzaju pola). */
-export function substituteDocVariables(doc: EmailDoc, vars: JourneyVariableValues): EmailDoc {
-  const blocks = doc.blocks.map((block): EmailBlock => {
-    switch (block.type) {
-      case "heading":
-        return { ...block, text: sub(block.text, vars, "text") };
-      case "paragraph":
-        return { ...block, html: sub(block.html, vars, "html") };
-      case "footer-note":
-        return { ...block, html: sub(block.html, vars, "html") };
-      case "button":
-        return {
-          ...block,
-          label: sub(block.label, vars, "text"),
-          url: substituteJourneyVariables(block.url, vars, "url"),
-        };
-      case "image":
-        return {
-          ...block,
-          url: subUrl(block.url, vars),
-          href: subUrl(block.href, vars),
-          alt: substituteJourneyVariables(block.alt, vars, "text"),
-        };
-      case "quote":
-        return {
-          ...block,
-          text: sub(block.text, vars, "text"),
-          attribution: sub(block.attribution, vars, "text"),
-        };
-      case "post-list":
-        return { ...block, heading: sub(block.heading, vars, "text") };
-      default:
-        return block;
-    }
-  });
-  return { ...doc, blocks };
 }
 
 const HREF_RE = /href\s*=\s*(["'])(https?:\/\/[^"']+)\1/gi;

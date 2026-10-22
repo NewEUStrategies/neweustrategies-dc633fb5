@@ -339,6 +339,25 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // w obu językach (jak `adminEvents.list.columns.status`).
   "adminRepricing.columns.plan",
   "adminRepricing.logColumns.plan",
+  // Ścieżki komunikacji (Integrator S8, 2026-10-22): „Marketing”, „Newsletter”,
+  // „Status”, „Test” i „CTOR” to te same słowa w PL i EN, a liczniki, wersje,
+  // powiększenie i pozycje bloków to szablony złożone z samych miejsc
+  // interpolacji („{{count}}/{{max}}”, „v{{version}}”, „{{value}} %”).
+  "adminJourneys.canvas.step.labelStats",
+  "adminJourneys.canvas.zoom.value",
+  "adminJourneys.common.category.marketing",
+  "adminJourneys.common.counter",
+  "adminJourneys.common.palette.newsletter",
+  "adminJourneys.emailStep.addBlockType",
+  "adminJourneys.emailStep.blockItem",
+  "adminJourneys.enrollments.columns.status",
+  "adminJourneys.enrollments.test",
+  "adminJourneys.enrollments.versionValue",
+  "adminJourneys.lead.test",
+  "adminJourneys.list.columns.status",
+  "adminJourneys.list.versionValue",
+  "adminJourneys.results.emails.columns.ctor",
+  "adminJourneys.sheetField.condition.status",
 ];
 
 function loadOverlays(): void {

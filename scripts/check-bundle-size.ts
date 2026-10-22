@@ -2498,7 +2498,31 @@ const FROZEN_BUDGET_KB = {
   // same (css 99,7, publicCss 83,8); chunk 257,9 i boot 471,7 w zamrożonych
   // progach.
   // Host 5021,2 -> 5022 -> +1.
-  // Ratchet 5023 -> 5159 (2026-10-22, wycinek: S7 huba „Przychód i lejek” -
+  // Ratchet 5023 -> 5182 (2026-10-22, wycinek S8 huba „Przychód i lejek”:
+  // Ścieżki - lista, galeria, edytor kanwy, ustawienia silnika, wyniki,
+  // karta leada), decyzją zamawiającego D-08. Baza 75133fe2 (gałąź PR #530)
+  // 5020,6 / public 2778,3; po S8 z integracją 5180,9: +160,3 KB, w tym
+  // admin-only +160,0 (2242,3 -> 2402,3) i public +0,3 (entropia hashy;
+  // `app-initial` 257,9 bez zmian). Cały przyrost to NOWE leniwe chunki
+  // panelu (29 chunków z nowymi modułami, 160,5 KB gz): edytor ścieżki
+  // osiągalny wyłącznie z trasy edytora ok. 95 KB w 18 chunkach (leniwy
+  // `JourneyEditor` 22,4 - kanwa, lista kroków, pasek i słownik kanwy;
+  // `PredicateRow` ze słownikiem paneli 15,2; `JourneyStepSheet` z edytorem
+  // maila i zakładkami wyników 12,7; słowniki publikacji 6,1 i edytora 3,6;
+  // wyniki 4,7 + tabela maili 3,9; sesja szkicu 4,7; dialogi publikacji,
+  // symulacji i panel testu 10,2; arkusze 4,9), wspólny chunk zakładki,
+  // edytora i karty leada 22,4 (słowniki ścieżek S5 i listy, graf
+  // i predykaty S5), zakładka Ścieżki 9,5 (lista, galeria, kreator,
+  // ustawienia silnika), model kanwy i operacje 6,5, słownik wyników 6,2,
+  // opisy kroków 3,5, układ i lista 3,3; karta „Ścieżki” w CRM 2,3
+  // (leniwie, zakładka Analityka). Układ huba dostaje licznik aktywnych
+  // ścieżek bez modułu opisów (liść `activeCount`, klient server fn listy
+  // 1,9 + zapytania 0,8 - te same chunki co zakładka). Arkusz panelu +19 B
+  // (css 99,77 / 100), publicCss 83,8, chunk 257,9 i boot 471,6
+  // w zamrożonych progach.
+  // Host 5180,9 -> 5181 -> +1.
+  // Ratchet 5023 -> 5159 (2026-10-22, gałąź S7 przed scaleniem z S8 - próg
+  // zastąpiony wpisem scalenia niżej; wycinek S7 huba „Przychód i lejek” -
   // dziesięć zakładek, diagnostyka 55 reguł z szybkimi naprawami, licznik
   // paska i ⌘K wskaźników), decyzją zamawiającego D-08. Baza 75133fe2
   // (gałąź PR po I9c, kopia `git archive`) 5020,6 / public 2778,3; po S7
@@ -2525,7 +2549,24 @@ const FROZEN_BUDGET_KB = {
   // zapas 0,2 KB), publicCss 83,8; chunk 258,0 i boot 471,7 w zamrożonych
   // progach; public 2779,4 / 2881.
   // Host 5157,5 -> 5158 -> +1.
-  overall: 5159,
+  // Ratchet 5182 -> 5316 (2026-10-22, scalenie S7 po S8: gałąź S7
+  // `hub/s7-zakladki-diagnostyka-c` scalona z gałęzią PR po S8 `df075ffc`),
+  // decyzją zamawiającego D-08. Próg 5159 z wpisu S7 wyżej nie wszedł do PR -
+  // zastępuje go ten łączny pomiar. Baza = gałąź PR po S8 5180,9 / public
+  // 2778,6; po scaleniu 5314,3: +133,4 KB, w tym admin-only +132,7
+  // (2402,3 -> 2535,0) i public +0,6 (wspólny chunk `Paywall` symulatora
+  // czytelnika, reszta to entropia hashy). Rozbicie = przyrost S7 z wpisu
+  // wyżej (+136,9 względem 75133fe2) minus stan „w przygotowaniu” usunięty
+  // w całości po obu wycinkach (`RevenueTabPreparing` -3,7: molekuła,
+  // słownik PL/EN i dane `tabPreparing`; Z-S7-17). Chunk układu huba
+  // `admin.revenue` 4,2 -> 4,5 (oba liczniki paska: leniwa sonda Diagnostyki
+  // + `DiagnosticsBadgeProbe` 0,25 i licznik aktywnych ścieżek S8),
+  // wspólny chunk słowników ścieżek przemianowany drugim importem
+  // (`MfaRequiredNotice` -22,0 / `i18n-admin-journeys-list` +22,1).
+  // Arkusze: css 99,8 / 100 bez ratchetu, publicCss 83,8; chunk 258,0
+  // i boot 471,7 w zamrożonych progach; public 2779,2 / 2881.
+  // Host 5314,3 -> 5315 -> +1.
+  overall: 5316,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

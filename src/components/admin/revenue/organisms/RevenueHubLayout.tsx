@@ -60,7 +60,7 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { FormSelect } from "@/components/atoms/FormSelect";
@@ -72,6 +72,8 @@ import { RoleGateNotice } from "@/components/admin/revenue/molecules/RoleGateNot
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { useAuth } from "@/hooks/useAuth";
+// Liść licznika (re-eksport `summaries.ts`) - nie cały moduł opisów ścieżek.
+import { activeJourneyCount } from "@/lib/admin/journeys/activeCount";
 import {
   REVENUE_TAB_GROUPS,
   RELATED_MODULES,
@@ -86,6 +88,7 @@ import { chartLangFrom, type ChartLang } from "@/lib/charts/format";
 import { ensureI18n as ensureRevenueI18n } from "@/lib/i18n-admin-revenue";
 import { ensureI18n as ensureShellI18n } from "@/lib/i18n-admin-revenue-shell";
 import { schedulerFreshness } from "@/lib/jobs/scheduler";
+import { journeyListQueryOptions } from "@/lib/journeys/queries";
 import { revenueKeys } from "@/lib/revenue/keys";
 import { parseMoneyByCurrency } from "@/lib/revenue/money";
 import {
@@ -253,6 +256,19 @@ interface HubCacheView {
   currencies: string[];
 }
 
+/**
+ * Licznik „Ścieżki = aktywne” (Z-S6-08). Zapytanie rusza po hydratacji
+ * (`HubSections` rysuje się dopiero po niej - `RevenueHubLayout`), tylko
+ * z najemcą i dla ról z zakładką Ścieżek (`canSeeTab`): autor i sam
+ * `super_admin` nie wysyłają żądania, którego RLS i tak by odmówił.
+ */
+function useJourneysBadgeCount(tenantId: string | null, roles: readonly string[]): number | null {
+  const enabled = Boolean(tenantId) && canSeeTab("journeys", roles);
+  const list = useQuery({ ...journeyListQueryOptions(tenantId, null), enabled });
+  if (!enabled || list.data?.state !== "ready") return null;
+  return activeJourneyCount(list.data.data);
+}
+
 function useHubCache(tenantId: string | null): HubCacheView {
   const queryClient = useQueryClient();
   const signature = useSyncExternalStore(
@@ -405,17 +421,24 @@ function HubSections({
   const navigate = useNavigate();
   const navId = useId();
   const tabs = hubTabsFor(roles);
-  // Slot liczników paska (Z-S6-08). Diagnostyka (S7, Integrator S7
-  // 2026-10-22): otwarte krytyczne + ważne bez obowiązujących wyciszeń
-  // z leniwej sondy - `null` = nie wiadomo (ładowanie, odmowa), wtedy pasek
-  // nie pokazuje „0". Ścieżki (aktywne) dokłada S8.
+  // Slot liczników paska (Z-S6-08).
+  // Diagnostyka (S7, Integrator S7 2026-10-22): otwarte krytyczne + ważne bez
+  // obowiązujących wyciszeń z leniwej sondy - `null` = nie wiadomo
+  // (ładowanie, odmowa), wtedy pasek nie pokazuje „0".
   const [diagnosticsBadge, setDiagnosticsBadge] = useState<number | null>(null);
   // Ta sama bramka co `admin_revenue_facts()`: wiersz `admin` albo `editor`.
   const factsRoleOk = roles.includes("admin") || roles.includes("editor");
   const probeDiagnostics =
     tenantId !== null && factsRoleOk && tabs.some((spec) => spec.id === "diagnostics");
-  const badges: Partial<Record<RevenueTabId, number>> =
-    probeDiagnostics && diagnosticsBadge !== null ? { diagnostics: diagnosticsBadge } : {};
+  // Ścieżki: aktywne (Integrator S8) - ten sam klucz co lista zakładki
+  // (`journeyListQueryOptions(tenantId, null)`), więc przy ciepłym cache zero
+  // dodatkowych żądań. `null` (ładowanie, odmowa, brak roli) = brak licznika,
+  // nie „0”. Oba liczniki łączy scalenie S7 po S8 (2026-10-22).
+  const journeys = useJourneysBadgeCount(tenantId, roles);
+  const badges: Partial<Record<RevenueTabId, number>> = {
+    ...(probeDiagnostics && diagnosticsBadge !== null ? { diagnostics: diagnosticsBadge } : {}),
+    ...(journeys === null ? {} : { journeys }),
+  };
 
   const groups = REVENUE_TAB_GROUPS.map((group) => ({
     group,
@@ -519,7 +542,11 @@ function HubTabLink({
       {badge !== undefined && badge > 0 ? (
         <span className="rounded-full bg-muted px-1.5 text-[10px] tabular-nums text-foreground">
           <span aria-hidden="true">{badge}</span>
-          <span className="sr-only">{t("adminRevenue.nav.badge", { count: badge })}</span>
+          <span className="sr-only">
+            {spec.counter === "journeys"
+              ? t("adminRevenue.nav.badgeJourneys", { count: badge })
+              : t("adminRevenue.nav.badge", { count: badge })}
+          </span>
         </span>
       ) : null}
     </>

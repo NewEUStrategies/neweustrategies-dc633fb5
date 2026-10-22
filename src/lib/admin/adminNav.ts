@@ -251,16 +251,28 @@ function revenueTabPath(tab: RevenueTabId): string {
  * Danych wejściowych: hub dałby mu tam `RoleGateNotice`, a skrót do ekranu
  * „brak dostępu" jest gorszy niż brak skrótu.
  *
- * „Nowa ścieżka" (`/admin/revenue/journeys?new=1`) świadomie NIE MA wpisu:
- * parametr jest w kontrakcie adresu (I0), ale zakładka Ścieżek do S8 go nie
- * obsługuje - skrót obiecywałby akcję, która nic nie robi (dziennik, I9a).
+ * „Nowa ścieżka" (`/admin/revenue/journeys?new=1`) - akcja, nie ekran:
+ * zakładka Ścieżek (S8) otwiera pod `?new=1` galerię szablonów z kreatorem
+ * (`RevenueJourneysTab`), więc skrót prowadzi wprost do tworzenia. Ta sama
+ * bramka co zakładka (`canSeeTab`): tworzyć szkic może admin i redaktor
+ * (`journeyCapabilities`), autor nie widzi huba wcale (Integrator S8).
  */
 function revenueHubSearchEntries(t: TFunction, roles: readonly string[]): AdminNavSearchEntry[] {
-  return hubTabsFor(roles).map((spec) => ({
+  const tabs: AdminNavSearchEntry[] = hubTabsFor(roles).map((spec) => ({
     to: revenueTabPath(spec.id),
     label: t(REVENUE_TAB_NAV_LABEL[spec.id]),
     keywords: REVENUE_TAB_KEYWORDS[spec.id],
   }));
+  if (!canSeeTab("journeys", roles)) return tabs;
+  return [
+    ...tabs,
+    {
+      to: revenueTabPath("journeys"),
+      search: { new: "1" },
+      label: t("admin.nav.newJourney"),
+      keywords: ["nowa sciezka", "new journey", "szablon"],
+    },
+  ];
 }
 
 /**

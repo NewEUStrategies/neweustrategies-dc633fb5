@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   auth: { isAdmin: true, roles: ["admin"] as Role[], tenantId: undefined as string | undefined },
   fetchFacts: vi.fn(),
   fetchSnoozes: vi.fn(),
+  listJourneys: vi.fn(),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
@@ -33,6 +34,12 @@ vi.mock("@/lib/revenue/diagnostics/diagnostics.functions", async (importOriginal
   getRevenueFacts: () => h.fetchFacts(),
   getRevenueSnoozes: () => h.fetchSnoozes(),
 }));
+// Licznik „Ścieżki = aktywne” (Integrator S8) czyta listę ścieżek - atrapa
+// jedynej server fn, którą układ woła (granica sieci).
+vi.mock("@/lib/journeys/journeys.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/journeys/journeys.functions")>()),
+  listJourneys: (input: unknown) => h.listJourneys(input),
+}));
 
 import "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -40,6 +47,9 @@ import { renderRoute, type RouteHarnessContext } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import type { RevenueFacts } from "@/lib/revenue/diagnostics/facts";
 import { revenueKeys } from "@/lib/revenue/keys";
+import { journeyKeys } from "@/lib/journeys/keys";
+import { parseJourneyList } from "@/lib/journeys/parse";
+import { RPC_SHAPES } from "@/lib/journeys/__tests__/rpcShapes.fixture";
 import { resolveRevenueRange } from "@/lib/revenue/window";
 import { RevenueHubLayout } from "@/components/admin/revenue/organisms/RevenueHubLayout";
 import { Route as LayoutRoute } from "@/routes/admin.revenue";
@@ -69,6 +79,7 @@ beforeEach(async () => {
   asRole(["admin"]);
   h.fetchFacts.mockReset().mockResolvedValue({ state: "unavailable" });
   h.fetchSnoozes.mockReset().mockResolvedValue({ state: "unavailable" });
+  h.listJourneys.mockReset().mockResolvedValue({ state: "ready", data: [] });
   await i18n.changeLanguage("pl");
 });
 
@@ -498,6 +509,81 @@ describe("licznik Diagnostyki na pasku huba", () => {
     await waitFor(() => expect(diagnosticsLink()).toHaveTextContent(/^Diagnostyka2/));
     expect(h.fetchFacts).toHaveBeenCalledTimes(1);
     expect(h.fetchSnoozes).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Licznik paska - Ścieżki (Z-S6-08, Integrator S8)
+// ---------------------------------------------------------------------------
+
+describe("licznik „Ścieżki = aktywne” na pasku", () => {
+  const journeysLink = () => within(hubNav()).getByRole("link", { name: /^Ścieżki/ });
+  const list = (...statuses: string[]) =>
+    parseJourneyList(
+      statuses.map((status, i) => ({
+        ...RPC_SHAPES.list[0],
+        id: `aaaaaaaa-0000-4000-8000-00000000000${i}`,
+        status,
+      })),
+    );
+
+  it.each([["admin"], ["editor"]] as const)(
+    "%s: liczba aktywnych z listy ścieżek (ten sam klucz co zakładka), z nazwą dla czytnika",
+    async (role) => {
+      asRole([role], TENANT);
+      h.listJourneys.mockResolvedValue({
+        state: "ready",
+        data: list("active", "paused", "active", "draft"),
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      await mountHub(`${HUB}/funnel`, queryClient);
+
+      await waitFor(() => expect(journeysLink()).toHaveTextContent("2"));
+      expect(journeysLink()).toHaveTextContent("2 aktywne ścieżki");
+      expect(h.listJourneys).toHaveBeenCalledWith({ data: { status: null } });
+      expect(queryClient.getQueryData(journeyKeys.list(TENANT, null))).toMatchObject({
+        state: "ready",
+      });
+    },
+  );
+
+  it("przy ciepłym cache zakładki - bez nowego żądania; zero aktywnych = brak licznika", async () => {
+    asRole(["admin"], TENANT);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(journeyKeys.list(TENANT, null), {
+      state: "ready",
+      data: list("paused", "archived"),
+    });
+    await mountHub(`${HUB}/funnel`, queryClient);
+
+    expect(journeysLink()).toHaveTextContent(/^Ścieżki$/);
+    expect(h.listJourneys).not.toHaveBeenCalled();
+  });
+
+  it("odmowa i błąd odczytu to brak licznika, nie „0”", async () => {
+    asRole(["admin"], TENANT);
+    h.listJourneys.mockResolvedValue({ state: "forbidden" });
+    await mountHub(`${HUB}/funnel`);
+    await waitFor(() => expect(h.listJourneys).toHaveBeenCalled());
+    expect(journeysLink()).toHaveTextContent(/^Ścieżki$/);
+  });
+
+  it("bez najemcy w sesji nie ma żądania listy ścieżek", async () => {
+    asRole(["admin"]);
+    await mountHub(`${HUB}/funnel`);
+    expect(h.listJourneys).not.toHaveBeenCalled();
+  });
+
+  it("angielski czytnik słyszy „active journeys”", async () => {
+    await i18n.changeLanguage("en");
+    asRole(["admin"], TENANT);
+    h.listJourneys.mockResolvedValue({ state: "ready", data: list("active") });
+    await mountHub(`${HUB}/funnel`);
+    const link = within(screen.getByRole("navigation", { name: "Hub sections" })).getByRole(
+      "link",
+      { name: /^Journeys/ },
+    );
+    await waitFor(() => expect(link).toHaveTextContent("1 active journey"));
   });
 });
 

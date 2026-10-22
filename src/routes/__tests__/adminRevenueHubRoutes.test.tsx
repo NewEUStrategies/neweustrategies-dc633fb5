@@ -33,10 +33,22 @@ import { Outlet, createRootRouteWithContext, type AnyRoute } from "@tanstack/rea
 import type { Role } from "@/hooks/useAuth";
 
 const h = vi.hoisted(() => ({
-  auth: { isAdmin: false, roles: [] as Role[] },
+  auth: { isAdmin: false, roles: [] as Role[] } as {
+    isAdmin: boolean;
+    roles: Role[];
+    tenantId?: string;
+  },
+  getJourneyDetail: vi.fn(),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+// Edytor ścieżki (S8) czyta szczegół przez server fn - atrapa jedynego odczytu,
+// którego potrzebuje szkic bez wyzwalacza (pozostałe zapytania edytora ruszają
+// dopiero w trybie edycji).
+vi.mock("@/lib/admin/journeys/journeyEditor.functions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/admin/journeys/journeyEditor.functions")>()),
+  getJourneyDetail: (input: unknown) => h.getJourneyDetail(input),
+}));
 
 import "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -373,6 +385,30 @@ describe("rola huba - autor dostaje powiadomienie, admin i redaktor zakładkę",
 describe("edytor ścieżki - wypięty z układu, z własną bramką roli", () => {
   it("dostaje identyfikator ścieżki i zwalidowany adres z powłoki trasy", async () => {
     asRole("editor");
+    h.auth.tenantId = "11111111-1111-4111-8111-111111111111";
+    // Świeża ścieżka z `createJourney`: szkic bez wyzwalacza (stan „wybierz wyzwalacz”).
+    h.getJourneyDetail.mockResolvedValue({
+      state: "ready",
+      data: {
+        definition: {
+          id: "welcome-series",
+          key: "welcome-series",
+          name: "Seria powitalna",
+          description: null,
+          status: "draft",
+          category: "marketing",
+          legalBasis: null,
+          templateKey: null,
+          publishedVersionId: null,
+          createdAt: "2026-10-21T10:00:00+00:00",
+          updatedAt: "2026-10-21T10:00:00+00:00",
+        },
+        draftRaw: { graph: { nodes: [], edges: [] }, settings: {} },
+        versions: [],
+        contents: [],
+        templateMatches: {},
+      },
+    });
     await renderRoute({
       route: EditorRoute,
       path: EDITOR,
@@ -382,7 +418,13 @@ describe("edytor ścieżki - wypięty z układu, z własną bramką roli", () =>
     const editor = await screen.findByTestId("journey-editor");
     expect(editor).toHaveAttribute("data-journey-id", "welcome-series");
     expect(editor).toHaveAttribute("data-view", "list");
-    expect(editor).toHaveTextContent("Ta sekcja huba jest w przygotowaniu.");
+    // Edytor S8 zamiast zaślepki I0: nazwa z odczytu szczegółu i stan szkicu.
+    expect(
+      await within(editor).findByRole("heading", { level: 1, name: "Seria powitalna" }),
+    ).toBeVisible();
+    expect(h.getJourneyDetail).toHaveBeenCalledWith({ data: { journeyId: "welcome-series" } });
+    expect(editor).toHaveTextContent("Wybierz wyzwalacz, żeby zacząć budować ścieżkę.");
+    expect(editor).not.toHaveTextContent("Ta sekcja huba jest w przygotowaniu.");
     // Wypięty z układu: bez nagłówka huba nad kanwą.
     expect(screen.queryByRole("heading", { name: "Przychód i lejek" })).toBeNull();
   });
