@@ -864,9 +864,9 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator I9a, 2026-10-20 - decyzja właściciela: hub w nawigacji przed
     // I9). Powłoka panelu podaje nawigacji DOKŁADNE role i `search` skrótów
     // ⌘K; stan „w przygotowaniu" zakładek (dane, słownik, testy - usunięte
-    // po S7 i S8, §23.11); okno
-    // porzucenia kasy w karcie ustawień kasy (S1) - wspólny predykat
-    // w limitach I0, odczyt i zapis w module S1, serwer kasy S3.
+    // po S7 i S8, §23.11); okno porzucenia kasy w karcie ustawień kasy (S1) -
+    // wspólny predykat w limitach I0, odczyt i zapis w module S1, serwer kasy
+    // S3.
     "src/components/admin/AdminShell.tsx",
     "src/components/admin/__tests__/AdminShell.test.tsx",
     "src/lib/locale/__tests__/coreScopeSurfaces.test.tsx",
