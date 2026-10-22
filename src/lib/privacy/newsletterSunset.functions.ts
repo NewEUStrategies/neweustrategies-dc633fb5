@@ -190,14 +190,14 @@ export const saveNewsletterSunsetCopy = createServerFn({ method: "POST" })
     const tenant = await sessionTenant(context.supabase, context.userId);
     if ("error" in tenant) return mapDataRetentionError(tenant.error);
     const stamp = new Date().toISOString();
-    const value = data.overrides as unknown as Record<string, unknown>;
+    const value = data.overrides;
     if (data.expectedUpdatedAt === null) {
       const { data: row, error } = await context.supabase
         .from("site_settings")
         .insert({
           tenant_id: tenant.tenantId,
           key: NEWSLETTER_SUNSET_COPY_SETTING_KEY,
-          value: value as never,
+          value,
           updated_at: stamp,
           updated_by: context.userId,
         })
@@ -211,7 +211,7 @@ export const saveNewsletterSunsetCopy = createServerFn({ method: "POST" })
     }
     const { data: rows, error } = await context.supabase
       .from("site_settings")
-      .update({ value: value as never, updated_at: stamp, updated_by: context.userId })
+      .update({ value, updated_at: stamp, updated_by: context.userId })
       .eq("tenant_id", tenant.tenantId)
       .eq("key", NEWSLETTER_SUNSET_COPY_SETTING_KEY)
       .eq("updated_at", data.expectedUpdatedAt)
