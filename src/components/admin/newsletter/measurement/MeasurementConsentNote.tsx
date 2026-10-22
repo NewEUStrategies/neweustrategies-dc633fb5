@@ -6,12 +6,14 @@
 // wyłącznie osoby ze zgodą obejmującą pomiar (przy włączonym wspólnym
 // przełączniku najemcy). Wskaźniki otwarć i kliknięć spadną skokowo po
 // wdrożeniu - bez notki admin uznałby to za realny spadek zaangażowania.
-// Dwa warianty mówią o MIANOWNIKU uczciwie:
+// Trzy warianty mówią o MIANOWNIKU uczciwie:
 //   * `campaign` - kampanie znają liczbę odbiorców mierzonych
 //     (`admin_newsletter_campaign_measurement`), więc wskaźnik dzieli przez
 //     mierzonych (kampanie sprzed Y2 - przez wszystkich wysłanych);
 //   * `journey` - statystyki ścieżek tej liczby nie mają: mianownik to
-//     wszystkie wysłane maile, wskaźnik jest więc niższy niż wśród mierzonych.
+//     wszystkie wysłane maile, wskaźnik jest więc niższy niż wśród mierzonych;
+//   * `dashboard` - kafle otwarć i kliknięć Kokpitu (I9, Z-I9d-16): zdarzenia
+//     okna przez wszystkie wysyłki kampanii zakończonych w oknie.
 //
 // Typografia i dymek jak notka agregatu dobowego (`RetentionAggregateNote`):
 // wspólny atom `HintTooltip` (cel 24 px, opis w DOM dla czytnika).
@@ -26,6 +28,7 @@ import { cn } from "@/lib/utils";
 const BODY_KEYS = {
   campaign: "adminMeasurementHint.campaign",
   journey: "adminMeasurementHint.journey",
+  dashboard: "adminMeasurementHint.dashboard",
 } as const;
 
 export function MeasurementConsentNote({

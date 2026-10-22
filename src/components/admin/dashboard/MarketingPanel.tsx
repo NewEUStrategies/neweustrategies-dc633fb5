@@ -41,6 +41,7 @@ import { bucketLabel } from "@/lib/admin/dashboard/labels";
 import type { DashboardRange } from "@/lib/admin/dashboard/period";
 import type { MarketingReport, MoneyByCurrency } from "@/lib/admin/dashboard/types";
 import { StatTile } from "./StatTile";
+import { MeasurementConsentNote } from "@/components/admin/newsletter/measurement/MeasurementConsentNote";
 
 const RealizedRevenueTile = lazy(() =>
   import("@/components/admin/revenue/metrics/RealizedRevenueTile").then((m) => ({
@@ -240,6 +241,11 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
           hint={t("adminDashboard.marketing.fromImpressions", { count: current.adImpressions })}
         />
       </div>
+
+      {/* Z-I9d-16 (I9): od I9d-Y2 otwarcia i kliknięcia mierzymy tylko za
+          zgodą na pomiar - bez notki spadek wskaźników po wdrożeniu
+          wyglądałby jak realny spadek zaangażowania. */}
+      <MeasurementConsentNote scope="dashboard" />
 
       <ChartCard
         title={t("adminDashboard.marketing.seriesTitle")}

@@ -228,6 +228,19 @@ describe("kafel pulpitu", () => {
     expect(h.fetchSnapshot).not.toHaveBeenCalled();
   });
 
+  it("kafle otwarć i kliknięć mają notkę o zgodzie na pomiar z dymkiem (I9, Z-I9d-16)", async () => {
+    const view = renderWith(<MarketingPanel report={report()} range={dashboardRange("month")} />);
+    await screen.findByTestId("marketing-realized");
+    const note = view.container.querySelector('[data-measurement-note="dashboard"]');
+    expect(note).not.toBeNull();
+    expect(note).toHaveTextContent("Tylko odbiorcy ze zgodą na pomiar");
+    expect(
+      within(note as HTMLElement).getByRole("button", {
+        name: "Kogo obejmuje pomiar otwarć i kliknięć?",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("axe bez naruszeń", async () => {
     const view = renderWith(<MarketingPanel report={report()} range={dashboardRange("month")} />);
     const panel = await screen.findByTestId("marketing-realized");

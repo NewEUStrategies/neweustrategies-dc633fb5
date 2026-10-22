@@ -25,6 +25,8 @@ const pl = {
     ofMeasured: "{{percent}}% mierzonych",
     journey:
       "Otwarcia i kliknięcia liczymy wyłącznie u odbiorców ze zgodą na pomiar otwarć i kliknięć (przy włączonym pomiarze). Mianownik obejmuje wszystkie wysłane maile, więc wskaźnik jest niższy niż wśród osób mierzonych.",
+    dashboard:
+      "Otwarcia i kliknięcia kampanii liczymy wyłącznie u odbiorców ze zgodą na pomiar otwarć i kliknięć (przy włączonym pomiarze). Kafel dzieli je przez wszystkie wysyłki kampanii zakończonych w okresie, więc wskaźnik jest niższy niż wśród osób mierzonych.",
     predicate:
       "Otwarcia i kliknięcia mierzymy tylko u odbiorców ze zgodą na pomiar. Pozostali nigdy nie spełnią tego warunku - trafią do gałęzi „nie”, nawet jeśli przeczytali mail.",
     popupLabel:
@@ -42,6 +44,8 @@ const en: typeof pl = {
     ofMeasured: "{{percent}}% of measured",
     journey:
       "Opens and clicks are counted only for recipients who consented to measuring opens and clicks (with measurement switched on). The denominator covers every email sent, so the rate is lower than among measured people.",
+    dashboard:
+      "Campaign opens and clicks are counted only for recipients who consented to measuring opens and clicks (with measurement switched on). The card divides them by all sends of campaigns finished in the period, so the rate is lower than among measured people.",
     predicate:
       "Opens and clicks are measured only for recipients with measurement consent. Everyone else never meets this condition - they go to the “no” branch even if they read the email.",
     popupLabel:
