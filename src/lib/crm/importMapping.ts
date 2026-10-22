@@ -19,8 +19,17 @@
 //      druga zostaje niezmapowana; inaczej ta sama informacja nadpisywałaby się
 //      zależnie od kolejności kolumn w pliku.
 //
+//   4. ZA DŁUGA WARTOŚĆ JEST ZGŁASZANA, NIGDY PRZYCINANA (I9, Z-I9b-15).
+//      Limity pól to JEDNO źródło (`LEAD_IMPORT_VALUE_MAX`, `CRM_TAG_MAX`,
+//      `IMPORT_MAX_TAGS`) dla mapowania i walidatora serwera
+//      (`importCrmLeads`): przycięty tag albo nazwisko to inna wartość niż
+//      w pliku, a wartość ponad limit serwera wywracała CAŁĄ porcję 500
+//      wierszy jednym błędem zod. Wiersz zostaje w wyniku, a dialog pokazuje
+//      numer wiersza i blokuje import do poprawy pliku.
+//
 // Parsowanie samego CSV nie jest sprawą tego modułu - robi je `lib/csv/parseCsv`.
 import type { CrmImportRow } from "@/lib/crm-tasks.functions";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
 
 /** Pola leada, które import potrafi wypełnić (zgodne z `crm_import_leads`). */
 export const LEAD_IMPORT_FIELDS = [
@@ -51,10 +60,23 @@ export type LeadImportMapping = LeadImportFieldChoice[];
 
 /** Twardy sufit wierszy na jeden import (klient stronicuje większe pliki). */
 export const IMPORT_MAX_ROWS = 5000;
-/** Maksymalna liczba tagów z jednej komórki. */
+/** Maksymalna liczba tagów z jednej komórki (= limit tablicy w walidatorze serwera). */
 export const IMPORT_MAX_TAGS = 20;
-/** Sufit długości wartości - RPC i tak przycina, ale nie wysyłamy śmieci. */
-export const IMPORT_VALUE_MAX_LENGTH = 300;
+/**
+ * Limity długości pól importu w znakach - czyta je i mapowanie (zgłoszenie
+ * wartości za długich), i walidator `importCrmLeads` (odrzucenie porcji).
+ * Tag ma osobny limit `CRM_TAG_MAX` (wspólny z pisarzem tagów CRM).
+ */
+export const LEAD_IMPORT_VALUE_MAX: Readonly<Record<Exclude<LeadImportField, "tags">, number>> = {
+  email: 320,
+  first_name: 100,
+  last_name: 100,
+  phone: 40,
+  company: 200,
+  position: 150,
+  country: 80,
+  linkedin_url: 300,
+};
 
 /**
  * Nagłówki, które NIGDY nie mogą zostać zmapowane. Reguła stoi przed wszystkimi
@@ -131,13 +153,15 @@ export function autoMapHeaders(header: readonly string[]): LeadImportMapping {
   });
 }
 
-/** Podział komórki z tagami: separatory `|`, `;`, `,`; puste odpadają. */
+/**
+ * Podział komórki z tagami: separatory `|`, `;`, `,`; puste odpadają. BEZ
+ * obcinania liczby tagów - nadmiar zgłasza `mapImportRows` (reguła 4).
+ */
 export function splitTags(value: string): string[] {
   return value
     .split(/[|;,]/)
     .map((t) => t.trim())
-    .filter((t) => t.length > 0)
-    .slice(0, IMPORT_MAX_TAGS);
+    .filter((t) => t.length > 0);
 }
 
 /** E-mail „wygląda jak e-mail" - twardą walidację robi baza. */
@@ -145,9 +169,32 @@ export function looksLikeEmail(value: string): boolean {
   return /.+@.+\..+/.test(value);
 }
 
+/** Wartość pliku ponad limit pola (reguła 4) - do poprawy przed importem. */
+export interface OversizedImportValue {
+  /**
+   * Numer wiersza w pliku (nagłówek = 1) - z `parseCsv().rowNumbers`, więc
+   * zgadza się z arkuszem także po pustych liniach.
+   */
+  row: number;
+  /** Indeks kolumny pliku (nagłówek kolumny pokazuje dialog). */
+  column: number;
+  field: LeadImportField;
+  /**
+   * `length` - wartość (dla tagów: jeden z tagów) ma więcej niż `limit`
+   * znaków; `count` - komórka ma więcej niż `limit` tagów.
+   */
+  kind: "length" | "count";
+  limit: number;
+}
+
 export interface MappedImportRows {
   /** Wiersze gotowe do wysłania do `crm_import_leads`. */
   rows: CrmImportRow[];
+  /**
+   * Wartości ponad limit pól - w kolejności wierszy. Niepusta lista blokuje
+   * import (dialog), bo serwer odrzuciłby porcję, a przycinać nie wolno.
+   */
+  oversized: OversizedImportValue[];
   /** Ile wierszy odpadło jako powtórzony e-mail W TYM SAMYM pliku. */
   inFileDuplicates: number;
   /** Ile wierszy odpadło z braku poprawnego e-maila. */
@@ -165,10 +212,12 @@ export interface MappedImportRows {
 export function mapImportRows(
   rows: readonly (readonly string[])[],
   mapping: LeadImportMapping,
+  rowNumbers?: readonly number[],
 ): MappedImportRows {
   const emailIndex = mapping.indexOf("email");
   const empty: MappedImportRows = {
     rows: [],
+    oversized: [],
     inFileDuplicates: 0,
     skippedWithoutEmail: 0,
     droppedOverLimit: 0,
@@ -177,11 +226,14 @@ export function mapImportRows(
 
   const seen = new Set<string>();
   const out: CrmImportRow[] = [];
+  const oversized: OversizedImportValue[] = [];
   let inFileDuplicates = 0;
   let skippedWithoutEmail = 0;
   let droppedOverLimit = 0;
 
-  for (const raw of rows) {
+  for (const [index, raw] of rows.entries()) {
+    // Bez numerów z parsera: wiersz danych po nagłówku (nagłówek = 1).
+    const rowNumber = rowNumbers?.[index] ?? index + 2;
     const email = (raw[emailIndex] ?? "").trim();
     if (!looksLikeEmail(email)) {
       skippedWithoutEmail += 1;
@@ -198,22 +250,39 @@ export function mapImportRows(
     }
     seen.add(normalized);
 
+    const report = (
+      column: number,
+      field: LeadImportField,
+      kind: "length" | "count",
+      limit: number,
+    ) => oversized.push({ row: rowNumber, column, field, kind, limit });
+    if (email.length > LEAD_IMPORT_VALUE_MAX.email) {
+      report(emailIndex, "email", "length", LEAD_IMPORT_VALUE_MAX.email);
+    }
+
     const row: CrmImportRow = { email };
-    mapping.forEach((field, index) => {
+    mapping.forEach((field, column) => {
       if (!field || field === "email") return;
       // Wiersz krótszy od nagłówka = brakujące komórki puste; wiersz dłuższy =
       // nadmiarowe kolumny bez mapowania, więc po prostu ich tu nie ma.
-      const value = (raw[index] ?? "").trim();
+      const value = (raw[column] ?? "").trim();
       if (!value) return;
       if (field === "tags") {
         const tags = splitTags(value);
+        if (tags.some((tag) => tag.length > CRM_TAG_MAX)) {
+          report(column, "tags", "length", CRM_TAG_MAX);
+        }
+        if (tags.length > IMPORT_MAX_TAGS) report(column, "tags", "count", IMPORT_MAX_TAGS);
         if (tags.length > 0) row.tags = tags;
         return;
       }
-      row[field] = value.slice(0, IMPORT_VALUE_MAX_LENGTH);
+      if (value.length > LEAD_IMPORT_VALUE_MAX[field]) {
+        report(column, field, "length", LEAD_IMPORT_VALUE_MAX[field]);
+      }
+      row[field] = value;
     });
     out.push(row);
   }
 
-  return { rows: out, inFileDuplicates, skippedWithoutEmail, droppedOverLimit };
+  return { rows: out, oversized, inFileDuplicates, skippedWithoutEmail, droppedOverLimit };
 }

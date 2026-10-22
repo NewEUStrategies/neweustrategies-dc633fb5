@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import {
   IMPORT_MAX_ROWS,
   IMPORT_MAX_TAGS,
-  IMPORT_VALUE_MAX_LENGTH,
   LEAD_IMPORT_FIELDS,
+  LEAD_IMPORT_VALUE_MAX,
   LEAD_IMPORT_FIELD_CHOICES,
   autoMapHeaders,
   fieldForHeader,
@@ -18,6 +18,7 @@ import {
   splitTags,
   type LeadImportMapping,
 } from "../importMapping";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
 
 describe("normalizeHeader", () => {
   it("ścina BOM, spacje i wielkość liter", () => {
@@ -279,6 +280,7 @@ describe("mapImportRows", () => {
   it("pusty plik daje pusty wynik bez błędu", () => {
     expect(mapImportRows([], MAPPING)).toEqual({
       rows: [],
+      oversized: [],
       inFileDuplicates: 0,
       skippedWithoutEmail: 0,
       droppedOverLimit: 0,
@@ -299,10 +301,87 @@ describe("mapImportRows", () => {
     expect(rows[0].email).toBe("Anna.Kowalska@Example.test");
   });
 
-  it("wartość dłuższa niż limit jest przycinana", () => {
-    const long = "x".repeat(IMPORT_VALUE_MAX_LENGTH + 50);
-    const { rows } = mapImportRows([["anna@example.test", long]], ["email", "company"]);
-    expect(rows[0].company).toHaveLength(IMPORT_VALUE_MAX_LENGTH);
+  it("wartość dłuższa niż limit pola NIE jest przycinana - jest zgłaszana z numerem wiersza (Z-I9b-15)", () => {
+    const long = "x".repeat(LEAD_IMPORT_VALUE_MAX.company + 1);
+    const { rows, oversized } = mapImportRows(
+      [
+        ["anna@example.test", "Acme"],
+        ["jan@example.test", long],
+      ],
+      ["email", "company"],
+    );
+    // Wiersz zostaje w całości - poprawia go człowiek, nie import.
+    expect(rows[1].company).toBe(long);
+    // Nagłówek = wiersz 1, więc drugi wiersz danych to wiersz 3 pliku.
+    expect(oversized).toEqual([
+      { row: 3, column: 1, field: "company", kind: "length", limit: LEAD_IMPORT_VALUE_MAX.company },
+    ]);
+  });
+
+  it("wartość równa limitowi przechodzi bez zgłoszenia", () => {
+    const exact = "x".repeat(LEAD_IMPORT_VALUE_MAX.first_name);
+    const { rows, oversized } = mapImportRows(
+      [["anna@example.test", exact]],
+      ["email", "first_name"],
+    );
+    expect(rows[0].first_name).toBe(exact);
+    expect(oversized).toEqual([]);
+  });
+
+  it(`tag ${CRM_TAG_MAX} znaków przechodzi, ${CRM_TAG_MAX + 1} jest zgłaszany i nieprzycięty`, () => {
+    const ok = "t".repeat(CRM_TAG_MAX);
+    const tooLong = "u".repeat(CRM_TAG_MAX + 1);
+    const { rows, oversized } = mapImportRows(
+      [
+        ["anna@example.test", `eu|${ok}`],
+        ["jan@example.test", `eu|${tooLong}`],
+      ],
+      ["email", "tags"],
+    );
+    expect(rows[0].tags).toEqual(["eu", ok]);
+    expect(rows[1].tags).toEqual(["eu", tooLong]);
+    expect(oversized).toEqual([
+      { row: 3, column: 1, field: "tags", kind: "length", limit: CRM_TAG_MAX },
+    ]);
+  });
+
+  it("ponad limit tagów w komórce to zgłoszenie, nie odcięcie nadmiaru", () => {
+    const value = Array.from({ length: IMPORT_MAX_TAGS + 1 }, (_, i) => `tag${i}`).join("|");
+    const { rows, oversized } = mapImportRows([["anna@example.test", value]], ["email", "tags"]);
+    expect(rows[0].tags).toHaveLength(IMPORT_MAX_TAGS + 1);
+    expect(oversized).toEqual([
+      { row: 2, column: 1, field: "tags", kind: "count", limit: IMPORT_MAX_TAGS },
+    ]);
+  });
+
+  it("e-mail ponad limit też jest zgłaszany (serwer odrzuciłby całą porcję)", () => {
+    const email = `${"a".repeat(LEAD_IMPORT_VALUE_MAX.email)}@example.test`;
+    const { oversized } = mapImportRows([[email]], ["email"]);
+    expect(oversized).toEqual([
+      { row: 2, column: 0, field: "email", kind: "length", limit: LEAD_IMPORT_VALUE_MAX.email },
+    ]);
+  });
+
+  it("numery wierszy z parsera (po pustych liniach) wygrywają z indeksem", () => {
+    const { oversized } = mapImportRows(
+      [["anna@example.test", "x".repeat(LEAD_IMPORT_VALUE_MAX.phone + 1)]],
+      ["email", "phone"],
+      [7],
+    );
+    expect(oversized[0]?.row).toBe(7);
+  });
+
+  it("duplikat i wiersz bez e-maila nie są zgłaszane - i tak odpadają", () => {
+    const long = "x".repeat(LEAD_IMPORT_VALUE_MAX.company + 1);
+    const { oversized } = mapImportRows(
+      [
+        ["anna@example.test", "Acme"],
+        ["anna@example.test", long],
+        ["bez-maila", long],
+      ],
+      ["email", "company"],
+    );
+    expect(oversized).toEqual([]);
   });
 
   it("liczba wierszy ponad limit jest odcięta i policzona", () => {
@@ -327,9 +406,9 @@ describe("splitTags", () => {
     expect(splitTags("eu||;,energia")).toEqual(["eu", "energia"]);
   });
 
-  it("liczba tagów jest ograniczona", () => {
+  it("liczba tagów NIE jest obcinana - nadmiar zgłasza mapowanie", () => {
     const value = Array.from({ length: IMPORT_MAX_TAGS + 5 }, (_, i) => `tag${i}`).join("|");
-    expect(splitTags(value)).toHaveLength(IMPORT_MAX_TAGS);
+    expect(splitTags(value)).toHaveLength(IMPORT_MAX_TAGS + 5);
   });
 
   it("komórka bez treści nie daje żadnego tagu", () => {
