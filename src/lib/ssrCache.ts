@@ -96,6 +96,17 @@ export interface EdgeTtlCacheOptions {
    * wyłącza je dla klucza z listy. Domyślnie decyduje `EDGE_TTL_L2_KEY_PREFIXES`.
    */
   l2?: boolean;
+  /**
+   * `false`: wpis po TTL NIE jest serwowany od ręki - wywołanie idzie
+   * blokującym lotem single-flight (jak przy zimnym chybieniu). Dla odczytów
+   * wołanych WEWNĄTRZ fetchera innego klucza (wspólny nadzbiór najnowszych
+   * wpisów pod kluczami widgetów, `lib/builder/latestPostsSuperset.ts`):
+   * zewnętrzny klucz ma własne serve-stale, a gdyby wewnętrzny też oddał
+   * nieświeże dane, zapis zewnętrznego ostemplowałby je `at = teraz` - wiek
+   * danych sumowałby się z dwóch warstw (do 2 × 5 × TTL zamiast 5 × TTL).
+   * Domyślnie `true`.
+   */
+  serveStale?: boolean;
 }
 
 // Single-flight: równoległe żądania tego samego klucza (normalny stan świeżo
@@ -340,8 +351,9 @@ export async function edgeTtlCache<T>(
   const l2Wanted = l2Allowed(key, opts);
 
   // A missing settings/theme row is not a durable chrome snapshot.
+  const serveStale = opts?.serveStale !== false;
   const maxAge = cached?.data == null ? ttlMs * STALE_FACTOR : maxAgeFor(key, ttlMs);
-  if (cached && age < maxAge) {
+  if (serveStale && cached && age < maxAge) {
     // Serve-stale + refresh-behind. Odświeżenie zapisuje też L2, żeby migawka
     // kolonii nie starzała się szybciej niż L1 izolatu, który ją odnawia.
     const l2 = l2Wanted ? await resolveL2Adapter() : null;
@@ -360,7 +372,7 @@ export async function edgeTtlCache<T>(
     const l2 = adapter?.enabled() ? adapter : null;
     if (l2 && !l2Bypass.has(scopedKey)) {
       const snapshot = await readL2WithTimeout<T>(l2, scope, key, ttlMs);
-      if (snapshot) {
+      if (snapshot && (serveStale || !snapshot.stale)) {
         storeEntry(scopedKey, snapshot.value, genAtFetchStart, snapshot.at);
         // Nieświeża migawka: serwuj od ręki, odświeżenie (L1 + L2) w tle -
         // ta sama decyzja, którą L1 podejmuje dla własnego wpisu po TTL.
@@ -378,6 +390,25 @@ export async function edgeTtlCache<T>(
   });
   inFlight.set(scopedKey, { gen: genAtFetchStart, promise: flight });
   return flight;
+}
+
+/**
+ * Podgląd wpisu L1 BEZ pobierania: wartość, którą `edgeTtlCache(key, ttlMs, ...)`
+ * oddałby teraz bez czekania na bazę (świeżą albo nieświeżą w oknie
+ * serve-stale), albo `undefined`. Nie startuje fetcha, odświeżenia w tle ani
+ * odczytu L2 i nie dołącza do lotu w toku - służy wołającemu, który ma WŁASNE
+ * zapytanie i chce tylko sprawdzić, czy wspólny odczyt nie leży już w izolacie
+ * (np. autorzy slajdów wobec nadzbioru najnowszych wpisów,
+ * `lib/builder/latestPostsSuperset.ts`). Zakres hosta jak w `edgeTtlCache`;
+ * w przeglądarce zawsze `undefined` (tam cache nie istnieje).
+ */
+export async function peekEdgeTtlCache<T>(key: string, ttlMs: number): Promise<T | undefined> {
+  if (typeof window !== "undefined") return undefined;
+  const scope = (await currentTenantHost()) ?? "no-host";
+  const cached = store.get(`${scope}::${key}`) as CacheEntry<T> | undefined;
+  if (!cached) return undefined;
+  const maxAge = cached.data == null ? ttlMs * STALE_FACTOR : maxAgeFor(key, ttlMs);
+  return Date.now() - cached.at < maxAge ? cached.data : undefined;
 }
 
 /**

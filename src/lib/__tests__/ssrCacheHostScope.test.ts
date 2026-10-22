@@ -4,7 +4,12 @@
 // warmed while rendering tenant A's domain must never be served on tenant
 // B's domain. Node environment = no window, so the server code path runs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearEdgeTtlCache, edgeTtlCache, invalidateEdgeTtlCache } from "@/lib/ssrCache";
+import {
+  clearEdgeTtlCache,
+  edgeTtlCache,
+  invalidateEdgeTtlCache,
+  peekEdgeTtlCache,
+} from "@/lib/ssrCache";
 
 const state = vi.hoisted(() => ({
   host: null as string | null,
@@ -158,6 +163,33 @@ describe("edgeTtlCache host scoping", () => {
     await expect(edgeTtlCache("k", 1_000, () => Promise.resolve("v2"))).resolves.toBe("v2");
   });
 
+  // `serveStale: false` - odczyt wołany WEWNĄTRZ fetchera innego klucza
+  // (nadzbiór najnowszych wpisów pod kluczami widgetów). Po TTL nie oddaje
+  // nieświeżej wartości, tylko czeka na bazę jednym lotem; inaczej zapis
+  // zewnętrznego klucza ostemplowałby stare dane jako świeże.
+  it("serveStale: false - after the TTL a stale entry is refetched (blocking, single-flight), never served", async () => {
+    vi.useFakeTimers();
+    state.host = "a.example";
+    await edgeTtlCache("k", 1_000, () => Promise.resolve("v1"), { serveStale: false });
+    // W TTL: wpis z L1, bez fetcha.
+    const fresh = vi.fn().mockResolvedValue("MISS");
+    await expect(edgeTtlCache("k", 1_000, fresh, { serveStale: false })).resolves.toBe("v1");
+    expect(fresh).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1_500);
+    const refetch = vi.fn().mockResolvedValue("v2");
+    const [a, b] = await Promise.all([
+      edgeTtlCache("k", 1_000, refetch, { serveStale: false }),
+      edgeTtlCache("k", 1_000, refetch, { serveStale: false }),
+    ]);
+    expect([a, b]).toEqual(["v2", "v2"]);
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(state.afterResponse).toHaveLength(0);
+    // Ten sam klucz bez opcji nadal serwuje nieświeże (domyślne zachowanie).
+    vi.advanceTimersByTime(1_500);
+    await expect(edgeTtlCache("k", 1_000, () => Promise.resolve("v3"))).resolves.toBe("v2");
+  });
+
   it("dedupes concurrent cold misses into a single fetch (single-flight)", async () => {
     state.host = "a.example";
     let release!: (v: string) => void;
@@ -221,5 +253,34 @@ describe("edgeTtlCache host scoping", () => {
     const recent = vi.fn().mockResolvedValue("MISS");
     await expect(edgeTtlCache(`k${MAX + 49}`, 60_000, recent)).resolves.toBe(`v${MAX + 49}`);
     expect(recent).not.toHaveBeenCalled();
+  });
+});
+
+// Podgląd bez pobierania (`peekEdgeTtlCache`): wołający z WŁASNYM zapytaniem
+// sprawdza, czy wspólny odczyt już leży w izolacie (autorzy slajdów wobec
+// nadzbioru najnowszych wpisów). Nie może startować fetcha ani odświeżenia,
+// a zakres hosta i horyzont serve-stale ma ten sam co `edgeTtlCache`.
+describe("peekEdgeTtlCache", () => {
+  it("oddaje wpis bieżącego hosta bez fetcha; obcy host i brak wpisu = undefined", async () => {
+    state.host = "a.example";
+    await expect(peekEdgeTtlCache("k", 60_000)).resolves.toBeUndefined();
+    await edgeTtlCache("k", 60_000, () => Promise.resolve("v-a"));
+
+    await expect(peekEdgeTtlCache("k", 60_000)).resolves.toBe("v-a");
+    state.host = "b.example";
+    await expect(peekEdgeTtlCache("k", 60_000)).resolves.toBeUndefined();
+  });
+
+  it("w oknie serve-stale oddaje wartość bez odświeżenia w tle; po nim - undefined", async () => {
+    vi.useFakeTimers();
+    state.host = "a.example";
+    await edgeTtlCache("k", 1_000, () => Promise.resolve("v1"));
+
+    vi.advanceTimersByTime(1_500);
+    await expect(peekEdgeTtlCache("k", 1_000)).resolves.toBe("v1");
+    expect(state.afterResponse).toHaveLength(0);
+
+    vi.advanceTimersByTime(5_000);
+    await expect(peekEdgeTtlCache("k", 1_000)).resolves.toBeUndefined();
   });
 });
