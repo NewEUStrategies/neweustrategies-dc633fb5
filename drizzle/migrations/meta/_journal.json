@@ -2738,6 +2738,13 @@
       "when": 1792479013912,
       "tag": "0390_campaign_engagement_readers",
       "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1792689425337,
+      "tag": "0391_pr530_deployment_completion",
+      "breakpoints": true
     }
   ]
 }

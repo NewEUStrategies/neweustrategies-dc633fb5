@@ -5720,6 +5720,13 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
+            foreignKeyName: "data_retention_crm_extensions_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: true
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "data_retention_crm_extensions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -18342,6 +18349,7 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
+          meta: Json
           read_at: string | null
           tenant_id: string
           title_en: string | null
@@ -18356,6 +18364,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id: string
           title_en?: string | null
@@ -18370,6 +18379,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          meta?: Json
           read_at?: string | null
           tenant_id?: string
           title_en?: string | null
@@ -25433,11 +25443,27 @@ export type Database = {
         Returns: boolean
       }
       _caller_tenant: { Args: never; Returns: string }
+      _club_applications_anonymize: {
+        Args: { p_ids: string[]; p_surrogate?: string }
+        Returns: number
+      }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
         Args: { _tenant_id: string; p_base: string }
         Returns: string
       }
+      _consent_covers_measurement: {
+        Args: {
+          p_key: string
+          p_tenant: string
+          p_text: string
+          p_version: string
+        }
+        Returns: boolean
+      }
+      _consent_measurement_versions: { Args: never; Returns: string[] }
+      _consent_text_sha256: { Args: { p_text: string }; Returns: string }
+      _consent_text_version: { Args: { p_text: string }; Returns: string }
       _coupon_probe_bucket: {
         Args: { p_uid: string }
         Returns: Record<string, unknown>
@@ -25456,13 +25482,235 @@ export type Database = {
         Args: { p_amount_cents: number; p_error: string }
         Returns: Json
       }
+      _crm_marketing_consent_withdraw: {
+        Args: {
+          p_form_id: string
+          p_form_name: string
+          p_lang: string
+          p_lead_ids: string[]
+          p_source_id: string
+          p_source_type: Database["public"]["Enums"]["crm_source_type"]
+          p_tenant: string
+          p_text: string
+        }
+        Returns: number
+      }
       _crm_source_type_rank: {
         Args: { p_source_type: string }
+        Returns: number
+      }
+      _data_retention_admin_tenant: { Args: never; Returns: string }
+      _data_retention_anonymize_lead: {
+        Args: { p_lead: string; p_tenant: string }
+        Returns: boolean
+      }
+      _data_retention_audit_is_financial: {
+        Args: { p_action: string; p_entity_type: string }
+        Returns: boolean
+      }
+      _data_retention_audit_log: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_backfill_metered_views: {
+        Args: { p_tenant?: string }
+        Returns: number
+      }
+      _data_retention_bounded: {
+        Args: { p_count: number; p_limit: number }
+        Returns: number
+      }
+      _data_retention_cancellation_surveys: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_catalog: { Args: never; Returns: Json }
+      _data_retention_club_applications: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_club_candidates: {
+        Args: { p_cutoff: string; p_limit: number; p_tenant: string }
+        Returns: string[]
+      }
+      _data_retention_consent_log: {
+        Args: { p_execute: boolean; p_limit: number; p_tenant: string }
+        Returns: Json
+      }
+      _data_retention_crm: {
+        Args: {
+          p_customers: boolean
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_crm_candidates: {
+        Args: { p_cutoff: string; p_limit: number; p_tenant: string }
+        Returns: {
+          last_activity: string
+          last_tx: string
+          lead_id: string
+        }[]
+      }
+      _data_retention_customer_until: {
+        Args: { p_last_tx: string }
+        Returns: string
+      }
+      _data_retention_effective: {
+        Args: { p_tenant: string }
+        Returns: {
+          category: string
+          cutoff: string
+          editable: boolean
+          enabled: boolean
+          enforce_after: string
+          enforced: boolean
+          period_months: number
+          stored: boolean
+          updated_at: string
+          updated_by: string
+        }[]
+      }
+      _data_retention_email_engagement: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_email_send_log: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_emit: {
+        Args: { p_category?: string; p_op: string; p_tenant: string }
+        Returns: undefined
+      }
+      _data_retention_event_attendee_candidates: {
+        Args: { p_cutoff: string; p_limit: number; p_tenant: string }
+        Returns: string[]
+      }
+      _data_retention_event_attendees: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_fold_campaign_events: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: number
+      }
+      _data_retention_funnel_cut: {
+        Args: { p_tenant: string }
+        Returns: string
+      }
+      _data_retention_journey_enrollments: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_journey_sealed: {
+        Args: { p_tenant: string }
+        Returns: string
+      }
+      _data_retention_metered_views: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_newsletter_candidates: {
+        Args: { p_cutoff: string; p_limit: number; p_tenant: string }
+        Returns: {
+          last_engaged: string
+          subscriber_id: string
+        }[]
+      }
+      _data_retention_newsletter_inactive: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_paywall_metering: {
+        Args: {
+          p_cutoff: string
+          p_execute: boolean
+          p_limit: number
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      _data_retention_run_tenant: {
+        Args: { p_limit?: number; p_tenant: string; p_trigger: string }
+        Returns: Json
+      }
+      _data_retention_seal_funnel: {
+        Args: { p_max_days?: number; p_tenant: string; p_until: string }
+        Returns: Json
+      }
+      _data_retention_seal_journeys: {
+        Args: { p_max_days?: number; p_tenant: string; p_until: string }
+        Returns: Json
+      }
+      _domain_events_erase_account: {
+        Args: { p_email?: string; p_surrogate: string; p_user_id: string }
         Returns: number
       }
       _email_dlq_redact: {
         Args: { p_dlq_at: string; p_message: Json }
         Returns: Json
+      }
+      _email_measurement_consent: {
+        Args: { p_email: string; p_tenant: string }
+        Returns: boolean
+      }
+      _email_measurement_subject: {
+        Args: { p_lead: string; p_subscriber: string }
+        Returns: Record<string, unknown>
       }
       _event_account_admin_provisioned: {
         Args: { p_uid: string }
@@ -27022,6 +27270,119 @@ export type Database = {
         Args: { p_object_id: string; p_platform: string; p_tenant: string }
         Returns: Json
       }
+      _funnel_counts: {
+        Args: {
+          p_segment?: string
+          p_since: string
+          p_tenant: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      _funnel_erase_account: {
+        Args: { p_surrogate: string; p_user_id: string }
+        Returns: number
+      }
+      _hub_account_bound_email_labels: { Args: never; Returns: string[] }
+      _hub_account_erase: {
+        Args: { p_email?: string; p_surrogate: string; p_user_id: string }
+        Returns: number
+      }
+      _hub_account_erase_mail_queue: {
+        Args: { p_email?: string; p_user_id: string }
+        Returns: number
+      }
+      _hub_account_erase_modules: {
+        Args: { p_surrogate: string; p_user_id: string }
+        Returns: number
+      }
+      _hub_account_erase_orphans: { Args: never; Returns: number }
+      _hub_erasure_payload: {
+        Args: {
+          p_email?: string
+          p_payload: Json
+          p_surrogate?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      _hub_erasure_surrogate: { Args: never; Returns: string }
+      _hub_erasure_text: {
+        Args: { p_email?: string; p_text: string; p_user_id: string }
+        Returns: string
+      }
+      _journey_edge: {
+        Args: { p_branch: string; p_from: string; p_graph: Json }
+        Returns: string
+      }
+      _journey_enroll: {
+        Args: {
+          p_event: Json
+          p_is_test?: boolean
+          p_journey_id: string
+          p_lead_id: string
+          p_tenant: string
+          p_version_id: string
+        }
+        Returns: string
+      }
+      _journey_eval_predicate: {
+        Args: {
+          p_enrollment_id: string
+          p_lead: string
+          p_predicate: Json
+          p_since: string
+          p_tenant: string
+          p_trigger_payload?: Json
+          p_user: string
+        }
+        Returns: boolean
+      }
+      _journey_exec_action: {
+        Args: {
+          p_e: Database["public"]["Tables"]["journey_enrollments"]["Row"]
+          p_node: Json
+        }
+        Returns: string
+      }
+      _journey_marketing_consent: {
+        Args: { p_lead: string; p_tenant: string }
+        Returns: string
+      }
+      _journey_message_id: {
+        Args: { p_enrollment: string; p_node: string }
+        Returns: string
+      }
+      _journey_next_time: {
+        Args: { p_time: string; p_timezone: string; p_weekdays: number[] }
+        Returns: string
+      }
+      _journey_node: {
+        Args: { p_graph: Json; p_node_id: string }
+        Returns: Json
+      }
+      _journey_num: { Args: { p_value: Json }; Returns: number }
+      _journey_quiet_until: { Args: { p_tenant: string }; Returns: string }
+      _journey_rollup_days: {
+        Args: { p_from: string; p_tenant: string; p_until: string }
+        Returns: number
+      }
+      _journey_send_verdict: {
+        Args: { p_category: string; p_lead: string; p_tenant: string }
+        Returns: string
+      }
+      _journey_staff_tenant: {
+        Args: { p_admin_only: boolean }
+        Returns: string
+      }
+      _journey_unsubscribe: {
+        Args: { p_lead: string; p_message_id: string; p_tenant: string }
+        Returns: number
+      }
+      _journeys_erase_account: {
+        Args: { p_email?: string; p_user_id: string }
+        Returns: number
+      }
       _log_emit_error: {
         Args: {
           p_error?: string
@@ -27031,6 +27392,10 @@ export type Database = {
           p_tenant: string
         }
         Returns: undefined
+      }
+      _membership_tier_for_user: {
+        Args: { p_tenant: string; p_user: string }
+        Returns: string
       }
       _mention_public_company_ids: {
         Args: { _tenant: string }
@@ -27079,7 +27444,72 @@ export type Database = {
           used: number
         }[]
       }
+      _newsletter_consent_default: { Args: { p_lang: string }; Returns: string }
+      _newsletter_consent_upgrade_defaults: { Args: never; Returns: number }
+      _newsletter_consent_version: { Args: never; Returns: string }
+      _newsletter_engagement_daily_sum: {
+        Args: {
+          p_kind: string
+          p_since: string
+          p_tenant: string
+          p_until: string
+          p_until_inclusive: boolean
+        }
+        Returns: number
+      }
+      _newsletter_engagement_touch: {
+        Args: {
+          p_at?: string
+          p_email: string
+          p_kind: string
+          p_subscriber: string
+          p_tenant: string
+        }
+        Returns: number
+      }
+      _newsletter_last_engagement: {
+        Args: { p_subscriber: string; p_track_opens: boolean }
+        Returns: string
+      }
+      _newsletter_log_consents: {
+        Args: {
+          p_email: string
+          p_form_id: string
+          p_form_name: string
+          p_ip: string
+          p_items: Json
+          p_lang: string
+          p_subscriber: string
+          p_tenant: string
+          p_user_agent: string
+        }
+        Returns: number
+      }
+      _newsletter_measurement_candidates: {
+        Args: { p_tenant: string }
+        Returns: {
+          subscriber_id: string
+          suppressed: boolean
+        }[]
+      }
+      _newsletter_oneoff_mail_used: {
+        Args: { p_tenant: string }
+        Returns: number
+      }
+      _newsletter_sunset_delete: {
+        Args: { p_subscriber: string; p_tenant: string }
+        Returns: boolean
+      }
+      _newsletter_sunset_fold_events: {
+        Args: { p_subscriber: string; p_tenant: string }
+        Returns: number
+      }
+      _newsletter_track_opens: { Args: { p_tenant: string }; Returns: boolean }
       _pages_unpublish_test_content: { Args: never; Returns: number }
+      _pricing_v62_owner_decisions: {
+        Args: { p_tenant: string }
+        Returns: number
+      }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _redeem_b2b_coupon: {
         Args: {
@@ -27109,6 +27539,27 @@ export type Database = {
       _require_server_probe: {
         Args: { p_probe_subject: string; p_tenant: string }
         Returns: undefined
+      }
+      _revenue_facts_catalog: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_checkout: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_clubs: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_coupons: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_crm: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_data_quality: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_dunning: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_events: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_funnel: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_journeys: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_metering: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_newsletter: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_paywall: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_retention: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_sync: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_facts_workflows: { Args: { p_tenant: string }; Returns: Json }
+      _revenue_ledger_redact_orphans: { Args: never; Returns: number }
+      _revenue_ledger_redact_subscription: {
+        Args: { p_subscription_id: string }
+        Returns: number
       }
       _revenue_movements: {
         Args: {
@@ -27151,6 +27602,7 @@ export type Database = {
           refunds_minor: number
         }[]
       }
+      _revenue_segments_recompute: { Args: never; Returns: number }
       _set_request_identity: {
         Args: { p_claims: string; p_role: string; p_sub: string }
         Returns: undefined
@@ -30306,21 +30758,15 @@ export type Database = {
       }
       admin_journey_engine_health: { Args: never; Returns: Json }
       admin_journey_enroll_test: {
-        Args: {
-          p_journey_id: string
-        }
+        Args: { p_journey_id: string }
         Returns: Json
       }
       admin_journey_enrollment_exit: {
-        Args: {
-          p_enrollment_id: string
-        }
+        Args: { p_enrollment_id: string }
         Returns: Json
       }
       admin_journey_enrollment_skip_wait: {
-        Args: {
-          p_enrollment_id: string
-        }
+        Args: { p_enrollment_id: string }
         Returns: Json
       }
       admin_journey_enrollments: {
@@ -30334,17 +30780,10 @@ export type Database = {
         Returns: Json
       }
       admin_journey_lead_enrollments: {
-        Args: {
-          p_lead_id: string
-        }
+        Args: { p_lead_id: string }
         Returns: Json
       }
-      admin_journey_list: {
-        Args: {
-          p_status?: string
-        }
-        Returns: Json
-      }
+      admin_journey_list: { Args: { p_status?: string }; Returns: Json }
       admin_journey_publish: {
         Args: {
           p_expected_updated_at: string
@@ -30366,11 +30805,7 @@ export type Database = {
         Returns: Json
       }
       admin_journey_series: {
-        Args: {
-          p_journey_id: string
-          p_since?: string
-          p_until?: string
-        }
+        Args: { p_journey_id: string; p_since?: string; p_until?: string }
         Returns: Json
       }
       admin_journey_set_status: {
@@ -30383,18 +30818,11 @@ export type Database = {
       }
       admin_journey_settings_get: { Args: never; Returns: Json }
       admin_journey_settings_save: {
-        Args: {
-          p_expected_updated_at?: string
-          p_patch: Json
-        }
+        Args: { p_expected_updated_at?: string; p_patch: Json }
         Returns: Json
       }
       admin_journey_simulate: {
-        Args: {
-          p_draft?: Json
-          p_journey_id: string
-          p_lead_id: string
-        }
+        Args: { p_draft?: Json; p_journey_id: string; p_lead_id: string }
         Returns: Json
       }
       admin_journey_stats: {
@@ -30407,11 +30835,7 @@ export type Database = {
         Returns: Json
       }
       admin_journey_trigger_estimate: {
-        Args: {
-          p_condition?: Json
-          p_days?: number
-          p_event_type: string
-        }
+        Args: { p_condition?: Json; p_days?: number; p_event_type: string }
         Returns: Json
       }
       admin_list_ad_slots: {
@@ -34723,17 +35147,11 @@ export type Database = {
         Returns: Json
       }
       journey_can_send: {
-        Args: {
-          p_category: string
-          p_enrollment_id: string
-        }
+        Args: { p_category: string; p_enrollment_id: string }
         Returns: string
       }
       journey_claim_due: {
-        Args: {
-          p_lease_seconds?: number
-          p_limit?: number
-        }
+        Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
           enrollment_id: string
           is_test: boolean
@@ -34756,11 +35174,12 @@ export type Database = {
         Returns: Json
       }
       journey_contact_for_send: {
-        Args: {
-          p_enrollment_id: string
-          p_node_id: string
-        }
+        Args: { p_enrollment_id: string; p_node_id: string }
         Returns: Json
+      }
+      journey_eval_predicate: {
+        Args: { p_enrollment_id: string; p_predicate: Json }
+        Returns: boolean
       }
       journey_fail_step: {
         Args: {
@@ -34772,18 +35191,8 @@ export type Database = {
         }
         Returns: Json
       }
-      journey_ingest_inbox: {
-        Args: {
-          p_limit?: number
-        }
-        Returns: Json
-      }
-      journey_purge: {
-        Args: {
-          p_older_than?: unknown
-        }
-        Returns: Json
-      }
+      journey_ingest_inbox: { Args: { p_limit?: number }; Returns: Json }
+      journey_purge: { Args: { p_older_than?: string }; Returns: Json }
       journey_record_message_event: {
         Args: {
           p_kind: string
@@ -34794,19 +35203,15 @@ export type Database = {
         }
         Returns: Json
       }
-      journey_resolve_lead: {
-        Args: {
-          p_inbox_id: number
-        }
-        Returns: string
-      }
+      journey_resolve_lead: { Args: { p_inbox_id: number }; Returns: string }
       journey_rollup_daily: { Args: never; Returns: number }
       journey_tick_emit_stats: {
-        Args: {
-          p_counts?: Json
-          p_journey_ids: string[]
-        }
+        Args: { p_counts?: Json; p_journey_ids: string[] }
         Returns: number
+      }
+      journey_validate_graph: {
+        Args: { p_graph: Json; p_trigger_event_type?: string }
+        Returns: Json
       }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }

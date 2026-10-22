@@ -111,6 +111,10 @@
 -- ----------------------------------------------------------------------------
 -- A) Etykiety poczty związanej z kontem albo zapisem.
 -- ----------------------------------------------------------------------------
+-- Kolumna z 20260711100000, ktorej produkcja nie miala (dryf notifications.meta);
+-- ponizsze funkcje czytaja ja przy usuwaniu konta. Idempotentnie.
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS meta jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE OR REPLACE FUNCTION public._hub_account_bound_email_labels()
 RETURNS text[]
 LANGUAGE sql

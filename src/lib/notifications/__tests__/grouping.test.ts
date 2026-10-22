@@ -6,6 +6,7 @@ const CONV = "11111111-1111-1111-1111-111111111111";
 
 function n(overrides: Partial<NotificationRow> & { id: string }): NotificationRow {
   return {
+    meta: overrides.meta ?? {},
     id: overrides.id,
     kind: overrides.kind ?? "message",
     href: overrides.href ?? null,

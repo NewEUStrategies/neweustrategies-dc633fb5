@@ -163,6 +163,7 @@ const t = realT("pl");
 
 function notif(over: Partial<NotificationRow> = {}): NotificationRow {
   return {
+    meta: {},
     id: "n-1",
     user_id: USER_ID,
     tenant_id: TENANT_ID,

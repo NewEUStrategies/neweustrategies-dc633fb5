@@ -19,6 +19,7 @@ const HREF = `/messages?c=${CONV}`;
 
 function row(over: Partial<NotificationRow> & { id: string }): NotificationRow {
   return {
+    meta: over.meta ?? {},
     id: over.id,
     kind: over.kind ?? "message",
     href: "href" in over ? (over.href ?? null) : HREF,
