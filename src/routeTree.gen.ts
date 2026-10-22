@@ -169,6 +169,7 @@ import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as MediaSplatRouteImport } from './routes/media.$'
 import { Route as MeetingsEventSlugRouteImport } from './routes/meetings.$eventSlug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as NewsletterKeepRouteImport } from './routes/newsletter.keep'
 import { Route as NewsletterUnsubscribeRouteImport } from './routes/newsletter.unsubscribe'
 import { Route as OrganizationSlugRouteImport } from './routes/organization.$slug'
 import { Route as PeopleIndexRouteImport } from './routes/people.index'
@@ -385,6 +386,7 @@ import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.n
 import { Route as AdminRevenueJourneysJourneyIdRouteImport } from './routes/admin.revenue_.journeys.$journeyId'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
+import { Route as ApiPublicNewsletterKeepRouteImport } from './routes/api.public.newsletter.keep'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicWebhooksResendRouteImport } from './routes/api/public/webhooks.resend'
@@ -1243,6 +1245,11 @@ const MeetingsEventSlugRoute = MeetingsEventSlugRouteImport.update({
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewsletterKeepRoute = NewsletterKeepRouteImport.update({
+  id: '/newsletter/keep',
+  path: '/newsletter/keep',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsletterUnsubscribeRoute = NewsletterUnsubscribeRouteImport.update({
@@ -2371,6 +2378,11 @@ const ApiPublicNewsletterConfirmRoute =
     path: '/api/public/newsletter/confirm',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicNewsletterKeepRoute = ApiPublicNewsletterKeepRouteImport.update({
+  id: '/api/public/newsletter/keep',
+  path: '/api/public/newsletter/keep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicNewsletterUnsubscribeRoute =
   ApiPublicNewsletterUnsubscribeRouteImport.update({
     id: '/api/public/newsletter/unsubscribe',
@@ -2830,6 +2842,7 @@ export interface FileRoutesByFullPath {
   '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/keep': typeof NewsletterKeepRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/people/$slug': typeof PeopleSlugRoute
@@ -3046,6 +3059,7 @@ export interface FileRoutesByFullPath {
   '/admin/revenue/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/keep': typeof ApiPublicNewsletterKeepRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
@@ -3241,6 +3255,7 @@ export interface FileRoutesByTo {
   '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/keep': typeof NewsletterKeepRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/people/$slug': typeof PeopleSlugRoute
@@ -3455,6 +3470,7 @@ export interface FileRoutesByTo {
   '/admin/revenue/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/keep': typeof ApiPublicNewsletterKeepRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
@@ -3669,6 +3685,7 @@ export interface FileRoutesById {
   '/media/$': typeof MediaSplatRoute
   '/meetings/$eventSlug': typeof MeetingsEventSlugRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/newsletter/keep': typeof NewsletterKeepRoute
   '/newsletter/unsubscribe': typeof NewsletterUnsubscribeRoute
   '/organization/$slug': typeof OrganizationSlugRoute
   '/people/$slug': typeof PeopleSlugRoute
@@ -3885,6 +3902,7 @@ export interface FileRoutesById {
   '/admin/revenue_/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/newsletter/keep': typeof ApiPublicNewsletterKeepRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/webhooks/resend': typeof ApiPublicWebhooksResendRoute
@@ -4100,6 +4118,7 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
+    | '/newsletter/keep'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
     | '/people/$slug'
@@ -4316,6 +4335,7 @@ export interface FileRouteTypes {
     | '/admin/revenue/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/keep'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
@@ -4511,6 +4531,7 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
+    | '/newsletter/keep'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
     | '/people/$slug'
@@ -4725,6 +4746,7 @@ export interface FileRouteTypes {
     | '/admin/revenue/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/keep'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
@@ -4938,6 +4960,7 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/meetings/$eventSlug'
     | '/newsletter/confirm'
+    | '/newsletter/keep'
     | '/newsletter/unsubscribe'
     | '/organization/$slug'
     | '/people/$slug'
@@ -5154,6 +5177,7 @@ export interface FileRouteTypes {
     | '/admin/revenue_/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
+    | '/api/public/newsletter/keep'
     | '/api/public/newsletter/unsubscribe'
     | '/api/public/payments/webhook'
     | '/api/public/webhooks/resend'
@@ -5288,6 +5312,7 @@ export interface RootRouteChildren {
   MediaSplatRoute: typeof MediaSplatRoute
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
+  NewsletterKeepRoute: typeof NewsletterKeepRoute
   NewsletterUnsubscribeRoute: typeof NewsletterUnsubscribeRoute
   OrganizationSlugRoute: typeof OrganizationSlugRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
@@ -5335,6 +5360,7 @@ export interface RootRouteChildren {
   PlatformEmailSuppressionRoute: typeof PlatformEmailSuppressionRoute
   ApiPublicHooksRefreshOgImageRoute: typeof ApiPublicHooksRefreshOgImageRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
+  ApiPublicNewsletterKeepRoute: typeof ApiPublicNewsletterKeepRoute
   ApiPublicNewsletterUnsubscribeRoute: typeof ApiPublicNewsletterUnsubscribeRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWebhooksResendRoute: typeof ApiPublicWebhooksResendRoute
@@ -6472,6 +6498,13 @@ declare module '@tanstack/react-router' {
       path: '/newsletter/confirm'
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/newsletter/keep': {
+      id: '/newsletter/keep'
+      path: '/newsletter/keep'
+      fullPath: '/newsletter/keep'
+      preLoaderRoute: typeof NewsletterKeepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/newsletter/unsubscribe': {
@@ -7986,6 +8019,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicNewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/newsletter/keep': {
+      id: '/api/public/newsletter/keep'
+      path: '/api/public/newsletter/keep'
+      fullPath: '/api/public/newsletter/keep'
+      preLoaderRoute: typeof ApiPublicNewsletterKeepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/newsletter/unsubscribe': {
       id: '/api/public/newsletter/unsubscribe'
       path: '/api/public/newsletter/unsubscribe'
@@ -9328,6 +9368,7 @@ const rootRouteChildren: RootRouteChildren = {
   MediaSplatRoute: MediaSplatRoute,
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
+  NewsletterKeepRoute: NewsletterKeepRoute,
   NewsletterUnsubscribeRoute: NewsletterUnsubscribeRoute,
   OrganizationSlugRoute: OrganizationSlugRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
@@ -9375,6 +9416,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlatformEmailSuppressionRoute: PlatformEmailSuppressionRoute,
   ApiPublicHooksRefreshOgImageRoute: ApiPublicHooksRefreshOgImageRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
+  ApiPublicNewsletterKeepRoute: ApiPublicNewsletterKeepRoute,
   ApiPublicNewsletterUnsubscribeRoute: ApiPublicNewsletterUnsubscribeRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWebhooksResendRoute: ApiPublicWebhooksResendRoute,

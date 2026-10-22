@@ -1,8 +1,9 @@
 // RETENCJA DANYCH (I9c-X2, Z-I9b-10) - JEDNO źródło okresów, zakresów
 // i reguł po stronie TS. Lustro SQL: `_data_retention_catalog()`, CHECK
 // `data_retention_settings_period_check` i stałe funkcji wykonawczych
-// (migracje 2026102016100…161300). Parytet przypina
-// `src/lib/privacy/__tests__/dataRetentionParity.test.ts` - rozjazd jednej
+// (migracje 2026102016100…161300, kategorie I9d-Y1: 20261020161500…162200).
+// Parytet przypina `src/lib/privacy/__tests__/dataRetentionParity.test.ts`
+// (czyta NAJNOWSZĄ definicję każdego obiektu SQL) - rozjazd jednej
 // strony (np. panel pozwala wybrać 30 miesięcy, a CHECK bazy kończy się na 25)
 // dawałby albo odrzucony zapis bez wyjaśnienia, albo okres, którego panel nie
 // umie pokazać.
@@ -10,18 +11,30 @@
 // SKĄD LICZBY. Wartości domyślne i zakresy to decyzja administratora danych
 // z 2026-10-20 (polecenie właściciela: „zgodnie z polskim i europejskim prawem
 // oraz rynkowymi standardami") - tabela kategorii w dzienniku wdrożenia
-// (§21.21). Podstawy prawne i standardy rynkowe w panelu pokazują dymki
+// (§21.21), a dla czterech kategorii I9d-Y1 (odczyty licznika, wygaszanie
+// newslettera, uczestnicy wydarzeń, zgłoszenia do klubów) - decyzje właściciela
+// z tego samego dnia (dziennik §21.22). Podstawy prawne i standardy rynkowe w panelu pokazują dymki
 // (słownik `i18n-admin-data-retention.ts`), a nie ten moduł: tu są tylko
 // liczby, które muszą się zgadzać z bazą.
 //
 // MODUŁ CZYSTY: bez I/O, bez Reacta - czyta go panel, serwer i testy.
 
-/** Kategorie z okresem edytowalnym w panelu (zakres w miesiącach). */
+/**
+ * Kategorie z okresem edytowalnym w panelu (zakres w miesiącach). KOLEJNOŚĆ =
+ * kolejność katalogu SQL (`_data_retention_catalog`), wierszy karty i listy
+ * CHECK - kategoria I9d-Y1 stoi obok kategorii, z którą dzieli dane (odczyty
+ * licznika przy uderzeniach w paywall, wygaszanie przy zdarzeniach maili,
+ * uczestnicy i zgłoszenia przy kontaktach CRM).
+ */
 export const DATA_RETENTION_EDITABLE_CATEGORIES = [
   "paywall_metering",
+  "metered_views",
   "email_engagement",
   "email_send_log",
+  "newsletter_inactive",
   "crm_inactive_contacts",
+  "event_attendees",
+  "club_applications",
   "audit_log",
   "journey_enrollments",
   "cancellation_surveys",
@@ -59,9 +72,20 @@ export const DATA_RETENTION_PERIODS: Readonly<
   Record<DataRetentionEditableCategory, DataRetentionPeriodRule>
 > = {
   paywall_metering: { defaultMonths: 13, minMonths: 3, maxMonths: 25 },
+  // I9d-Y1 (Z-I9c-07): licznik potrzebuje tylko bieżącego okresu, a historia
+  // czytania w serwisie think-tanku może ujawniać poglądy (art. 9 RODO) -
+  // 3 mies.; minimum 2 chroni bieżący okres rozliczeniowy licznika.
+  metered_views: { defaultMonths: 3, minMonths: 2, maxMonths: 13 },
   email_engagement: { defaultMonths: 13, minMonths: 3, maxMonths: 25 },
   email_send_log: { defaultMonths: 13, minMonths: 6, maxMonths: 25 },
+  // I9d-Y1 (Z-I9c-08): okres BEZ ZAANGAŻOWANIA przed prośbą o potwierdzenie.
+  newsletter_inactive: { defaultMonths: 12, minMonths: 6, maxMonths: 24 },
   crm_inactive_contacts: { defaultMonths: 24, minMonths: 12, maxMonths: 36 },
+  // I9d-Y1 (Z-I9c-07): od ostatniego udziału albo rejestracji.
+  event_attendees: { defaultMonths: 24, minMonths: 12, maxMonths: 36 },
+  // I9d-Y1 (Z-I9c-01): od decyzji (odrzucone) albo końca członkostwa
+  // (przyjęte); oczekujące nigdy automatycznie.
+  club_applications: { defaultMonths: 24, minMonths: 12, maxMonths: 36 },
   audit_log: { defaultMonths: 24, minMonths: 12, maxMonths: 60 },
   journey_enrollments: { defaultMonths: 13, minMonths: 6, maxMonths: 25 },
   cancellation_surveys: { defaultMonths: 24, minMonths: 12, maxMonths: 36 },
@@ -83,7 +107,17 @@ export const DATA_RETENTION_PERIODS: Readonly<
  *   * `crmExtensionMonths` / `crmNoticeDays` - przedłużenie kontaktu CRM
  *     z listy „do anonimizacji" i wyprzedzenie, z jakim kontakt na nią trafia;
  *   * `crmExtensionReason*` - długość powodu przedłużenia (po obcięciu
- *     białych znaków z brzegów; dłuższy jest odrzucany, nie skracany).
+ *     białych znaków z brzegów; dłuższy jest odrzucany, nie skracany) - ten
+ *     sam limit ma powód wykluczenia adresu z wygaszania newslettera;
+ *   * `newsletterResponseDays` - wygaszanie: tyle dni od wysłania prośby
+ *     o potwierdzenie subskrybent ma na reakcję, zanim jego wiersz zostanie
+ *     usunięty;
+ *   * `newsletterDailyCap` - wygaszanie: najwięcej próśb na najemcę na dobę.
+ *     REPUTACJA DOMENY NADAWCY: prośba idzie do adresów nieaktywnych od
+ *     miesięcy, więc fala tysięcy takich wiadomości jednego dnia (start po
+ *     karencji u najemcy z dużą listą) podnosi odsetek odbić i skarg, od
+ *     których zależy, czy skrzynki przyjmują CAŁĄ pocztę najemcy (także
+ *     transakcyjną). Limit rozkłada start na dni.
  */
 export const DATA_RETENTION_RULES = {
   auditNetworkMonths: 12,
@@ -98,6 +132,8 @@ export const DATA_RETENTION_RULES = {
   /** Wierszy na kategorię na przebieg (domyślnie / najwięcej). */
   batchDefault: 5000,
   batchMax: 50000,
+  newsletterResponseDays: 30,
+  newsletterDailyCap: 200,
 } as const;
 
 /**
