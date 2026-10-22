@@ -8,10 +8,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import i18n from "@/lib/i18n";
-import { renderRoute } from "@/test/routeHarness";
+import { renderRoute, routeHead } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { keepStateOf } from "@/lib/privacy/newsletterKeep";
 import { Route as KeepRoute } from "@/routes/newsletter.keep";
+
+// Adres żądania dla `head()` (SSR czyta go z nagłówków, test - z atrapy).
+const h = vi.hoisted(() => ({ requestUrl: "" }));
+vi.mock("@/lib/seo/request", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/seo/request")>()),
+  getRequestUrl: () => h.requestUrl,
+}));
 
 const pl = i18n.getFixedT("pl");
 const en = i18n.getFixedT("en");
@@ -103,6 +110,32 @@ describe('strona „Chcę dalej otrzymywać"', () => {
     await screen.findByRole("button", { name: pl("newsletterKeep.confirmBtn") });
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("nagłówek dokumentu (chunk startowy)", () => {
+  function meta(entries: Record<string, unknown>[] | undefined, name: string): string {
+    const found = (entries ?? []).find((entry) => entry.name === name)?.content;
+    if (typeof found !== "string") throw new Error(`brak meta ${name}`);
+    return found;
+  }
+
+  // `head()` czyta wyłącznie nakładkę nagłówka (`i18n-newsletter-keep-head`) -
+  // słownik strony ładuje się z chunku komponentu. Język z parametru `lang`
+  // linku z maila, poza indeksem.
+  it("tytuł i opis w języku z linku, noindex", () => {
+    h.requestUrl = "/newsletter/keep?token=kabc&lang=en";
+    let head = routeHead(KeepRoute);
+    let title = String(head.meta?.find((entry) => "title" in entry)?.title);
+    expect(title.startsWith(`${en("newsletterKeep.metaTitle")} - `)).toBe(true);
+    expect(meta(head.meta, "description")).toBe(en("newsletterKeep.metaDescription"));
+    expect(meta(head.meta, "robots")).toBe("noindex, nofollow");
+
+    h.requestUrl = "/newsletter/keep?token=kabc&lang=pl";
+    head = routeHead(KeepRoute);
+    title = String(head.meta?.find((entry) => "title" in entry)?.title);
+    expect(title.startsWith(`${pl("newsletterKeep.metaTitle")} - `)).toBe(true);
+    expect(pl("newsletterKeep.metaTitle")).not.toBe(en("newsletterKeep.metaTitle"));
   });
 });
 

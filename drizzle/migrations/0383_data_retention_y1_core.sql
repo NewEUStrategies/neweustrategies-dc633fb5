@@ -45,7 +45,8 @@
 -- KOLEJNOŚĆ WDROŻENIA: OSTATNIA migracja I9d-Y1 - po 20261020161500-162100
 -- (funkcje kategorii), więc katalog nigdy nie wskazuje funkcji, której
 -- nie ma. Front (stałe TS, parser) wdrożyć razem albo wcześniej: parser
--- karty odrzuca nieznaną kategorię (karta pokazałaby błąd, nie dane).
+-- karty pomija kategorię nieznaną frontowi (Y1-B), więc karta działa, ale
+-- nowych kategorii nie pokaże do publikacji frontu.
 -- IDEMPOTENTNA: DROP CONSTRAINT IF EXISTS + ADD, CREATE OR REPLACE FUNCTION,
 -- seed `ON CONFLICT DO NOTHING`, bezstanowe REVOKE/GRANT.
 -- DOWÓD: supabase/tests/hub_i9c_data_retention_test.sql (13 kategorii,
