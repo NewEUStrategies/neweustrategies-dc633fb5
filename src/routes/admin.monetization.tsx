@@ -1,8 +1,14 @@
 import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { ensureI18n } from "@/lib/i18n-admin-monetization";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
+import { RevenueHubHint } from "@/components/admin/revenue/molecules/RevenueHubHint";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
+//
+// PRZENIESIONE DO HUBA (I9, SPEC §2.7, D-09): baner pod nagłówkiem prowadzi do
+// kokpitu huba „Przychód i lejek" (rola huba). Przekierowanie tej trasy to
+// osobna decyzja właściciela - warunek „14 dni bez rozjazdu `reconcileAll`".
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +68,7 @@ const ALL = "__all__";
 
 function AdminMonetizationPage() {
   ensureI18n();
+  ensureRevenueLinksI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
@@ -141,6 +148,12 @@ function AdminMonetizationPage() {
           )}
         </p>
       </header>
+
+      <RevenueHubHint
+        tab="overview"
+        hint={t("adminRevenue.moduleLinks.monetization.movedHint")}
+        action={t("adminRevenue.moduleLinks.monetization.movedAction")}
+      />
 
       <Card>
         <CardContent className="pt-4">

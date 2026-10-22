@@ -19,14 +19,21 @@
 // wybór z powrotem (`onTabChange`) - link z huba do `?tab=retention`
 // i odświeżenie strony lądują na tej samej zakładce. Bez propsów (test
 // organizmu, osadzenie bez routera) zakładka żyje w stanie komponentu.
+//
+// POWIĄZANE MODUŁY = WSPÓLNA MOLEKUŁA HUBA (I9, SPEC §2.7). Dawny lokalny pasek
+// (przyciski z ikonami) zastępuje `RelatedModulesBar` - ten sam wzorzec skoków
+// między modułami monetyzacji co w hubie „Przychód i lejek", z odnośnikiem do
+// huba dla roli, która go widzi (`useRevenueHubTab`). Pod paskiem sygnał
+// Diagnostyki obszarów cennika (lekkie opakowanie, leniwa treść).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgePercent, Crown, LayoutDashboard, Lock, Megaphone } from "lucide-react";
+import { BadgePercent } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RelatedModulesBar } from "@/components/admin/revenue/molecules/RelatedModulesBar";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
+import { useRevenueHubTab } from "@/components/admin/revenue/molecules/useRevenueHubTab";
 import { AudiencesTab } from "@/components/admin/pricing/organisms/AudiencesTab";
 import { FaqTab } from "@/components/admin/pricing/organisms/FaqTab";
 import { RetentionTab } from "@/components/admin/pricing/organisms/RetentionTab";
@@ -36,6 +43,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
 import type { PricingAudienceRow, PricingFaqItemRow } from "@/lib/pricing/queries";
 import { isPricingTab, type PricingTabId } from "@/lib/admin/pricingTabs";
+import type { RelatedModule } from "@/lib/admin/revenue/hubTabs";
+
+/** Moduły, które cennik spina - kolejność dawnego paska (kupony, członkostwo, paywall, pulpit). */
+const PRICING_RELATED: readonly RelatedModule[] = [
+  { to: "/admin/coupons", labelKey: "adminRevenue.related.coupons" },
+  { to: "/admin/membership", labelKey: "adminRevenue.related.membership" },
+  { to: "/admin/paywall", labelKey: "adminRevenue.related.paywall" },
+  { to: "/admin/monetization", labelKey: "adminRevenue.related.dashboard" },
+];
+const HUB_RELATED: RelatedModule = { to: "/admin/revenue", labelKey: "adminRevenue.related.hub" };
 
 export function AdminPricingWorkspace({
   tab,
@@ -47,6 +64,7 @@ export function AdminPricingWorkspace({
 } = {}) {
   const { t } = useTranslation();
   const ta = (k: string, opts?: Record<string, unknown>) => t(`adminPricing.${k}`, opts);
+  const hubVisible = useRevenueHubTab("overview");
 
   const audiencesQ = useQuery({
     queryKey: billingKeys.admin.pricingAudiences(),
@@ -93,34 +111,11 @@ export function AdminPricingWorkspace({
           {ta("title")}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{ta("subtitle")}</p>
-        {/* Cennik spina moduły monetyzacji - szybkie skoki do powiązanych paneli. */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">{ta("related.heading")}</span>
-          <Button asChild size="sm" variant="outline" className="h-7">
-            <Link to="/admin/coupons">
-              <Megaphone className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {ta("related.coupons")}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-7">
-            <Link to="/admin/membership">
-              <Crown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {ta("related.membership")}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-7">
-            <Link to="/admin/paywall">
-              <Lock className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {ta("related.paywall")}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-7">
-            <Link to="/admin/monetization">
-              <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              {ta("related.dashboard")}
-            </Link>
-          </Button>
-        </div>
+        <RelatedModulesBar
+          items={hubVisible ? [...PRICING_RELATED, HUB_RELATED] : PRICING_RELATED}
+          className="mt-3"
+        />
+        <RevenueSignalChip surface="pricing" variant="bar" className="mt-3" />
       </header>
 
       <Tabs value={activeTab} onValueChange={selectTab}>

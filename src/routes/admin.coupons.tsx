@@ -5,9 +5,15 @@
 // zawężonej do jednego kodu. Walidator stoi TUTAJ i nie importuje niczego:
 // `validateSearch` zostaje w niedzielonej części pliku trasy, czyli w chunku
 // wejściowym każdej strony (budżet `public`/entry zamrożony).
+//
+// SYGNAŁ HUBA (I9, SPEC §2.7): pasek Diagnostyki obszaru kuponów w nagłówku
+// układu - widać go na liście, kampaniach, realizacjach i analityce, bo
+// diagnozy kuponów dotyczą całego modułu. Lekkie opakowanie (`RevenueSignalChip`)
+// zostaje w chunku komponentu, treść jest leniwa i tylko dla roli huba.
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { BadgePercent, LayoutList, Send, ListChecks, BarChart3 } from "lucide-react";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { cn } from "@/lib/utils";
@@ -69,6 +75,7 @@ function AdminCouponsLayout() {
           {t("adminCoupons.layout.title")}
         </h1>
         <p className="text-sm text-muted-foreground">{t("adminCoupons.layout.subtitle")}</p>
+        <RevenueSignalChip surface="coupons" variant="bar" />
       </header>
 
       <nav

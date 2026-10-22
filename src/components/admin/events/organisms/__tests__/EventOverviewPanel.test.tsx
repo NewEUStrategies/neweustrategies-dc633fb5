@@ -53,6 +53,17 @@ const h = vi.hoisted(() => ({
   /** Identyfikatory podane blokowi edycji i podsumowaniu kopii. */
   edycje: [] as string[],
   podsumowanie: [] as string[],
+  // (I9) Sesja bramki wiersza ścieżek huba; domyślnie bez roli huba.
+  auth: { roles: [] as string[], tenantId: null as string | null },
+}));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+// Treść wiersza (lista ścieżek huba) ma własny test
+// (`EventJourneysSummary.test.tsx`) - tu wyłącznie bramka i najemca.
+vi.mock("@/components/admin/journeys/event/EventJourneysSummary", () => ({
+  default: ({ tenantId }: { tenantId: string }) => (
+    <div data-testid="event-journeys-probe" data-tenant={tenantId} />
+  ),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -193,6 +204,7 @@ beforeEach(() => {
   h.gotowosc = [];
   h.edycje = [];
   h.podsumowanie = [];
+  h.auth = { roles: [], tenantId: null };
 });
 
 afterEach(cleanup);
@@ -345,6 +357,34 @@ describe("EventOverviewPanel - nastepne kroki licza sie ZE STANU", () => {
     expect(krok("sessions")).toHaveAttribute("href", adres("content/tracks"));
     expect(krok("groups")).toHaveAttribute("href", adres("groups"));
     expect(krok("publish")).toHaveAttribute("href", adres("general"));
+  });
+});
+
+describe("EventOverviewPanel - aktywne ścieżki wydarzeń z huba (I9, SPEC §2.7)", () => {
+  it("rola z zakładką Ścieżki i najemcą: wiersz z leniwą treścią dla najemcy z SESJI", async () => {
+    h.auth = { roles: ["admin"], tenantId: "tenant-1" };
+    planuj();
+    panel();
+    await poczekaj();
+
+    expect(screen.getByText("adminRevenue.moduleLinks.events.journeysLabel")).toBeInTheDocument();
+    const probe = await screen.findByTestId("event-journeys-probe");
+    expect(probe).toHaveAttribute("data-tenant", "tenant-1");
+  });
+
+  it("bez roli huba albo bez najemcy - bez wiersza i bez chunku ścieżek", async () => {
+    for (const auth of [
+      { roles: ["author"], tenantId: "tenant-1" },
+      { roles: ["admin"], tenantId: null },
+    ]) {
+      h.auth = auth;
+      planuj();
+      panel();
+      await poczekaj();
+      expect(screen.queryByText("adminRevenue.moduleLinks.events.journeysLabel")).toBeNull();
+      expect(screen.queryByTestId("event-journeys-probe")).toBeNull();
+      cleanup();
+    }
   });
 });
 

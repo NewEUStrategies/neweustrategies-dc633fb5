@@ -12,6 +12,11 @@
 // poczty, lista pol kartoteki, zakladki z licznikami) mieszkaja
 // w `lib/clubs/adminApplicationsInbox.ts`; jeden wiersz i pas zakladek -
 // w molekulach `ClubInboxRow` i `ClubInboxSpecTabs`.
+//
+// HUB „PRZYCHÓD I LEJEK" (I9, SPEC §2.7): sygnał Diagnostyki obszaru klubów
+// (`RevenueSignalChip`, leniwa treść) i wiersz-drogowskaz do ścieżki
+// potwierdzającej zgłoszenie (`club_application_received`). Oba widzi tylko
+// rola huba - redakcja klubu spoza huba ma tu samą skrzynkę.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -23,6 +28,8 @@ import { Input } from "@/components/ui/input";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { ClubInboxRow } from "@/components/admin/clubs/molecules/ClubInboxRow";
 import { ClubInboxSpecTabs } from "@/components/admin/clubs/molecules/ClubInboxSpecTabs";
+import { RevenueHubHint } from "@/components/admin/revenue/molecules/RevenueHubHint";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import {
   clubApplicationStatusErrorCode,
   fetchAdminClubApplicationCounts,
@@ -38,6 +45,7 @@ import {
 import { useServerFn } from "@tanstack/react-start";
 import { useClubSpecializations } from "@/lib/clubs/useClubSpecializations";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import {
   APPLICATION_STATUSES,
@@ -87,6 +95,7 @@ export function ClubApplicationsInbox({
   onFiltersChange,
 }: ClubApplicationsInboxProps = {}) {
   ensureAdminClubsI18n();
+  ensureRevenueLinksI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const qc = useQueryClient();
@@ -184,8 +193,15 @@ export function ClubApplicationsInbox({
           {t("adminClubs.applications.title")}
         </CardTitle>
         <p className="text-sm text-muted-foreground">{t("adminClubs.applications.lead")}</p>
+        <RevenueSignalChip surface="clubs" variant="bar" />
       </CardHeader>
       <CardContent className="space-y-4">
+        <RevenueHubHint
+          tab="journeys"
+          search={{ new: "1", template: "club_application_received" }}
+          hint={t("adminRevenue.moduleLinks.clubs.automateHint")}
+          action={t("adminRevenue.moduleLinks.clubs.automateAction")}
+        />
         <ClubInboxSpecTabs tabs={tabs} active={spec} onSelect={setSpec} />
 
         <div className="flex flex-wrap items-center gap-3">

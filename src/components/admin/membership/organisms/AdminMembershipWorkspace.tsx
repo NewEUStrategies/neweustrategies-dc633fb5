@@ -20,6 +20,10 @@
 // ADRES = STAN (SPEC §2.6). Trasa podaje zakładkę (`?tab=`) i klucz otwartej
 // warstwy (`?tier=`) i zapisuje wybór z powrotem. Bez propsów (test organizmu,
 // osadzenie bez routera) oba żyją w stanie komponentu.
+//
+// SYGNAŁ HUBA (I9, SPEC §2.7): pasek Diagnostyki obszarów katalogu i klubów
+// pod kaflami - lekkie opakowanie, treść w leniwym chunku i tylko dla roli
+// huba (`RevenueSignalChip`).
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -45,6 +49,7 @@ import {
   type TierCoreDraft,
 } from "@/components/admin/membership/tierCoreDraft";
 import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
 import { InvalidFeaturesJsonError } from "@/lib/admin/membershipDrafts";
 import { isMembershipTab, type MembershipTabId } from "@/lib/admin/pricingTabs";
@@ -298,6 +303,7 @@ export function AdminMembershipWorkspace({
           />
           <KpiTile icon={Gift} label={tm("kpi.activeGrants")} value={String(activeGrantsCount)} />
         </div>
+        <RevenueSignalChip surface="membership" variant="bar" />
       </header>
 
       {/* Tabs porządkują 4 obszary: katalog warstw | mapowanie planów | nadania | organizacje. */}

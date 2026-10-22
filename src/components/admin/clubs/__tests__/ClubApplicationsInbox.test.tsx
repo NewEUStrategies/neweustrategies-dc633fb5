@@ -60,7 +60,31 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("@/lib/i18n-clubs-admin", () => ({ ensureAdminClubsI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-revenue-links", () => ({ ensureI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+// (I9) Sygnał Diagnostyki i drogowskaz do huba mają własne testy
+// (`RevenueSignalChip.test.tsx`, `revenueModuleLinks.test.tsx`) - tu wyłącznie
+// MIEJSCE montażu, ekran i parametry galerii.
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
+vi.mock("@/components/admin/revenue/molecules/RevenueHubHint", () => ({
+  RevenueHubHint: (props: { tab: string; search?: Record<string, string>; action: string }) => (
+    <div
+      data-testid="revenue-hub-hint-mount"
+      data-tab={props.tab}
+      data-search={new URLSearchParams(props.search).toString()}
+    >
+      {props.action}
+    </div>
+  ),
+}));
 // Klient Supabase: rejestrator RPC modułu klubów, z jednym dodatkiem - wybrane
 // wywołanie może ZAWISNĄĆ. Bez tego nie da się dowieść blokad na czas zapisu:
 // atrapa odpowiada natychmiast, a stan „w locie” trwa wtedy krócej niż jedno
@@ -246,6 +270,18 @@ beforeEach(() => {
 });
 
 // --- 1. trzy stany listy + dane częściowe ----------------------------------
+
+describe('hub „Przychód i lejek" (I9, SPEC §2.7)', () => {
+  it("nagłówek ma sygnał Diagnostyki klubów, a nad zakładkami drogowskaz do szablonu potwierdzenia", async () => {
+    await zamontuj();
+    const signal = screen.getByTestId("revenue-signal-mount");
+    expect(signal).toHaveAttribute("data-surface", "clubs");
+    expect(signal).toHaveAttribute("data-variant", "bar");
+    const hint = screen.getByTestId("revenue-hub-hint-mount");
+    expect(hint).toHaveAttribute("data-tab", "journeys");
+    expect(hint).toHaveAttribute("data-search", "new=1&template=club_application_received");
+  });
+});
 
 describe("stany skrzynki", () => {
   it("zapytanie W LOCIE mówi „wczytuję”, a nie „brak zgłoszeń”", () => {

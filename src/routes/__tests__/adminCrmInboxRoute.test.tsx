@@ -150,6 +150,17 @@ vi.mock("@/lib/realtime/useModuleRealtime", () => ({
 vi.mock("@/components/molecules/PresenceIndicator", () => ({
   PresenceIndicator: () => null,
 }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 vi.mock("@/components/molecules/LinkedItemsCard", () => ({ LinkedItemsCard: () => null }));
 // Radix `AvatarImage` w jsdom nie montuje <img> (obraz nigdy się nie „ładuje"),
 // więc test czyta adres przekazany do komponentu, a nie DOM obrazka.
@@ -310,6 +321,13 @@ describe("skrzynka CRM - lista", () => {
     });
     // Nazwa widoku wchodzi do klucza cache i adresu - długość jest ograniczona.
     expect(validate({ view: "v".repeat(80) }).view).toBeUndefined();
+  });
+
+  it("I9 (SPEC §2.7): pasek Diagnostyki CRM i windykacji pod nagłówkiem listy", async () => {
+    await mount();
+    const mount_ = await screen.findByTestId("revenue-signal-mount");
+    expect(mount_).toHaveAttribute("data-surface", "crm");
+    expect(mount_).toHaveAttribute("data-variant", "bar");
   });
 
   it("pusta lista mówi wprost, że nic nie ma", async () => {

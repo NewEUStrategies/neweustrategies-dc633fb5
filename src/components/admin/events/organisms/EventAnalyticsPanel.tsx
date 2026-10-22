@@ -28,6 +28,12 @@
 // zrodla, konwersje); tutaj wylacznie to, co da sie policzyc DLA TEGO
 // wydarzenia. Odnosnik do modulu globalnego zostaje, zeby nikt nie szukal
 // wykresu ruchu w wydarzeniu.
+//
+// PRZYCHÓD WSZYSTKICH WYDARZEŃ JEST W HUBIE (I9, SPEC §2.7). Ten ekran liczy
+// jedno wydarzenie; bilety, obecność i przychód wszystkich wydarzeń razem
+// pokazuje sekcja Wydarzenia zakładki Społeczność huba „Przychód i lejek"
+// (`?sec=events`). Wiersz-drogowskaz i sygnał Diagnostyki obszaru wydarzeń
+// widzi tylko rola z tą zakładką (`useRevenueHubTab`).
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "@/lib/lucide-shim";
@@ -43,6 +49,9 @@ import { useRegistrationCounts } from "@/lib/events/useEventRegistrations";
 import { useMeetingStats } from "@/lib/events/useMeetings";
 import { useOnsiteStats } from "@/lib/events/useEventOnsite";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
+import { RevenueHubLink } from "@/components/admin/revenue/molecules/RevenueHubLink";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
+import { useRevenueHubTab } from "@/components/admin/revenue/molecules/useRevenueHubTab";
 import { eventFeatureHidingSection, eventFeaturesFromJson } from "@/lib/events/eventFeatures";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureAgendaI18n } from "@/lib/i18n-admin-event-agenda";
@@ -51,6 +60,7 @@ import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
 import { ensureAdsFunnelI18n } from "@/lib/i18n-admin-event-ads-funnel";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
 
 /** Procent do wyswietlenia albo `null` - bez zaokraglania w gore do zera. */
 function percent(value: number | null | undefined): string | null {
@@ -70,6 +80,8 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
   const eventId = row.id;
   const sponsorReportShown =
     eventFeatureHidingSection(eventFeaturesFromJson(row.features), "sponsorReport") === null;
+  const hubCommunity = useRevenueHubTab("community");
+  if (hubCommunity) ensureRevenueLinksI18n();
 
   const countsQ = useRegistrationCounts({
     eventId,
@@ -237,6 +249,20 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
           </Link>
         </Button>
       </EventStudioRow>
+
+      {hubCommunity ? (
+        <EventStudioRow
+          label={t("adminRevenue.moduleLinks.events.revenueLabel")}
+          description={t("adminRevenue.moduleLinks.events.revenueDescription")}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <RevenueHubLink tab="community" search={{ sec: "events" }}>
+              {t("adminRevenue.moduleLinks.events.revenueAction")}
+            </RevenueHubLink>
+            <RevenueSignalChip surface="events" />
+          </div>
+        </EventStudioRow>
+      ) : null}
     </EventStudioPage>
   );
 }

@@ -25,8 +25,27 @@ import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 let chain: SupabaseFromStub;
 
+// (I9) Sesja dla bramki odnośnika do huba (`useRevenueHubTab`); domyślnie
+// gość (bez roli huba) - tak renderowały się testy sprzed montażu huba.
+const session = vi.hoisted(() => ({
+  roles: [] as string[],
+  tenantId: null as string | null,
+}));
+
 vi.mock("react-i18next", () => reactI18nextStub());
-vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
+vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub, useHydrated: () => true }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => session }));
+// Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => chain.from(table) },
 }));
@@ -39,6 +58,8 @@ const { AdminPricingWorkspace } =
   await import("@/components/admin/pricing/organisms/AdminPricingWorkspace");
 
 beforeEach(() => {
+  session.roles = [];
+  session.tenantId = null;
   chain = supabaseFromStub();
   chain.setResponse("pricing_audiences", ok([pricingAudience()]));
   chain.setResponse("membership_tiers", ok([membershipTier()]));
@@ -175,6 +196,47 @@ describe("AdminPricingWorkspace - powiązane moduły monetyzacji", () => {
         "/admin/monetization",
       ]),
     );
+  });
+
+  // I9 (SPEC §2.7): lokalny pasek zastąpiła wspólna molekuła huba
+  // `RelatedModulesBar` - nazwany landmark i napisy ze słownika powłoki.
+  it("pasek to wspólny `RelatedModulesBar` (nazwany landmark, napisy powłoki huba)", async () => {
+    renderWithQueryClient(<AdminPricingWorkspace />);
+
+    await waitFor(() => expect(screen.getByText("individual")).toBeInTheDocument());
+    const nav = screen.getByRole("navigation", { name: "adminRevenue.related.heading" });
+    expect(nav).toHaveTextContent("adminRevenue.related.coupons");
+    expect(nav).toHaveTextContent("adminRevenue.related.dashboard");
+  });
+
+  it("odnośnik do huba tylko dla roli huba z najemcą; gość i sam super_admin go nie dostają", async () => {
+    const { unmount } = renderWithQueryClient(<AdminPricingWorkspace />);
+    await waitFor(() => expect(screen.getByText("individual")).toBeInTheDocument());
+    const hrefsOf = () => screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefsOf()).not.toContain("/admin/revenue");
+    unmount();
+
+    session.roles = ["super_admin"];
+    session.tenantId = "tenant-1";
+    const second = renderWithQueryClient(<AdminPricingWorkspace />);
+    await waitFor(() => expect(screen.getByText("individual")).toBeInTheDocument());
+    expect(hrefsOf()).not.toContain("/admin/revenue");
+    second.unmount();
+
+    session.roles = ["admin"];
+    renderWithQueryClient(<AdminPricingWorkspace />);
+    await waitFor(() => expect(screen.getByText("individual")).toBeInTheDocument());
+    expect(hrefsOf()).toContain("/admin/revenue");
+  });
+
+  it('sygnał Diagnostyki cennika (`surface="pricing"`) w nagłówku panelu', async () => {
+    renderWithQueryClient(<AdminPricingWorkspace />);
+
+    await waitFor(() => expect(screen.getByText("individual")).toBeInTheDocument());
+    const mount = screen.getByTestId("revenue-signal-mount");
+    expect(mount).toHaveAttribute("data-surface", "pricing");
+    expect(mount).toHaveAttribute("data-variant", "bar");
+    expect(mount.closest("header")).not.toBeNull();
   });
 
   it("nagłówek mówi, czym jest ten panel", async () => {

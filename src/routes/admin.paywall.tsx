@@ -11,6 +11,8 @@
 //   * NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ogólnego tytułu.
 //   * BEZ DRUGIEGO `AdminShell`. Layout `/admin` już go renderuje; dawna owijka
 //     dawała podwójny `<main id="main-content">` i drugi pasek języka.
+//   * SYGNAŁ HUBA (I9, SPEC §2.7): pasek Diagnostyki obszarów paywalla pod
+//     kaflami - lekkie opakowanie, treść w leniwym chunku i tylko dla roli huba.
 //
 // Słownik rejestruje komponent (`ensureI18n` z importu nazwanego - bramka
 // `adminRouteDictionaryImports`): import efektem ubocznym zostałby w powłoce.
@@ -25,6 +27,7 @@ import { MeteringOverridesCard } from "@/components/admin/paywall/MeteringOverri
 import { MeteringSettingsCard } from "@/components/admin/paywall/MeteringSettingsCard";
 import { PaywallKpiStrip } from "@/components/admin/paywall/PaywallKpiStrip";
 import { PaywallPlansSection } from "@/components/admin/paywall/PaywallPlansSection";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { isPaywallTab, parsePaywallSearch, type PaywallTabId } from "@/lib/admin/paywallTabs";
@@ -85,6 +88,7 @@ function PaywallAdminPage() {
           </p>
         </div>
         <PaywallKpiStrip />
+        <RevenueSignalChip surface="paywall" variant="bar" />
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">

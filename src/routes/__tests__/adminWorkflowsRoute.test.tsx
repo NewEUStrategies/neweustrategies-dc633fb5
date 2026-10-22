@@ -28,11 +28,25 @@ const h = vi.hoisted(() => ({
   remove: null as unknown,
   toast: null as unknown,
   captured: {} as Record<string, unknown>,
+  // (I9) Sesja bramki drogowskazu do huba; domyślnie bez roli huba.
+  auth: { roles: [] as string[], tenantId: null as string | null },
 }));
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/post-editor/fixtures")).reactI18nextStub(),
 );
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 
 vi.mock("sonner", async () => {
   const { toastStub } = await import("@/test/post-editor/fixtures");
@@ -115,6 +129,7 @@ beforeEach(() => {
   h.runs = [workflowRun()];
   h.templates = [workflowTemplate()];
   h.captured = {};
+  h.auth = { roles: [], tenantId: null };
   (h.save as Mock).mockReset();
   (h.save as Mock).mockResolvedValue("wf-1");
   (h.setEnabled as Mock).mockReset();
@@ -178,6 +193,34 @@ describe("/admin/workflows - walidacja parametrów adresu", () => {
 // ---------------------------------------------------------------------------
 // Nagłówek strony
 // ---------------------------------------------------------------------------
+
+describe('/admin/workflows - hub „Przychód i lejek" (I9, SPEC §2.7)', () => {
+  it('rola huba z najemcą: drogowskaz „Wieloetapowe ścieżki są w hubie" prowadzi do zakładki Ścieżki', async () => {
+    h.auth = { roles: ["editor"], tenantId: "tenant-1" };
+    await render();
+    const hint = await screen.findByTestId("revenue-hub-hint");
+    expect(hint).toHaveTextContent("adminWorkflows.hubBanner.hint");
+    const link = screen.getByRole("link", { name: "adminWorkflows.hubBanner.action" });
+    expect(link.getAttribute("href")).toBe("/admin/revenue/journeys");
+  });
+
+  it("autor i sam super_admin (bez zakładki Ścieżki) - bez drogowskazu", async () => {
+    for (const roles of [["author"], ["super_admin"]]) {
+      h.auth = { roles, tenantId: "tenant-1" };
+      await render();
+      await waitFor(() => expect(screen.getByTestId("definitions")).toBeInTheDocument());
+      expect(screen.queryByTestId("revenue-hub-hint")).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('pasek Diagnostyki automatyzacji (`surface="workflows"`) pod nagłówkiem', async () => {
+    await render();
+    const mount = await screen.findByTestId("revenue-signal-mount");
+    expect(mount).toHaveAttribute("data-surface", "workflows");
+    expect(mount).toHaveAttribute("data-variant", "bar");
+  });
+});
 
 describe("/admin/workflows - nagłówek dokumentu", () => {
   it("strona administracyjna jest WYŁĄCZONA z indeksowania", async () => {

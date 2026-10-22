@@ -80,6 +80,17 @@ vi.mock("@tanstack/react-router", async (original) => ({
     </a>
   ),
 }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 vi.mock("sonner", () => ({ toast: { success: h.success, error: h.error, info: h.info } }));
 vi.mock("@/lib/toastError", () => ({ toastError: h.toastError }));
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
@@ -275,6 +286,15 @@ describe("route contract (SPEC §2.6, AGENTS adminPageHead)", () => {
     await mount("?plan=11111111-2222-4333-8444-555555555555");
     expect(await screen.findByText("adminPaywall.editor.notFound")).toBeTruthy();
     expect(screen.queryByLabelText("adminPaywall.editor.namePl")).toBeNull();
+  });
+
+  it("I9 (SPEC §2.7): the hub diagnostics bar for paywall areas sits in the header under the KPI strip", async () => {
+    await mount();
+    await screen.findByText("Plan Polski");
+    const mount_ = screen.getByTestId("revenue-signal-mount");
+    expect(mount_).toHaveAttribute("data-surface", "paywall");
+    expect(mount_).toHaveAttribute("data-variant", "bar");
+    expect(mount_.closest("header")).not.toBeNull();
   });
 
   it("ZMIANA ZAMIERZONA (DIAGNOZA #9): no second admin shell inside the /admin layout", async () => {

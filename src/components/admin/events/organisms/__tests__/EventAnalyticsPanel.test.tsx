@@ -49,6 +49,21 @@ const h = vi.hoisted(() => ({
    * „baza odmowila", a to jest przedmiotem jednego z dowodow nizej.
    */
   wiecznePending: false,
+  // (I9) Sesja bramki odnośnika do huba; domyślnie bez roli huba.
+  auth: { roles: [] as string[], tenantId: null as string | null },
+}));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -298,6 +313,7 @@ async function poczekajNaKomplet(): Promise<void> {
 }
 
 beforeEach(() => {
+  h.auth = { roles: [], tenantId: null };
   h.rpc = supabaseRpcStub();
   h.wiecznePending = false;
 });
@@ -305,6 +321,31 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+describe("EventAnalyticsPanel - przychód wszystkich wydarzeń w hubie (I9, SPEC §2.7)", () => {
+  it("rola z zakładką Społeczność: odnośnik do sekcji wydarzeń huba i sygnał obszaru wydarzeń", async () => {
+    h.auth = { roles: ["editor"], tenantId: "tenant-1" };
+    planujKomplet(stub());
+    panel();
+    await poczekajNaKomplet();
+
+    const link = screen.getByRole("link", {
+      name: "adminRevenue.moduleLinks.events.revenueAction",
+    });
+    expect(link.getAttribute("href")).toBe("/admin/revenue/community");
+    expect(screen.getByTestId("revenue-signal-mount")).toHaveAttribute("data-surface", "events");
+  });
+
+  it("bez roli huba - bez wiersza i bez sygnału (studio działa jak dotąd)", async () => {
+    h.auth = { roles: ["author"], tenantId: "tenant-1" };
+    planujKomplet(stub());
+    panel();
+    await poczekajNaKomplet();
+
+    expect(screen.queryByText("adminRevenue.moduleLinks.events.revenueLabel")).toBeNull();
+    expect(screen.queryByTestId("revenue-signal-mount")).toBeNull();
+  });
 });
 
 describe("EventAnalyticsPanel - komplet zrodel", () => {
