@@ -244,6 +244,14 @@ vi.mock("@/components/admin/newsletter/CampaignContentBuilder", () => ({
 vi.mock("@/components/admin/newsletter/molecules/CampaignEngagementCard", () => ({
   CampaignEngagementCard: () => <div data-testid="kafel-zaangazowania" />,
 }));
+// I9d-Y2: mianownik wskaźników (odbiorcy mierzeni) - funkcja serwerowa spoza
+// zakresu tego testu (atrapa `@tanstack/react-start` nie ma `createServerFn`).
+vi.mock("@/lib/privacy/measurementQueries", () => ({
+  campaignMeasurementQueryOptions: (campaignId: string) => ({
+    queryKey: ["admin", "newsletter-campaigns", campaignId, "measurement"],
+    queryFn: async () => ({ state: "unavailable" }),
+  }),
+}));
 vi.mock("@/components/admin/newsletter/runner/JobRunnerCard", () => ({
   JobRunnerCard: () => <div data-testid="kafel-automatu" />,
 }));

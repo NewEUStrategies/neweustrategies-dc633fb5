@@ -44,11 +44,11 @@ const pl = {
         },
         uniqueOpens: {
           label: "Unikalne otwarcia",
-          hint: "Osoby, które otworzyły kampanię - w każdej kampanii liczone raz, potem sumowane po kampaniach.",
+          hint: "Osoby, które otworzyły kampanię - w każdej kampanii liczone raz, potem sumowane po kampaniach. Od I9d-Y2 tylko odbiorcy ze zgodą na pomiar otwarć i kliknięć.",
         },
         uniqueClicks: {
           label: "Unikalne kliknięcia",
-          hint: "Osoby, które kliknęły link w kampanii - w każdej kampanii liczone raz, potem sumowane.",
+          hint: "Osoby, które kliknęły link w kampanii - w każdej kampanii liczone raz, potem sumowane. Od I9d-Y2 tylko odbiorcy ze zgodą na pomiar otwarć i kliknięć.",
         },
         hardBounces: {
           label: "Odbicia trwałe",
@@ -129,11 +129,11 @@ const en: typeof pl = {
         },
         uniqueOpens: {
           label: "Unique opens",
-          hint: "People who opened a campaign - counted once per campaign, then summed across campaigns.",
+          hint: "People who opened a campaign - counted once per campaign, then summed across campaigns. Since I9d-Y2 only recipients with consent to measuring opens and clicks.",
         },
         uniqueClicks: {
           label: "Unique clicks",
-          hint: "People who clicked a link in a campaign - counted once per campaign, then summed.",
+          hint: "People who clicked a link in a campaign - counted once per campaign, then summed. Since I9d-Y2 only recipients with consent to measuring opens and clicks.",
         },
         hardBounces: {
           label: "Permanent bounces",

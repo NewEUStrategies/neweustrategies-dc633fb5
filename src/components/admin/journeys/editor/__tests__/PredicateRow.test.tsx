@@ -57,6 +57,7 @@ import { realT } from "@/test/i18nReal";
 import "@/lib/i18n-admin-crm-lifecycle";
 import "@/lib/i18n-admin-journeys";
 import "@/lib/i18n-admin-journeys-list";
+import "@/lib/i18n-admin-measurement-hint";
 
 h.fixedT = realT;
 const t = realT("pl");
@@ -262,6 +263,22 @@ describe("PredicateList - lista warunków", () => {
 
     fireEvent.change(select, { target: { value: "mail_1" } });
     expect(onCommit).toHaveBeenLastCalledWith([{ kind: "email_opened", nodeId: "mail_1" }]);
+  });
+
+  it("otwarcie i kliknięcie: notka, że niemierzeni odbiorcy trafią do gałęzi „nie” (I9d-Y2)", () => {
+    renderUi(
+      <ControlledList
+        initial={[
+          { kind: "email_opened", nodeId: "mail_1" },
+          { kind: "email_clicked", nodeId: "mail_1" },
+          { kind: "has_tag", tag: "vip" },
+        ]}
+        onCommit={vi.fn()}
+      />,
+    );
+    // Jedna notka na warunek otwarcia/kliknięcia; tag jej nie ma.
+    expect(screen.getAllByText(t("adminMeasurementHint.predicate"))).toHaveLength(2);
+    expect(t("adminMeasurementHint.predicate")).toMatch(/zgodą na pomiar/);
   });
 
   it("bez maili na drodze rodzaje otwarcia i kliknięcia są niedostępne", () => {

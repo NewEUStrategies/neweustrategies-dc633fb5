@@ -7,6 +7,7 @@
 // słowami (jak mutatory S1).
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { journeyKeys } from "@/lib/journeys/keys";
+import { newsletterKeys } from "@/lib/newsletter/keys";
 import { saveJourneySettings } from "@/lib/journeys/journeys.functions";
 import {
   extendDataRetentionContact,
@@ -134,6 +135,9 @@ export function useSaveOpenTracking(tenantId: string) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: dataRetentionKeys.tenant(tenantId) }),
         queryClient.invalidateQueries({ queryKey: journeyKeys.settings(tenantId) }),
+        // I9d-Y2 (Z-I9c-09): ten sam przełącznik obejmuje kampanie - podgląd
+        // „Poproś o zgodę na pomiar" pokazuje jego stan.
+        queryClient.invalidateQueries({ queryKey: newsletterKeys.measurementAll() }),
       ]);
     },
   });

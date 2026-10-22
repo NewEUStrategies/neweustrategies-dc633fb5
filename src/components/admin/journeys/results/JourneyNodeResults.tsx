@@ -16,6 +16,8 @@ import { useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { MeasurementConsentNote } from "@/components/admin/newsletter/measurement/MeasurementConsentNote";
+
 import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
 import { MfaRequiredNotice } from "@/components/admin/revenue/molecules/MfaRequiredNotice";
 import { RoleGateNotice } from "@/components/admin/revenue/molecules/RoleGateNotice";
@@ -406,6 +408,8 @@ function NodeEmail({
           <span className="tabular-nums">{formatNumber(email.fallbackLocale, lang)}</span>,
         )}
       </dl>
+      {/* I9d-Y2: otwarcia i kliknięcia tylko u odbiorców ze zgodą na pomiar. */}
+      <MeasurementConsentNote scope="journey" />
     </div>
   );
 }

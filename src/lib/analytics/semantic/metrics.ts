@@ -584,6 +584,7 @@ const BASE_METRIC_LIST: readonly MetricDefinition[] = [
     guards: [
       "Do not present as 'people who read the email'; quote clicks when the claim matters.",
       "A row is one recipient-DAY, not one interaction: five opens today count once, and tomorrow counts again. Quote COUNT(DISTINCT subscriber_id) whenever the claim is about PEOPLE - it is also the only numerator that cannot exceed the delivered count.",
+      "Since I9d-Y2 the pixel goes only to recipients whose consent covers measuring opens and clicks - a drop after that release means fewer measured people, not less reading.",
     ],
   },
   {
@@ -608,6 +609,7 @@ const BASE_METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "A newsletter click that lands on the site is ALSO a first-party page view - counting both as 'traffic' double-counts the same visit.",
+      "Since I9d-Y2 only recipients whose consent covers measurement get links with a recipient token - everyone else reaches the site without a click recorded here.",
     ],
   },
   {
@@ -1812,6 +1814,7 @@ const HUB_METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Apple Mail Privacy Protection opens every message it downloads - open rates overstate human reading, so prefer the click rate for decisions.",
+      "Since I9d-Y2 opens are recorded only for recipients with measurement consent while delivered counts everyone, so the rate understates reading - compare it only with periods after that release.",
     ],
     windowKind: "flow",
   },
@@ -1836,6 +1839,7 @@ const HUB_METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Security scanners click links on delivery - remove bot clicks before comparing CTR with industry figures.",
+      "Since I9d-Y2 clicks are recorded only for recipients with measurement consent while the denominator still counts every delivery, so the rate is a lower bound.",
     ],
     windowKind: "flow",
   },
@@ -2028,6 +2032,7 @@ const HUB_METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Journey emails are triggered by intent, so they open far above campaigns - never benchmark a journey against campaign open rates.",
+      "Since I9d-Y2 journey emails carry the pixel only for contacts with measurement consent, yet the denominator counts every delivered step email - read the rate as a lower bound.",
     ],
     windowKind: "per_journey",
   },
@@ -2052,6 +2057,7 @@ const HUB_METRIC_LIST: readonly MetricDefinition[] = [
     driftTolerance: 0,
     guards: [
       "Compare each journey step with the same step of earlier versions - a pooled rate hides a weak step behind a strong welcome email.",
+      "Since I9d-Y2 journey links carry a message token only for contacts with measurement consent; unmeasured clicks are missing from the numerator but present in the denominator.",
     ],
     windowKind: "per_journey",
   },
