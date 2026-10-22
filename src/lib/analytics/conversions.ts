@@ -14,6 +14,7 @@
 // GA4, a po wpisaniu etykiety do zmiennych środowiskowych ten sam klik zgłasza
 // konwersję również bezpośrednio do Ads (Ads deduplikuje po `transaction_id`).
 
+import { trackAdsFormGoals } from "./adsGoals";
 import { ga4Event } from "./ga4Client";
 import { GOOGLE_ADS_ID } from "./tagIds";
 import { track } from "./track";
@@ -68,6 +69,9 @@ export function trackFormConversion(input: FormConversionInput): void {
     },
   });
   adsConversion(ADS_LEAD_LABEL, { transaction_id: `lead_${input.formId}_${Date.now()}` });
+  // Cele zdarzeniowe Google Ads (fragmenty z panelu Ads, 2026-10-22):
+  // `ads_conversion_Formularz_1` + `ads_submit_form` - patrz `adsGoals.ts`.
+  trackAdsFormGoals();
 }
 
 export interface StrategyConversionInput {
