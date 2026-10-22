@@ -35,6 +35,7 @@ import { sendBeaconPayload } from "@/lib/observability/report";
 import { redactPii } from "@/lib/observability/redact";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { supabase } from "@/integrations/supabase/client";
+import { trackAdsPageViewGoals } from "./adsGoals";
 import { ga4Event, ga4PageView } from "./ga4Client";
 import { redactTrackedHref, redactTrackedPath } from "./redactTrackedUrl";
 import { ga4EventName, ga4EventParams } from "./ga4EventMap";
