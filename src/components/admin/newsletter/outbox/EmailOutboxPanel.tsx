@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getEmailOutbox, OUTBOX_STATUSES } from "@/lib/admin/emailOutbox.functions";
+import { outboxReasonKey } from "@/lib/admin/emailOutboxReason";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLocale } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
@@ -185,7 +186,12 @@ export function EmailOutboxPanel() {
       {/* 2. Filtry treści */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Select value={template} onValueChange={resetPage(setTemplate)}>
-          <SelectTrigger className="h-10 rounded-[6px]">
+          {/* Nazwa dostępna: wybrana wartość („Wszystkie typy") nie mówi, czego
+              dotyczy pole - czytnik ekranu dostaje nazwę filtra. */}
+          <SelectTrigger
+            className="h-10 rounded-[6px]"
+            aria-label={t("adminOutbox.filters.template")}
+          >
             <SelectValue placeholder={t("adminOutbox.filters.template")} />
           </SelectTrigger>
           <SelectContent>
@@ -199,7 +205,10 @@ export function EmailOutboxPanel() {
         </Select>
 
         <Select value={status} onValueChange={resetPage(setStatus)}>
-          <SelectTrigger className="h-10 rounded-[6px]">
+          <SelectTrigger
+            className="h-10 rounded-[6px]"
+            aria-label={t("adminOutbox.filters.status")}
+          >
             <SelectValue placeholder={t("adminOutbox.filters.status")} />
           </SelectTrigger>
           <SelectContent>
@@ -298,7 +307,7 @@ export function EmailOutboxPanel() {
                     })}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground max-w-[24rem] break-words">
-                    {row.errorMessage ?? ""}
+                    <OutboxReason code={row.errorMessage} />
                   </td>
                 </tr>
               ))}
@@ -332,5 +341,22 @@ export function EmailOutboxPanel() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Powód z dziennika wysyłek: etykieta PL/EN dla kodów zatrzymań (blokada,
+ * anulowanie, pominięcie - Z-I9c-02), a surowy kod w podpowiedzi dla wsparcia.
+ * Kod bez etykiety (odpowiedź dostawcy, `http_<status>`) - tak jak przyszedł.
+ */
+function OutboxReason({ code }: { code: string | null }) {
+  const { t } = useTranslation();
+  if (!code) return null;
+  const key = outboxReasonKey(code);
+  if (!key) return <>{code}</>;
+  return (
+    <span title={t("adminOutbox.reason.codeHint", { code })} data-reason-code={code}>
+      {t(key)}
+    </span>
   );
 }

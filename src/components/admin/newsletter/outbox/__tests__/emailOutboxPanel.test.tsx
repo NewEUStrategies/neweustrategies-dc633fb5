@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { axeViolations, summarize } from "@/test/axe";
 
 const env = vi.hoisted(() => ({
   result: null as unknown,
@@ -111,5 +112,69 @@ describe("EmailOutboxPanel", () => {
     renderWithQueryClient(<EmailOutboxPanel />);
     expect(await screen.findByText("Email outbox")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
+  });
+});
+
+describe("EmailOutboxPanel - etykiety powodów (I9, Z-I9c-02)", () => {
+  const row = (id: string, errorMessage: string, status = "suppressed") => ({
+    id,
+    messageId: `m-${id}`,
+    templateName: "journey",
+    recipientEmail: `${id}@example.com`,
+    status,
+    errorMessage,
+    createdAt: "2026-08-19T11:30:00.000Z",
+  });
+
+  beforeEach(() => {
+    env.result = {
+      ...result,
+      rows: [
+        row("a", "suppressed:hard_bounce"),
+        row("b", "cancelled:account_deleted"),
+        row("c", "skipped:exited:unsubscribed"),
+        row("d", "skipped:no_consent"),
+        row("e", "http_503", "failed"),
+      ],
+      stats: { total: 5, sent: 0, pending: 0, failed: 1, suppressed: 4 },
+      total: 5,
+    };
+  });
+
+  it("kod zatrzymania dostaje etykietę, a surowy kod zostaje w podpowiedzi", async () => {
+    renderWithQueryClient(<EmailOutboxPanel />);
+
+    const bounce = await screen.findByText(T("reason.suppressed.hard_bounce"));
+    expect(bounce).toHaveAttribute("data-reason-code", "suppressed:hard_bounce");
+    expect(bounce).toHaveAttribute(
+      "title",
+      i18n.t("adminOutbox.reason.codeHint", { code: "suppressed:hard_bounce" }),
+    );
+    expect(screen.getByText(T("reason.cancelledAccountDeleted"))).toBeInTheDocument();
+    expect(screen.getByText(T("reason.exited.unsubscribed"))).toBeInTheDocument();
+    expect(screen.getByText(T("reason.skipped.no_consent"))).toBeInTheDocument();
+    // Surowego kodu nie ma jako tekstu komórki - jest etykieta.
+    expect(screen.queryByText("suppressed:hard_bounce")).toBeNull();
+  });
+
+  it("kod bez etykiety (odpowiedź dostawcy) zostaje surowy", async () => {
+    renderWithQueryClient(<EmailOutboxPanel />);
+    expect(await screen.findByText("http_503")).toBeInTheDocument();
+  });
+
+  it("etykiety są po angielsku w panelu EN", async () => {
+    await i18n.changeLanguage("en");
+    renderWithQueryClient(<EmailOutboxPanel />);
+    expect(
+      await screen.findByText("Suppressed: hard bounce (the address does not exist)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cancelled: the recipient's account was deleted")).toBeInTheDocument();
+  });
+
+  it("axe bez naruszeń z etykietami powodów", async () => {
+    const { container } = renderWithQueryClient(<EmailOutboxPanel />);
+    await screen.findByText(T("reason.suppressed.hard_bounce"));
+    const violations = await axeViolations(container);
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });
