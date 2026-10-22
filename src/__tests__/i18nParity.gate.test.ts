@@ -51,6 +51,15 @@ const GATED_PREFIXES = [
   // subskrybentów): odbiorca bez tej strony w swoim języku nie potwierdzi
   // subskrypcji i zostanie usunięty z listy.
   "newsletterKeep",
+  // Strona linków pomiaru (I9d-Y2): odbiorca bez tej strony w swoim języku
+  // nie wyłączy pomiaru otwarć i kliknięć ani świadomie nie udzieli na niego
+  // zgody.
+  "newsletterMeasurement",
+  // Treść zgody i dymki pomiaru w panelu (I9d-Y2): surowy klucz zamiast
+  // zdania zostawiłby admina bez informacji, czy zapis z formularza daje
+  // zgodę na pomiar i kogo obejmują otwarcia i kliknięcia w statystykach.
+  "adminNewsletterMeasurement",
+  "adminMeasurementHint",
   // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
   // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
   // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd

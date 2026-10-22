@@ -2689,6 +2689,27 @@
       "when": 1792478593912,
       "tag": "0383_data_retention_y1_core",
       "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1792478653912,
+      "tag": "0384_consent_measurement_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1792478713912,
+      "tag": "0385_consent_measurement_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1792478773912,
+      "tag": "0386_consent_measurement_reconfirm",
+      "breakpoints": true
     }
   ]
 }

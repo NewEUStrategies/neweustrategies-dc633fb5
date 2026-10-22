@@ -1095,6 +1095,50 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // i ścieżek (S5) nadają zgodę (ich przedmiotem jest deduplikacja
     // i statystyki, nie zgoda).
     "supabase/tests/{journeys_tracking_stats,newsletter_campaign_events_dedup}_test.sql",
+    // (Integrator I9d-Y2, 2026-10-22) Treść zgody i pomiar (Y2-B): jedno
+    // źródło treści zgody newslettera i formularze zgody (widżety, popup,
+    // rejestracja, bramka klubu, kontakt, dokument buildera), pomiar tylko za
+    // zgodą w renderze kampanii i ścieżek, trasa publiczna linków pomiaru
+    // (strona, słownik PL/EN, noindex), link „Nie mierz" w preferencjach
+    // (wypis).
+    "src/lib/newsletter/{consentText,keys,renderCampaign.server,trackingEvents.server}.ts",
+    "src/lib/newsletter/__tests__/{consentText,renderCampaign.server,trackingEvents}.test.ts",
+    "src/components/newsletter/{NewsletterConsentText,NewsletterDocRenderer}.tsx",
+    "src/components/newsletter/__tests__/newsletterDocRendererPure.test.tsx",
+    "src/components/{NewsletterForm,PopupSignupForm}.tsx",
+    "src/components/__tests__/{NewsletterForm,popupSignupForm}.test.tsx",
+    "src/components/popups/__tests__/SignupPopupPanel.test.tsx",
+    "src/components/blocks/{AuthFormBlocks,ContactFormView}.tsx",
+    "src/components/blocks/__tests__/{authFormBlocks,authFormPlaceholders,contactFormNewsletterConsent}.test.tsx",
+    "src/components/clubs/organisms/ClubAccessGate.tsx",
+    "src/components/clubs/__tests__/ClubAccessGate{,.funnel}.test.tsx",
+    "src/components/interests/JoinUsForm.tsx",
+    "src/components/interests/__tests__/joinUsForm.test.tsx",
+    "src/hooks/useNewsletterSettings.ts",
+    "src/lib/builder/registry.tsx",
+    "src/lib/{contact.functions,newsletter-campaigns.functions}.ts",
+    "src/lib/__tests__/{contactFunctions,newsletterCampaignSend,newsletterCampaignsFunctionsGaps}.test.ts",
+    "src/lib/i18n-{club-gate,interests,public-auth,public}.ts",
+    "src/lib/i18n-newsletter-measurement{,-head}.ts",
+    "src/routes/{api.public.newsletter.measurement.ts,newsletter.measurement.tsx,-api.public.newsletter.measurement.test.ts}",
+    "src/routes/{api.public.newsletter.unsubscribe.ts,newsletter.unsubscribe.tsx,-api.public.newsletter.unsubscribe.test.ts}",
+    "src/routes/__tests__/{newsletterMeasurementPage,newsletterConsentPages}.test.tsx",
+    // (Integrator I9d-Y2, 2026-10-22) Panel (Y2-C): treść zgody z jawnym
+    // oznaczeniem „mój tekst obejmuje pomiar", „Poproś o zgodę na pomiar"
+    // i edytor treści tego maila, dymki pomiaru w statystykach kampanii,
+    // ścieżek i rejestrze wskaźników, ostrzeżenie etykiety zgody w popupie,
+    // unieważnienie podglądu po zmianie wspólnego przełącznika pomiaru.
+    "src/components/admin/newsletter/measurement/**",
+    "src/components/admin/newsletter/molecules/CampaignEngagementCard.tsx",
+    "src/components/admin/newsletter/__tests__/CampaignEngagementCard.test.tsx",
+    "src/components/admin/popups/signup/FieldsTab.tsx",
+    "src/components/admin/popups/signup/__tests__/FieldsTabConsentLabel.test.tsx",
+    "src/lib/admin/journeys/journeyMutations.ts",
+    "src/lib/admin/journeys/__tests__/journeyMutations.test.ts",
+    "src/lib/analytics/semantic/metrics.ts",
+    "src/lib/i18n-admin-{newsletter-measurement,measurement-hint,journeys-list,journeys-results,revenue-email}.ts",
+    "src/routes/admin.newsletter.{overview,email-content}.tsx",
+    "src/routes/__tests__/adminNewsletterCampaignRoutes.test.tsx",
   ],
 };
 
