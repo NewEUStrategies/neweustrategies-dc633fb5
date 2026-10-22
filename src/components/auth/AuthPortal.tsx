@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { pickPair } from "@/lib/i18n/pickLocalized";
 import "@/lib/i18n-auth-portal";
 import { supabase } from "@/integrations/supabase/client";
+import { trackAdsRegistrationGoal } from "@/lib/analytics/adsGoals";
 import { isMfaChallengeRequired } from "@/lib/auth/mfa";
 import { MfaChallenge } from "@/components/auth/MfaChallenge";
 import { useAuth } from "@/hooks/useAuth";
@@ -154,6 +155,10 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         });
         if (error) throw error;
 
+        // Cel Google Ads "Rejestracja" (`ads_conversion_Strona_rejestracji_1`)
+        // - dopiero PO potwierdzeniu utworzenia konta, nigdy na samo
+        // klikniecie "Zarejestruj" (Ads nie moze liczyc odrzuconych prob).
+        trackAdsRegistrationGoal();
         toast.success(t("authPortal.toasts.accountCreated"));
       } else if (mode === "reset") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
