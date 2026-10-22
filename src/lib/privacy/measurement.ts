@@ -20,6 +20,14 @@ export const NEWSLETTER_MEASUREMENT_API_PATH = "/api/public/newsletter/measureme
 /** Strona z przyciskiem, na którą GET z przeglądarki robi 303. */
 export const NEWSLETTER_MEASUREMENT_PAGE_PATH = "/newsletter/measurement";
 
+/**
+ * Ważność linku „Zgadzam się na pomiar" z prośby (dni) - termin w podpisie
+ * tokenu `mc:`. Jednorazowość daje nonce prośby w bazie; termin sprawia, że
+ * mail sprzed miesięcy nie udziela zgody bez końca. Jedno źródło dla tokenu
+ * i panelu (termin pokazany przy starcie prośby).
+ */
+export const MEASUREMENT_CONFIRM_LINK_DAYS = 60;
+
 export type MeasurementLang = "pl" | "en";
 
 /**

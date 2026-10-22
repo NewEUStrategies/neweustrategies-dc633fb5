@@ -25,6 +25,7 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import {
+  MEASUREMENT_CONFIRM_LINK_DAYS,
   newsletterMeasurementUrl,
   type MeasurementLang,
   type MeasurementLinkChannel,
@@ -37,8 +38,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const WITHDRAW_RE = /^w([sl])([a-f0-9]{32})([a-f0-9]{32})$/i;
 const CONFIRM_RE = /^c([a-f0-9]{32})([a-f0-9]{32})([a-f0-9]{8})([a-f0-9]{32})$/i;
 
-/** Ważność linku zgody z prośby (dni). Nonce prośby i tak jest jednorazowy. */
-export const MEASUREMENT_CONFIRM_TOKEN_TTL_DAYS = 60;
+/** Ważność linku zgody z prośby (dni) - jedno źródło w liściu `measurement.ts`. */
+export const MEASUREMENT_CONFIRM_TOKEN_TTL_DAYS = MEASUREMENT_CONFIRM_LINK_DAYS;
 
 function getSecret(): string {
   return process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
