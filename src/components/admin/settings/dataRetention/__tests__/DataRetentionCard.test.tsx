@@ -481,15 +481,18 @@ describe("karta retencji - bezpieczny start, przebieg, piksel, CRM", () => {
     await waitFor(() => expect(h.run).toHaveBeenCalledTimes(1));
   });
 
-  it("piksel otwarć: ustawienie silnika ścieżek z tokenem", async () => {
+  it("pomiar otwarć i kliknięć: wspólny przełącznik ścieżek i kampanii z tokenem silnika", async () => {
     mount();
-    fireEvent.click(await screen.findByLabelText("Mierz otwarcia maili ścieżek pikselem"));
+    fireEvent.click(
+      await screen.findByLabelText("Mierz otwarcia i kliknięcia w mailach ścieżek i kampanii"),
+    );
     await waitFor(() =>
       expect(h.journeySave).toHaveBeenCalledWith({
         data: { patch: { open_tracking_enabled: false }, expectedUpdatedAt: TOKEN },
       }),
     );
-    expect(screen.getByText(/Rekomendacja: uzupełnić treść zgody/)).toBeTruthy();
+    // I9d-Y2: rekomendacja EDPB 2/2023 wykonana - treść zgody obejmuje pomiar.
+    expect(screen.getByText(/Wykonane \(I9d-Y2\): domyślna treść zgody/)).toBeTruthy();
   });
 
   it("przedłużenie kontaktu: powód poniżej 3 znaków blokuje zapis, poprawny - zapis i komunikat", async () => {

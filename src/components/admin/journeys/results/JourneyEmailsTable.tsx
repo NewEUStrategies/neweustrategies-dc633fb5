@@ -17,6 +17,10 @@
 // dostaje jeden opis „brak wysyłek w oknie” zamiast rzędu zer, które
 // czytałyby się jak wysłany mail bez otwarć.
 //
+// POMIAR ZA ZGODĄ (I9d-Y2). Nad tabelą notka z dymkiem: otwarcia i kliknięcia
+// liczymy tylko u odbiorców ze zgodą na pomiar, a mianownik to wszystkie
+// wysłane maile (statystyki ścieżek nie znają liczby mierzonych).
+//
 // DOSTĘPNOŚĆ: `caption`, `scope` kolumn i wierszy, przewijany region
 // z `tabIndex=0` i nazwą (wąski ekran bez poziomego paska strony), dymek MPP
 // na przycisku 24 px dostępnym z klawiatury.
@@ -25,6 +29,7 @@ import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { BenchmarkTierBadge } from "@/components/admin/analytics/semantic/atoms/BenchmarkTierBadge";
+import { MeasurementConsentNote } from "@/components/admin/newsletter/measurement/MeasurementConsentNote";
 import {
   evaluateMetricValue,
   useBenchmark,
@@ -162,147 +167,154 @@ export function JourneyEmailsTable({
   const number = (value: number) => formatNumber(value, lang);
 
   return (
-    <div
-      role="region"
-      aria-label={t("adminJourneys.results.emails.scrollRegion")}
-      tabIndex={0}
-      className="overflow-x-auto rounded-[6px] border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <table className="w-full min-w-[1080px] text-left text-xs">
-        <caption className="sr-only">{t("adminJourneys.results.emails.caption")}</caption>
-        <thead className="bg-muted/30 text-muted-foreground">
-          <tr>
-            <th scope="col" className="px-3 py-2 font-medium">
-              {t("adminJourneys.results.emails.columns.step")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.queued")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.sent")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              <span className="inline-flex items-center gap-0.5">
-                {t("adminJourneys.results.emails.columns.humanOpens")}
-                <JourneyMppHint />
-              </span>
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.clicks")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              <span className="inline-flex items-center gap-0.5">
-                {t("adminJourneys.results.emails.columns.ctor")}
-                <JourneyMppHint />
-              </span>
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.unsubscribed")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.bounced")}
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              {t("adminJourneys.results.emails.columns.complained")}
-            </th>
-            <th
-              scope="col"
-              className="px-3 py-2 text-right font-medium"
-              title={t("adminJourneys.results.emails.fallbackHint")}
-            >
-              {t("adminJourneys.results.emails.columns.fallbackLocale")}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const subject = subjects?.get(row.nodeId) ?? null;
-            const { email, rates } = row;
-            return (
-              <tr key={row.nodeId} data-node-id={row.nodeId} className="border-t border-border">
-                <th scope="row" className="px-3 py-2 align-top font-normal">
-                  <span className="block font-medium text-foreground">{stepLabel(row)}</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {subject ?? t("adminJourneys.results.emails.subjectMissing")}
-                  </span>
-                </th>
-                {email && rates ? (
-                  <>
-                    <td className="px-3 py-2 text-right align-top tabular-nums">
-                      {number(email.queued)}
-                    </td>
-                    <td className="px-3 py-2 text-right align-top tabular-nums">
-                      {number(email.sent)}
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <JourneyRateValue
-                        count={email.uniqueHumanOpens}
-                        rate={rates.openRate}
-                        evaluation={evaluate("openRate", rates.openRate, rates.delivered)}
-                        lang={lang}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <JourneyRateValue
-                        count={email.uniqueClicks}
-                        rate={rates.clickRate}
-                        evaluation={evaluate("clickRate", rates.clickRate, rates.delivered)}
-                        lang={lang}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <span className="inline-flex flex-col items-end gap-0.5">
-                        <span className="tabular-nums">
-                          {rates.ctor === null ? "—" : formatPercent(rates.ctor, lang)}
-                        </span>
-                        <CtorBadge
-                          evaluation={evaluate("ctor", rates.ctor, email.uniqueHumanOpens)}
+    <div className="space-y-2">
+      <MeasurementConsentNote scope="journey" />
+      <div
+        role="region"
+        aria-label={t("adminJourneys.results.emails.scrollRegion")}
+        tabIndex={0}
+        className="overflow-x-auto rounded-[6px] border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <table className="w-full min-w-[1080px] text-left text-xs">
+          <caption className="sr-only">{t("adminJourneys.results.emails.caption")}</caption>
+          <thead className="bg-muted/30 text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-3 py-2 font-medium">
+                {t("adminJourneys.results.emails.columns.step")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.queued")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.sent")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                <span className="inline-flex items-center gap-0.5">
+                  {t("adminJourneys.results.emails.columns.humanOpens")}
+                  <JourneyMppHint />
+                </span>
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.clicks")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                <span className="inline-flex items-center gap-0.5">
+                  {t("adminJourneys.results.emails.columns.ctor")}
+                  <JourneyMppHint />
+                </span>
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.unsubscribed")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.bounced")}
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                {t("adminJourneys.results.emails.columns.complained")}
+              </th>
+              <th
+                scope="col"
+                className="px-3 py-2 text-right font-medium"
+                title={t("adminJourneys.results.emails.fallbackHint")}
+              >
+                {t("adminJourneys.results.emails.columns.fallbackLocale")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const subject = subjects?.get(row.nodeId) ?? null;
+              const { email, rates } = row;
+              return (
+                <tr key={row.nodeId} data-node-id={row.nodeId} className="border-t border-border">
+                  <th scope="row" className="px-3 py-2 align-top font-normal">
+                    <span className="block font-medium text-foreground">{stepLabel(row)}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {subject ?? t("adminJourneys.results.emails.subjectMissing")}
+                    </span>
+                  </th>
+                  {email && rates ? (
+                    <>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">
+                        {number(email.queued)}
+                      </td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">
+                        {number(email.sent)}
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <JourneyRateValue
+                          count={email.uniqueHumanOpens}
+                          rate={rates.openRate}
+                          evaluation={evaluate("openRate", rates.openRate, rates.delivered)}
                           lang={lang}
                         />
-                      </span>
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <JourneyRateValue
+                          count={email.uniqueClicks}
+                          rate={rates.clickRate}
+                          evaluation={evaluate("clickRate", rates.clickRate, rates.delivered)}
+                          lang={lang}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <span className="inline-flex flex-col items-end gap-0.5">
+                          <span className="tabular-nums">
+                            {rates.ctor === null ? "—" : formatPercent(rates.ctor, lang)}
+                          </span>
+                          <CtorBadge
+                            evaluation={evaluate("ctor", rates.ctor, email.uniqueHumanOpens)}
+                            lang={lang}
+                          />
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <JourneyRateValue
+                          count={email.unsubscribed}
+                          rate={rates.unsubscribeRate}
+                          evaluation={evaluate(
+                            "unsubscribeRate",
+                            rates.unsubscribeRate,
+                            rates.delivered,
+                          )}
+                          lang={lang}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <JourneyRateValue
+                          count={email.bounced}
+                          rate={rates.bounceRate}
+                          evaluation={evaluate("bounceRate", rates.bounceRate, email.sent)}
+                          lang={lang}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <JourneyRateValue
+                          count={email.complained}
+                          rate={rates.complaintRate}
+                          evaluation={evaluate(
+                            "complaintRate",
+                            rates.complaintRate,
+                            rates.delivered,
+                          )}
+                          lang={lang}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">
+                        {number(email.fallbackLocale)}
+                      </td>
+                    </>
+                  ) : (
+                    <td colSpan={9} className="px-3 py-2 align-top text-muted-foreground">
+                      {t("adminJourneys.results.emails.noSends")}
                     </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <JourneyRateValue
-                        count={email.unsubscribed}
-                        rate={rates.unsubscribeRate}
-                        evaluation={evaluate(
-                          "unsubscribeRate",
-                          rates.unsubscribeRate,
-                          rates.delivered,
-                        )}
-                        lang={lang}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <JourneyRateValue
-                        count={email.bounced}
-                        rate={rates.bounceRate}
-                        evaluation={evaluate("bounceRate", rates.bounceRate, email.sent)}
-                        lang={lang}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right align-top">
-                      <JourneyRateValue
-                        count={email.complained}
-                        rate={rates.complaintRate}
-                        evaluation={evaluate("complaintRate", rates.complaintRate, rates.delivered)}
-                        lang={lang}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-right align-top tabular-nums">
-                      {number(email.fallbackLocale)}
-                    </td>
-                  </>
-                ) : (
-                  <td colSpan={9} className="px-3 py-2 align-top text-muted-foreground">
-                    {t("adminJourneys.results.emails.noSends")}
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

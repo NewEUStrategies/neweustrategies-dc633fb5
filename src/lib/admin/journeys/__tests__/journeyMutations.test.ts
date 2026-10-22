@@ -60,6 +60,7 @@ import "@/lib/i18n-admin-journeys";
 import "@/lib/i18n-admin-journeys-list";
 import { emptyJourneyGraph } from "@/lib/journeys/graph";
 import { journeyKeys } from "@/lib/journeys/keys";
+import { newsletterKeys } from "@/lib/newsletter/keys";
 import { dataRetentionKeys } from "@/lib/privacy/keys";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -328,7 +329,7 @@ describe("pozostałe mutatory - unieważnienia po sukcesie", () => {
     }
   });
 
-  it("ustawienia silnika: wynik do cache, ustawienia, zdrowie i karta retencji", async () => {
+  it("ustawienia silnika: wynik do cache, ustawienia, zdrowie, karta retencji i pomiar newslettera", async () => {
     const settings = {
       enabled: true,
       marketingCapPer7d: 3,
@@ -363,6 +364,9 @@ describe("pozostałe mutatory - unieważnienia po sukcesie", () => {
       journeyKeys.settings(T),
       journeyKeys.engineHealth(T),
       dataRetentionKeys.tenant(T),
+      // I9d-Y2 (Z-I9c-09): przełącznik pomiaru jest wspólny ze ścieżkami
+      // i kampaniami - podgląd „Poproś o zgodę na pomiar" pokazuje jego stan.
+      newsletterKeys.measurementAll(),
     ]);
   });
 
