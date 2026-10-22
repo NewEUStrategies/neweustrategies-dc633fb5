@@ -195,7 +195,8 @@ SELECT pg_temp.as_user('19c20000-0000-4000-8000-00000000a002');
 SELECT throws_ok($$ SELECT public.admin_data_retention_get() $$, '42501', NULL, 'panel: redaktor odrzucony (42501)');
 SELECT pg_temp.as_user('19c20000-0000-4000-8000-00000000a001');
 INSERT INTO r SELECT 'get', public.admin_data_retention_get();
-SELECT is((SELECT jsonb_array_length(v -> 'categories') FROM r WHERE k = 'get'), 9, 'panel: dziewięć kategorii katalogu');
+SELECT is((SELECT jsonb_array_length(v -> 'categories') FROM r WHERE k = 'get'), 13,
+  'panel: trzynaście kategorii katalogu (I9c + cztery kategorie I9d-Y1)');
 SELECT is((SELECT (x ->> 'period_months')::int FROM r, jsonb_array_elements(v -> 'categories') x
             WHERE k = 'get' AND x ->> 'key' = 'crm_inactive_contacts'), 24,
   'panel: brak wiersza = okres domyślny (kontakty CRM 24 mies.)');
@@ -320,7 +321,7 @@ SELECT is((SELECT array_agg(enrollment_key) FROM public.journey_enrollments
 SELECT ok((SELECT emails_sent = 1 AND unique_opens = 1 FROM public.journey_node_daily_stats
             WHERE journey_id = '19c20000-0000-4000-8000-0000000050a1' AND node_id = 'm'),
   'ścieżki: statystyki dnia zapieczętowane PRZED usunięciem (wysłany i otwarty)');
-SELECT ok((SELECT count(*) = 9 FROM public.data_retention_runs
+SELECT ok((SELECT count(*) = 13 FROM public.data_retention_runs
             WHERE tenant_id = '19c20000-0000-4000-8000-0000000000a0' AND run_trigger = 'schedule' AND error_code IS NULL),
   'dziennik przebiegów: wiersz na kategorię, bez błędów');
 
