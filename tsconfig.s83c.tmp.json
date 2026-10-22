@@ -1,0 +1,5 @@
+{"extends": "./tsconfig.json", "compilerOptions": {"incremental": false},
+ "include": ["src/**/*.d.ts", "src/routeTree.gen.ts", "vitest.setup.ts",
+  "src/components/admin/journeys/editor/JourneyStepSheet.tsx", "src/components/admin/journeys/editor/EmailStepEditor.tsx", "src/components/admin/journeys/editor/PredicateRow.tsx", "src/components/admin/journeys/editor/JourneyTriggerSheet.tsx", "src/components/admin/journeys/editor/JourneySettingsSheet.tsx",
+  "src/lib/i18n-admin-journeys-steps.ts",
+  "src/components/admin/journeys/editor/__tests__/JourneyStepSheet.test.tsx", "src/components/admin/journeys/editor/__tests__/EmailStepEditor.test.tsx", "src/components/admin/journeys/editor/__tests__/PredicateRow.test.tsx", "src/components/admin/journeys/editor/__tests__/JourneyTriggerSheet.test.tsx", "src/components/admin/journeys/editor/__tests__/JourneySettingsSheet.test.tsx"]}
