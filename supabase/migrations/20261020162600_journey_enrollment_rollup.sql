@@ -1,0 +1,1 @@
+-- Rezerwacja wersji (I9-A, Z-I9c-06): rollup statusów zapisów ścieżek - treść w toku.
