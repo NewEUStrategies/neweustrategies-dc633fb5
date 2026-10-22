@@ -27,7 +27,7 @@
 import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, screen } from "@testing-library/react";
+import { act, cleanup, screen, within } from "@testing-library/react";
 import { Outlet, createRootRouteWithContext, type AnyRoute } from "@tanstack/react-router";
 
 import type { Role } from "@/hooks/useAuth";
@@ -152,9 +152,10 @@ describe("adres zakładki - znana montuje swoją treść, reszta to 404", () => 
   it("indeks huba montuje KOKPIT pod nagłówkiem huba", async () => {
     await mountHub(HUB);
 
-    expect(await screen.findByTestId("revenue-tab-overview")).toHaveTextContent(
-      "Ta sekcja huba jest w przygotowaniu.",
-    );
+    const overview = await screen.findByTestId("revenue-tab-overview");
+    expect(
+      await within(overview).findByRole("heading", { level: 2, name: "Najważniejsze wskaźniki" }),
+    ).toBeVisible();
     expect(screen.getByRole("heading", { level: 1, name: "Przychód i lejek" })).toBeVisible();
   });
 
@@ -349,9 +350,10 @@ describe("rola huba - autor dostaje powiadomienie, admin i redaktor zakładkę",
     await i18n.changeLanguage("en");
     await mountHub(`${HUB}/offer`);
 
-    expect(await screen.findByTestId("revenue-tab-offer")).toHaveTextContent(
-      "This hub section is being prepared.",
-    );
+    const offer = await screen.findByTestId("revenue-tab-offer");
+    expect(
+      await within(offer).findByRole("heading", { level: 2, name: "Offer matrix" }),
+    ).toBeVisible();
     expect(screen.getByRole("heading", { level: 1, name: "Revenue and funnel" })).toBeVisible();
   });
 

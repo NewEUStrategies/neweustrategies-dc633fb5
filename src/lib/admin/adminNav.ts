@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 
 import { canSeeTab, hubTabsFor } from "@/lib/admin/revenue/hubTabs";
+import { metricSearchEntries } from "@/lib/admin/revenue/metricSearchIndex";
 import type { RevenueTabId } from "@/lib/revenue/search";
 
 export type AdminNavIcon = ComponentType<{ className?: string }>;
@@ -294,7 +295,13 @@ export function buildAdminNavGroups({
             "journeys",
             "benchmark",
           ],
-          searchEntries: revenueHubSearchEntries(t, roles),
+          // Skróty wskaźników (⌘K „NRR · Wskaźniki" → arkusz `?metric=` na
+          // zakładce Wskaźniki; S7 `metricSearchIndex.ts`, Integrator S7
+          // 2026-10-22) - same pary kod/identyfikator, bez rejestru S6.
+          searchEntries: [
+            ...revenueHubSearchEntries(t, roles),
+            ...metricSearchEntries(t(REVENUE_TAB_NAV_LABEL.metrics), roles),
+          ],
         },
       ]
     : [];

@@ -30379,6 +30379,22 @@ export type Database = {
         Args: { p_from_month: string; p_to_month: string }
         Returns: Json
       }
+      admin_revenue_diagnostic_snooze: {
+        Args: {
+          p_check_id: string
+          p_kind: string
+          p_reason: string
+          p_scope_hash: string
+          p_scope_key: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      admin_revenue_diagnostic_snoozes: { Args: never; Returns: Json }
+      admin_revenue_diagnostic_unsnooze: {
+        Args: { p_check_id: string; p_scope_key: string }
+        Returns: Json
+      }
       admin_revenue_dunning: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -30395,6 +30411,7 @@ export type Database = {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
+      admin_revenue_facts: { Args: never; Returns: Json }
       admin_revenue_funnel: {
         Args: {
           p_segment?: string

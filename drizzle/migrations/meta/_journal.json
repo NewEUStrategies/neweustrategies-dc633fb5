@@ -2612,6 +2612,27 @@
       "when": 1792477933912,
       "tag": "0372_data_retention_panel",
       "breakpoints": true
+    },
+    {
+      "idx": 373,
+      "version": "7",
+      "when": 1792477993912,
+      "tag": "0373_revenue_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 374,
+      "version": "7",
+      "when": 1792478053912,
+      "tag": "0374_revenue_facts_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 375,
+      "version": "7",
+      "when": 1792478113912,
+      "tag": "0375_revenue_diagnostic_snoozes",
+      "breakpoints": true
     }
   ]
 }

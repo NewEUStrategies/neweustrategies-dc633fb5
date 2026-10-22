@@ -2498,7 +2498,34 @@ const FROZEN_BUDGET_KB = {
   // same (css 99,7, publicCss 83,8); chunk 257,9 i boot 471,7 w zamrożonych
   // progach.
   // Host 5021,2 -> 5022 -> +1.
-  overall: 5023,
+  // Ratchet 5023 -> 5159 (2026-10-22, wycinek: S7 huba „Przychód i lejek” -
+  // dziesięć zakładek, diagnostyka 55 reguł z szybkimi naprawami, licznik
+  // paska i ⌘K wskaźników), decyzją zamawiającego D-08. Baza 75133fe2
+  // (gałąź PR po I9c, kopia `git archive`) 5020,6 / public 2778,3; po S7
+  // z integracją 5157,5: +136,9 KB, w tym admin-only +135,7 (2242,3 ->
+  // 2378,0) i public +1,1 (wspólny chunk `Paywall` wydzielony drugim
+  // importem - symulator czytelnika `<Paywall preview>`; reszta to entropia
+  // hashy). CAŁOŚĆ to leniwe chunki panelu. Rozbicie: wspólny chunk
+  // zapytań diagnostyki z rejestrem 55 reguł i oceną (`queries` +24,1),
+  // słowniki PL/EN diagnostyki (+22,3) i zakładek (+13,3), dziesięć zakładek
+  // (`RevenueDiagnosticsTab` +5,9, `Access` +5,1, `Retention` +4,8, `Offer`
+  // +4,4, `Community` +4,0, `Mrr` +4,0, `Metrics` +3,8, `Inputs` +3,6,
+  // `Funnel` +3,4, Kokpit `admin.revenue.index` +3,5), naprawy
+  // (`quickFixes` +4,7, `QuickFixDialog` +3,2, `DiagnosticCard` +2,6),
+  // `SourceHeader` +4,4, `MrrBridgeCard` +2,6; wspólne chunki modułów
+  // przegrupowane drugim importem (np. `i18n-admin-paywall-sync` +7,8,
+  // `i18n-admin-membership` +6,2 przy `admin.billing` -6,9, `tierMutations`
+  // -6,5, `saveErrorToast` -7,8). Integracja względem drzewa wykonawców
+  // 5159,1: -1,6 KB (stan „w przygotowaniu” tylko dla Ścieżek -
+  // `RevenueJourneysTab` -2,6; 43 skróty ⌘K wskaźników w powłoce
+  // `AdminShell` +0,6; leniwa sonda licznika Diagnostyki: `admin.revenue`
+  // +0,3 i nowy chunk `DiagnosticsBadgeProbe` +0,25 - rejestr reguł
+  // zostaje w chunku zapytań, nie w układzie huba). Cel pakietu S7 „≤ +40
+  // KB” przekroczony świadomie (Z-S7-11). Arkusze CSS: css 99,8 (+0,1;
+  // zapas 0,2 KB), publicCss 83,8; chunk 258,0 i boot 471,7 w zamrożonych
+  // progach; public 2779,4 / 2881.
+  // Host 5157,5 -> 5158 -> +1.
+  overall: 5159,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
