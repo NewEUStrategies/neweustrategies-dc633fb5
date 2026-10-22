@@ -20,6 +20,12 @@
 // DOSTĘPNOŚĆ: tabela z `caption` i `scope`, nazwa ścieżki to nagłówek wiersza
 // z odnośnikiem (klik w wiersz to tylko skrót myszy), przewijany region
 // z `tabIndex=0` i nazwą (wąski ekran nie dostaje poziomego paska strony).
+//
+// POWRÓT Z EDYTORA (SPEC §2.4: okruszki zachowują `?status=&q=`). Parametry
+// listy nie należą do kontraktu adresu edytora (`editorSearch.ts`), więc
+// wejście do edytora zapamiętuje filtr w `sessionStorage` karty, a okruszki
+// edytora go odczytują - przez TEN SAM walidator co adres huba, bo wartość
+// z pamięci przeglądarki jest tak samo niezaufana jak adres.
 import { useId, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, Info, Lock, Timer } from "lucide-react";
@@ -39,7 +45,7 @@ import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
 import { ensureI18n } from "@/lib/i18n-admin-journeys-list";
 import type { JourneyListItem } from "@/lib/journeys/dto";
 import { journeyTriggerLabelKey } from "@/lib/journeys/labels";
-import { JOURNEY_STATUSES, type JourneyStatus } from "@/lib/revenue/search";
+import { JOURNEY_STATUSES, parseRevenueHubSearch, type JourneyStatus } from "@/lib/revenue/search";
 
 const LOCALE = { pl: "pl-PL", en: "en-GB" } as const;
 
@@ -51,6 +57,44 @@ const STATUS_ICON = {
 } as const satisfies Record<JourneyStatus, unknown>;
 
 type StatusAction = "paused" | "active" | "archived";
+
+/** Klucz pamięci karty z filtrem listy (okruszki edytora). */
+const LIST_SEARCH_STORAGE_KEY = "nes.journeyList.search";
+
+/** Filtr listy w kształcie adresu zakładki (`?status=&q=`). */
+export interface JourneyListSearch {
+  status?: JourneyStatus;
+  q?: string;
+}
+
+/**
+ * Zapamiętuje filtr listy przed wejściem do edytora. Pusty filtr też jest
+ * zapisem - inaczej okruszki wróciłyby do filtra sprzed kilku wejść.
+ */
+export function rememberJourneyListSearch(search: JourneyListSearch): void {
+  try {
+    window.sessionStorage.setItem(LIST_SEARCH_STORAGE_KEY, JSON.stringify(search));
+  } catch {
+    // Pamięć karty zablokowana (tryb prywatny, polityka) - okruszki wrócą do
+    // pełnej listy, nic więcej się nie psuje.
+  }
+}
+
+/** Ostatni filtr listy albo `{}` (brak, zablokowana pamięć, śmieci). */
+export function recallJourneyListSearch(): JourneyListSearch {
+  try {
+    const raw = window.sessionStorage.getItem(LIST_SEARCH_STORAGE_KEY);
+    const parsed: unknown = raw === null ? null : JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const { status, q } = parseRevenueHubSearch(parsed as Record<string, unknown>);
+    return {
+      ...(status !== undefined ? { status } : {}),
+      ...(q !== undefined ? { q } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
 
 export interface JourneyListProps {
   items: readonly JourneyListItem[] | null;
@@ -136,6 +180,11 @@ export function JourneyList({
     });
 
   const filtered = status !== null || query.trim() !== "";
+  const rememberFilter = () =>
+    rememberJourneyListSearch({
+      ...(status !== null ? { status } : {}),
+      ...(query.trim() !== "" ? { q: query.trim() } : {}),
+    });
 
   return (
     <div className="space-y-2">
@@ -235,6 +284,7 @@ export function JourneyList({
                       // Skrót myszy: klik w wiersz otwiera edytor, ale nie
                       // przechwytuje odnośnika ani przycisków akcji.
                       if ((event.target as HTMLElement).closest("a, button")) return;
+                      rememberFilter();
                       void navigate({
                         to: "/admin/revenue/journeys/$journeyId",
                         params: { journeyId: item.id },
@@ -246,6 +296,7 @@ export function JourneyList({
                         to="/admin/revenue/journeys/$journeyId"
                         params={{ journeyId: item.id }}
                         aria-label={t("adminJourneys.list.open", { name: item.name })}
+                        onClick={rememberFilter}
                         className="font-medium text-foreground hover:underline focus-visible:underline"
                       >
                         {item.name}
