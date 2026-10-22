@@ -5,7 +5,8 @@
 //
 // Efficiency notes:
 //  - ONE realtime channel per user for the whole list (module-level refcount);
-//    ChatBell, ChatDock and /messages share it instead of subscribing thrice.
+//    the workspace dock, unread badges and /messages share it instead of
+//    subscribing separately.
 //  - The unread badge is DERIVED from the cached conversations query (select),
 //    not a second round-trip with its own invalidation cycle.
 //  - Peer profile lookups seed the per-peer cache keys, so opening a chat

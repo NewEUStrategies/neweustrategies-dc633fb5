@@ -42,7 +42,6 @@ vi.mock("@/lib/greetings/useGreeting", () => ({ useGreeting: () => "" }));
 vi.mock("@/components/notifications/NotificationsBell", () => ({
   NotificationsBell: () => null,
 }));
-vi.mock("@/components/chat/ChatBell", () => ({ ChatBell: () => null }));
 vi.mock("@/components/events/participant/molecules/AccountMenuEventsSection", () => ({
   AccountMenuEventsSection: () => null,
 }));

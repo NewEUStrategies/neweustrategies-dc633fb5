@@ -1,6 +1,6 @@
-// Organizmy odtwarzacza: przycisk odsłuchu w treści, karta w sidebarze i dolny
-// pasek. Wszystkie trzy stały na ZERZE pokrycia, mimo że są JEDYNĄ powierzchnią,
-// przez którą czytelnik uruchamia PŁATNĄ syntezę mowy.
+// Organizmy odtwarzacza: karta w sidebarze i dolny pasek. Oba stały na ZERZE
+// pokrycia, mimo że są JEDYNĄ powierzchnią, przez którą czytelnik uruchamia
+// PŁATNĄ syntezę mowy.
 //
 // Test wymienia WYŁĄCZNIE globalny player (jego własne reguły - pamięć pozycji,
 // cache blobów, etapy TTS - mają osobne testy w `lib/audio`). Wszystko inne
@@ -43,7 +43,6 @@ vi.mock("@/lib/audio/global-player", async (importOriginal) => {
   return { ...actual, useGlobalAudioPlayer: () => h.player };
 });
 
-import { ArticleListenButton } from "@/components/audio/ArticleListenButton";
 import { SidebarListenCard } from "@/components/audio/SidebarListenCard";
 import { GlobalAudioBar } from "@/components/audio/GlobalAudioBar";
 
@@ -162,137 +161,6 @@ beforeEach(() => {
 afterEach(() => {
   while (przywroc.length > 0) przywroc.pop()?.();
   vi.restoreAllMocks();
-});
-
-describe("ArticleListenButton", () => {
-  function mount() {
-    return renderWithQuery(
-      <ArticleListenButton postId={POST} lang="pl" title="Analiza" audioUrl={null} />,
-    );
-  }
-
-  it("w spoczynku zaprasza do odsłuchu (etykieta ODSŁUCHAJ, nie ODTWÓRZ)", () => {
-    h.player = playerStub({ status: "idle", activePostId: null });
-    mount();
-    expect(screen.getByRole("button", { name: "Odsłuchaj artykuł" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Wznów" })).toBeNull();
-  });
-
-  it("klik na NIEAKTYWNYM wpisie ŁADUJE ten wpis (nie przełącza cudzego audio)", async () => {
-    const player = playerStub({ status: "idle", activePostId: null });
-    h.player = player;
-    mount();
-
-    await act(async () => {
-      screen.getByRole("button", { name: "Odsłuchaj artykuł" }).click();
-    });
-
-    expect(player.loadAndPlay).toHaveBeenCalledTimes(1);
-    expect(player.toggle).not.toHaveBeenCalled();
-  });
-
-  it("metadane przekazane do playera niosą wpis, język i wgrane audio", async () => {
-    const player = playerStub({ status: "idle", activePostId: null });
-    h.player = player;
-    renderWithQuery(
-      <ArticleListenButton
-        postId={POST}
-        lang="en"
-        title="Analysis"
-        author="Anna"
-        audioUrl="https://cdn/a.mp3"
-      />,
-    );
-
-    await act(async () => {
-      screen.getByRole("button", { name: "Listen to article" }).click();
-    });
-
-    expect(player.loadAndPlay.mock.calls[0][0]).toMatchObject({
-      postId: POST,
-      lang: "en",
-      audioUrl: "https://cdn/a.mp3",
-    });
-    expect(player.loadAndPlay).toHaveBeenCalledTimes(1);
-  });
-
-  it("klik na AKTYWNYM wpisie PRZEŁĄCZA odtwarzanie (nie ładuje drugi raz)", async () => {
-    const player = playerStub({ status: "playing" });
-    h.player = player;
-    mount();
-
-    await act(async () => {
-      screen.getByRole("button", { name: "Pauza" }).click();
-    });
-
-    expect(player.toggle).toHaveBeenCalledTimes(1);
-    expect(player.loadAndPlay).not.toHaveBeenCalled();
-  });
-
-  it("w PAUZIE etykieta mówi WZNÓW - czytelnik wraca tam, gdzie przerwał", () => {
-    h.player = playerStub({ status: "paused" });
-    mount();
-    expect(screen.getByRole("button", { name: "Wznów" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Odsłuchaj artykuł" })).toBeNull();
-  });
-
-  it("w trakcie GENEROWANIA przycisk ogłasza zajętość i NIE przełącza", async () => {
-    const player = playerStub({ status: "loading" });
-    h.player = player;
-    mount();
-    const button = screen.getByRole("button", { name: "Generuję audio…" });
-    expect(button).toHaveAttribute("aria-busy", "true");
-
-    await act(async () => {
-      button.click();
-    });
-    expect(player.toggle).not.toHaveBeenCalled();
-  });
-
-  it("PRZEJŚCIE w błąd pokazuje komunikat dokładnie raz", async () => {
-    h.player = playerStub({ status: "idle" });
-    const { rerender } = mount();
-    expect(h.toastError).not.toHaveBeenCalled();
-
-    h.player = playerStub({ status: "error", error: "Kwota wyczerpana" });
-    await act(async () => {
-      rerender(
-        <QueryClientProvider client={new QueryClient()}>
-          <ArticleListenButton postId={POST} lang="pl" title="Analiza" audioUrl={null} />
-        </QueryClientProvider>,
-      );
-    });
-
-    expect(h.toastError).toHaveBeenCalledTimes(1);
-    expect(h.toastError.mock.calls[0][0]).toBe("Kwota wyczerpana");
-  });
-
-  it("stan innego wpisu NIE zmienia etykiety tego przycisku", () => {
-    h.player = playerStub({ status: "playing", activePostId: "inny-wpis" });
-    mount();
-    expect(screen.getByRole("button", { name: "Odsłuchaj artykuł" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pauza" })).toBeNull();
-  });
-
-  it("błąd BEZ komunikatu od playera nie zostawia czytelnika z pustym toastem", async () => {
-    // Player zgłasza `status: "error"` z `error: null` przy każdej awarii, która
-    // nie ma własnego zdania (przerwane połączenie, timeout). Bez fallbacku do
-    // słownika czytelnik dostawał toast z `undefined` w treści.
-    h.player = playerStub({ status: "idle" });
-    const { rerender } = mount();
-
-    h.player = playerStub({ status: "error", error: null });
-    await act(async () => {
-      rerender(
-        <QueryClientProvider client={new QueryClient()}>
-          <ArticleListenButton postId={POST} lang="en" title="Analysis" audioUrl={null} />
-        </QueryClientProvider>,
-      );
-    });
-
-    expect(h.toastError).toHaveBeenCalledTimes(1);
-    expect(h.toastError.mock.calls[0][0]).toBe("Could not generate audio");
-  });
 });
 
 describe("SidebarListenCard", () => {

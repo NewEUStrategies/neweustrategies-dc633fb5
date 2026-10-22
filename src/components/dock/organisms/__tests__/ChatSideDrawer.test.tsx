@@ -31,7 +31,7 @@
 //      ani grzać paczki drugi raz (:136-140).
 //
 // WARSTWA DANYCH JEST ATRAPOWANA NA POZIOMIE MODUŁÓW HAKÓW (recepta
-// z `chat/__tests__/ChatDock.test.tsx`), a nie przez łańcuch PostgREST:
+// z dawnego testu `ChatDock`), a nie przez łańcuch PostgREST:
 // skrzynka nie ma własnych zapytań, tylko składa cudze. Za to magazyn
 // zminimalizowanych rozmów zostaje PRAWDZIWY - jest synchroniczny i ma
 // `reset()` opisany „wyłącznie do testów", więc atrapa niczego by tu nie

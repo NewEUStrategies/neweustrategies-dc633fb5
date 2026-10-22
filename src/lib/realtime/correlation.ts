@@ -5,8 +5,9 @@
 // request.headers i zapisują w domain_events.correlation_id. Dzięki temu:
 //   * getCorrelatedEvents(id) zwraca pełny ślad "co się wydarzyło po moim
 //     kliknięciu" (explainability + debug),
-//   * awaitDomainEvent(id) potwierdza optymistyczne mutacje - brak
-//     potwierdzenia w oknie czasowym oznacza rollback (useEventConfirmedMutation).
+//   * awaitDomainEvent(id) czeka na zdarzenie w oknie czasowym - brak
+//     potwierdzenia kończy się CorrelationTimeoutError. Jedyny wołający
+//     (hak optymistycznych mutacji) usunięto w P3.10 jako martwy kod.
 import { supabase } from "@/integrations/supabase/client";
 import type { DomainEventRow } from "./domainEvents";
 

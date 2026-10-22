@@ -56,7 +56,7 @@ export function ClubThreadParticipantsPanel({
       {/* Rozkład wkładu: gołe SVG-free słupki na diwach. Osiem pozycji nie
           potrzebuje biblioteki do wykresów, a każda taka biblioteka kosztuje
           kilkadziesiąt kB na trasie, która ma być szybka (ta sama decyzja,
-          co w `ClubThreadPulse`). */}
+          co w panelu „Dane”, `ClubThreadInsightsPanel`). */}
       {bars.length > 1 ? (
         <section
           aria-label={t("club.workspace.participants.distribution")}

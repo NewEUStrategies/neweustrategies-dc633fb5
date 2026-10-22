@@ -4,103 +4,10 @@
 // rolę, nazwę dostępną, stan wyłączony i to, że ikona jest DEKORACJĄ.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Download, ThumbsUp } from "lucide-react";
-import {
-  ARTICLE_ACTION_CLASS,
-  ArticleActionButton,
-} from "@/components/post/atoms/ArticleActionButton";
+import { ThumbsUp } from "lucide-react";
 import { PostIconButton } from "@/components/post/atoms/PostIconButton";
 import { MetaValueItem } from "@/components/post/atoms/MetaValueItem";
 import { SectionEyebrow } from "@/components/post/atoms/SectionEyebrow";
-
-describe("ArticleActionButton - kontrakt a11y", () => {
-  it("jest przyciskiem o nazwie dostępnej równej etykiecie widocznej", () => {
-    render(<ArticleActionButton icon={Download} label="Pobierz artykuł" onClick={() => {}} />);
-    const button = screen.getByRole("button", { name: "Pobierz artykuł" });
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent("Pobierz artykuł");
-  });
-
-  it("ikona jest DEKORACJĄ - czytnik ekranu nie ogłasza jej osobno", () => {
-    const { container } = render(
-      <ArticleActionButton icon={Download} label="Pobierz" onClick={() => {}} />,
-    );
-    const svg = container.querySelector("svg");
-    expect(svg).not.toBeNull();
-    expect(svg).toHaveAttribute("aria-hidden");
-  });
-
-  it("wywołuje akcję dokładnie raz na klik", () => {
-    const onClick = vi.fn();
-    render(<ArticleActionButton icon={Download} label="Pobierz" onClick={onClick} />);
-    screen.getByRole("button", { name: "Pobierz" }).click();
-    expect(onClick).toHaveBeenCalledTimes(1);
-    // Atom podaje handlerowi zdarzenie kliknięcia - istotne jest, że NIE woła go
-    // dwa razy (dwa `onClick` w scalanych kopiach dawały dwa żądania).
-    expect(onClick.mock.calls[0][0]).toBeDefined();
-  });
-
-  it("stan `busy` WYŁĄCZA przycisk i ogłasza go przez aria-busy", () => {
-    render(<ArticleActionButton icon={Download} label="Generuję audio" onClick={() => {}} busy />);
-    const button = screen.getByRole("button", { name: "Generuję audio" });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("aria-busy", "true");
-  });
-
-  it("stan `disabled` wyłącza przycisk, ale NIE ogłasza zajętości", () => {
-    render(<ArticleActionButton icon={Download} label="Pobierz" onClick={() => {}} disabled />);
-    const button = screen.getByRole("button", { name: "Pobierz" });
-    expect(button).toBeDisabled();
-    expect(button).not.toHaveAttribute("aria-busy");
-  });
-
-  it("wyłączony przycisk NIE wywołuje akcji", () => {
-    const onClick = vi.fn();
-    render(<ArticleActionButton icon={Download} label="Pobierz" onClick={onClick} disabled />);
-    screen.getByRole("button", { name: "Pobierz" }).click();
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it("`leading` zastępuje ikonę, etykieta zostaje bez zmian", () => {
-    render(
-      <ArticleActionButton
-        icon={Download}
-        label="Generuję audio"
-        onClick={() => {}}
-        leading={<span data-testid="spinner" />}
-      />,
-    );
-    expect(screen.getByTestId("spinner")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Generuję audio" })).toHaveTextContent(
-      "Generuję audio",
-    );
-  });
-
-  it("NIESIE stan wyłączony w klasach - kopia w MobileArticleActions go gubiła", () => {
-    // To był realny defekt scalonych kopii: `ACTION_CLASS` w
-    // `MobileArticleActions` nie miało `disabled:opacity-60`, więc przycisk
-    // pobierania nie wyglądał na wyłączony, gdy był.
-    expect(ARTICLE_ACTION_CLASS).toContain("disabled:opacity-60");
-    render(<ArticleActionButton icon={Download} label="Pobierz" onClick={() => {}} />);
-    expect(screen.getByRole("button", { name: "Pobierz" }).className).toContain(
-      "disabled:opacity-60",
-    );
-  });
-
-  it("własna klasa NIE zabiera wspólnej geometrii rzędu", () => {
-    render(
-      <ArticleActionButton
-        icon={Download}
-        label="Pobierz"
-        onClick={() => {}}
-        className="col-span-2"
-      />,
-    );
-    const cls = screen.getByRole("button", { name: "Pobierz" }).className;
-    expect(cls).toContain("col-span-2");
-    expect(cls).toContain("h-8");
-  });
-});
 
 describe("PostIconButton - kontrakt a11y", () => {
   it("nazwa dostępna i dymek pochodzą z JEDNEGO źródła", () => {

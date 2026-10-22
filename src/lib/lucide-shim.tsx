@@ -330,8 +330,8 @@ export const Linkedin = /* @__PURE__ */ makeIcon("Linkedin", LLinkedin);
 export const Twitter = /* @__PURE__ */ makeIcon("Twitter", LTwitter);
 export const Instagram = /* @__PURE__ */ makeIcon("Instagram", LInstagram);
 export const Youtube = /* @__PURE__ */ makeIcon("Youtube", LYoutube);
-// Brand alias registry lives in ./brandIconRegistry to keep this module's
-// namespace as a flat map of icon components (many call sites cast
+// No brand alias registry here on purpose: this module's namespace stays
+// a flat map of icon components (many call sites cast
 // `import * as Icons from "@/lib/lucide-shim"` to Record<string, IconComp>).
 
 // Files/folders extras

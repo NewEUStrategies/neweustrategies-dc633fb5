@@ -1,7 +1,7 @@
-// Chipy i znaczniki stanu w publicznym module klubów - siedem atomów, jeden
+// Chipy i znaczniki stanu w publicznym module klubów - sześć atomów, jeden
 // plik, bo wszystkie odpowiadają na to samo pytanie: JAK WYGLĄDA STAN.
 // (`ClubTopicChip`, `ClubStatusPill`, `ClubThreadHeat`, `ClubHubAccessBadge`,
-// `ClubRegimeMark`, `ClubGroupAccent`, `ClubHoverAction`.)
+// `ClubGroupAccent`, `ClubHoverAction`.)
 //
 // CO TO DOWODZI.
 // (1) MAPY STANU -> WYGLĄD SĄ WYCZERPUJĄCE I ROZŁĄCZNE. `milestoneTone`
@@ -13,34 +13,26 @@
 //     nagłówek `ClubStatusPill.tsx` deklaruje jako powód istnienia JEDNEGO
 //     komponentu na dwa słowniki: „zrobione” w harmonogramie i „odpowiedziane”
 //     w Q&A muszą mieć TEN SAM ton, inaczej użytkownik widzi dwa różne stany.
-// (2) REŻIM DZIAŁU POKAZUJE WYŁĄCZNIE ODSTĘPSTWO. `isChathamGroup`
-//     i `isRestrictedGroup` to czyste predykaty nad kolumnami `*_inherited`
-//     z `club_groups_list` - dział DZIEDZICZĄCY ustawienia klubu nie dostaje
-//     znacznika (gdyby dostał, znacznik stałby przy każdym dziale i przestałby
-//     cokolwiek znaczyć). Test przejeżdża każdy warunek w OBIE strony, w tym
-//     `null` w kolumnie i wartość spoza słownika, i pilnuje reguły
-//     pierwszeństwa: Chatham House wygrywa nad zawężeniem widoczności, bo
-//     zmienia sposób PISANIA, a nie tylko krąg czytających.
-// (3) AKCENT DZIAŁU NIGDY NIE JEST PUSTY. `clubGroupAccentVars` daje
+// (2) AKCENT DZIAŁU NIGDY NIE JEST PUSTY. `clubGroupAccentVars` daje
 //     `var(--primary)` dla `null`, pustego napisu i samych spacji - inaczej
 //     `color-mix(in oklab, <nic> 8%, transparent)` wywala całą regułę CSS
 //     i kafel działu traci tło razem z krawędzią. Sprawdzamy też, że stałe
 //     `CLUB_GROUP_*` faktycznie CZYTAJĄ `--club-accent`, bo zmienna ustawiona
 //     przez atom i klasa, która jej nie używa, to najcichsza możliwa awaria.
-// (4) ZERO JEST WARTOŚCIĄ, ALE NIE PLAKIETKĄ. `ClubHoverActionBody` pokazuje
+// (3) ZERO JEST WARTOŚCIĄ, ALE NIE PLAKIETKĄ. `ClubHoverActionBody` pokazuje
 //     licznik od jedynki (`count = 0` to brak dyskusji, nie „0 komentarzy”),
 //     a etykieta zostaje w DOM ZAWSZE - maskuje ją `overflow-hidden`, więc
 //     czytnik ekranu i wyszukiwanie w stronie ją widzą także w spoczynku.
-// (5) `clubHoverActionClass` ma trzy niezależne opcje i wołanie BEZ argumentu
+// (4) `clubHoverActionClass` ma trzy niezależne opcje i wołanie BEZ argumentu
 //     (`options ?? {}`), które musi dać dokładnie to samo, co `{}` - to jedyne
 //     miejsce, w którym geometria powłoki akcji jest wspólna dla `<button>`
 //     i `<Link>`.
-// (6) CHIP OBSZARU JEST KLIKALNY TYLKO WTEDY, GDY MA DOKĄD PROWADZIĆ: bez
+// (5) CHIP OBSZARU JEST KLIKALNY TYLKO WTEDY, GDY MA DOKĄD PROWADZIĆ: bez
 //     `onSelect` renderuje `<span>` (obszar JEST ustalony), z `onSelect`
 //     `<button aria-pressed>`, a ponowne kliknięcie ZDEJMUJE filtr
 //     (`onSelect(null)`). `active` wygrywa nad `tone`, bo obszar wybrany ma
 //     wyglądać tak samo na pasku filtrów i na karcie wątku.
-// (7) SKALA DYNAMIKI WĄTKU ma tyle wypełnionych słupków, ile wynosi poziom -
+// (6) SKALA DYNAMIKI WĄTKU ma tyle wypełnionych słupków, ile wynosi poziom -
 //     to jedyny nośnik znaczenia niezależny od koloru (nagłówek
 //     `ClubThreadHeat.tsx` stawia to jako wymóg dostępności), a tooltip
 //     i `aria-label` są TYM SAMYM napisem.
@@ -69,7 +61,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
-  EyeOff,
   Folder,
   FolderTree,
   Heart,
@@ -79,7 +70,6 @@ import {
   MailCheck,
   ShieldCheck,
   Tag,
-  VenetianMask,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -114,12 +104,6 @@ import {
   type ClubStatusTone,
 } from "@/components/clubs/atoms/ClubStatusPill";
 import {
-  ClubRegimeMark,
-  hasOwnRegime,
-  isChathamGroup,
-  isRestrictedGroup,
-} from "@/components/clubs/atoms/ClubRegimeMark";
-import {
   CLUB_GROUP_CHIP,
   CLUB_GROUP_CHIP_ACTIVE,
   CLUB_GROUP_EDGE,
@@ -144,13 +128,7 @@ import { ClubHubAccessBadge } from "@/components/clubs/atoms/ClubHubAccessBadge"
 import type { ClubHubAccess } from "@/lib/clubs/hubAccess";
 import { CLUB_TOPIC_FALLBACK, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import { CLUB_MILESTONE_STATUSES, CLUB_QUESTION_STATUSES } from "@/lib/clubs/threadWorkspaceTypes";
-import type { ClubGroupRow } from "@/lib/clubs/types";
-import {
-  CLUB_BASE_ISO,
-  clubGroupRow,
-  clubIsoOffset,
-  clubThreadListRow,
-} from "@/test/clubs/fixtures";
+import { CLUB_BASE_ISO, clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
 
 // ---------------------------------------------------------------------------
 // Narzędzia wspólne
@@ -325,130 +303,6 @@ describe("spójność obu słowników statusów", () => {
 
   it("stan otwarty NIE jest tym samym tonem co stan domknięty", () => {
     expect(questionTone("open")).not.toBe(questionTone("answered"));
-  });
-});
-
-// ===========================================================================
-// ClubRegimeMark - czwarta oś klubu: reżim działu
-// ===========================================================================
-
-/** Dział z jawnie ustawioną atrybucją (albo dziedziczoną). */
-function grupaAtrybucji(mode: string, inherited: boolean): ClubGroupRow {
-  return clubGroupRow({ attribution_mode: mode, attribution_mode_inherited: inherited });
-}
-
-/** Dział z jawnie ustawioną widocznością (albo dziedziczoną). */
-function grupaWidocznosci(visibility: string, inherited: boolean): ClubGroupRow {
-  return clubGroupRow({ visibility, visibility_inherited: inherited });
-}
-
-describe("isChathamGroup", () => {
-  it.each([
-    ["chatham ustawiony WŁASNY", "chatham", false, true],
-    ["chatham ODZIEDZICZONY po klubie", "chatham", true, false],
-    ["atrybucja imienna własna", "attributed", false, false],
-    ["anonimy dopuszczone", "anonymous_allowed", false, false],
-    // Pusty napis to w tej kolumnie DOKŁADNIE to samo, co NULL: „dziedzicz
-    // z klubu" (patrz `ClubGroupPatch` w `lib/clubs/types.ts`). Wiersz RPC
-    // typuje kolumnę jako `string`, więc pustka ma tu jedną reprezentację.
-    ["kolumna pusta (dziedziczenie)", "", false, false],
-    ["wartość spoza słownika", "half_chatham", false, false],
-  ] as const)("%s -> %s", (_opis, mode, inherited, expected) => {
-    expect(isChathamGroup(grupaAtrybucji(mode, inherited))).toBe(expected);
-  });
-});
-
-describe("isRestrictedGroup", () => {
-  it.each([
-    ["prywatny WŁASNY", "private", false, true],
-    ["tajny WŁASNY", "secret", false, true],
-    ["prywatny ODZIEDZICZONY", "private", true, false],
-    ["tajny ODZIEDZICZONY", "secret", true, false],
-    ["publiczny własny", "public", false, false],
-    ["dla członków własny", "members", false, false],
-    ["kolumna pusta (dziedziczenie)", "", false, false],
-    ["wartość spoza słownika", "unlisted", false, false],
-  ] as const)("%s -> %s", (_opis, visibility, inherited, expected) => {
-    expect(isRestrictedGroup(grupaWidocznosci(visibility, inherited))).toBe(expected);
-  });
-});
-
-describe("hasOwnRegime", () => {
-  it("dział dziedziczący WSZYSTKO nie ma własnego reżimu", () => {
-    expect(hasOwnRegime(clubGroupRow())).toBe(false);
-  });
-
-  it("sam Chatham House wystarcza", () => {
-    expect(hasOwnRegime(grupaAtrybucji("chatham", false))).toBe(true);
-  });
-
-  it("samo zawężenie widoczności wystarcza", () => {
-    expect(hasOwnRegime(grupaWidocznosci("private", false))).toBe(true);
-  });
-
-  it("oba odstępstwa naraz nadal dają jedno „tak”", () => {
-    const group = clubGroupRow({
-      attribution_mode: "chatham",
-      attribution_mode_inherited: false,
-      visibility: "secret",
-      visibility_inherited: false,
-    });
-    expect(hasOwnRegime(group)).toBe(true);
-  });
-});
-
-describe("ClubRegimeMark - pokazujemy WYŁĄCZNIE odstępstwo", () => {
-  it("dział dziedziczący ustawienia klubu nie dostaje znacznika", () => {
-    const { container } = render(<ClubRegimeMark group={clubGroupRow()} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("Chatham House: nazwa na opakowaniu z rolą `img`, ikona `aria-hidden`", () => {
-    const { container } = render(<ClubRegimeMark group={grupaAtrybucji("chatham", false)} />);
-    const mark = screen.getByRole("img");
-    expect(mark).toHaveAttribute("aria-label", "club.attribution.chatham");
-    expect(mark).toHaveAttribute("title", "club.attribution.chatham");
-    expect(svgOf(container)).toHaveAttribute("aria-hidden", "true");
-    expect(shapeOf(container)).toBe(shapeOfLucide(VenetianMask));
-  });
-
-  it.each(["private", "secret"] as const)(
-    "zawężenie widoczności na %s niesie klucz i18n TEJ widoczności",
-    (visibility) => {
-      const { container } = render(<ClubRegimeMark group={grupaWidocznosci(visibility, false)} />);
-      expect(screen.getByRole("img")).toHaveAttribute(
-        "aria-label",
-        `club.visibility.${visibility}`,
-      );
-      expect(shapeOf(container)).toBe(shapeOfLucide(EyeOff));
-    },
-  );
-
-  it("Chatham WYGRYWA nad zawężeniem widoczności - to reguła wypowiedzi", () => {
-    // Dział „Kuluary” jest prywatny I chodzi pod Chatham House. Przed
-    // napisaniem czegokolwiek ważniejsze jest JAK wolno pisać, niż KTO czyta.
-    const group = clubGroupRow({
-      attribution_mode: "chatham",
-      attribution_mode_inherited: false,
-      visibility: "private",
-      visibility_inherited: false,
-    });
-    const { container } = render(<ClubRegimeMark group={group} />);
-    expect(screen.getByRole("img")).toHaveAttribute("aria-label", "club.attribution.chatham");
-    expect(shapeOf(container)).toBe(shapeOfLucide(VenetianMask));
-  });
-
-  it("bez `className` znacznik nadal ma szkielet, z `className` dokłada klasę", () => {
-    const group = grupaAtrybucji("chatham", false);
-    const bez = render(<ClubRegimeMark group={group} />);
-    expect(hasClass(rootOf(bez.container), "inline-flex")).toBe(true);
-    expect(hasClass(rootOf(bez.container), "shrink-0")).toBe(true);
-    expect(hasClass(rootOf(bez.container), "ml-1")).toBe(false);
-    bez.unmount();
-
-    const z = render(<ClubRegimeMark group={group} className="ml-1" />);
-    expect(hasClass(rootOf(z.container), "ml-1")).toBe(true);
-    expect(hasClass(rootOf(z.container), "shrink-0")).toBe(true);
   });
 });
 

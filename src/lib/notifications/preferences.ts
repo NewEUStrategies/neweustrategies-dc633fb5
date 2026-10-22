@@ -171,7 +171,7 @@ export interface NotificationPreferences {
   /**
    * Toggle dla ikony czatu (bell) w nagłówku - per tenant (preferencje są
    * powiązane z tenantem użytkownika przez `tenant_id`). Wyłączenie ukrywa
-   * dzwonek, ale rozmowy nadal działają w /messages i ChatDock.
+   * dzwonek, ale rozmowy nadal działają w /messages i w doku członka.
    */
   chat_bell_enabled: boolean;
 }

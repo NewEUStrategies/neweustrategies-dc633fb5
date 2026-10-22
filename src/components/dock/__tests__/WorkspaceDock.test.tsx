@@ -17,8 +17,8 @@
 //      zogniskowany węzeł, `activeElement` spadał na `<body>`, a następny
 //      Tab startował od góry dokumentu (WCAG 2.4.3).
 //
-// Recepta na atrapy jest wzięta z `chat/__tests__/ChatDock.test.tsx` - to
-// najbliższy istniejący test powierzchni okienkowej w tym repozytorium.
+// Recepta na atrapy jest wzięta z dawnego testu `ChatDock` (usuniętego w P3.10
+// razem z komponentem) - to był najbliższy test powierzchni okienkowej.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

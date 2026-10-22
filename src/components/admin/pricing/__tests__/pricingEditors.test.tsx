@@ -1,7 +1,6 @@
-// Edytory cennika w panelu redakcyjnym - cztery powierzchnie, wszystkie na
+// Edytory cennika w panelu redakcyjnym - trzy powierzchnie, wszystkie na
 // ZERZE do 18.08.2026: `TierBenefitsEditor` (0 z 21 funkcji),
-// `TierFeatureTogglesEditor` (0 z 6), `ExpertRequestQuotaEditor` (0 z 6),
-// `ConfluenceReconciliationCard` (0 z 3).
+// `ExpertRequestQuotaEditor` (0 z 6), `ConfluenceReconciliationCard` (0 z 3).
 //
 // TU REDAKCJA DEFINIUJE, CO KUPUJE KLIENT. Benefit dopisany w tym panelu
 // pojawia się na karcie planu jako obietnica sprzedażowa, a flaga capability
@@ -9,16 +8,12 @@
 // wyświetlania - to rozjazd między tym, co sprzedaliśmy, a tym, co klient
 // dostaje.
 //
-// Trzy rzeczy pilnowane najmocniej:
+// Dwie rzeczy pilnowane najmocniej:
 //
-//   1. EDYCJA NIE GUBI POZOSTAŁYCH PÓL. Oba edytory flag pracują na WSPÓLNYM
-//      drafcie JSON razem z polem surowym - flaga spoza rejestru i wartość
-//      nie-boolowska muszą przejść nietknięte, bo inaczej przełączenie jednego
-//      chipa wyciera cudzą konfigurację.
-//   2. FLAGA EGZEKWOWANA JEST ODRÓŻNIONA OD DEKLARACJI MARKETINGOWEJ. Redakcja
-//      musi widzieć, która obietnica ma za sobą bramkę, a która jest tylko
-//      napisem na karcie planu.
-//   3. PULA ZAPYTAŃ DO EKSPERTA jest liczbą całkowitą w zakresie, a przy
+//   1. EDYCJA NIE GUBI POZOSTAŁYCH PÓL. Edytor puli pracuje na WSPÓLNYM
+//      drafcie JSON flag razem z polem surowym - pozostałe flagi muszą przejść
+//      nietknięte, bo inaczej zmiana puli wyciera cudzą konfigurację.
+//   2. PULA ZAPYTAŃ DO EKSPERTA jest liczbą całkowitą w zakresie, a przy
 //      dostępie bezpośrednim (VIP) nie ma zastosowania - i panel to mówi,
 //      zamiast pokazywać mylące „0".
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -38,8 +33,6 @@ vi.mock("@/lib/i18n-admin-membership", () => ({ ensureI18n: () => {} }));
 import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
 import { ExpertRequestQuotaEditor } from "@/components/admin/pricing/ExpertRequestQuotaEditor";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
-import { TierFeatureTogglesEditor } from "@/components/admin/pricing/TierFeatureTogglesEditor";
-import { TIER_CAPABILITIES } from "@/lib/billing/capabilities";
 import { shiftExpandedAfterRemove, swapExpanded } from "@/lib/ui/expandedRows";
 
 beforeEach(() => {
@@ -344,131 +337,6 @@ describe("swapExpanded / shiftExpandedAfterRemove - rozwinięcie idzie ZA WIERSZ
 
   it("usunięcie wiersza NIŻEJ nie rusza rozwinięć wyżej", () => {
     expect(shiftExpandedAfterRemove({ 0: true }, 2)).toEqual({ 0: true });
-  });
-});
-
-// --- TierFeatureTogglesEditor ----------------------------------------------
-
-function renderToggles(value: string, disabled = false) {
-  const onChange = vi.fn();
-  const view = render(
-    <TierFeatureTogglesEditor value={value} onChange={onChange} disabled={disabled} />,
-  );
-  const latest = (): Record<string, unknown> =>
-    JSON.parse((onChange.mock.calls.at(-1)?.[0] as string | undefined) ?? "{}");
-  return { ...view, onChange, latest };
-}
-
-const firstEnforced = TIER_CAPABILITIES.find((cap) => cap.enforced)!;
-const firstDecorative = TIER_CAPABILITIES.find((cap) => !cap.enforced);
-
-describe("TierFeatureTogglesEditor - flagi z rejestru", () => {
-  it("pokazuje WSZYSTKIE flagi z rejestru, nie tylko ustawione", () => {
-    renderToggles("{}");
-
-    expect(screen.getAllByRole("listitem")).toHaveLength(TIER_CAPABILITIES.length);
-    expect(screen.getByText(firstEnforced.key)).toBeTruthy();
-  });
-
-  it("flaga ustawiona ma kontrakt a11y stanu wciśniętego", () => {
-    renderToggles(JSON.stringify({ [firstEnforced.key]: true }));
-
-    const chip = screen.getByText(firstEnforced.key).closest("button")!;
-    expect(chip.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getAllByRole("button")[0]).toBeTruthy();
-  });
-
-  it("FLAGA EGZEKWOWANA jest odróżniona od deklaracji marketingowej", () => {
-    renderToggles("{}");
-
-    expect(screen.getAllByText("adminPricing.capabilities.enforced").length).toBeGreaterThan(0);
-    if (firstDecorative) {
-      expect(screen.getAllByText("adminPricing.capabilities.decorative").length).toBeGreaterThan(0);
-    }
-  });
-
-  it("punkt egzekwowania jest podpowiedzią przy chipie", () => {
-    renderToggles("{}");
-
-    const chip = screen.getByText(firstEnforced.key).closest("button")!;
-    expect(chip.getAttribute("title")).toBe(firstEnforced.where_pl);
-  });
-
-  it("punkt egzekwowania idzie za językiem interfejsu", () => {
-    h.lang.current = "en";
-    renderToggles("{}");
-
-    const chip = screen.getByText(firstEnforced.key).closest("button")!;
-    expect(chip.getAttribute("title")).toBe(firstEnforced.where_en);
-  });
-
-  it("włączenie flagi dopisuje ją do draftu", () => {
-    const { latest } = renderToggles("{}");
-
-    fireEvent.click(screen.getByText(firstEnforced.key).closest("button")!);
-
-    expect(latest()[firstEnforced.key]).toBe(true);
-  });
-
-  it("wyłączenie flagi USUWA klucz, nie ustawia `false`", () => {
-    const { latest } = renderToggles(JSON.stringify({ [firstEnforced.key]: true }));
-
-    fireEvent.click(screen.getByText(firstEnforced.key).closest("button")!);
-
-    expect(firstEnforced.key in latest()).toBe(false);
-    expect(latest()[firstEnforced.key]).toBeUndefined();
-  });
-
-  it("EDYCJA NIE GUBI flagi spoza rejestru", () => {
-    const { latest } = renderToggles(JSON.stringify({ flaga_z_przyszlosci: true }));
-
-    fireEvent.click(screen.getByText(firstEnforced.key).closest("button")!);
-
-    expect(latest().flaga_z_przyszlosci).toBe(true);
-    expect(latest()[firstEnforced.key]).toBe(true);
-  });
-
-  it("EDYCJA NIE GUBI wartości nie-boolowskiej (np. puli liczbowej)", () => {
-    const { latest } = renderToggles(JSON.stringify({ expert_request_quota: 12 }));
-
-    fireEvent.click(screen.getByText(firstEnforced.key).closest("button")!);
-
-    expect(latest().expert_request_quota).toBe(12);
-  });
-
-  it("USZKODZONY JSON nie wywala edytora - traktowany jak brak flag", () => {
-    renderToggles("{to nie jest json");
-
-    expect(screen.getAllByRole("listitem")).toHaveLength(TIER_CAPABILITIES.length);
-    expect(
-      screen.getByText(firstEnforced.key).closest("button")!.getAttribute("aria-pressed"),
-    ).toBe("false");
-  });
-
-  it("TABLICA zamiast obiektu też jest traktowana jak brak flag", () => {
-    renderToggles("[1,2,3]");
-
-    expect(
-      screen.getByText(firstEnforced.key).closest("button")!.getAttribute("aria-pressed"),
-    ).toBe("false");
-    expect(screen.getAllByRole("listitem")).toHaveLength(TIER_CAPABILITIES.length);
-  });
-
-  it("wyłączony edytor nie zmienia draftu", () => {
-    const { onChange } = renderToggles("{}", true);
-
-    fireEvent.click(screen.getByText(firstEnforced.key).closest("button")!);
-
-    expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByText(firstEnforced.key).closest("button")!.hasAttribute("disabled")).toBe(
-      true,
-    );
-  });
-
-  it("lista chipów ma etykietę dostępną", () => {
-    renderToggles("{}");
-
-    expect(screen.getByLabelText("adminMembership.fields.featuresKnown")).toBeTruthy();
   });
 });
 
