@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7 i I9d-Y1)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7, I9d-Y1 i I9d-Y2)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22), §22 (S8) i §23 (S7, scalenie po S8 - §23.11); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22, I9d-Y2 - §21.23), §22 (S8) i §23 (S7, scalenie po S8 - §23.11); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -65,9 +65,9 @@ archiwum kampanii, pieczęć rollupu ścieżek, karta „Retencja danych”
 w `/admin/settings/privacy` (leniwy chunk, `adminPageHead` sekcyjne),
 przełącznik pomiaru otwarć ścieżek (`journey_settings.open_tracking_enabled`,
 klucz w ustawieniach silnika S5 - UI ustawień w S8). Otwarte: Z-I9c-05, 06,
-09, 10 (wycinki), decyzja administratora danych Z-I9c-04 i rekomendacja
-treści zgody (pomiar otwarć, EDPB 2/2023 - etap I9d-Y2) - §21.21; Z-I9c-01,
-07 i 08 zamknięte w I9d-Y1 (§21.22).
+10 (wycinki) i decyzja administratora danych Z-I9c-04 - §21.21; Z-I9c-01,
+07 i 08 zamknięte w I9d-Y1 (§21.22), Z-I9c-09 i rekomendacja treści zgody
+(pomiar otwarć, EDPB 2/2023) - w I9d-Y2 (§21.23).
 
 **S8 (2026-10-22, §22 dziennika) - zintegrowany:** zakładka Ścieżki (lista
 z `?status=&q=`, galeria szablonów `?new=1&template=`, kreator, ustawienia
@@ -120,6 +120,27 @@ kategorii, lista „do wygaszenia” z wykluczeniem i powodem. Bramka CIALO-Z
 z mapą wersji per plik (Y2 dopisze wpis `journey_record_message_event`).
 Ratchet D-08 `overall` 5316 → 5334. Otwarte Z-I9d-01…10 (§21.22 pkt 10).
 
+**I9d-Y2 (2026-10-22, §21.23 dziennika) - zintegrowany:** treść zgody
+i pomiar (decyzje właściciela 2026-10-20 „tak, uzupełnij” i 2026-10-21 -
+wariant (a): pomiar opisany w treści zgody na newsletter, wyłączalny
+osobno, bez rezygnacji z newslettera). Ten sam worktree, baza `7390ecf0`.
+3 migracje `20261020162300…162500` (bliźniaki `0384…0386`, **następny
+wolny `0387`, wersja `20261020162600`**): jedno źródło treści zgody PL/EN
+(`src/lib/newsletter/consentText.ts` ⇄ `_newsletter_consent_default`,
+wersja `newsletter-2026-10-21`, test parytetu), wersja przy każdej zgodzie,
+klucz `email_measurement` (wyzwalacz na `crm_consent_log`, wycofanie
+`email_measurement_withdraw`), pisarze rejestru zgód ujednoliceni (JoinUs,
+kontakt, rejestracja, bramka klubu, ponowny zapis), piksel i linki
+z identyfikatorem tylko za zgodą i przy wspólnym przełączniku
+`journey_settings.open_tracking_enabled` (ścieżki i kampanie, otwarcia
+i kliknięcia), link „Nie mierz moich otwarć i kliknięć” (stopka, strona
+wypisu, trasa `/newsletter/measurement`), panel: treść zgody z oznaczeniem
+„mój tekst obejmuje pomiar”, „Poproś o zgodę na pomiar” (krok `jobs-tick`
+w minucie 4, limit wspólny z wygaszaniem), dymki i mianownik mierzonych,
+ostrzeżenie warunków `email_opened/clicked`; polityka komunikacji
+i prywatności w kodzie. Ratchet D-08 `overall` 5334 → 5357. Otwarte
+Z-I9d-11…21 (§21.23 pkt 10).
+
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
 ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
@@ -133,9 +154,8 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    §23.11 dziennika)**, w PR (fast-forward gałęzi PR do scalenia).
 3. ~~I9d-Y1~~ - **zintegrowany 2026-10-22 (§21.22 dziennika)**: scalona
    gałąź PR po S7, `plpgsql_check_gate` i pgTAP faktów S7 (Z-S7-16)
-   powtórzone po scaleniu - zielone. Dalej **I9d-Y2** (treść zgody
-   i pomiar, pakiet I9d-5) w tym samym worktree - redefinicje funkcji zapisu
-   zdarzeń wg §21.22 pkt 11.
+   powtórzone po scaleniu - zielone. ~~I9d-Y2~~ - **zintegrowany 2026-10-22
+   (§21.23 dziennika)** w tym samym worktree (treść zgody i pomiar).
 4. I9 - **runner ścieżek w `jobs-tick`** (po zadaniach uczestnika, przed
    drenem kolejki maili: `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`),
    `journey_rollup_daily` co godzinę, `journey_purge` raz na dobę, stan
@@ -170,7 +190,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `162200`), bliźniak drizzle od `0384` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `162500`), bliźniak drizzle od `0387` + `_journal.json`; tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
@@ -179,11 +199,15 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
   (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
 **Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
-z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0383` i publikacja
+z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0386` i publikacja
 frontu (§21.17, §21.20, §21.21, §21.22 - retencja: 14 dni podglądu, także
 osobne dla nowych kategorii I9d, przegląd liczb i listy „do wygaszenia”
-w karcie przed terminem karencji); Z-I9d-01 - okres dla subskrybentów
-niepotwierdzonych i wypisanych; Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
+w karcie przed terminem karencji; §21.23 - skokowy spadek wskaźników otwarć
+po wdrożeniu, opcjonalna „Poproś o zgodę na pomiar”, `first_party`
+i tracking dostawcy wyłączony, własne wersje polityk w panelu dokumentów);
+Z-I9d-01 - okres dla subskrybentów niepotwierdzonych i wypisanych;
+Z-I9d-11 i Z-I9d-13 (zgody wydarzeń i premium z pomiarem, oznaczenie
+wstecz) oraz ocena IOD Z-I9d-12 (pomiar maili serwisowych ścieżek); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
 (kupon w panelu, `Idempotency-Key` w logach, portal z powodami - Z-I9b-13);
 Z-S2-11 - powody rezygnacji w konfiguracji portalu klienta Stripe; Z-S5-07
 (M3) - włączenie silnika ścieżek po teście na żywo, po I9; konektor
