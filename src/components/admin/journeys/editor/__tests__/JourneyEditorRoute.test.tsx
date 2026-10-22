@@ -498,4 +498,16 @@ describe("leniwe ładowanie (D-08)", () => {
       expect(spec).not.toMatch(/reactflow|@xyflow|dagre|elkjs|cytoscape|d3-/);
     }
   });
+
+  it("arkusze kroku i wyzwalacza dociągane w bezczynności, dialogi - dopiero przy otwarciu (I9, Z-S8-09)", () => {
+    const source = readFileSync("src/components/admin/journeys/editor/JourneyEditor.tsx", "utf8");
+    const idle = /whenIdle\(\(\) => \{([\s\S]*?)\}, \d+\)/.exec(source)?.[1] ?? "";
+    expect(idle).toContain("loadStepSheet()");
+    expect(idle).toContain("loadTriggerSheet()");
+    // Rzadkie części zostają leniwe do pierwszego otwarcia (koszt pierwszego wejścia).
+    expect(idle).not.toMatch(/Publish|Simulate|TestPanel|Results|Settings/);
+    // `lazy` korzysta z TEGO SAMEGO ładowacza - prefetch trafia w ten sam chunk.
+    expect(source).toMatch(/lazy\(\(\) =>\s*loadStepSheet\(\)/);
+    expect(source).toMatch(/lazy\(\(\) =>\s*loadTriggerSheet\(\)/);
+  });
 });

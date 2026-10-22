@@ -99,6 +99,7 @@ import {
   triggerSentence,
 } from "@/lib/admin/journeys/summaries";
 import { buildJourneyView } from "@/lib/admin/journeys/viewModel";
+import { whenIdle } from "@/lib/ads/idle";
 import { chartLangFrom } from "@/lib/charts/format";
 import { formatDateShort, formatNumber } from "@/lib/i18n/format";
 import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
@@ -125,11 +126,16 @@ import { JourneyIssuesList, useJourneyIssues } from "./JourneyIssuesList";
 import { JourneyOutline } from "./JourneyOutline";
 import { JourneyToolbar, type JourneyStatsSetting } from "./JourneyToolbar";
 
-const JourneyStepSheet = lazy(() =>
-  import("./JourneyStepSheet").then((m) => ({ default: m.JourneyStepSheet })),
-);
+// Arkusze kroku i wyzwalacza otwiera prawie każda edycja (panel kroku to ok.
+// 28 KB gz) - dociągamy je w bezczynności po wejściu do edytora (I9, Z-S8-09),
+// żeby pierwsze kliknięcie węzła nie czekało na sieć. Dialogi (publikacja,
+// symulacja, test) zostają leniwe do pierwszego otwarcia: są rzadkie,
+// a prefetch wszystkiego obciążyłby pierwsze wejście.
+const loadStepSheet = () => import("./JourneyStepSheet");
+const loadTriggerSheet = () => import("./JourneyTriggerSheet");
+const JourneyStepSheet = lazy(() => loadStepSheet().then((m) => ({ default: m.JourneyStepSheet })));
 const JourneyTriggerSheet = lazy(() =>
-  import("./JourneyTriggerSheet").then((m) => ({ default: m.JourneyTriggerSheet })),
+  loadTriggerSheet().then((m) => ({ default: m.JourneyTriggerSheet })),
 );
 const JourneySettingsSheet = lazy(() =>
   import("./JourneySettingsSheet").then((m) => ({ default: m.JourneySettingsSheet })),
@@ -330,6 +336,17 @@ export function JourneyEditor({
   useEffect(() => {
     setConflictOpen(hasConflict);
   }, [hasConflict]);
+
+  // Prefetch arkuszy w bezczynności (Z-S8-09); błąd sieci nie przeszkadza -
+  // `lazy` spróbuje ponownie przy otwarciu. Odmontowanie anuluje zaplanowane.
+  useEffect(
+    () =>
+      whenIdle(() => {
+        void loadStepSheet().catch(() => undefined);
+        void loadTriggerSheet().catch(() => undefined);
+      }, 4000),
+    [],
+  );
 
   // ── Region aria-live (kanwa, lista albo ukryty region wyników) ──
   const [live, setLive] = useState({ text: "", count: 0 });
