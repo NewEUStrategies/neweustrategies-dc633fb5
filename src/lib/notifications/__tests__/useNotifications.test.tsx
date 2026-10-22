@@ -113,6 +113,7 @@ function notificationRow(over: Partial<NotificationRowShape> = {}): Notification
     icon: null,
     id: "n-1",
     kind: "message",
+    meta: {},
     read_at: null,
     tenant_id: TENANT_ID,
     title_en: null,
