@@ -310,6 +310,39 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   // Funkcje sprzed huba czytające okna sprzed progu retencji z agregatów.
   ["monetization_dashboard", "I9", "panel"],
   ["newsletter_campaign_engagement", "I9", "panel"],
+  // (I9d-Y1, 2026-10-22) RODO - decyzje właściciela 2: zgłoszenia do klubów
+  // (anonimizacja po usunięciu konta i po okresie, koniec członkostwa,
+  // odmowa decyzji dla zgłoszenia zanonimizowanego), odczyty licznika
+  // (agregat dzienny, redakcja historii czytania), uczestnicy wydarzeń,
+  // wygaszanie nieaktywnych subskrybentów newslettera (znacznik
+  // zaangażowania, cykl prośby, wysyłka przez krok TS, panel listy
+  // i wykluczeń).
+  ["_club_applications_anonymize", "I9", "internal"],
+  ["tg_club_members_membership_end", "I9", "trigger"],
+  ["tg_club_members_membership_gone", "I9", "trigger"],
+  ["tg_club_applications_club_detached", "I9", "trigger"],
+  ["_data_retention_club_candidates", "I9", "internal"],
+  ["_data_retention_club_applications", "I9", "internal"],
+  ["admin_club_application_set_status", "I9", "panel"],
+  ["_data_retention_backfill_metered_views", "I9", "internal"],
+  ["_data_retention_metered_views", "I9", "internal"],
+  ["_data_retention_event_attendee_candidates", "I9", "internal"],
+  ["_data_retention_event_attendees", "I9", "internal"],
+  ["_newsletter_engagement_touch", "I9", "internal"],
+  ["newsletter_record_campaign_event", "I9", "service"],
+  ["newsletter_engagement_touch", "I9", "service"],
+  ["newsletter_sunset_keep", "I9", "service"],
+  ["_newsletter_last_engagement", "I9", "internal"],
+  ["_newsletter_track_opens", "I9", "internal"],
+  ["_data_retention_newsletter_candidates", "I9", "internal"],
+  ["_newsletter_sunset_fold_events", "I9", "internal"],
+  ["_newsletter_sunset_delete", "I9", "internal"],
+  ["_data_retention_newsletter_inactive", "I9", "internal"],
+  ["newsletter_sunset_claim", "I9", "service"],
+  ["newsletter_sunset_mark", "I9", "service"],
+  ["admin_data_retention_newsletter_due", "I9", "panel"],
+  ["admin_data_retention_newsletter_exclude", "I9", "panel"],
+  ["admin_data_retention_newsletter_include", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -354,6 +387,11 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   // kampanii dni sprzed progu z agregatów.
   monetization_dashboard: "20260724100000",
   newsletter_campaign_engagement: "20260814215302",
+  // (I9d, 2026-10-22) Decyzje właściciela 2 (Y1): decyzja komisji klubu
+  // odmawia zgłoszeniu zanonimizowanemu, zapis zdarzeń kampanii utrwala
+  // zaangażowanie subskrybenta (wygaszanie nieaktywnych).
+  admin_club_application_set_status: "20260811150000",
+  newsletter_record_campaign_event: "20260814215302",
 };
 
 /**
@@ -365,8 +403,18 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
  * I9 niesie ją jako `-- CIALO-Z:`, a bramka sprawdza, że rejestr nadal
  * wskazuje najnowszą (późniejsza redefinicja w innym wycinku = czerwień).
  * Właściciel i rodzaj zostają z `FUNCTION_TABLE` (granty jak u właściciela).
+ *
+ * (I9d, 2026-10-22) DRUGA I KOLEJNA REDEFINICJA tej samej funkcji w bloku I9
+ * (np. zapis zdarzeń ścieżek: I9c-X2 - wyłącznik piksela, I9d-Y1 - znacznik
+ * zaangażowania, I9d-Y2 - pomiar tylko za zgodą) dostaje MAPĘ wersji per
+ * plik: `{ "<wersja pliku I9>": "<CIALO-Z tego pliku>" }`. Każdy plik I9
+ * z redefinicją musi mieć w mapie swój wpis, a wartość nadal musi wskazywać
+ * NAJNOWSZĄ wcześniejszą definicję w hubie - ochrona przed przepisaniem
+ * starego ciała zostaje taka sama jak dla jednej wartości.
  */
-export const HUB_I9_REDEFINITIONS: Readonly<Record<string, string>> = {
+export type HubI9Redefinition = string | Readonly<Record<string, string>>;
+
+export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> = {
   // Z-01 / Z-S2-02: segment przychodu z typu klienta (I9b, decyzja właściciela).
   revenue_segment_of_tier: "20261020090500",
   // Z-S5-02: jeden limit tagu CRM (`CRM_TAG_MAX`) w pisarzu tagów S4
@@ -380,7 +428,12 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, string>> = {
   _funnel_counts: "20261020120400",
   journey_rollup_daily: "20261020140500",
   admin_journey_stats: "20261020140500",
-  journey_record_message_event: "20261020140500",
+  // (I9d, 2026-10-22) + znacznik zaangażowania subskrybenta newslettera
+  // (wygaszanie nieaktywnych, Z-I9c-08) - druga redefinicja w I9.
+  journey_record_message_event: {
+    "20261020161300": "20261020140500",
+    "20261020161900": "20261020161300",
+  },
   journey_contact_for_send: "20261020140200",
   admin_journey_settings_get: "20261020140300",
   admin_journey_settings_save: "20261020140300",
@@ -966,6 +1019,10 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/server/journeysRunner.server.ts",
     "src/lib/server/__tests__/journeysRunner.server.test.ts",
     "src/lib/realtime/__tests__/{invalidationExtension,eventInvalidationMap}.test.ts",
+    // (I9d-Y1, 2026-10-22) RODO - decyzje właściciela 2: pgTAP kategorii
+    // retencji (zgłoszenia do klubów, licznik, uczestnicy wydarzeń,
+    // wygaszanie newslettera) i bramka CIALO-Z (mapa wersji per plik).
+    "supabase/tests/hub_i9d_*_test.sql",
   ],
 };
 
@@ -1337,6 +1394,17 @@ export interface HubDeliveryOptions {
   readonly verifyCialoZRegistry?: boolean;
 }
 
+/**
+ * Wersja CIALO-Z, której rejestr rezerwy I9 oczekuje od redefinicji `name`
+ * w pliku `version` (wpis jednowartościowy - każdy plik; mapa - wpis pliku,
+ * brak wpisu = `undefined`).
+ */
+export function hubI9RedefinitionCialoZ(name: string, version: string): string | undefined {
+  const entry = HUB_I9_REDEFINITIONS[name];
+  if (entry === undefined) return undefined;
+  return typeof entry === "string" ? entry : entry[version];
+}
+
 /** Czy definicja w pliku wycinka `slice` to dozwolona redefinicja w rezerwie I9. */
 function isI9Redefinition(name: string, slice: HubSliceId | null): boolean {
   const owner = HUB_FUNCTION_OWNERS[name];
@@ -1460,10 +1528,17 @@ export function analyzeHubDelivery(
       if (i9Redefinition) {
         // Redefinicja funkcji innego wycinka w I9: ciało przepisane z NAJNOWSZEJ
         // definicji w hubie - rejestr i znacznik muszą ją wskazywać.
-        const registered = HUB_I9_REDEFINITIONS[hit.name];
+        const registered = hubI9RedefinitionCialoZ(hit.name, version);
         // Funkcja sprzed huba bez redefinicji w wycinku: najnowsza sprzed huba.
         const latestInHub = hubLatest.get(hit.name) ?? preHubLatest.get(hit.name);
-        if (marker === undefined) {
+        if (registered === undefined) {
+          // Mapa wersji bez wpisu tego pliku: każda kolejna redefinicja w I9
+          // musi zostać zarejestrowana z własnym CIALO-Z.
+          add(
+            "brak-cialo-z",
+            `HUB_I9_REDEFINITIONS.${hit.name} nie ma wpisu dla pliku ${version} (najnowsza wcześniejsza definicja w hubie: ${latestInHub ?? "brak"})`,
+          );
+        } else if (marker === undefined) {
           add(
             "brak-cialo-z",
             `public.${hit.name} redefiniuje funkcję huba - brak \`-- CIALO-Z: ${registered}\``,
@@ -1474,7 +1549,7 @@ export function analyzeHubDelivery(
             `public.${hit.name}: CIALO-Z ${marker.version}, rejestr ${registered}`,
           );
         }
-        if (latestInHub !== registered) {
+        if (registered !== undefined && latestInHub !== registered) {
           add(
             "zly-cialo-z",
             `HUB_I9_REDEFINITIONS.${hit.name} = ${registered}, najnowsza wcześniejsza definicja w hubie: ${latestInHub ?? "brak"}`,

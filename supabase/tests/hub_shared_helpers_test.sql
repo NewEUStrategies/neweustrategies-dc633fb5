@@ -130,7 +130,17 @@ SELECT is_empty(
           'tg_payment_orders_checkout_emit', 'tg_profiles_account_registered_emit',
           'tg_retention_feedback_emit', 'tg_retention_reasons_emit', 'tg_retention_settings_emit',
           'tg_subscriptions_revenue_history', 'tg_subscriptions_revenue_redact',
-          'tg_workflow_definitions_emit'
+          'tg_workflow_definitions_emit',
+          -- (I9d-Y1) zgłoszenia do klubów, licznik, uczestnicy wydarzeń, wygaszanie newslettera.
+          '_club_applications_anonymize', '_data_retention_backfill_metered_views',
+          '_data_retention_club_applications', '_data_retention_club_candidates',
+          '_data_retention_event_attendee_candidates', '_data_retention_event_attendees',
+          '_data_retention_metered_views', '_data_retention_newsletter_candidates',
+          '_data_retention_newsletter_inactive', '_newsletter_engagement_touch', '_newsletter_last_engagement',
+          '_newsletter_sunset_delete', '_newsletter_sunset_fold_events', '_newsletter_track_opens',
+          'newsletter_engagement_touch', 'newsletter_sunset_claim', 'newsletter_sunset_keep',
+          'newsletter_sunset_mark', 'tg_club_applications_club_detached', 'tg_club_members_membership_end',
+          'tg_club_members_membership_gone'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end
