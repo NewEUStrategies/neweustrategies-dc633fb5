@@ -220,13 +220,15 @@ const pl = {
       skipError: "Nie udało się pominąć czekania.",
     },
     statsOverlay: {
-      legend: "Otwarcia ludzkie i CTOR na kanwie to górna granica (Apple MPP).",
+      legend:
+        "Otwarcia ludzkie i CTOR na kanwie to górna granica (Apple MPP). Otwarcia i kliknięcia liczymy tylko u odbiorców ze zgodą na pomiar.",
       chip: {
         entered: "Wejścia: {{value}}",
         sent: "Wysłane: {{value}}",
         waiting: "Czeka teraz: {{value}}",
-        opens: "Otwarcia ludzkie: {{value}} - górna granica (Apple MPP)",
-        clicks: "Kliknięcia: {{value}}",
+        opens:
+          "Otwarcia ludzkie: {{value}} - górna granica (Apple MPP), tylko odbiorcy ze zgodą na pomiar",
+        clicks: "Kliknięcia: {{value}} - tylko odbiorcy ze zgodą na pomiar",
         ctor: "CTOR: {{value}} - górna granica (Apple MPP), benchmark kampanii",
       },
       aria: {
@@ -465,13 +467,15 @@ const en: typeof pl = {
       skipError: "Could not skip the wait.",
     },
     statsOverlay: {
-      legend: "Human opens and CTOR on the canvas are an upper bound (Apple MPP).",
+      legend:
+        "Human opens and CTOR on the canvas are an upper bound (Apple MPP). Opens and clicks count only recipients with measurement consent.",
       chip: {
         entered: "Entries: {{value}}",
         sent: "Sent: {{value}}",
         waiting: "Waiting now: {{value}}",
-        opens: "Human opens: {{value}} - upper bound (Apple MPP)",
-        clicks: "Clicks: {{value}}",
+        opens:
+          "Human opens: {{value}} - upper bound (Apple MPP), only recipients with measurement consent",
+        clicks: "Clicks: {{value}} - only recipients with measurement consent",
         ctor: "CTOR: {{value}} - upper bound (Apple MPP), campaign benchmark",
       },
       aria: {

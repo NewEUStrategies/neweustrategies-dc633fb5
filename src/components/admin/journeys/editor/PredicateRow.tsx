@@ -20,6 +20,12 @@
 // dopiero wtedy, gdy KAŻDY wiersz przechodzi `PredicateSchema`, a warunki
 // otwarcia i kliknięcia wskazują e-mail z listy dozwolonych (przodek kroku -
 // `predicate_not_ancestor_email`).
+//
+// POMIAR ZA ZGODĄ (I9d-Y2). Warunki otwarcia i kliknięcia mają stałą notkę:
+// odbiorca bez zgody na pomiar nie ma piksela ani linków z identyfikatorem,
+// więc NIGDY nie spełni warunku i trafi do gałęzi „nie”, choćby przeczytał
+// mail. To nie błąd grafu (walidator go nie zgłasza) - świadoma decyzja
+// redakcji, którą notka ma umożliwić.
 import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -40,6 +46,7 @@ import "@/lib/i18n-admin-crm-lifecycle";
 import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
 import { ensureI18n as ensureListI18n } from "@/lib/i18n-admin-journeys-list";
 import { ensureI18n } from "@/lib/i18n-admin-journeys-steps";
+import { ensureI18n as ensureMeasurementHintI18n } from "@/lib/i18n-admin-measurement-hint";
 import type { JourneyGraph } from "@/lib/journeys/graph";
 import { journeyLabelKey, journeyTriggerLabelKey } from "@/lib/journeys/labels";
 import {
@@ -914,6 +921,7 @@ function PredicateFields({
   issue: JourneyFieldError | null;
   set: (patch: Record<string, unknown>) => void;
 }) {
+  ensureMeasurementHintI18n();
   const { t } = useTranslation();
   const issueText = issue ? t(issue.key, issue.values) : null;
   const inValues = stringList(draft.in);
@@ -1002,6 +1010,14 @@ function PredicateFields({
               onCommit={(value) => set({ urlContains: value === "" ? undefined : value })}
             />
           )}
+          <p
+            role="note"
+            data-measurement-warning=""
+            className="flex items-start gap-1.5 text-xs text-muted-foreground"
+          >
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {t("adminMeasurementHint.predicate")}
+          </p>
         </div>
       );
     }

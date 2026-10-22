@@ -410,11 +410,11 @@ const pl = {
         "Wygaszanie newslettera nie jest jeszcze wdrożone w tej bazie - edycja treści zadziała po wdrożeniu.",
     },
     pixel: {
-      title: "Pomiar otwarć maili (piksel)",
-      label: "Mierz otwarcia maili ścieżek pikselem",
-      hint: "Wyłączony: nowe maile ścieżek nie mają piksela, a otwarcia nie są zapisywane. Kliknięcia i wypis działają dalej.",
+      title: "Pomiar otwarć i kliknięć",
+      label: "Mierz otwarcia i kliknięcia w mailach ścieżek i kampanii",
+      hint: "Wspólny przełącznik ścieżek i kampanii newslettera (ten sam w ustawieniach silnika ścieżek i w przeglądzie newslettera). Włączony: piksel i linki z identyfikatorem tylko u odbiorców ze zgodą na pomiar. Wyłączony: nowe maile bez piksela i linków z identyfikatorem, otwarcia i kliknięcia nie są zapisywane; wypis działa dalej.",
       recommendation:
-        "Treść zgody na newsletter w formularzach nie wspomina pomiaru otwarć i kliknięć - informuje o nim polityka komunikacji. Rekomendacja: uzupełnić treść zgody (wytyczne EDPB 2/2023 w sprawie zakresu technicznego art. 5 ust. 3 dyrektywy 2002/58/WE).",
+        "Wykonane (I9d-Y2): domyślna treść zgody na newsletter mówi o pomiarze otwarć i kliknięć, jego celu i osobnym wyłączeniu, a pomiar obejmuje wyłącznie osoby z taką zgodą (wytyczne EDPB 2/2023 w sprawie zakresu technicznego art. 5 ust. 3 dyrektywy 2002/58/WE). Własny tekst zgody oznaczasz w przeglądzie newslettera.",
       saved: "Zapisano ustawienie pomiaru otwarć.",
       error: "Nie udało się zapisać ustawienia pomiaru otwarć.",
     },
@@ -819,11 +819,11 @@ const en: typeof pl = {
         "Newsletter sunset is not deployed in this database yet - editing will work after deployment.",
     },
     pixel: {
-      title: "Email open measurement (pixel)",
-      label: "Measure journey email opens with a pixel",
-      hint: "Off: new journey emails carry no pixel and opens are not recorded. Clicks and unsubscribe keep working.",
+      title: "Measuring opens and clicks",
+      label: "Measure opens and clicks in journey and campaign emails",
+      hint: "One switch for journeys and newsletter campaigns (the same one as in the journey engine settings and the newsletter overview). On: the pixel and links with an identifier only for recipients with measurement consent. Off: new emails carry no pixel or links with an identifier, and opens and clicks are not recorded; unsubscribe keeps working.",
       recommendation:
-        "The newsletter consent text in sign-up forms does not mention measuring opens and clicks - the communication policy does. Recommendation: extend the consent text (EDPB Guidelines 2/2023 on the technical scope of Art. 5(3) of Directive 2002/58/EC).",
+        "Done (I9d-Y2): the default newsletter consent wording covers measuring opens and clicks, its purpose and switching it off separately, and measurement covers only people with such consent (EDPB Guidelines 2/2023 on the technical scope of Art. 5(3) of Directive 2002/58/EC). Mark your own consent wording in the newsletter overview.",
       saved: "Open measurement setting saved.",
       error: "Could not save the open measurement setting.",
     },

@@ -18,12 +18,24 @@
 // Wskaźnik jest dodatkowo przycięty do 100%: gdyby kiedykolwiek znów wyszedł
 // wyżej (dane sprzed deduplikacji, ręczna korekta `sent_count`), użytkownik
 // zobaczy sufit i notę, a nie liczbę, w którą nie sposób uwierzyć.
+//
+// POMIAR TYLKO ZA ZGODĄ (I9d-Y2). Otwarcia i kliknięcia zapisują się wyłącznie
+// u odbiorców ze zgodą na pomiar, więc mianownikiem wskaźnika są odbiorcy
+// MIERZENI (`measurement`, `campaignMeasuredDenominator`), a kampania w całości
+// sprzed Y2 (stan pomiaru nieznany) dzieli jak dotąd przez wysłanych. Bez
+// odczytu licznika (brak roli, okno wdrożenia) - mianownik z propsu i notka.
 import { useTranslation } from "react-i18next";
 import { MailOpen, MousePointerClick } from "lucide-react";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminMetricTile } from "@/components/admin/molecules/AdminMetricTile";
+import { MeasurementConsentNote } from "@/components/admin/newsletter/measurement/MeasurementConsentNote";
 import { engagementRate } from "@/lib/newsletter/engagementRate";
+import { ensureI18n as ensureMeasurementHintI18n } from "@/lib/i18n-admin-measurement-hint";
+import {
+  campaignMeasuredDenominator,
+  type CampaignMeasurementDto,
+} from "@/lib/privacy/measurementParse";
 // `import type` znika w buildzie, a wiąże kafelek z kontraktem funkcji
 // serwerowej: zmiana kształtu zwrotki jest błędem KOMPILACJI tutaj, a nie
 // cichym zerem na ekranie.
@@ -38,20 +50,31 @@ interface CampaignEngagementCardProps {
   engagement: CampaignEngagement | undefined;
   /** Mianownik wskaźnika: liczba dostarczonych wiadomości w kampanii. */
   delivered: number;
+  /**
+   * Odbiorcy mierzeni (I9d-Y2); gdy jest - mianownik wskaźnika to odbiorcy
+   * mierzeni, a kafelek pokazuje ich liczbę. `null`/brak = mianownik `delivered`.
+   */
+  measurement?: CampaignMeasurementDto | null;
   className?: string;
 }
 
 export function CampaignEngagementCard({
   engagement,
   delivered,
+  measurement = null,
   className,
 }: CampaignEngagementCardProps) {
+  ensureMeasurementHintI18n();
   const { t } = useTranslation();
 
   const uniqueOpens = engagement?.uniqueOpens ?? 0;
   const uniqueClicks = engagement?.uniqueClicks ?? 0;
-  const openRate = engagementRate(uniqueOpens, delivered);
-  const clickRate = engagementRate(uniqueClicks, delivered);
+  const denominator = measurement ? campaignMeasuredDenominator(measurement) : delivered;
+  // Liczba mierzonych tylko wtedy, gdy kampania ma odbiorców ze znanym stanem
+  // pomiaru (wysyłka po I9d-Y2) - dla kampanii sprzed Y2 byłoby to „0 z N".
+  const measuredKnown = measurement !== null && measurement.measured + measurement.unmeasured > 0;
+  const openRate = engagementRate(uniqueOpens, denominator);
+  const clickRate = engagementRate(uniqueClicks, denominator);
 
   const share = (rate: number | null): string =>
     rate === null ? "-" : t("adminNewsletter.campaigns.ofDelivered", { percent: rate });
@@ -95,6 +118,15 @@ export function CampaignEngagementCard({
         <p className="text-xs text-muted-foreground">
           {t("adminNewsletter.campaigns.engagementHint")}
         </p>
+        {measuredKnown ? (
+          <p className="text-xs text-muted-foreground" data-measured="">
+            {t("adminMeasurementHint.measured", {
+              measured: measurement.measured,
+              sent: measurement.sent,
+            })}
+          </p>
+        ) : null}
+        <MeasurementConsentNote scope="campaign" />
       </CardContent>
     </Card>
   );

@@ -45,6 +45,7 @@ import {
   type JourneySettingsPatch,
 } from "@/lib/journeys/journeys.functions";
 import { journeyKeys } from "@/lib/journeys/keys";
+import { newsletterKeys } from "@/lib/newsletter/keys";
 import { journeyLabelKey } from "@/lib/journeys/labels";
 import type { JourneyCategory } from "@/lib/journeys/limits";
 import type { JourneyTemplateKey } from "@/lib/journeys/templates/types";
@@ -315,6 +316,9 @@ export function useSaveJourneySettings(tenantId: string | null) {
         queryClient.invalidateQueries({ queryKey: journeyKeys.settings(tenantId) }),
         queryClient.invalidateQueries({ queryKey: journeyKeys.engineHealth(tenantId) }),
         queryClient.invalidateQueries({ queryKey: dataRetentionKeys.tenant(tenantId) }),
+        // I9d-Y2 (Z-I9c-09): przełącznik pomiaru jest wspólny ze ścieżkami
+        // i kampaniami - podgląd prośby o zgodę na pomiar pokazuje jego stan.
+        queryClient.invalidateQueries({ queryKey: newsletterKeys.measurementAll() }),
       ]);
     },
   });

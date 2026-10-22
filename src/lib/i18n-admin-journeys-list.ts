@@ -439,9 +439,9 @@ const pl = {
         "Bez nazwy nadawcy maile wychodzą z nazwą serwisu, a ścieżki marketingowe nie zostaną opublikowane.",
       replyToHint: "Odpowiedzi kontaktów trafią na ten adres zamiast do skrzynki bez obsługi.",
       replyToInvalid: "Podaj poprawny adres e-mail (najwyżej 254 znaki).",
-      openTracking: "Pomiar otwarć (piksel)",
+      openTracking: "Pomiar otwarć i kliknięć (ścieżki i kampanie)",
       openTrackingHint:
-        "Wyłączony: nowe maile wychodzą bez piksela i otwarcia nie są zapisywane; kliknięcia mierzymy dalej. To samo ustawienie jest w karcie „Retencja danych”.",
+        "Wspólny przełącznik maili ścieżek i kampanii newslettera - to samo ustawienie jest w karcie „Retencja danych” i w przeglądzie newslettera. Włączony: piksel i linki z identyfikatorem tylko u odbiorców ze zgodą na pomiar. Wyłączony: nowe maile wychodzą bez piksela i linków z identyfikatorem, a otwarcia i kliknięcia nie są zapisywane.",
       save: "Zapisz ustawienia",
       saving: "Zapisywanie…",
       noChanges: "Brak zmian do zapisania.",
@@ -899,9 +899,9 @@ const en: typeof pl = {
         "Without a sender name emails go out with the site name, and marketing journeys cannot be published.",
       replyToHint: "Contact replies reach this address instead of an unattended mailbox.",
       replyToInvalid: "Enter a valid email address (at most 254 characters).",
-      openTracking: "Open tracking (pixel)",
+      openTracking: "Measuring opens and clicks (journeys and campaigns)",
       openTrackingHint:
-        "Off: new emails go out without the pixel and opens are not recorded; clicks are still measured. The same setting appears on the “Data retention” card.",
+        "One switch for journey emails and newsletter campaigns - the same setting appears on the “Data retention” card and in the newsletter overview. On: the pixel and links with an identifier only for recipients with measurement consent. Off: new emails go out without the pixel or links with an identifier, and opens and clicks are not recorded.",
       save: "Save settings",
       saving: "Saving…",
       noChanges: "Nothing to save.",
