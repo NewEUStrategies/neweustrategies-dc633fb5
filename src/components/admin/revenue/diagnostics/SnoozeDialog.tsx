@@ -16,10 +16,16 @@
 // brak funkcji w bazie i wymagane MFA (`MfaRequiredNotice`) zostają w treści
 // dialogu, dopóki admin go nie zamknie. Sukces zgłasza tablica w swoim
 // regionie `aria-live` (`onSaved`) - dialog się wtedy zamyka.
+//
+// ŹRÓDŁO PRAWDY: wyciszenie to zapis huba (`revenue_diagnostic_snoozes`,
+// pisarz z `HUB_SYNC_MANIFEST`), więc dialog - jak każdy ekran huba z zapisem -
+// pokazuje `SourceHeader`: admin widzi, że wyciszenie obowiązuje cały zespół
+// i licznik na pasku huba, a nie tylko jego widok listy.
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { MfaRequiredNotice } from "@/components/admin/revenue/molecules/MfaRequiredNotice";
+import { SourceHeader } from "@/components/admin/revenue/molecules/SourceHeader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -133,6 +139,7 @@ export function SnoozeDialog({
           <DialogDescription>{checkTitle(t, finding.checkId)}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <SourceHeader entity="revenue_diagnostic" />
           <p className="m-0 text-sm text-muted-foreground">
             {t("adminRevenue.snooze.description")}
           </p>

@@ -18,10 +18,8 @@
 //   3. Dialog szybkiej naprawy bierze byt z rejestru napraw - każda naprawa
 //      wskazuje byt z manifestu, a jej pisarz jest pisarzem tego bytu.
 //   4. Ekrany z kart (QuickFixDialog, PlanBenefitMatrix, ManualInputsGrid,
-//      wyciszenie) są wśród odkrytych.
-//   5. LISTA ZALEGŁYCH jest jawna i JEDNOKIERUNKOWA: wpis musi naprawdę nie
-//      mieć nagłówka (po naprawie test każe wpis zdjąć) - zgłoszenie
-//      integratora, nie cichy wyjątek.
+//      wyciszenie i jego przywrócenie na tablicy Diagnostyki) są wśród
+//      odkrytych - bez listy wyjątków: każdy odkryty ekran ma nagłówek.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -66,17 +64,6 @@ const MODULE_WRITE_ORGANISMS = ["AccessPlanEditorDialog", "CouponCreateDialog"] 
 /** Aplikator szybkiej naprawy (`QuickFixSpec.apply.useApplier`) - byt z rejestru. */
 const QUICK_FIX_APPLIER = "useApplier";
 
-/**
- * ZALEGŁE - ekrany z zapisem jeszcze bez nagłówka źródła. Każdy wpis to
- * zgłoszenie do integracji (raport S7.3b), nie wyjątek na stałe.
- */
-const PENDING_SOURCE_HEADER: Readonly<Record<string, string>> = {
-  "src/components/admin/revenue/diagnostics/SnoozeDialog.tsx":
-    'wyciszenie diagnozy - <SourceHeader entity="revenue_diagnostic" /> w treści dialogu (S7.1-ui)',
-  "src/components/admin/revenue/diagnostics/DiagnosticsBoard.tsx":
-    'przywrócenie wyciszenia z listy - <SourceHeader entity="revenue_diagnostic" /> przy wyciszonych (S7.1-ui)',
-};
-
 interface WriteScreen {
   file: string;
   text: string;
@@ -114,20 +101,14 @@ describe("odkrycie ekranów z zapisem", () => {
         `${ROOT}/offer/PlanBenefitMatrix.tsx`,
         `${ROOT}/inputs/ManualInputsGrid.tsx`,
         `${ROOT}/diagnostics/SnoozeDialog.tsx`,
+        `${ROOT}/diagnostics/DiagnosticsBoard.tsx`,
       ]),
     );
-  });
-
-  it("lista zaległych wskazuje wyłącznie odkryte ekrany", () => {
-    const files = new Set(WRITE_SCREENS.map((screen) => screen.file));
-    for (const file of Object.keys(PENDING_SOURCE_HEADER)) expect(files.has(file), file).toBe(true);
   });
 });
 
 describe("każdy ekran z zapisem renderuje SourceHeader z bytem z manifestu", () => {
-  const ready = WRITE_SCREENS.filter((screen) => !(screen.file in PENDING_SOURCE_HEADER));
-
-  it.each(ready.map((screen) => [screen.file, screen] as const))("%s", (_file, screen) => {
+  it.each(WRITE_SCREENS.map((screen) => [screen.file, screen] as const))("%s", (_file, screen) => {
     expect(screen.text, "import SourceHeader").toMatch(
       /from "@\/components\/admin\/revenue\/molecules\/SourceHeader"/,
     );
@@ -161,16 +142,6 @@ describe("szybkie naprawy - byt nagłówka z rejestru napraw", () => {
       expect(entity, spec.apply.entity).toBeDefined();
       expect((entity?.owners.length ?? 0) + (entity?.hubTabs.length ?? 0)).toBeGreaterThan(0);
       expect(spec.apply.columns.length, "kolumny różnicy dla nagłówka").toBeGreaterThan(0);
-    },
-  );
-});
-
-describe("lista zaległych jest jednokierunkowa", () => {
-  it.each(Object.entries(PENDING_SOURCE_HEADER))(
-    "%s nadal bez nagłówka (po naprawie zdejmij wpis): %s",
-    (file) => {
-      const text = maskComments(readFileSync(file, "utf8"));
-      expect(text).not.toMatch(/<SourceHeader\b/);
     },
   );
 });

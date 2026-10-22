@@ -9,10 +9,11 @@
 //   4. `?fix=` - dialog dla aktywnej reguły; nieaktywna → „Ten problem już
 //      nie występuje"; dialog po udanej naprawie ZOSTAJE (wynik i „Cofnij").
 //   5. Wyciszanie tylko admin (redaktor: wyłączone z powodem); zapis
-//      i zdjęcie wyciszenia ogłasza region `role="status"`, nie toast.
+//      i zdjęcie wyciszenia ogłasza region `role="status"`, nie toast;
+//      dialog wyciszenia i lista wyciszonych pokazują `SourceHeader`.
 //   6. Stany kart: brak najemcy (zero zapytań), odmowa, brak funkcji, MFA,
 //      błąd z ponowieniem; brak wyciszeń powiedziany słowem.
-//   7. axe bez naruszeń (lista, mapa).
+//   7. axe bez naruszeń (lista, mapa, lista wyciszonych, dialog wyciszenia).
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ComponentProps } from "react";
@@ -332,6 +333,8 @@ describe("DiagnosticsBoard - wyciszanie (tylko administrator)", () => {
     );
     const dialog = await screen.findByTestId("snooze-dialog");
     expect(within(dialog).getByLabelText(t("adminRevenue.snooze.daysLabel"))).toHaveValue("30");
+    // Wyciszenie to zapis huba - dialog mówi, czyj byt zmienia (SourceHeader).
+    expect(dialog.querySelector('section[data-entity="revenue_diagnostic"]')).not.toBe(null);
 
     fireEvent.click(within(dialog).getByRole("button", { name: t("adminRevenue.snooze.confirm") }));
 
@@ -421,9 +424,14 @@ describe("DiagnosticsBoard - wyciszanie (tylko administrator)", () => {
     h.fetchSnoozes.mockResolvedValue(snoozesRead([daysSnooze("catalog.enquiry_plan_buyable")]));
     renderBoard();
     await board();
+    const sourceHeader = () => document.querySelector('section[data-entity="revenue_diagnostic"]');
+    // Domyślnie „otwarte” - na liście nie ma wyciszonej, więc nie ma czego przywracać.
+    expect(sourceHeader()).toBe(null);
     fireEvent.click(
       screen.getByRole("button", { name: `${t("adminRevenue.diagnostics.state.snoozed")} (1)` }),
     );
+    // Przywrócenie jest zapisem bytu `revenue_diagnostic` - nagłówek źródła nad listą.
+    expect(sourceHeader()).not.toBe(null);
     fireEvent.click(
       screen.getByRole("button", { name: t("adminRevenue.diagnostics.card.unsnooze") }),
     );
@@ -495,6 +503,34 @@ describe("DiagnosticsBoard - dostępność", () => {
     const map = renderBoard({ view: "map" }, ["editor"]);
     await screen.findByTestId("system-map");
     const violations = await axeViolations(map.container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("axe bez naruszeń: lista wyciszonych i dialog wyciszenia z nagłówkiem źródła", async () => {
+    h.fetchSnoozes.mockResolvedValue(snoozesRead([daysSnooze("catalog.enquiry_plan_buyable")]));
+    const snoozed = renderBoard();
+    await board();
+    fireEvent.click(
+      screen.getByRole("button", { name: `${t("adminRevenue.diagnostics.state.snoozed")} (1)` }),
+    );
+    expect(snoozed.container.querySelector('section[data-entity="revenue_diagnostic"]')).not.toBe(
+      null,
+    );
+    const list = await axeViolations(snoozed.container);
+    expect(list, summarize(list)).toEqual([]);
+    cleanup();
+
+    h.fetchSnoozes.mockResolvedValue(snoozesRead());
+    renderBoard();
+    await board();
+    const card = document.getElementById(findingDomId("catalog.enquiry_plan_buyable"));
+    if (!card) throw new Error("brak karty");
+    fireEvent.click(
+      within(card).getByRole("button", { name: t("adminRevenue.diagnostics.card.snooze") }),
+    );
+    // Sam dialog (portal): reszta dokumentu jest wtedy celowo `aria-hidden`.
+    const dialog = await screen.findByTestId("snooze-dialog");
+    const violations = await axeViolations(dialog);
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
