@@ -2895,7 +2895,14 @@ describe("dokument rozliczeniowy (`transaction.updated`)", () => {
     db.setResponse("subscriptions", ok({ user_id: "user-kupujacy", tenant_id: "tenant-alfa" }));
     db.setResponse("billing_documents", (chain: RecordedChain) =>
       chain.has("maybeSingle")
-        ? ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "paid" })
+        ? ok({
+            id: "doc-1",
+            number: "FV/2026/08/0001",
+            amount_cents: 4900,
+            status: "paid",
+            // Środowisko już znane - jego brak to zmiana do zapisu (Z-S2-07).
+            environment: "live",
+          })
         : ok(null),
     );
 

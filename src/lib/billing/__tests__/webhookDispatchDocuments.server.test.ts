@@ -76,6 +76,8 @@ const CREATED_S = Math.floor(Date.parse("2026-09-01T10:00:00.000Z") / 1000);
 let orders: RowStore;
 let documents: RowStore;
 let subscriptions: RowStore;
+/** Uprawnienia (`user_subscriptions`) - faktura subskrypcji wiąże swoje (Z-S2-07). */
+let entitlements: RowStore;
 
 /** Zdarzenie Stripe z bramki -> normalizacja -> dyspozytor (jak trasa webhooka). */
 async function deliver(type: string, object: Record<string, unknown>, id: string) {
@@ -172,6 +174,10 @@ beforeEach(() => {
   db.setResponse("payment_orders", (chain) => orders.respond(chain));
   db.setResponse("billing_documents", (chain) => documents.respond(chain));
   db.setResponse("subscriptions", (chain) => subscriptions.respond(chain));
+  entitlements = rowStore({
+    rows: [{ id: "ent-kupujacy", external_ref: "sub_kupujacy", ...OWNER }],
+  });
+  db.setResponse("user_subscriptions", (chain) => entitlements.respond(chain));
 });
 
 describe("dokument rozliczeniowy z `transaction.completed` (PAY-12)", () => {
@@ -222,6 +228,9 @@ describe("dokument rozliczeniowy z `transaction.completed` (PAY-12)", () => {
         amount_cents: 9900,
         user_id: OWNER.user_id,
         tenant_id: OWNER.tenant_id,
+        // Środowisko zdarzenia i uprawnienie kupującego (Z-S2-07).
+        environment: "live",
+        subscription_id: "ent-kupujacy",
       }),
     ]);
     // Fantomu sesji nie ma nawet jako próby zapisu.
