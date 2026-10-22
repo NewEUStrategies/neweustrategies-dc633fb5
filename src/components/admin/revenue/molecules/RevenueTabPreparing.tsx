@@ -38,22 +38,21 @@ export function RevenueTabPreparing({ tab }: RevenueTabPreparingProps) {
   const { t } = useTranslation();
   const headingId = useId();
   const spec = TAB_PREPARING[tab];
+  // Zakładka z treścią (S7) nie ma już wpisu - stan „w przygotowaniu" nie
+  // istnieje, więc nie ma czego rysować (Integrator S7, 2026-10-22).
+  if (!spec) return null;
 
   return (
     <section
       aria-labelledby={headingId}
-      data-tab-state={spec.stage === "s6s7" ? "partial" : "preparing"}
+      data-tab-state="preparing"
       className="rounded-[6px] border border-border bg-card p-4 space-y-3"
     >
       <div className="min-w-0 space-y-0.5">
         <h2 id={headingId} className="text-base font-semibold">
           {t(TAB_TITLE_KEY[tab])}
         </h2>
-        <p className="text-sm text-muted-foreground">
-          {spec.stage === "s6s7"
-            ? t("adminRevenue.preparing.partial")
-            : t("adminRevenue.common.pending")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("adminRevenue.common.pending")}</p>
       </div>
       <dl className="space-y-3 text-sm">
         <div className="space-y-0.5">

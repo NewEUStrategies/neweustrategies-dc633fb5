@@ -806,6 +806,23 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/dashboard/MarketingPanel.tsx",
     "src/components/admin/dashboard/__tests__/MarketingPanel*.test.tsx",
     "src/lib/i18n-admin-revenue-{tabs,diagnostics}.ts",
+    // (Integrator S7, 2026-10-22): bliźniaki drizzle 3 migracji S7 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego po `0372` z I9c; §6 dziennika).
+    "drizzle/migrations/{0373,0374,0375}_*.sql",
+    // (Integrator S7, 2026-10-22): zakładki S7 mają treść - stan „w
+    // przygotowaniu" zostaje tylko Ścieżkom (I9a §19.6: wpisy, etapy `s7`/`s6s7`
+    // i słownik zdjęte, molekuła bez wpisu nic nie rysuje); testy tras I0
+    // asertują nagłówki Kokpitu i Oferty zamiast zdania zaślepki; pulpit
+    // atrapuje leniwy kafel przychodu zrealizowanego (zachowanie dowodzi
+    // `MarketingPanel.realized.test.tsx`). Licznik Diagnostyki w układzie huba
+    // (Z-S6-08) zostaje plikiem S6 - zmiana integratora (§23 dziennika).
+    "src/lib/admin/revenue/tabPreparing.ts",
+    "src/lib/admin/revenue/__tests__/tabPreparing.test.ts",
+    "src/lib/i18n-admin-revenue-preparing.ts",
+    "src/components/admin/revenue/molecules/RevenueTabPreparing.tsx",
+    "src/components/admin/revenue/molecules/__tests__/RevenueTabPreparing.test.tsx",
+    "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
+    "src/components/admin/dashboard/__tests__/dashboardPanels.test.tsx",
   ],
   S8: [
     "src/lib/admin/journeys/**",
