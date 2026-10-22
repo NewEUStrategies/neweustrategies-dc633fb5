@@ -463,7 +463,14 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> =
   // silnika, kontakt do wysyłki, zapis zdarzenia).
   _funnel_counts: "20261020120400",
   journey_rollup_daily: "20261020140500",
-  admin_journey_stats: "20261020140500",
+  // (I9-A, 2026-10-22, Z-I9c-06) + podsumowanie ścieżki sumuje zapisy
+  // surowe i dzienne zestawienie zapisów usuniętych retencją - druga
+  // redefinicja w I9; seria dzienna ścieżki - pierwsza.
+  admin_journey_stats: {
+    "20261020161200": "20261020140500",
+    "20261020162600": "20261020161200",
+  },
+  admin_journey_series: "20261020140500",
   // (I9d, 2026-10-22) + znacznik zaangażowania subskrybenta newslettera
   // (wygaszanie nieaktywnych, Z-I9c-08) - druga redefinicja w I9.
   // (I9d-Y2, 2026-10-22) + otwarcia i kliknięcia tylko za zgodą na pomiar

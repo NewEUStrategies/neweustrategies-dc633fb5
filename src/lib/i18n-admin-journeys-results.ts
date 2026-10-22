@@ -51,12 +51,13 @@ const pl = {
         goalReached: "Cel osiągnięty",
         goalRate: "Konwersja do celu",
         exited: "Wyjścia",
-        partial: "Niepełne - część zapisów usunęła retencja.",
+        partial:
+          "Z zestawienia dziennego - zapisy usunięte przez retencję przed jego wdrożeniem nie są liczone.",
         goalNote: "Cel przypisany ścieżce, nie dowód, że go spowodowała.",
       },
       rollup: {
         title: "Starsze okno - dane z zestawienia dziennego",
-        body: "Okno sięga dni, których surowe zapisy usunęła retencja. Liczniki kroków i maili pochodzą z zestawienia dziennego, a podsumowanie zapisów (wejścia, cele, wyjścia) obejmuje tylko zachowane zapisy.",
+        body: "Okno sięga dni, których surowe zapisy usunęła retencja. Liczniki kroków i maili oraz podsumowanie zapisów (wejścia, cele, wyjścia) pochodzą z zestawienia dziennego; kontakty w toku i warianty A/B - z zachowanych zapisów.",
         since: "Pełne dane od {{date}}.",
         sinceUnknown:
           "Datę, od której dane są pełne, pokazuje administratorowi karta „Retencja danych”.",
@@ -298,12 +299,13 @@ const en: typeof pl = {
         goalReached: "Goal reached",
         goalRate: "Goal conversion",
         exited: "Exits",
-        partial: "Incomplete - retention removed some enrolments.",
+        partial:
+          "From the daily rollup - enrolments removed by retention before it was introduced are not counted.",
         goalNote: "A goal is attributed to the journey, not proof that the journey caused it.",
       },
       rollup: {
         title: "Older window - data from the daily rollup",
-        body: "The window reaches days whose raw enrolments were removed by retention. Step and email counts come from the daily rollup, and the enrolment summary (entries, goals, exits) covers only the enrolments that were kept.",
+        body: "The window reaches days whose raw enrolments were removed by retention. Step and email counts and the enrolment summary (entries, goals, exits) come from the daily rollup; contacts in progress and A/B variants come from the enrolments that were kept.",
         since: "Complete data from {{date}}.",
         sinceUnknown:
           "The date from which data is complete is shown to administrators on the “Data retention” card.",
