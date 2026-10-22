@@ -22,8 +22,9 @@
 // (`onHighlightPath`), edytor podświetla je na kanwie i liście; zamknięcie
 // gasi podświetlenie (`null`).
 //
-// KONTAKTY: `listCrmLeads` (CRM, `requireCrmStaff` z aal2) - ostatnio aktywne
-// albo wyszukane; wyszukiwanie na żądanie (przycisk), nie na każdy znak.
+// KONTAKTY: `listCrmLeads` (CRM, `requireCrmStaff` z aal2) przez fabrykę
+// `journeySimulationLeadsQueryOptions` - ostatnio aktywne albo wyszukane;
+// wyszukiwanie na żądanie (przycisk), nie na każdy znak.
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
@@ -56,9 +57,11 @@ import { isMfaRequiredError } from "@/lib/admin/journeys/access";
 import { draftChecksum } from "@/lib/admin/journeys/hash";
 import type { JourneyIssue } from "@/lib/admin/journeys/issues";
 import { describeNode, translateSummary } from "@/lib/admin/journeys/summaries";
+import {
+  journeySimulationLeadsQueryOptions,
+  type JourneySimulationLeads,
+} from "@/lib/admin/journeys/simulationLeads";
 import { buildJourneyView, type JourneyView } from "@/lib/admin/journeys/viewModel";
-import { listCrmLeads } from "@/lib/crm.functions";
-import { crmKeys } from "@/lib/crm/keys";
 import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
 import { ensureI18n as ensureListI18n } from "@/lib/i18n-admin-journeys-list";
 import { ensureI18n } from "@/lib/i18n-admin-journeys-publish";
@@ -93,41 +96,6 @@ export interface JourneySimulateDialogProps {
   onHighlightPath?: (nodeIds: readonly string[] | null) => void;
   /** Przejście do kroku - dialog zamyka się sam. */
   onFocusNode?: (nodeId: string) => void;
-}
-
-/**
- * Ile kontaktów pokazuje wybór: tyle mieści się w oknie bez przewijania listy,
- * a resztę zawęża wyszukiwanie (serwer i tak liczy `total`).
- */
-const SIMULATION_LEAD_LIMIT = 20;
-
-/** Kontakty CRM zmieniają się rzadziej niż wynik symulacji - pół minuty wystarcza. */
-const SIMULATION_LEADS_STALE_MS = 30_000;
-
-interface SimulationLead {
-  id: string;
-  email: string;
-  name: string | null;
-}
-
-/** Wiersze `crm_leads` z odpowiedzi `listCrmLeads` (JSON) - tylko pola wyboru. */
-function parseLeads(json: string): SimulationLead[] {
-  let rows: unknown;
-  try {
-    rows = JSON.parse(json);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(rows)) return [];
-  return rows.flatMap((row): SimulationLead[] => {
-    if (typeof row !== "object" || row === null) return [];
-    const record = row as Record<string, unknown>;
-    if (typeof record.id !== "string" || typeof record.email !== "string") return [];
-    const name = [record.first_name, record.last_name]
-      .filter((part): part is string => typeof part === "string" && part.trim() !== "")
-      .join(" ");
-    return [{ id: record.id, email: record.email, name: name || null }];
-  });
 }
 
 export function JourneySimulateDialog(props: JourneySimulateDialogProps) {
@@ -171,24 +139,9 @@ function SimulateBody({
   const [search, setSearch] = useState("");
   const [leadId, setLeadId] = useState<string | null>(null);
 
-  const leadParams = useMemo(
-    () => ({
-      search: search || undefined,
-      limit: SIMULATION_LEAD_LIMIT,
-      page: 1,
-      sort: "activity" as const,
-      sort_dir: "desc" as const,
-    }),
-    [search],
-  );
   const leads = useQuery({
-    queryKey: crmKeys.leads(leadParams),
-    queryFn: async () => {
-      const result = await listCrmLeads({ data: leadParams });
-      return { rows: parseLeads(result.json), total: result.total };
-    },
+    ...journeySimulationLeadsQueryOptions(search),
     enabled: hydrated,
-    staleTime: SIMULATION_LEADS_STALE_MS,
   });
 
   const checksum = useMemo(() => draftChecksum(draft), [draft]);
@@ -320,7 +273,7 @@ function LeadPicker({
 }: {
   name: string;
   query: {
-    data?: { rows: SimulationLead[]; total: number };
+    data?: JourneySimulationLeads;
     isPending: boolean;
     isError: boolean;
   };
