@@ -55,18 +55,19 @@ describe("RevenueTabPreparing", () => {
 
     const links = within(section).getAllByRole("link");
     expect(links.map((a) => a.textContent)).toEqual(
-      TAB_PREPARING.access.links.map((link) => t(link.labelKey)),
+      (TAB_PREPARING.access?.links ?? []).map((link) => t(link.labelKey)),
     );
     expect(
       within(section).getByRole("link", { name: t("adminRevenue.preparing.link.checkout") }),
     ).toHaveAttribute("href", "/admin/paywall");
   });
 
-  it("ścieżki: etap S5 + S8", () => {
-    render(<RevenueTabPreparing tab="journeys" />);
-    expect(screen.getByRole("region")).toHaveTextContent(
-      realT("pl")("adminRevenue.preparing.stage.s5s8"),
-    );
+  // Integrator S8: Ścieżki mają treść (lista, galeria, edytor) - bez wpisu
+  // w `TAB_PREPARING` molekuła nie obiecuje już „przygotowania”.
+  it("ścieżki: zakładka z treścią - molekuła nie rysuje niczego", () => {
+    const { container } = render(<RevenueTabPreparing tab="journeys" />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("region")).toBeNull();
   });
 
   it("wskaźniki: słownik działa - stan częściowy, nie „w przygotowaniu”", () => {

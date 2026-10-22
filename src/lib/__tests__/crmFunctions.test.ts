@@ -50,6 +50,7 @@ vi.mock("@/lib/integrations/dispatch.functions", () => ({
 
 import { APP_ROLES } from "@/lib/authz/roles";
 import * as crm from "@/lib/crm.functions";
+import { RPC_SHAPES } from "@/lib/journeys/__tests__/rpcShapes.fixture";
 
 const LEAD_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_ID = "22222222-2222-4222-8222-222222222222";
@@ -556,6 +557,54 @@ describe("kronika kontaktu (timeline)", () => {
     });
     // Wersja angielska zostaje w metadanych - widok wybiera zdanie w swoim języku.
     expect(events[0].meta).toEqual(metadata);
+  });
+
+  // Integrator S8 (SPEC §2.7): zapisy kontaktu do ścieżek komunikacji na osi -
+  // z RPC S5 (najemca z sesji, w payloadzie tylko lead), bez własnego SQL.
+  it("zapisy do ścieżek z RPC S5 to wpisy „journey” (wejście i koniec) z kontraktem w `meta`", async () => {
+    timelineSources();
+    rpcResults.admin_journey_lead_enrollments = ok(RPC_SHAPES.leadEnrollments);
+    const result = await callServerFn(crm.getCrmLeadTimeline, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    expect(rpcCalls).toContainEqual({
+      fn: "admin_journey_lead_enrollments",
+      args: { p_lead_id: LEAD_ID },
+    });
+    const { events } = parsed(result) as {
+      events: Array<{ id: string; type: string; title: string; meta: Record<string, unknown> }>;
+    };
+    const journeys = events.filter((e) => e.type === "journey");
+    const enrollmentId = RPC_SHAPES.leadEnrollments[0].enrollment_id;
+    expect(journeys.map((e) => e.id).sort()).toEqual([
+      `jr:${enrollmentId}:in`,
+      `jr:${enrollmentId}:out`,
+    ]);
+    const out = journeys.find((e) => e.id.endsWith(":out"));
+    expect(out?.title).toBe("Ścieżka „Porzucona kasa (v1)” (test): Wyszedł - Wyjęty ręcznie");
+    expect(out?.meta).toMatchObject({
+      journey_id: RPC_SHAPES.leadEnrollments[0].journey_id,
+      enrollment_id: enrollmentId,
+      status: "exited",
+      exit_reason: "manual",
+      summary_en: "Journey “Porzucona kasa (v1)” (test): Left - Removed by staff",
+    });
+  });
+
+  it.each([
+    ["odmowa roli (42501)", fail("permission denied", "42501")],
+    ["kształt spoza kontraktu", ok([{ enrollment_id: 1 }])],
+  ])("ścieżki są dodatkiem osi: %s nie psuje kroniki", async (_case, response) => {
+    timelineSources();
+    rpcResults.admin_journey_lead_enrollments = response;
+    const result = await callServerFn(crm.getCrmLeadTimeline, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    const { events } = parsed(result) as { events: Array<{ type: string }> };
+    expect(events).toHaveLength(6);
+    expect(events.some((e) => e.type === "journey")).toBe(false);
   });
 
   it("eksport kroniki oddaje CSV, e-mail kontaktu i liczbę zdarzeń", async () => {
