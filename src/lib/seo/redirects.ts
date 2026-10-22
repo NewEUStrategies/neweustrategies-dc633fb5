@@ -45,8 +45,17 @@ export interface RedirectMatch {
   statusCode: RedirectStatusCode;
 }
 
-/** System surfaces a redirect rule must never shadow. */
-const PROTECTED_PREFIXES: readonly string[] = ["/admin", "/api", "/_"];
+/**
+ * System surfaces a redirect rule must never shadow.
+ *
+ * `/media` (2026-10-22): markowy proxy magazynu (`src/routes/media.$.ts`) - obraz
+ * LCP strony głównej i każda miniatura. Reguła nie może go przesłonić, a dzięki
+ * temu `resolveRedirectForRequest` kończy się PRZED odczytem katalogu tenantów
+ * i reguł: na zimnym izolacie (produkcja: każde żądanie) obraz nie płaci już
+ * dwóch szeregowych odczytów service-role (edge-routing 0,9-1,1 s zmierzone na
+ * /media/... przy TTFB 4,7-5,4 s).
+ */
+const PROTECTED_PREFIXES: readonly string[] = ["/admin", "/api", "/_", "/media"];
 
 export function isProtectedPath(pathname: string): boolean {
   const p = pathname.toLowerCase();

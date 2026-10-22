@@ -399,21 +399,24 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
     });
   });
 
-  // `isProtectedPath` (PROTECTED_PREFIXES: /admin, /api, /_) - reguła
-  // przekierowania nie może przesłonić panelu ani API, nawet gdy operator
-  // wpisze ją do tabeli. Bramka stoi PRZED odczytem katalogu tenantów.
-  it.each(["/admin", "/admin/redirects", "/api/newsletter/subscribe", "/_/vite-hmr"])(
-    "ścieżka chroniona %s nie przekierowuje i nie dotyka bazy",
-    async (path) => {
-      mockState.redirectRows = [rule(path, "/przejete-przez-regule")];
+  // `isProtectedPath` (PROTECTED_PREFIXES: /admin, /api, /_, /media) - reguła
+  // przekierowania nie może przesłonić panelu, API ani proxy mediów, nawet gdy
+  // operator wpisze ją do tabeli. Bramka stoi PRZED odczytem katalogu tenantów.
+  it.each([
+    "/admin",
+    "/admin/redirects",
+    "/api/newsletter/subscribe",
+    "/_/vite-hmr",
+    "/media/07167e87/wp-import/okladka.webp",
+  ])("ścieżka chroniona %s nie przekierowuje i nie dotyka bazy", async (path) => {
+    mockState.redirectRows = [rule(path, "/przejete-przez-regule")];
 
-      const result = await resolveRedirectForRequest(request(path));
+    const result = await resolveRedirectForRequest(request(path));
 
-      expect(result).toBeNull();
-      expect(mockState.tenantCalls).toHaveLength(0);
-      expect(mockState.ops).toHaveLength(0);
-    },
-  );
+    expect(result).toBeNull();
+    expect(mockState.tenantCalls).toHaveLength(0);
+    expect(mockState.ops).toHaveLength(0);
+  });
 
   it("nieznany host nie przekierowuje (brak tenanta = brak reguł)", async () => {
     mockState.redirectRows = [rule("/stary", "/nowy")];

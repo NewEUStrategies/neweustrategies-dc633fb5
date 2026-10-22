@@ -1025,9 +1025,14 @@ export async function handleDocumentRequest<T>(
   // hostem nie może przyjmować kardynalności wybieranej przez atakującego
   // spreparowanym X-Forwarded-Host, a wpisy tenanta nie mogą być zasiewane
   // renderem wykonanym pod cudzym hostem (poisoning między tenantami).
-  const host = await trustedPublicHost(request);
+  // Decyzja BYPASS nie zależy od hosta (host jest wyłącznie zakresem klucza),
+  // więc zapada PRZED walidacją hosta: ścieżki spoza cache'u dokumentów (media,
+  // API, panel) nie płacą odczytu katalogu tenantów, którego nie używają - na
+  // zimnym izolacie to pełny round-trip service-role przed odpowiedzią.
   const path = safePathname(request.url);
-  const plan = planDocumentCache(request, host);
+  const preliminary = planDocumentCache(request, null);
+  const host = preliminary.kind === "bypass" ? null : await trustedPublicHost(request);
+  const plan = preliminary.kind === "bypass" ? preliminary : planDocumentCache(request, host);
   if (plan.kind === "bypass") {
     if (plan.reason !== "method") {
       stats.bypass += 1;
