@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po I9c)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5) i §21 (I9b - decyzje właściciela, I9c - §21.20-21.21); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21) i §22 (S8); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -66,8 +66,21 @@ w `/admin/settings/privacy` (leniwy chunk, `adminPageHead` sekcyjne),
 przełącznik pomiaru otwarć ścieżek (`journey_settings.open_tracking_enabled`,
 klucz w ustawieniach silnika S5 - UI ustawień w S8). Otwarte: Z-I9c-05, 06,
 09, 10 (wycinki), decyzje administratora danych Z-I9c-01, 04, 07, 08
-i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21. Następny
-krok: S8.
+i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21.
+
+**S8 (2026-10-22, §22 dziennika) - zintegrowany:** zakładka Ścieżki (lista
+z `?status=&q=`, galeria szablonów `?new=1&template=`, kreator, ustawienia
+silnika z pomiarem otwarć `open_tracking_enabled`, nadawcą i Reply-To,
+pasek zdrowia), edytor kanwy `/admin/revenue/journeys/$journeyId` (kanwa
+i lista `role="tree"`, panel kroku 14 typów, edytor maila z podglądem
+zgodnym z wysyłką - Z-S5-08 w `variables.ts`, publikacja z blokadami,
+symulacja, test na sobie, autozapis z CAS i dialogiem różnic), wyniki
+(`?view=results`, A/B z `z`, rollup Z-I9c-06), karta „Ścieżki” i typ
+`journey` na osi leada w CRM, ⌘K „Nowa ścieżka”, licznik aktywnych ścieżek
+na pasku huba, „[TEST] ” w temacie maila testowego. Bez SQL; ratchet D-08
+`overall` 5023 → 5182. Otwarte Z-S8-01…10 (§22.5) - m.in. montaż wycieczek
+(P2), symulacja per predykat i osobny mail testowy (S5), scalenie plików
+współdzielonych z S7 (Z-S8-10).
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
@@ -77,18 +90,11 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 
 **Kolejka (jeden element naraz):**
 
-1. S8 - lista ścieżek, galeria szablonów, edytor kanwy (HubSpot-style),
-   wyniki per krok, ustawienia i zdrowie silnika - na gotowym API S5 (§20.4
-   „Dla S8”: server fn, `queries.ts`, `validateJourneyGraph`,
-   `JOURNEY_TRIGGERS`, `JOURNEY_TEMPLATES`, `journeyLabelKey`); podgląd treści
-   w przeglądarce wymaga klienckiego podstawiania zmiennych (Z-S5-08); po
-   obsłudze `?new=1` dopisz skrót ⌘K „Nowa ścieżka” w `adminNav.ts` (I9a go
-   świadomie pominął); podmieniając zaślepkę zakładki Ścieżek, usuń jej wpis
-   z `TAB_PREPARING`. Ustawienia silnika mają już klucz
-   `open_tracking_enabled` (pomiar otwarć, I9c-X2 - ten sam zapis co
-   przełącznik w karcie retencji); wyniki ścieżki dla okien starszych niż
-   retencja zapisów czytają rollup (Z-I9c-06).
-2. S7 - zakładki huba (w tym lejek i inwentarz dostępu na `queryOptions` S3),
+1. ~~S8~~ - **zintegrowany 2026-10-22 (§22 dziennika)**; po S8 kolejny
+   jest S7 (numer sekcji dziennika **§23 zarezerwowany dla S7**).
+2. S7 (zintegrowany lokalnie w `/home/user/wt/S7`, push po S8 - scalenie
+   gałęzi PR do S7, rozwiązanie plików współdzielonych z Z-S8-10, ponowny
+   pomiar bundla i ratchet) - zakładki huba (w tym lejek i inwentarz dostępu na `queryOptions` S3),
    50 reguł diagnostyki (w tym `checkout.display_currency_mismatch` - P09,
    Z-S3-03), dialogi napraw (w tym okno porzucenia kasy - pole w karcie kasy
    już jest od I9a, dialog może je reużyć), symulator czytelnika
