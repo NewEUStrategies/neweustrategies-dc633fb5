@@ -251,11 +251,60 @@ const pl = {
       inputsLink: "Uzupełnij dane wejściowe",
       sheetTitle: "Wskaźnik: {{name}}",
       contextLabel: "Kontekst porównania",
+      currencyNote:
+        "Kwoty w walucie {{currency}} - inną walutę wybierzesz w filtrze waluty nad zakładką.",
+      missingTitle: "Brak danych - czego brakuje",
+      missingIntro:
+        "Wskaźniki bez wartości w tym okresie, pogrupowane według przyczyny. Brak to nie zero.",
+      missingNone: "Każdy wskaźnik huba ma w tym okresie wartość.",
+      realizedPeriodNote:
+        "Przychód zrealizowany liczymy dla okresów od tygodnia wzwyż - wybierz tydzień, miesiąc albo dłuższy okres.",
+      reason: {
+        admin_only: "kwoty i ekonomikę jednostkową widzi wyłącznie administrator",
+        not_configured: "źródło danych nie jest jeszcze podłączone (wdrożenie w toku)",
+        read_failed: "odczyt źródła nie powiódł się - odśwież widok",
+        no_data: "źródło nie zwróciło danych za ten okres",
+        history: "historia od {{since}} - wynik pełny od {{full}}",
+        full_year:
+          "wskaźnik liczy się z 12 pełnych miesięcy - wybierz okres „Ostatnie 12 miesięcy”",
+        inputs: "brakuje danych wejściowych: {{inputs}}",
+        other_currency:
+          "kwoty są tylko w innych walutach ({{currencies}}) - wybierz walutę w filtrze",
+        no_base: "w tym okresie nie ma podstawy do policzenia (np. zerowy mianownik) - to nie zero",
+        not_measured:
+          "hub jeszcze nie liczy tego wskaźnika - definicję i benchmark pokazuje słownik",
+      },
     },
     communityTab: {
       sectionLabel: "Sekcja społeczności",
       journeysNote:
         "Przypomnienia przed wydarzeniem i odpowiedzi na zgłoszenia do klubów wysyłają ścieżki komunikacji.",
+      journeysLink: "Otwórz ścieżki komunikacji",
+      kpiHeading: "Wskaźniki społeczności",
+      kpiDescription:
+        "Frekwencja, przychód z biletów i aktywność klubów w wybranym okresie - z oceną względem benchmarku z rejestru wskaźników.",
+      allSegmentsNote:
+        "Przekroje wydarzeń i klubów nie dzielą się na segmenty klientów - karty obejmują wszystkich uczestników.",
+      openEvents: "Otwórz moduł wydarzeń",
+      openStudio: "{{name}} - otwórz w studiu wydarzenia",
+      revenueColumn: "Przychód netto",
+      eventsCaption: "Wydarzenia w okresie - zgłoszenia, obecność i przychód",
+      pool: {
+        share: "Udział w zgłoszeniach dopuszczonych: {{value}}",
+        shareNone: "Udział w zgłoszeniach dopuszczonych: brak danych (brak zgłoszeń w okresie)",
+        empty: "W tym okresie nikt nie skorzystał z puli biletów planu.",
+        caption: "Wydarzenia z biletami z puli planu",
+        configure: "Pule biletów w planach - Członkostwo",
+      },
+      clubs: {
+        decided: "Decyzje w okresie",
+        decisionsNote:
+          "Decyzje obejmują też zgłoszenia złożone przed okresem, dlatego nie liczymy ich udziału w złożonych. Udział przyjętych liczymy wśród decyzji.",
+        decisionNone: "Brak decyzji w okresie",
+        openInbox: "Zgłoszenia czekające na decyzję",
+        openAnalytics: "{{name}} - analityka klubu",
+        caption: "Kluby - członkowie, aktywność i zgłoszenia",
+      },
     },
     funnelTab: {
       trackLabel: "Tor lejka",
@@ -729,11 +778,60 @@ const en: typeof pl = {
       inputsLink: "Complete the manual inputs",
       sheetTitle: "Indicator: {{name}}",
       contextLabel: "Comparison context",
+      currencyNote:
+        "Amounts in {{currency}} - pick another currency in the currency selector above the section.",
+      missingTitle: "No data - what is missing",
+      missingIntro:
+        "Indicators without a value in this period, grouped by cause. Missing is not zero.",
+      missingNone: "Every hub indicator has a value in this period.",
+      realizedPeriodNote:
+        "Realised revenue is computed for periods of a week or longer - choose a week, a month or a longer period.",
+      reason: {
+        admin_only: "amounts and unit economics are shown to administrators only",
+        not_configured: "the data source is not connected yet (rollout in progress)",
+        read_failed: "reading the source failed - refresh the view",
+        no_data: "the source returned no data for this period",
+        history: "history from {{since}} - full result from {{full}}",
+        full_year: "this indicator needs 12 full months - choose the “Last 12 months” period",
+        inputs: "manual inputs are missing: {{inputs}}",
+        other_currency:
+          "amounts exist only in other currencies ({{currencies}}) - pick a currency in the selector",
+        no_base:
+          "there is no base to compute it in this period (e.g. a zero denominator) - this is not zero",
+        not_measured:
+          "the hub does not compute this indicator yet - the glossary shows its definition and benchmark",
+      },
     },
     communityTab: {
       sectionLabel: "Community section",
       journeysNote:
         "Reminders before events and replies to club applications are sent by communication journeys.",
+      journeysLink: "Open communication journeys",
+      kpiHeading: "Community indicators",
+      kpiDescription:
+        "Attendance, ticket revenue and club activity in the selected period - rated against the benchmark from the indicator registry.",
+      allSegmentsNote:
+        "Event and club breakdowns are not split by customer segment - the cards cover every participant.",
+      openEvents: "Open the events module",
+      openStudio: "{{name}} - open in the event studio",
+      revenueColumn: "Net revenue",
+      eventsCaption: "Events in the period - registrations, attendance and revenue",
+      pool: {
+        share: "Share of admitted registrations: {{value}}",
+        shareNone: "Share of admitted registrations: no data (no registrations in the period)",
+        empty: "Nobody used a plan ticket pool in this period.",
+        caption: "Events with tickets from a plan pool",
+        configure: "Ticket pools in plans - Membership",
+      },
+      clubs: {
+        decided: "Decisions in the period",
+        decisionsNote:
+          "Decisions also cover applications submitted before the period, so their share of submitted ones is not computed. The acceptance share is computed among decisions.",
+        decisionNone: "No decisions in the period",
+        openInbox: "Applications awaiting a decision",
+        openAnalytics: "{{name}} - club analytics",
+        caption: "Clubs - members, activity and applications",
+      },
     },
     funnelTab: {
       trackLabel: "Funnel track",
