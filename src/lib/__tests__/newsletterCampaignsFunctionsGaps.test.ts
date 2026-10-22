@@ -492,12 +492,26 @@ describe("personalizacja i tracking - treść maila powstaje z danych osoby", ()
     expect(html).toContain("a&amp;b@example.test");
   });
 
-  it("każdy link w treści jedzie przez PODPISANE przekierowanie", async () => {
+  it("każdy link w treści jedzie przez PODPISANE przekierowanie (odbiorca ze zgodą na pomiar)", async () => {
     // Bez podpisu per-link adres przekierowania da się podmienić w URL-u -
     // czyli mail z domeny nadawcy staje się otwartym redirectem.
     plan.claimed = campaign({
       html_pl: '<p><a href="https://nes.example.test/analiza">Czytaj</a></p>',
     });
+    // I9d-Y2: linki z tokenem tylko przy zgodzie na pomiar i włączonym
+    // przełączniku najemcy - baza mówi `measured` dla adresu odbiorcy.
+    h.rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) =>
+      fn === "email_measurement_status"
+        ? {
+            data: (args.p_emails as string[]).map((email) => ({
+              email,
+              consent: true,
+              measured: true,
+            })),
+            error: null,
+          }
+        : { data: [], error: null },
+    );
 
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 

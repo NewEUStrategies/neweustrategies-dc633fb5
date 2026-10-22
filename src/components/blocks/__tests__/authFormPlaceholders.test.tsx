@@ -32,6 +32,9 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.guard }));
 vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: {} }));
+// Zapis na newsletter po rejestracji (I9d-Y2) - funkcja serwerowa poza zakresem
+// tego testu (placeholdery pól).
+vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/integrations/supabase/client", () => ({
