@@ -3,8 +3,9 @@
 --
 -- CO PRZYPINA:
 --   * kontakt do wysyłki ścieżki: `measurement` = `open_tracking` =
---     `link_tracking` = przełącznik ORAZ zgoda kontaktu (bez zgody i przy
---     wyłączonym przełączniku - false);
+--     `link_tracking` = przełącznik ORAZ zgoda kontaktu (bez zgody, przy
+--     wyłączonym przełączniku i - od I9d-Y2b, D2 - dla kontaktu CRM bez
+--     potwierdzonej subskrypcji - false);
 --   * zapis zdarzeń ścieżki i kampanii: otwarcie i kliknięcie bez zgody ->
 --     `no_measurement_consent` (bez wiersza, bez znacznika zaangażowania),
 --     ze zgodą - zapis; wycofanie pomiaru działa na maile wysłane wcześniej;
@@ -16,7 +17,7 @@
 --
 -- Uruchamianie: PGTAP_DIR=... PGTAP_PORT=... bash scripts/pgtap-local/run.sh test hub_i9d_y2_tracking
 BEGIN;
-SELECT plan(19);
+SELECT plan(20);
 
 -- ── Fikstura ─────────────────────────────────────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -45,17 +46,35 @@ GRANT EXECUTE ON FUNCTION pg_temp.as_user(text) TO authenticated;
 CREATE TEMP TABLE r (k text PRIMARY KEY, v jsonb) ON COMMIT DROP;
 GRANT ALL ON r TO authenticated;
 
--- Kontakty: J1 ze zgodą na pomiar (wersja z pomiarem), J2 bez (zgoda sprzed Y2).
+-- „Tak" pomiaru z jawną chwilą i źródłem (fikstura; flaga jak w jedynym
+-- pisarzu `_email_measurement_grant` - bez niej strażnik rejestru odrzuca).
+CREATE FUNCTION pg_temp.grant_raw(p_email text, p_source public.crm_source_type, p_source_id uuid, p_at timestamptz)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM set_config('nes.email_measurement_grant', 'on', true);
+  INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, form_id, consent_key, consent_text,
+                                      consent_version, given, created_at)
+  VALUES ('19d70000-0000-4000-8000-0000000000a0', p_email, p_source, p_source_id, 'measurement:reconfirm',
+          'email_measurement', public._email_measurement_consent_default('pl'),
+          public._email_measurement_consent_version(), true, p_at);
+  PERFORM set_config('nes.email_measurement_grant', '', true);
+END $$;
+CREATE FUNCTION pg_temp.grant_at(p_email text, p_at timestamptz) RETURNS void LANGUAGE sql AS $$
+  SELECT pg_temp.grant_raw(p_email, 'newsletter',
+                           (SELECT s.id FROM public.newsletter_subscribers s WHERE s.email = p_email), p_at)
+$$;
+
+-- Kontakty: J1 - subskrybent ze zgodą na pomiar, J2 - subskrybent bez zgody,
+-- J3 - kontakt CRM bez subskrypcji z wpisem „tak" (D2: brak pomiaru).
 INSERT INTO public.crm_leads (id, tenant_id, email, email_norm, marketing_consent)
 SELECT ('19d70000-0000-4000-8000-0000000030a' || n)::uuid, '19d70000-0000-4000-8000-0000000000a0',
        'j' || n || '@i9d-y2-pomiar.test', 'j' || n || '@i9d-y2-pomiar.test', true
+  FROM generate_series(1, 3) n;
+INSERT INTO public.newsletter_subscribers (tenant_id, email, status)
+SELECT '19d70000-0000-4000-8000-0000000000a0', 'j' || n || '@i9d-y2-pomiar.test', 'subscribed'
   FROM generate_series(1, 2) n;
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, consent_version, given,
-                                    created_at)
-VALUES ('19d70000-0000-4000-8000-0000000000a0', 'j1@i9d-y2-pomiar.test', 'contact_form', 'marketing', 'Treść z pomiarem',
-        public._newsletter_consent_version(), true, now() - interval '1 day'),
-       ('19d70000-0000-4000-8000-0000000000a0', 'j2@i9d-y2-pomiar.test', 'contact_form', 'marketing', 'Treść sprzed Y2',
-        NULL, true, now() - interval '1 day');
+SELECT pg_temp.grant_at('j1@i9d-y2-pomiar.test', now() - interval '1 day');
+SELECT pg_temp.grant_raw('j3@i9d-y2-pomiar.test', 'other', '19d70000-0000-4000-8000-0000000030a3', now() - interval '1 day');
 
 INSERT INTO public.journey_definitions (id, tenant_id, key, name, status, category) VALUES
   ('19d70000-0000-4000-8000-0000000050a1', '19d70000-0000-4000-8000-0000000000a0', 'i9d-y2', 'Pomiar', 'active', 'marketing');
@@ -75,22 +94,24 @@ INSERT INTO public.journey_enrollments (id, tenant_id, journey_id, version_id, l
 SELECT ('19d70000-0000-4000-8000-0000000050c' || n)::uuid, '19d70000-0000-4000-8000-0000000000a0',
        '19d70000-0000-4000-8000-0000000050a1', '19d70000-0000-4000-8000-0000000050b1',
        ('19d70000-0000-4000-8000-0000000030a' || n)::uuid, 'active', 'm', '{}', 'y2-' || n
-  FROM generate_series(1, 2) n;
+  FROM generate_series(1, 3) n;
 INSERT INTO public.journey_messages (message_id, tenant_id, enrollment_id, journey_id, version_id, node_id, lead_id, queued_at)
 SELECT 'i9d-y2-m' || n, '19d70000-0000-4000-8000-0000000000a0', ('19d70000-0000-4000-8000-0000000050c' || n)::uuid,
        '19d70000-0000-4000-8000-0000000050a1', '19d70000-0000-4000-8000-0000000050b1', 'm',
        ('19d70000-0000-4000-8000-0000000030a' || n)::uuid, now() - interval '1 hour'
-  FROM generate_series(1, 2) n;
+  FROM generate_series(1, 3) n;
 
--- Kampania: S1 ze zgodą na pomiar, S2 bez; kampania obcego najemcy.
+-- Kampania: S1 ze zgodą na pomiar, S2 bez (sama zgoda na newsletter); kampania
+-- obcego najemcy.
 INSERT INTO public.newsletter_subscribers (id, tenant_id, email, status, consents)
 SELECT ('19d70000-0000-4000-8000-0000000060a' || n)::uuid, '19d70000-0000-4000-8000-0000000000a0',
        's' || n || '@i9d-y2-pomiar.test', 'subscribed',
-       CASE WHEN n = 1 THEN jsonb_build_array(jsonb_build_object(
+       CASE WHEN n IN (1, 2) THEN jsonb_build_array(jsonb_build_object(
               'key', 'newsletter', 'text', public._newsletter_consent_default('pl'),
               'version', public._newsletter_consent_version()))
             ELSE '[]'::jsonb END
   FROM generate_series(1, 3) n;
+SELECT pg_temp.grant_at('s1@i9d-y2-pomiar.test', now() - interval '1 day');
 INSERT INTO public.newsletter_campaigns (id, tenant_id, name) VALUES
   ('19d70000-0000-4000-8000-0000000020a1', '19d70000-0000-4000-8000-0000000000a0', 'Kampania Y2'),
   ('19d70000-0000-4000-8000-0000000020b1', '19d70000-0000-4000-8000-0000000000b0', 'Kampania obca');
@@ -103,6 +124,7 @@ SELECT '19d70000-0000-4000-8000-0000000000a0', '19d70000-0000-4000-8000-00000000
 -- ── 1. Kontakt do wysyłki ścieżki ────────────────────────────────────────────
 INSERT INTO r SELECT 'c1', public.journey_contact_for_send('19d70000-0000-4000-8000-0000000050c1', 'm');
 INSERT INTO r SELECT 'c2', public.journey_contact_for_send('19d70000-0000-4000-8000-0000000050c2', 'm');
+INSERT INTO r SELECT 'c3', public.journey_contact_for_send('19d70000-0000-4000-8000-0000000050c3', 'm');
 SELECT is(
   (SELECT jsonb_build_object('m', v -> 'measurement', 'o', v -> 'open_tracking', 'l', v -> 'link_tracking') FROM r WHERE k = 'c1'),
   '{"l": true, "m": true, "o": true}'::jsonb,
@@ -110,7 +132,11 @@ SELECT is(
 SELECT is(
   (SELECT jsonb_build_object('m', v -> 'measurement', 'o', v -> 'open_tracking', 'l', v -> 'link_tracking') FROM r WHERE k = 'c2'),
   '{"l": false, "m": false, "o": false}'::jsonb,
-  'kontakt bez zgody na pomiar (zgoda sprzed Y2): bez piksela, linki nieprzepisane');
+  'kontakt bez zgody na pomiar (sama zgoda na newsletter): bez piksela, linki nieprzepisane');
+SELECT is(
+  (SELECT jsonb_build_object('m', v -> 'measurement', 'o', v -> 'open_tracking', 'l', v -> 'link_tracking') FROM r WHERE k = 'c3'),
+  '{"l": false, "m": false, "o": false}'::jsonb,
+  'kontakt CRM bez subskrypcji z wpisem „tak" (I9d-Y2b, D2): bez piksela, linki nieprzepisane');
 
 -- ── 2. Zapis zdarzeń ścieżki ─────────────────────────────────────────────────
 SELECT is(public.journey_record_message_event('i9d-y2-m2', 'click', 0, 'https://nes.example/a') - 'tenant_id',
@@ -159,9 +185,7 @@ SELECT is(
   public.newsletter_record_campaign_event('19d70000-0000-4000-8000-0000000020a1', '19d70000-0000-4000-8000-0000000060a1', 'open')
     ->> 'reason',
   'measurement_disabled', 'kampania: przełącznik wyłączony - otwarcie nie jest zapisywane mimo zgody');
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
-VALUES ('19d70000-0000-4000-8000-0000000000a0', 'j1@i9d-y2-pomiar.test', 'newsletter', 'email_measurement',
-        'Ponowna zgoda na pomiar', true, now() + interval '1 second');
+SELECT pg_temp.grant_at('j1@i9d-y2-pomiar.test', clock_timestamp() + interval '1 second');
 SELECT ok(
   public.journey_record_message_event('i9d-y2-m1', 'click', 2, 'https://nes.example/d') ->> 'reason' = 'measurement_disabled'
   AND public.journey_contact_for_send('19d70000-0000-4000-8000-0000000050c1', 'm') ->> 'link_tracking' = 'false',

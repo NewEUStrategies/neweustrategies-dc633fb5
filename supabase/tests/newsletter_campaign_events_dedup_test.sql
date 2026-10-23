@@ -42,15 +42,24 @@ INSERT INTO public.newsletter_subscribers (id, tenant_id, email, status) VALUES
 
 -- Zgoda czytelników na pomiar otwarć i kliknięć: od I9d-Y2 zapis zdarzenia
 -- wymaga jej w chwili zdarzenia (przypadki bez zgody - hub_i9d_y2_tracking).
--- Przedmiotem tego testu jest unikalność, więc zgoda jest tłem.
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
-SELECT x.t::uuid, x.e, 'newsletter', 'email_measurement', 'Zgoda na pomiar otwarć i kliknięć', true,
-       now() - interval '1 day'
-  FROM (VALUES ('d1111111-1111-1111-1111-1111111111d1', 'reader-a@x.test'),
-               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a2@x.test'),
-               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a3@x.test'),
-               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a4@x.test'),
-               ('d2222222-2222-2222-2222-2222222222d2', 'reader-b@x.test')) x(t, e);
+-- Przedmiotem tego testu jest unikalność, więc zgoda jest tłem. Od I9d-Y2b
+-- (D2) wpis „tak" jest związany z subskrybentem (`source_id`; czytelnicy a3
+-- i a4 dochodzą niżej z tymi identyfikatorami) i powstaje wyłącznie z flagą
+-- jedynego pisarza (strażnik rejestru).
+DO $$
+BEGIN
+  PERFORM set_config('nes.email_measurement_grant', 'on', true);
+  INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, form_id, consent_key, consent_text,
+                                      consent_version, given, created_at)
+  SELECT x.t::uuid, x.e, 'newsletter', x.s::uuid, 'measurement:reconfirm', 'email_measurement',
+         'Zgoda na pomiar otwarć i kliknięć', 'email-measurement-2026-10-23', true, now() - interval '1 day'
+    FROM (VALUES ('d1111111-1111-1111-1111-1111111111d1', 'reader-a@x.test', '5a111111-1111-1111-1111-1111111111aa'),
+                 ('d1111111-1111-1111-1111-1111111111d1', 'reader-a2@x.test', '5a222222-2222-2222-2222-2222222222aa'),
+                 ('d1111111-1111-1111-1111-1111111111d1', 'reader-a3@x.test', '5a333333-3333-3333-3333-3333333333aa'),
+                 ('d1111111-1111-1111-1111-1111111111d1', 'reader-a4@x.test', '5a444444-4444-4444-4444-4444444444aa'),
+                 ('d2222222-2222-2222-2222-2222222222d2', 'reader-b@x.test', '5b111111-1111-1111-1111-1111111111bb')) x(t, e, s);
+  PERFORM set_config('nes.email_measurement_grant', '', true);
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 1) Sam inwariant: indeks istnieje, jest UNIKALNY i CZĘŚCIOWY

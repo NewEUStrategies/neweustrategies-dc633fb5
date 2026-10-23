@@ -73,13 +73,22 @@ SELECT t::uuid, k || '@i9d-newsletter.test', CASE WHEN k = 's7' THEN 'pending' E
                ('19d40000-0000-4000-8000-0000000000a0', 's9'), ('19d40000-0000-4000-8000-0000000000a0', 's10'),
                ('19d40000-0000-4000-8000-0000000000a0', 's11'),
                ('19d40000-0000-4000-8000-0000000000b0', 'sb'), ('19d40000-0000-4000-8000-0000000000c0', 'sc')) x(t, k);
--- Zgoda na pomiar otwarć i kliknięć (od I9d-Y2 zapis zdarzeń wymaga jej
--- w chwili zdarzenia) - udzielona razem z zapisem, więc z tą samą chwilą.
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, consent_key, consent_text, given)
-SELECT s.tenant_id, s.email, 'newsletter', s.id, 'email_measurement', 'Zgoda na pomiar otwarć i kliknięć', true
-  FROM public.newsletter_subscribers s WHERE s.email LIKE '%@i9d-newsletter.test';
 -- Wpisy zgód z zapisu (wyzwalacz modułu) - z chwilą zapisu, nie testu.
 UPDATE public.crm_consent_log SET created_at = pg_temp.ts('20 months') WHERE email LIKE '%@i9d-newsletter.test';
+-- Zgoda na pomiar otwarć i kliknięć (od I9d-Y2 zapis zdarzeń wymaga jej
+-- w chwili zdarzenia) - z chwilą zapisu. Od I9d-Y2b wpis „tak" związany
+-- z subskrybentem (kanał i wersja treści pomiaru) powstaje wyłącznie z flagą
+-- jedynego pisarza, a jego chwila jest niezmienna - datowana od razu.
+DO $$
+BEGIN
+  PERFORM set_config('nes.email_measurement_grant', 'on', true);
+  INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, form_id, consent_key, consent_text,
+                                      consent_version, given, created_at)
+  SELECT s.tenant_id, s.email, 'newsletter', s.id, 'measurement:reconfirm', 'email_measurement',
+         'Zgoda na pomiar otwarć i kliknięć', 'email-measurement-2026-10-23', true, now() - interval '20 months'
+    FROM public.newsletter_subscribers s WHERE s.email LIKE '%@i9d-newsletter.test';
+  PERFORM set_config('nes.email_measurement_grant', '', true);
+END $$;
 -- S10: zgoda marketingowa także z formularza kontaktowego (inne źródło).
 INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
 VALUES ('19d40000-0000-4000-8000-0000000000a0', 's10@i9d-newsletter.test', 'contact_form', 'marketing',
