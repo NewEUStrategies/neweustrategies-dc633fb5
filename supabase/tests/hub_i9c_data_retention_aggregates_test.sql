@@ -173,10 +173,22 @@ SELECT '19c30000-0000-4000-8000-0000000000c0', 'i9c3-m1', x.kind, x.at, (x.at AT
   FROM (VALUES ('open', pg_temp.w('d1') + interval '2 hours'), ('click', pg_temp.w('d1') + interval '2 hours')) x(kind, at);
 
 -- ── 1. Pomiar otwarć (piksel) ────────────────────────────────────────────────
--- Zgoda kontaktu j3 na pomiar (I9d-Y2: piksel tylko za zgodą).
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
-VALUES ('19c30000-0000-4000-8000-0000000000c0', 'j3@i9c-agregaty.test', 'newsletter', 'email_measurement',
-        'Zgoda na pomiar otwarć i kliknięć', true, now() - interval '2 hours');
+-- Zgoda kontaktu j3 na pomiar (I9d-Y2: piksel tylko za zgodą; I9d-Y2b, D2:
+-- kontakt jest potwierdzonym subskrybentem, wpis „tak" związany z tym wierszem
+-- i zapisany z flagą jedynego pisarza - strażnik rejestru).
+INSERT INTO public.newsletter_subscribers (tenant_id, email, status)
+VALUES ('19c30000-0000-4000-8000-0000000000c0', 'j3@i9c-agregaty.test', 'subscribed');
+DO $$
+BEGIN
+  PERFORM set_config('nes.email_measurement_grant', 'on', true);
+  INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, form_id, consent_key, consent_text,
+                                      consent_version, given, created_at)
+  SELECT s.tenant_id, s.email, 'newsletter', s.id, 'measurement:reconfirm', 'email_measurement',
+         'Zgoda na pomiar otwarć i kliknięć', 'email-measurement-2026-10-23', true, now() - interval '2 hours'
+    FROM public.newsletter_subscribers s
+   WHERE s.tenant_id = '19c30000-0000-4000-8000-0000000000c0' AND s.email = 'j3@i9c-agregaty.test';
+  PERFORM set_config('nes.email_measurement_grant', '', true);
+END $$;
 SELECT is(public.journey_contact_for_send('19c30000-0000-4000-8000-0000000050f3', 'm') ->> 'open_tracking', 'true',
   'piksel: bez ustawień silnika pomiar otwarć włączony (domyślnie)');
 SET LOCAL ROLE authenticated;
