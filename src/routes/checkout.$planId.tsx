@@ -78,9 +78,17 @@ export const Route = createFileRoute("/checkout/$planId")({
   head: () => ({
     meta: [
       { title: "Checkout | New European Strategies" },
-      { name: "description", content: "Complete your New European Strategies membership order in your plan's billing currency." },
+      {
+        name: "description",
+        content:
+          "Complete your New European Strategies membership order in your plan's billing currency.",
+      },
       { property: "og:title", content: "Checkout | New European Strategies" },
-      { property: "og:description", content: "Complete your New European Strategies membership order in your plan's billing currency." },
+      {
+        property: "og:description",
+        content:
+          "Complete your New European Strategies membership order in your plan's billing currency.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
