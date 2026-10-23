@@ -152,6 +152,21 @@ describe("„Zgadzam się na pomiar”", () => {
     fireEvent.click(button);
     expect(await screen.findByText(pl("newsletterMeasurement.grantedTitle"))).toBeTruthy();
     expect(postBody(1)).toEqual({ token: "cabc", channel: "email_footer" });
+    // Kliknięty przycisk zniknął - fokus na nagłówku wyniku (WCAG 2.4.3).
+    const heading = screen.getByRole("heading", {
+      name: pl("newsletterMeasurement.grantedTitle"),
+    });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
+  it("wynik bez kliknięcia (od razu po wejściu) NIE przesuwa fokusu i nie jest celem fokusu", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: false, error: "expired" }, 410));
+    await mount("?token=cabc");
+    const heading = await screen.findByRole("heading", {
+      name: pl("newsletterMeasurement.expiredTitle"),
+    });
+    expect(document.activeElement).not.toBe(heading);
+    expect(heading.hasAttribute("tabindex")).toBe(false);
   });
 
   it("EN: treść zgody po angielsku (język subskrybenta z GET)", async () => {

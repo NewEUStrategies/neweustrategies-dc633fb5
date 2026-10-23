@@ -157,6 +157,41 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     expect(postBody(2)).toEqual({ token: TOKEN, decision: "grant" });
   });
 
+  it("po decyzji fokus przechodzi na nagłówek wyniku - kliknięty przycisk znika (WCAG 2.4.3)", async () => {
+    await mountWithCard();
+    const grant = grantButton();
+    grant.focus();
+    expect(document.activeElement).toBe(grant);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, result: "granted" }));
+    fireEvent.click(grant);
+    const heading = await screen.findByRole("heading", {
+      name: pl("newsletterMeasurement.grantedTitle"),
+    });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    // Cel fokusu programowego, nie przystanek w kolejce Tab.
+    expect(heading.getAttribute("tabindex")).toBe("-1");
+    expect(heading.tagName).toBe("H2");
+  });
+
+  it("ponowienie po błędzie także przenosi fokus na nagłówek nowego wyniku", async () => {
+    await mountWithCard();
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    fireEvent.click(declineButton());
+    const errorHeading = await screen.findByRole("heading", {
+      name: pl("newsletterMeasurement.errorTitle"),
+    });
+    await waitFor(() => expect(document.activeElement).toBe(errorHeading));
+
+    const retry = screen.getByRole("button", { name: pl("newsletterMeasurement.retryBtn") });
+    retry.focus();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, result: "declined" }));
+    fireEvent.click(retry);
+    const declined = await screen.findByRole("heading", {
+      name: pl("newsletterMeasurement.declinedTitle"),
+    });
+    await waitFor(() => expect(document.activeElement).toBe(declined));
+  });
+
   it("w trakcie zapisu oba przyciski są zablokowane i mówią o pracy", async () => {
     await mountWithCard();
     fetchMock.mockReturnValueOnce(new Promise(() => {}));

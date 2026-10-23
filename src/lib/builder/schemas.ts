@@ -126,7 +126,26 @@ export interface SchemaField {
   visibleWhen?: (content: Record<string, unknown>) => boolean;
   /** Optional group label to visually cluster related fields in the editor. */
   group?: string;
+  /**
+   * Ostrzeżenie LICZONE z wartości pola (pole i18n: oba języki) - panel
+   * pokazuje notkę pod kontrolką, zapisu nie blokuje (decyzja należy do
+   * redakcji). Regułę i napis trzyma panel (`SchemaFieldControl`), schemat
+   * tylko ją wskazuje - jak `type` wskazuje kontrolkę.
+   */
+  warning?: SchemaFieldWarning;
 }
+
+/**
+ * Reguły ostrzeżeń pól schematu:
+ *   * `newsletterConsentMentionsMeasurement` (I9d-Y2b, R1.24; przegląd R1 -
+ *     ui-r1-2) - WŁASNY tekst zgody na newsletter (treść zgody widżetu
+ *     „Dołącz do nas", etykieta zapisu do newslettera w formularzu kontaktu
+ *     i rejestracji) wspomina pomiar otwarć i kliknięć. Zapis przez formularz
+ *     nie daje zgody na pomiar - pomiar ma osobne pole - więc taki tekst
+ *     wprowadzałby czytelnika w błąd. Lustro kontroli Y2b-K5b runbooka
+ *     i ostrzeżeń panelu newslettera (`consentTextRules.ts`).
+ */
+export type SchemaFieldWarning = "newsletterConsentMentionsMeasurement";
 
 /**
  * Propsy komponentu, który rysuje pole o typie spoza zestawu podstawowego
@@ -3130,7 +3149,12 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "interestsLabel", type: "i18nText", label: "Nagłówek zainteresowań" },
     { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
     { key: "submittingLabel", type: "i18nText", label: "Etykieta podczas wysyłki" },
-    { key: "consentText", type: "i18nText", label: "Tekst zgody / stopka" },
+    {
+      key: "consentText",
+      type: "i18nText",
+      label: "Tekst zgody / stopka",
+      warning: "newsletterConsentMentionsMeasurement",
+    },
     { key: "successText", type: "i18nText", label: "Komunikat sukcesu" },
     { key: "namePlaceholder", type: "i18nText", label: "Placeholder: Imię (pojedyncze pole)" },
     { key: "emailPlaceholder", type: "i18nText", label: "Placeholder: E-mail" },
@@ -3495,7 +3519,12 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
 
-    { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
+    {
+      key: "newsletterLabel",
+      type: "i18nText",
+      label: "Etykieta zapisu do newslettera",
+      warning: "newsletterConsentMentionsMeasurement",
+    },
     // ----- Layout & przycisk -----
     {
       key: "columns",
@@ -4047,7 +4076,12 @@ const authFieldBlock = (
   authToggle("requireConsent", "Wymagaj zgody RODO?", true),
   { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)" },
   authToggle("newsletterOptIn", "Pokaż zapis do newslettera?", true),
-  { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
+  {
+    key: "newsletterLabel",
+    type: "i18nText",
+    label: "Etykieta zapisu do newslettera",
+    warning: "newsletterConsentMentionsMeasurement",
+  },
   authToggle("showOAuthGoogle", "Pokaż rejestrację Google?", true),
   { key: "redirectTo", type: "text", label: "Po rejestracji przekieruj do", placeholder: "/" },
   { key: "loginHref", type: "text", label: "URL logowania", placeholder: "/login" },

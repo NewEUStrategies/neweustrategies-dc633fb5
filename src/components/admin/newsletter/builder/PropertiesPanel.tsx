@@ -50,6 +50,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import { isReservedConsentKey } from "@/lib/newsletter/measurementConsentText";
 
 /**
  * Pole URL obrazu z:
@@ -831,14 +832,30 @@ function WidgetProps({
     }
     case "field.checkbox": {
       const w = selected as NlCheckboxWidget;
+      // Klucz zastrzeżony dla osobnego pola pomiaru (I9d-Y2b, przegląd R1 -
+      // ui-r1-4): formularz takiego pola nie rysuje ani nie zbiera, więc
+      // panel mówi to wprost przy kluczu (bez blokowania pisania - przez
+      // `email_measurement` przechodzi się, wpisując np. `email_measurement_x`).
+      const keyId = `nl-checkbox-key-${w.id}`;
+      const reserved = isReservedConsentKey(w.key);
       return (
         <div className="space-y-3">
           <div>
-            <Label>Klucz zgody</Label>
+            <Label htmlFor={keyId}>Klucz zgody</Label>
             <Input
+              id={keyId}
               value={w.key}
+              aria-invalid={reserved || undefined}
+              aria-describedby={reserved ? `${keyId}-reserved` : undefined}
               onChange={(e) => onPatch({ key: e.target.value } as Partial<NlWidget>)}
             />
+            {reserved ? (
+              <p id={`${keyId}-reserved`} role="alert" className="mt-1 text-xs text-destructive">
+                Klucz zastrzeżony dla osobnego pola zgody na pomiar otwarć i kliknięć - pole z tym
+                kluczem nie trafi do formularza ani do zapisanych zgód. Zmień klucz; pole pomiaru
+                formularz dokłada sam (stała treść, pod sekcją z przyciskiem).
+              </p>
+            ) : null}
           </div>
           <I18nField
             label="Tresc (HTML)"

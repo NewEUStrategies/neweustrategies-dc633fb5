@@ -1,11 +1,15 @@
 import "@/lib/i18n-builder";
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import { asBool } from "@/lib/content-model/contentValue";
-import type { ContentPatch, SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
+import type {
+  ContentPatch,
+  SchemaField as SchemaFieldDef,
+  SchemaFieldWarning,
+} from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,9 +41,10 @@ import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { LucideIconPicker } from "./LucideIconPicker";
 import { PageUrlAutocomplete } from "./PageUrlAutocomplete";
 import { RichHtmlField } from "./RichHtmlField";
-import { Image as ImageIcon, FolderOpen } from "lucide-react";
+import { AlertTriangle, Image as ImageIcon, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
+import { newsletterConsentMentionsMeasurement } from "@/components/admin/newsletter/measurement/consentTextRules";
 
 interface Props {
   field: SchemaFieldDef;
@@ -60,7 +65,89 @@ const asString = (v: unknown): string => (typeof v === "string" ? v : "");
 const asStringArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
-export function SchemaFieldControl({ field, lang, content, setContent, setContentPatch }: Props) {
+/**
+ * Reguły ostrzeżeń pól (`SchemaField.warning`): test wartości i klucz napisu.
+ * `newsletterConsentMentionsMeasurement` - R1.24 (I9d-Y2b; przegląd R1 -
+ * ui-r1-2): ta sama reguła co karta treści zgody i zakładka „Pola" popupu,
+ * więc panel newslettera, inspektor buildera i kontrola Y2b-K5b runbooka
+ * wskazują te same teksty.
+ */
+const FIELD_WARNINGS: Record<
+  SchemaFieldWarning,
+  { test: (value: string) => boolean; key: string }
+> = {
+  newsletterConsentMentionsMeasurement: {
+    test: newsletterConsentMentionsMeasurement,
+    key: "builder.schemaField.consentMentionsMeasurement",
+  },
+};
+
+const I18N_FIELD_TYPES: ReadonlySet<SchemaFieldDef["type"]> = new Set([
+  "i18nText",
+  "i18nHtml",
+  "i18nStringArray",
+]);
+
+/**
+ * Czy ostrzeżenie pola się zapala. Pole i18n sprawdzamy w OBU językach -
+ * inspektor pokazuje jeden naraz, a tekst EN z opisem pomiaru wprowadza
+ * w błąd tak samo jak PL.
+ */
+function schemaFieldWarningKey(
+  field: SchemaFieldDef,
+  content: Record<string, unknown>,
+): string | null {
+  if (!field.warning) return null;
+  const rule = FIELD_WARNINGS[field.warning];
+  const keys = I18N_FIELD_TYPES.has(field.type)
+    ? [`${field.key}_pl`, `${field.key}_en`]
+    : [field.key];
+  return keys.some((key) => {
+    const value = content[key];
+    return typeof value === "string" && rule.test(value);
+  })
+    ? rule.key
+    : null;
+}
+
+/**
+ * Kontrolka pola ze schematu + (opcjonalnie) ostrzeżenie liczone z wartości.
+ * Notka stoi POD kontrolką, w tym samym bloku, i nie blokuje zapisu.
+ */
+export function SchemaFieldControl(props: Props) {
+  const { t } = useTranslation();
+  const warningId = useId();
+  const { field, content } = props;
+  if (field.visibleWhen && !field.visibleWhen(content)) return null;
+  const warningKey = schemaFieldWarningKey(field, content);
+  if (!warningKey) return <SchemaFieldInput {...props} />;
+  return (
+    <div className="space-y-1">
+      <SchemaFieldInput {...props} describedBy={warningId} />
+      <p
+        id={warningId}
+        role="note"
+        data-field-warning={field.warning}
+        className="flex items-start gap-1 text-[10px] leading-snug text-destructive"
+      >
+        <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+        {t(warningKey)}
+      </p>
+    </div>
+  );
+}
+
+function SchemaFieldInput({
+  field,
+  lang,
+  content,
+  setContent,
+  setContentPatch,
+  describedBy,
+}: Props & {
+  /** Identyfikator notki ostrzeżenia pod kontrolką (pole tekstowe i18n). */
+  describedBy?: string;
+}) {
   const { t } = useTranslation();
   // Schema copy is authored in Polish; render it in the admin's UI language.
   const bl = useBuilderLabel();
@@ -194,6 +281,10 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
             placeholder={placeholder}
             onChange={(e) => setContent(i18nKey, e.target.value)}
             className="h-8 text-xs"
+            // Nazwa dostępna jak w `i18nStringArray` (etykieta `PropField`
+            // nie jest powiązana z kontrolką) i notka ostrzeżenia jako opis.
+            aria-label={`${label} (${langSuffix})`}
+            aria-describedby={describedBy}
           />
         </PropField>
       );

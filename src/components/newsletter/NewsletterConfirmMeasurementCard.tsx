@@ -18,7 +18,9 @@
 // (`i18n-newsletter-measurement`) ze stroną `/newsletter/measurement` -
 // R1.18. Napisy karty w języku treści zgody (atrybut `lang` sekcji: czytnik
 // ekranu wymawia ją poprawnie, także gdy interfejs strony jest w innym
-// języku). Wynik w regionie `aria-live="polite"`.
+// języku). Wynik w regionie `aria-live="polite"`; po każdej decyzji (także
+// ponowieniu) fokus przechodzi na nagłówek wyniku (`focusKey` panelu -
+// kliknięty przycisk znika, WCAG 2.4.3; przegląd R1 - ui-r1-3).
 import { useMemo, useRef, useState } from "react";
 
 import {
@@ -72,6 +74,8 @@ export function NewsletterConfirmMeasurementCard({
   const t = useMemo(() => i18n.getFixedT(lang), [lang]);
   const [outcome, setOutcome] = useState<MeasurementOutcome | null>(null);
   const [busy, setBusy] = useState(false);
+  // Licznik zakończonych decyzji - cel fokusu po każdej z nich.
+  const [decisions, setDecisions] = useState(0);
   // Ponowienie po błędzie przejściowym powtarza decyzję, którą osoba już
   // kliknęła po przeczytaniu treści - nigdy innej.
   const lastDecision = useRef<DoiMeasurementDecision | null>(null);
@@ -90,6 +94,7 @@ export function NewsletterConfirmMeasurementCard({
       setOutcome("error");
     } finally {
       setBusy(false);
+      setDecisions((count) => count + 1);
     }
   }
 
@@ -116,6 +121,7 @@ export function NewsletterConfirmMeasurementCard({
           busy={busy}
           onRetry={retry}
           headingLevel={2}
+          focusKey={decisions}
         />
       )}
     </section>

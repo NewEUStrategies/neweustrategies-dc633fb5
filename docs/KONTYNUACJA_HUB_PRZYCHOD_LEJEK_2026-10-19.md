@@ -183,8 +183,9 @@ runbook §3.3, §6, §7.2 i **§8.2** (kolejność, Y2b-K1…K9 i K5b, wyłączn
 drizzle - `0397`.** Integracja (§25 pkt 12): scalenia pasów, bliźniaki
 i wpisy pasów, typy, authz; treść domyślna zgody w chunku startowym
 z liścia `newsletterConsentCurrent` (sanitizer i treść pola pomiaru poza
-`app-initial`); ratchet D-08 `overall` 5371 → 5378. Otwarte: Z-I9d-22…24
-(§25 pkt 10), pytania Q1-Q3 (§25 pkt 9).
+`app-initial`); ratchet D-08 `overall` 5371 → 5378. Otwarte: Z-I9d-23
+(§25 pkt 10; Z-I9d-22 i Z-I9d-24 zamknięte w poprawkach przeglądu R1 -
+§25 pkt 13), pytania Q1-Q3 (§25 pkt 9).
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych

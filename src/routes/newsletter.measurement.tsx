@@ -137,6 +137,10 @@ function NewsletterMeasurementPage() {
   const [decided, setDecided] = useState(false);
   const [check, setCheck] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Licznik zakończonych decyzji (POST) - po każdej fokus przechodzi na
+  // nagłówek wyniku, bo kliknięty przycisk znika (WCAG 2.4.3). Wynik samego
+  // sprawdzenia (GET) fokusu nie przesuwa.
+  const [decisions, setDecisions] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -178,6 +182,7 @@ function NewsletterMeasurementPage() {
       setState("error");
     } finally {
       setBusy(false);
+      setDecisions((count) => count + 1);
     }
   }
 
@@ -216,7 +221,13 @@ function NewsletterMeasurementPage() {
           />
         )}
         {state !== "loading" && state !== "confirmWithdraw" && state !== "confirmGrant" && (
-          <MeasurementOutcomeView t={t} outcome={state} busy={busy} onRetry={retry} />
+          <MeasurementOutcomeView
+            t={t}
+            outcome={state}
+            busy={busy}
+            onRetry={retry}
+            focusKey={decided ? decisions : undefined}
+          />
         )}
         <Link to="/" className="inline-block mt-2 text-sm text-brand hover:underline">
           {t("newsletter.confirmPage.backHome")}
