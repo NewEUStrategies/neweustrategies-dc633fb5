@@ -1058,12 +1058,9 @@ export async function handleDocumentRequest<T>(
     const phasesOnBypass = await readPhasesSafe(request);
     if (phasesOnBypass.length === 0) return result;
     const headers = new Headers(bypassed.headers);
-    // Powód BYPASS (method/auth/path/query) - diagnostyka produkcji: bez niego
-    // nie da się odróżnić nagłówka wstrzykniętego przez proxy hostingu od
-    // nieobsługiwanego parametru zapytania.
     headers.set(
       "server-timing",
-      `${buildServerTimingValue("BYPASS", undefined, undefined, undefined, phasesOnBypass)}, nes-bypass;desc="${plan.reason}"`,
+      buildServerTimingValue("BYPASS", undefined, undefined, undefined, phasesOnBypass),
     );
     return withMiddlewareResponse(
       result,

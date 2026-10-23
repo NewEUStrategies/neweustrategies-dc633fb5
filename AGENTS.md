@@ -33,4 +33,3 @@
 - Keep admin compact typography out of widget frames and post titles so the builder canvas and live previews show entered values.
 - Gate club hub presentation and shared club-card viewer keys with useHydrated so settled auth cannot replace guest SSR markup before hydration.
 - Stop search overflow propagation before the mobile drawer scroll root so search labels cannot disable native menu scrolling or panel clipping.
-- Prerender only `/` at build (vite.config.ts `pages`, autodiscovery off) so the CDN serves it without a worker cold start; homepage CMS edits need a republish, and worker-only headers (CSP, Server-Timing) are absent there.

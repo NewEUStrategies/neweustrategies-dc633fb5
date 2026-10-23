@@ -111,13 +111,6 @@ export default defineConfig({
   // normalizacją h3-swallowed 500 (skill: tanstack-ssr-error-handling).
   tanstackStart: {
     server: { entry: "server" },
-    // Strona główna (PL; /en przekierowuje, więc zostaje SSR) jako gotowy HTML z publikacji: CDN serwuje ją bez
-    // zimnego startu workera (pomiar 2026-10-23: 4,3 s -> ~0,3 s TTFB). Treść
-    // jest anonimowa (personalizacja dopiero po hydratacji), a zmiany CMS
-    // strony głównej wymagają ponownej publikacji. Lista jest kompletna:
-    // autodiscovery wyłączone, żeby żadna inna trasa nie trafiła do HTML-a.
-    pages: [{ path: "/" }],
-    prerender: { enabled: true, autoStaticPathsDiscovery: false },
     // Pliki testowe/snapshoty pod src/routes nie są trasami. Bez tego wzorca
     // generator próbuje je zarejestrować, loguje ostrzeżenie i przy każdej
     // zmianie przebudowuje routeTree.gen.ts => pełny "program reload" w dev,

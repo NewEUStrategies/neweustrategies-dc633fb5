@@ -682,7 +682,7 @@ describe("handleDocumentRequest - fazy Server-Timing na BYPASS", () => {
     )) as Response;
 
     expect(result.headers.get("server-timing")).toBe(
-      'nes-edge;desc="BYPASS", edge-routing;dur=284.2, nes-bypass;desc="path"',
+      'nes-edge;desc="BYPASS", edge-routing;dur=284.2',
     );
     vi.unstubAllEnvs();
   });
