@@ -2687,7 +2687,33 @@ const FROZEN_BUDGET_KB = {
   // publicCss 83,8 / 85); chunk 259,2 / 286, boot 473,0 / 579, public
   // 2796,1 / 2881 w zamrożonych progach.
   // Host 5376,7 -> 5377 -> +1.
-  overall: 5378,
+  //
+  // Ratchet 5378 -> 5380 (2026-10-23, I9d-Y2b - poprawki przeglądu R1 PR
+  // 533), decyzją zamawiającego D-08. Baza 0dffc44d (gałąź PR przed R1;
+  // kopia `git archive`, ten sam `node_modules`, ten sam host) 5377,4 /
+  // public 2796,7 / admin-only 2580,7 - na tym hoście zapas bazy 0,6 KB
+  // (host przeglądu mierzył tę samą bazę na 5378,2); po R1 z integracją
+  // 5379,0 / public 2796,7 / admin-only 2582,3: +1,6 KB, w całości
+  // admin-only, public bez zmian. Rozbicie (gzip per chunk): ostrzeżenia
+  // klucza zastrzeżonego w builderze NlDoc (`NewsletterBuilder` +0,49 -
+  // notka płótna PL/EN i komunikat przy kluczu, ui-r1-4); stan zgody na
+  // pomiar w oknie subskrybenta (`admin.newsletter.subscribers` +0,38,
+  // zaślepka funkcji serwerowej `newsletter-admin.functions` +0,05,
+  // ui-r1-1); ostrzeżenie R1.24 w inspektorze buildera (`Builder` +0,38
+  // - reguła `warning` pola schematu, `i18n-builder` +0,27 - napis PL/EN,
+  // ui-r1-2); w chunkach publicznych fokus po decyzji i `refused`
+  // (`i18n-newsletter-measurement` +0,17 - wspólny panel decyzji),
+  // kontrakt sekretu skrzynki `m` (`confirmMeasurement` +0,11, karta DOI
+  // +0,03, `newsletter.confirm` +0,02, `newsletter.measurement` +0,02),
+  // zrównoważone entropią hashy (895 chunków o |Δ| < 150 B, razem -0,26).
+  // Odzyskanie bez cofania poprawek przeglądu niemożliwe: przyrost to
+  // wyłącznie kod i napisy poprawek R1, bez martwego kodu i bez nowych
+  // zależności (`consentTextRules` i `measurementConsentText` miały już
+  // własne chunki). Arkusze CSS bit w bit te same (css 99,8 / 100,
+  // publicCss 83,8 / 85); chunk 259,2 / 286 (`app-initial` bez zmian),
+  // boot 473,0 / 579, public 2796,7 / 2881 w zamrożonych progach.
+  // Host 5379,0 -> 5379 -> +1.
+  overall: 5380,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
