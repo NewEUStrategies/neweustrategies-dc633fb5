@@ -170,10 +170,49 @@ describe("GET nigdy nie mutuje", () => {
     expect(await failed.json()).toEqual({ ok: true, action: "withdraw" });
   });
 
-  it("fetch zgody: ważny token -> ok BEZ bazy (nonce zużywa dopiero POST)", async () => {
+  it("fetch zgody: ważny token -> ok z językiem SUBSKRYBENTA, bez zapisu (nonce zużywa dopiero POST)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, lang: "en" };
+    const res = await handlers().GET(get(`?token=${confirm()}&lang=pl`));
+    expect(res.status).toBe(200);
+    // Język treści zgody = język zapisu w `_email_measurement_grant`
+    // (wiersz subskrybenta), nie `lang` z adresu (I9d-Y2b, R1.19).
+    expect(await res.json()).toEqual({ ok: true, action: "confirm", lang: "en" });
+    expect(db.state.rpcCalls).toEqual([
+      { fn: "email_measurement_state", args: { p_subscriber: SUBSCRIBER, p_lead: null } },
+    ]);
+    expect(db.state.rpcCalls.map((c) => c.fn)).not.toContain("newsletter_measurement_confirm");
+    expect(db.state.rateLimitCalls).toEqual([]);
+  });
+
+  it("fetch zgody: język spoza pl/en z bazy -> reguła `consentLangOf` (pl)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, lang: "de" };
     const res = await handlers().GET(get(`?token=${confirm()}`));
-    expect(await res.json()).toEqual({ ok: true, action: "confirm" });
-    expect(db.state.rpcCalls).toEqual([]);
+    expect(await res.json()).toEqual({ ok: true, action: "confirm", lang: "pl" });
+  });
+
+  it("fetch zgody: subskrybent usunięty -> 404; awaria odczytu -> 500 bez języka (strona: błąd z ponowieniem, bez przycisku)", async () => {
+    db.state.results.email_measurement_state = { result: "gone" };
+    const gone = await handlers().GET(get(`?token=${confirm()}`));
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toEqual({ ok: false, error: "not_found" });
+
+    db.state.rpcThrows = true;
+    const thrown = await handlers().GET(get(`?token=${confirm()}`));
+    expect(thrown.status).toBe(500);
+    const thrownBody = (await thrown.json()) as Record<string, unknown>;
+    expect(thrownBody).toEqual({ ok: false, error: "state_failed" });
+    expect(thrownBody).not.toHaveProperty("lang");
+
+    db.state.rpcThrows = false;
+    db.state.rpcError = { message: 'relation "newsletter_subscribers" does not exist' };
+    const failed = await handlers().GET(get(`?token=${confirm()}`));
+    expect(failed.status).toBe(500);
+    expect(JSON.stringify(await failed.json())).not.toContain("newsletter_subscribers");
+
+    db.state.rpcError = null;
+    db.state.results.email_measurement_state = { unexpected: true };
+    const shape = await handlers().GET(get(`?token=${confirm()}`));
+    expect(shape.status).toBe(500);
   });
 
   it("wygasły -> 410, nieważny i obcy token -> 400 (bez bazy)", async () => {

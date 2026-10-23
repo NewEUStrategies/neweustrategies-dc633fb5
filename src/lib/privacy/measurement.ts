@@ -1,14 +1,17 @@
-// POMIAR OTWARĆ I KLIKNIĘĆ TYLKO ZA ZGODĄ (I9d-Y2) - adresy linków, napisy
-// stopki maili i stan strony publicznej.
+// POMIAR OTWARĆ I KLIKNIĘĆ TYLKO ZA OSOBNĄ ZGODĄ (I9d-Y2, I9d-Y2b) - adresy
+// linków, napisy stopki maili i stan strony publicznej.
 //
 // Dwa linki prowadzą do jednej trasy (`/api/public/newsletter/measurement`):
 //   * „Nie mierz moich otwarć i kliknięć" (stopka maili kampanii i ścieżek,
 //     strona preferencji newslettera) - wycofanie SAMEGO pomiaru: wpis
-//     `email_measurement` „nie", zgoda na newsletter bez zmian (wariant (a)
-//     decyzji właściciela 2026-10-21);
-//   * „Zgadzam się na pomiar" (jednorazowa prośba z panelu newslettera do
-//     subskrybentów ze zgodą sprzed treści z pomiarem) - wpis zgody w bieżącej
-//     wersji treści, baza dopisuje `email_measurement` „tak".
+//     `email_measurement` „nie", zgoda na newsletter bez zmian;
+//   * „Zgadzam się / Potwierdzam zgodę na pomiar" (jednorazowa prośba z panelu
+//     newslettera do subskrybentów bez zgody na pomiar albo prośba po zapisie
+//     bez double opt-in z zaznaczonym osobnym polem pomiaru) - zapis OSOBNEJ
+//     zgody na pomiar (treść i wersja pola pomiaru, wariant (b) decyzji
+//     właściciela 2026-10-23); „tak" zapisuje wyłącznie baza
+//     (`_email_measurement_grant`), a pomiar działa tylko dla aktywnego
+//     subskrybenta, który sam potwierdził zgodę (D2).
 // Rodzaj akcji wynika z podpisanego tokenu (`measurementToken.server.ts`),
 // nie z parametru adresu - nie da się zamienić wycofania w zgodę.
 //

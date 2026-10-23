@@ -27,7 +27,7 @@ import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
 import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
 import { isNewsletterSunsetMailWindow } from "@/lib/privacy/newsletterSunset";
 import type { NewsletterSunsetMailResult } from "@/lib/privacy/newsletterSunsetMail.server";
-import { isNewsletterMeasurementMailWindow } from "@/lib/privacy/measurementReconfirm";
+import { newsletterMeasurementMailScope } from "@/lib/privacy/measurementReconfirm";
 import type { NewsletterMeasurementMailResult } from "@/lib/privacy/measurementReconfirmMail.server";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
@@ -194,12 +194,15 @@ export interface JobsTickResult {
    */
   newsletterSunset: NewsletterSunsetMailResult | { error: string };
   /**
-   * Prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2, „Poproś o zgodę na
-   * pomiar" z panelu newslettera): okno dzienne 08-17 czasu polskiego,
-   * minuta 4 co 10 minut (`isNewsletterMeasurementMailWindow`) - nigdy
-   * w ticku próśb wygaszania; dzienny limit najemcy WSPÓLNY z prośbami
-   * wygaszania trzyma baza przy zajęciu; `skipped: "migration_pending"` =
-   * baza bez 20261020162500.
+   * Prośby o osobną zgodę na pomiar otwarć i kliknięć (I9d-Y2 - „Poproś
+   * o zgodę na pomiar" z panelu newslettera; I9d-Y2b - prośba po zapisie bez
+   * double opt-in z zaznaczonym polem pomiaru): minuta 4 co 10 minut - nigdy
+   * w ticku próśb wygaszania (`newsletterMeasurementMailScope`). W oknie
+   * dziennym 08-17 czasu polskiego prośby obu pochodzeń; poza oknem
+   * WYŁĄCZNIE prośby po zapisie (`origin: "signup"`). Limity trzyma baza
+   * przy zajęciu (panel: WSPÓLNY z prośbami wygaszania; po zapisie: własny);
+   * `skipped: "migration_pending"` = baza bez 20261020162500 (albo, poza
+   * oknem, bez filtra pochodzenia z I9d-Y2b).
    */
   newsletterMeasurement: NewsletterMeasurementMailResult | { error: string };
   /**
@@ -665,20 +668,24 @@ export async function runJobsTick(
       })
     : skipped;
 
-  // Prośby o zgodę na pomiar (I9d-Y2): ta sama klasa poczty co wygaszanie
-  // (masowa, najniższy priorytet, za jobami sieciowymi) i ten sam termin
-  // kroku - inna minuta okna, więc oba kroki nigdy nie dzielą jednego ticku,
-  // a wspólny dzienny limit najemcy pilnuje baza. Moduł ładowany leniwie.
-  const newsletterMeasurement = isNewsletterMeasurementMailWindow(tickTime)
+  // Prośby o zgodę na pomiar (I9d-Y2, I9d-Y2b): ta sama klasa poczty co
+  // wygaszanie (masowa, najniższy priorytet, za jobami sieciowymi) i ten sam
+  // termin kroku - inna minuta, więc oba kroki nigdy nie dzielą jednego ticku.
+  // Poza oknem dziennym wyłącznie prośby po zapisie (osoba właśnie zaznaczyła
+  // pole - prośba nie czeka do rana); limity pilnuje baza. Moduł leniwie.
+  const measurementScope = newsletterMeasurementMailScope(tickTime);
+  const newsletterMeasurement = measurementScope
     ? await runJobStep(overBudget, async () => {
         const { runNewsletterMeasurementMail } =
           await import("@/lib/privacy/measurementReconfirmMail.server");
-        return runNewsletterMeasurementMail(admin, {
-          deadlineAt: Math.min(
-            Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
-            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
-          ),
-        });
+        const deadlineAt = Math.min(
+          Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
+          startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
+        );
+        return runNewsletterMeasurementMail(
+          admin,
+          measurementScope === "signup" ? { origin: "signup", deadlineAt } : { deadlineAt },
+        );
       })
     : skipped;
 

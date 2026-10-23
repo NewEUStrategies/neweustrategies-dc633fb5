@@ -10,8 +10,12 @@
 //   3. błąd = PONÓW (`failed` z kodem, nie treścią);
 //   4. idempotencja, język i link: jeden klucz na prośbę, mail w języku
 //      subskrybenta, link `mc:` podpisany, jednorazowy (nonce) i z terminem;
-//   5. treść: mail pokazuje dosłowną treść zgody, którą zapisze kliknięcie,
-//      i sam NIE mierzy (bez piksela, bez linków z identyfikatorem).
+//   5. treść: mail pokazuje dosłowną treść OSOBNEJ zgody na pomiar, którą
+//      zapisze kliknięcie (I9d-Y2b - nie treść zgody na newsletter), i sam NIE
+//      mierzy (bez piksela, bez linków z identyfikatorem);
+//   6. pochodzenie (I9d-Y2b): prośba po zapisie (`origin = 'signup'`) ma
+//      treść STAŁĄ (nadpisania z panelu ignorowane), a przebieg poza oknem
+//      zajmuje wyłącznie takie prośby (`p_origin`).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ok, supabaseFromStub } from "@/test/supabaseChain";
@@ -30,6 +34,7 @@ import {
   NEWSLETTER_MEASUREMENT_DEFAULT_COPY,
   NEWSLETTER_MEASUREMENT_MAIL_BATCH,
   NEWSLETTER_MEASUREMENT_MAIL_LABEL,
+  NEWSLETTER_MEASUREMENT_SIGNUP_COPY,
 } from "../measurementReconfirm";
 import {
   parseNewsletterMeasurementClaims,
@@ -37,6 +42,10 @@ import {
 } from "../measurementReconfirmMail.server";
 import { verifyMeasurementToken } from "../measurementToken.server";
 import { newsletterConsentPlain } from "@/lib/newsletter/consentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
 
 const TENANT = "19d40000-0000-4000-8000-0000000000a0";
 const NOW = new Date("2026-10-22T08:04:00Z");
@@ -49,9 +58,10 @@ function claim(n: number, patch: Record<string, unknown> = {}) {
     lang: "pl",
     first_name: null,
     nonce: `1b2c3d4e-0000-4000-8000-0000000000${String(n).padStart(2, "0")}`,
-    consent_version: "newsletter-2026-10-21",
+    consent_version: EMAIL_MEASUREMENT_CONSENT_VERSION,
     unsubscribe_token: `unsub${n}`.padEnd(32, "0"),
     attempt: 1,
+    origin: "panel",
     ...patch,
   };
 }
@@ -175,15 +185,16 @@ describe("mail", () => {
     ]);
   });
 
-  it("mail pokazuje dosłowną treść zgody i sam NIE mierzy", async () => {
-    const hs = harness([claim(1)]);
+  it("mail pokazuje dosłowną treść OSOBNEJ zgody na pomiar (nie zgody na newsletter) i sam NIE mierzy", async () => {
+    const hs = harness([claim(1), claim(2, { lang: "en" })]);
     await run(hs);
-    const input = h.enqueue.mock.calls[0][0] as { html: string; text: string };
-    expect(input.text.replace(/\s+/g, " ")).toContain(
-      newsletterConsentPlain("pl").replace(/\s+/g, " "),
-    );
-    expect(input.html).not.toContain("nl-open");
-    expect(input.html).not.toContain("nl-click");
+    const flat = (value: string) => value.replace(/\s+/g, " ");
+    const [pl, en] = h.enqueue.mock.calls.map((c) => c[0] as { html: string; text: string });
+    expect(flat(pl.text)).toContain(flat(measurementConsentPlain("pl")));
+    expect(flat(en.text)).toContain(flat(measurementConsentPlain("en")));
+    expect(flat(pl.text)).not.toContain(flat(newsletterConsentPlain("pl")));
+    expect(pl.html).not.toContain("nl-open");
+    expect(pl.html).not.toContain("nl-click");
   });
 
   it("treść z panelu najemcy (z imieniem) zamiast domyślnej", async () => {
@@ -206,6 +217,78 @@ describe("mail", () => {
     expect(h.enqueue.mock.calls[0][0].subject).toBe("Pytanie od redakcji, Anna");
     const reads = hs.db.chainsFor("site_settings");
     expect(reads[0]?.argsOf("eq")).toEqual(["key", NEWSLETTER_MEASUREMENT_COPY_SETTING_KEY]);
+  });
+});
+
+describe("prośba po zapisie (`origin = 'signup'`, I9d-Y2b)", () => {
+  const PANEL_OVERRIDES = {
+    pl: {
+      subject: "Pytanie od redakcji, {firstName}",
+      preview: "Podgląd z panelu",
+      eyebrow: "Panel",
+      heading: "Nagłówek z panelu",
+      intro: "Wstęp z panelu",
+      cta: "Przycisk z panelu",
+      note: "Notka z panelu",
+    },
+    en: { subject: "Panel", preview: "", eyebrow: "", heading: "", intro: "", cta: "", note: "" },
+  };
+
+  it("treść STAŁA w języku subskrybenta - nadpisania z panelu ignorowane; link zgody jak w prośbie z panelu", async () => {
+    const hs = harness(
+      [
+        claim(1, { origin: "signup", first_name: "Anna" }),
+        claim(2, { origin: "signup", lang: "en" }),
+      ],
+      { settings: [{ tenant_id: TENANT, value: PANEL_OVERRIDES }] },
+    );
+    expect(await run(hs)).toMatchObject({ claimed: 2, queued: 2 });
+
+    const [pl, en] = h.enqueue.mock.calls.map(
+      (c) => c[0] as { subject: string; html: string; text: string },
+    );
+    expect(pl.subject).toBe(NEWSLETTER_MEASUREMENT_SIGNUP_COPY.pl.subject);
+    expect(en.subject).toBe(NEWSLETTER_MEASUREMENT_SIGNUP_COPY.en.subject);
+    const flat = (value: string) => value.replace(/\s+/g, " ");
+    expect(flat(pl.text)).toContain(NEWSLETTER_MEASUREMENT_SIGNUP_COPY.pl.cta);
+    expect(flat(pl.text)).toContain(flat(measurementConsentPlain("pl")));
+    for (const fragment of ["z panelu", "Pytanie od redakcji"]) {
+      expect(pl.text).not.toContain(fragment);
+      expect(pl.html).not.toContain(fragment);
+    }
+    const href = /href="(https:\/\/think\.example\/api\/public\/newsletter\/measurement[^"]+)"/
+      .exec(pl.html)?.[1]
+      ?.replace(/&amp;/g, "&");
+    const check = verifyMeasurementToken(new URL(href as string).searchParams.get("token"), NOW);
+    expect(check).toMatchObject({ ok: true, action: "confirm", nonce: claim(1).nonce });
+  });
+
+  it("prośba z panelu w tej samej porcji dalej bierze treść z panelu", async () => {
+    const hs = harness([claim(1, { origin: "signup" }), claim(2, { first_name: "Anna" })], {
+      settings: [{ tenant_id: TENANT, value: PANEL_OVERRIDES }],
+    });
+    await run(hs);
+    const subjects = h.enqueue.mock.calls.map((c) => (c[0] as { subject: string }).subject);
+    expect(subjects).toEqual([
+      NEWSLETTER_MEASUREMENT_SIGNUP_COPY.pl.subject,
+      "Pytanie od redakcji, Anna",
+    ]);
+  });
+
+  it("przebieg poza oknem: zajęcie WYŁĄCZNIE próśb po zapisie (`p_origin`)", async () => {
+    const hs = harness([]);
+    await run(hs, { origin: "signup", limit: 7 });
+    expect(hs.admin.rpc.mock.calls).toEqual([
+      ["newsletter_measurement_claim", { p_limit: 7, p_origin: "signup" }],
+    ]);
+  });
+
+  it("baza bez filtra pochodzenia (przed I9d-Y2b): przebieg poza oknem = `migration_pending`", async () => {
+    expect(
+      await run(harness([], { claimError: { message: "nf", code: "PGRST202" } }), {
+        origin: "signup",
+      }),
+    ).toMatchObject({ claimed: 0, skipped: "migration_pending" });
   });
 });
 
@@ -257,8 +340,21 @@ describe("kontrakt wiersza zajęcia", () => {
     expect(() => parseNewsletterMeasurementClaims([missing])).toThrow(/consent_version/);
     expect(parseNewsletterMeasurementClaims([claim(1)])[0]).toMatchObject({
       lang: "pl",
-      consentVersion: "newsletter-2026-10-21",
+      consentVersion: EMAIL_MEASUREMENT_CONSENT_VERSION,
       attempt: 1,
+      origin: "panel",
     });
+  });
+
+  it("`origin`: `signup` rozpoznany; brak kolumny (stara baza) albo obca wartość = `panel`", () => {
+    expect(parseNewsletterMeasurementClaims([claim(1, { origin: "signup" })])[0].origin).toBe(
+      "signup",
+    );
+    const { origin: _omit, ...legacy } = claim(1);
+    expect(parseNewsletterMeasurementClaims([legacy])[0].origin).toBe("panel");
+    expect(parseNewsletterMeasurementClaims([claim(1, { origin: "SIGNUP" })])[0].origin).toBe(
+      "panel",
+    );
+    expect(parseNewsletterMeasurementClaims([claim(1, { origin: null })])[0].origin).toBe("panel");
   });
 });

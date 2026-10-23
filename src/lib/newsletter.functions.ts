@@ -13,7 +13,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
-import { normalizeConsentVersion } from "@/lib/newsletter/consentText";
+import { hasMeasurementDeclaration, sanitizeConsentEntries } from "@/lib/newsletter/consentText";
+import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import {
+  EMAIL_MEASUREMENT_DECLARED_KEY,
+  MEASUREMENT_DOI_MAIL_NOTE,
+  normalizeConsentKey,
+} from "@/lib/newsletter/measurementConsentText";
 import { z } from "zod";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -38,7 +44,9 @@ const NewsletterInput = z.object({
   source: z.string().trim().max(120).optional(),
   formId: z.string().trim().max(120).optional(),
   formName: z.string().trim().max(200).optional(),
-  consents: z.array(ConsentEntry).max(10).optional(),
+  // Wspólny limit klienta i serwera (`consentLimits.ts`): dokument z wieloma
+  // polami zgody + zgoda na newsletter + deklaracja osobnego pola pomiaru.
+  consents: z.array(ConsentEntry).max(CONSENT_ENTRIES_MAX).optional(),
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
@@ -131,6 +139,7 @@ function buildDoiEmail(
   lang: "pl" | "en",
   confirmUrl: string,
   unsubscribeUrl: string | null,
+  options: { measurement?: boolean } = {},
 ): { subject: string; html: string } {
   const pl = lang === "pl";
   const subject = pl ? "Potwierdź zapis do newslettera" : "Confirm your newsletter subscription";
@@ -138,6 +147,12 @@ function buildDoiEmail(
   const intro = pl
     ? "Dziękujemy za chęć zapisu do naszego newslettera. Aby dokończyć rejestrację, potwierdź swój adres e-mail klikając poniższy przycisk:"
     : "Thanks for signing up to our newsletter. To complete your subscription please confirm your email by clicking the button below:";
+  // Zaznaczone osobne pole pomiaru (I9d-Y2b): mail mówi, że o zgodę zapytamy
+  // na stronie potwierdzenia i że bez kliknięcia pomiar się nie włączy.
+  // Bez zaznaczenia - mail jak dotąd (żadnej wzmianki o pomiarze).
+  const measurementNote = options.measurement
+    ? `<p style="color:#555;font-size:13px">${esc(MEASUREMENT_DOI_MAIL_NOTE[lang])}</p>`
+    : "";
   const cta = pl ? "Potwierdź zapis" : "Confirm subscription";
   const note = pl
     ? "Link wygasa za 48 godzin. Jeśli to nie Ty - zignoruj tę wiadomość, nic się nie stanie."
@@ -154,6 +169,7 @@ function buildDoiEmail(
     <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:560px">
       <p>${hi}</p>
       <p>${intro}</p>
+      ${measurementNote}
       <p style="margin:24px 0">
         <a href="${esc(confirmUrl)}"
            style="display:inline-block;background:#FA9346;color:#fff;text-decoration:none;
@@ -205,6 +221,18 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const doi = settings.double_opt_in === true;
     const displayName = data.name?.trim() || null;
     const meta = data.meta && Object.keys(data.meta).length ? data.meta : null;
+    // Ładunek zgód -> pozycje do zapisu (I9d-Y2b, `sanitizeConsentEntries`):
+    // pozycja `email_measurement` z formularza znika ZAWSZE (zgodę na pomiar
+    // zapisuje wyłącznie baza po decyzji właściciela skrzynki), deklaracja
+    // osobnego pola przechodzi tylko z treścią i wersją z rejestru i obok
+    // zgody na newsletter, a wersja z rejestru zostaje wyłącznie przy treści
+    // tej wersji (klient nie nada sobie wersji samą etykietą).
+    const receivedAt = new Date().toISOString();
+    const consents = sanitizeConsentEntries(data.consents ?? []).map((entry) => ({
+      ...entry,
+      received_at: receivedAt,
+    }));
+    const measurementDeclared = hasMeasurementDeclaration(consents);
 
     // ---- Server-side "wymagane" enforcement --------------------------------
     // Tenant policy (form_field_policies) is authoritative; widget-declared
@@ -245,7 +273,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin
       .from("newsletter_subscribers")
-      .select("id, status, meta, user_id")
+      .select("id, status, meta, user_id, consents")
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
@@ -268,6 +296,25 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         if (touchError) console.error("[newsletter] engagement touch failed", touchError.message);
       } catch (err) {
         console.error("[newsletter] engagement touch failed", err);
+      }
+      // Zapisany adres zaznaczył osobne pole pomiaru (I9d-Y2b): deklaracja
+      // trafia do `consents`, a baza zakłada prośbę do właściciela skrzynki
+      // (decyzję i tak podejmuje on - klik w mailu). Bez tego pole w formularzu
+      // byłoby martwe dla aktywnych subskrybentów, także tych, którzy wcześniej
+      // odmówili. Odpowiedź bez zmian (nie ujawnia obecności na liście), błąd
+      // nie psuje formularza.
+      const declaration = consents.find(
+        (entry) => normalizeConsentKey(entry.key) === EMAIL_MEASUREMENT_DECLARED_KEY,
+      );
+      if (declaration) {
+        const { declareMeasurementForExisting } =
+          await import("@/lib/newsletter/measurementSignup.server");
+        await declareMeasurementForExisting(
+          supabaseAdmin,
+          { id: existing.id, tenantId, consents: existing.consents },
+          declaration,
+          "newsletter",
+        );
       }
       return { ok: true, status: "exists" };
     }
@@ -376,35 +423,37 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       source_form_name: data.formName ?? null,
       ip: clientIp,
       user_agent: userAgent,
-      // Wersja z pomiarem (I9d-Y2) zostaje wyłącznie przy treści z rejestru
-      // treści zgody - klient nie nada sobie (ani komuś) zgody na pomiar
-      // samą etykietą wersji. Bez wersji baza zapisze skrót treści.
-      consents: (data.consents ?? []).map((entry) => {
-        const { version: _claimed, ...rest } = entry;
-        const version = normalizeConsentVersion(entry);
-        return {
-          ...rest,
-          ...(version ? { version } : {}),
-          received_at: new Date().toISOString(),
-        };
-      }),
+      // Pozycje po sanitizerze (wyżej). Bez wersji baza zapisze skrót treści.
+      consents,
       ...(userId ? { user_id: userId } : {}),
       ...(Object.keys(mergedMeta).length > 0 ? { meta: mergedMeta } : {}),
     };
     const crmCustom = { ...(data.custom ?? {}), ...crmCustomFromPreferences(prefs) };
 
     if (!doi) {
-      const { error } = await supabaseAdmin.from("newsletter_subscribers").upsert(
-        {
-          ...base,
-          status: "subscribed",
-          confirmed_at: new Date().toISOString(),
-          confirmation_token: null,
-          confirmation_expires_at: null,
-        },
-        { onConflict: "tenant_id,email" },
-      );
+      const { data: saved, error } = await supabaseAdmin
+        .from("newsletter_subscribers")
+        .upsert(
+          {
+            ...base,
+            status: "subscribed",
+            confirmed_at: new Date().toISOString(),
+            confirmation_token: null,
+            confirmation_expires_at: null,
+          },
+          { onConflict: "tenant_id,email" },
+        )
+        .select("id")
+        .single();
       if (error) return { ok: false, error: error.message };
+      // Bez double opt-in zaznaczone pole pomiaru daje prośbę do właściciela
+      // skrzynki (I9d-Y2b, `origin = 'signup'`, stała treść): pomiar zadziała
+      // dopiero po jego kliknięciu w mailu. Błąd nie psuje zapisu.
+      if (measurementDeclared) {
+        const { requestMeasurementAfterSignup } =
+          await import("@/lib/newsletter/measurementSignup.server");
+        await requestMeasurementAfterSignup(supabaseAdmin, saved?.id, "newsletter");
+      }
       await syncToCrm(tenantId, email, data, mergedMeta, crmCustom, prefs);
       // Potwierdzenie zapisu w standardzie NES (kolejka transakcyjna).
       const { sendTxEmail } = await import("@/lib/email/transactional.server");
@@ -451,7 +500,11 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const unsubscribeUrl = subRow?.unsubscribe_token
       ? newsletterUnsubscribeUrl(originFromRequest(), subRow.unsubscribe_token)
       : null;
-    const mail = buildDoiEmail(displayName, data.language, confirmUrl, unsubscribeUrl);
+    // Z double opt-in o zgodę na pomiar pytamy na stronie potwierdzenia
+    // (karta z przyciskami) - mail tylko o tym uprzedza (I9d-Y2b).
+    const mail = buildDoiEmail(displayName, data.language, confirmUrl, unsubscribeUrl, {
+      measurement: measurementDeclared,
+    });
     // Use the tenant's configured sender when set; otherwise sendEmail() falls
     // back to the shared Resend onboarding address.
     const senderEmail = settings.sender_email?.trim();

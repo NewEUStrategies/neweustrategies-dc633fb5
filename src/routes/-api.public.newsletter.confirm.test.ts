@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { isConfirmTokenFormat } from "@/lib/newsletter/confirmMeasurement";
 import {
+  isJsonRequest,
   isValidConfirmToken,
   resolveConfirmOutcome,
   wantsHtml,
@@ -78,5 +80,38 @@ describe("wantsHtml (browser clicks land on the result page, not raw JSON)", () 
     expect(wantsHtml("*/*")).toBe(false);
     expect(wantsHtml("application/json")).toBe(false);
     expect(wantsHtml(null)).toBe(false);
+  });
+});
+
+describe("one token rule for GET and the measurement decision POST (I9d-Y2b)", () => {
+  it("isValidConfirmToken delegates to isConfirmTokenFormat (no second copy of the rule)", () => {
+    const samples: Array<string | null> = [
+      null,
+      "",
+      "a".repeat(15),
+      "a".repeat(16),
+      "A".repeat(64),
+      "a".repeat(128),
+      "a".repeat(129),
+      "g".repeat(32),
+      "abcdef0123456789' OR 1=1 --",
+    ];
+    for (const sample of samples) {
+      expect(isValidConfirmToken(sample), String(sample)).toBe(isConfirmTokenFormat(sample));
+    }
+  });
+});
+
+describe("isJsonRequest (the decision POST accepts JSON only - no cross-site form posts)", () => {
+  it("accepts application/json with parameters and any letter case", () => {
+    expect(isJsonRequest("application/json")).toBe(true);
+    expect(isJsonRequest("Application/JSON; charset=utf-8")).toBe(true);
+  });
+
+  it("rejects form encodings, text and a missing header", () => {
+    expect(isJsonRequest("application/x-www-form-urlencoded")).toBe(false);
+    expect(isJsonRequest("multipart/form-data; boundary=x")).toBe(false);
+    expect(isJsonRequest("text/plain")).toBe(false);
+    expect(isJsonRequest(null)).toBe(false);
   });
 });
