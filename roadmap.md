@@ -2,10 +2,11 @@
 
 ## Weryfikacja PR #533 (2026-10-23)
 
-- [ ] Potwierdzić wszystkie commity i integrację scalenia #533.
-- [ ] Sprawdzić w żywej bazie tabele, widoki, RPC, kolumny, granty i rejestry; zastosować brakujące zmiany.
-- [ ] Uruchomić testy zakresowe i sprawdzić rzeczywisty przepływ zgód PL/EN.
-- [ ] Potwierdzić opublikowanie kodu PR #533 albo wskazać brak potwierdzenia publikacji.
+- [x] Wszystkie 20 commitów gałęzi (15 nie-merge) i merge 2e554a813 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi.
+- [x] Zastosowano brakujące 0394-0397 przez migrator (0398 potwierdzenie), sprawdzono hashe rejestru, dwa nowe pola, nowe sygnatury i granty, cztery aktywne wyzwalacze. Kontrakt 1918 obiektów bez braków, 774 kolumn bez nowych braków (5 historycznych); 380 tabel z RLS i 15 widoków; rejestr 452/452.
+- [x] 52 pliki: 1973 testy przechodzą, 6 oczekiwanych błędów; tsgo exit 0; bramki TS-SQL, RPC i typów poprawne. Zalogowany panel pokazuje osobną zgodę i dane z bazy; strony błędnego linku PL/EN bez błędów JS. Brak własnych opublikowanych polityk i tekstów łączących zgody; zadania automatyczne działają.
+- [ ] Pełna próba z wiadomością DOI i decyzją właściciela skrzynki: brak kontrolowanej skrzynki testowej i linku z wiadomości; nie używano adresów klientów ani nie zapisywano zgód za użytkowników. pgTAP wymaga osobnego środowiska fixture auth.
+- [ ] Potwierdzić publikację: publikację zlecono; pojedynczy odczyt domeny po zleceniu nie dostarczył HTML pozwalającego potwierdzić wersję. Zmiana rejestru pasa migracji wykonana po pierwszym zleceniu wymaga ponownego publikowania.
 
 ## Kupony i waluta cennika (2026-10-23)
 

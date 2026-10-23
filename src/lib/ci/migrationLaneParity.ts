@@ -835,6 +835,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0310_release_coupon_order_lock_final",
     twin: "20261018120000_release_coupon_order_lock.sql",
   },
+  {
+    tag: "0398_pr533_deployment_completion",
+    drizzleOnly:
+      "Zapis potwierdzenia wdrożenia PR #533: wyłącznie komentarz funkcji po zastosowaniu bliźniaków 0394-0397; bez dodatkowej zmiany zachowania lub schematu.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
