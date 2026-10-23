@@ -376,6 +376,17 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["newsletter_measurement_confirm", "I9", "service"],
   ["admin_newsletter_consent_measurement_get", "I9", "panel"],
   ["admin_newsletter_consent_measurement_mark", "I9", "panel"],
+  // (I9d-Y2b, 2026-10-23) Część wygaszona w 20261023090000 (wariant (b) -
+  // osobne pole zgody na pomiar, poza blokiem huba): `_consent_covers_measurement`,
+  // `tg_crm_consent_log_measurement` i RPC oznaczeń admina
+  // (`admin_newsletter_consent_measurement_get/_mark`) zostały usunięte,
+  // a `_consent_measurement_versions`, `_email_measurement_consent`,
+  // `_newsletter_log_consents`, `newsletter_to_lead`,
+  // `email_measurement_withdraw` i RPC próśb redefiniują 090000-090200.
+  // Wpisy zostają: rejestr opisuje właścicieli funkcji BLOKU huba
+  // (162300/162500 nadal je definiują), a blok `hub-grants`
+  // w hub_shared_helpers_test filtruje po nazwach, więc usunięte funkcje po
+  // prostu znikają z jego wyniku.
   // (I9-C, 2026-10-22) Z-S5-04: jeden pomocnik wycofania zgody marketingowej
   // kontaktu CRM (personel, wypis ze ścieżki, wygaszanie newslettera) i RPC
   // personelu sprzed huba przepisany na niego.
