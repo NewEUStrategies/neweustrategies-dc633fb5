@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.newsletter_doi_measurement_state(text, uuid, text, text, timestamptz) IS 'PR #533 deployment: mailbox-signed newsletter measurement state, service_role only; migrations 0394-0397 applied before matching frontend.';
