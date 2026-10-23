@@ -15,6 +15,7 @@ import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import { hasMeasurementDeclaration, sanitizeConsentEntries } from "@/lib/newsletter/consentText";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import { withDoiMeasurementSecret } from "@/lib/newsletter/confirmMeasurement";
 import {
   EMAIL_MEASUREMENT_DECLARED_KEY,
   MEASUREMENT_DOI_MAIL_NOTE,
@@ -270,6 +271,54 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       };
     }
 
+    // Limity nadużyć PRZED odczytem istniejącego adresu (przegląd R1 PR 533,
+    // regresje-r1-3): gałąź „już zapisany" też pisze do bazy (znacznik
+    // zaangażowania, deklaracja pola pomiaru, prośba), więc nie może omijać
+    // limitów. Ten sam kubełek dla każdej gałęzi - odpowiedź `rate_limited`
+    // nie zdradza, czy adres jest na liście.
+    // Extract client IP + UA (best-effort; used for consent audit trail)
+    let clientIp: string | null = null;
+    let userAgent: string | null = null;
+    try {
+      const req = getRequest();
+      // Jedna definicja „kto dzwoni" na całe repo: `cf-connecting-ip` ->
+      // `x-real-ip` -> OSTATNI wpis `x-forwarded-for`. Pierwszy wpis XFF jest
+      // deklaracją klienta, więc kubełek po nim kluczowany rotował się jednym
+      // nagłówkiem. Brak adresu zostaje `null`, żeby kolejny krok mógł go
+      // odróżnić od adresu rozpoznanego.
+      const subject = rateLimitIpSubject(req.headers);
+      clientIp = subject === "unknown" ? null : subject;
+      userAgent = req.headers.get("user-agent");
+    } catch {
+      // request context unavailable - fine
+    }
+
+    // Abuse guard: this public, unauthenticated endpoint sends a double-opt-in
+    // email to a caller-supplied address, so it can be used to bomb inboxes /
+    // burn the Resend quota (mirrors contact.functions.ts). Cap per client IP;
+    // fail open when the IP is unknown rather than blocking legitimate users.
+    {
+      const { rateLimit } = await import("@/lib/server/rate-limit.server");
+      // Per-IP cap. Fail CLOSED on unknown IP (shared bucket) so stripping or
+      // rotating the x-forwarded-for header cannot bypass the limit.
+      const ipOk = await rateLimit({
+        scope: "newsletter.subscribe",
+        subjectId: clientIp ?? "unknown-ip",
+        max: 5,
+        windowMinutes: 10,
+      });
+      if (!ipOk) return { ok: false, error: "rate_limited" };
+      // Per-RECIPIENT cap: the DOI email is sent to the submitted address, so
+      // this is the real inbox-bomb guard - it holds even across rotated IPs.
+      const recipientOk = await rateLimit({
+        scope: "newsletter.recipient",
+        subjectId: email.trim().toLowerCase(),
+        max: 3,
+        windowMinutes: 60,
+      });
+      if (!recipientOk) return { ok: false, error: "rate_limited" };
+    }
+
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin
       .from("newsletter_subscribers")
@@ -341,49 +390,6 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       ) {
         return { ok: false, error: "suppressed" };
       }
-    }
-
-    // Extract client IP + UA (best-effort; used for consent audit trail)
-    let clientIp: string | null = null;
-    let userAgent: string | null = null;
-    try {
-      const req = getRequest();
-      // Jedna definicja „kto dzwoni" na całe repo: `cf-connecting-ip` ->
-      // `x-real-ip` -> OSTATNI wpis `x-forwarded-for`. Pierwszy wpis XFF jest
-      // deklaracją klienta, więc kubełek po nim kluczowany rotował się jednym
-      // nagłówkiem. Brak adresu zostaje `null`, żeby kolejny krok mógł go
-      // odróżnić od adresu rozpoznanego.
-      const subject = rateLimitIpSubject(req.headers);
-      clientIp = subject === "unknown" ? null : subject;
-      userAgent = req.headers.get("user-agent");
-    } catch {
-      // request context unavailable - fine
-    }
-
-    // Abuse guard: this public, unauthenticated endpoint sends a double-opt-in
-    // email to a caller-supplied address, so it can be used to bomb inboxes /
-    // burn the Resend quota (mirrors contact.functions.ts). Cap per client IP;
-    // fail open when the IP is unknown rather than blocking legitimate users.
-    {
-      const { rateLimit } = await import("@/lib/server/rate-limit.server");
-      // Per-IP cap. Fail CLOSED on unknown IP (shared bucket) so stripping or
-      // rotating the x-forwarded-for header cannot bypass the limit.
-      const ipOk = await rateLimit({
-        scope: "newsletter.subscribe",
-        subjectId: clientIp ?? "unknown-ip",
-        max: 5,
-        windowMinutes: 10,
-      });
-      if (!ipOk) return { ok: false, error: "rate_limited" };
-      // Per-RECIPIENT cap: the DOI email is sent to the submitted address, so
-      // this is the real inbox-bomb guard - it holds even across rotated IPs.
-      const recipientOk = await rateLimit({
-        scope: "newsletter.recipient",
-        subjectId: email.trim().toLowerCase(),
-        max: 3,
-        windowMinutes: 60,
-      });
-      if (!recipientOk) return { ok: false, error: "rate_limited" };
     }
 
     // Preferencje (tematy + listy) sprowadzamy do JEDNEGO kształtu i dokładamy
@@ -483,18 +489,34 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     );
     if (error) return { ok: false, error: error.message };
 
-    // Link z maila prowadzi na stronę wyniku (nie na API): człowiek widzi
-    // zlokalizowany komunikat, a strona woła endpoint JSON w tle.
-    const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     // Long-lived unsubscribe token — auto-generated by BEFORE INSERT trigger on
     // newsletter_subscribers; fetch it back so every outgoing mail carries the
-    // one-click unsubscribe footer required by CAN-SPAM / RFC 8058.
+    // one-click unsubscribe footer required by CAN-SPAM / RFC 8058. The row id
+    // binds the measurement mailbox secret below.
     const { data: subRow } = await supabaseAdmin
       .from("newsletter_subscribers")
-      .select("unsubscribe_token")
+      .select("id, unsubscribe_token")
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
+    // Zaznaczone osobne pole pomiaru (I9d-Y2b R1): link niesie SEKRET
+    // SKRZYNKI `m` (podpis HMAC: subskrybent, adres, wersja treści pola,
+    // termin 60 dni) - tylko z nim strona potwierdzenia pokaże kartę zgody.
+    // Token DOI nie wystarcza: personel najemcy go widział. Brak id = mail bez
+    // karty i bez notki (fail-closed), zapis bez zmian.
+    let measurementSecret: string | null = null;
+    if (measurementDeclared) {
+      const { doiMeasurementTokenFor } = await import("@/lib/privacy/measurementToken.server");
+      measurementSecret = doiMeasurementTokenFor(subRow?.id, email);
+      if (!measurementSecret)
+        console.error("[newsletter] measurement secret skipped: subscriber id missing");
+    }
+    // Link z maila prowadzi na stronę wyniku (nie na API): człowiek widzi
+    // zlokalizowany komunikat, a strona woła endpoint JSON w tle.
+    const confirmUrl = withDoiMeasurementSecret(
+      `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`,
+      measurementSecret,
+    );
     // Ten sam adres co w kampaniach (endpoint, nie strona) - patrz
     // `@/lib/newsletter/unsubscribeUrl`.
     const unsubscribeUrl = subRow?.unsubscribe_token
@@ -503,7 +525,7 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // Z double opt-in o zgodę na pomiar pytamy na stronie potwierdzenia
     // (karta z przyciskami) - mail tylko o tym uprzedza (I9d-Y2b).
     const mail = buildDoiEmail(displayName, data.language, confirmUrl, unsubscribeUrl, {
-      measurement: measurementDeclared,
+      measurement: measurementSecret !== null,
     });
     // Use the tenant's configured sender when set; otherwise sendEmail() falls
     // back to the shared Resend onboarding address.

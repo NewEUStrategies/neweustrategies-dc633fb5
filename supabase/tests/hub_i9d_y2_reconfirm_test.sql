@@ -203,11 +203,13 @@ SELECT ok(
   AND (SELECT confirmed_at IS NOT NULL FROM public.newsletter_measurement_requests WHERE subscriber_id = pg_temp.sub('r1'))
   AND public.newsletter_measurement_confirm(pg_temp.sub('r1'), (SELECT nonce FROM claimed WHERE email LIKE 'r1@%')) ->> 'result' = 'already',
   'potwierdzenie: status bez zmian, znacznik zaangażowania, link jednorazowy (already)');
-INSERT INTO public.newsletter_measurement_requests (subscriber_id, consent_version, tenant_id, nonce)
+-- Prośby wysłane (adres wysyłki jak przy zajęciu porcji - od 20261023090300
+-- potwierdzenie działa tylko dla adresu, na który wyszedł mail).
+INSERT INTO public.newsletter_measurement_requests (subscriber_id, consent_version, tenant_id, nonce, email_norm)
 VALUES (pg_temp.sub('r6'), public._email_measurement_consent_version(), '19d80000-0000-4000-8000-0000000000a0',
-        '19d80000-0000-4000-8000-0000000070a6'),
+        '19d80000-0000-4000-8000-0000000070a6', 'r6@i9d-y2-prosba.test'),
        (pg_temp.sub('r2'), public._email_measurement_consent_version(), '19d80000-0000-4000-8000-0000000000a0',
-        '19d80000-0000-4000-8000-0000000070a2');
+        '19d80000-0000-4000-8000-0000000070a2', 'r2@i9d-y2-prosba.test');
 INSERT INTO r SELECT 'n_r2', to_jsonb((SELECT count(*) FROM public.crm_consent_log WHERE email = 'r2@i9d-y2-prosba.test'));
 SELECT ok(
   public.newsletter_measurement_confirm(pg_temp.sub('r6'), '19d80000-0000-4000-8000-0000000070a6') ->> 'result' = 'inactive'

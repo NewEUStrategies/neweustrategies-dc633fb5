@@ -5,8 +5,11 @@
 //   1. GET: stan karty z RPC jest FAIL-CLOSED (błąd, `invalid`, `inactive`,
 //      `gone`, nieznany kształt -> `none`), a strona pokazuje kartę wyłącznie
 //      przy `ok`/`already` + `offer` + poprawnym języku.
-//   2. POST: ciało przechodzi tylko z poprawnym tokenem i decyzją; każdy wynik
-//      RPC ma jeden kod HTTP; nieznany kształt -> `null` (trasa: 500).
+//   2. POST: ciało przechodzi tylko z poprawnym tokenem, decyzją i sekretem
+//      skrzynki `m` (I9d-Y2b R1 - sam token DOI widział personel); każdy
+//      wynik RPC ma jeden kod HTTP; nieznany kształt -> `null` (trasa: 500).
+//   2a. Sekret skrzynki: kształt, link strony i endpointu z `m` tylko przy
+//      poprawnym kształcie, ciało POST z `m`.
 //   3. Strona pomiaru bierze język treści z odpowiedzi, nie z adresu.
 //   4. Żadna odpowiedź zbudowana tu nie niesie adresu e-mail.
 import { describe, expect, it } from "vitest";
@@ -14,19 +17,72 @@ import { describe, expect, it } from "vitest";
 import {
   DOI_MEASUREMENT_DECIDE_RESULTS,
   DOI_MEASUREMENT_DECISION_ERRORS,
+  DOI_MEASUREMENT_PARAM,
   DOI_MEASUREMENT_STATE_RESULTS,
+  doiMeasurementDecisionBody,
   doiMeasurementDecisionError,
   doiMeasurementDecisionReplyOf,
   doiMeasurementDecisionViewOf,
   doiMeasurementFieldsOf,
   isConfirmTokenFormat,
+  isDoiMeasurementTokenFormat,
   measurementPageLangOf,
   NEWSLETTER_CONFIRM_API_PATH,
+  newsletterConfirmApiUrl,
   newsletterConfirmViewOf,
   parseDoiMeasurementDecisionRequest,
+  withDoiMeasurementSecret,
 } from "../confirmMeasurement";
 
 const TOKEN = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
+/** Kształt sekretu skrzynki `md:` (podpis sprawdza serwer - tu tylko kształt). */
+const SECRET = `d${"0123456789abcdef".repeat(2)}0000ffff${"fedcba9876543210".repeat(2)}`;
+
+describe("sekret skrzynki z maila DOI (I9d-Y2b R1)", () => {
+  it("kształt: `d` + 72 znaki szesnastkowe; inne - nie", () => {
+    expect(SECRET).toHaveLength(73);
+    expect(DOI_MEASUREMENT_PARAM).toBe("m");
+    expect(isDoiMeasurementTokenFormat(SECRET)).toBe(true);
+    expect(isDoiMeasurementTokenFormat(SECRET.toUpperCase().replace(/^D/, "d"))).toBe(true);
+    for (const bad of [
+      TOKEN,
+      `c${SECRET.slice(1)}`,
+      SECRET.slice(0, 72),
+      `${SECRET}0`,
+      `d${"g".repeat(72)}`,
+      "",
+      null,
+      7,
+    ]) {
+      expect(isDoiMeasurementTokenFormat(bad)).toBe(false);
+    }
+  });
+
+  it("link strony i endpointu niesie `m` tylko w poprawnym kształcie (kodowany)", () => {
+    expect(withDoiMeasurementSecret(`/newsletter/confirm?token=${TOKEN}`, SECRET)).toBe(
+      `/newsletter/confirm?token=${TOKEN}&m=${SECRET}`,
+    );
+    expect(withDoiMeasurementSecret("/newsletter/confirm", SECRET)).toBe(
+      `/newsletter/confirm?m=${SECRET}`,
+    );
+    for (const bad of [null, undefined, "", "d123", `${SECRET}&admin=1`]) {
+      expect(withDoiMeasurementSecret(`/x?token=${TOKEN}`, bad)).toBe(`/x?token=${TOKEN}`);
+    }
+    expect(newsletterConfirmApiUrl(TOKEN, SECRET)).toBe(
+      `${NEWSLETTER_CONFIRM_API_PATH}?token=${TOKEN}&m=${SECRET}`,
+    );
+    expect(newsletterConfirmApiUrl(TOKEN)).toBe(`${NEWSLETTER_CONFIRM_API_PATH}?token=${TOKEN}`);
+  });
+
+  it("ciało POST karty: token, decyzja i sekret - parser serwera je przyjmuje", () => {
+    const body = doiMeasurementDecisionBody(TOKEN, SECRET, "grant");
+    expect(body).toEqual({ token: TOKEN, decision: "grant", m: SECRET });
+    expect(parseDoiMeasurementDecisionRequest(JSON.parse(JSON.stringify(body)))).toEqual({
+      ok: true,
+      request: body,
+    });
+  });
+});
 
 describe("format tokenu (reguła `isValidConfirmToken`)", () => {
   it("16-128 znaków szesnastkowych; inne typy i znaki - nie", () => {
@@ -132,11 +188,22 @@ describe("GET - widok strony potwierdzenia", () => {
 });
 
 describe("POST - ciało decyzji", () => {
-  it("poprawny token i decyzja", () => {
+  it("poprawny token, decyzja i sekret skrzynki", () => {
     for (const decision of ["grant", "decline"] as const) {
-      expect(parseDoiMeasurementDecisionRequest({ token: TOKEN, decision, extra: 1 })).toEqual({
+      expect(
+        parseDoiMeasurementDecisionRequest({ token: TOKEN, decision, m: SECRET, extra: 1 }),
+      ).toEqual({
         ok: true,
-        request: { token: TOKEN, decision },
+        request: { token: TOKEN, decision, m: SECRET },
+      });
+    }
+  });
+
+  it("sam token DOI (bez sekretu albo z sekretem w złym kształcie) - invalid_token", () => {
+    for (const m of [undefined, null, "", TOKEN, SECRET.slice(1), 42]) {
+      expect(parseDoiMeasurementDecisionRequest({ token: TOKEN, decision: "grant", m })).toEqual({
+        ok: false,
+        error: "invalid_token",
       });
     }
   });

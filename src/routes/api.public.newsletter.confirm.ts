@@ -1,6 +1,6 @@
 // Publiczny endpoint potwierdzenia adresu e-mail dla newslettera (double opt-in).
-// GET  /api/public/newsletter/confirm?token=...
-// POST /api/public/newsletter/confirm  {token, decision: "grant"|"decline"}
+// GET  /api/public/newsletter/confirm?token=...[&m=...]
+// POST /api/public/newsletter/confirm  {token, decision: "grant"|"decline", m}
 // Używa supabaseAdmin (omija RLS), bo aktualizuje rekord pending → subscribed.
 //
 // Kontrakt (kształty: `@/lib/newsletter/confirmMeasurement`):
@@ -16,7 +16,8 @@
 //   właściciela). Odpowiedź GET po sukcesie (także `already`) niesie stan
 //   karty zgody na pomiar z `newsletter_doi_measurement_state`
 //   (`measurement`, `measurementLang`); karta pojawia się tylko, gdy
-//   w formularzu zaznaczono osobne pole pomiaru. FAIL-CLOSED: błąd RPC albo
+//   w formularzu zaznaczono osobne pole pomiaru, a link niesie SEKRET
+//   SKRZYNKI `m` z maila DOI. FAIL-CLOSED: brak/zły `m`, błąd RPC albo
 //   nieznany stan -> `measurement: "none"` (brak karty). GET NIGDY nie
 //   udziela zgody - skanery linków w bramkach pocztowych wykonują GET na
 //   każdym adresie z maila, a zgoda ma być świadomym działaniem osoby
@@ -24,22 +25,31 @@
 // - Decyzję z karty zapisuje WYŁĄCZNIE POST (przycisk): tylko
 //   `content-type: application/json` (formularz z obcej strony nie przejdzie
 //   bez zapytania wstępnego CORS), limiter per IP, potem
-//   `newsletter_doi_measurement_decide` (tylko service_role). Token DOI
-//   z linku maila to dowód skrzynki; „tak" zapisuje baza z kanałem
-//   `measurement:doi`, treścią i wersją pola pomiaru, IP i User-Agentem.
-//   Odpowiedzi nigdy nie zawierają adresu e-mail ani komunikatu Postgresa.
+//   `newsletter_doi_measurement_decide` (tylko service_role). Token DOI NIE
+//   jest dowodem skrzynki - personel najemcy czytał go przez RLS (przegląd R1
+//   PR 533). Dowodem jest podpisany parametr `m` z TEGO SAMEGO maila
+//   (`measurementToken.server.ts`, domena `md:`): trasa czyta wiersz po
+//   tokenie, sprawdza podpis względem jego identyfikatora, adresu i wersji
+//   treści pola pomiaru, a bazie podaje treść podpisu (subskrybent, adres,
+//   wersja, termin) - baza wiąże ją z wierszem pod blokadą. „Tak" zapisuje
+//   baza z kanałem `measurement:doi`, treścią i wersją pola pomiaru, IP
+//   i User-Agentem. Odpowiedzi nigdy nie zawierają adresu e-mail ani
+//   komunikatu Postgresa.
 import { createFileRoute } from "@tanstack/react-router";
 import { consentLangOf } from "@/lib/newsletter/consentSegments";
 import {
+  DOI_MEASUREMENT_PARAM,
   doiMeasurementDecisionError,
   doiMeasurementDecisionReplyOf,
   doiMeasurementFieldsOf,
   isConfirmTokenFormat,
+  isDoiMeasurementTokenFormat,
   parseDoiMeasurementDecisionRequest,
   type DoiMeasurementDecisionReply,
   type DoiMeasurementFields,
   type NewsletterConfirmGetResponse,
 } from "@/lib/newsletter/confirmMeasurement";
+import { EMAIL_MEASUREMENT_CONSENT_VERSION } from "@/lib/newsletter/measurementConsentText";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 
 /** A confirmation token is 16-128 hex chars (jedna reguła z `confirmMeasurement`). */
@@ -119,23 +129,55 @@ function decisionResponse(reply: DoiMeasurementDecisionReply): Response {
   return Response.json(reply.body, { status: reply.status });
 }
 
+/** Wiersz subskrybenta, z którym musi się zgadzać sekret skrzynki. */
+interface DoiSecretRow {
+  id: string;
+  email: string;
+}
+
+/**
+ * Sekret skrzynki `m` z maila DOI względem wiersza znalezionego po tokenie
+ * DOI: kształt, podpis (subskrybent, adres, bieżąca wersja treści pola
+ * pomiaru), termin. Bez sekretu - `invalid` (karty nie ma, decyzji nie ma).
+ */
+async function verifyDoiSecret(
+  row: DoiSecretRow,
+  secret: unknown,
+): Promise<{ ok: true; expiresAt: Date } | { ok: false; reason: "invalid" | "expired" }> {
+  if (!isDoiMeasurementTokenFormat(secret)) return { ok: false, reason: "invalid" };
+  const { verifyDoiMeasurementToken } = await import("@/lib/privacy/measurementToken.server");
+  return verifyDoiMeasurementToken(secret, {
+    subscriberId: row.id,
+    email: row.email,
+    consentVersion: EMAIL_MEASUREMENT_CONSENT_VERSION,
+  });
+}
+
 /**
  * Stan karty zgody na pomiar dla potwierdzonego zapisu (odczyt bez mutacji).
- * Fail-closed: każda awaria daje `none` - lepiej nie zapytać o zgodę, niż
- * pokazać kartę dla stanu, którego baza nie potwierdziła. Język treści
- * zgody: z RPC, a awaryjnie z wiersza (ta sama reguła co zapis w SQL).
+ * Fail-closed: brak/zły sekret skrzynki i każda awaria dają `none` - lepiej
+ * nie zapytać o zgodę, niż pokazać kartę dla stanu, którego baza nie
+ * potwierdziła. Język treści zgody: z RPC, a awaryjnie z wiersza (ta sama
+ * reguła co zapis w SQL).
  */
 async function doiMeasurementFields(
   admin: unknown,
   token: string,
-  language: string | null | undefined,
+  row: DoiSecretRow & { language: string | null | undefined },
+  secret: unknown,
 ): Promise<DoiMeasurementFields> {
-  const fallbackLang = consentLangOf(language);
+  const fallbackLang = consentLangOf(row.language);
+  const check = await verifyDoiSecret(row, secret);
+  if (!check.ok) return doiMeasurementFieldsOf(null, fallbackLang);
   try {
     // RPC spoza wygenerowanych typów do czasu regeneracji `types.ts` - nazwa
     // zostaje LITERAŁEM (bramka kontraktu TS <-> SQL).
     const { data, error } = await (admin as RpcCallable).rpc("newsletter_doi_measurement_state", {
       p_token: token,
+      p_subscriber: row.id,
+      p_email: row.email,
+      p_consent_version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+      p_expires_at: check.expiresAt.toISOString(),
     });
     if (error) {
       console.error("[newsletter/confirm] measurement state failed", error.message);
@@ -157,12 +199,16 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const token = url.searchParams.get("token");
+        const secret = url.searchParams.get(DOI_MEASUREMENT_PARAM);
 
         // Klik z maila -> przyjazna strona wyniku zamiast surowego JSON-a.
         // Strona wywoła ten endpoint ponownie przez fetch (Accept: */*).
+        // Sekret skrzynki przechodzi dalej tylko w poprawnym kształcie.
         if (wantsHtml(request.headers.get("accept"))) {
           const target = new URL("/newsletter/confirm", url.origin);
           if (token) target.searchParams.set("token", token);
+          if (isDoiMeasurementTokenFormat(secret))
+            target.searchParams.set(DOI_MEASUREMENT_PARAM, secret);
           return Response.redirect(target.toString(), 303);
         }
 
@@ -186,7 +232,7 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         const outcome = resolveConfirmOutcome(sub, new Date());
         if (outcome.kind === "already") {
           // Ponowny klik: karta pomiaru wraca, dopóki osoba nie zdecydowała.
-          const measurement = await doiMeasurementFields(supabaseAdmin, token, sub.language);
+          const measurement = await doiMeasurementFields(supabaseAdmin, token, sub, secret);
           return json({ ok: true, already: true, ...measurement });
         }
         if (outcome.kind === "expired") {
@@ -246,7 +292,7 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
 
         // Stan karty PO zmianie statusu: oferta istnieje wyłącznie dla
         // aktywnego subskrybenta (D2 - `pending` nigdy nie dostaje pomiaru).
-        const measurement = await doiMeasurementFields(supabaseAdmin, token, sub.language);
+        const measurement = await doiMeasurementFields(supabaseAdmin, token, sub, secret);
         return json({ ok: true, ...measurement });
       },
       POST: async ({ request }) => {
@@ -268,10 +314,37 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         const userAgent = request.headers.get("user-agent");
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          // Wiersz po tokenie DOI - tylko po to, by sprawdzić sekret skrzynki
+          // względem jego identyfikatora i adresu (decyzję zapisuje baza).
+          const { data: sub, error: subError } = await supabaseAdmin
+            .from("newsletter_subscribers")
+            .select("id, email")
+            .eq("confirmation_token", parsed.request.token)
+            .maybeSingle();
+          if (subError) {
+            console.error(
+              "[newsletter/confirm] measurement decision lookup failed",
+              subError.message,
+            );
+            return decisionResponse(doiMeasurementDecisionError("update_failed"));
+          }
+          if (!sub) return decisionResponse(doiMeasurementDecisionError("invalid_token"));
+          const check = await verifyDoiSecret(sub, parsed.request.m);
+          if (!check.ok) {
+            return decisionResponse(
+              doiMeasurementDecisionError(check.reason === "expired" ? "none" : "invalid_token"),
+            );
+          }
           const { data, error } = await (supabaseAdmin as unknown as RpcCallable).rpc(
             "newsletter_doi_measurement_decide",
             {
               p_token: parsed.request.token,
+              // Treść podpisu sekretu - baza wiąże ją z wierszem tokenu pod
+              // blokadą (subskrybent, adres, wersja, termin).
+              p_subscriber: sub.id,
+              p_email: sub.email,
+              p_consent_version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+              p_expires_at: check.expiresAt.toISOString(),
               p_grant: parsed.request.decision === "grant",
               p_ip: ip,
               p_user_agent: userAgent,

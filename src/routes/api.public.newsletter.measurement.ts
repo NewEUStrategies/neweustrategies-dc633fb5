@@ -121,7 +121,10 @@ function resultOf<T extends string>(data: unknown, allowed: readonly T[]): T | n
   return (allowed as readonly unknown[]).includes(value) ? (value as T) : null;
 }
 
-/** Wynik `email_measurement_withdraw` (rpc-shape w 20261020162300). */
+/**
+ * Wynik `email_measurement_withdraw` (rpc-shape w 20261020162300; od
+ * 20261023090300 `withdrawn` także dla odmowy osoby bez zgody).
+ */
 const WITHDRAW_RESULTS = ["withdrawn", "already", "gone", "invalid"] as const;
 /** Wynik `newsletter_measurement_confirm` (rpc-shape w 20261020162500). */
 const CONFIRM_RESULTS = ["confirmed", "already", "inactive", "gone", "invalid"] as const;
@@ -191,8 +194,10 @@ export const Route = createFileRoute("/api/public/newsletter/measurement")({
           }
           return Response.json({ ok: false, error: "state_failed" }, { status: 500 });
         }
-        // Wycofanie: ODCZYT stanu zgody (bez zapisu), żeby strona od razu
-        // powiedziała „pomiar jest wyłączony", zamiast pytać o pustą decyzję.
+        // Wycofanie: ODCZYT stanu zgody i odmowy (bez zapisu). Strona mówi
+        // „pomiar jest wyłączony" tylko przy odmowie już zapisanej; osoba bez
+        // zgody i bez odmowy dostaje przycisk - jej odmowa trafia do rejestru
+        // i wyklucza ją z próśb (I9d-Y2b R1, zgoda-r1-2).
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const subject = check.subject;
@@ -210,7 +215,13 @@ export const Route = createFileRoute("/api/public/newsletter/measurement")({
             return Response.json({ ok: false, error: "not_found" }, { status: 404 });
           }
           if (row?.result === "ok" && typeof row.consent === "boolean") {
-            return Response.json({ ok: true, action: "withdraw", consent: row.consent });
+            return Response.json({
+              ok: true,
+              action: "withdraw",
+              consent: row.consent,
+              // Stara baza bez pola - jak dotąd (odmowa zakładana).
+              refused: typeof row.refused === "boolean" ? row.refused : true,
+            });
           }
           if (error) console.error("[newsletter.measurement] state failed", error.message);
         } catch (err) {

@@ -204,6 +204,7 @@ import {
   measurementConsentPayload,
 } from "@/lib/newsletter/measurementConsentText";
 import { CAREERS_FORM_ID } from "@/lib/careers/recruitmentShared";
+import { verifyDoiMeasurementToken } from "@/lib/privacy/measurementToken.server";
 
 // ---------------------------------------------------------------------------
 // Fixture'y. Wyłącznie dane syntetyczne - patrz sekcja 13.
@@ -1845,7 +1846,7 @@ describe("formularz kontaktowy - osobne pole pomiaru (I9d-Y2b)", () => {
 
   it("double opt-in: notka o pomiarze w mailu TYLKO przy zaznaczonym polu; bez prośby (pyta strona DOI)", async () => {
     planHappyPath();
-    planNewsletter();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
     await submit(withDeclaration());
     const withNote = sentEmails().at(-1);
     expect(withNote?.subject).toBe("Potwierdź zapis do newslettera");
@@ -1857,15 +1858,47 @@ describe("formularz kontaktowy - osobne pole pomiaru (I9d-Y2b)", () => {
     db().reset();
     h.fetchCalls = [];
     planHappyPath();
-    planNewsletter();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
     await submit({ newsletterOptIn: true, consents: [NEWSLETTER_ENTRY] });
     expect(sentEmails().at(-1)?.html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
     expect(sentEmails().at(-1)?.html).not.toMatch(/pomiar/i);
+    expect(sentEmails().at(-1)?.html).not.toMatch(/[?&;]m=/);
+  });
+
+  it("double opt-in z deklaracją: link niesie sekret skrzynki związany z wierszem `pending` i adresem (I9d-Y2b R1)", async () => {
+    planHappyPath();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
+    await submit(withDeclaration({ email: "Osoba@Example.test" }));
+
+    const html = sentEmails().at(-1)?.html ?? "";
+    const link =
+      /\/api\/public\/newsletter\/confirm\?token=([0-9a-f]{64})&amp;m=(d[0-9a-f]{72})/.exec(html);
+    expect(link).not.toBeNull();
+    expect(link?.[1]).toBe(fieldOf(subscriberRow(), "confirmation_token"));
+    expect(
+      verifyDoiMeasurementToken(link?.[2], {
+        subscriberId: SUBSCRIBER_ID,
+        email: "osoba@example.test",
+      }),
+    ).toMatchObject({ ok: true });
+    const upsert = chainWith("newsletter_subscribers", "upsert");
+    expect(upsert.argsOf("select")).toEqual(["id"]);
+  });
+
+  it("double opt-in z deklaracją bez id wiersza: mail bez sekretu i bez notki (fail-closed)", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit(withDeclaration());
+
+    const html = sentEmails().at(-1)?.html ?? "";
+    expect(html).toContain("/api/public/newsletter/confirm?token=");
+    expect(html).not.toMatch(/[?&;]m=/);
+    expect(html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
   });
 
   it("notka w mailu DOI idzie w języku zgłoszenia (EN)", async () => {
     planHappyPath();
-    planNewsletter();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
     await submit(
       withDeclaration({
         lang: "en",

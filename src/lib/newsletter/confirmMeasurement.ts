@@ -7,14 +7,24 @@
 // (`src/routes/newsletter.confirm.tsx` z kartą decyzji,
 // `src/routes/newsletter.measurement.tsx`).
 //
-// 1. GET /api/public/newsletter/confirm (fetch strony, JSON) - potwierdzenie
-//    zapisu jak dotąd; po sukcesie (także `already`) odpowiedź niesie stan
-//    karty zgody na pomiar z `newsletter_doi_measurement_state`:
+// 0. SEKRET SKRZYNKI (I9d-Y2b R1, przegląd PR 533 sql-r1-1/zgoda-r1-1).
+//    Token DOI (`token`) NIE jest dowodem skrzynki - personel najemcy czytał
+//    go przez RLS. Mail DOI z zaznaczonym polem pomiaru niesie drugi
+//    parametr `m` (`DOI_MEASUREMENT_PARAM`, podpis HMAC sekretem serwera,
+//    `measurementToken.server.ts`), związany z subskrybentem, adresem, wersją
+//    treści pola pomiaru i terminem (60 dni od wysłania maila). Strona
+//    `/newsletter/confirm?token=…&m=…` przekazuje `m` w GET
+//    (`newsletterConfirmApiUrl`) i w ciele POST. Bez ważnego `m` karty nie ma,
+//    a decyzja kończy się `invalid_token` (zły podpis) albo `none` (termin).
+// 1. GET /api/public/newsletter/confirm?token=…[&m=…] (fetch strony, JSON) -
+//    potwierdzenie zapisu jak dotąd; po sukcesie (także `already`) odpowiedź
+//    niesie stan karty zgody na pomiar z `newsletter_doi_measurement_state`:
 //    `{ ok: true, [already: true], measurement, measurementLang }`.
-//    FAIL-CLOSED: błąd RPC, `invalid`, `inactive`, `gone` albo nieznany kształt
-//    -> `measurement: "none"` (brak karty). GET NIGDY nie udziela zgody.
+//    FAIL-CLOSED: brak albo zły `m`, błąd RPC, `invalid`, `inactive`, `gone`
+//    albo nieznany kształt -> `measurement: "none"` (brak karty). GET NIGDY
+//    nie udziela zgody.
 // 2. POST /api/public/newsletter/confirm - decyzja z karty (wyłącznie
-//    `content-type: application/json`, ciało `{ token, decision }`) ->
+//    `content-type: application/json`, ciało `{ token, decision, m }`) ->
 //    `newsletter_doi_measurement_decide` -> `{ ok: true, result }` albo
 //    `{ ok: false, error }` z kodem HTTP z `DOI_MEASUREMENT_DECISION_ERRORS`.
 // 3. GET /api/public/newsletter/measurement (fetch strony) - przy akcji
@@ -32,6 +42,12 @@ import type { ConsentLang } from "./consentSegments";
 
 /** Endpoint potwierdzenia zapisu (GET) i decyzji z karty pomiaru (POST). */
 export const NEWSLETTER_CONFIRM_API_PATH = "/api/public/newsletter/confirm";
+
+/**
+ * Parametr sekretu skrzynki: w linku maila DOI, w adresie strony
+ * `/newsletter/confirm`, w GET endpointu i (pod tą samą nazwą) w ciele POST.
+ */
+export const DOI_MEASUREMENT_PARAM = "m";
 
 function recordOf(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -57,6 +73,33 @@ export function isConfirmTokenFormat(token: unknown): token is string {
     token.length >= 16 &&
     token.length <= 128 &&
     /^[a-f0-9]+$/i.test(token)
+  );
+}
+
+/**
+ * Kształt sekretu skrzynki z maila DOI: `d` + 72 znaki szesnastkowe
+ * (subskrybent, termin, podpis - `measurementToken.server.ts`). Sam kształt
+ * niczego nie dowodzi; podpis sprawdza serwer.
+ */
+export function isDoiMeasurementTokenFormat(value: unknown): value is string {
+  return typeof value === "string" && /^d[a-f0-9]{72}$/i.test(value);
+}
+
+/**
+ * Link (strona albo endpoint) z sekretem skrzynki, gdy jest i ma poprawny
+ * kształt; bez niego - link bez zmian (mail bez pola pomiaru, karta nie
+ * pojawi się).
+ */
+export function withDoiMeasurementSecret(url: string, secret: string | null | undefined): string {
+  if (!isDoiMeasurementTokenFormat(secret)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${DOI_MEASUREMENT_PARAM}=${encodeURIComponent(secret)}`;
+}
+
+/** STRONA: adres GET endpointu potwierdzenia (token DOI + sekret skrzynki, gdy jest). */
+export function newsletterConfirmApiUrl(token: string, secret?: string | null): string {
+  return withDoiMeasurementSecret(
+    `${NEWSLETTER_CONFIRM_API_PATH}?token=${encodeURIComponent(token)}`,
+    secret,
   );
 }
 
@@ -161,24 +204,44 @@ export function newsletterConfirmViewOf(status: number, body: unknown): Newslett
 export const DOI_MEASUREMENT_DECISIONS = ["grant", "decline"] as const;
 export type DoiMeasurementDecision = (typeof DOI_MEASUREMENT_DECISIONS)[number];
 
-/** Ciało POST (JSON). Token = token DOI z linku maila (ten sam co w GET). */
+/**
+ * Ciało POST (JSON). Token = token DOI z linku maila (ten sam co w GET),
+ * `m` = sekret skrzynki z tego samego linku (`DOI_MEASUREMENT_PARAM`).
+ */
 export interface DoiMeasurementDecisionRequest {
   token: string;
   decision: DoiMeasurementDecision;
+  /** Sekret skrzynki (kształt sprawdzony, podpis - serwer). */
+  m: string;
+}
+
+/** STRONA/KARTA: ciało POST decyzji (JSON). */
+export function doiMeasurementDecisionBody(
+  token: string,
+  secret: string,
+  decision: DoiMeasurementDecision,
+): DoiMeasurementDecisionRequest {
+  return { token, decision, m: secret };
 }
 
 export type DoiMeasurementDecisionParse =
   | { ok: true; request: DoiMeasurementDecisionRequest }
   | { ok: false; error: "invalid_token" | "invalid_decision" };
 
-/** SERWER: sparsowane ciało JSON -> żądanie decyzji (najpierw token, potem decyzja). */
+/**
+ * SERWER: sparsowane ciało JSON -> żądanie decyzji (token, decyzja, potem
+ * sekret skrzynki - brak albo zły kształt `m` = `invalid_token`: bez niego
+ * nie ma dowodu skrzynki).
+ */
 export function parseDoiMeasurementDecisionRequest(body: unknown): DoiMeasurementDecisionParse {
   const row = recordOf(body);
   const token = row?.token;
   if (!isConfirmTokenFormat(token)) return { ok: false, error: "invalid_token" };
   const decision = oneOf(row?.decision, DOI_MEASUREMENT_DECISIONS);
   if (decision === null) return { ok: false, error: "invalid_decision" };
-  return { ok: true, request: { token, decision } };
+  const secret = row?.[DOI_MEASUREMENT_PARAM];
+  if (!isDoiMeasurementTokenFormat(secret)) return { ok: false, error: "invalid_token" };
+  return { ok: true, request: { token, decision, m: secret } };
 }
 
 /** Wynik zapisanej (albo już zapisanej) decyzji. */
@@ -188,10 +251,10 @@ export type DoiMeasurementDecisionResult = (typeof DOI_MEASUREMENT_DECISION_RESU
 /** Kody błędów POST -> status HTTP. */
 export const DOI_MEASUREMENT_DECISION_ERRORS = {
   unsupported_media_type: 415, // ciało inne niż application/json
-  invalid_token: 400, // zły format tokenu albo RPC `invalid`/`gone`
+  invalid_token: 400, // zły format tokenu, brak/zły sekret skrzynki `m` albo RPC `invalid`/`gone`
   invalid_decision: 400, // `decision` spoza listy
   inactive: 409, // subskrybent nieaktywny (wypis, `pending`)
-  none: 422, // brak deklaracji w formularzu albo decyzja po terminie
+  none: 422, // brak deklaracji w formularzu albo decyzja po terminie (także termin sekretu `m`)
   rate_limited: 429, // limiter per IP
   update_failed: 500, // błąd RPC albo nieznany kształt wyniku
 } as const;

@@ -20,10 +20,23 @@
 // (8 hex, sekundy epoki) + podpis = 105 znaków. Zgoda działa w drugą stronę
 // niż wycofanie, więc ma JEDNORAZOWOŚĆ (nonce prośby w bazie,
 // `newsletter_measurement_confirm`) i TERMIN (podpis) - link z prośby sprzed
-// miesięcy nie udziela zgody w nieskończoność.
+// miesięcy nie udziela zgody w nieskończoność. Adres wysyłki wiąże baza
+// (`newsletter_measurement_requests.email_norm`, I9d-Y2b R1).
+//
+// SEKRET SKRZYNKI NA STRONIE DOI (`md:`, I9d-Y2b R1): `d` + subskrybent
+// (32 hex) + termin (8 hex) + podpis = 73 znaki - parametr `m` linku z maila
+// double opt-in, gdy w formularzu zaznaczono osobne pole pomiaru. Token DOI
+// (`confirmation_token`) NIE jest dowodem skrzynki: personel najemcy czytał go
+// przez RLS. Podpis obejmuje subskrybenta, ADRES (lower), wersję treści pola
+// pomiaru i termin (wysłanie maila + `MEASUREMENT_CONFIRM_LINK_DAYS`), więc
+// nie da się go wyliczyć bez sekretu serwera, przenieść na inny wiersz ani
+// użyć po zmianie adresu albo treści. Weryfikacja potrzebuje wiersza
+// subskrybenta (adres) - robi ją trasa `api.public.newsletter.confirm`,
+// a bazie podaje treść podpisu (`newsletter_doi_measurement_state/_decide`).
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
+import { EMAIL_MEASUREMENT_CONSENT_VERSION } from "@/lib/newsletter/measurementConsentText";
 import {
   MEASUREMENT_CONFIRM_LINK_DAYS,
   newsletterMeasurementUrl,
@@ -33,10 +46,13 @@ import {
 
 const WITHDRAW_DOMAIN = "mw:";
 const CONFIRM_DOMAIN = "mc:";
+const DOI_DOMAIN = "md:";
 const SIG_HEX_LEN = 32;
+const DAY_MS = 86_400_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WITHDRAW_RE = /^w([sl])([a-f0-9]{32})([a-f0-9]{32})$/i;
 const CONFIRM_RE = /^c([a-f0-9]{32})([a-f0-9]{32})([a-f0-9]{8})([a-f0-9]{32})$/i;
+const DOI_RE = /^d([a-f0-9]{32})([a-f0-9]{8})([a-f0-9]{32})$/i;
 
 /** Ważność linku zgody z prośby (dni) - jedno źródło w liściu `measurement.ts`. */
 export const MEASUREMENT_CONFIRM_TOKEN_TTL_DAYS = MEASUREMENT_CONFIRM_LINK_DAYS;
@@ -172,4 +188,107 @@ export function verifyMeasurementToken(
   const expiresAt = new Date(Number.parseInt(expiresHex, 16) * 1000);
   if (expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "expired" };
   return { ok: true, action: "confirm", subscriberId, nonce, expiresAt };
+}
+
+// ---------------------------------------------------------------------------
+// Sekret skrzynki na stronie DOI (`md:`)
+// ---------------------------------------------------------------------------
+
+/** Wiersz subskrybenta, z którym sekret ma być związany. */
+export interface DoiMeasurementSubject {
+  subscriberId: string;
+  /** Adres wiersza - w podpisie po obcięciu i małych literach (jak SQL `lower`). */
+  email: string;
+  /** Wersja treści pola pomiaru (lustro `_email_measurement_consent_version`). */
+  consentVersion: string;
+}
+
+export interface DoiMeasurementTokenInput extends DoiMeasurementSubject {
+  expiresAt: Date;
+}
+
+function doiSignature(
+  subscriber: string,
+  email: string,
+  version: string,
+  expiresHex: string,
+): string {
+  return sign(`${DOI_DOMAIN}${subscriber}:${email.trim().toLowerCase()}:${version}:${expiresHex}`);
+}
+
+/** Sekret skrzynki do linku z maila DOI albo wyjątek przy złych danych. */
+export function signDoiMeasurementToken(input: DoiMeasurementTokenInput): string {
+  if (!UUID_RE.test(input.subscriberId)) {
+    throw new Error("measurement token: subscriberId musi być UUID");
+  }
+  if (!input.email.trim() || !input.consentVersion) {
+    throw new Error("measurement token: adres i wersja treści są wymagane");
+  }
+  const seconds = Math.floor(input.expiresAt.getTime() / 1000);
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 0xffffffff) {
+    throw new Error("measurement token: termin poza zakresem");
+  }
+  const subscriber = input.subscriberId.toLowerCase();
+  const expiresHex = seconds.toString(16).padStart(8, "0");
+  return `d${compact(subscriber)}${expiresHex}${doiSignature(
+    subscriber,
+    input.email,
+    input.consentVersion,
+    expiresHex,
+  )}`;
+}
+
+/**
+ * Sekret skrzynki dla maila DOI wysyłanego TERAZ: bieżąca wersja treści pola
+ * pomiaru, termin = teraz + `MEASUREMENT_CONFIRM_LINK_DAYS` (ta sama stała co
+ * `c_offer_days` w `_newsletter_doi_measurement_offer_state` - test parytetu).
+ * `null`, gdy identyfikator nie jest UUID albo brak adresu - mail wychodzi
+ * wtedy bez karty pomiaru (fail-closed), zamiast przerywać zapis.
+ */
+export function doiMeasurementTokenFor(
+  subscriberId: string | null | undefined,
+  email: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!subscriberId || !UUID_RE.test(subscriberId) || !email?.trim()) return null;
+  return signDoiMeasurementToken({
+    subscriberId,
+    email,
+    consentVersion: EMAIL_MEASUREMENT_CONSENT_VERSION,
+    expiresAt: new Date(now.getTime() + MEASUREMENT_CONFIRM_LINK_DAYS * DAY_MS),
+  });
+}
+
+export type DoiMeasurementTokenCheck =
+  { ok: true; expiresAt: Date } | { ok: false; reason: "invalid" | "expired" };
+
+/**
+ * Weryfikacja sekretu względem wiersza subskrybenta (z tokenu DOI): kształt,
+ * ten sam subskrybent, podpis (adres, wersja, termin), potem termin -
+ * `expired` widzi tylko posiadacz PRAWDZIWEGO linku. Wersja domyślnie
+ * bieżąca: nowa treść pola pomiaru unieważnia stare linki.
+ */
+export function verifyDoiMeasurementToken(
+  token: string | null | undefined,
+  expected: { subscriberId: string; email: string; consentVersion?: string },
+  now: Date = new Date(),
+): DoiMeasurementTokenCheck {
+  if (!token || !expected.email?.trim()) return { ok: false, reason: "invalid" };
+  const parts = DOI_RE.exec(token);
+  if (!parts) return { ok: false, reason: "invalid" };
+  const subscriber = expand(parts[1]);
+  if (subscriber !== expected.subscriberId.toLowerCase()) return { ok: false, reason: "invalid" };
+  const expiresHex = parts[2].toLowerCase();
+  const version = expected.consentVersion ?? EMAIL_MEASUREMENT_CONSENT_VERSION;
+  if (
+    !constantTimeEqual(
+      parts[3].toLowerCase(),
+      doiSignature(subscriber, expected.email, version, expiresHex),
+    )
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const expiresAt = new Date(Number.parseInt(expiresHex, 16) * 1000);
+  if (expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "expired" };
+  return { ok: true, expiresAt };
 }

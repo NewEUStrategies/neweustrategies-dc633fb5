@@ -18,11 +18,13 @@
 --   * pisarze formularzy: subskrybent, ponowny zapis (UPDATE consents),
 --     wiadomość kontaktowa - zero „tak" pomiaru; rezerwa `newsletter` tylko
 --     przy pustym consents;
---   * `pending` i strona DOI: brak pomiaru przed potwierdzeniem, stan
---     inactive -> offer, decyzja „tak" (kanał, treść, wersja, IP, UA), „nie"
---     (kanał odmowy, wykluczenie z próśb), powtórka `already`, brak/zła
---     deklaracja `none`, deklaracja z ładunku TS (HTML i tekst), wygaśnięcie
---     po 60 dniach, token nieznany/zły/wyzerowany `invalid`, wypisany bez
+--   * `pending` i strona DOI (sygnatury z sekretem skrzynki z 20261023090300 -
+--     reszta sekretu: hub_i9d_y2b_measurement_fixes_test): brak pomiaru przed
+--     potwierdzeniem, stan inactive -> offer, decyzja „tak" (kanał, treść,
+--     wersja, IP, UA), „nie" (kanał odmowy, wykluczenie z próśb), powtórka
+--     `already`, brak/zła deklaracja `none`, deklaracja z ładunku TS (HTML
+--     i tekst), wygaśnięcie (prośba - 60 dni od deklaracji, DOI - termin
+--     z podpisu), token nieznany/zły/wyzerowany `invalid`, wypisany bez
 --     wyzerowania tokenu `inactive`;
 --   * prośba po zapisie bez DOI (origin signup), porcja z pochodzeniem
 --     i osobnym budżetem, potwierdzenie z kanałem signup/reconfirm bez wpisu
@@ -71,6 +73,23 @@ CREATE FUNCTION pg_temp.consent(p_key text) RETURNS boolean LANGUAGE sql STABLE 
 $$;
 CREATE FUNCTION pg_temp.state(p_key text) RETURNS text LANGUAGE sql STABLE AS $$
   SELECT public._newsletter_measurement_offer_state(pg_temp.sub(p_key))
+$$;
+-- Strona DOI (od 20261023090300) z treścią podpisanego parametru `m` z maila
+-- (podpis HMAC sprawdza serwer TS): subskrybent i adres z wiersza tokenu,
+-- bieżąca wersja treści pomiaru, termin za 30 dni.
+CREATE FUNCTION pg_temp.doi_state(p_key text, p_expires timestamptz DEFAULT now() + interval '30 days')
+RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT public.newsletter_doi_measurement_state(md5(p_key), s.id, s.email,
+                                                 public._email_measurement_consent_version(), p_expires)
+    FROM public.newsletter_subscribers s WHERE s.confirmation_token = md5(p_key)
+$$;
+CREATE FUNCTION pg_temp.doi_decide(p_key text, p_grant boolean, p_ip text DEFAULT NULL, p_ua text DEFAULT NULL,
+                                   p_expires timestamptz DEFAULT now() + interval '30 days')
+RETURNS jsonb LANGUAGE sql AS $$
+  SELECT public.newsletter_doi_measurement_decide(md5(p_key), s.id, s.email,
+                                                  public._email_measurement_consent_version(), p_expires,
+                                                  p_grant, p_ip, p_ua)
+    FROM public.newsletter_subscribers s WHERE s.confirmation_token = md5(p_key)
 $$;
 -- Deklaracja pola pomiaru jak z `measurementConsentPayload` (+ chwila odbioru).
 CREATE FUNCTION pg_temp.tick(p_lang text, p_at timestamptz DEFAULT now()) RETURNS jsonb LANGUAGE sql STABLE AS $$
@@ -316,18 +335,18 @@ SELECT ok(
                                                                    ARRAY['p1@i9d-y2b.test']) s)
   AND public.email_measurement_state(pg_temp.sub('p1'), NULL) ->> 'consent' = 'false',
   'pending z deklaracją: w rejestrze tylko newsletter; czytelnik, porcja i stan - bez pomiaru');
-SELECT is(public.newsletter_doi_measurement_state(md5('p1')), '{"result": "inactive", "lang": "pl"}'::jsonb,
+SELECT is(pg_temp.doi_state('p1'), '{"result": "inactive", "lang": "pl"}'::jsonb,
   'strona DOI przed potwierdzeniem: inactive (+ język subskrybenta)');
 UPDATE public.newsletter_subscribers SET status = 'subscribed', confirmed_at = now(), confirmation_expires_at = NULL
  WHERE email IN ('p1@i9d-y2b.test', 'p2@i9d-y2b.test');
 SELECT ok(
-  public.newsletter_doi_measurement_state(md5('p1')) = '{"result": "offer", "lang": "pl"}'::jsonb
-  AND public.newsletter_doi_measurement_state(md5('p2')) = '{"result": "offer", "lang": "en"}'::jsonb
+  pg_temp.doi_state('p1') = '{"result": "offer", "lang": "pl"}'::jsonb
+  AND pg_temp.doi_state('p2') = '{"result": "offer", "lang": "en"}'::jsonb
   AND NOT pg_temp.consent('p1'),
   'po potwierdzeniu DOI: oferta decyzji, ale bez pomiaru (GET nigdy nie udziela zgody)');
 
 -- ── 7. Decyzja „tak" na stronie DOI ──────────────────────────────────────────
-INSERT INTO r SELECT 'd1', public.newsletter_doi_measurement_decide(md5('p1'), true, ' 198.51.100.7 ', 'Mozilla/5.0 Y2b');
+INSERT INTO r SELECT 'd1', pg_temp.doi_decide('p1', true, ' 198.51.100.7 ', 'Mozilla/5.0 Y2b');
 SELECT ok(
   (SELECT v = '{"result": "granted", "lang": "pl"}'::jsonb FROM r WHERE k = 'd1')
   AND (SELECT count(*) = 1 FROM public.crm_consent_log c
@@ -339,14 +358,14 @@ SELECT ok(
   AND pg_temp.consent('p1'),
   'DOI „Zgadzam się": wpis measurement:doi związany z subskrybentem (treść i wersja pomiaru, IP, UA) - pomiar');
 SELECT ok(
-  public.newsletter_doi_measurement_decide(md5('p1'), true) = '{"result": "already", "lang": "pl"}'::jsonb
-  AND public.newsletter_doi_measurement_decide(md5('p1'), false) ->> 'result' = 'already'
-  AND public.newsletter_doi_measurement_state(md5('p1')) ->> 'result' = 'granted'
+  pg_temp.doi_decide('p1', true) = '{"result": "already", "lang": "pl"}'::jsonb
+  AND pg_temp.doi_decide('p1', false) ->> 'result' = 'already'
+  AND pg_temp.doi_state('p1') ->> 'result' = 'granted'
   AND pg_temp.n_log('p1', 'email_measurement') = 1,
   'DOI: powtórka (także zmiana zdania) - already bez drugiego wpisu; stan granted');
 
 -- ── 8. Odmowa na stronie DOI ─────────────────────────────────────────────────
-INSERT INTO r SELECT 'd2', public.newsletter_doi_measurement_decide(md5('p2'), false, '198.51.100.8', 'UA');
+INSERT INTO r SELECT 'd2', pg_temp.doi_decide('p2', false, '198.51.100.8', 'UA');
 SELECT ok(
   (SELECT v = '{"result": "declined", "lang": "en"}'::jsonb FROM r WHERE k = 'd2')
   AND (SELECT count(*) = 1 FROM public.crm_consent_log c
@@ -356,7 +375,7 @@ SELECT ok(
   AND NOT pg_temp.consent('p2') AND pg_temp.state('p2') = 'declined',
   'DOI „Nie zgadzam się": wpis measurement:doi_declined (EN); stan declined, bez pomiaru');
 SELECT ok(
-  public.newsletter_doi_measurement_decide(md5('p2'), true) ->> 'result' = 'already'
+  pg_temp.doi_decide('p2', true) ->> 'result' = 'already'
   AND NOT EXISTS (SELECT 1 FROM public._newsletter_measurement_candidates('19db0000-0000-4000-8000-0000000000a0') x
                    WHERE x.subscriber_id = pg_temp.sub('p2'))
   AND NOT pg_temp.consent('p2'),
@@ -376,8 +395,8 @@ SELECT '19db0000-0000-4000-8000-0000000000a0', k || '@i9d-y2b.test', 'subscribed
 SELECT ok(
   pg_temp.state('n1') = 'none' AND pg_temp.state('n2') = 'none' AND pg_temp.state('n3') = 'none'
   AND pg_temp.state('n4') = 'none' AND pg_temp.state('n5') = 'none'
-  AND public.newsletter_doi_measurement_decide(md5('n2'), true) = '{"result": "none", "lang": "pl"}'::jsonb
-  AND public.newsletter_doi_measurement_decide(md5('n3'), true) ->> 'result' = 'none'
+  AND pg_temp.doi_decide('n2', true) = '{"result": "none", "lang": "pl"}'::jsonb
+  AND pg_temp.doi_decide('n3', true) ->> 'result' = 'none'
   AND NOT EXISTS (SELECT 1 FROM public.crm_consent_log WHERE email IN ('n2@i9d-y2b.test', 'n3@i9d-y2b.test')
                     AND consent_key = 'email_measurement'),
   'bez deklaracji, z wersją (a), obcą treścią, given:false albo kluczem zgody zamiast deklaracji: none, bez wpisu');
@@ -393,8 +412,11 @@ SELECT ok(
   'deklaracja: dosłowny ładunek measurementConsentPayload (HTML) i treść bez znaczników rozpoznane; zła chwila = -infinity');
 SELECT ok(
   pg_temp.state('e1') = 'none' AND pg_temp.state('e2') = 'offer'
-  AND public.newsletter_doi_measurement_decide(md5('e1'), true) ->> 'result' = 'none',
-  'decyzja wygasa 60 dni po deklaracji (61 dni - none, 59 dni - offer)');
+  AND pg_temp.doi_state('e1') ->> 'result' = 'offer'
+  AND pg_temp.doi_decide('e1', true, p_expires => now() - interval '1 second') ->> 'result' = 'none'
+  AND pg_temp.doi_decide('e1', true, p_expires => now() + interval '62 days') ->> 'result' = 'none'
+  AND pg_temp.n_log('e1', 'email_measurement') = 0,
+  'prośba po zapisie: 60 dni od deklaracji (61 - none, 59 - offer); strona DOI: termin z podpisu maila (minął albo dalszy niż 60 dni + dzień tolerancji - none)');
 
 -- ── 10. Token ────────────────────────────────────────────────────────────────
 INSERT INTO public.newsletter_subscribers (tenant_id, email, status, language, consents, confirmation_token)
@@ -405,18 +427,20 @@ SELECT public.email_unsubscribe_by_token((SELECT unsubscribe_token FROM public.n
                                            WHERE email = 't1@i9d-y2b.test'));
 UPDATE public.newsletter_subscribers SET status = 'unsubscribed', unsubscribed_at = now() WHERE email = 't2@i9d-y2b.test';
 SELECT ok(
-  public.newsletter_doi_measurement_state(md5('nieznany')) = '{"result": "invalid"}'::jsonb
-  AND public.newsletter_doi_measurement_state('zly-token') = '{"result": "invalid"}'::jsonb
-  AND public.newsletter_doi_measurement_state(NULL) = '{"result": "invalid"}'::jsonb
-  AND public.newsletter_doi_measurement_decide('xyz', true) = '{"result": "invalid"}'::jsonb
-  AND public.newsletter_doi_measurement_state(md5('t1')) = '{"result": "invalid"}'::jsonb,
+  public.newsletter_doi_measurement_state(md5('nieznany'), pg_temp.sub('t1'), 't1@i9d-y2b.test',
+                                         'email-measurement-2026-10-23', now() + interval '1 day') = '{"result": "invalid"}'::jsonb
+  AND public.newsletter_doi_measurement_state('zly-token', NULL, NULL, NULL, NULL) = '{"result": "invalid"}'::jsonb
+  AND public.newsletter_doi_measurement_state(NULL, NULL, NULL, NULL, NULL) = '{"result": "invalid"}'::jsonb
+  AND public.newsletter_doi_measurement_decide('xyz', NULL, NULL, NULL, NULL, true) = '{"result": "invalid"}'::jsonb
+  AND public.newsletter_doi_measurement_state(md5('t1'), pg_temp.sub('t1'), 't1@i9d-y2b.test',
+                                              'email-measurement-2026-10-23', now() + interval '1 day') = '{"result": "invalid"}'::jsonb,
   'token nieznany, zły format, NULL i wyzerowany wypisem z linku - invalid');
 SELECT ok(
-  public.newsletter_doi_measurement_state(md5('t2')) = '{"result": "inactive", "lang": "pl"}'::jsonb
-  AND public.newsletter_doi_measurement_decide(md5('t2'), true) ->> 'result' = 'inactive'
+  pg_temp.doi_state('t2') = '{"result": "inactive", "lang": "pl"}'::jsonb
+  AND pg_temp.doi_decide('t2', true) ->> 'result' = 'inactive'
   AND pg_temp.n_log('t2', 'email_measurement') = 0,
   'wypis przez personel bez wyzerowania tokenu: inactive, bez wpisu');
-SELECT throws_ok($$ SELECT public.newsletter_doi_measurement_decide(md5('p1'), NULL) $$,
+SELECT throws_ok($$ SELECT pg_temp.doi_decide('p1', NULL) $$,
   '22023', 'decision_invalid', 'decyzja NULL - 22023');
 
 -- ── 11. Czytelnik: wiersze (a), dawne potwierdzenie, związanie ───────────────
@@ -517,7 +541,8 @@ UPDATE public.newsletter_subscribers SET status = 'subscribed', confirmed_at = n
 SELECT ok(
   (SELECT v = '"inactive"'::jsonb FROM r WHERE k = 'r1_old')
   AND NOT pg_temp.consent('r1') AND pg_temp.n_log('r1', 'email_measurement', true) = 1
-  AND public.newsletter_doi_measurement_state(md5('r1')) ->> 'result' = 'offer',
+  -- Mail DOI ponownego zapisu wyszedł PO wypisie (sekret wydany teraz).
+  AND pg_temp.doi_state('r1', clock_timestamp() + interval '60 days') ->> 'result' = 'offer',
   'ponowny zapis wypisanego przez osobę trzecią: stara zgoda nie wraca, decyzja czeka na właściciela (offer)');
 
 -- ── 13. Prośba po zapisie bez DOI, porcja, potwierdzenie ─────────────────────
@@ -614,6 +639,10 @@ SELECT throws_ok($$ SELECT * FROM public.newsletter_measurement_claim(10, 'inne'
 INSERT INTO r SELECT 'c_bs1', public.newsletter_measurement_confirm(pg_temp.sub('bs1'),
   (SELECT nonce FROM claimed_signup WHERE email = 'bs1@i9d-y2b.test'), '203.0.113.9', 'UA signup');
 INSERT INTO r SELECT 'n_nl_bs2', to_jsonb(pg_temp.n_log('bs2', 'newsletter'));
+-- Prośba z panelu bs2 nie weszła do porcji (budżet panelu wyczerpany):
+-- fikstura udaje wysłany mail - adres wysyłki zapisany jak przy zajęciu.
+UPDATE public.newsletter_measurement_requests SET email_norm = 'bs2@i9d-y2b.test'
+ WHERE subscriber_id = pg_temp.sub('bs2');
 INSERT INTO r SELECT 'c_bs2', public.newsletter_measurement_confirm(pg_temp.sub('bs2'),
   (SELECT nonce FROM public.newsletter_measurement_requests WHERE subscriber_id = pg_temp.sub('bs2')));
 SELECT ok(
@@ -668,14 +697,15 @@ SELECT is_empty(
           'tg_crm_consent_log_measurement_guard', 'tg_newsletter_unsubscribed_measurement', 'newsletter_to_lead']::name[]) $$,
   'ACL: funkcje wewnętrzne i wyzwalacze bez EXECUTE dla anon, authenticated i service_role');
 SELECT ok(
-  has_function_privilege('service_role', 'public.newsletter_doi_measurement_state(text)', 'EXECUTE')
-  AND has_function_privilege('service_role', 'public.newsletter_doi_measurement_decide(text, boolean, text, text)', 'EXECUTE')
+  has_function_privilege('service_role', 'public.newsletter_doi_measurement_state(text, uuid, text, text, timestamptz)', 'EXECUTE')
+  AND has_function_privilege('service_role',
+        'public.newsletter_doi_measurement_decide(text, uuid, text, text, timestamptz, boolean, text, text)', 'EXECUTE')
   AND has_function_privilege('service_role', 'public.newsletter_measurement_request_signup(uuid)', 'EXECUTE')
   AND has_function_privilege('service_role', 'public.newsletter_measurement_claim(integer, text)', 'EXECUTE')
   AND NOT EXISTS (
     SELECT 1 FROM unnest(ARRAY['anon', 'authenticated']) r
-     CROSS JOIN unnest(ARRAY['public.newsletter_doi_measurement_state(text)',
-                             'public.newsletter_doi_measurement_decide(text, boolean, text, text)',
+     CROSS JOIN unnest(ARRAY['public.newsletter_doi_measurement_state(text, uuid, text, text, timestamptz)',
+                             'public.newsletter_doi_measurement_decide(text, uuid, text, text, timestamptz, boolean, text, text)',
                              'public.newsletter_measurement_request_signup(uuid)',
                              'public.newsletter_measurement_claim(integer, text)',
                              'public.newsletter_measurement_confirm(uuid, uuid, text, text)',

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { CONTACT_FIELD_LIMITS, contactTextSchema } from "@/lib/forms/contactLimits";
 import { hasMeasurementDeclaration, sanitizeConsentEntries } from "@/lib/newsletter/consentText";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import { withDoiMeasurementSecret } from "@/lib/newsletter/confirmMeasurement";
 import {
   EMAIL_MEASUREMENT_DECLARED_KEY,
   MEASUREMENT_DOI_MAIL_NOTE,
@@ -552,27 +553,47 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       } else if (doiEnabled) {
         const token = hexToken(32);
         const expires = new Date(Date.now() + DOI_TTL_MS).toISOString();
-        const { error: upErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
-          {
-            email: subscriberEmail,
-            display_name: data.name,
-            tenant_id: inserted.tenant_id,
-            language: data.lang,
-            status: "pending",
-            source: "contact-form",
-            confirmation_token: token,
-            confirmation_expires_at: expires,
-            consents: newsletterConsents,
-          },
-          { onConflict: "tenant_id,email" },
-        );
+        const { data: pending, error: upErr } = await supabaseAdmin
+          .from("newsletter_subscribers")
+          .upsert(
+            {
+              email: subscriberEmail,
+              display_name: data.name,
+              tenant_id: inserted.tenant_id,
+              language: data.lang,
+              status: "pending",
+              source: "contact-form",
+              confirmation_token: token,
+              confirmation_expires_at: expires,
+              consents: newsletterConsents,
+            },
+            { onConflict: "tenant_id,email" },
+          )
+          .select("id")
+          .single();
 
         if (upErr) {
           doiResult = { ok: false, error: upErr.message };
         } else {
+          // Zaznaczone osobne pole pomiaru (I9d-Y2b R1): link niesie sekret
+          // skrzynki `m` (podpis HMAC: subskrybent, adres, wersja treści,
+          // termin) - tylko z nim strona potwierdzenia pokaże kartę zgody;
+          // sam token DOI widział personel. Brak id = mail bez karty i notki.
+          let measurementSecret: string | null = null;
+          if (measurementDeclared) {
+            const { doiMeasurementTokenFor } =
+              await import("@/lib/privacy/measurementToken.server");
+            measurementSecret = doiMeasurementTokenFor(pending?.id, subscriberEmail);
+            if (!measurementSecret) {
+              console.error("[contact] measurement secret skipped: subscriber id missing");
+            }
+          }
           const origin = originFromRequest();
-          const confirmUrl = `${origin}/api/public/newsletter/confirm?token=${encodeURIComponent(token)}`;
-          const doiMail = buildDoiEmail(data, confirmUrl, measurementDeclared);
+          const confirmUrl = withDoiMeasurementSecret(
+            `${origin}/api/public/newsletter/confirm?token=${encodeURIComponent(token)}`,
+            measurementSecret,
+          );
+          const doiMail = buildDoiEmail(data, confirmUrl, measurementSecret !== null);
           const send = await sendEmail({
             to: data.email,
             subject: doiMail.subject,

@@ -6,7 +6,9 @@
 // Zaznaczone pole pomiaru to DEKLARACJA (`email_measurement_declared`
 // w `newsletter_subscribers.consents`), nie zgoda. Zgodę zapisuje wyłącznie
 // baza (`_email_measurement_grant`) po kliknięciu właściciela skrzynki:
-//   * z double opt-in - karta na stronie potwierdzenia zapisu (token DOI);
+//   * z double opt-in - karta na stronie potwierdzenia zapisu (token DOI
+//     i sekret skrzynki `m` z maila - `measurementToken.server.ts`; sam token
+//     DOI nie wystarcza, I9d-Y2b R1);
 //   * bez double opt-in i przy adresie już zapisanym - mail z prośbą
 //     (`newsletter_measurement_request_signup`, prośba `origin = 'signup'`,
 //     stała treść `NEWSLETTER_MEASUREMENT_SIGNUP_COPY`), potem strona

@@ -52,6 +52,7 @@ import {
   signMeasurementWithdrawToken,
 } from "@/lib/privacy/measurementToken.server";
 import { signNewsletterKeepToken } from "@/lib/privacy/newsletterKeepToken.server";
+import { measurementPromptStateOf } from "@/lib/privacy/measurement";
 
 const SUBSCRIBER = "6f9e6f6e-0000-4000-8000-0000000000b1";
 const LEAD = "7b0c4f2e-1d3a-4c5b-9e8f-0a1b2c3d4e5f";
@@ -146,7 +147,13 @@ describe("GET nigdy nie mutuje", () => {
   it("fetch wycofania: odczyt stanu zgody (bez zapisu), podmiot z tokenu", async () => {
     const res = await handlers().GET(get(`?token=${withdrawLead()}`));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, action: "withdraw", consent: true });
+    // Stara baza bez pola `refused` - zakładamy odmowę (zachowanie jak dotąd).
+    expect(await res.json()).toEqual({
+      ok: true,
+      action: "withdraw",
+      consent: true,
+      refused: true,
+    });
     expect(db.state.rpcCalls).toEqual([
       { fn: "email_measurement_state", args: { p_subscriber: null, p_lead: LEAD } },
     ]);
@@ -154,10 +161,19 @@ describe("GET nigdy nie mutuje", () => {
     expect(db.state.rateLimitCalls).toEqual([]);
   });
 
-  it("fetch wycofania bez zgody na pomiar -> `consent: false` (strona: pomiar wyłączony)", async () => {
-    db.state.results.email_measurement_state = { result: "ok", consent: false };
-    const res = await handlers().GET(get(`?token=${withdrawSub()}`));
-    expect(await res.json()).toEqual({ ok: true, action: "withdraw", consent: false });
+  it("fetch wycofania bez zgody: `refused` z bazy rozróżnia „odmowa zapisana” od „zapisz odmowę” (I9d-Y2b R1)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, refused: true };
+    const refused = await handlers().GET(get(`?token=${withdrawSub()}`));
+    const refusedBody = await refused.json();
+    expect(refusedBody).toEqual({ ok: true, action: "withdraw", consent: false, refused: true });
+    expect(measurementPromptStateOf(200, refusedBody)).toBe("alreadyOff");
+
+    db.state.results.email_measurement_state = { result: "ok", consent: false, refused: false };
+    const open = await handlers().GET(get(`?token=${withdrawSub()}`));
+    const openBody = await open.json();
+    expect(openBody).toEqual({ ok: true, action: "withdraw", consent: false, refused: false });
+    // Przycisk zostaje: odmowa osoby bez zgody trafi do rejestru (wyklucza z próśb).
+    expect(measurementPromptStateOf(200, openBody)).toBe("confirmWithdraw");
   });
 
   it("fetch wycofania: podmiot usunięty -> 404; awaria odczytu -> przycisk jak zwykle", async () => {

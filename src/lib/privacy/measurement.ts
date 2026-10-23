@@ -25,9 +25,13 @@ export const NEWSLETTER_MEASUREMENT_PAGE_PATH = "/newsletter/measurement";
 
 /**
  * Ważność linku „Zgadzam się na pomiar" z prośby (dni) - termin w podpisie
- * tokenu `mc:`. Jednorazowość daje nonce prośby w bazie; termin sprawia, że
- * mail sprzed miesięcy nie udziela zgody bez końca. Jedno źródło dla tokenu
- * i panelu (termin pokazany przy starcie prośby).
+ * tokenu `mc:` - i SEKRETU SKRZYNKI z maila double opt-in (`md:`, karta na
+ * stronie potwierdzenia, I9d-Y2b R1): liczony od WYSŁANIA maila, nie od
+ * deklaracji, którą każdy może odświeżyć formularzem. Jednorazowość prośby
+ * daje nonce w bazie; termin sprawia, że mail sprzed miesięcy nie udziela
+ * zgody bez końca. Jedno źródło dla tokenów i panelu (termin pokazany przy
+ * starcie prośby); lustro SQL `c_offer_days` (`_newsletter_measurement_offer_state`,
+ * `_newsletter_doi_measurement_offer_state`) - test parytetu.
  */
 export const MEASUREMENT_CONFIRM_LINK_DAYS = 60;
 
@@ -110,10 +114,16 @@ export interface MeasurementResponseBody {
   already?: boolean;
   /**
    * GET wycofania: czy osoba ma dziś zgodę na pomiar (odczyt bez mutacji).
-   * `false` = nie ma czego wyłączać - strona od razu mówi, że pomiar jest
-   * wyłączony. Brak pola (awaria odczytu) = przycisk jak zwykle.
+   * Brak pola (awaria odczytu) = przycisk jak zwykle.
    */
   consent?: boolean;
+  /**
+   * GET wycofania (I9d-Y2b R1): czy ostatnia decyzja osoby to już odmowa
+   * (stopka, preferencje, konto, strona DOI). Bez zgody i bez odmowy
+   * (`refused: false`) przycisk zostaje - zapisuje odmowę, która wyklucza
+   * z próśb o zgodę. Brak pola (stary serwer) = jak odmowa zapisana.
+   */
+  refused?: boolean;
   error?: string;
 }
 
@@ -124,7 +134,9 @@ export function measurementPromptStateOf(
 ): MeasurementPageState {
   if (!body.ok) return measurementErrorStateOf(status, body);
   if (body.action === "confirm") return "confirmGrant";
-  return body.consent === false ? "alreadyOff" : "confirmWithdraw";
+  // Bez zgody: „pomiar jest wyłączony" tylko przy odmowie już zapisanej;
+  // bez niej - przycisk zapisu odmowy (inaczej prośby nie omijałyby osoby).
+  return body.consent === false && body.refused !== false ? "alreadyOff" : "confirmWithdraw";
 }
 
 /** Odpowiedź POST (zapis decyzji) -> ekran wyniku. */

@@ -22,7 +22,7 @@
 --     bez subskrypcji - brak;
 --   * wycofanie SAMEGO pomiaru (subskrybent, kontakt CRM): wpis „nie" z wersją
 --     treści pomiaru, zgoda na newsletter i status bez zmian, powtórka
---     `already`;
+--     `already`; osoba bez zgody - odmowa zapisana raz (od 20261023090300);
 --   * porcja dla runnerów: zgoda vs wspólny przełącznik najemcy, limit,
 --     najemca wymagany; ACL funkcji, archiwum oznaczeń tylko do odczytu.
 --
@@ -281,13 +281,20 @@ SELECT ok(
               AND form_id = 'measurement:preferences'
          FROM public.crm_consent_log WHERE email = 'kontakt@i9d-y2.test' AND consent_key = 'email_measurement' AND NOT given),
   'kontakt CRM bez subskrypcji: „tak" bez pomiaru (D2); wycofanie przez identyfikator kontaktu zamyka łańcuch');
+-- Osoba bez zgody: od 20261023090300 odmowa trafia do rejestru (raz).
+INSERT INTO r SELECT 'bw1', public.email_measurement_withdraw(pg_temp.sub('bez-wersji@i9d-y2.test'), NULL);
+INSERT INTO r SELECT 'bw2', public.email_measurement_withdraw(pg_temp.sub('bez-wersji@i9d-y2.test'), NULL);
 SELECT ok(
   public.email_measurement_withdraw(NULL, NULL) ->> 'result' = 'invalid'
   AND public.email_measurement_withdraw(pg_temp.sub('pomiar@i9d-y2.test'), '19d60000-0000-4000-8000-0000000030a1') ->> 'result' = 'invalid'
   AND public.email_measurement_withdraw('19d60000-0000-4000-8000-00000000ffff', NULL) ->> 'result' = 'gone'
   AND public.email_measurement_state(NULL, '19d60000-0000-4000-8000-00000000ffff') ->> 'result' = 'gone'
-  AND public.email_measurement_withdraw(pg_temp.sub('bez-wersji@i9d-y2.test'), NULL) ->> 'result' = 'already',
-  'podmiot: dokładnie jeden identyfikator (invalid), nieznany -> gone, bez zgody na pomiar -> already bez wpisu');
+  AND (SELECT v ->> 'result' = 'withdrawn' FROM r WHERE k = 'bw1')
+  AND (SELECT v ->> 'result' = 'already' FROM r WHERE k = 'bw2')
+  AND (SELECT count(*) = 1 FROM public.crm_consent_log WHERE email = 'bez-wersji@i9d-y2.test'
+         AND consent_key = 'email_measurement' AND NOT given AND form_id = 'measurement:email_footer'
+         AND consent_text LIKE 'Odmowa zgody na pomiar%'),
+  'podmiot: dokładnie jeden identyfikator (invalid), nieznany -> gone, bez zgody na pomiar -> odmowa zapisana raz');
 
 -- ── 6. Porcja dla runnerów i wspólny przełącznik ─────────────────────────────
 INSERT INTO public.newsletter_subscribers (tenant_id, email, status, language, consents)
