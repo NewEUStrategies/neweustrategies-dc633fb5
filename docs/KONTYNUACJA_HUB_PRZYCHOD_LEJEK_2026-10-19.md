@@ -170,7 +170,8 @@ w mailu z prośbą; czytelnik - tylko aktywny subskrybent z wpisem
 związanym z jego wierszem). Gałąź PR `claude/loving-einstein-caze7r` (baza
 `origin/main` `28fb22996`), faza 0 `48da4c2de`, pasy A-D równolegle,
 potem integracja. 3 migracje `20261023090000…090200` (bliźniaki
-`0394…0396` + wpisy `drizzleOnly` dla `0392`/`0393` - integracja):
+`0394…0396` + wpisy `drizzleOnly` dla `0392`/`0393` - integracja)
+i poprawki przeglądu R1 `20261023090300` (bliźniak `0397`):
 koniec pakietowania (DROP wyzwalacza i RPC oznaczeń, tabela oznaczeń -
 archiwum), strażnik rejestru INSERT+UPDATE, jedyny pisarz „tak”,
 czytelnik D2, wypis = „nie” `measurement:unsubscribe`, strona DOI
@@ -179,13 +180,21 @@ czytelnik D2, wypis = „nie” `measurement:unsubscribe`, strona DOI
 oznaczeń admina, podgląd pola pomiaru, ostrzeżenie R1.24; polityki
 komunikacji i prywatności 2026-10-23; rejestr czynności (wpis 10);
 runbook §3.3, §6, §7.2 i **§8.2** (kolejność, Y2b-K1…K9 i K5b, wyłącznik).
-**Następne wolne numery po tym PR: pas supabase - po `20261023090200`;
-drizzle - `0397`.** Integracja (§25 pkt 12): scalenia pasów, bliźniaki
+**Następne wolne numery po tym PR: pas supabase - po `20261023090300`;
+drizzle - `0398`.** Integracja (§25 pkt 12): scalenia pasów, bliźniaki
 i wpisy pasów, typy, authz; treść domyślna zgody w chunku startowym
 z liścia `newsletterConsentCurrent` (sanitizer i treść pola pomiaru poza
 `app-initial`); ratchet D-08 `overall` 5371 → 5378. Otwarte: Z-I9d-23
 (§25 pkt 10; Z-I9d-22 i Z-I9d-24 zamknięte w poprawkach przeglądu R1 -
-§25 pkt 13), pytania Q1-Q3 (§25 pkt 9).
+§25 pkt 13), pytania Q1-Q3 (§25 pkt 9). Poprawki przeglądu R1 (§25
+pkt 13-14): strona DOI wymaga podpisanego sekretu skrzynki `m` z maila DOI
+(token DOI widział personel), uprawnienia kolumnowe personelu do
+`newsletter_subscribers` (bez `confirmation_token`; nowa kolumna tej
+tabeli = dopisać do `GRANT SELECT (…)`), prośba związana z adresem
+wysyłki (`email_norm`), termin DOI od wysłania maila, domknięcie łańcuchów
+pomiaru (wypis sprzed wdrożenia, wycofanie newsletter/marketing -
+`measurement:opt_out`), odmowa bez zgody w rejestrze (`refused`); ratchet
+D-08 `overall` 5378 → 5380 (admin-only +1,6).
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
@@ -243,9 +252,9 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `162900`; I9d-Y2b `20261023*` - zajęte do `090200`),
-  bliźniak drizzle od `0397` + `_journal.json` (`0391` - potwierdzenie
-  wdrożenia PR #530, `0392`/`0393` - kupony z Lovable, `0394…0396` -
+  I9 `16*` - zajęte do `162900`; I9d-Y2b `20261023*` - zajęte do `090300`),
+  bliźniak drizzle od `0398` + `_journal.json` (`0391` - potwierdzenie
+  wdrożenia PR #530, `0392`/`0393` - kupony z Lovable, `0394…0397` -
   I9d-Y2b); tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z

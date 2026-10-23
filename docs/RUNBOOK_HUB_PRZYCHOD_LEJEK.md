@@ -130,17 +130,31 @@ Karta „Retencja danych” (`/admin/settings/privacy`, admin):
   odrzuca każde inne „tak”, `trg_crm_consent_log_measurement_lock` blokuje
   zmianę decyzji, kanału, wersji i chwili wpisu).
 - **Kanały udzielenia** (`form_id`): `measurement:doi` (karta na stronie
-  potwierdzenia double opt-in, POST z tokenem DOI; oferta wygasa 60 dni po
-  deklaracji), `measurement:signup` (mail z prośbą po zapisie bez DOI albo
-  przy ponownym zapisie aktywnego adresu), `measurement:reconfirm` (prośba
-  z panelu). **Kanały własnej odmowy** (wykluczają z próśb):
-  `measurement:email_footer`, `measurement:preferences`,
+  potwierdzenia double opt-in; POST z tokenem DOI i podpisanym sekretem
+  skrzynki `m` z linku maila DOI - sam token DOI nie wystarcza, bo widzi go
+  personel; oferta wygasa 60 dni od wysłania maila DOI),
+  `measurement:signup` (mail z prośbą po zapisie bez DOI albo przy ponownym
+  zapisie aktywnego adresu), `measurement:reconfirm` (prośba z panelu;
+  potwierdzenie tylko dla adresu, na który wyszedł mail). **Kanały własnej
+  odmowy** (wykluczają z próśb; odmowa zapisuje się także bez wcześniejszej
+  zgody): `measurement:email_footer`, `measurement:preferences`,
   `measurement:account`, `measurement:doi_declined`.
 - **Wypis daje „nie”.** Każde przejście subskrybenta na `unsubscribed`
   (link, personel, odbicie, skarga, import) dopisuje „nie” z kanałem
   neutralnym `measurement:unsubscribe` (nie wyklucza z próśb), gdy ostatnie
   słowo łańcucha brzmi „tak”. „Przywróć” w panelu nie wskrzesza zgody;
-  ponowny zapis wymaga nowego potwierdzenia skrzynką.
+  ponowny zapis wymaga nowego potwierdzenia skrzynką. Adresy wypisane przed
+  wdrożeniem domyka jednorazowo migracja `20261023090300`
+  (`_email_measurement_close_backfill`, kontrola Y2b-K10).
+- **Wycofanie zgody newsletter/marketing daje „nie” pomiaru** (wyzwalacz
+  `trg_crm_consent_log_measurement_opt_out`, kanał neutralny
+  `measurement:opt_out`), więc retencja łańcucha newsletter/marketing nie
+  wskrzesza dawnego „tak” pomiaru.
+- **Kolumny personelu.** Rola `authenticated` czyta wszystkie kolumny
+  `newsletter_subscribers` poza `confirmation_token`, a zmienia tylko
+  status, wypis, imię i nazwisko, język i `meta`; token DOI, deklarację
+  (`consents`) i adres zapisuje wyłącznie serwer. Nowa kolumna tej tabeli
+  musi trafić do `GRANT SELECT (…)`, inaczej panel jej nie zobaczy.
 - **Treść zgody na newsletter** (PL/EN, wersja `newsletter-2026-10-23`,
   bez pomiaru) - przegląd newslettera. Oznaczeń admina „mój tekst obejmuje
   pomiar” nie ma (tabela oznaczeń - archiwum). Karta pokazuje tylko do
@@ -406,7 +420,7 @@ SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
 | S7 `150000…150100`, `0373…0375`         | front bez zmian SQL (nowych funkcji nikt nie woła); `DROP FUNCTION` - migracją, decyzją właściciela                                                                                                                                                                                                      | §23.9                |
 | I9d-Y1 `161500…162200`, `0376…0383`     | wyłączenie kategorii albo karencja w karcie; zanonimizowane wiersze i usunięci subskrybenci nie wracają                                                                                                                                                                                                  | §21.22               |
 | I9d-Y2 `162300…162500`, `0384…0386`     | wspólny przełącznik pomiaru zatrzymuje pomiar u wszystkich; wpisy rejestru zgód zostają (dowód)                                                                                                                                                                                                          | §21.23               |
-| I9d-Y2b `090000…090200`, `0394…0396`    | baza tylko do przodu (powrót do pakietowania wykluczony decyzją D1); wyłącznik awaryjny - wspólny przełącznik pomiaru (`measured = false` od razu); błąd czytelnika - nowa migracja z czytelnikiem zwracającym `false`; revert frontu po migracji - uwaga na pole „prywatność” popupu rejestracji (§8.2) | §25                  |
+| I9d-Y2b `090000…090300`, `0394…0397`    | baza tylko do przodu (powrót do pakietowania wykluczony decyzją D1); wyłącznik awaryjny - wspólny przełącznik pomiaru (`measured = false` od razu); błąd czytelnika - nowa migracja z czytelnikiem zwracającym `false`; revert frontu po migracji - uwaga na pole „prywatność” popupu rejestracji (§8.2) | §25                  |
 | I9 `162600…162900`, `0387…0390`         | zestawienia: odczyty liczą surowe + zestawienie, puste zestawienie = zachowanie sprzed I9; pomocnik zgody - ciała z `20261012180900`, `20261020140500`, `20261020162000`; emiter formularza - §7.3; czytelnicy kampanii - ciała z `20260912110000`, `20261003180000`, `20261020161200`                   | §24                  |
 
 ### 7.3 Szablon awaryjny: emiter albo wyzwalacz jako no-op
@@ -571,7 +585,7 @@ SELECT has_function_privilege('authenticated',
 --   oczekiwane: false, false, false.
 ```
 
-### 8.2 I9d-Y2b - osobna zgoda na pomiar (`20261023090000…090200`, `0394…0396`)
+### 8.2 I9d-Y2b - osobna zgoda na pomiar (`20261023090000…090300`, `0394…0397`)
 
 Decyzje właściciela 2026-10-23: **D1 wariant (b)** - każda zgoda ma osobne
 pole (osobne, domyślnie niezaznaczone pole zgody na pomiar z własną,
@@ -708,18 +722,26 @@ ROLLBACK;
 
 **Wdrożenie - kolejność obowiązkowa:**
 
-1. Migracje `20261023090000` → `090100` → `090200` (bliźniaki `0394` →
-   `0396`, kopie bajt w bajt - po panelu Lovable no-op). Poza oknem wysyłki
-   próśb z panelu (08:00-17:59 czasu polskiego) i poza wysyłką kampanii:
-   krótkie blokady `newsletter_settings`, `crm_consent_log`,
+1. Migracje `20261023090000` → `090100` → `090200` → `090300` (bliźniaki
+   `0394` → `0397`, kopie bajt w bajt - po panelu Lovable no-op). Poza oknem
+   wysyłki próśb z panelu (08:00-17:59 czasu polskiego) i poza wysyłką
+   kampanii: krótkie blokady `newsletter_settings`, `crm_consent_log`,
    `newsletter_subscribers` i `newsletter_measurement_requests` za
    `lock_timeout` 5 s (`55P03` = ponów plik; wszystkie są idempotentne).
+   `090300` (poprawki przeglądu R1) zmienia uprawnienia kolumn personelu
+   do `newsletter_subscribers`, zastępuje sygnatury
+   `newsletter_doi_measurement_state`/`_decide` (sekret skrzynki) i na
+   końcu domyka łańcuchy pomiaru pod blokadą `SHARE ROW EXCLUSIVE` na
+   `crm_consent_log` (wpisy zgód czekają na koniec migracji). Sekret
+   podpisu `m` to istniejący `SESSION_SECRET` - bez nowej zmiennej.
 2. **Zaraz potem** publikacja frontu I9d-Y2b. Nowy front ze starym SQL
    zapisałby deklarację pola pomiaru do rejestru zgód jako wpis „tak”
    klucza `email_measurement_declared` (stary pisarz przepuszcza każdy
    klucz - w CRM wyglądałoby to jak zgoda), karta pomiaru na stronie DOI
    by się nie pokazała, a prośby po zapisie by nie powstały (RPC jeszcze
-   nie istnieją - błąd w logu, zapis działa).
+   nie istnieją - błąd w logu, zapis działa). Stary front z `090300`
+   woła usunięte sygnatury strony DOI - karta się nie pokazuje
+   (fail-closed), samo potwierdzenie zapisu działa.
 3. Publikacja nowych wersji polityk komunikacji i prywatności w panelu
    dokumentów prawnych, jeśli najemca ma własne opublikowane wersje
    (`legal_document_versions` ma pierwszeństwo przed kodem -
@@ -734,9 +756,10 @@ ROLLBACK;
 --     (3 wyzwalacze), wyzwalacz pakietowania usunięty (0).
 SELECT count(*) FROM public.newsletter_subscribers s
  WHERE s.status = 'pending' AND public._email_measurement_consent(s.tenant_id, s.email);
+--     Od 090300 - 4 wyzwalacze (także wycofanie newsletter/marketing).
 SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN (
   'trg_crm_consent_log_measurement_guard', 'trg_crm_consent_log_measurement_lock',
-  'trg_newsletter_unsubscribed_measurement');
+  'trg_newsletter_unsubscribed_measurement', 'trg_crm_consent_log_measurement_opt_out');
 SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'trg_crm_consent_log_measurement';
 
 -- Y2b-K8 (codziennie przez 7 dni): nowe „tak” pomiaru wyłącznie z trzech
@@ -746,13 +769,27 @@ SELECT form_id, consent_version, count(*)
  WHERE consent_key = 'email_measurement' AND given AND created_at > '<chwila wdrożenia>'
  GROUP BY 1, 2 ORDER BY 1, 2;
 --   dopuszczalne: measurement:doi | measurement:signup | measurement:reconfirm.
+
+-- Y2b-K10 (raz, po 090300): domknięcie łańcuchów pomiaru z chwili migracji -
+--     liczba dopisanych „nie” (wypisani przed wdrożeniem z ostatnim słowem
+--     „tak” i aktywni z wcześniejszym wycofaniem newsletter/marketing);
+--     wpis do §10 dziennika. Powtórka pomocnika daje 0.
+SELECT form_id, count(*) FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement' AND NOT given
+   AND form_id IN ('measurement:unsubscribe', 'measurement:opt_out')
+   AND created_at >= '<chwila migracji 090300>'
+ GROUP BY 1 ORDER BY 1;
+--     Personel nie czyta tokenu DOI - musi dać false:
+SELECT has_column_privilege('authenticated', 'public.newsletter_subscribers',
+                            'confirmation_token', 'SELECT');
 ```
 
 - **Y2b-K9 (ręcznie, skrzynki testowe):**
   - wypis testowego adresu dopisuje „nie” `measurement:unsubscribe` (Q11);
-  - skrzynka z DOI: zapis z zaznaczonym polem → notka w mailu DOI → karta
-    na stronie potwierdzenia → „Zgadzam się na pomiar” → wpis
-    `measurement:doi` → `measured = true` w porcji kampanii;
+  - skrzynka z DOI: zapis z zaznaczonym polem → notka w mailu DOI (link
+    z parametrami `token` i `m`) → karta na stronie potwierdzenia →
+    „Zgadzam się na pomiar” → wpis `measurement:doi` → `measured = true`
+    w porcji kampanii; ten sam link bez `m` - potwierdzenie bez karty;
   - drugi adres: „Nie zgadzam się” → wpis `measurement:doi_declined`,
     adres nie jest kandydatem do prośby z panelu;
   - najemca bez DOI (jeśli jest): mail prośby po zapisie (stała treść) →
@@ -768,8 +805,9 @@ powrót do pakietowania (a) wykluczony decyzją D1.
 
 **Cofnięcie samego frontu po migracji** jest bezpieczne dla zgód (stary
 front nie wysyła deklaracji; stara karta treści zgody pokaże stan
-„niedostępne” zamiast oznaczeń), ALE stary popup rejestracji nie zna treści
-(b): tam, gdzie `policy_html_*` niesie treść (b) (DEFAULT kolumny i wiersze
+„niedostępne” zamiast oznaczeń; po `090300` stara karta DOI się nie
+pokaże - usunięte sygnatury, fail-closed), ALE stary popup rejestracji nie
+zna treści (b): tam, gdzie `policy_html_*` niesie treść (b) (DEFAULT kolumny i wiersze
 podmienione migracją), a `popup_privacy_html_*` jest puste, pokazałby treść
 zgody na newsletter w WYMAGANYM polu „prywatność” (art. 7 ust. 4 RODO). Na
 czas cofnięcia wyłącz popup rejestracji albo wpisz własną treść pola

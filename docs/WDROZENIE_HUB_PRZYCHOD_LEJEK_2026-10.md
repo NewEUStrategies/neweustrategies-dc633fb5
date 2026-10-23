@@ -480,7 +480,7 @@ przebiegu i błędy środowiska - §13.2.
 | 2026-10-22 | I9d-Y1 (gałąź `hub/i9d-rodo-2`; scalona z gałęzią PR po S8 i S7 `70bdccbb` - §21.22)                                   | `20261020161500…162200` (8) | `0376…0383`       | do wdrożenia przez właściciela - po I9c-X2 (`161000…161400`) i S7, nocą (ALTER gorących tabel klubów, licznika, wydarzeń i newslettera; domknięcia wstecz), razem z publikacją frontu albo po niej (§21.22 pkt 7)                                                                                              | §21.22: decyzje właściciela 2 (Z-I9c-01, -07, -08) - 4 nowe kategorie retencji, anonimizacja zgłoszeń do klubów po usunięciu konta, wygaszanie newslettera; `overall` +17,9 → ratchet D-08 5316 → 5334; otwarte Z-I9d-01…10                                                                 |
 | 2026-10-22 | I9d-Y2 (gałąź `hub/i9d-rodo-2` od `7390ecf0`; gałąź PR bez zmian - bez scalenia - §21.23)                              | `20261020162300…162500` (3) | `0384…0386`       | do wdrożenia przez właściciela - po I9d-Y1 (`161500…162200`), razem z publikacją frontu, poza wysyłką kampanii (krótkie blokady `newsletter_settings`, `crm_consent_log`, `newsletter_subscribers`, `newsletter_campaign_recipients`; §21.23 pkt 7)                                                            | §21.23: decyzje właściciela 2026-10-20 i 2026-10-21 (wariant (a)) - treść zgody z pomiarem z jednego źródła, wersja przy każdej zgodzie, pomiar tylko za zgodą, wspólny przełącznik (Z-I9c-09), „Poproś o zgodę na pomiar”; `overall` +23,1 → ratchet D-08 5334 → 5357; otwarte Z-I9d-11…21 |
 | 2026-10-22 | I9 (gałąź `hub/i9d-rodo-2` od `2113569d`; gałąź PR bez zmian - bez scalenia - §24)                                     | `20261020162600…162900` (4) | `0387…0390`       | do wdrożenia przez właściciela - po I9d-Y2 (`162300…162500`), razem z publikacją frontu; jedyna blokada: wyzwalacz na `contact_messages` (`lock_timeout` 5 s); pełna kolejność `0347…0390` z K1-K9 - `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8                                                                   | §24: integracja i wydanie - harmonogram ścieżek w `jobs-tick`, moduły → hub, bramki ścisłe, zgłoszenia 9.2, przewodnik po Ścieżkach, runbook, raport końcowy (§24.11); `overall` +14,5 → ratchet D-08 5357 → 5371                                                                           |
-| 2026-10-23 | I9d-Y2b (osobny PR z gałęzi `claude/loving-einstein-caze7r` od `origin/main` `28fb22996`; pasy A-D i integracja - §25) | `20261023090000…090200` (3) | `0394…0396`       | do wdrożenia przez właściciela - migracje PRZED frontem (kolejność obowiązkowa), front zaraz potem, poza oknem próśb 08-17 i wysyłką kampanii (krótkie blokady `newsletter_settings`, `crm_consent_log`, `newsletter_subscribers`, `newsletter_measurement_requests`); kontrole Y2b-K1…K9 i K5b - runbook §8.2 | §25: osobne pole zgody na pomiar (D1, wariant (b)) i pomiar tylko po potwierdzeniu skrzynki przez jej właściciela (D2); poprawki przeglądu R1 - §25 pkt 13; ratchet D-08 `overall` 5371 → 5378 (§25 pkt 12)                                                                                 |
+| 2026-10-23 | I9d-Y2b (osobny PR z gałęzi `claude/loving-einstein-caze7r` od `origin/main` `28fb22996`; pasy A-D i integracja - §25) | `20261023090000…090300` (4) | `0394…0397`       | do wdrożenia przez właściciela - migracje PRZED frontem (kolejność obowiązkowa), front zaraz potem, poza oknem próśb 08-17 i wysyłką kampanii (krótkie blokady `newsletter_settings`, `crm_consent_log`, `newsletter_subscribers`, `newsletter_measurement_requests`); kontrole Y2b-K1…K10, K5b - runbook §8.2 | §25: osobne pole zgody na pomiar (D1, wariant (b)) i pomiar tylko po potwierdzeniu skrzynki przez jej właściciela (D2); poprawki R1 - §25 pkt 13-14; ratchet D-08 `overall` 5371 → 5378 (§25 pkt 12)                                                                                        |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -6080,7 +6080,7 @@ i dokumenty - potem integracja (pliki współdzielone, bramki).
 | Koniec pakietowania                   | DROP wyzwalacza `trg_crm_consent_log_measurement`, funkcji `_consent_covers_measurement` i RPC oznaczeń admina `admin_newsletter_consent_measurement_get/_mark`; tabela oznaczeń - archiwum tylko do odczytu                          | 090000; panel bez oznaczeń (pas D)                                                    |
 | `_consent_measurement_versions()`     | redefinicja bez DROP: od teraz wersje treści POMIARU                                                                                                                                                                                  | 090000                                                                                |
 | Kto zapisuje „tak”                    | jeden pisarz `_email_measurement_grant` (FOR UPDATE wiersza, potem blokada doradcza adresu, `clock_timestamp()`); strażnik INSERT i UPDATE na `crm_consent_log` (R1.10)                                                               | 090000                                                                                |
-| Najemca z DOI                         | karta „Zgoda na pomiar” na stronie potwierdzenia DOI, POST z tokenem DOI; GET nigdy nie udziela zgody; oferta wygasa 60 dni po deklaracji (R1.6)                                                                                      | 090100; trasa `api.public.newsletter.confirm` (pas B), karta (pas C)                  |
+| Najemca z DOI                         | karta „Zgoda na pomiar” na stronie potwierdzenia DOI, POST z tokenem DOI i sekretem skrzynki `m` (pkt 14); GET nigdy nie udziela zgody; oferta wygasa 60 dni od wysłania maila DOI (R1.6, pkt 14)                                     | 090100; trasa `api.public.newsletter.confirm` (pas B), karta (pas C)                  |
 | Najemca bez DOI                       | `newsletter_measurement_request_signup` z TS → prośba `origin = 'signup'`, stała treść maila, wysyłka przez całą dobę z własnym limitem 500/dobę (R1.13); także gałąź „już zapisany” (R1.12)                                          | 090100, 090200; `newsletter.functions.ts`, `contact.functions.ts`, `jobsTick` (pas B) |
 | Czytelnik (D2)                        | tylko subskrybent `subscribed`/`confirmed`, wpis związany z wierszem (`source_id`), z kanału udzielenia, w wersji pomiaru (albo dawna zaufana para (a) z potwierdzoną prośbą - R1.9), później niż każde „nie”                         | 090000                                                                                |
 | Wypis                                 | wyzwalacz `trg_newsletter_unsubscribed_measurement` → wewnętrzny `_email_measurement_close_on_unsubscribe` (R1.4), neutralna treść „nie” (R1.3); biała lista `email_measurement_withdraw` bez zmian                                   | 090000                                                                                |
@@ -6096,13 +6096,13 @@ i dokumenty - potem integracja (pliki współdzielone, bramki).
 
 **2. Kanały i reguły czytelnika.**
 
-| Rola                      | `form_id` w `crm_consent_log` (klucz `email_measurement`)                                                 | Skutek                                                                       |
-| ------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Udzielenie („tak”)        | `measurement:doi` (strona DOI), `measurement:signup` (prośba po zapisie), `measurement:reconfirm` (panel) | pomiar u aktywnego subskrybenta, jeśli „tak” jest późniejsze niż każde „nie” |
-| Własna odmowa („nie”)     | `measurement:email_footer`, `measurement:preferences`, `measurement:account`, `measurement:doi_declined`  | brak pomiaru; wyklucza z próśb                                               |
-| „Nie” neutralne           | `measurement:unsubscribe` (koniec subskrypcji każdym kanałem), `retention:*`                              | brak pomiaru; NIE wyklucza z próśb                                           |
-| Dawne zaufane (a)         | `newsletter:measurement_reconfirm` w wersji `newsletter-2026-10-21` z potwierdzoną prośbą (R1.9)          | zachowuje moc (osobny klik z linku w mailu - czynność potwierdzona skrzynką) |
-| Wyprowadzone z treści (a) | wpisy dopisane wyzwalaczem pakietowania do zgody na newsletter (a)                                        | bez mocy - czytelnik ich nie uznaje                                          |
+| Rola                      | `form_id` w `crm_consent_log` (klucz `email_measurement`)                                                                      | Skutek                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Udzielenie („tak”)        | `measurement:doi` (strona DOI), `measurement:signup` (prośba po zapisie), `measurement:reconfirm` (panel)                      | pomiar u aktywnego subskrybenta, jeśli „tak” jest późniejsze niż każde „nie” |
+| Własna odmowa („nie”)     | `measurement:email_footer`, `measurement:preferences`, `measurement:account`, `measurement:doi_declined`                       | brak pomiaru; wyklucza z próśb                                               |
+| „Nie” neutralne           | `measurement:unsubscribe` (koniec subskrypcji), `measurement:opt_out` (wycofanie newsletter/marketing - pkt 14), `retention:*` | brak pomiaru; NIE wyklucza z próśb                                           |
+| Dawne zaufane (a)         | `newsletter:measurement_reconfirm` w wersji `newsletter-2026-10-21` z potwierdzoną prośbą (R1.9)                               | zachowuje moc (osobny klik z linku w mailu - czynność potwierdzona skrzynką) |
+| Wyprowadzone z treści (a) | wpisy dopisane wyzwalaczem pakietowania do zgody na newsletter (a)                                                             | bez mocy - czytelnik ich nie uznaje                                          |
 
 Czytelnik `_email_measurement_consent`: subskrybent `subscribed` albo
 `confirmed`; wpis „tak” związany z TYM wierszem (`source_type =
@@ -6111,7 +6111,9 @@ pomiaru (albo dawna zaufana para); później niż każde „nie” pomiaru,
 wycofanie zgody `newsletter`/`marketing` i `unsubscribed_at`; remis chwil =
 brak pomiaru. `pending`, kontakty CRM bez subskrypcji i wpisy (a) - `false`.
 Stan oferty `_newsletter_measurement_offer_state`: `gone | inactive |
-granted | none | declined | offer` (deklaracja starsza niż 60 dni = `none`).
+granted | none | declined | offer` (deklaracja starsza niż 60 dni = `none`);
+strona DOI od poprawek R1 - `_newsletter_doi_measurement_offer_state`
+z terminem z podpisu `m` (pkt 14).
 
 **3. Zakres - migracje i bliźniaki.** `supabase/migrations/`:
 `20261023090000_consent_measurement_separate_core.sql` (treści, rejestry,
@@ -6261,8 +6263,8 @@ pomiaru w checkoucie premium i w wydarzeniach oraz pozostałe punkty
 projektu §11 - osobne zgłoszenia, poza zakresem.
 
 **11. Dla następnych.** Następne wolne numery migracji po tym PR: pas
-supabase - po `20261023090200`; pas drizzle - `0397` (bliźniaki
-`0394…0396`, wpisy `drizzleOnly` `0392`/`0393` - integracja). Kolejna zmiana
+supabase - po `20261023090300`; pas drizzle - `0398` (bliźniaki
+`0394…0397`, wpisy `drizzleOnly` `0392`/`0393` - integracja). Kolejna zmiana
 treści pola pomiaru albo zgody na newsletter = nowa wersja (stała TS
 i literał w nowej migracji ze znacznikami parytetu) - wersji wydanej nie
 zmienia się.
@@ -6357,3 +6359,93 @@ chunku startowego ponownie 298 plików dotkniętych katalogów); build,
   poprawki R1 pasa UI dokładają kod wyłącznie do chunków panelu admina
   (okno subskrybenta, inspektor buildera, builder NlDoc) i do wspólnego
   panelu decyzji pomiaru.
+
+**14. Poprawki przeglądu R1 - pas SQL i serwer oraz integracja
+(2026-10-23).** Migracja `20261023090300_consent_measurement_separate_fixes.sql`
+(42 853 B; bliźniak drizzle `0397`), dowód
+`hub_i9d_y2b_measurement_fixes_test.sql` (23 asercje); pliki
+`090000…090200` bez zmian - sekcja SPROSTOWANIE w nagłówku `090300`
+i nowe `COMMENT ON` prostują ich obietnice.
+
+- **Bloker (sql-r1-1, zgoda-r1-1): token DOI nie dowodził skrzynki.**
+  Personel najemcy czytał i zmieniał przez RLS `confirmation_token`,
+  `consents` i `email`, więc mógł sam wytworzyć ofertę i zapisać „tak”
+  `measurement:doi`. Teraz (a) uprawnienia kolumnowe `authenticated`:
+  SELECT wszystkich kolumn poza `confirmation_token`, UPDATE tylko
+  `status`, `unsubscribed_at`, imienia i nazwiska, `language`, `meta`
+  i `updated_at` (nowa kolumna tabeli = dopisać do `GRANT SELECT (…)`);
+  (b) mail DOI z zaznaczonym polem pomiaru niesie podpisany parametr `m`
+  (HMAC `SESSION_SECRET`, domena `md:`; subskrybent, adres, wersja treści
+  pomiaru, termin = wysłanie maila + 60 dni). Trasa
+  `api.public.newsletter.confirm` sprawdza podpis i podaje jego treść
+  nowym sygnaturom `newsletter_doi_measurement_state`/`_decide`
+  (`p_token, p_subscriber, p_email, p_consent_version, p_expires_at`),
+  które wiążą ją z wierszem tokenu pod blokadą; stare (sam token) usunięte.
+  Strona `/newsletter/confirm` przekazuje `m` w GET, karta - w ciele POST;
+  bez `m` karty nie ma, a potwierdzenie zapisu działa jak dotąd. Prośby:
+  `newsletter_measurement_requests.email_norm` (adres wysyłki zapisany przy
+  zajęciu porcji) - potwierdzenie przy innym adresie wiersza = `invalid`.
+- **Termin decyzji DOI (sql-r1-2, zgoda-r1-5)** liczy się od wysłania maila
+  (podpis `m`), nie od deklaracji, którą odświeża każdy publicznym
+  formularzem; „nie” pomiaru po wysłaniu maila = `declined`. Test parytetu
+  `measurementOfferDaysParity` (`MEASUREMENT_CONFIRM_LINK_DAYS` = oba
+  `c_offer_days` = TTL tokenu = „60 dni” w polityce komunikacji PL/EN).
+- **Domknięcie łańcuchów pomiaru (sql-r1-3, zgoda-r1-3, regresje-r1-1,
+  sql-r1-4).** Jednorazowe, idempotentne `_email_measurement_close_backfill`
+  na końcu migracji (blokada `SHARE ROW EXCLUSIVE` na `crm_consent_log`):
+  wypisani z ostatnim słowem „tak” - „nie” `measurement:unsubscribe`
+  („Przywróć” nie wskrzesza dawnej zaufanej zgody (a)); aktywni
+  z wycofaniem newsletter/marketing nie wcześniejszym niż ostatnie „tak” -
+  „nie” `measurement:opt_out`. Odtąd wyzwalacz
+  `trg_crm_consent_log_measurement_opt_out` dopisuje `measurement:opt_out`
+  przy każdym wycofaniu - retencja łańcucha newsletter/marketing nie
+  wskrzesza pomiaru. Kontrola Y2b-K10 (runbook §8.2) - liczba wpisów
+  z domknięcia.
+- **Odmowa bez zgody (zgoda-r1-2).** `email_measurement_withdraw` zapisuje
+  „nie” z kanałem odmowy także bez wcześniejszego „tak” (`already` tylko po
+  zapisanej odmowie); `email_measurement_state` zwraca `refused`, a strona
+  `/newsletter/measurement` pokazuje przycisk przy `consent = false`
+  i `refused = false` (wtedy zapisuje odmowę, która wyklucza z próśb).
+- **Limity przed gałęzią „już zapisany” (regresje-r1-3)** w
+  `subscribeToNewsletter` - po przekroczeniu nic się nie zapisuje.
+- **Integracja.** Scalenie pasa UI `850b9c4a8` do `961c816fe` (`--no-ff`,
+  `506a595a5`, bez konfliktów); podpięcie `m` w stronie
+  `/newsletter/confirm` i karcie DOI (pas UI powstał równolegle, przed
+  kontraktem `m`) z testami RTL (GET i POST z `m`, bez `m` - bez karty
+  nawet przy `offer`) i test strony pomiaru dla `refused`. Bliźniak `0397`
+  bajt w bajt (idx 397, `when` 60 s za `0396`, snapshot w łańcuchu
+  `prevId`), wpis `twin` w `MIGRATION_LANES`; `types.ts` w konwencji
+  generatora (kolumna `email_norm`, nowe sygnatury DOI,
+  `_newsletter_doi_measurement_offer_state`,
+  `_email_measurement_expiry_text`, `_email_measurement_close_on_opt_out`,
+  `_email_measurement_close_backfill`); `authzSnapshot` (1321 migracji,
+  1920 funkcji); runbook §3.3, §7.2, §8.2 (kolejność `090000…090300`,
+  Y2b-K7 - 4 wyzwalacze, Y2b-K9 - link z `m`, Y2b-K10); rejestr czynności
+  (wpis 10). Komentarzy Codex w PR 533 w chwili integracji nie było.
+- **Ratchet D-08 (regresje-r1-2): `overall` 5378 → 5380** (`5c51a2828`).
+  Ten sam host i `node_modules`: baza `0dffc44d` (gałąź przed R1) 5377,4 /
+  public 2796,7 / admin-only 2580,7 (host przeglądu mierzył ją na 5378,2);
+  po R1 5379,0 / public 2796,7 / admin-only 2582,3 - +1,6 KB wyłącznie
+  w chunkach admina (notki klucza zastrzeżonego w builderze NlDoc +0,49,
+  stan zgody w oknie subskrybenta +0,43, ostrzeżenie R1.24 w inspektorze
+  +0,65); chunki publiczne (fokus, `refused`, sekret `m`) zrównoważone
+  entropią hashy. Odzyskanie bez cofania poprawek niemożliwe; rozbicie
+  w kronice `scripts/check-bundle-size.ts`, konwencja `ceil + 1`. Progi
+  public, chunk (`app-initial` 259,2 bez zmian), css, publicCss i boot bez
+  zmian i zielone.
+- **Bramki lokalnie (po integracji).** `tsgo --noEmit` (także
+  `tsconfig.e2e.json`) i `tsc` skryptów - 0 błędów; `prettier --check .` -
+  zielony; eslint na 128 plikach TS zmienionych w PR - 0 błędów
+  (5 ostrzeżeń sprzed zmian); `check:migration-lanes`,
+  `check:rpc-contract`, `check:ts-sql-contract`, `check:types-freshness`,
+  `check:on-conflict-arbiters` i wszystkie `check:sql-*` - zielone; pełny
+  pgTAP (świeża baza, 1321 migracji, ta sama jedna znana porażka
+  `20260825230232`): 264 pliki OK, 4 z błędem środowiska (pg_net, vector,
+  domyślne uprawnienia - jak na bazie), w tym
+  `hub_i9d_y2b_measurement_fixes_test` 23/23,
+  `hub_i9d_y2b_measurement_separate_test` 59/59 i `ts_sql_contract_test`
+  9/9; `plpgsql_check` 10 funkcji `090300` - 0 uwag; vitest katalogów
+  dotkniętych (684 pliki, w tym `migrationLaneParity`,
+  `supabaseLaneCoverage`, `hubDelivery.gate`, bramki i18n) - 0 porażek;
+  build, `check:bundle` (po ratchecie), `check:chunks`,
+  `check:entry-purity`, `check:server-entry-purity` - zielone.
