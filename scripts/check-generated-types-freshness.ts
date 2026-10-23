@@ -78,8 +78,12 @@ const BASELINE: readonly string[] = [
   // 20261009100000; pozostałe 7 to `KNOWN_COLUMN_DRIFT` w
   // src/lib/ci/dbContract.ts (bramka post-deploy).
   // Wpis znika, gdy kolumna faktycznie powstanie i types.ts się zregeneruje.
+  //
+  // 2026-10-23: 7 -> 6 wpisów. `notifications.meta` jest w types.ts
+  // przegenerowanym z produkcji 2026-10-22 (Row/Insert/Update `meta: Json`),
+  // więc kolumna na produkcji powstała i wpis zrobił się martwy - usunięty
+  // zgodnie z instrukcją bramki (`KNOWN_COLUMN_DRIFT` nie ma go już wcześniej).
   "membership_grants.source_coupon_id",
-  "notifications.meta",
   "research_program_items.tenant_id",
   "research_program_members.id",
   "research_program_members.tenant_id",

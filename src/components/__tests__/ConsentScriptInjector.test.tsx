@@ -1341,15 +1341,32 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     const view = renderInjector();
     expect(owned(ANALYTICS_OWNER)).toHaveLength(0);
     expect(configEntry(GA4_ID)).toBeDefined();
+    await poZaladowaniuPolityki();
+    const registered = vi.mocked(scheduleGtagLoad).mock.calls.length;
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
+    // WYŚCIG Z REJESTRACJĄ POLITYKI (shard 3 CI, 3775604 i 2026-10-23: 0 tagów).
+    // Politykę nowego strumienia zakłada `.then` leniwego `import()`, a moduł
+    // jest już w rejestrze vitest - `vi.dynamicImportSettled()` nie ma więc na
+    // co czekać i wraca od ręki, choć sam `import()` rozstrzyga się przez RPC
+    // z wątkiem głównym. Na obciążonym runnerze (4 shardy naraz) interakcja
+    // z `poInterakcji` szła PRZED założeniem polityki: happy-dom nie ma lepkiej
+    // aktywacji, sygnał przepadał, a plik czekał na punkt ciszy (≥ 5 s po
+    // `load`) - żaden limit `waitFor` tego nie ratował. Odtworzone lokalnie
+    // opóźnieniem importu o 300 ms. Czekamy więc na samo założenie polityki
+    // (szpieg `scheduleGtagLoad`), dopiero potem interakcja.
+    await vi.waitFor(
+      () => expect(vi.mocked(scheduleGtagLoad).mock.calls.length).toBe(registered + 1),
+      { timeout: 5_000 },
+    );
     await poInterakcji();
-    // Dociągnięcie pliku idzie przez dynamiczny import polityki i jej kolejkę; na obciążonym
-    // runnerze CI (4 shardy naraz) stała liczba kroków `poKrokachKolejki` bywała za krótka
-    // (shard 3 na 3775604: 0 tagów). Czekamy na sam warunek, z limitem `waitFor`.
-    await vi.waitFor(() =>
-      expect(document.head.querySelectorAll("script[data-ga4-tag]").length).toBeGreaterThan(0),
+    // Samo dociągnięcie idzie kolejką P0.3 (klatka na zadanie) - na obciążonym
+    // runnerze bywa wolniejsze niż domyślna sekunda `waitFor`.
+    await vi.waitFor(
+      () =>
+        expect(document.head.querySelectorAll("script[data-ga4-tag]").length).toBeGreaterThan(0),
+      { timeout: 5_000 },
     );
 
     // Skrypt gtag.js jest DOKŁADNIE JEDEN - zmiana strumienia to nowa
