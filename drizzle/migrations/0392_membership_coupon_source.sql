@@ -1,0 +1,3 @@
+ALTER TABLE public.membership_grants ADD COLUMN IF NOT EXISTS source_coupon_id uuid;
+COMMENT ON COLUMN public.membership_grants.source_coupon_id IS 'Source B2B coupon for a membership grant created after confirmed payment by apply_b2b_coupon_effects.';
+CREATE INDEX IF NOT EXISTS membership_grants_tenant_coupon_idx ON public.membership_grants (tenant_id, source_coupon_id) WHERE source_coupon_id IS NOT NULL;

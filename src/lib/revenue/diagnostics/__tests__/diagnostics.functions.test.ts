@@ -138,7 +138,7 @@ describe("getRevenueFacts", () => {
     const presentation = res.facts.areas.checkout?.presentation ?? [];
     expect(presentation.map((p) => [p.lang, p.displayCurrency])).toEqual([
       ["pl", "PLN"],
-      ["en", "EUR"],
+      ["en", "PLN"],
     ]);
     expect(res.facts.areas.retention?.cancelPathSteps).toBe(RETENTION_DIALOG_STEPS.enabled);
     expect(res.facts.areas.sync?.unknownTypes).toEqual([]);
@@ -387,7 +387,7 @@ describe("unsnoozeRevenueCheck", () => {
 describe("enrichRevenueFacts - fakty TS (czysta funkcja)", () => {
   const deps = (overrides: Partial<RevenueFactsDeps> = {}): RevenueFactsDeps => ({
     isEnforcedCapability: (key) => key === "reports",
-    displayCurrencyForLang: (lang) => (lang === "en" ? "EUR" : "PLN"),
+    planDisplayCurrency: (currency) => currency.toUpperCase(),
     replacesWorkflowTemplate: (key) => (key === "cancel_scheduled_save" ? "cancel-recipe" : null),
     actionEmits: (type) => (type === "create_crm_task" ? ["crm_task.created.v1"] : []),
     domainEventTypes: ["access_plan.changed.v1", "crm_task.created.v1"],
@@ -446,7 +446,7 @@ describe("enrichRevenueFacts - fakty TS (czysta funkcja)", () => {
     );
     expect(out.areas.checkout?.presentation).toEqual([
       { lang: "pl", displayCurrency: "PLN", chargeCurrencies: ["PLN"] },
-      { lang: "en", displayCurrency: "EUR", chargeCurrencies: ["PLN"] },
+      { lang: "en", displayCurrency: "PLN", chargeCurrencies: ["PLN"] },
     ]);
   });
 
@@ -560,7 +560,7 @@ describe("enrichRevenueFacts - fakty TS (czysta funkcja)", () => {
     const out = enrichRevenueFacts(
       facts({ checkout: { chargeCurrencies: ["PLN"] }, sync: { seenTypes90d: [] } }),
       deps({
-        displayCurrencyForLang: () => {
+        planDisplayCurrency: () => {
           throw new Error("moduł waluty");
         },
       }),

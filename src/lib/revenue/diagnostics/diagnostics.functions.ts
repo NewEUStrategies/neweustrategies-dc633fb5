@@ -93,8 +93,8 @@ export const RETENTION_DIALOG_STEPS = { enabled: 2, disabled: 1 } as const;
 export interface RevenueFactsDeps {
   /** `capabilities.ts` - czy flaga ma realną bramkę. */
   isEnforcedCapability(key: string): boolean;
-  /** `displayCurrency.ts` - waluta prezentacji cennika w języku. */
-  displayCurrencyForLang(lang: string): string;
+  /** `planMoney.ts` - waluta prezentacji zgodna z walutą planu. */
+  planDisplayCurrency(currency: string): string;
   /** Szablon ścieżki → przepis, który zastępuje (`replacesWorkflowTemplate`). */
   replacesWorkflowTemplate(templateKey: string): string | null;
   /** `ACTION_EMITS` - zdarzenia emitowane przez węzeł danego typu. */
@@ -129,11 +129,13 @@ function promiseGaps(facts: RevenueFacts, deps: RevenueFactsDeps) {
 function presentation(facts: RevenueFacts, deps: RevenueFactsDeps): PresentationFact[] | undefined {
   const charged = facts.areas.checkout?.chargeCurrencies;
   if (!charged) return undefined;
-  return (["pl", "en"] as const).map((lang) => ({
-    lang,
-    displayCurrency: deps.displayCurrencyForLang(lang),
-    chargeCurrencies: charged,
-  }));
+  return (["pl", "en"] as const).flatMap((lang) =>
+    charged.map((currency) => ({
+      lang,
+      displayCurrency: deps.planDisplayCurrency(currency),
+      chargeCurrencies: [currency],
+    })),
+  );
 }
 
 function overlaps(facts: RevenueFacts, deps: RevenueFactsDeps) {
@@ -297,7 +299,7 @@ export function enrichRevenueFacts(
 async function loadFactsDeps(): Promise<RevenueFactsDeps> {
   const [capabilities, currency, templates, graph, events, sources, adapter] = await Promise.all([
     import("@/lib/billing/capabilities"),
-    import("@/lib/billing/displayCurrency"),
+    import("@/lib/billing/planMoney"),
     import("@/lib/journeys/templates"),
     import("@/lib/journeys/graph"),
     import("@/lib/realtime/domainEvents"),
@@ -307,7 +309,7 @@ async function loadFactsDeps(): Promise<RevenueFactsDeps> {
   const emits = graph.ACTION_EMITS as Readonly<Record<string, readonly string[] | undefined>>;
   return {
     isEnforcedCapability: capabilities.isEnforcedCapability,
-    displayCurrencyForLang: currency.displayCurrencyForLang,
+    planDisplayCurrency: currency.planDisplayCurrency,
     replacesWorkflowTemplate: (key) =>
       templates.journeyTemplate(key)?.replacesWorkflowTemplate ?? null,
     actionEmits: (type) => emits[type] ?? [],

@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Share plan currency formatting between pricing and checkout; derive displayed currency from each plan, not the interface language, to match provider charges without changing donation FX.
+
 - Share archive skyline geometry and theme ink.
 - Resolve legacy brand accents through the shared theme helper at display boundaries; preserve unrelated colors and data.
 

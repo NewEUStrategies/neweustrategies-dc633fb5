@@ -226,8 +226,6 @@ const EXPERT_HUB_NEVER_RAN =
  * z produkcji - to był sygnał dryfu, czytany dotąd jako nieświeże typy.
  */
 export const KNOWN_COLUMN_DRIFT: Readonly<Record<string, string>> = {
-  "membership_grants.source_coupon_id":
-    "20260725090300 (apply_coupon_effects_after_payment) weszła na produkcję częściowo: `effects_applied_at` z tego pliku jest, ta kolumna nie. SKUTEK (ścieżka pieniędzy): `apply_b2b_coupon_effects` (20260801214845) wstawia ją do `membership_grants`, więc kupon z `grants_tier_key` po opłaceniu nie nadaje warstwy - błąd 42703 kończy się wyłącznie `console.error` w couponEffects.server.ts, zamówienie zostaje `paid`, webhook nie ponawia.",
   "research_program_items.tenant_id": EXPERT_HUB_NEVER_RAN,
   "research_program_members.id":
     "20260714130000_expert_hub nie wykonała się na produkcji (patrz pozostałe wpisy research_program_*). Tabela ma klucz (program_id, profile_id) z 20260713181044 i na nim stoi kod panelu oraz deduplikacja w 20260815110844 (po ctid, bo `id` nie ma); ponowienie dodaje `id` z gen_random_uuid() i indeksem UNIQUE, bez zmiany klucza głównego.",

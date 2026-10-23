@@ -1,0 +1,1 @@
+ALTER TABLE public.membership_grants ADD CONSTRAINT membership_grants_source_coupon_id_fkey FOREIGN KEY (source_coupon_id) REFERENCES public.b2b_coupons(id) ON DELETE SET NULL;

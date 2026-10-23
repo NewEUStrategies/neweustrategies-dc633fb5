@@ -10,7 +10,10 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(9);
+SELECT plan(10);
+
+SELECT has_column('public', 'membership_grants', 'source_coupon_id',
+  'nadanie zapisuje kupon zrodlowy wymagany przez apply_b2b_coupon_effects');
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 

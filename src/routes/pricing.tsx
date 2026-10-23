@@ -147,8 +147,13 @@ export const Route = createFileRoute("/pricing")({
       { name: "description", content: seo.description },
       { property: "og:title", content: seo.title },
       { property: "og:description", content: seo.description },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ];
-    if (seo.image) meta.push({ property: "og:image", content: seo.image });
+    if (seo.image?.startsWith("https://")) {
+      meta.push({ property: "og:image", content: seo.image });
+      meta.push({ name: "twitter:image", content: seo.image });
+    }
     if (seo.noindex) meta.push({ name: "robots", content: "noindex,nofollow" });
     return {
       meta,

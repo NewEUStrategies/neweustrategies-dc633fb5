@@ -1,5 +1,10 @@
 # Roadmap
 
+## Kupony i waluta cennika (2026-10-23)
+
+- [ ] Naprawić brak membership_grants.source_coupon_id i zweryfikować efekty kuponu po płatności.
+- [ ] Pokazywać w cenniku EN rzeczywistą walutę planu, bez pozornej oferty EUR rozliczanej w PLN; uruchomić testy i sprawdzić stronę.
+
 ## Weryfikacja PR #527
 
 - [x] Potwierdzić integrację wszystkich commitów PR #527: merge f149a004a zawiera 27 commitów gałęzi (26 nie-merge), drzewo identyczne z końcem 7ca1f086b, merge jest przodkiem HEAD. Dostawa S2/S4 i wcześniejszych fundamentów; S3 wyłącznie jako niewdrożone patche, S5/S7/S8/I9 poza zakresem PR.
