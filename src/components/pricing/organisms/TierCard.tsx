@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { type AccessPlan } from "@/lib/billing/types";
-import { formatDisplayMoney } from "@/lib/billing/displayCurrency";
+import { formatPlanMoney } from "@/lib/billing/planMoney";
 
 import {
   parseTierBenefits,
@@ -35,10 +35,9 @@ import {
 import { TierBenefitList } from "@/components/pricing/atoms/TierBenefitList";
 import { trackCta } from "@/lib/analytics/track";
 
-// Konwersja PLN -> EUR dla wersji EN żyje w shared helperze (displayCurrency),
-// bo używa jej też checkout i panel admina - jedno źródło prawdy o parytecie.
+// Waluta planu pozostaje walutą obciążenia; język zmienia tylko format liczby.
 function fmt(cents: number, currency: string, lang: string): string {
-  return formatDisplayMoney(cents, currency, lang);
+  return formatPlanMoney(cents, currency, lang);
 }
 
 /**

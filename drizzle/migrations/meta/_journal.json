@@ -2745,6 +2745,20 @@
       "when": 1792689425337,
       "tag": "0391_pr530_deployment_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1792753220729,
+      "tag": "0392_membership_coupon_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1792753763654,
+      "tag": "0393_membership_coupon_source_fk",
+      "breakpoints": true
     }
   ]
 }

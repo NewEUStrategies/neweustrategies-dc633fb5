@@ -83,7 +83,6 @@ const BASELINE: readonly string[] = [
   // przegenerowanym z produkcji 2026-10-22 (Row/Insert/Update `meta: Json`),
   // więc kolumna na produkcji powstała i wpis zrobił się martwy - usunięty
   // zgodnie z instrukcją bramki (`KNOWN_COLUMN_DRIFT` nie ma go już wcześniej).
-  "membership_grants.source_coupon_id",
   "research_program_items.tenant_id",
   "research_program_members.id",
   "research_program_members.tenant_id",

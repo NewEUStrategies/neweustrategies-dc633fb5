@@ -1,5 +1,11 @@
 # Roadmap
 
+## Kupony i waluta cennika (2026-10-23)
+
+- [x] Naprawić brak membership_grants.source_coupon_id: kolumna, indeks i FK istnieją w żywej bazie; kontrakt 1903 obiekty / 772 kolumny bez nowych braków; brak kuponów nadających warstwę i zaległych efektów do ponowienia.
+- [ ] Pełny test pgTAP nadania po płatności: asercja kolumny przechodzi, dalszy fixture blokuje brak uprawnień sandbox_exec do auth; wymaga uruchomienia w środowisku testowym z uprawnieniami do fixture auth. Nie zmieniono danych użytkowników.
+- [x] Pokazywać w cenniku EN rzeczywistą walutę planu i tę samą kwotę w checkout: 546 testów, tsgo bez błędów; /en/pricing w przeglądarce pokazuje PLN, bez EUR i błędów JS. Darowizny i bilety zachowują własne reguły FX. Publikacji nie zlecono.
+
 ## Weryfikacja PR #527
 
 - [x] Potwierdzić integrację wszystkich commitów PR #527: merge f149a004a zawiera 27 commitów gałęzi (26 nie-merge), drzewo identyczne z końcem 7ca1f086b, merge jest przodkiem HEAD. Dostawa S2/S4 i wcześniejszych fundamentów; S3 wyłącznie jako niewdrożone patche, S5/S7/S8/I9 poza zakresem PR.

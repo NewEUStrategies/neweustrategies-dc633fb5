@@ -15,11 +15,7 @@ import {
 } from "@/lib/billing/planSubscriptionGuard";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
-import {
-  convertToDisplayCurrency,
-  displayCurrencyForLang,
-  formatDisplayMoney,
-} from "@/lib/billing/displayCurrency";
+import { formatPlanMoney, planDisplayCurrency } from "@/lib/billing/planMoney";
 
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { track } from "@/lib/analytics/track";
@@ -31,7 +27,6 @@ import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
 import { CheckoutAssurances } from "@/components/checkout/CheckoutAssurances";
 import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
 import { CouponInput } from "@/components/checkout/CouponInput";
-import { FxRateNotice } from "@/components/checkout/FxRateNotice";
 import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
@@ -82,7 +77,20 @@ export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
     meta: [
-      { title: "Checkout · Finalizacja zamówienia" },
+      { title: "Checkout | New European Strategies" },
+      {
+        name: "description",
+        content:
+          "Complete your New European Strategies membership order in your plan's billing currency.",
+      },
+      { property: "og:title", content: "Checkout | New European Strategies" },
+      {
+        property: "og:description",
+        content:
+          "Complete your New European Strategies membership order in your plan's billing currency.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -192,20 +200,12 @@ function CheckoutPage() {
   // z tego samego rejestru wersji, z którego serwer odtworzy tekst.
   const consentLang = normalizeNewsletterLanguage(i18n.language);
   const offersNewsletterOptIn = checkoutMode === "subscription";
-  const displayCurrency = displayCurrencyForLang(i18n.language);
   const planCurrency = planData?.currency ?? "PLN";
-  // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
-  const originalDisplay = convertToDisplayCurrency(
-    planData?.price_cents ?? 0,
-    planCurrency,
-    displayCurrency,
+  // Cena i kupon są w walucie planu, tak samo jak zamówienie u operatora.
+  const finalCentsDisplay = Math.max(
+    (planData?.price_cents ?? 0) - (coupon?.discountCents ?? 0),
+    0,
   );
-  const discountDisplay = convertToDisplayCurrency(
-    coupon?.discountCents ?? 0,
-    planCurrency,
-    displayCurrency,
-  );
-  const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
   const existingSubscription = mySubscription.data ?? null;
   // Żywa subskrypcja planu blokuje drugi zakup TYLKO tam, gdzie istnieje
@@ -433,13 +433,12 @@ function CheckoutPage() {
                         )
                       }
                     />
-                    <FxRateNotice displayCurrency={displayCurrency} />
                     <div className="border-t pt-4 space-y-1">
                       {coupon && coupon.discountCents > 0 && (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{t("checkout.subtotal")}</span>
                           <span className="line-through">
-                            {formatDisplayMoney(planData.price_cents, planCurrency, i18n.language)}
+                            {formatPlanMoney(planData.price_cents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}
@@ -447,7 +446,7 @@ function CheckoutPage() {
                         <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
                           <span>{t("coupon.discount")}</span>
                           <span>
-                            -{formatDisplayMoney(coupon.discountCents, planCurrency, i18n.language)}
+                            -{formatPlanMoney(coupon.discountCents, planCurrency, i18n.language)}
                           </span>
                         </div>
                       )}
@@ -455,7 +454,11 @@ function CheckoutPage() {
                       <div className="flex items-center justify-between pt-1">
                         <span className="font-medium">{t("checkout.total")}</span>
                         <span className="text-2xl font-bold">
-                          {formatMoney(finalCentsDisplay, originalDisplay.currency, i18n.language)}
+                          {formatMoney(
+                            finalCentsDisplay,
+                            planDisplayCurrency(planCurrency),
+                            i18n.language,
+                          )}
                         </span>
                       </div>
                     </div>
@@ -494,7 +497,7 @@ function CheckoutPage() {
                           {t("checkout.payNow", {
                             amount: formatMoney(
                               finalCentsDisplay,
-                              originalDisplay.currency,
+                              planDisplayCurrency(planCurrency),
                               i18n.language,
                             ),
                           })}

@@ -16411,6 +16411,7 @@ export type Database = {
           note: string | null
           revoked_at: string | null
           source: string
+          source_coupon_id: string | null
           source_donation_id: string | null
           starts_at: string
           tenant_id: string
@@ -16426,6 +16427,7 @@ export type Database = {
           note?: string | null
           revoked_at?: string | null
           source?: string
+          source_coupon_id?: string | null
           source_donation_id?: string | null
           starts_at?: string
           tenant_id: string
@@ -16441,6 +16443,7 @@ export type Database = {
           note?: string | null
           revoked_at?: string | null
           source?: string
+          source_coupon_id?: string | null
           source_donation_id?: string | null
           starts_at?: string
           tenant_id?: string
@@ -16449,6 +16452,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "membership_grants_source_coupon_id_fkey"
+            columns: ["source_coupon_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_coupons"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "membership_grants_source_donation_id_fkey"
             columns: ["source_donation_id"]

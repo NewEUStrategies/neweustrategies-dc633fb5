@@ -604,19 +604,16 @@ describe("trasa /checkout/$planId - kupon B2B", () => {
 });
 
 describe("trasa /checkout/$planId - i18n i waluta prezentacji", () => {
-  it("po angielsku rozlicza w EUR po kursie NBP i mówi po angielsku do operatora", async () => {
+  it("po angielsku pokazuje rzeczywiste 99 PLN i mówi po angielsku do operatora", async () => {
     await i18n.changeLanguage("en");
     signedInBuyer();
     await mount();
 
     expect(await screen.findByText("Pro plan")).toBeInTheDocument();
     const pay = screen.getByRole("button", { name: /Pay/ });
-    // 99,00 PLN po kursie NBP (tu: 4,00) -> 24,75 EUR. Ta sama funkcja liczy
-    // kwoty na /pricing i /support, więc kupujący nie widzi dwóch różnych cen.
-    expect(showsMoney(pay, 2475, "EUR", "en")).toBe(true);
-    expect(pay).not.toHaveTextContent("zł");
-    // Pasek kursu pojawia się WYŁĄCZNIE w wariancie EUR.
-    expect(await screen.findByText(/1 EUR = /)).toBeInTheDocument();
+    expect(showsMoney(pay, 9900, "PLN", "en")).toBe(true);
+    expect(pay).not.toHaveTextContent("€");
+    expect(screen.queryByText(/1 EUR = /)).not.toBeInTheDocument();
 
     fireEvent.click(pay);
     await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));

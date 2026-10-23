@@ -762,18 +762,16 @@ describe("trasa /pricing - przełącznik cyklu rozliczenia", () => {
 });
 
 describe("trasa /pricing - przeliczanie waluty", () => {
-  it("po angielsku rozlicza w euro po kursie, a nie w złotówkach", async () => {
-    // Ta sama funkcja liczy kwotę tutaj i w checkoucie. Cennik w złotówkach
-    // dla anglojęzycznego czytelnika obiecywałby inną kwotę niż pobrana.
+  it("po angielsku zachowuje kwotę i walutę rozliczenia planu PLN", async () => {
     await i18n.changeLanguage("en");
     fullCatalogue();
     await mount();
 
     const card = await screen.findByRole("heading", { level: 3, name: "Member" });
     const memberCard = card.closest("div[class*='rounded']")?.parentElement as HTMLElement;
-    // 490,00 PLN po kursie 4,00 -> 122,50 EUR.
-    expect(within(memberCard).getByText(moneyPattern(12250))).toBeInTheDocument();
-    expect(memberCard.textContent).not.toContain("zł");
+    expect(within(memberCard).getByText(moneyPattern(49000))).toBeInTheDocument();
+    expect(memberCard.textContent).toContain("PLN");
+    expect(memberCard.textContent).not.toContain("€");
   });
 
   it("po polsku nie przelicza niczego i zostaje przy złotówkach", async () => {
