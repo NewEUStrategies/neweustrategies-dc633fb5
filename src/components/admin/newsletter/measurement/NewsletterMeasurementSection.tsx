@@ -5,10 +5,9 @@
 // okno potwierdzenia) ładują się przez `lazy()` dopiero, gdy mają się
 // pokazać - przegląd newslettera ich nie niesie (budżet D-08).
 //
-// KTO WIDZI. Administrator i redaktor (treść zgody zapisują oboje -
-// `admin_newsletter_settings_patch`, stan treści czytają oboje -
-// `requireAdminEditor`); prośbę o zgodę i przełącznik pomiaru - wyłącznie
-// administrator. To NIE jest bramka trasy (tę trzyma layout `/admin`), tylko
+// KTO WIDZI. Administrator i redaktor (treść zgody na newsletter zapisują
+// oboje - `admin_newsletter_settings_patch`); prośbę o zgodę na pomiar
+// i przełącznik pomiaru - wyłącznie administrator. To NIE jest bramka trasy (tę trzyma layout `/admin`), tylko
 // zgodność widoku z regułą serwera: panel nie pokazuje sekcji, której odczyt
 // i tak zostałby odrzucony. Bez najemcy sesji (render serwera) sekcji nie ma.
 import { lazy, Suspense } from "react";

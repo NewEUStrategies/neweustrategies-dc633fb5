@@ -235,28 +235,22 @@ const PARY: readonly Para[] = [
     zrodlo: "nowy prefiks (I9d-Y2: src/lib/privacy/dataRetentionQueries.ts:140)",
   },
   {
-    fn: "newsletterKeys.consentMeasurement",
-    actual: newsletterKeys.consentMeasurement(),
-    expected: ["newsletter-settings", "measurement", "consent"],
-    zrodlo: "src/lib/privacy/measurementQueries.ts:51",
-  },
-  {
     fn: "newsletterKeys.measurementPreview",
     actual: newsletterKeys.measurementPreview(),
     expected: ["newsletter-settings", "measurement", "preview"],
-    zrodlo: "src/lib/privacy/measurementQueries.ts:40",
+    zrodlo: "src/lib/privacy/measurementQueries.ts:32",
   },
   {
     fn: "newsletterKeys.measurementCopy",
     actual: newsletterKeys.measurementCopy(),
     expected: ["newsletter-settings", "measurement", "copy"],
-    zrodlo: "src/lib/privacy/measurementQueries.ts:61",
+    zrodlo: "src/lib/privacy/measurementQueries.ts:43",
   },
   {
     fn: "newsletterKeys.campaignMeasurement",
     actual: newsletterKeys.campaignMeasurement(ID),
     expected: ["admin", "newsletter-campaigns", ID, "measurement"],
-    zrodlo: "src/lib/privacy/measurementQueries.ts:71",
+    zrodlo: "src/lib/privacy/measurementQueries.ts:53",
   },
 
   // ── Dostęp, metering, kasa (`src/lib/access/keys.ts`) ─────────────────────
@@ -797,10 +791,10 @@ describe("fabryki kluczy huba - inwarianty", () => {
       [newsletterKeys.campaign(ID), newsletterKeys.campaignEngagement(ID)],
       [newsletterKeys.campaign(ID), newsletterKeys.campaignAudience(ID, AUDIENCE)],
       [newsletterKeys.popupEventsAll(), newsletterKeys.popupEvents(7)],
-      // I9d-Y2: zdarzenie ustawień newslettera odświeża stan treści zgody
-      // i podgląd prośby; zdarzenie kampanii - mianownik mierzonych.
+      // I9d-Y2: zdarzenie ustawień newslettera odświeża podgląd prośby
+      // i treść maila; zdarzenie kampanii - mianownik mierzonych. (Stan
+      // treści zgody z oznaczeniami admina zniknął w I9d-Y2b.)
       [newsletterKeys.settings(), newsletterKeys.measurementAll()],
-      [newsletterKeys.measurementAll(), newsletterKeys.consentMeasurement()],
       [newsletterKeys.measurementAll(), newsletterKeys.measurementPreview()],
       [newsletterKeys.measurementAll(), newsletterKeys.measurementCopy()],
       [newsletterKeys.campaign(ID), newsletterKeys.campaignMeasurement(ID)],

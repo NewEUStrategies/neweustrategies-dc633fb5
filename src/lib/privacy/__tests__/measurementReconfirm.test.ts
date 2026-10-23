@@ -1,23 +1,21 @@
-// „Poproś o zgodę na pomiar" (I9d-Y2) - stałe czyste i parsery panelu:
-// treść domyślna PL/EN w limitach i z parytetem pól, nadpisania z panelu,
-// zmienne, okno wysyłki (inna minuta niż prośby wygaszania), kategoria
-// listy wyłączeń, parytet stałych z SQL (limit dzienny, ważność linku)
-// oraz kontrakty RPC panelu (`rpc-shape`) i ostrzeżenie edytora.
+// „Poproś o zgodę na pomiar" (I9d-Y2, I9d-Y2b) - stałe czyste i parsery
+// panelu: treść domyślna PL/EN w limitach i z parytetem pól, nadpisania
+// z panelu, zmienne, okno wysyłki (inna minuta niż prośby wygaszania),
+// kategoria listy wyłączeń, parytet stałych z SQL (limit dzienny, ważność
+// linku) oraz kontrakty RPC panelu (`rpc-shape`). Parsera stanu treści zgody
+// z oznaczeniami admina nie ma od I9d-Y2b (RPC usunięte, wariant (b)).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { emailCategoryForLabel } from "@/lib/email/suppressionPolicy";
 import { MEASUREMENT_CONFIRM_LINK_DAYS } from "../measurement";
+import * as measurementParse from "../measurementParse";
 import {
   campaignMeasuredDenominator,
-  consentFieldNeedsWarning,
-  CONSENT_MEASUREMENT_FIELDS,
   parseCampaignMeasurement,
-  parseConsentMeasurement,
   parseNewsletterMeasurementPreview,
   parseNewsletterMeasurementRequest,
-  type ConsentMeasurementFieldDto,
 } from "../measurementParse";
 import {
   interpolateMeasurementCopy,
@@ -107,15 +105,11 @@ describe("okno, kanał i stałe wspólne z SQL", () => {
     expect(caps.length).toBeGreaterThanOrEqual(2);
     expect(new Set(caps).size).toBe(1);
   });
-
-  it("pola treści zgody = CHECK tabeli oznaczeń i lista RPC panelu", () => {
-    for (const field of CONSENT_MEASUREMENT_FIELDS) expect(RECONFIRM_SQL).toContain(`'${field}'`);
-  });
 });
 
 describe("kontrakty RPC panelu", () => {
   const PREVIEW = {
-    version: "newsletter-2026-10-21",
+    version: "email-measurement-2026-10-23",
     enabled: true,
     subscribers: "120",
     with_consent: 20,
@@ -149,57 +143,11 @@ describe("kontrakty RPC panelu", () => {
     });
   });
 
-  it("stan treści zgody i ostrzeżenie: własny tekst bez oznaczenia OSTRZEGA, puste pole nie", () => {
-    const dto = parseConsentMeasurement({
-      version: "newsletter-2026-10-21",
-      fields: [
-        {
-          field: "policy_html_pl",
-          lang: "pl",
-          text_present: true,
-          is_default: true,
-          marked: false,
-          stale: false,
-          covers: true,
-          marked_at: null,
-        },
-        {
-          field: "policy_html_en",
-          lang: "en",
-          text_present: true,
-          is_default: false,
-          marked: false,
-          stale: false,
-          covers: false,
-          marked_at: null,
-        },
-        {
-          field: "popup_privacy_html_pl",
-          lang: "pl",
-          text_present: false,
-          is_default: false,
-          marked: false,
-          stale: false,
-          covers: null,
-          marked_at: null,
-        },
-        {
-          field: "popup_privacy_html_en",
-          lang: "en",
-          text_present: true,
-          is_default: false,
-          marked: false,
-          stale: true,
-          covers: false,
-          marked_at: "2026-10-21T10:00:00+00:00",
-        },
-      ],
-    });
-    const warn = dto.fields.map((f: ConsentMeasurementFieldDto) => consentFieldNeedsWarning(f));
-    expect(warn).toEqual([false, true, false, true]);
-    expect(() =>
-      parseConsentMeasurement({ version: "v", fields: [{ field: "obce_pole", lang: "pl" }] }),
-    ).toThrow(/field/);
+  it("bez parsera stanu treści zgody i oznaczeń admina (I9d-Y2b)", () => {
+    const names = Object.keys(measurementParse);
+    expect(names).not.toContain("parseConsentMeasurement");
+    expect(names).not.toContain("consentFieldNeedsWarning");
+    expect(names).not.toContain("CONSENT_MEASUREMENT_FIELDS");
   });
 
   it("mianownik kampanii: mierzeni po Y2, wszyscy wysłani dla kampanii sprzed Y2", () => {

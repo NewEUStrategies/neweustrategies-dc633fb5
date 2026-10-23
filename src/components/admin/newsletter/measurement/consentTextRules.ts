@@ -1,22 +1,35 @@
-// Reguły panelu treści zgody na newsletter i pomiaru (I9d-Y2) - moduł czysty,
-// bez Reacta.
+// Reguły panelu treści zgody na newsletter i pomiaru (I9d-Y2, I9d-Y2b) -
+// moduł czysty, bez Reacta.
 //
 // Osobny liść, bo czytają go trzy leniwe chunki: karta treści zgody (stan
-// pola, szkic), karta „Poproś o zgodę na pomiar" (kotwica edytora treści
-// maila) i sam edytor treści maila (kotwica) - import z modułu komponentu
-// wciągałby całą kartę do chunku edytora i odwrotnie.
+// pola, szkic, ostrzeżenie), karta „Poproś o zgodę na pomiar" (kotwica
+// edytora treści maila) i sam edytor treści maila (kotwica) - import
+// z modułu komponentu wciągałby całą kartę do chunku edytora i odwrotnie.
+// Czyta go też zakładka „Pola" popupu rejestracji (etykieta zgody na
+// newsletter).
 //
-// STAN POLA = BAZA + JEDNO ŹRÓDŁO TS. Baza (`admin_newsletter_consent_
-// measurement_get`) mówi, czy ZAPISANY tekst jest bieżącą treścią domyślną
-// albo ma ważne oznaczenie admina. Formularze publiczne traktują jednak
-// także DAWNE treści domyślne (sprzed Y2, `LEGACY_NEWSLETTER_CONSENT_
-// DEFAULTS`) jak domyślną i pokazują bieżącą treść z pomiarem - panel nie
-// może ostrzegać o tekście, którego czytelnik nie zobaczy. Dlatego „domyślna"
-// = baza ALBO `isNewsletterConsentDefault` zapisanego tekstu; reszta wynika
-// z `covers` bazy (oznaczenie admina), nigdy z heurystyki słów.
+// WARIANT (b) OD 2026-10-23 (decyzja właściciela D1): KAŻDA ZGODA MA OSOBNE
+// POLE. Treść zgody na newsletter nie dotyczy pomiaru otwarć i kliknięć -
+// pomiar ma osobne, domyślnie niezaznaczone pole z własną, wersjonowaną
+// treścią (`measurementConsentText.ts`), a zgodę na pomiar zapisuje
+// wyłącznie potwierdzenie właściciela skrzynki (D2). Oznaczenia admina „mój
+// tekst obejmuje pomiar" z wariantu (a) nie ma - żaden tekst zgody na
+// newsletter nie daje pomiaru, więc panel nie ma czego oznaczać.
+//
+// STAN POLA = JEDNO ŹRÓDŁO TS. „Domyślna" = puste pole, bieżąca albo dawna
+// treść domyślna (`isNewsletterConsentDefault`; formularz pokazuje wtedy
+// bieżącą treść (b) z wersją), reszta to tekst własny admina - bez wersji,
+// z zapisanym skrótem treści.
+//
+// OSTRZEŻENIE (R1.24, lustro kontroli K5b runbooka). Własny tekst zgody na
+// newsletter, który wspomina pomiar (`mierz|pomiar|measur`), zostałby
+// odebrany jako zgoda na pomiar, a nią nie jest - opis pomiaru należy do
+// osobnego pola. Panel ostrzega (nie blokuje zapisu: słowo może paść
+// w innym znaczeniu, decyzja należy do redakcji). To samo wyrażenie
+// regularne co K5b (`~* 'mierz|pomiar|measur'`), więc panel i kontrola SQL
+// wskazują te same teksty.
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { isNewsletterConsentDefault, type ConsentLang } from "@/lib/newsletter/consentText";
-import type { ConsentMeasurementFieldDto } from "@/lib/privacy/measurementParse";
 
 /** Kotwica edytora treści maila „Poproś o zgodę na pomiar" (treści maili newslettera). */
 export const NEWSLETTER_MEASUREMENT_COPY_ANCHOR = "newsletter-measurement-copy";
@@ -41,8 +54,8 @@ export function consentDraftFrom(
 
 /**
  * Wartość kolumny z pola edytora. Puste (po obcięciu brzegów) = `null`:
- * formularz pokazuje wtedy bieżącą treść domyślną z wersją z pomiarem, więc
- * „Przywróć domyślną" nie zapisuje kopii tekstu (kopia zestarzałaby się przy
+ * formularz pokazuje wtedy bieżącą treść domyślną z wersją, więc „Przywróć
+ * domyślną" nie zapisuje kopii tekstu (kopia zestarzałaby się przy
  * następnej wersji treści). Tekst niepusty idzie BEZ zmian - nic nie jest
  * przycinane ani poprawiane po cichu.
  */
@@ -65,31 +78,34 @@ export function consentDraftDirty(
 }
 
 /**
- * Stan zapisanej treści zgody pola:
- *   * `default` - puste pole, bieżąca albo dawna treść domyślna (formularz
- *     pokazuje treść z pomiarem);
- *   * `marked` - własny tekst z ważnym oznaczeniem admina;
- *   * `uncovered` - własny tekst bez ważnego oznaczenia: zapis z formularza
- *     NIE daje zgody na pomiar (ostrzeżenie);
- *   * `unknown` - baza jeszcze nie odpowiedziała (albo funkcji nie ma).
+ * Stan treści zgody pola:
+ *   * `default` - puste pole, bieżąca albo dawna treść domyślna (także
+ *     pakietowa (a) z 2026-10-21): formularz pokazuje bieżącą treść (b)
+ *     z wersją;
+ *   * `custom` - tekst własny admina (bez wersji; dowodem jest zapisana
+ *     treść i jej skrót).
  */
-export type ConsentFieldStatus = "default" | "marked" | "uncovered" | "unknown";
+export type ConsentFieldStatus = "default" | "custom";
 
-export function consentFieldStatus(
-  saved: string | null | undefined,
-  field: ConsentMeasurementFieldDto | null | undefined,
-): ConsentFieldStatus {
-  if (isNewsletterConsentDefault(saved)) return "default";
-  if (!field) return "unknown";
-  if (!field.textPresent || field.isDefault) return "default";
-  return field.covers === true ? "marked" : "uncovered";
+export function consentFieldStatus(text: string | null | undefined): ConsentFieldStatus {
+  return isNewsletterConsentDefault(text) ? "default" : "custom";
 }
 
 /**
- * Ostrzeżenie PRZED zapisem: szkic zmienia tekst na własny (nie domyślny) -
- * po zapisie nie obejmie pomiaru, dopóki admin go nie oznaczy (oznaczenie
- * dotyczy skrótu zapisanego tekstu, więc każda zmiana je unieważnia).
+ * Słowa, po których rozpoznajemy opis pomiaru w treści zgody na newsletter
+ * (PL „mierz…", „pomiar…", EN „measur…"). Lustro kontroli K5b runbooka
+ * (`~* 'mierz|pomiar|measur'`) - zmiana tu wymaga zmiany tam.
  */
-export function draftLosesMeasurement(draft: string, saved: string | null | undefined): boolean {
-  return consentFieldDirty(draft, saved) && !isNewsletterConsentDefault(draft);
+export const CONSENT_MEASUREMENT_MENTION = /mierz|pomiar|measur/i;
+
+/**
+ * Ostrzeżenie R1.24: WŁASNY tekst zgody na newsletter (pole ustawień,
+ * etykieta pola „newsletter" popupu, treść zgody widżetu „Dołącz do nas",
+ * etykieta zapisu w formularzu kontaktu) wspomina pomiar. Treść domyślna
+ * (także dawna, z pomiarem) nie ostrzega - formularz i tak pokazuje bieżącą
+ * treść (b) bez pomiaru.
+ */
+export function newsletterConsentMentionsMeasurement(text: string | null | undefined): boolean {
+  if (isNewsletterConsentDefault(text)) return false;
+  return CONSENT_MEASUREMENT_MENTION.test(text ?? "");
 }

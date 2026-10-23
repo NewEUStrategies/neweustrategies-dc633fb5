@@ -1,9 +1,12 @@
-// Zakładka „Pola" popupu rejestracji - etykieta zgody na newsletter (I9d-Y2).
+// Zakładka „Pola" popupu rejestracji - etykieta zgody na newsletter (I9d-Y2,
+// I9d-Y2b).
 //
-// Etykieta pola „newsletter" JEST treścią zgody: domyślna (albo pusta) daje
-// w popupie pełną treść zgody z pomiarem otwarć i kliknięć, WŁASNA zostaje
-// bez wersji i nie obejmuje pomiaru. Zakładka mówi to ostrzeżeniem przy polu -
-// rozstrzyga jedno źródło `isNewsletterConsentDefault`, nie szukanie słów.
+// Wariant (b): etykieta pola „newsletter" jest treścią zgody na newsletter
+// i NIE dotyczy pomiaru - pomiar ma osobne, domyślnie niezaznaczone pole.
+// Dawne ostrzeżenie „własna etykieta nie obejmuje pomiaru" zniknęło: każda
+// etykieta - domyślna i własna - jest poprawna bez pomiaru. Zostaje
+// ostrzeżenie odwrotne (R1.24): własna etykieta, która WSPOMINA pomiar,
+// wprowadzałaby czytelnika w błąd (opis pomiaru należy do osobnego pola).
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -29,7 +32,8 @@ import "@/lib/i18n-admin-measurement-hint";
 
 h.fixedT = realT;
 
-const WARNING = /Własna etykieta zgody na newsletter nie obejmuje pomiaru/;
+const WARNING = /Własna etykieta zgody na newsletter wspomina pomiar otwarć i kliknięć/;
+const OLD_WARNING = /nie obejmuje pomiaru/;
 
 function mount(labels: { pl?: string; en?: string } | null) {
   const value: NewsletterSettings = {
@@ -42,9 +46,12 @@ function mount(labels: { pl?: string; en?: string } | null) {
   return render(<FieldsTab value={value} onChange={vi.fn()} />);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.documentElement.classList.remove("dark");
+});
 
-describe("FieldsTab - etykieta zgody na newsletter", () => {
+describe("FieldsTab - etykieta zgody na newsletter (wariant (b))", () => {
   it("etykieta domyślna (albo brak nadpisania) - bez ostrzeżenia", () => {
     mount(null);
     expect(screen.queryByText(WARNING)).toBeNull();
@@ -53,14 +60,29 @@ describe("FieldsTab - etykieta zgody na newsletter", () => {
     expect(screen.queryByText(WARNING)).toBeNull();
   });
 
-  it("własna etykieta (w którymkolwiek języku) - ostrzeżenie przy polu newslettera", async () => {
-    const { container } = mount({ pl: "Tak, chcę analizy NES", en: "" });
-    const note = screen.getByText(WARNING);
-    expect(note.getAttribute("role")).toBe("note");
-    // Ostrzeżenie stoi w bloku pola „newsletter", nie przy innych polach.
-    const block = note.closest("div.rounded-md") as HTMLElement;
-    expect(within(block).getAllByLabelText(/newsletter_optin$/)).toHaveLength(4);
-    const violations = await axeViolations(container);
-    expect(violations, summarize(violations)).toEqual([]);
+  it("własna etykieta BEZ opisu pomiaru - bez ostrzeżenia (dawnego „nie obejmuje pomiaru” też nie ma)", () => {
+    mount({ pl: "Tak, chcę analizy NES", en: "" });
+    expect(screen.queryByText(WARNING)).toBeNull();
+    expect(screen.queryByText(OLD_WARNING)).toBeNull();
+    expect(document.querySelector("[data-measurement-warning]")).toBeNull();
   });
+
+  it.each(["light", "dark"] as const)(
+    "własna etykieta wspominająca pomiar (w którymkolwiek języku) - ostrzeżenie przy polu newslettera, axe (%s)",
+    async (theme) => {
+      if (theme === "dark") document.documentElement.classList.add("dark");
+      const { container } = mount({
+        pl: "Chcę newsletter",
+        en: "I agree to the newsletter and the measurement of opens",
+      });
+      const note = screen.getByText(WARNING);
+      expect(note.getAttribute("role")).toBe("note");
+      expect(note.textContent).toMatch(/osobnego pola zgody na pomiar/);
+      // Ostrzeżenie stoi w bloku pola „newsletter", nie przy innych polach.
+      const block = note.closest("div.rounded-md") as HTMLElement;
+      expect(within(block).getAllByLabelText(/newsletter_optin$/)).toHaveLength(4);
+      const violations = await axeViolations(container);
+      expect(violations, summarize(violations)).toEqual([]);
+    },
+  );
 });

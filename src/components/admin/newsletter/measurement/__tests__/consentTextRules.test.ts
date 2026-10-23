@@ -1,38 +1,29 @@
-// Reguły panelu treści zgody (I9d-Y2) - moduł czysty.
+// Reguły panelu treści zgody (I9d-Y2, I9d-Y2b) - moduł czysty.
 //
-// Stan pola łączy bazę (bieżąca treść domyślna / oznaczenie admina) z JEDNYM
-// źródłem TS (dawne treści domyślne sprzed Y2 formularz renderuje jako
-// bieżącą z pomiarem). Nigdy nie zgaduje po słowach w tekście.
+// Wariant (b): treść zgody na newsletter nie daje pomiaru, więc stan pola
+// to tylko „domyślna" albo „własna" (jedno źródło TS, także dawne treści
+// domyślne i pakietowa (a)). Ostrzeżenie R1.24 - własny tekst, który
+// wspomina pomiar - to samo wyrażenie co kontrola K5b runbooka.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  CONSENT_MEASUREMENT_MENTION,
   CONSENT_POLICY_FIELD,
   consentColumnValue,
   consentDraftDirty,
   consentDraftFrom,
   consentFieldDirty,
   consentFieldStatus,
-  draftLosesMeasurement,
+  newsletterConsentMentionsMeasurement,
 } from "../consentTextRules";
+import * as rules from "../consentTextRules";
 import {
   LEGACY_NEWSLETTER_CONSENT_DEFAULTS,
   newsletterConsentHtml,
 } from "@/lib/newsletter/consentText";
-import type { ConsentMeasurementFieldDto } from "@/lib/privacy/measurementParse";
-
-function dto(over: Partial<ConsentMeasurementFieldDto> = {}): ConsentMeasurementFieldDto {
-  return {
-    field: "policy_html_pl",
-    lang: "pl",
-    textPresent: true,
-    isDefault: false,
-    marked: false,
-    stale: false,
-    covers: false,
-    markedAt: null,
-    ...over,
-  };
-}
+import { measurementConsentHtml } from "@/lib/newsletter/measurementConsentText";
 
 const OWN = "Zapisując się, akceptujesz regulamin.";
 
@@ -61,29 +52,62 @@ describe("treść zgody - wartości pól", () => {
   });
 });
 
-describe("treść zgody - stan pola", () => {
-  it("puste, bieżąca i dawna treść domyślna = `default` (także gdy baza mówi `covers: false`)", () => {
-    expect(consentFieldStatus(null, dto({ textPresent: false, covers: null }))).toBe("default");
-    expect(consentFieldStatus(newsletterConsentHtml("pl"), dto({ isDefault: true }))).toBe(
-      "default",
-    );
+describe("treść zgody - stan pola (wariant (b): domyślna albo własna)", () => {
+  it("puste, bieżąca i dawna treść domyślna (także pakietowa (a)) = `default`", () => {
+    expect(consentFieldStatus(null)).toBe("default");
+    expect(consentFieldStatus("  ")).toBe("default");
+    expect(consentFieldStatus(newsletterConsentHtml("pl"))).toBe("default");
+    expect(consentFieldStatus(newsletterConsentHtml("en"))).toBe("default");
     for (const legacy of LEGACY_NEWSLETTER_CONSENT_DEFAULTS) {
-      expect(consentFieldStatus(legacy, dto()), legacy).toBe("default");
+      expect(consentFieldStatus(legacy), legacy).toBe("default");
     }
   });
 
-  it("własny tekst: oznaczony = `marked`, bez ważnego oznaczenia = `uncovered`, bez odczytu = `unknown`", () => {
-    expect(consentFieldStatus(OWN, dto({ covers: true, marked: true }))).toBe("marked");
-    expect(consentFieldStatus(OWN, dto({ covers: false }))).toBe("uncovered");
-    expect(consentFieldStatus(OWN, dto({ covers: false, stale: true }))).toBe("uncovered");
-    expect(consentFieldStatus(OWN, null)).toBe("unknown");
+  it("tekst admina = `custom` - bez oznaczeń, bez stanów z bazy", () => {
+    expect(consentFieldStatus(OWN)).toBe("custom");
+    // Oznaczeń admina „mój tekst obejmuje pomiar" i ostrzeżenia „szkic traci
+    // pomiar" z wariantu (a) nie ma.
+    expect(Object.keys(rules)).not.toContain("draftLosesMeasurement");
+  });
+});
+
+describe("ostrzeżenie R1.24 - własny tekst zgody na newsletter wspomina pomiar", () => {
+  it("własny tekst ze słowami pomiaru (PL i EN, dowolna wielkość liter) ostrzega", () => {
+    for (const text of [
+      "Zapisując się, zgadzasz się na newsletter i pomiar otwarć.",
+      "Wiadomości mogą zawierać elementy MIERZĄCE kliknięcia.",
+      "Mierzymy otwarcia.",
+      "By subscribing you accept the measurement of opens.",
+      "We MEASURE clicks.",
+    ]) {
+      expect(newsletterConsentMentionsMeasurement(text), text).toBe(true);
+    }
   });
 
-  it("ostrzeżenie przed zapisem tylko dla zmiany NA własny tekst", () => {
-    expect(draftLosesMeasurement(OWN, null)).toBe(true);
-    expect(draftLosesMeasurement(`${OWN} x`, OWN)).toBe(true);
-    expect(draftLosesMeasurement(OWN, OWN)).toBe(false);
-    expect(draftLosesMeasurement("", OWN)).toBe(false);
-    expect(draftLosesMeasurement(newsletterConsentHtml("en"), OWN)).toBe(false);
+  it("treść domyślna - także dawna pakietowa (a) z opisem pomiaru - NIE ostrzega", () => {
+    expect(newsletterConsentMentionsMeasurement(null)).toBe(false);
+    expect(newsletterConsentMentionsMeasurement("")).toBe(false);
+    for (const lang of ["pl", "en"] as const) {
+      expect(newsletterConsentMentionsMeasurement(newsletterConsentHtml(lang))).toBe(false);
+    }
+    // (a) jest dawną treścią domyślną - formularz pokazuje zamiast niej (b).
+    const bundled = LEGACY_NEWSLETTER_CONSENT_DEFAULTS.filter((t) =>
+      CONSENT_MEASUREMENT_MENTION.test(t),
+    );
+    expect(bundled.length).toBeGreaterThanOrEqual(2);
+    for (const text of bundled) expect(newsletterConsentMentionsMeasurement(text)).toBe(false);
+  });
+
+  it("własny tekst bez pomiaru nie ostrzega; kopia treści POLA POMIARU w zgodzie na newsletter - ostrzega", () => {
+    expect(newsletterConsentMentionsMeasurement(OWN)).toBe(false);
+    expect(newsletterConsentMentionsMeasurement(measurementConsentHtml("pl"))).toBe(true);
+    expect(newsletterConsentMentionsMeasurement(measurementConsentHtml("en"))).toBe(true);
+  });
+
+  it("to samo wyrażenie co kontrola K5b w runbooku (panel i SQL wskazują te same teksty)", () => {
+    const runbook = readFileSync(join(process.cwd(), "docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md"), "utf8");
+    expect(CONSENT_MEASUREMENT_MENTION.source).toBe("mierz|pomiar|measur");
+    expect(CONSENT_MEASUREMENT_MENTION.flags).toContain("i");
+    expect(runbook).toContain(`~* '${CONSENT_MEASUREMENT_MENTION.source}'`);
   });
 });

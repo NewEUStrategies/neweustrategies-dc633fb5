@@ -152,14 +152,22 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_en: "30 min",
   },
   {
-    name: "nl_click / nl_open",
+    // Limit wyświetleń popupu newslettera (`nl_popup_last` w localStorage,
+    // `NewsletterPopup.tsx`). Pomiar otwarć i kliknięć WIADOMOŚCI E-MAIL nie
+    // jest elementem przeglądarki serwisu ani zgodą z banera: od I9d-Y2b
+    // (decyzja właściciela 2026-10-23, wariant (b)) to osobna zgoda e-mail
+    // z własnym polem w formularzach zapisu, potwierdzana przez właściciela
+    // skrzynki i opisana w polityce komunikacji (`/komunikacja-i-marketing#pomiar`).
+    // Dawny wpis „nl_click / nl_open" (pomiar newslettera jako ciasteczko
+    // marketingowe) sugerował, że baner tę zgodę daje albo odbiera.
+    name: "nl_popup_last",
     category: "marketing",
-    kind: "server",
+    kind: "localStorage",
     match: ["nl_*", "newsletter*", "popup:*"],
     party_pl: PLATFORM_PL,
     party_en: PLATFORM_EN,
-    purpose_pl: "Pomiar otwarć i kliknięć newslettera, limity wyświetleń popupów",
-    purpose_en: "Newsletter opens/clicks measurement, popup frequency capping",
+    purpose_pl: "Limit wyświetleń popupu newslettera (chwila ostatniego wyświetlenia)",
+    purpose_en: "Newsletter popup frequency capping (time of the last display)",
     ttl_pl: "365 dni",
     ttl_en: "365 days",
   },
