@@ -2,10 +2,34 @@
 // Komponent wywołuje /api/public/newsletter/confirm (JSON) i pokazuje wynik
 // w języku interfejsu (PL/EN). Re-klik potwierdzonego linku renderuje stan
 // "już potwierdzono" - endpoint jest idempotentny.
+//
+// KARTA ZGODY NA POMIAR (I9d-Y2b, D1 wariant (b), D2). Gdy osoba zaznaczyła
+// w formularzu osobne pole pomiaru, odpowiedź GET niesie `measurement:
+// "offer"` i język treści (`measurementLang`) - pod potwierdzeniem pojawia
+// się leniwie ładowana karta decyzji (`NewsletterConfirmMeasurementCard`).
+// Kształt odpowiedzi czyta wspólny kontrakt `newsletterConfirmViewOf`
+// (fail-closed: każdy inny stan, błąd albo nieznany kształt - bez karty).
+// GET NIGDY nie udziela zgody: zapisuje ją dopiero kliknięcie w karcie
+// (POST). Słownik i treść karty jadą wyłącznie w jej chunku (D-08).
+//
+// SEKRET SKRZYNKI (przegląd R1, sql-r1-1/zgoda-r1-1). Sam token DOI nie
+// dowodzi skrzynki (personel go czytał). Link z maila DOI z zaznaczonym
+// polem pomiaru niesie drugi parametr `m` (`DOI_MEASUREMENT_PARAM`): strona
+// przekazuje go w GET (`newsletterConfirmApiUrl`), a karta w ciele POST
+// (`doiMeasurementDecisionBody`). Bez `m` (albo w złym kształcie) GET zwraca
+// `measurement: "none"` - karty nie ma, a samo potwierdzenie zapisu działa
+// jak dotąd.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  DOI_MEASUREMENT_PARAM,
+  isDoiMeasurementTokenFormat,
+  newsletterConfirmApiUrl,
+  newsletterConfirmViewOf,
+} from "@/lib/newsletter/confirmMeasurement";
+import type { ConsentLang } from "@/lib/newsletter/consentSegments";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
@@ -33,31 +57,48 @@ export const Route = createFileRoute("/newsletter/confirm")({
   component: Page,
 });
 
+const NewsletterConfirmMeasurementCard = lazy(() =>
+  import("@/components/newsletter/NewsletterConfirmMeasurementCard").then((m) => ({
+    default: m.NewsletterConfirmMeasurementCard,
+  })),
+);
+
 type State = "loading" | "ok" | "already" | "expired" | "error";
+
+/**
+ * Karta decyzji o pomiarze: token DOI i sekret skrzynki `m` z adresu, język
+ * treści z odpowiedzi GET.
+ */
+interface MeasurementCard {
+  token: string;
+  secret: string;
+  lang: ConsentLang;
+}
 
 function Page() {
   const { t } = useTranslation();
   const [state, setState] = useState<State>("loading");
   const [detail, setDetail] = useState("");
+  const [measurementCard, setMeasurementCard] = useState<MeasurementCard | null>(null);
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("token") ?? "";
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") ?? "";
     if (!token) {
       setState("error");
       return;
     }
-    fetch(`/api/public/newsletter/confirm?token=${encodeURIComponent(token)}`)
+    const rawSecret = params.get(DOI_MEASUREMENT_PARAM);
+    const secret = isDoiMeasurementTokenFormat(rawSecret) ? rawSecret : null;
+    fetch(newsletterConfirmApiUrl(token, secret))
       .then(async (r) => {
-        const j = (await r.json().catch(() => ({}))) as {
-          ok?: boolean;
-          already?: boolean;
-          error?: string;
-        };
-        if (j.ok && j.already) return setState("already");
-        if (j.ok) return setState("ok");
-        if (j.error === "expired") return setState("expired");
-        setState("error");
-        setDetail(j.error ?? `HTTP ${r.status}`);
+        const view = newsletterConfirmViewOf(r.status, await r.json().catch(() => ({})));
+        setState(view.state);
+        if (view.detail) setDetail(view.detail);
+        // Karta wyłącznie z sekretem skrzynki (bez niego serwer i tak daje `none`).
+        if (view.measurementCard && secret) {
+          setMeasurementCard({ token, secret, lang: view.measurementCard.lang });
+        }
       })
       .catch((e: unknown) => {
         setState("error");
@@ -91,6 +132,15 @@ function Page() {
                   : "newsletter.confirmPage.alreadyBody",
               )}
             </p>
+            {measurementCard && (
+              <Suspense fallback={null}>
+                <NewsletterConfirmMeasurementCard
+                  token={measurementCard.token}
+                  secret={measurementCard.secret}
+                  lang={measurementCard.lang}
+                />
+              </Suspense>
+            )}
           </>
         )}
         {(state === "expired" || state === "error") && (

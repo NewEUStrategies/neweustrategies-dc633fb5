@@ -65,6 +65,37 @@ export type LaneEntry =
  * i podpisać w przeglądzie, a nie domyślne zachowanie.
  */
 export const MIGRATION_LANES: readonly LaneEntry[] = [
+  // I9d-Y2b: osobna zgoda na pomiar (wariant (b)) i pomiar tylko po
+  // potwierdzeniu skrzynki (D2) - trzy części z limitu rozmiaru migracji
+  // i poprawki przeglądu R1 (0397: sekret skrzynki na stronie DOI, kolumny
+  // personelu, domknięcie łańcuchów pomiaru); każda para to pełne bliźniaki
+  // bajt w bajt.
+  {
+    tag: "0397_consent_measurement_separate_fixes",
+    twin: "20261023090300_consent_measurement_separate_fixes.sql",
+  },
+  {
+    tag: "0396_consent_measurement_separate_requests",
+    twin: "20261023090200_consent_measurement_separate_requests.sql",
+  },
+  {
+    tag: "0395_consent_measurement_separate_doi_signup",
+    twin: "20261023090100_consent_measurement_separate_doi_signup.sql",
+  },
+  {
+    tag: "0394_consent_measurement_separate_core",
+    twin: "20261023090000_consent_measurement_separate_core.sql",
+  },
+  {
+    tag: "0393_membership_coupon_source_fk",
+    drizzleOnly:
+      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23), druga część 0392: klucz obcy membership_grants_source_coupon_id_fkey -> b2b_coupons(id) ON DELETE SET NULL. Pas supabase ma go od 20260725090300_apply_coupon_effects_after_payment.sql (REFERENCES w ADD COLUMN daje ograniczenie o tej samej domyślnej nazwie), a ten plik dodaje go bez IF NOT EXISTS - bliźniak w pasie supabase wywróciłby każdą bazę stawianą z tego pasa (42710, ograniczenie już istnieje). Na produkcji kolumny, a więc i klucza, nie było.",
+  },
+  {
+    tag: "0392_membership_coupon_source",
+    drizzleOnly:
+      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23): 20260725090300_apply_coupon_effects_after_payment.sql weszła na produkcję częściowo (effects_applied_at jest, kolumny membership_grants.source_coupon_id nie było - dawny wpis KNOWN_COLUMN_DRIFT w dbContract.ts), więc apply_b2b_coupon_effects kończył się 42703. Plik ponawia ADD COLUMN IF NOT EXISTS (bez REFERENCES - klucz dokłada 0393), nadpisuje polski komentarz kolumny angielskim i zakłada NOWY indeks membership_grants_tenant_coupon_idx (tenant_id, source_coupon_id), którego pas supabase nie ma; pas supabase ma za to idx_membership_grants_source_coupon (source_coupon_id), którego ten plik nie tworzy. Na bazie z pasa supabase kolumna już jest, więc bliźniak byłby tam tylko komentarzem i dodatkowym indeksem - świadomie poza pasem kanonicznym, zgodnie z zasadą forward-only.",
+  },
   {
     tag: "0391_pr530_deployment_completion",
     drizzleOnly:

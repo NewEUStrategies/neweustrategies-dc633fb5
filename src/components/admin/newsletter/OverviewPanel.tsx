@@ -244,7 +244,9 @@ export function OverviewPanel() {
               checked={cur.double_opt_in}
               onChange={(v) => upd({ double_opt_in: v })}
               label="Double opt-in"
-              desc="Wymaga potwierdzenia adresu mailem."
+              // I9d-Y2b (D2): zgoda na pomiar działa dopiero po potwierdzeniu
+              // przez właściciela skrzynki - tryb DOI decyduje, którą drogą.
+              desc="Wymaga potwierdzenia adresu mailem; o zaznaczoną w formularzu zgodę na pomiar zapytamy wtedy na stronie potwierdzenia zapisu. Bez double opt-in zgoda na pomiar zaznaczona w formularzu zadziała dopiero po kliknięciu w osobnej wiadomości z prośbą o potwierdzenie."
             />
           </div>
 

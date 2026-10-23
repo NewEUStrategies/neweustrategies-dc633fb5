@@ -1,12 +1,15 @@
-// Odpowiedzi RPC panelu pomiaru otwarć i kliknięć (I9d-Y2) -> DTO panelu.
+// Odpowiedzi RPC panelu pomiaru otwarć i kliknięć (I9d-Y2, I9d-Y2b) -> DTO
+// panelu.
 //
-// Kształty (`rpc-shape`) z migracji 20261020162400 i 20261020162500:
+// Kształty (`rpc-shape`) z migracji 20261020162400, 20261020162500
+// i 20261023090200 (kształt podglądu i startu bez zmian, liczniki próśb
+// tylko `origin = 'panel'`, wersja = wersja treści pola pomiaru):
 //   * `admin_newsletter_measurement_preview` - podgląd „Poproś o zgodę na
 //     pomiar" (kandydaci, stan próśb bieżącej wersji, limit dzienny);
 //   * `admin_newsletter_measurement_request` - wynik startu;
-//   * `admin_newsletter_consent_measurement_get`/`_mark` - stan treści zgody
-//     per pole i oznaczenie admina „mój tekst obejmuje pomiar";
 //   * `admin_newsletter_campaign_measurement` - mianownik wskaźników kampanii.
+// RPC oznaczeń admina „mój tekst obejmuje pomiar" (wariant (a)) usunęła
+// migracja 20261023090000 - ich parser zniknął razem z nimi.
 //
 // Zawężanie zamiast rzutowania: rozjazd kontraktu rzuca błąd (granica ekranu),
 // a liczniki `bigint` z Postgresa (napis w JSON-ie) stają się liczbami.
@@ -67,7 +70,7 @@ function instantOrNull(row: Record<string, unknown>, key: string, path: string):
 // ── „Poproś o zgodę na pomiar" ──────────────────────────────────────────────
 
 export interface NewsletterMeasurementPreviewDto {
-  /** Wersja treści z pomiarem, o którą prosimy. */
+  /** Wersja treści OSOBNEJ zgody na pomiar, o którą prosimy. */
   version: string;
   /** Wspólny przełącznik najemcy (ścieżki i kampanie) - wyłączony = prośba bez skutku do czasu włączenia. */
   enabled: boolean;
@@ -78,7 +81,7 @@ export interface NewsletterMeasurementPreviewDto {
   candidates: number;
   /** Kandydaci na liście wyłączeń - prośba ich nie obejmie. */
   suppressed: number;
-  /** Stan próśb bieżącej wersji. */
+  /** Stan próśb z PANELU bieżącej wersji (prośby po zapisie liczone osobno). */
   requested: number;
   pending: number;
   mailed: number;
@@ -121,84 +124,6 @@ export interface NewsletterMeasurementRequestDto {
 export function parseNewsletterMeasurementRequest(raw: unknown): NewsletterMeasurementRequestDto {
   const row = record(raw, "$");
   return { requested: count(row, "requested", "$"), version: text(row, "version", "$") };
-}
-
-// ── Treść zgody: „mój tekst obejmuje pomiar" ────────────────────────────────
-
-/** Pola z edytowalną treścią zgody newslettera (lustro CHECK tabeli oznaczeń). */
-export const CONSENT_MEASUREMENT_FIELDS = [
-  "policy_html_pl",
-  "policy_html_en",
-  "popup_privacy_html_pl",
-  "popup_privacy_html_en",
-] as const;
-export type ConsentMeasurementField = (typeof CONSENT_MEASUREMENT_FIELDS)[number];
-
-export interface ConsentMeasurementFieldDto {
-  field: ConsentMeasurementField;
-  lang: "pl" | "en";
-  /** Pole ma zapisany tekst (puste = formularz pokazuje treść domyślną z TS). */
-  textPresent: boolean;
-  /** Zapisany tekst to bieżąca treść domyślna (z pomiarem). */
-  isDefault: boolean;
-  /** Oznaczenie admina pasuje do zapisanego tekstu. */
-  marked: boolean;
-  /** Tekst zmieniono po oznaczeniu - oznaczenie nie działa. */
-  stale: boolean;
-  /** Treść obejmuje pomiar (domyślna albo oznaczona); `null` = pole puste. */
-  covers: boolean | null;
-  markedAt: string | null;
-}
-
-export interface ConsentMeasurementDto {
-  version: string;
-  fields: ConsentMeasurementFieldDto[];
-}
-
-export function parseConsentMeasurement(raw: unknown): ConsentMeasurementDto {
-  const row = record(raw, "$");
-  const fields = row.fields;
-  if (!Array.isArray(fields)) throw new MeasurementShapeError("$.fields", "oczekiwano tablicy");
-  return {
-    version: text(row, "version", "$"),
-    fields: fields.map((entry, index) => {
-      const path = `$.fields[${index}]`;
-      const item = record(entry, path);
-      const field = item.field;
-      if (!(CONSENT_MEASUREMENT_FIELDS as readonly unknown[]).includes(field)) {
-        throw new MeasurementShapeError(`${path}.field`, "nieznane pole");
-      }
-      const lang = item.lang;
-      if (lang !== "pl" && lang !== "en") {
-        throw new MeasurementShapeError(`${path}.lang`, "oczekiwano pl|en");
-      }
-      const covers = item.covers;
-      if (covers !== null && covers !== undefined && typeof covers !== "boolean") {
-        throw new MeasurementShapeError(`${path}.covers`, "oczekiwano bool albo null");
-      }
-      return {
-        field: field as ConsentMeasurementField,
-        lang,
-        textPresent: bool(item, "text_present", path),
-        isDefault: bool(item, "is_default", path),
-        marked: bool(item, "marked", path),
-        stale: bool(item, "stale", path),
-        covers: typeof covers === "boolean" ? covers : null,
-        markedAt: instantOrNull(item, "marked_at", path),
-      };
-    }),
-  };
-}
-
-/**
- * Ostrzeżenie panelu: pole z WŁASNYM tekstem, który nie obejmuje pomiaru
- * (nie jest bieżącą treścią domyślną i nie ma ważnego oznaczenia admina).
- * Puste pole nie ostrzega - formularz pokazuje wtedy treść domyślną z TS.
- * Zapis z takiego formularza nie daje zgody na pomiar - osoba dostaje
- * newsletter bez piksela i linków z identyfikatorem.
- */
-export function consentFieldNeedsWarning(field: ConsentMeasurementFieldDto): boolean {
-  return field.textPresent && field.covers === false;
 }
 
 // ── Mianownik wskaźników kampanii ───────────────────────────────────────────

@@ -2,7 +2,20 @@
 // Otwierany klikniciem wiersza w SubscribersPanel. Pokazuje pelne dane
 // z newsletter_subscribers wraz z consents i meta (JSONB) w czytelnym
 // atomowym layoucie. Read-only w Turze 3; edycja statusow w kolejnej.
+//
+// I9d-Y2b (R1.8): pozycja `email_measurement_declared` w `consents` to
+// DEKLARACJA z osobnego pola pomiaru (zaznaczone w formularzu), nie zgoda.
+// Deklaracja nie zmienia się po decyzji właściciela skrzynki ani po
+// wygaśnięciu oferty, więc etykieta nie może mówić na stałe „czeka na
+// potwierdzenie" (przegląd R1 - ui-r1-1). Okno dociąga RZECZYWISTY stan
+// z czytelnika zgody w bazie (`getSubscriberMeasurementConsent` ->
+// `email_measurement_state`, tylko gdy jest deklaracja) i pokazuje
+// „zadeklarowana w formularzu - zgoda udzielona" albo „- bez zgody"; dopóki
+// stanu nie ma (odczyt w toku, błąd) - neutralnie „zadeklarowana
+// w formularzu" z odesłaniem do rejestru zgód (historia zgód kontaktu
+// w CRM, klucz `email_measurement`).
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -14,7 +27,13 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { formatTimestamp, readConsents, readMeta } from "./subscriberDetail";
+import { getSubscriberMeasurementConsent } from "@/lib/newsletter-admin.functions";
+import {
+  declaredMeasurementView,
+  type DeclaredMeasurementView,
+  type SubscriberMeasurementConsent,
+} from "@/lib/newsletter/subscriberMeasurementState";
+import { consentEntryState, formatTimestamp, readConsents, readMeta } from "./subscriberDetail";
 
 /**
  * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
@@ -67,6 +86,19 @@ export function SubscriberDetailDialog({
     },
   });
 
+  // Rzeczywisty stan zgody na pomiar - tylko gdy wiersz ma deklarację z pola
+  // pomiaru (bez niej okno nic o pomiarze nie mówi, więc nie pyta serwera).
+  const consents = data ? readConsents(data.consents) : [];
+  const hasDeclaration = consents.some((c) => consentEntryState(c) === "declared");
+  const fetchMeasurement = useServerFn(getSubscriberMeasurementConsent);
+  const measurement = useQuery({
+    queryKey: ["newsletter-subscriber", subscriberId, "measurement"],
+    enabled: open && hasDeclaration,
+    queryFn: (): Promise<SubscriberMeasurementConsent> =>
+      fetchMeasurement({ data: { subscriberId: subscriberId ?? "" } }),
+  });
+  const declaredView = declaredMeasurementView(measurement.data);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -105,39 +137,59 @@ export function SubscriberDetailDialog({
             </Section>
 
             <Section title="Zgody">
-              {readConsents(data.consents).length ? (
+              {consents.length ? (
                 <ul className="space-y-2">
-                  {readConsents(data.consents).map((c, i) => (
-                    <li
-                      key={i}
-                      className="p-3 rounded-md bg-muted/40 border border-border/60 text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono uppercase tracking-wider">{c.key ?? "-"}</span>
-                        <span
-                          className={
-                            c.given
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {c.given ? "✓ udzielona" : "brak"}
-                        </span>
-                      </div>
-                      {c.text && (
-                        <div
-                          className="text-muted-foreground [&_a]:underline"
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
-                        />
-                      )}
-                      {c.at && (
-                        <div className="text-muted-foreground/70 text-[10px]">
-                          {formatTimestamp(c.at)}
-                          {c.lang ? ` • ${c.lang.toUpperCase()}` : ""}
+                  {consents.map((c, i) => {
+                    const state = consentEntryState(c);
+                    return (
+                      <li
+                        key={i}
+                        data-consent-state={state}
+                        className="p-3 rounded-md bg-muted/40 border border-border/60 text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono uppercase tracking-wider">{c.key ?? "-"}</span>
+                          <span
+                            className={
+                              state === "given"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : state === "declared"
+                                  ? "text-foreground"
+                                  : "text-muted-foreground"
+                            }
+                          >
+                            {state === "given"
+                              ? "✓ udzielona"
+                              : state === "declared"
+                                ? DECLARED_LABEL[declaredView]
+                                : "brak"}
+                          </span>
                         </div>
-                      )}
-                    </li>
-                  ))}
+                        {state === "declared" && (
+                          <p
+                            className="text-muted-foreground"
+                            data-measurement-state={declaredView}
+                          >
+                            Zaznaczenie pola pomiaru nie jest zgodą - zgodę na pomiar otwarć i
+                            kliknięć zapisuje dopiero potwierdzenie właściciela skrzynki.{" "}
+                            {declaredNote(declaredView, measurement.data, measurement.isPending)}
+                          </p>
+                        )}
+                        {c.text && (
+                          <div
+                            className="text-muted-foreground [&_a]:underline"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
+                          />
+                        )}
+                        {c.at && (
+                          <div className="text-muted-foreground/70 text-[10px]">
+                            {formatTimestamp(c.at)}
+                            {c.lang ? ` • ${c.lang.toUpperCase()}` : ""}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">Brak zapisanych zgod.</p>
@@ -171,6 +223,33 @@ export function SubscriberDetailDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Etykieta deklaracji - stan zgody z czytelnika w bazie, nigdy stałe „czeka". */
+const DECLARED_LABEL: Record<DeclaredMeasurementView, string> = {
+  granted: "zadeklarowana w formularzu - zgoda udzielona",
+  notGranted: "zadeklarowana w formularzu - bez zgody",
+  unknown: "zadeklarowana w formularzu",
+};
+
+/** Dopisek pod deklaracją: skąd stan i co znaczy (albo czemu go nie ma). */
+function declaredNote(
+  view: DeclaredMeasurementView,
+  state: SubscriberMeasurementConsent | undefined,
+  pending: boolean,
+): string {
+  if (view === "granted") {
+    const off =
+      state?.result === "ok" && !state.enabled
+        ? " Pomiar jest jednak wyłączony w ustawieniach newslettera."
+        : "";
+    return `Rejestr zgód: zgoda na pomiar udzielona - potwierdzona przez właściciela skrzynki.${off}`;
+  }
+  if (view === "notGranted") {
+    return "Rejestr zgód: zgody na pomiar nie ma - właściciel skrzynki jej nie potwierdził albo odmówił, zgoda została wycofana, oferta wygasła albo subskrypcja nie jest aktywna.";
+  }
+  if (pending) return "Sprawdzam stan w rejestrze zgód…";
+  return "Stanu z rejestru zgód nie udało się odczytać - historia decyzji: historia zgód kontaktu w CRM (klucz email_measurement).";
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

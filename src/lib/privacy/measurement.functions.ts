@@ -1,18 +1,18 @@
 // Funkcje serwerowe panelu newslettera - pomiar otwarć i kliknięć tylko za
-// zgodą (I9d-Y2):
+// osobną zgodą (I9d-Y2, I9d-Y2b):
 //   * „Poproś o zgodę na pomiar" - podgląd liczb i start z potwierdzoną
 //     liczbą, treść maila PL/EN (nadpisania z panelu) i jej podgląd;
-//   * treść zgody: stan pól i oznaczenie admina „mój tekst obejmuje pomiar"
-//     (ostrzeżenie edytora, gdy własny tekst nie obejmuje pomiaru);
 //   * mianownik wskaźników kampanii (odbiorcy mierzeni).
+// Oznaczeń admina „mój tekst obejmuje pomiar" (wariant (a)) nie ma od
+// I9d-Y2b: treść zgody na newsletter nie daje pomiaru, a RPC oznaczeń
+// usunęła migracja 20261023090000.
 //
 // Role z dokładnych bramek SQL (najemca i użytkownik WYŁĄCZNIE z sesji):
-//   * prośba (podgląd, start, treść maila) i oznaczenie treści - `requireAdmin`
+//   * prośba (podgląd, start, treść maila) - `requireAdmin`
 //     + `_data_retention_admin_tenant()` w SQL (admin albo super_admin; start
 //     wysyła mail do całej listy);
-//   * odczyt stanu treści zgody i mianownika kampanii - `requireAdminEditor`
-//     (redaktor edytuje treść zgody i kampanie, więc widzi ostrzeżenie
-//     i mianownik; SQL: admin/editor).
+//   * mianownik kampanii - `requireAdminEditor` (redaktor edytuje kampanie,
+//     więc widzi mianownik; SQL: admin/editor).
 // Nazwy RPC i tabel są LITERAŁAMI w miejscu wywołania (bramka
 // `generate:ts-sql-contract`); RPC nie ma jeszcze w wygenerowanych typach,
 // więc klient jest rzutowany na kształt wywołania (`RpcCallable`).
@@ -26,13 +26,10 @@ import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 import { newsletterMeasurementUrl } from "./measurement";
 import {
-  CONSENT_MEASUREMENT_FIELDS,
   parseCampaignMeasurement,
-  parseConsentMeasurement,
   parseNewsletterMeasurementPreview,
   parseNewsletterMeasurementRequest,
   type CampaignMeasurementDto,
-  type ConsentMeasurementDto,
   type NewsletterMeasurementPreviewDto,
   type NewsletterMeasurementRequestDto,
 } from "./measurementParse";
@@ -90,37 +87,6 @@ export const requestNewsletterMeasurement = createServerFn({ method: "POST" })
       return mutation(raw, error, parseNewsletterMeasurementRequest);
     },
   );
-
-// ── Treść zgody: „mój tekst obejmuje pomiar" ────────────────────────────────
-
-export const getNewsletterConsentMeasurement = createServerFn({ method: "POST" })
-  .middleware([requireAdminEditor])
-  .handler(async ({ context }): Promise<DataRetentionRead<ConsentMeasurementDto>> => {
-    const { data, error } = await asRpc(context.supabase).rpc(
-      "admin_newsletter_consent_measurement_get",
-    );
-    return readState(error, () => parseConsentMeasurement(data));
-  });
-
-/**
- * Oznaczenie dotyczy ZAPISANEGO tekstu pola (skrót liczy baza, nie klient) -
- * panel zapisuje treść przed oznaczeniem. Zdjęcie oznaczenia: `marked: false`.
- */
-export const MarkConsentMeasurementSchema = z
-  .object({ field: z.enum(CONSENT_MEASUREMENT_FIELDS), marked: z.boolean() })
-  .strict();
-export type MarkConsentMeasurementInput = z.infer<typeof MarkConsentMeasurementSchema>;
-
-export const markNewsletterConsentMeasurement = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .validator((input: unknown) => MarkConsentMeasurementSchema.parse(input))
-  .handler(async ({ data, context }): Promise<DataRetentionMutation<ConsentMeasurementDto>> => {
-    const { data: raw, error } = await asRpc(context.supabase).rpc(
-      "admin_newsletter_consent_measurement_mark",
-      { p_field: data.field, p_marked: data.marked },
-    );
-    return mutation(raw, error, parseConsentMeasurement);
-  });
 
 // ── Mianownik wskaźników kampanii ───────────────────────────────────────────
 

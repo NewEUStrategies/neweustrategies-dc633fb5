@@ -47,9 +47,19 @@ UPDATE public.crm_leads SET marketing_consent = true
  WHERE id IN ('e5700000-0000-0000-0000-0000000001a1', 'e5700000-0000-0000-0000-0000000001a2');
 -- Zgoda odbiorcy na pomiar otwarć i kliknięć - od I9d-Y2 zapis zdarzeń
 -- wymaga jej w chwili zdarzenia (przypadki bez zgody: hub_i9d_y2_tracking).
-INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
-VALUES ('e5700000-0000-0000-0000-0000000000a0', 'odbiorca@hub-s5-track.test', 'newsletter', 'email_measurement',
-        'Zgoda na pomiar otwarć i kliknięć', true, now() - interval '1 day');
+-- Od I9d-Y2b (D2) wpis „tak" musi być związany z potwierdzonym subskrybentem
+-- tego najemcy i powstaje wyłącznie z flagą jedynego pisarza (strażnik).
+DO $$
+BEGIN
+  PERFORM set_config('nes.email_measurement_grant', 'on', true);
+  INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, form_id, consent_key, consent_text,
+                                      consent_version, given, created_at)
+  SELECT s.tenant_id, s.email, 'newsletter', s.id, 'measurement:reconfirm', 'email_measurement',
+         'Zgoda na pomiar otwarć i kliknięć', 'email-measurement-2026-10-23', true, now() - interval '1 day'
+    FROM public.newsletter_subscribers s
+   WHERE s.tenant_id = 'e5700000-0000-0000-0000-0000000000a0' AND s.email = 'odbiorca@hub-s5-track.test';
+  PERFORM set_config('nes.email_measurement_grant', '', true);
+END $$;
 
 INSERT INTO public.journey_definitions (id, tenant_id, key, name, status, category, legal_basis) VALUES
   ('e5700000-0000-0000-0000-0000000010a1', 'e5700000-0000-0000-0000-0000000000a0', 'mail', 'Mail', 'active', 'marketing', NULL),

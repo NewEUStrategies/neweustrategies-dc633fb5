@@ -23,15 +23,13 @@ export const newsletterKeys = {
   campaignAudience: <F>(campaignId: string, filter: F) =>
     ["admin", "newsletter-campaigns", campaignId, "audience", filter] as const,
   /**
-   * Pomiar otwarć i kliknięć tylko za zgodą (I9d-Y2). Pod prefiksem
-   * `settings()`: oznaczenie „mój tekst obejmuje pomiar" emituje
-   * `newsletter_settings.changed.v1`, którego reguła szyny unieważnia
-   * `settings()` - stan treści zgody, podgląd prośby i treść maila odświeżają
-   * się w drugiej karcie bez nowej reguły.
+   * Pomiar otwarć i kliknięć tylko za osobną zgodą (I9d-Y2, I9d-Y2b). Pod
+   * prefiksem `settings()`: reguła szyny `newsletter_settings.changed.v1`
+   * unieważnia `settings()` - podgląd prośby i treść maila odświeżają się
+   * w drugiej karcie bez nowej reguły. (Stan treści zgody z oznaczeniami
+   * admina zniknął w I9d-Y2b razem z oznaczeniami.)
    */
   measurementAll: () => ["newsletter-settings", "measurement"] as const,
-  /** Stan pól treści zgody (ostrzeżenie edytora, oznaczenia admina). */
-  consentMeasurement: () => ["newsletter-settings", "measurement", "consent"] as const,
   /** Podgląd „Poproś o zgodę na pomiar" (kandydaci, stan próśb). */
   measurementPreview: () => ["newsletter-settings", "measurement", "preview"] as const,
   /** Treść maila prośby (nadpisania z panelu). */

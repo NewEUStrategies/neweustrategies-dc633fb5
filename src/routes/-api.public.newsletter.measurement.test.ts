@@ -52,6 +52,7 @@ import {
   signMeasurementWithdrawToken,
 } from "@/lib/privacy/measurementToken.server";
 import { signNewsletterKeepToken } from "@/lib/privacy/newsletterKeepToken.server";
+import { measurementPromptStateOf } from "@/lib/privacy/measurement";
 
 const SUBSCRIBER = "6f9e6f6e-0000-4000-8000-0000000000b1";
 const LEAD = "7b0c4f2e-1d3a-4c5b-9e8f-0a1b2c3d4e5f";
@@ -146,7 +147,13 @@ describe("GET nigdy nie mutuje", () => {
   it("fetch wycofania: odczyt stanu zgody (bez zapisu), podmiot z tokenu", async () => {
     const res = await handlers().GET(get(`?token=${withdrawLead()}`));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, action: "withdraw", consent: true });
+    // Stara baza bez pola `refused` - zakładamy odmowę (zachowanie jak dotąd).
+    expect(await res.json()).toEqual({
+      ok: true,
+      action: "withdraw",
+      consent: true,
+      refused: true,
+    });
     expect(db.state.rpcCalls).toEqual([
       { fn: "email_measurement_state", args: { p_subscriber: null, p_lead: LEAD } },
     ]);
@@ -154,10 +161,19 @@ describe("GET nigdy nie mutuje", () => {
     expect(db.state.rateLimitCalls).toEqual([]);
   });
 
-  it("fetch wycofania bez zgody na pomiar -> `consent: false` (strona: pomiar wyłączony)", async () => {
-    db.state.results.email_measurement_state = { result: "ok", consent: false };
-    const res = await handlers().GET(get(`?token=${withdrawSub()}`));
-    expect(await res.json()).toEqual({ ok: true, action: "withdraw", consent: false });
+  it("fetch wycofania bez zgody: `refused` z bazy rozróżnia „odmowa zapisana” od „zapisz odmowę” (I9d-Y2b R1)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, refused: true };
+    const refused = await handlers().GET(get(`?token=${withdrawSub()}`));
+    const refusedBody = await refused.json();
+    expect(refusedBody).toEqual({ ok: true, action: "withdraw", consent: false, refused: true });
+    expect(measurementPromptStateOf(200, refusedBody)).toBe("alreadyOff");
+
+    db.state.results.email_measurement_state = { result: "ok", consent: false, refused: false };
+    const open = await handlers().GET(get(`?token=${withdrawSub()}`));
+    const openBody = await open.json();
+    expect(openBody).toEqual({ ok: true, action: "withdraw", consent: false, refused: false });
+    // Przycisk zostaje: odmowa osoby bez zgody trafi do rejestru (wyklucza z próśb).
+    expect(measurementPromptStateOf(200, openBody)).toBe("confirmWithdraw");
   });
 
   it("fetch wycofania: podmiot usunięty -> 404; awaria odczytu -> przycisk jak zwykle", async () => {
@@ -170,10 +186,49 @@ describe("GET nigdy nie mutuje", () => {
     expect(await failed.json()).toEqual({ ok: true, action: "withdraw" });
   });
 
-  it("fetch zgody: ważny token -> ok BEZ bazy (nonce zużywa dopiero POST)", async () => {
+  it("fetch zgody: ważny token -> ok z językiem SUBSKRYBENTA, bez zapisu (nonce zużywa dopiero POST)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, lang: "en" };
+    const res = await handlers().GET(get(`?token=${confirm()}&lang=pl`));
+    expect(res.status).toBe(200);
+    // Język treści zgody = język zapisu w `_email_measurement_grant`
+    // (wiersz subskrybenta), nie `lang` z adresu (I9d-Y2b, R1.19).
+    expect(await res.json()).toEqual({ ok: true, action: "confirm", lang: "en" });
+    expect(db.state.rpcCalls).toEqual([
+      { fn: "email_measurement_state", args: { p_subscriber: SUBSCRIBER, p_lead: null } },
+    ]);
+    expect(db.state.rpcCalls.map((c) => c.fn)).not.toContain("newsletter_measurement_confirm");
+    expect(db.state.rateLimitCalls).toEqual([]);
+  });
+
+  it("fetch zgody: język spoza pl/en z bazy -> reguła `consentLangOf` (pl)", async () => {
+    db.state.results.email_measurement_state = { result: "ok", consent: false, lang: "de" };
     const res = await handlers().GET(get(`?token=${confirm()}`));
-    expect(await res.json()).toEqual({ ok: true, action: "confirm" });
-    expect(db.state.rpcCalls).toEqual([]);
+    expect(await res.json()).toEqual({ ok: true, action: "confirm", lang: "pl" });
+  });
+
+  it("fetch zgody: subskrybent usunięty -> 404; awaria odczytu -> 500 bez języka (strona: błąd z ponowieniem, bez przycisku)", async () => {
+    db.state.results.email_measurement_state = { result: "gone" };
+    const gone = await handlers().GET(get(`?token=${confirm()}`));
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toEqual({ ok: false, error: "not_found" });
+
+    db.state.rpcThrows = true;
+    const thrown = await handlers().GET(get(`?token=${confirm()}`));
+    expect(thrown.status).toBe(500);
+    const thrownBody = (await thrown.json()) as Record<string, unknown>;
+    expect(thrownBody).toEqual({ ok: false, error: "state_failed" });
+    expect(thrownBody).not.toHaveProperty("lang");
+
+    db.state.rpcThrows = false;
+    db.state.rpcError = { message: 'relation "newsletter_subscribers" does not exist' };
+    const failed = await handlers().GET(get(`?token=${confirm()}`));
+    expect(failed.status).toBe(500);
+    expect(JSON.stringify(await failed.json())).not.toContain("newsletter_subscribers");
+
+    db.state.rpcError = null;
+    db.state.results.email_measurement_state = { unexpected: true };
+    const shape = await handlers().GET(get(`?token=${confirm()}`));
+    expect(shape.status).toBe(500);
   });
 
   it("wygasły -> 410, nieważny i obcy token -> 400 (bez bazy)", async () => {

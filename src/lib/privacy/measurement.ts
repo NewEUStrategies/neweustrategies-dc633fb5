@@ -1,14 +1,17 @@
-// POMIAR OTWARĆ I KLIKNIĘĆ TYLKO ZA ZGODĄ (I9d-Y2) - adresy linków, napisy
-// stopki maili i stan strony publicznej.
+// POMIAR OTWARĆ I KLIKNIĘĆ TYLKO ZA OSOBNĄ ZGODĄ (I9d-Y2, I9d-Y2b) - adresy
+// linków, napisy stopki maili i stan strony publicznej.
 //
 // Dwa linki prowadzą do jednej trasy (`/api/public/newsletter/measurement`):
 //   * „Nie mierz moich otwarć i kliknięć" (stopka maili kampanii i ścieżek,
 //     strona preferencji newslettera) - wycofanie SAMEGO pomiaru: wpis
-//     `email_measurement` „nie", zgoda na newsletter bez zmian (wariant (a)
-//     decyzji właściciela 2026-10-21);
-//   * „Zgadzam się na pomiar" (jednorazowa prośba z panelu newslettera do
-//     subskrybentów ze zgodą sprzed treści z pomiarem) - wpis zgody w bieżącej
-//     wersji treści, baza dopisuje `email_measurement` „tak".
+//     `email_measurement` „nie", zgoda na newsletter bez zmian;
+//   * „Zgadzam się / Potwierdzam zgodę na pomiar" (jednorazowa prośba z panelu
+//     newslettera do subskrybentów bez zgody na pomiar albo prośba po zapisie
+//     bez double opt-in z zaznaczonym osobnym polem pomiaru) - zapis OSOBNEJ
+//     zgody na pomiar (treść i wersja pola pomiaru, wariant (b) decyzji
+//     właściciela 2026-10-23); „tak" zapisuje wyłącznie baza
+//     (`_email_measurement_grant`), a pomiar działa tylko dla aktywnego
+//     subskrybenta, który sam potwierdził zgodę (D2).
 // Rodzaj akcji wynika z podpisanego tokenu (`measurementToken.server.ts`),
 // nie z parametru adresu - nie da się zamienić wycofania w zgodę.
 //
@@ -22,9 +25,13 @@ export const NEWSLETTER_MEASUREMENT_PAGE_PATH = "/newsletter/measurement";
 
 /**
  * Ważność linku „Zgadzam się na pomiar" z prośby (dni) - termin w podpisie
- * tokenu `mc:`. Jednorazowość daje nonce prośby w bazie; termin sprawia, że
- * mail sprzed miesięcy nie udziela zgody bez końca. Jedno źródło dla tokenu
- * i panelu (termin pokazany przy starcie prośby).
+ * tokenu `mc:` - i SEKRETU SKRZYNKI z maila double opt-in (`md:`, karta na
+ * stronie potwierdzenia, I9d-Y2b R1): liczony od WYSŁANIA maila, nie od
+ * deklaracji, którą każdy może odświeżyć formularzem. Jednorazowość prośby
+ * daje nonce w bazie; termin sprawia, że mail sprzed miesięcy nie udziela
+ * zgody bez końca. Jedno źródło dla tokenów i panelu (termin pokazany przy
+ * starcie prośby); lustro SQL `c_offer_days` (`_newsletter_measurement_offer_state`,
+ * `_newsletter_doi_measurement_offer_state`) - test parytetu.
  */
 export const MEASUREMENT_CONFIRM_LINK_DAYS = 60;
 
@@ -107,10 +114,16 @@ export interface MeasurementResponseBody {
   already?: boolean;
   /**
    * GET wycofania: czy osoba ma dziś zgodę na pomiar (odczyt bez mutacji).
-   * `false` = nie ma czego wyłączać - strona od razu mówi, że pomiar jest
-   * wyłączony. Brak pola (awaria odczytu) = przycisk jak zwykle.
+   * Brak pola (awaria odczytu) = przycisk jak zwykle.
    */
   consent?: boolean;
+  /**
+   * GET wycofania (I9d-Y2b R1): czy ostatnia decyzja osoby to już odmowa
+   * (stopka, preferencje, konto, strona DOI). Bez zgody i bez odmowy
+   * (`refused: false`) przycisk zostaje - zapisuje odmowę, która wyklucza
+   * z próśb o zgodę. Brak pola (stary serwer) = jak odmowa zapisana.
+   */
+  refused?: boolean;
   error?: string;
 }
 
@@ -121,7 +134,9 @@ export function measurementPromptStateOf(
 ): MeasurementPageState {
   if (!body.ok) return measurementErrorStateOf(status, body);
   if (body.action === "confirm") return "confirmGrant";
-  return body.consent === false ? "alreadyOff" : "confirmWithdraw";
+  // Bez zgody: „pomiar jest wyłączony" tylko przy odmowie już zapisanej;
+  // bez niej - przycisk zapisu odmowy (inaczej prośby nie omijałyby osoby).
+  return body.consent === false && body.refused !== false ? "alreadyOff" : "confirmWithdraw";
 }
 
 /** Odpowiedź POST (zapis decyzji) -> ekran wyniku. */

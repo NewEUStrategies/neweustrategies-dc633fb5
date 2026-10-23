@@ -1489,6 +1489,8 @@ const pl = {
       chartDataPlaceholder: "; Seria A; Seria B\n2024; 12; 8",
       mapDataPlaceholder: "PL; 12,5\nDE; 8",
       colorInherits: "dziedziczy z global colors (lub transparent)",
+      consentMentionsMeasurement:
+        "Własny tekst zgody na newsletter wspomina pomiar otwarć i kliknięć. Opis pomiaru należy do osobnego pola zgody na pomiar: zapis przez ten formularz nie daje zgody na pomiar, a czytelnik mógłby uznać, że ją wyraża. Usuń opis pomiaru z tekstu albo go wyczyść.",
     },
     richHtmlField: {
       fontSize: "Rozmiar czcionki",
@@ -3090,6 +3092,8 @@ const en: typeof pl = {
       chartDataPlaceholder: "; Series A; Series B\n2024; 12; 8",
       mapDataPlaceholder: "PL; 12.5\nDE; 8",
       colorInherits: "inherits from global colors (or transparent)",
+      consentMentionsMeasurement:
+        "Your own newsletter consent text mentions measuring opens and clicks. A description of measurement belongs to the separate consent to measurement box: signing up through this form does not give consent to measurement, yet a reader could think it does. Remove the description of measurement from the text or clear it.",
     },
     richHtmlField: {
       fontSize: "Font size",

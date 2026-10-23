@@ -15,6 +15,7 @@ import {
   useState,
   type FormEvent,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -27,6 +28,16 @@ import {
   resolveNewsletterConsent,
   upgradeLegacyConsentHtml,
 } from "@/lib/newsletter/consentText";
+import {
+  isReservedConsentKey,
+  measurementConsentPayload,
+} from "@/lib/newsletter/measurementConsentText";
+import { NlDocMeasurementConsent } from "@/components/newsletter/NlDocMeasurementConsent";
+import {
+  NL_DOC_TOO_MANY_CONSENTS,
+  nlDocConsentsWithinLimit,
+  nlDocMeasurementSectionIndex,
+} from "@/components/newsletter/nlDocMeasurement";
 import type { NlDoc, NlWidget, NlLang, NlSection } from "@/lib/newsletter-builder/types";
 import type { NewsletterDocSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
 
@@ -102,9 +113,13 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  // Osobne pole zgody na pomiar (I9d-Y2b): DOMYŚLNIE NIEZAZNACZONE, stały
+  // wiersz formularza (nie widżet dokumentu) - `NlDocMeasurementConsent`.
+  const [measurement, setMeasurement] = useState(false);
   const subscribe = useServerFn(subscribeToNewsletter);
 
   const flatWidgets = useMemo(() => doc.sections.flatMap((s) => s.widgets), [doc]);
+  const measurementSection = nlDocMeasurementSectionIndex(doc.sections);
   const hasSocialProof = flatWidgets.some((w) => w.type === "social-proof");
   const hasCountdown = flatWidgets.some((w) => w.type === "countdown");
   const liveCount = useSubscriberCount(hasSocialProof);
@@ -191,6 +206,9 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         if (w.required && !val) errs[w.name] = REQUIRED_TXT[lang];
         if (val) meta[w.name] = val;
       } else if (w.type === "field.checkbox") {
+        // Klucz zastrzeżony dla pola pomiaru: widżet nie jest ani renderowany,
+        // ani zbierany - deklaracja pomiaru idzie wyłącznie z osobnego pola.
+        if (isReservedConsentKey(w.key)) continue;
         const on = fd.get(w.key) === "on";
         if (w.required && !on) errs[w.key] = REQUIRED_TXT[lang];
         if (on) consents.push({ key: w.key, text: pickI(w.html, lang), given: true, lang });
@@ -210,9 +228,18 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
       return;
     }
 
+    // Limit ładunku wspólny z serwerem (R1.21): bez obcinania - dowód zgody
+    // nie może zgubić pozycji, więc za dużo zaznaczonych zgód = komunikat.
+    if (!nlDocConsentsWithinLimit(consents.length, measurement)) {
+      setErrMsg(NL_DOC_TOO_MANY_CONSENTS[lang]);
+      setState("err");
+      return;
+    }
+
     // Zawsze doloz zgode na newsletter zgodna z policy_html - z JEDNEGO
-    // zrodla tresci domyslnej (I9d-Y2): pusta albo dawna domyslna = biezaca
-    // tresc z pomiarem i jej wersja (dotad trzecia kopia bez polskich znakow).
+    // zrodla tresci domyslnej (I9d-Y2b): pusta albo dawna domyslna = biezaca
+    // tresc (b, bez pomiaru) i jej wersja. Deklaracja osobnego pola pomiaru
+    // WYLACZNIE po jego zaznaczeniu.
     consents.push(
       newsletterConsentPayload(
         resolveNewsletterConsent(
@@ -222,6 +249,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         lang,
       ),
     );
+    if (measurement) consents.push(measurementConsentPayload(lang));
 
     try {
       const res = await subscribe({
@@ -243,6 +271,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         setState("err");
         return;
       }
+      setMeasurement(false);
       setState("ok");
     } catch (err) {
       setErrMsg(err instanceof Error ? err.message : String(err));
@@ -267,7 +296,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
 
   return (
     <form onSubmit={onSubmit} className="space-y-3" noValidate>
-      {doc.sections.map((section) => (
+      {doc.sections.map((section, index) => (
         <SectionRenderer
           key={section.id}
           section={section}
@@ -276,6 +305,15 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
           liveCount={liveCount}
           mailingLists={settings.popup_mailing_lists ?? []}
           tick={tick}
+          footer={
+            index === measurementSection ? (
+              <NlDocMeasurementConsent
+                lang={lang}
+                checked={measurement}
+                onCheckedChange={setMeasurement}
+              />
+            ) : null
+          }
         />
       ))}
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
@@ -290,6 +328,7 @@ function SectionRenderer({
   liveCount,
   mailingLists,
   tick,
+  footer,
 }: {
   section: NlSection;
   lang: NlLang;
@@ -297,10 +336,13 @@ function SectionRenderer({
   liveCount: number | null;
   mailingLists: NewsletterMailingList[];
   tick: number;
+  /** Wiersz na pełną szerokość pod widżetami sekcji (pole pomiaru). */
+  footer?: ReactNode;
 }) {
   const st = section.style ?? {};
   const layout = section.layout ?? "single";
   const gap = st.gap ?? 12;
+  const footerRow = footer ? <div style={{ marginTop: `${gap}px` }}>{footer}</div> : null;
 
   const renderWidgets = (list: typeof section.widgets) =>
     list.map((w) => (
@@ -371,6 +413,7 @@ function SectionRenderer({
           }}
         >
           {innerContent}
+          {footerRow}
         </div>
       );
     }
@@ -410,13 +453,19 @@ function SectionRenderer({
           }}
         >
           {innerContent}
+          {footerRow}
         </div>
         {media.position === "right" ? mediaCol : null}
       </div>
     );
   }
 
-  return <div style={containerStyle}>{innerContent}</div>;
+  return (
+    <div style={containerStyle}>
+      {innerContent}
+      {footerRow}
+    </div>
+  );
 }
 
 function widgetErrorKey(w: NlWidget): string {
@@ -485,8 +534,9 @@ function RuntimeWidget({
             (w.size === "sm" ? "text-xs" : w.size === "lg" ? "text-base" : "text-sm")
           }
           style={{ color: w.color ?? undefined }}
-          // Akapit z kopia dawnej domyslnej tresci zgody pokazuje biezaca
-          // (z pomiarem) - ta sama, ktora formularz zapisuje jako dowod.
+          // Akapit z kopia dawnej domyslnej tresci zgody (takze pakietowej (a))
+          // pokazuje biezaca (b, bez pomiaru) - ta sama, ktora formularz
+          // zapisuje jako dowod.
           dangerouslySetInnerHTML={{
             __html: sanitizeHtml(upgradeLegacyConsentHtml(pickI(w.html, lang), lang)),
           }}
@@ -556,6 +606,9 @@ function RuntimeWidget({
         </FieldWrap>
       );
     case "field.checkbox":
+      // Klucz zastrzeżony dla osobnego pola pomiaru - widżet nie istnieje
+      // w formularzu (jedyną drogą deklaracji jest `NlDocMeasurementConsent`).
+      if (isReservedConsentKey(w.key)) return null;
       return (
         <div>
           <label className="flex items-start gap-2 text-xs opacity-95">

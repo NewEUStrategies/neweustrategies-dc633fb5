@@ -11,25 +11,42 @@
 // otworzyła.
 //
 // Ekran zgody pokazuje DOKŁADNIE treść, którą baza zapisze w rejestrze zgód
-// (`newsletter_measurement_confirm` loguje bieżącą treść domyślną w języku
-// subskrybenta) - z jednego źródła `@/lib/newsletter/consentText`.
+// (I9d-Y2b: `newsletter_measurement_confirm` -> `_email_measurement_grant`
+// zapisuje treść OSOBNEGO pola pomiaru `_email_measurement_consent_default`
+// w języku subskrybenta) - z jednego źródła
+// `@/lib/newsletter/measurementConsentText`, przez wspólny panel decyzji
+// (`MeasurementDecisionPanel`, ten sam co karta na stronie potwierdzenia
+// double opt-in).
 //
 // Język: ścieżki `/newsletter` nie mają prefiksu języka, więc język odbiorcy
 // przychodzi parametrem `lang` z linku (inaczej - język interfejsu). Ten sam
 // parametr czyta SSR i klient (`validateSearch`) - bez zmiany napisów przy
-// hydratacji. Chunk startowy: `head()` i `validateSearch` czytają wyłącznie
-// nakładkę nagłówka i literał ścieżki; słownik strony, logika odpowiedzi
-// i treść zgody jadą w chunku komponentu (D-08).
+// hydratacji. ZGODA (R1.19): GET akcji `confirm` zwraca `lang` SUBSKRYBENTA
+// (ten, w którym baza zapisze treść) i ekran decyzji renderuje się w tym
+// języku, niezależnie od `lang` z adresu; odpowiedź bez poprawnego `lang`
+// to błąd z ponowieniem SPRAWDZENIA - bez przycisku zgody (osoba nie może
+// zgodzić się na treść w innym języku niż zapisana, art. 7 ust. 1 RODO).
+// Chunk startowy: `head()` i `validateSearch` czytają wyłącznie nakładkę
+// nagłówka i literał ścieżki; słownik strony, logika odpowiedzi i treść
+// zgody jadą w chunku komponentu (D-08).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, EyeOff, Loader2, MailCheck, XCircle } from "lucide-react";
+import { EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import {
+  MeasurementGrantPrompt,
+  MeasurementOutcomeView,
+} from "@/components/newsletter/MeasurementDecisionPanel";
 import i18n from "@/lib/i18n";
 import { ensureI18n } from "@/lib/i18n-newsletter-measurement";
 import "@/lib/i18n-newsletter-measurement-head";
 import { normalizeLang, type AppLang } from "@/lib/i18n/localePath";
+import {
+  measurementPageLangOf,
+  type MeasurementPageCheckBody,
+} from "@/lib/newsletter/confirmMeasurement";
+import type { ConsentLang } from "@/lib/newsletter/consentSegments";
 import {
   measurementChannelOf,
   measurementPromptStateOf,
@@ -37,7 +54,6 @@ import {
   NEWSLETTER_MEASUREMENT_API_PATH,
   type MeasurementLinkChannel,
   type MeasurementPageState,
-  type MeasurementResponseBody,
 } from "@/lib/privacy/measurement";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
@@ -79,54 +95,38 @@ export const Route = createFileRoute("/newsletter/measurement")({
   component: NewsletterMeasurementPage,
 });
 
-async function readBody(response: Response): Promise<MeasurementResponseBody> {
+async function readBody(response: Response): Promise<MeasurementPageCheckBody> {
   try {
-    return (await response.json()) as MeasurementResponseBody;
+    return (await response.json()) as MeasurementPageCheckBody;
   } catch {
     return {};
   }
 }
 
-type ResultState = Exclude<MeasurementPageState, "loading" | "confirmWithdraw" | "confirmGrant">;
-
-const TITLE_KEY: Record<ResultState, string> = {
-  withdrawn: "newsletterMeasurement.withdrawnTitle",
-  alreadyOff: "newsletterMeasurement.alreadyOffTitle",
-  granted: "newsletterMeasurement.grantedTitle",
-  alreadyOn: "newsletterMeasurement.alreadyOnTitle",
-  inactive: "newsletterMeasurement.inactiveTitle",
-  gone: "newsletterMeasurement.goneTitle",
-  expired: "newsletterMeasurement.expiredTitle",
-  invalid: "newsletterMeasurement.invalidTitle",
-  rateLimited: "newsletterMeasurement.errorTitle",
-  error: "newsletterMeasurement.errorTitle",
-};
-
-const BODY_KEY: Record<ResultState, string> = {
-  withdrawn: "newsletterMeasurement.withdrawnBody",
-  alreadyOff: "newsletterMeasurement.alreadyOffBody",
-  granted: "newsletterMeasurement.grantedBody",
-  alreadyOn: "newsletterMeasurement.alreadyOnBody",
-  inactive: "newsletterMeasurement.inactiveBody",
-  gone: "newsletterMeasurement.goneBody",
-  expired: "newsletterMeasurement.expiredBody",
-  invalid: "newsletterMeasurement.invalidBody",
-  rateLimited: "newsletterMeasurement.rateLimitedBody",
-  error: "newsletterMeasurement.errorBody",
-};
-
-const POSITIVE: ReadonlySet<MeasurementPageState> = new Set([
-  "withdrawn",
-  "alreadyOff",
-  "granted",
-  "alreadyOn",
-]);
+/**
+ * GET (sprawdzenie tokenu) -> ekran przed decyzją i język treści zgody.
+ * Ekran zgody bez poprawnego `lang` subskrybenta = błąd z ponowieniem
+ * sprawdzenia (bez przycisku zgody).
+ */
+function promptOf(
+  status: number,
+  body: MeasurementPageCheckBody,
+): { state: MeasurementPageState; consentLang: ConsentLang | null } {
+  const state = measurementPromptStateOf(status, body);
+  const consentLang = measurementPageLangOf(body);
+  if (state === "confirmGrant" && consentLang === null) return { state: "error", consentLang };
+  return { state, consentLang };
+}
 
 function NewsletterMeasurementPage() {
   ensureI18n();
   const search = Route.useSearch();
   const { i18n: instance } = useTranslation();
-  const lang: AppLang = search.lang ?? normalizeLang(instance.language) ?? "pl";
+  // Język subskrybenta z odpowiedzi GET (R1.19) ma pierwszeństwo przed
+  // językiem z adresu: ekran zgody i treść, którą baza zapisze, w jednym
+  // języku.
+  const [consentLang, setConsentLang] = useState<ConsentLang | null>(null);
+  const lang: AppLang = consentLang ?? search.lang ?? normalizeLang(instance.language) ?? "pl";
   const t = useMemo(() => i18n.getFixedT(lang), [lang]);
   const token = search.token ?? "";
   const channel: MeasurementLinkChannel = measurementChannelOf(search.via);
@@ -137,6 +137,10 @@ function NewsletterMeasurementPage() {
   const [decided, setDecided] = useState(false);
   const [check, setCheck] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Licznik zakończonych decyzji (POST) - po każdej fokus przechodzi na
+  // nagłówek wyniku, bo kliknięty przycisk znika (WCAG 2.4.3). Wynik samego
+  // sprawdzenia (GET) fokusu nie przesuwa.
+  const [decisions, setDecisions] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -146,8 +150,10 @@ function NewsletterMeasurementPage() {
       headers: { Accept: "application/json" },
     })
       .then(async (response) => {
-        const body = await readBody(response);
-        if (!cancelled) setState(measurementPromptStateOf(response.status, body));
+        const prompt = promptOf(response.status, await readBody(response));
+        if (cancelled) return;
+        if (prompt.consentLang) setConsentLang(prompt.consentLang);
+        setState(prompt.state);
       })
       .catch(() => {
         if (!cancelled) setState("error");
@@ -176,14 +182,14 @@ function NewsletterMeasurementPage() {
       setState("error");
     } finally {
       setBusy(false);
+      setDecisions((count) => count + 1);
     }
   }
-
-  const retryable = state === "error" || state === "rateLimited";
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div
+        lang={lang}
         className="max-w-md w-full text-center border border-border rounded-xl p-8 bg-card space-y-3"
         aria-live="polite"
       >
@@ -205,35 +211,23 @@ function NewsletterMeasurementPage() {
             </Button>
           </>
         )}
-        {state === "confirmGrant" && (
-          <>
-            <MailCheck className="w-10 h-10 mx-auto text-brand" aria-hidden="true" />
-            <h1 className="font-display text-2xl">{t("newsletterMeasurement.grantTitle")}</h1>
-            <p className="text-sm text-muted-foreground">{t("newsletterMeasurement.grantLead")}</p>
-            <p className="text-sm text-left border border-border rounded-lg p-3">
-              <NewsletterConsentText lang={lang} />
-            </p>
-            <p className="text-sm text-muted-foreground">{t("newsletterMeasurement.grantNote")}</p>
-            <Button type="button" onClick={decide} disabled={busy} className="mt-2">
-              {busy ? t("newsletterMeasurement.working") : t("newsletterMeasurement.grantBtn")}
-            </Button>
-          </>
+        {state === "confirmGrant" && consentLang && (
+          <MeasurementGrantPrompt
+            t={t}
+            lang={consentLang}
+            lead={t("newsletterMeasurement.grantLead")}
+            busy={busy}
+            onGrant={decide}
+          />
         )}
         {state !== "loading" && state !== "confirmWithdraw" && state !== "confirmGrant" && (
-          <>
-            {POSITIVE.has(state) ? (
-              <CheckCircle2 className="w-10 h-10 mx-auto text-brand" aria-hidden="true" />
-            ) : (
-              <XCircle className="w-10 h-10 mx-auto text-destructive" aria-hidden="true" />
-            )}
-            <h1 className="font-display text-2xl">{t(TITLE_KEY[state])}</h1>
-            <p className="text-sm text-muted-foreground">{t(BODY_KEY[state])}</p>
-            {retryable && (
-              <Button type="button" onClick={retry} disabled={busy} className="mt-2">
-                {busy ? t("newsletterMeasurement.working") : t("newsletterMeasurement.retryBtn")}
-              </Button>
-            )}
-          </>
+          <MeasurementOutcomeView
+            t={t}
+            outcome={state}
+            busy={busy}
+            onRetry={retry}
+            focusKey={decided ? decisions : undefined}
+          />
         )}
         <Link to="/" className="inline-block mt-2 text-sm text-brand hover:underline">
           {t("newsletter.confirmPage.backHome")}

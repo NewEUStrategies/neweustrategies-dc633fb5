@@ -2759,6 +2759,34 @@
       "when": 1792753763654,
       "tag": "0393_membership_coupon_source_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 394,
+      "version": "7",
+      "when": 1792753823654,
+      "tag": "0394_consent_measurement_separate_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 395,
+      "version": "7",
+      "when": 1792753883654,
+      "tag": "0395_consent_measurement_separate_doi_signup",
+      "breakpoints": true
+    },
+    {
+      "idx": 396,
+      "version": "7",
+      "when": 1792753943654,
+      "tag": "0396_consent_measurement_separate_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 397,
+      "version": "7",
+      "when": 1792754003654,
+      "tag": "0397_consent_measurement_separate_fixes",
+      "breakpoints": true
     }
   ]
 }

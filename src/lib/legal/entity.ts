@@ -30,9 +30,12 @@ export const LEGAL_UPDATED = "2026-07-30";
  * w `registration.ts`). 2026-10-12: okres przechowywania dowodów księgowych
  * zgodny z regułą retencji (`accountingRetentionRule.ts`, INV-13).
  * 2026-10-22: pomiar otwarć i kliknięć wiadomości tylko za zgodą, z osobnym
- * wycofaniem (I9d-Y2, wytyczne EDPB 2/2023).
+ * wycofaniem (I9d-Y2, wytyczne EDPB 2/2023). 2026-10-23: zgoda na pomiar to
+ * osobne pole, potwierdzane przyciskiem przez właściciela skrzynki (I9d-Y2b,
+ * decyzje właściciela 2026-10-23: D1 wariant (b), D2); przy późniejszym
+ * wdrożeniu - dzień wdrożenia.
  */
-export const PRIVACY_UPDATED = "2026-10-22";
+export const PRIVACY_UPDATED = "2026-10-23";
 /** Liczba dni na odstąpienie / zwrot bez podania przyczyny. */
 export const REFUND_WINDOW_DAYS = 30;
 /** Warunki kupującego operatora płatności (Stripe / Link). */

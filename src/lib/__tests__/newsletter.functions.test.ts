@@ -16,7 +16,7 @@
 // Reguł potwierdzania tokenu (wygasły / użyty dwa razy / adres wypisany) tu
 // NIE powtarzamy - mają własny test w routes/-api.public.newsletter.confirm.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ok, fail, supabaseFromStub } from "@/test/supabaseChain";
+import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
 import { setServerFnContext, resetServerFnContext } from "@/test/serverFn";
 
 const h = vi.hoisted(() => ({
@@ -47,13 +47,31 @@ vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: h.sendTxEmail }));
 
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
-import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
+import {
+  NEWSLETTER_CONSENT_VERSION,
+  NEWSLETTER_CONSENT_VERSION_BUNDLED,
+  newsletterConsentHtml,
+  newsletterConsentPayload,
+  resolveNewsletterConsent,
+  signupNewsletterSubscription,
+} from "@/lib/newsletter/consentText";
+import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  MEASUREMENT_DOI_MAIL_NOTE,
+  measurementConsentHtml,
+  measurementConsentPayload,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { verifyDoiMeasurementToken } from "@/lib/privacy/measurementToken.server";
 
 const db = supabaseFromStub();
 const SETTINGS = "newsletter_settings";
 const SUBSCRIBERS = "newsletter_subscribers";
 
 const TENANT = "tenant-1";
+/** Identyfikator wiersza `pending` oddawany po upsercie (wiąże sekret skrzynki). */
+const PENDING_ID = "5a5a5a5a-0000-4000-8000-00000000d001";
 
 /** Poprawne zgłoszenie z formularza - test dokłada tylko to, co bada. */
 function input(overrides: Record<string, unknown> = {}) {
@@ -80,8 +98,8 @@ function defaultDb(): void {
   db.setResponse(SETTINGS, ok(settings()));
   db.setResponse(SUBSCRIBERS, (chain) => {
     if (chain.has("upsert")) return ok(null);
-    if (chain.argsOf("select")?.[0] === "unsubscribe_token") {
-      return ok({ unsubscribe_token: "unsub-tok" });
+    if (chain.argsOf("select")?.[0] === "id, unsubscribe_token") {
+      return ok({ id: PENDING_ID, unsubscribe_token: "unsub-tok" });
     }
     return ok(null);
   });
@@ -313,8 +331,8 @@ describe("adres już zapisany", () => {
   it("adres `pending` może spróbować ponownie - token się odświeża", async () => {
     db.setResponse(SUBSCRIBERS, (chain) => {
       if (chain.has("upsert")) return ok(null);
-      if (chain.argsOf("select")?.[0] === "unsubscribe_token") {
-        return ok({ unsubscribe_token: "unsub-tok" });
+      if (chain.argsOf("select")?.[0] === "id, unsubscribe_token") {
+        return ok({ id: PENDING_ID, unsubscribe_token: "unsub-tok" });
       }
       return ok({ id: "s-1", status: "pending" });
     });
@@ -931,5 +949,383 @@ describe("wersja treści zgody (I9d-Y2)", () => {
     });
     const [entry] = upserted().consents as Record<string, unknown>[];
     expect(entry.version).toBe("sha256:0123456789abcdef01234567");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I9d-Y2b: osobne pole zgody na pomiar - deklaracja, nie zgoda
+// ---------------------------------------------------------------------------
+
+describe("osobne pole pomiaru (I9d-Y2b)", () => {
+  const SUB_ID = "5a5a5a5a-0000-4000-8000-00000000a001";
+  const NEWSLETTER = newsletterConsentPayload(resolveNewsletterConsent(null, "pl"), "pl");
+
+  /** Ładunek formularza z zaznaczonym polem pomiaru (kształt z frontu). */
+  function declared(lang: "pl" | "en" = "pl") {
+    return input({
+      language: lang,
+      consents: [
+        newsletterConsentPayload(resolveNewsletterConsent(null, lang), lang),
+        measurementConsentPayload(lang),
+      ],
+    });
+  }
+
+  function measurementCalls() {
+    return h.rpc.mock.calls.filter((c) => c[0] === "newsletter_measurement_request_signup");
+  }
+
+  /** Wariant bez double opt-in: upsert oddaje id zapisanego wiersza. */
+  function singleOptIn(upsertResult: SupabaseResult = ok({ id: SUB_ID })): void {
+    db.setResponse(SETTINGS, ok(settings({ double_opt_in: false })));
+    db.setResponse(SUBSCRIBERS, (chain) => (chain.has("upsert") ? upsertResult : ok(null)));
+  }
+
+  it("limit pozycji = wspólna stała `CONSENT_ENTRIES_MAX` (12 przechodzi, 13 nie)", async () => {
+    const entries = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ key: `zgoda-${i}`, text: `Treść ${i}` }));
+    expect(CONSENT_ENTRIES_MAX).toBe(12);
+    await expect(
+      subscribeToNewsletter({ data: input({ consents: entries(CONSENT_ENTRIES_MAX) }) }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      subscribeToNewsletter({ data: input({ consents: entries(CONSENT_ENTRIES_MAX + 1) }) }),
+    ).rejects.toThrow();
+  });
+
+  it("deklaracja ląduje w `consents` subskrybenta w postaci rozpoznawanej przez SQL", async () => {
+    await subscribeToNewsletter({ data: declared() });
+
+    const consents = upserted().consents as Record<string, unknown>[];
+    expect(consents.map((e) => e.key)).toEqual(["newsletter", "email_measurement_declared"]);
+    expect(consents[1]).toMatchObject({
+      text: measurementConsentHtml("pl"),
+      version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+      given: true,
+      lang: "pl",
+    });
+    // Format chwili odbioru = wyrażenie z `_newsletter_measurement_declared_at`.
+    expect(String(consents[1].received_at)).toMatch(
+      /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$/,
+    );
+  });
+
+  it("ładunek z `signupNewsletterSubscription({ measurement: true })` przechodzi przez serwer bez strat", async () => {
+    const payload = signupNewsletterSubscription({
+      email: "nowy@example.test",
+      lang: "en",
+      source: "auth_form",
+      consent: resolveNewsletterConsent(null, "en"),
+      measurement: true,
+    });
+    await subscribeToNewsletter({ data: payload });
+
+    const consents = upserted().consents as Record<string, unknown>[];
+    expect(consents.map((e) => e.key)).toEqual(["newsletter", "email_measurement_declared"]);
+    expect(consents[1].text).toBe(measurementConsentHtml("en"));
+  });
+
+  it("treść deklaracji bez znaczników jest przepisana na HTML dopasowanego języka (postać SQL)", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          NEWSLETTER,
+          {
+            key: "email_measurement_declared",
+            text: measurementConsentPlain("en"),
+            version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+            given: true,
+            lang: "pl",
+          },
+        ],
+      }),
+    });
+    const consents = upserted().consents as Record<string, unknown>[];
+    expect(consents[1]).toMatchObject({ text: measurementConsentHtml("en"), lang: "en" });
+  });
+
+  it("klucz zgody `email_measurement` z formularza znika ZAWSZE (także treść/wersja (a) starej paczki)", async () => {
+    await subscribeToNewsletter({
+      data: input({
+        consents: [
+          NEWSLETTER,
+          {
+            key: "email_measurement",
+            text: measurementConsentHtml("pl"),
+            version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+            given: true,
+          },
+          {
+            key: " Email_Measurement ",
+            text: "Zgoda (a)",
+            version: NEWSLETTER_CONSENT_VERSION_BUNDLED,
+            given: true,
+          },
+        ],
+      }),
+    });
+    const consents = upserted().consents as Record<string, unknown>[];
+    expect(consents.map((e) => e.key)).toEqual(["newsletter"]);
+  });
+
+  it("deklaracja bez zgody na newsletter, z obcą treścią albo wersją (a) jest usuwana", async () => {
+    const cases = [
+      [measurementConsentPayload("pl")],
+      [NEWSLETTER, { ...measurementConsentPayload("pl"), text: "Zgadzam się na wszystko" }],
+      [
+        NEWSLETTER,
+        { ...measurementConsentPayload("pl"), version: NEWSLETTER_CONSENT_VERSION_BUNDLED },
+      ],
+      [NEWSLETTER, { ...measurementConsentPayload("pl"), given: false }],
+    ];
+    for (const consents of cases) {
+      db.reset();
+      defaultDb();
+      await subscribeToNewsletter({ data: input({ consents }) });
+      const saved = upserted().consents as Record<string, unknown>[];
+      expect(saved.map((e) => e.key)).not.toContain("email_measurement_declared");
+    }
+  });
+
+  it("double opt-in: notka w mailu TYLKO przy deklaracji; bez prośby (pyta strona DOI)", async () => {
+    process.env.LOVABLE_API_KEY = "lov";
+    process.env.RESEND_API_KEY = "re";
+
+    await subscribeToNewsletter({ data: declared() });
+    expect(String(sentMail().html)).toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+    expect(measurementCalls()).toHaveLength(0);
+
+    fetchMock.mockClear();
+    await subscribeToNewsletter({ data: input({ consents: [NEWSLETTER] }) });
+    const plain = String(sentMail().html);
+    expect(plain).toContain("/newsletter/confirm?token=");
+    expect(plain).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+    expect(plain).not.toMatch(/pomiar/i);
+    // Bez zaznaczonego pola - bez sekretu skrzynki w linku.
+    expect(plain).not.toMatch(/[?&]m=/);
+  });
+
+  it("double opt-in z deklaracją: link niesie SEKRET SKRZYNKI związany z wierszem i adresem (I9d-Y2b R1)", async () => {
+    process.env.LOVABLE_API_KEY = "lov";
+    process.env.RESEND_API_KEY = "re";
+
+    await subscribeToNewsletter({ data: declared() });
+
+    const html = String(sentMail().html);
+    const link = /\/newsletter\/confirm\?token=([0-9a-f]{64})&amp;m=(d[0-9a-f]{72})/.exec(html);
+    expect(link).not.toBeNull();
+    // Token DOI w linku = token zapisany w wierszu; sekret - podpis tego
+    // wiersza i adresu (sprawdza go trasa potwierdzenia).
+    expect(link?.[1]).toBe(upserted().confirmation_token);
+    expect(
+      verifyDoiMeasurementToken(link?.[2], {
+        subscriberId: PENDING_ID,
+        email: "nowy@example.test",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      verifyDoiMeasurementToken(link?.[2], {
+        subscriberId: PENDING_ID,
+        email: "inny@example.test",
+      }),
+    ).toEqual({ ok: false, reason: "invalid" });
+    // Odczyt wiersza po upsercie oddaje id (sekret) i token wypisu.
+    expect(
+      db.chainsFor(SUBSCRIBERS).some((c) => c.argsOf("select")?.[0] === "id, unsubscribe_token"),
+    ).toBe(true);
+  });
+
+  it("double opt-in z deklaracją, ale bez id wiersza: mail bez sekretu i bez notki (fail-closed), zapis bez zmian", async () => {
+    process.env.LOVABLE_API_KEY = "lov";
+    process.env.RESEND_API_KEY = "re";
+    db.setResponse(SUBSCRIBERS, (chain) => (chain.has("upsert") ? ok(null) : ok(null)));
+
+    const res = await subscribeToNewsletter({ data: declared() });
+
+    expect(res).toMatchObject({ ok: true, status: "pending", emailSent: true });
+    const html = String(sentMail().html);
+    expect(html).not.toMatch(/[?&;]m=/);
+    expect(html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[newsletter] measurement secret skipped: subscriber id missing",
+    );
+  });
+
+  it("notka DOI w języku zapisu (EN)", async () => {
+    process.env.LOVABLE_API_KEY = "lov";
+    process.env.RESEND_API_KEY = "re";
+
+    await subscribeToNewsletter({ data: declared("en") });
+
+    expect(String(sentMail().html)).toContain(MEASUREMENT_DOI_MAIL_NOTE.en);
+    expect(String(sentMail().html)).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+  });
+
+  it("bez double opt-in: upsert oddaje id, a baza zakłada prośbę dla TEGO subskrybenta", async () => {
+    singleOptIn();
+    h.rpc.mockImplementation(async (name: string) =>
+      name === "newsletter_measurement_request_signup"
+        ? { data: { result: "requested" }, error: null }
+        : { data: [], error: null },
+    );
+
+    const res = await subscribeToNewsletter({ data: declared() });
+
+    expect(res).toEqual({ ok: true, status: "subscribed" });
+    const chain = db.chainsFor(SUBSCRIBERS).find((c) => c.has("upsert"));
+    expect(chain?.argsOf("select")).toEqual(["id"]);
+    expect(measurementCalls()).toEqual([
+      ["newsletter_measurement_request_signup", { p_subscriber: SUB_ID }],
+    ]);
+  });
+
+  it("bez double opt-in i bez zaznaczonego pola - żadnej prośby", async () => {
+    singleOptIn();
+    await subscribeToNewsletter({ data: input({ consents: [NEWSLETTER] }) });
+    expect(measurementCalls()).toHaveLength(0);
+  });
+
+  it("awaria prośby (błąd, wyjątek, brak id) nie psuje zapisu ani powitania; log bez adresu", async () => {
+    singleOptIn();
+    h.rpc.mockImplementation(async (name: string) =>
+      name === "newsletter_measurement_request_signup"
+        ? { data: null, error: { message: "function does not exist" } }
+        : { data: [], error: null },
+    );
+    expect(await subscribeToNewsletter({ data: declared() })).toEqual({
+      ok: true,
+      status: "subscribed",
+    });
+
+    h.rpc.mockImplementation(async (name: string) => {
+      if (name === "newsletter_measurement_request_signup") throw new Error("rpc padło");
+      return { data: [], error: null };
+    });
+    expect(await subscribeToNewsletter({ data: declared() })).toEqual({
+      ok: true,
+      status: "subscribed",
+    });
+
+    singleOptIn(ok(null));
+    h.rpc.mockResolvedValue({ data: [], error: null });
+    expect(await subscribeToNewsletter({ data: declared() })).toEqual({
+      ok: true,
+      status: "subscribed",
+    });
+    expect(h.sendTxEmail).toHaveBeenCalled();
+
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).toContain("measurement request");
+    expect(logged).not.toContain("nowy@example.test");
+  });
+
+  it("baza nie rozpoznała deklaracji (`none`) - ostrzeżenie w logu zamiast ciszy", async () => {
+    singleOptIn();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.rpc.mockImplementation(async (name: string) =>
+      name === "newsletter_measurement_request_signup"
+        ? { data: { result: "none" }, error: null }
+        : { data: [], error: null },
+    );
+
+    await subscribeToNewsletter({ data: declared() });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[newsletter] measurement declaration not recognised by the database",
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("adres już zapisany (`exists`): deklaracja dopisana do `consents` i prośba, odpowiedź bez zmian", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("update")
+        ? ok(null)
+        : ok({
+            id: SUB_ID,
+            status: "subscribed",
+            consents: [
+              { key: "newsletter", text: "dawna zgoda", received_at: "2026-01-01T00:00:00.000Z" },
+              {
+                key: "Email_Measurement_Declared",
+                text: measurementConsentHtml("pl"),
+                received_at: "2026-02-01T00:00:00.000Z",
+              },
+            ],
+          }),
+    );
+
+    const res = await subscribeToNewsletter({ data: declared() });
+
+    expect(res).toEqual({ ok: true, status: "exists" });
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("upsert"))).toBe(false);
+    const update = db.chainsFor(SUBSCRIBERS).find((c) => c.has("update"));
+    const next = (update?.argsOf("update")?.[0] as { consents: Record<string, unknown>[] })
+      .consents;
+    // Stara deklaracja zastąpiona (tablica nie rośnie przy ponownych zapisach).
+    expect(next.map((e) => e.key)).toEqual(["newsletter", "email_measurement_declared"]);
+    expect(next[0].text).toBe("dawna zgoda");
+    expect(next[1]).toMatchObject({ text: measurementConsentHtml("pl") });
+    expect(next[1].received_at).not.toBe("2026-02-01T00:00:00.000Z");
+    const eqs = update?.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqs).toEqual([
+      ["id", SUB_ID],
+      ["tenant_id", TENANT],
+    ]);
+    expect(measurementCalls()).toEqual([
+      ["newsletter_measurement_request_signup", { p_subscriber: SUB_ID }],
+    ]);
+    // Zaangażowanie dalej liczone jak dotąd.
+    expect(h.rpc.mock.calls.some((c) => c[0] === "newsletter_engagement_touch")).toBe(true);
+  });
+
+  it("adres już zapisany: limity nadużyć PRZED zapisem deklaracji (regresje-r1-3) - odmowa bez zapisu i bez prośby", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("update") ? ok(null) : ok({ id: SUB_ID, status: "subscribed", consents: [] }),
+    );
+    h.rateLimit.mockResolvedValueOnce(false);
+
+    const limited = await subscribeToNewsletter({ data: declared() });
+
+    expect(limited).toEqual({ ok: false, error: "rate_limited" });
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("update"))).toBe(false);
+    expect(measurementCalls()).toHaveLength(0);
+    expect(h.rpc.mock.calls.some((c) => c[0] === "newsletter_engagement_touch")).toBe(false);
+    // Limit odbiorcy też obowiązuje gałąź „już zapisany".
+    h.rateLimit.mockClear();
+    h.rateLimit.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    expect(await subscribeToNewsletter({ data: declared() })).toEqual({
+      ok: false,
+      error: "rate_limited",
+    });
+    expect(h.rateLimit.mock.calls.map((c) => c[0].scope)).toEqual([
+      "newsletter.subscribe",
+      "newsletter.recipient",
+    ]);
+    expect(measurementCalls()).toHaveLength(0);
+  });
+
+  it("adres już zapisany bez zaznaczonego pola: bez zapisu `consents` i bez prośby", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("upsert") ? ok(null) : ok({ id: SUB_ID, status: "subscribed", consents: [] }),
+    );
+
+    await subscribeToNewsletter({ data: input({ consents: [NEWSLETTER] }) });
+
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("update"))).toBe(false);
+    expect(measurementCalls()).toHaveLength(0);
+  });
+
+  it("awaria zapisu deklaracji u zapisanego adresu: bez prośby, odpowiedź `exists`", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("update")
+        ? fail("update locked")
+        : ok({ id: SUB_ID, status: "subscribed", consents: [] }),
+    );
+
+    expect(await subscribeToNewsletter({ data: declared() })).toEqual({
+      ok: true,
+      status: "exists",
+    });
+    expect(measurementCalls()).toHaveLength(0);
   });
 });

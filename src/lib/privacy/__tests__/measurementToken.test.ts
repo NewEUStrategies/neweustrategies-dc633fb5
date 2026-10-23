@@ -3,17 +3,25 @@
 // subskrybent + nonce prośby + termin). Rozłączność domen HMAC z tokenami
 // trackingu, wypisu i „Chcę dalej otrzymywać"; adres strony i stopki.
 // Jednorazowość zgody daje nonce prośby w bazie (`newsletter_measurement_confirm`
-// - pgTAP hub_i9d_y2_reconfirm_test.sql).
+// - pgTAP hub_i9d_y2_reconfirm_test.sql). Sekret skrzynki z maila DOI (`md:`,
+// I9d-Y2b R1): związany z subskrybentem, adresem, wersją i terminem; personel
+// znający token DOI, identyfikator i adres nie wyliczy go bez sekretu serwera.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MEASUREMENT_CONFIRM_TOKEN_TTL_DAYS,
+  doiMeasurementTokenFor,
   measurementOptOutUrl,
+  signDoiMeasurementToken,
   signMeasurementConfirmToken,
   signMeasurementWithdrawToken,
+  verifyDoiMeasurementToken,
   verifyMeasurementToken,
 } from "../measurementToken.server";
+import { EMAIL_MEASUREMENT_CONSENT_VERSION } from "@/lib/newsletter/measurementConsentText";
+import { isDoiMeasurementTokenFormat } from "@/lib/newsletter/confirmMeasurement";
 import {
+  MEASUREMENT_CONFIRM_LINK_DAYS,
   MEASUREMENT_FOOTER_COPY,
   NEWSLETTER_MEASUREMENT_API_PATH,
   measurementChannelOf,
@@ -141,6 +149,102 @@ describe("zgoda na pomiar (`mc:`)", () => {
   });
 });
 
+describe("sekret skrzynki na stronie DOI (`md:`)", () => {
+  const EMAIL = "Osoba@Example.test";
+  const expected = { subscriberId: SUBSCRIBER, email: "osoba@example.test " };
+
+  it("kształt 73 znaki (kształt z kontraktu strony), termin = wysłanie + 60 dni, bieżąca wersja", () => {
+    const token = doiMeasurementTokenFor(SUBSCRIBER.toUpperCase(), EMAIL, NOW);
+    expect(token).toMatch(/^d[0-9a-f]{72}$/);
+    expect(isDoiMeasurementTokenFormat(token)).toBe(true);
+    expect(verifyDoiMeasurementToken(token, expected, NOW)).toEqual({
+      ok: true,
+      expiresAt: new Date(NOW.getTime() + MEASUREMENT_CONFIRM_LINK_DAYS * 86_400_000),
+    });
+    // Bieżąca wersja jest domyślna przy weryfikacji; jawna - ta sama.
+    expect(
+      verifyDoiMeasurementToken(
+        token,
+        { ...expected, consentVersion: EMAIL_MEASUREMENT_CONSENT_VERSION },
+        NOW,
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("cudzy subskrybent, inny adres, inna wersja treści, podmieniony termin - invalid", () => {
+    const token = doiMeasurementTokenFor(SUBSCRIBER, EMAIL, NOW) ?? "";
+    expect(verifyDoiMeasurementToken(token, { subscriberId: LEAD, email: EMAIL }, NOW)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(
+      verifyDoiMeasurementToken(
+        token,
+        { subscriberId: SUBSCRIBER, email: "inny@example.test" },
+        NOW,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(
+      verifyDoiMeasurementToken(
+        token,
+        { ...expected, consentVersion: "newsletter-2026-10-21" },
+        NOW,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+    // Termin przedłużony ręcznie (inne 8 znaków) - podpis się nie zgadza.
+    const extended = `${token.slice(0, 33)}ffffffff${token.slice(41)}`;
+    expect(verifyDoiMeasurementToken(extended, expected, NOW)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    expect(verifyDoiMeasurementToken(flip(token, 60), expected, NOW).ok).toBe(false);
+    for (const bad of [null, undefined, "", token.slice(1), `c${token.slice(1)}`]) {
+      expect(verifyDoiMeasurementToken(bad, expected, NOW)).toEqual({
+        ok: false,
+        reason: "invalid",
+      });
+    }
+  });
+
+  it("bez sekretu serwera nie da się go wyliczyć (inny SESSION_SECRET = inny podpis)", () => {
+    const token = doiMeasurementTokenFor(SUBSCRIBER, EMAIL, NOW) ?? "";
+    vi.stubEnv("SESSION_SECRET", "sekret-personelu");
+    expect(verifyDoiMeasurementToken(token, expected, NOW)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+    const forged = doiMeasurementTokenFor(SUBSCRIBER, EMAIL, NOW) ?? "";
+    vi.stubEnv("SESSION_SECRET", "sekret-testowy");
+    expect(verifyDoiMeasurementToken(forged, expected, NOW)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+  });
+
+  it("po terminie - expired (tylko przy prawdziwym podpisie)", () => {
+    const token = doiMeasurementTokenFor(SUBSCRIBER, EMAIL, NOW) ?? "";
+    const after = new Date(NOW.getTime() + MEASUREMENT_CONFIRM_LINK_DAYS * 86_400_000);
+    expect(verifyDoiMeasurementToken(token, expected, after)).toEqual({
+      ok: false,
+      reason: "expired",
+    });
+  });
+
+  it("zły identyfikator albo brak adresu: `doiMeasurementTokenFor` = null, podpis = wyjątek", () => {
+    expect(doiMeasurementTokenFor("sub-1", EMAIL, NOW)).toBeNull();
+    expect(doiMeasurementTokenFor(null, EMAIL, NOW)).toBeNull();
+    expect(doiMeasurementTokenFor(SUBSCRIBER, "  ", NOW)).toBeNull();
+    expect(() =>
+      signDoiMeasurementToken({
+        subscriberId: SUBSCRIBER,
+        email: EMAIL,
+        consentVersion: "",
+        expiresAt: EXPIRES,
+      }),
+    ).toThrow();
+  });
+});
+
 describe("rozłączność domen HMAC", () => {
   it("tokeny trackingu, wypisu ścieżki i „Chcę dalej otrzymywać” nie przechodzą", () => {
     for (const foreign of [
@@ -207,10 +311,27 @@ describe("adres linku i stany strony", () => {
   it("odpowiedź GET -> ekran decyzji, POST -> ekran wyniku, kody błędów", () => {
     expect(measurementPromptStateOf(200, { ok: true, action: "withdraw" })).toBe("confirmWithdraw");
     expect(measurementPromptStateOf(200, { ok: true, action: "confirm" })).toBe("confirmGrant");
-    // Bez zgody na pomiar nie ma czego wyłączać.
+    // Bez zgody: „pomiar wyłączony" tylko przy odmowie już zapisanej (albo
+    // starym serwerze bez pola); bez odmowy - przycisk zapisu odmowy (R1).
     expect(measurementPromptStateOf(200, { ok: true, action: "withdraw", consent: false })).toBe(
       "alreadyOff",
     );
+    expect(
+      measurementPromptStateOf(200, {
+        ok: true,
+        action: "withdraw",
+        consent: false,
+        refused: true,
+      }),
+    ).toBe("alreadyOff");
+    expect(
+      measurementPromptStateOf(200, {
+        ok: true,
+        action: "withdraw",
+        consent: false,
+        refused: false,
+      }),
+    ).toBe("confirmWithdraw");
     expect(measurementPromptStateOf(200, { ok: true, action: "withdraw", consent: true })).toBe(
       "confirmWithdraw",
     );

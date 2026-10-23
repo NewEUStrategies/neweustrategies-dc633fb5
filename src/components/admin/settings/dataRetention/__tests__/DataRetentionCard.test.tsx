@@ -491,8 +491,12 @@ describe("karta retencji - bezpieczny start, przebieg, piksel, CRM", () => {
         data: { patch: { open_tracking_enabled: false }, expectedUpdatedAt: TOKEN },
       }),
     );
-    // I9d-Y2: rekomendacja EDPB 2/2023 wykonana - treść zgody obejmuje pomiar.
-    expect(screen.getByText(/Wykonane \(I9d-Y2\): domyślna treść zgody/)).toBeTruthy();
+    // I9d-Y2b: rekomendacja EDPB 2/2023 wykonana - pomiar ma OSOBNE pole
+    // i działa tylko po potwierdzeniu przez właściciela skrzynki (wariant (b), D2).
+    const recommendation = screen.getByText(/Wykonane \(I9d-Y2, I9d-Y2b\)/);
+    expect(recommendation.textContent).toMatch(/osobne, domyślnie niezaznaczone pole/);
+    expect(recommendation.textContent).toMatch(/potwierdził zgodę przyciskiem/);
+    expect(recommendation.textContent).not.toMatch(/oznaczasz/);
   });
 
   it("przedłużenie kontaktu: powód poniżej 3 znaków blokuje zapis, poprawny - zapis i komunikat", async () => {

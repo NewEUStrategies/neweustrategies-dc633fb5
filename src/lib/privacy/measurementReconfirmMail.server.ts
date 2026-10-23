@@ -1,14 +1,22 @@
-// KROK `jobs-tick`: wysyłka próśb o zgodę na pomiar otwarć i kliknięć
-// („Poproś o zgodę na pomiar" z panelu newslettera, I9d-Y2).
+// KROK `jobs-tick`: wysyłka próśb o OSOBNĄ zgodę na pomiar otwarć i kliknięć
+// (I9d-Y2: „Poproś o zgodę na pomiar" z panelu newslettera; I9d-Y2b: prośba
+// po zapisie bez double opt-in z zaznaczonym osobnym polem pomiaru).
 //
 // PODZIAŁ PRACY (lustro wygaszania Y1). Baza zakłada prośby (start z panelu
-// z potwierdzoną liczbą), pilnuje JEDNEJ prośby na (subskrybent, wersja
-// treści), dziennego limitu WSPÓLNEGO z prośbami wygaszania (reputacja tej
-// samej domeny), dzierżawy i nieaktualności (wypis albo zgoda udzielona
-// w międzyczasie -> `skipped` bez maila) - `newsletter_measurement_claim`.
-// Ten krok robi to, czego SQL nie umie: podpisuje link sekretem serwera,
-// renderuje mail PL/EN z treścią z panelu i kolejkuje go wspólną kolejką
-// poczty; wynik zapisuje `newsletter_measurement_mark`.
+// z potwierdzoną liczbą albo `newsletter_measurement_request_signup`),
+// pilnuje JEDNEJ prośby na (subskrybent, wersja treści pomiaru), dziennych
+// limitów (panel: WSPÓLNY z prośbami wygaszania - reputacja tej samej domeny;
+// po zapisie: własny), dzierżawy i nieaktualności (wypis, zgoda udzielona
+// albo odmowa w międzyczasie -> `skipped` bez maila) -
+// `newsletter_measurement_claim`. Ten krok robi to, czego SQL nie umie:
+// podpisuje link sekretem serwera, renderuje mail PL/EN (prośba z panelu -
+// treść z panelu albo domyślna; po zapisie - treść STAŁA) i kolejkuje go
+// wspólną kolejką poczty; wynik zapisuje `newsletter_measurement_mark`.
+//
+// ZAKRES PRZEBIEGU (`origin`): w oknie dziennym krok zajmuje prośby obu
+// pochodzeń (po zapisie najpierw); poza oknem - WYŁĄCZNIE po zapisie
+// (`p_origin = 'signup'`), bo prośba ma przyjść zaraz po zapisie, a prośby
+// z panelu czekają na dzień pracy.
 //
 // WYNIK WYSYŁKI -> STAN PROŚBY (`sunsetOutcomeOf`, ta sama reguła co Y1):
 //   * w kolejce / duplikat - wysłana;
@@ -33,9 +41,11 @@ import {
   NEWSLETTER_MEASUREMENT_EMPTY_OVERRIDES,
   NEWSLETTER_MEASUREMENT_MAIL_BATCH,
   NEWSLETTER_MEASUREMENT_MAIL_LABEL,
+  newsletterMeasurementOriginOf,
   parseNewsletterMeasurementOverrides,
   type NewsletterMeasurementCopyOverrides,
   type NewsletterMeasurementLang,
+  type NewsletterMeasurementOrigin,
 } from "./measurementReconfirm";
 import { renderMeasurementReconfirmEmail } from "./measurementReconfirmRender.server";
 import { signMeasurementConfirmToken } from "./measurementToken.server";
@@ -55,7 +65,11 @@ function asRpc(client: unknown): RpcCallable {
   return client as RpcCallable;
 }
 
-/** Wiersz `newsletter_measurement_claim` (rpc-shape w 20261020162500). */
+/**
+ * Wiersz `newsletter_measurement_claim` (rpc-shape w 20261020162500;
+ * kolumna `origin` od I9d-Y2b - parser toleruje jej brak: stara baza zna
+ * wyłącznie prośby z panelu).
+ */
 export interface NewsletterMeasurementClaim {
   subscriberId: string;
   tenantId: string;
@@ -66,6 +80,8 @@ export interface NewsletterMeasurementClaim {
   consentVersion: string;
   unsubscribeToken: string | null;
   attempt: number;
+  /** Pochodzenie prośby: brak kolumny albo obca wartość = `panel`. */
+  origin: NewsletterMeasurementOrigin;
 }
 
 export interface NewsletterMeasurementMailResult {
@@ -152,6 +168,7 @@ export function parseNewsletterMeasurementClaims(raw: unknown): NewsletterMeasur
       consentVersion: version,
       unsubscribeToken: nullableText(row, index, "unsubscribe_token"),
       attempt,
+      origin: newsletterMeasurementOriginOf(row.origin),
     };
   });
 }
@@ -207,6 +224,11 @@ async function loadTenants(
 export interface NewsletterMeasurementMailOptions {
   /** Prośby na przebieg (domyślnie `NEWSLETTER_MEASUREMENT_MAIL_BATCH`). */
   limit?: number;
+  /**
+   * `signup` - przebieg poza oknem dziennym: WYŁĄCZNIE prośby po zapisie
+   * (`p_origin`). Brak - prośby obu pochodzeń (okno dzienne).
+   */
+  origin?: "signup";
   /** Chwila (ms epoki), po której krok nie zaczyna kolejnej prośby. */
   deadlineAt?: number;
   now?: () => Date;
@@ -226,9 +248,18 @@ export async function runNewsletterMeasurementMail(
     deferred: 0,
     gone: 0,
   };
-  const { data, error } = await asRpc(admin).rpc("newsletter_measurement_claim", {
-    p_limit: options.limit ?? NEWSLETTER_MEASUREMENT_MAIL_BATCH,
-  });
+  const limit = options.limit ?? NEWSLETTER_MEASUREMENT_MAIL_BATCH;
+  // Dwa jawne kształty wywołania (bramka kontraktu TS <-> SQL czyta klucze
+  // z literału): przebieg w oknie nie wysyła `p_origin`, więc działa także na
+  // bazie bez filtra pochodzenia; przebieg poza oknem na takiej bazie kończy
+  // się `migration_pending` (prośby po zapisie poczekają na okno).
+  const { data, error } =
+    options.origin === "signup"
+      ? await asRpc(admin).rpc("newsletter_measurement_claim", {
+          p_limit: limit,
+          p_origin: "signup",
+        })
+      : await asRpc(admin).rpc("newsletter_measurement_claim", { p_limit: limit });
   if (error) {
     const { isMigrationPending } = await import("@/lib/supabase/migrationPending");
     if (isMigrationPending(error)) return { ...result, skipped: "migration_pending" };
@@ -292,6 +323,7 @@ export async function runNewsletterMeasurementMail(
       });
       rendered = await renderMeasurementReconfirmEmail({
         lang: claim.lang,
+        origin: claim.origin,
         overrides: tenant.overrides,
         firstName: claim.firstName,
         confirmUrl: newsletterMeasurementUrl(tenant.origin, token, claim.lang),

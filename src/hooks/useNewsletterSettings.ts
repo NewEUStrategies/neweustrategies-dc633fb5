@@ -7,7 +7,9 @@ import {
   type PopupFieldConfig,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
-import { newsletterConsentHtml } from "@/lib/newsletter/consentText";
+// Liść treści bieżącej (b): bez sanitizera, treści (a) i pola pomiaru, które
+// `consentText` wciągałby do chunku startowego każdej strony czytelnika.
+import { newsletterConsentHtml } from "@/lib/newsletter/newsletterConsentCurrent";
 import { defaultPopupDesign, type PopupDesign } from "@/lib/newsletter/popupDesign";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";

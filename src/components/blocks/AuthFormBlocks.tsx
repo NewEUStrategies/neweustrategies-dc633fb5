@@ -35,6 +35,7 @@ import {
   signupNewsletterSubscription,
 } from "@/lib/newsletter/consentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import "@/lib/i18n-public";
 import "@/lib/i18n-public-auth";
 import { Button } from "@/components/ui/button";
@@ -211,6 +212,9 @@ function PasswordField({
   );
 }
 
+/** Wiersz pola wyboru formularzy konta (także osobne pole pomiaru). */
+const CHECKBOX_ROW_CLS = "widget-align-row flex w-full items-center gap-2 text-sm leading-snug";
+
 function CheckboxRow({
   checked,
   onChange,
@@ -225,12 +229,7 @@ function CheckboxRow({
   children: ReactNode;
 }) {
   return (
-    <label
-      className={cx(
-        "widget-align-row flex w-full items-center gap-2 text-sm cursor-pointer leading-snug",
-        className,
-      )}
-    >
+    <label className={cx(CHECKBOX_ROW_CLS, "cursor-pointer", className)}>
       <Checkbox
         className="shrink-0"
         checked={checked}
@@ -722,6 +721,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
   const [confirm, setConfirm] = useState("");
   const [consent, setConsent] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
+  // Osobne pole zgody na pomiar (I9d-Y2b) - DOMYŚLNIE NIEZAZNACZONE, aktywne
+  // tylko przy zaznaczonym newsletterze (odznaczenie newslettera je czyści).
+  const [measurement, setMeasurement] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
@@ -814,8 +816,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
   // Rozjazd kluczy: schemat/registry piszą `consentText`, komponent czytał
   // `consentLabel` - własna treść RODO nigdy się nie renderowała.
   const consentText = pickAuthText(data, ["consentText", "consentLabel"], lang, L.consentDefault);
-  // Pole „newsletter" (I9d-Y2): etykieta pusta albo domyślna = pełna treść
-  // zgody z pomiarem z jednego źródła; etykieta z buildera - bez zmian.
+  // Pole „newsletter" (I9d-Y2b): etykieta pusta albo domyślna = pełna treść
+  // zgody (b, bez pomiaru - pomiar ma osobne pole) z jednego źródła;
+  // etykieta z buildera - bez zmian.
   const newsletterConsent = resolveNewsletterConsent(
     pickAuthText(data, ["newsletterLabel"], lang, ""),
     lang,
@@ -893,12 +896,14 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
               lang,
               source: "register_widget",
               consent: newsletterConsent,
+              measurement,
             }),
           });
         } catch {
           // Niekrytyczne: konto powstało, zapis można ponowić formularzem.
         }
       }
+      setMeasurement(false);
       toast.success(L.ok);
       navigate({ to: redirectTo });
     } catch (err) {
@@ -977,13 +982,31 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
         />
 
         {showNewsletter && (
-          <CheckboxRow checked={newsletter} onChange={setNewsletter} className={layout.wide}>
+          <CheckboxRow
+            checked={newsletter}
+            onChange={(next) => {
+              setNewsletter(next);
+              if (!next) setMeasurement(false);
+            }}
+            className={layout.wide}
+          >
             {newsletterConsent.isDefault ? (
               <NewsletterConsentText lang={lang} />
             ) : (
               newsletterConsent.text
             )}
           </CheckboxRow>
+        )}
+        {/* Osobne pole zgody na pomiar (I9d-Y2b) - geometria `CheckboxRow`. */}
+        {showNewsletter && (
+          <MeasurementConsentField
+            lang={lang}
+            checked={measurement}
+            onCheckedChange={setMeasurement}
+            disabled={!newsletter}
+            className={cx(CHECKBOX_ROW_CLS, layout.wide)}
+            checkboxClassName="shrink-0"
+          />
         )}
         {requireConsent && (
           <CheckboxRow checked={consent} onChange={setConsent} required className={layout.wide}>

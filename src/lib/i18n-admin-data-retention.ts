@@ -414,7 +414,7 @@ const pl = {
       label: "Mierz otwarcia i kliknięcia w mailach ścieżek i kampanii",
       hint: "Wspólny przełącznik ścieżek i kampanii newslettera (ten sam w ustawieniach silnika ścieżek i w przeglądzie newslettera). Włączony: piksel i linki z identyfikatorem tylko u odbiorców ze zgodą na pomiar. Wyłączony: nowe maile bez piksela i linków z identyfikatorem, otwarcia i kliknięcia nie są zapisywane; wypis działa dalej.",
       recommendation:
-        "Wykonane (I9d-Y2): domyślna treść zgody na newsletter mówi o pomiarze otwarć i kliknięć, jego celu i osobnym wyłączeniu, a pomiar obejmuje wyłącznie osoby z taką zgodą (wytyczne EDPB 2/2023 w sprawie zakresu technicznego art. 5 ust. 3 dyrektywy 2002/58/WE). Własny tekst zgody oznaczasz w przeglądzie newslettera.",
+        "Wykonane (I9d-Y2, I9d-Y2b): pomiar otwarć i kliknięć ma osobne, domyślnie niezaznaczone pole i własną treść. Działa tylko dla aktywnego subskrybenta, który potwierdził zgodę przyciskiem na stronie z linku w e-mailu (wytyczne EDPB 2/2023 w sprawie zakresu technicznego art. 5 ust. 3 dyrektywy 2002/58/WE).",
       saved: "Zapisano ustawienie pomiaru otwarć.",
       error: "Nie udało się zapisać ustawienia pomiaru otwarć.",
     },
@@ -823,7 +823,7 @@ const en: typeof pl = {
       label: "Measure opens and clicks in journey and campaign emails",
       hint: "One switch for journeys and newsletter campaigns (the same one as in the journey engine settings and the newsletter overview). On: the pixel and links with an identifier only for recipients with measurement consent. Off: new emails carry no pixel or links with an identifier, and opens and clicks are not recorded; unsubscribe keeps working.",
       recommendation:
-        "Done (I9d-Y2): the default newsletter consent wording covers measuring opens and clicks, its purpose and switching it off separately, and measurement covers only people with such consent (EDPB Guidelines 2/2023 on the technical scope of Art. 5(3) of Directive 2002/58/EC). Mark your own consent wording in the newsletter overview.",
+        "Done (I9d-Y2, I9d-Y2b): measuring opens and clicks has its own unticked box and its own wording. It works only for an active subscriber who confirmed the consent with the button on the page opened from a link in an email (EDPB Guidelines 2/2023 on the technical scope of Art. 5(3) of Directive 2002/58/EC).",
       saved: "Open measurement setting saved.",
       error: "Could not save the open measurement setting.",
     },

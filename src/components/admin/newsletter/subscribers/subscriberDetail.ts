@@ -9,6 +9,10 @@
 //
 // Funkcje przeniesione z `SubscriberDetailDialog` bez zmiany zachowania.
 import type { Json } from "@/integrations/supabase/types";
+import {
+  EMAIL_MEASUREMENT_DECLARED_KEY,
+  normalizeConsentKey,
+} from "@/lib/newsletter/measurementConsentText";
 
 /** Wpis zgody w kształcie, w jakim czyta go widok szczegółów. */
 export interface Consent {
@@ -45,6 +49,25 @@ export function readConsents(raw: Json): Consent[] {
       },
     ];
   });
+}
+
+/**
+ * Stan wpisu zgody, jaki pokazuje okno:
+ *   * `declared` - DEKLARACJA pola pomiaru z formularza
+ *     (`email_measurement_declared`, I9d-Y2b R1.8): zaznaczone pole to nie
+ *     zgoda - zgodę na pomiar zapisuje dopiero potwierdzenie właściciela
+ *     skrzynki w rejestrze zgód, więc „✓ udzielona" byłoby nieprawdą;
+ *   * `given` - zgoda udzielona (jawne `true`);
+ *   * `missing` - brak zgody albo nieczytelny ładunek.
+ */
+export type ConsentEntryState = "given" | "declared" | "missing";
+
+export function consentEntryState(consent: Consent): ConsentEntryState {
+  if (!consent.given) return "missing";
+  return consent.key !== undefined &&
+    normalizeConsentKey(consent.key) === EMAIL_MEASUREMENT_DECLARED_KEY
+    ? "declared"
+    : "given";
 }
 
 /** Pary `klucz -> wartość` z kolumny `meta` (też `jsonb`, więc też nie obiekt z definicji). */

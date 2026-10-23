@@ -1,13 +1,17 @@
 // Organizm: „Poproś o zgodę na pomiar" i wspólny przełącznik pomiaru
 // w panelu newslettera (I9d-Y2, decyzja właściciela 2026-10-20 pkt 3 -
-// opcjonalne, ręcznie z panelu; Z-I9c-09).
+// opcjonalne, ręcznie z panelu; Z-I9c-09; I9d-Y2b - prośba dotyczy OSOBNEJ
+// zgody na pomiar, wersja treści pola pomiaru).
 //
 // PRZEBIEG. Admin widzi liczby (aktywni, ze zgodą, do prośby, na liście
-// wyłączeń) i stan próśb bieżącej wersji treści, potwierdza start z liczbą
-// z podglądu (`expected`) - baza odrzuca start, gdy kandydatów przybyło
-// (`conflict`), więc mail nigdy nie pójdzie do większej grupy, niż admin
-// zatwierdził. Wysyłkę robi krok `jobs-tick` w oknie dnia i w dziennym
-// limicie wspólnym z prośbami wygaszania (Y1). Brak reakcji = bez zmian.
+// wyłączeń) i stan próśb z PANELU bieżącej wersji treści pomiaru, potwierdza
+// start z liczbą z podglądu (`expected`) - baza odrzuca start, gdy
+// kandydatów przybyło (`conflict`), więc mail nigdy nie pójdzie do większej
+// grupy, niż admin zatwierdził. Wysyłkę robi krok `jobs-tick` w oknie dnia
+// i w dziennym limicie wspólnym z prośbami wygaszania (Y1). Brak reakcji =
+// bez zmian. Prośby po zapisie bez double opt-in (`origin = 'signup'`,
+// stała treść, własny limit) nie wchodzą do liczników karty - mówi to
+// notka `request.originNote`.
 //
 // PRZEŁĄCZNIK (Z-I9c-09). Jeden przełącznik najemcy dla ścieżek i kampanii
 // (`journey_settings.open_tracking_enabled`) - ten sam co w ustawieniach
@@ -210,6 +214,9 @@ function RequestBody({
           {t("adminNewsletterMeasurement.request.none")}
         </p>
       ) : null}
+      <p className="text-xs text-muted-foreground" data-request-note="origin">
+        {t("adminNewsletterMeasurement.request.originNote")}
+      </p>
       <p className="text-xs text-muted-foreground">
         {t("adminNewsletterMeasurement.request.sunsetNote")}
       </p>

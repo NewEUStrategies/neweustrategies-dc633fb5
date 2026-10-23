@@ -214,6 +214,12 @@ import {
   newsletterConsentHtml,
   newsletterConsentPlain,
 } from "@/lib/newsletter/consentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentHtml,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { axeViolations, summarize } from "@/test/axe";
 
 h.t = (lang: "pl" | "en") => realT(lang);
 
@@ -287,6 +293,19 @@ const emailInput = (): HTMLInputElement => {
 
 const textInputs = (): HTMLInputElement[] =>
   Array.from(document.querySelectorAll<HTMLInputElement>("input[type='text']"));
+
+/** Osobne pole zgody na pomiar (I9d-Y2b) - zawsze w formularzu. */
+const measurementBox = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>('[data-consent="email_measurement"] [role="checkbox"]');
+
+/** Pole wyboru pola custom (zgoda z buildera), z pominięciem pola pomiaru. */
+const customConsentBox = (): HTMLElement => {
+  const boxes = screen
+    .getAllByRole("checkbox")
+    .filter((el) => !el.closest('[data-consent="email_measurement"]'));
+  expect(boxes).toHaveLength(1);
+  return boxes[0];
+};
 
 beforeEach(() => {
   h.lang = "pl";
@@ -544,7 +563,7 @@ describe("NewsletterForm - co dokładnie leci na serwer", () => {
     expect(payload.custom).toBeUndefined();
   });
 
-  it("bez treści polityki formularz POKAZUJE i zapisuje treść domyślną z pomiarem (I9d-Y2)", async () => {
+  it("bez treści polityki formularz POKAZUJE i zapisuje treść domyślną (b) z wersją (I9d-Y2b)", async () => {
     h.settings = withSettings({ policy_html_pl: null, policy_html_en: null });
     const { container } = renderForm({ widgetConfig: { showFirstName: true } });
     // Treść widoczna pod formularzem = dowód zapisany w rejestrze.
@@ -756,7 +775,7 @@ describe("NewsletterForm - pola dodatkowe z buildera", () => {
   it("zgoda (checkbox) przełącza się kliknięciem i dokłada ukryte pole formularza", () => {
     const { container } = renderForm({ widgetConfig: CUSTOM });
 
-    const box = screen.getByRole("checkbox");
+    const box = customConsentBox();
     expect(container.querySelector("input[name='custom_zgoda']")).toBeNull();
 
     fireEvent.click(box);
@@ -788,7 +807,7 @@ describe("NewsletterForm - pola dodatkowe z buildera", () => {
     // przekazuje aktywację <label> także interaktywnym potomkom, czego
     // przeglądarki nie robią - przypadek pilnuje więc ścieżki, nie artefaktu.
     if (link) fireEvent.click(link);
-    expect(screen.getByRole("checkbox")).toBeInTheDocument();
+    expect(customConsentBox()).toBeInTheDocument();
   });
 
   it.fails(
@@ -807,11 +826,110 @@ describe("NewsletterForm - pola dodatkowe z buildera", () => {
         },
       });
       fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
-      fireEvent.click(screen.getByRole("checkbox"));
+      fireEvent.click(customConsentBox());
 
       await submit();
       expect(h.submissions).toHaveLength(1);
       expect(h.submissions[0].custom).toEqual({ zgoda: "1" });
+    },
+  );
+});
+
+// --- Osobne pole zgody na pomiar (I9d-Y2b) ------------------------------------
+
+describe("NewsletterForm - osobne pole zgody na pomiar", () => {
+  /** Układ zwarty: bez pól dodatkowych, pól custom i tematów. */
+  const COMPACT: Cfg = {
+    showFirstName: false,
+    showLastName: false,
+    showCompany: false,
+    showPosition: false,
+    showPhone: false,
+  };
+
+  it.each([
+    ["z polami dodatkowymi", ALL_FIELDS],
+    ["zwarty", COMPACT],
+  ])(
+    "układ %s: pole W formularzu, PRZED przyciskiem, domyślnie niezaznaczone",
+    (_label, widgetConfig) => {
+      renderForm({ widgetConfig });
+      const box = measurementBox();
+      expect(box).not.toBeNull();
+      expect(formEl().querySelector('[data-consent="email_measurement"] [role="checkbox"]')).toBe(
+        box,
+      );
+      expect(box).toHaveAttribute("aria-checked", "false");
+      expect(box?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+      const button = formEl().querySelector("button[type='submit'], button:not([type])");
+      expect(
+        (box as HTMLElement).compareDocumentPosition(button as HTMLElement) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+
+  it("bez zaznaczenia ładunek ma wyłącznie zgodę na newsletter", async () => {
+    renderForm({ widgetConfig: { showFirstName: true } });
+    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
+    await submit();
+    expect((h.submissions[0].consents as Array<{ key: string }>).map((c) => c.key)).toEqual([
+      "newsletter",
+    ]);
+  });
+
+  it("zaznaczone pole dokłada deklarację; sukces chowa pole, a kolejny zapis startuje od odznaczonego", async () => {
+    h.settings = withSettings({ policy_html_pl: null, policy_html_en: null });
+    renderForm({ widgetConfig: { showFirstName: true } });
+    fireEvent.click(measurementBox() as HTMLElement);
+    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
+    await submit();
+
+    expect(h.submissions[0].consents).toEqual([
+      {
+        key: "newsletter",
+        text: newsletterConsentHtml("pl"),
+        given: true,
+        lang: "pl",
+        version: NEWSLETTER_CONSENT_VERSION,
+      },
+      {
+        key: "email_measurement_declared",
+        text: measurementConsentHtml("pl"),
+        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        given: true,
+        lang: "pl",
+      },
+    ]);
+    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
+    expect(measurementBox()).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: dict("pl", "newsletterForm.addAnother") }));
+    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("EN: treść pola po angielsku", () => {
+    h.lang = "en";
+    renderForm({ widgetConfig: { showFirstName: true }, lang: "en" });
+    expect(measurementBox()?.closest("label")?.textContent).toBe(measurementConsentPlain("en"));
+  });
+
+  it.each(["light", "dark"] as const)(
+    "brak naruszeń axe z polem pomiaru (motyw %s)",
+    async (theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        // Pola stanowiska i telefonu mają dziś nazwę dostępną wyłącznie z
+        // etykiety pływającej bez powiązania (osobne zgłoszenie) - axe obejmuje
+        // tu formularz z polami, które ją mają, i z polem pomiaru.
+        const { container } = renderForm({
+          widgetConfig: { ...ALL_FIELDS, showPosition: false, showPhone: false },
+        });
+        const violations = await axeViolations(container);
+        expect(violations, summarize(violations)).toEqual([]);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
     },
   );
 });

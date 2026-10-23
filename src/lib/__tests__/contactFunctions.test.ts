@@ -196,7 +196,15 @@ vi.mock("@/lib/server/rate-limit.server", () => ({
 
 import { submitContactMessage } from "@/lib/contact.functions";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
+import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  MEASUREMENT_DOI_MAIL_NOTE,
+  measurementConsentHtml,
+  measurementConsentPayload,
+} from "@/lib/newsletter/measurementConsentText";
 import { CAREERS_FORM_ID } from "@/lib/careers/recruitmentShared";
+import { verifyDoiMeasurementToken } from "@/lib/privacy/measurementToken.server";
 
 // ---------------------------------------------------------------------------
 // Fixture'y. Wyłącznie dane syntetyczne - patrz sekcja 13.
@@ -598,9 +606,12 @@ describe("formularz kontaktowy - walidacja wejścia", () => {
       path: "referer",
     },
     {
-      why: "więcej niż 10 zgód",
+      why: "więcej zgód niż wspólny limit `CONSENT_ENTRIES_MAX` (12)",
       input: payload({
-        consents: Array.from({ length: 11 }, (_, i) => ({ key: `k${i}`, text: "t" })),
+        consents: Array.from({ length: CONSENT_ENTRIES_MAX + 1 }, (_, i) => ({
+          key: `k${i}`,
+          text: "t",
+        })),
       }),
       path: "consents",
     },
@@ -650,11 +661,15 @@ describe("formularz kontaktowy - walidacja wejścia", () => {
     { why: "treść o długości dokładnie 8000", input: { message: "x".repeat(8000) } },
     { why: "telefon o długości dokładnie 40", input: { phone: "1".repeat(40) } },
     // Granica GÓRNA, a nie pusta lista: `consents: []` przechodziłoby schemat
-    // trywialnie i nie mówiłoby nic o limicie `.max(10)` / `.max(20)`.
+    // trywialnie i nie mówiłoby nic o limicie `.max(CONSENT_ENTRIES_MAX)` /
+    // `.max(20)`. Limit wspólny z licznikiem pól NlDoc (`consentLimits.ts`).
     {
-      why: "dokładnie 10 zgód",
+      why: "dokładnie `CONSENT_ENTRIES_MAX` (12) zgód",
       input: {
-        consents: Array.from({ length: 10 }, (_, i) => ({ key: `zgoda-${i}`, text: `Treść ${i}` })),
+        consents: Array.from({ length: CONSENT_ENTRIES_MAX }, (_, i) => ({
+          key: `zgoda-${i}`,
+          text: `Treść ${i}`,
+        })),
       },
     },
     {
@@ -1742,6 +1757,269 @@ describe("formularz kontaktowy - newsletter i double opt-in", () => {
       status: "pending",
       error: "Resend: domain not verified",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11a. OSOBNE POLE POMIARU (I9d-Y2b): deklaracja, nie zgoda.
+// ---------------------------------------------------------------------------
+
+describe("formularz kontaktowy - osobne pole pomiaru (I9d-Y2b)", () => {
+  const NEWSLETTER_ENTRY = {
+    key: "newsletter",
+    text: newsletterConsentHtml("pl"),
+    given: true,
+    lang: "pl",
+    version: NEWSLETTER_CONSENT_VERSION,
+  } as const;
+  const RODO_ENTRY = { key: "rodo", text: "Zgoda na odpowiedź", given: true, lang: "pl" } as const;
+  const SUBSCRIBER_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+  function withDeclaration(extra: Record<string, unknown> = {}) {
+    return {
+      newsletterOptIn: true,
+      consents: [RODO_ENTRY, NEWSLETTER_ENTRY, measurementConsentPayload("pl")],
+      ...extra,
+    };
+  }
+
+  it("deklaracja trafia WYŁĄCZNIE do subskrybenta - `contact_messages` jej nie niesie", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit(withDeclaration());
+
+    const messageConsents = fieldOf(insertedRow(), "consents") as Record<string, unknown>[];
+    expect(messageConsents.map((entry) => entry.key)).toEqual(["rodo", "newsletter"]);
+    const subscriberConsents = fieldOf(subscriberRow(), "consents") as Record<string, unknown>[];
+    expect(subscriberConsents.map((entry) => entry.key)).toEqual([
+      "newsletter",
+      "email_measurement_declared",
+    ]);
+    expect(subscriberConsents[1]).toMatchObject({
+      text: measurementConsentHtml("pl"),
+      version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+      given: true,
+      lang: "pl",
+    });
+    expect(typeof subscriberConsents[1].received_at).toBe("string");
+  });
+
+  it("bez zgody na newsletter (`newsletterOptIn: false`) deklaracja znika - nie ma subskrybenta", async () => {
+    planHappyPath();
+    await submit(withDeclaration({ newsletterOptIn: false }));
+
+    const messageConsents = fieldOf(insertedRow(), "consents") as Record<string, unknown>[];
+    expect(messageConsents.map((entry) => entry.key)).toEqual(["rodo", "newsletter"]);
+    expect(db().chainsFor("newsletter_subscribers")).toEqual([]);
+    expect(h.rpcCalls.map((call) => call.name)).not.toContain(
+      "newsletter_measurement_request_signup",
+    );
+  });
+
+  it("pozycja `email_measurement` z formularza (stara paczka, spreparowany ładunek) znika wszędzie", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit({
+      newsletterOptIn: true,
+      consents: [
+        NEWSLETTER_ENTRY,
+        {
+          key: " Email_Measurement ",
+          text: measurementConsentHtml("pl"),
+          given: true,
+          version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        },
+        {
+          key: "email_measurement",
+          text: "Zgoda (a)",
+          given: true,
+          version: "newsletter-2026-10-21",
+        },
+      ],
+    });
+
+    const keysOf = (rows: unknown) =>
+      (rows as Record<string, unknown>[]).map((entry) => String(entry.key).trim().toLowerCase());
+    expect(keysOf(fieldOf(insertedRow(), "consents"))).not.toContain("email_measurement");
+    expect(keysOf(fieldOf(subscriberRow(), "consents"))).toEqual(["newsletter"]);
+  });
+
+  it("double opt-in: notka o pomiarze w mailu TYLKO przy zaznaczonym polu; bez prośby (pyta strona DOI)", async () => {
+    planHappyPath();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
+    await submit(withDeclaration());
+    const withNote = sentEmails().at(-1);
+    expect(withNote?.subject).toBe("Potwierdź zapis do newslettera");
+    expect(withNote?.html).toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+    expect(h.rpcCalls.map((call) => call.name)).not.toContain(
+      "newsletter_measurement_request_signup",
+    );
+
+    db().reset();
+    h.fetchCalls = [];
+    planHappyPath();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
+    await submit({ newsletterOptIn: true, consents: [NEWSLETTER_ENTRY] });
+    expect(sentEmails().at(-1)?.html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+    expect(sentEmails().at(-1)?.html).not.toMatch(/pomiar/i);
+    expect(sentEmails().at(-1)?.html).not.toMatch(/[?&;]m=/);
+  });
+
+  it("double opt-in z deklaracją: link niesie sekret skrzynki związany z wierszem `pending` i adresem (I9d-Y2b R1)", async () => {
+    planHappyPath();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
+    await submit(withDeclaration({ email: "Osoba@Example.test" }));
+
+    const html = sentEmails().at(-1)?.html ?? "";
+    const link =
+      /\/api\/public\/newsletter\/confirm\?token=([0-9a-f]{64})&amp;m=(d[0-9a-f]{72})/.exec(html);
+    expect(link).not.toBeNull();
+    expect(link?.[1]).toBe(fieldOf(subscriberRow(), "confirmation_token"));
+    expect(
+      verifyDoiMeasurementToken(link?.[2], {
+        subscriberId: SUBSCRIBER_ID,
+        email: "osoba@example.test",
+      }),
+    ).toMatchObject({ ok: true });
+    const upsert = chainWith("newsletter_subscribers", "upsert");
+    expect(upsert.argsOf("select")).toEqual(["id"]);
+  });
+
+  it("double opt-in z deklaracją bez id wiersza: mail bez sekretu i bez notki (fail-closed)", async () => {
+    planHappyPath();
+    planNewsletter();
+    await submit(withDeclaration());
+
+    const html = sentEmails().at(-1)?.html ?? "";
+    expect(html).toContain("/api/public/newsletter/confirm?token=");
+    expect(html).not.toMatch(/[?&;]m=/);
+    expect(html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+  });
+
+  it("notka w mailu DOI idzie w języku zgłoszenia (EN)", async () => {
+    planHappyPath();
+    planNewsletter({ upsert: ok({ id: SUBSCRIBER_ID }) });
+    await submit(
+      withDeclaration({
+        lang: "en",
+        consents: [
+          { ...NEWSLETTER_ENTRY, text: newsletterConsentHtml("en"), lang: "en" },
+          measurementConsentPayload("en"),
+        ],
+      }),
+    );
+    // Apostrofy i cudzysłowy przechodzą przez eskapowanie szablonu.
+    const html = sentEmails().at(-1)?.html ?? "";
+    expect(html).toContain("The form also had the box for consent to measuring opens and clicks");
+    expect(html).not.toContain(MEASUREMENT_DOI_MAIL_NOTE.pl);
+  });
+
+  it("bez double opt-in: prośba do właściciela skrzynki z id zapisanego subskrybenta", async () => {
+    planHappyPath();
+    planNewsletter({
+      newsletterSettings: { double_opt_in: false },
+      upsert: ok({ id: SUBSCRIBER_ID }),
+    });
+    h.rpcData.newsletter_measurement_request_signup = { result: "requested" };
+    const result = await submit(withDeclaration());
+
+    expect(result.emails.newsletter).toEqual({ ok: true, status: "subscribed" });
+    const upsert = chainWith("newsletter_subscribers", "upsert");
+    expect(upsert.argsOf("select")).toEqual(["id"]);
+    expect(upsert.has("single")).toBe(true);
+    const call = h.rpcCalls.find((entry) => entry.name === "newsletter_measurement_request_signup");
+    expect(call?.args).toEqual({ p_subscriber: SUBSCRIBER_ID });
+  });
+
+  it("bez double opt-in i bez zaznaczonego pola - żadnej prośby", async () => {
+    planHappyPath();
+    planNewsletter({
+      newsletterSettings: { double_opt_in: false },
+      upsert: ok({ id: SUBSCRIBER_ID }),
+    });
+    await submit({ newsletterOptIn: true, consents: [NEWSLETTER_ENTRY] });
+
+    expect(h.rpcCalls.map((call) => call.name)).not.toContain(
+      "newsletter_measurement_request_signup",
+    );
+  });
+
+  it("awaria prośby (błąd albo wyjątek RPC) nie psuje zgłoszenia ani zapisu", async () => {
+    for (const mode of ["error", "throw"] as const) {
+      db().reset();
+      h.rpcCalls = [];
+      h.rpcError = {};
+      h.rpcThrows = [];
+      planHappyPath();
+      planNewsletter({
+        newsletterSettings: { double_opt_in: false },
+        upsert: ok({ id: SUBSCRIBER_ID }),
+      });
+      if (mode === "error") h.rpcError.newsletter_measurement_request_signup = "boom";
+      else h.rpcThrows.push("newsletter_measurement_request_signup");
+
+      const result = await submit(withDeclaration());
+
+      expect(result.ok).toBe(true);
+      expect(result.emails.newsletter).toEqual({ ok: true, status: "subscribed" });
+    }
+  });
+
+  it("adres już zapisany: deklaracja dopisana do `consents` (stare deklaracje zastąpione) i prośba", async () => {
+    planHappyPath();
+    planNewsletter({
+      existing: {
+        id: SUBSCRIBER_ID,
+        status: "subscribed",
+        consents: [
+          { key: "newsletter", text: "stara zgoda", received_at: "2026-01-01T00:00:00.000Z" },
+          {
+            key: "email_measurement_declared",
+            text: measurementConsentHtml("pl"),
+            received_at: "2026-02-01T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+    const result = await submit(withDeclaration());
+
+    expect(result.emails.newsletter).toEqual({ ok: true, status: "exists" });
+    expect(
+      db()
+        .chainsFor("newsletter_subscribers")
+        .filter((chain) => chain.has("upsert")),
+    ).toEqual([]);
+    const update = chainWith("newsletter_subscribers", "update");
+    const next = fieldOf(update.argsOf("update")?.[0], "consents") as Record<string, unknown>[];
+    expect(next.map((entry) => entry.key)).toEqual(["newsletter", "email_measurement_declared"]);
+    expect(next[0]).toEqual({
+      key: "newsletter",
+      text: "stara zgoda",
+      received_at: "2026-01-01T00:00:00.000Z",
+    });
+    expect(next[1].received_at).not.toBe("2026-02-01T00:00:00.000Z");
+    const eqs = update.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqs).toEqual([
+      ["id", SUBSCRIBER_ID],
+      ["tenant_id", IDS.tenant],
+    ]);
+    const call = h.rpcCalls.find((entry) => entry.name === "newsletter_measurement_request_signup");
+    expect(call?.args).toEqual({ p_subscriber: SUBSCRIBER_ID });
+  });
+
+  it("adres już zapisany bez zaznaczonego pola: bez zapisu i bez prośby", async () => {
+    planHappyPath();
+    planNewsletter({ existing: { id: SUBSCRIBER_ID, status: "subscribed", consents: [] } });
+    await submit({ newsletterOptIn: true, consents: [NEWSLETTER_ENTRY] });
+
+    expect(
+      db()
+        .chainsFor("newsletter_subscribers")
+        .filter((chain) => chain.has("update") || chain.has("upsert")),
+    ).toEqual([]);
+    expect(h.rpcCalls.map((call) => call.name)).not.toContain(
+      "newsletter_measurement_request_signup",
+    );
   });
 });
 

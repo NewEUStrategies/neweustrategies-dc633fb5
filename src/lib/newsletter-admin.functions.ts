@@ -2,6 +2,8 @@
 //
 // TRZY ROZNE BRAMKI, bo to sa trzy rozne zasoby. Import listy stoi na
 // `requireStaff` - to dane najemcy, zakresowane `tenant_id` z `profiles`.
+// Stan zgody na pomiar subskrybenta (okno szczegolow) stoi na
+// `requireAdminEditor` - ta sama rola co RLS odczytu `newsletter_subscribers`.
 // Odczyt stanu runnera stoi na `requireAdminEditor` - ta sama rola co RPC
 // `job_scheduler_health()` po drugiej stronie panelu zdrowia (autorzy tresci
 // nie ogladaja telemetrii platformy). Zapis konfiguracji runnera stoi na
@@ -19,6 +21,10 @@ import {
   requireStaff,
 } from "@/integrations/supabase/require-staff";
 import type { RunnerTickStatus } from "@/lib/email/runnerHealth";
+import {
+  subscriberMeasurementConsentOf,
+  type SubscriberMeasurementConsent,
+} from "@/lib/newsletter/subscriberMeasurementState";
 
 const ImportRow = z.object({
   email: z.string().trim().email().max(254),
@@ -105,6 +111,47 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
     }
 
     return { ok: true, imported, skipped, errors };
+  });
+
+// ----------------------------------------------------------------------------
+// Stan zgody na pomiar otwarć i kliknięć w oknie szczegółów subskrybenta
+// (I9d-Y2b, R1.8; przegląd R1 - ui-r1-1). Okno pokazywało deklarację z pola
+// pomiaru na stałe jako „czeka na potwierdzenie", także po decyzji
+// właściciela skrzynki - fałszywy stan zgody. Rzeczywisty stan liczy czytelnik
+// zgody w bazie; RPC `email_measurement_state` jest tylko dla `service_role`,
+// więc woła je serwer. Rola jak przy odczycie listy (RLS „newsletter staff
+// read": admin/editor), najemca WYŁĄCZNIE z profilu sesji - wynik dla wiersza
+// innego najemcy to `gone` (`subscriberMeasurementConsentOf`). Odczyt bez
+// mutacji; do panelu trafia sama decyzja czytelnika i przełącznik najemcy
+// (bez adresu, języka i identyfikatora najemcy).
+// ----------------------------------------------------------------------------
+
+const SubscriberMeasurementInput = z.object({ subscriberId: z.string().uuid() }).strict();
+
+export const getSubscriberMeasurementConsent = createServerFn({ method: "POST" })
+  .middleware([requireAdminEditor])
+  .validator((data: unknown) => SubscriberMeasurementInput.parse(data))
+  .handler(async ({ data, context }): Promise<SubscriberMeasurementConsent> => {
+    const { data: profile, error: profileErr } = await context.supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (profileErr || !profile?.tenant_id) return { result: "error" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: raw, error } = await supabaseAdmin.rpc("email_measurement_state", {
+      p_subscriber: data.subscriberId,
+    });
+    if (error) {
+      console.error("[getSubscriberMeasurementConsent] state failed", {
+        userId: context.userId,
+        message: error.message,
+        code: error.code,
+      });
+      return { result: "error" };
+    }
+    return subscriberMeasurementConsentOf(raw, profile.tenant_id);
   });
 
 // ----------------------------------------------------------------------------

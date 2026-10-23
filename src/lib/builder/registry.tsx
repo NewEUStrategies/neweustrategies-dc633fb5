@@ -2351,7 +2351,11 @@ export const WIDGETS: WidgetDef[] = [
       showNewsletterOptIn: false,
       // Puste = pełna treść zgody na newsletter z jednego źródła (I9d-Y2,
       // `@/lib/newsletter/consentText`) - rejestr nie kopiuje treści zgody
-      // do strony; dawne kopie etykiety mapuje widok przy renderze.
+      // do strony; dawne kopie etykiety mapuje widok przy renderze. Od
+      // I9d-Y2b (wariant (b)) treść zgody na newsletter nie dotyczy pomiaru:
+      // osobne, niezaznaczone pole zgody na pomiar dokłada widok pod tym
+      // polem (stała treść `measurementConsentText`, bez ustawień w panelu) -
+      // własna etykieta nie powinna opisywać pomiaru (kontrola K5b).
       newsletterLabel_pl: "",
       newsletterLabel_en: "",
       columns: 2, // 1 | 2 | 3

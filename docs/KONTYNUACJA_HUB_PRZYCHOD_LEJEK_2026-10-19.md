@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7, I9d-Y1, I9d-Y2 i I9)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7, I9d-Y1, I9d-Y2 i I9, 2026-10-23 po I9d-Y2b)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22, I9d-Y2 - §21.23), §22 (S8), §23 (S7, scalenie po S8 - §23.11) i §24 (I9 - integracja, wydanie i raport końcowy §24.11); runbook `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`; specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22, I9d-Y2 - §21.23), §22 (S8), §23 (S7, scalenie po S8 - §23.11), §24 (I9 - integracja, wydanie i raport końcowy §24.11) i §25 (I9d-Y2b - osobna zgoda na pomiar); runbook `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`; specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -158,6 +158,44 @@ czytelnicy zdarzeń kampanii po retencji. Runbook
 wycofanie, kolejność wdrożenia `0347…0390` z kontrolnym SQL). Ratchet D-08
 `overall` 5357 → 5371. Otwarte - §24.6 dziennika.
 
+**I9d-Y2b (2026-10-23, §25 dziennika) - osobny PR:** decyzje właściciela
+2026-10-23 - **D1 wariant (b)** (każda zgoda ma osobne pole: osobne,
+domyślnie niezaznaczone pole zgody na pomiar otwarć i kliknięć z własną,
+wersjonowaną treścią `email-measurement-2026-10-23`; treść zgody na
+newsletter `newsletter-2026-10-23` bez pomiaru) i **D2** (pomiar tylko dla
+skrzynki potwierdzonej przez jej właściciela: zaznaczone pole to
+deklaracja `email_measurement_declared`, zgodę zapisuje wyłącznie
+`_email_measurement_grant` po kliknięciu na stronie DOI albo z linku
+w mailu z prośbą; czytelnik - tylko aktywny subskrybent z wpisem
+związanym z jego wierszem). Gałąź PR `claude/loving-einstein-caze7r` (baza
+`origin/main` `28fb22996`), faza 0 `48da4c2de`, pasy A-D równolegle,
+potem integracja. 3 migracje `20261023090000…090200` (bliźniaki
+`0394…0396` + wpisy `drizzleOnly` dla `0392`/`0393` - integracja)
+i poprawki przeglądu R1 `20261023090300` (bliźniak `0397`):
+koniec pakietowania (DROP wyzwalacza i RPC oznaczeń, tabela oznaczeń -
+archiwum), strażnik rejestru INSERT+UPDATE, jedyny pisarz „tak”,
+czytelnik D2, wypis = „nie” `measurement:unsubscribe`, strona DOI
+(`newsletter_doi_measurement_state`/`_decide`), prośby po zapisie
+(`origin = 'signup'`, własny limit 500/dobę, bez okna). Panel bez
+oznaczeń admina, podgląd pola pomiaru, ostrzeżenie R1.24; polityki
+komunikacji i prywatności 2026-10-23; rejestr czynności (wpis 10);
+runbook §3.3, §6, §7.2 i **§8.2** (kolejność, Y2b-K1…K9 i K5b, wyłącznik).
+**Następne wolne numery po tym PR: pas supabase - po `20261023090300`;
+drizzle - `0398`.** Integracja (§25 pkt 12): scalenia pasów, bliźniaki
+i wpisy pasów, typy, authz; treść domyślna zgody w chunku startowym
+z liścia `newsletterConsentCurrent` (sanitizer i treść pola pomiaru poza
+`app-initial`); ratchet D-08 `overall` 5371 → 5378. Otwarte: Z-I9d-23
+(§25 pkt 10; Z-I9d-22 i Z-I9d-24 zamknięte w poprawkach przeglądu R1 -
+§25 pkt 13), pytania Q1-Q3 (§25 pkt 9). Poprawki przeglądu R1 (§25
+pkt 13-14): strona DOI wymaga podpisanego sekretu skrzynki `m` z maila DOI
+(token DOI widział personel), uprawnienia kolumnowe personelu do
+`newsletter_subscribers` (bez `confirmation_token`; nowa kolumna tej
+tabeli = dopisać do `GRANT SELECT (…)`), prośba związana z adresem
+wysyłki (`email_norm`), termin DOI od wysłania maila, domknięcie łańcuchów
+pomiaru (wypis sprzed wdrożenia, wycofanie newsletter/marketing -
+`measurement:opt_out`), odmowa bez zgody w rejestrze (`refused`); ratchet
+D-08 `overall` 5378 → 5380 (admin-only +1,6).
+
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
 ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
@@ -214,7 +252,10 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `162900`), bliźniak drizzle od `0391` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `162900`; I9d-Y2b `20261023*` - zajęte do `090300`),
+  bliźniak drizzle od `0398` + `_journal.json` (`0391` - potwierdzenie
+  wdrożenia PR #530, `0392`/`0393` - kupony z Lovable, `0394…0397` -
+  I9d-Y2b); tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
@@ -224,15 +265,20 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 
 **Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
 z kontenera - §21.18 i zbiorczo §24.11 pkt 4 dziennika): wdrożenie migracji
-`0347…0390` i publikacja frontu (kolejność i kontrolny SQL -
-`docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8; §21.17, §21.20, §21.21, §21.22 - retencja: 14 dni podglądu, także
+I9d-Y2b `0394…0396` PRZED publikacją frontu (kolejność obowiązkowa,
+kontrole Y2b-K1…K9 i K5b, wyłącznik - `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`
+§8.2; fale `0347…0390` potwierdza `0391`, kolejność i kontrolny SQL - §8; §21.17, §21.20, §21.21, §21.22 - retencja: 14 dni podglądu, także
 osobne dla nowych kategorii I9d, przegląd liczb i listy „do wygaszenia”
 w karcie przed terminem karencji; §21.23 - skokowy spadek wskaźników otwarć
 po wdrożeniu, opcjonalna „Poproś o zgodę na pomiar”, `first_party`
 i tracking dostawcy wyłączony, własne wersje polityk w panelu dokumentów);
 Z-I9d-01 - okres dla subskrybentów niepotwierdzonych i wypisanych;
-Z-I9d-11 i Z-I9d-13 (zgody wydarzeń i premium z pomiarem, oznaczenie
-wstecz) oraz ocena IOD Z-I9d-12 (pomiar maili serwisowych ścieżek); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
+Z-I9d-11 (zgody wydarzeń i premium - od I9d-Y2b osobne pole pomiaru;
+Z-I9d-13 zamknięte w I9d-Y2b) oraz ocena IOD Z-I9d-12 (pomiar maili
+serwisowych ścieżek); I9d-Y2b Q1 (zdarzenia otwarć i kliknięć z okresu
+(a) - w PR nic nie usuwamy, runbook §8.2 Y2b-K6), Q2 (double opt-in na
+produkcji - Y2b-K1), Q3 (brzmienie treści pola pomiaru i zgody na
+newsletter - do przeglądu IOD); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
 (kupon w panelu, `Idempotency-Key` w logach, portal z powodami - Z-I9b-13);
 Z-S2-11 - powody rezygnacji w konfiguracji portalu klienta Stripe; Z-S5-07
 (M3) - włączenie silnika ścieżek po teście na żywo, po I9; konektor

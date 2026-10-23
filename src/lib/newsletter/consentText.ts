@@ -1,56 +1,77 @@
-// TREŚĆ ZGODY NA NEWSLETTER - JEDNO ŹRÓDŁO PO STRONIE TS (I9d-Y2, decyzje
-// właściciela 2026-10-20 „tak, uzupełnij" i 2026-10-21, wariant (a)).
+// TREŚĆ ZGODY NA NEWSLETTER - JEDNO ŹRÓDŁO PO STRONIE TS (I9d-Y2, I9d-Y2b;
+// decyzje właściciela 2026-10-20, 2026-10-21 i 2026-10-23).
 //
-// Domyślna treść mówi wprost o pomiarze otwarć i kliknięć, jego celu
-// (dopasowanie treści i częstotliwości, statystyka), o tym, że pomiar można
-// wyłączyć OSOBNO - bez rezygnacji z newslettera (art. 7 ust. 4 RODO: zgoda
-// na newsletter nie jest uzależniona od zgody na pomiar) - i że zgodę można
-// wycofać w każdej chwili (link do sekcji „rezygnacja" polityki komunikacji).
-// Pomiar to dostęp do informacji w urządzeniu odbiorcy (piksel, link
-// z identyfikatorem), więc wymaga zgody - wytyczne EDPB 2/2023 do art. 5
-// ust. 3 dyrektywy 2002/58/WE.
+// WARIANT (b) OD 2026-10-23: KAŻDA ZGODA MA OSOBNE POLE. Treść zgody na
+// newsletter nie wspomina pomiaru otwarć i kliknięć ani nie dokłada drugiej
+// zgody w tym samym zdaniu („akceptujesz Politykę prywatności" - polityka to
+// informacja z art. 13 RODO, nie zgoda). Pomiar ma osobne, domyślnie
+// niezaznaczone pole z własną treścią i wersją
+// (`./measurementConsentText.ts`). Treść pakietowa (a) `newsletter-2026-10-21`
+// zostaje w rejestrze wersji wyłącznie jako dowód tego, co osoba widziała,
+// i jako „dawna treść domyślna" (kopie w danych podmieniamy na bieżącą).
 //
 // LUSTRO SQL. Ta sama treść (HTML, bajt w bajt) i ta sama wersja żyją
 // w `_newsletter_consent_default` / `_newsletter_consent_version`
-// (supabase/migrations/20261020162300_consent_measurement_core.sql) - stamtąd
-// biorą ją DEFAULT kolumn `newsletter_settings.policy_html_*`, wpis rejestru
-// zgód przy potwierdzeniu pomiaru linkiem z maila i wyzwalacz
-// `email_measurement`. Test parytetu (`__tests__/consentText.test.ts`) czyta
-// bloki `newsletter-consent-default:*` z migracji: zmiana treści tu bez
+// (supabase/migrations/20261023090000_consent_measurement_separate_core.sql) -
+// stamtąd biorą ją DEFAULT kolumn `newsletter_settings.policy_html_*`.
+// Test parytetu (`__tests__/consentText.test.ts`) czyta bloki
+// `newsletter-consent-default:*` z NAJNOWSZEJ migracji: zmiana treści tu bez
 // nowej wersji tam (i odwrotnie) zatrzymuje CI.
 //
 // WERSJI WYDANEJ NIE ZMIENIA SIĘ. Nowa treść = nowa wersja (stała niżej,
-// literał w nowej migracji i dopisek do `_consent_measurement_versions`).
+// literał w nowej migracji i wpis w `NEWSLETTER_CONSENT_SEGMENTS_BY_VERSION`).
 // Wpis w rejestrze zgód niesie wersję, więc da się wykazać, KTÓRĄ treść
 // osoba widziała (art. 7 ust. 1 RODO).
 //
-// MODUŁ CZYSTY: bez Reacta, bez I/O, bez zależności - czytają go formularze
-// publiczne (chunki czytelnika), serwer (normalizacja wersji w ładunku zgody)
-// i panel. Treść nie jest w słowniku i18n celowo: słownik bywa nadpisywany,
-// a dowód zgody musi wskazywać jedną, wersjonowaną treść.
+// MODUŁ CZYSTY: bez Reacta, bez I/O - czytają go formularze publiczne
+// (chunki czytelnika), serwer (sanitizer ładunku zgód) i panel. Treść nie
+// jest w słowniku i18n celowo: słownik bywa nadpisywany, a dowód zgody musi
+// wskazywać jedną, wersjonowaną treść.
+import {
+  CONSENT_LANGS,
+  segmentsHtml,
+  segmentsPlain,
+  type ConsentLang,
+  type ConsentSegment,
+} from "./consentSegments";
+import {
+  NEWSLETTER_CONSENT_CURRENT_SEGMENTS,
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+} from "./newsletterConsentCurrent";
+import {
+  EMAIL_MEASUREMENT_CONSENT_KEY,
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  EMAIL_MEASUREMENT_DECLARED_KEY,
+  isMeasurementConsentText,
+  MEASUREMENT_CONSENT_VERSIONS,
+  measurementConsentHtml,
+  measurementConsentLangOf,
+  measurementConsentPayload,
+  normalizeConsentKey,
+  type MeasurementConsentPayload,
+} from "./measurementConsentText";
 
-export type ConsentLang = "pl" | "en";
+// Zgodność importów: typy odcinków mieszkają w liściu `consentSegments`.
+export type { ConsentLang, ConsentSegment } from "./consentSegments";
 
-/** Wersja bieżącej treści domyślnej (z pomiarem). Limit ładunku `version`: 32 znaki. */
-export const NEWSLETTER_CONSENT_VERSION = "newsletter-2026-10-21";
+// Wersja i odcinki treści bieżącej (b) mieszkają w liściu
+// `./newsletterConsentCurrent` - chunk startowy (hook korzenia) bierze je
+// stamtąd bez reszty tego modułu i bez treści pola pomiaru.
+export { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml };
 
 /**
- * Wersje treści OBEJMUJĄCE pomiar otwarć i kliknięć (lustro
- * `_consent_measurement_versions()`): wpis „tak" z taką wersją daje w bazie
- * zgodę `email_measurement`.
+ * Wersja treści pakietowej (a) z 2026-10-21 (zgoda na newsletter z opisem
+ * pomiaru w jednym zdaniu). Od 20261023090000 NIE daje pomiaru - zostaje
+ * jako dowód treści, którą osoba widziała.
  */
-export const MEASUREMENT_CONSENT_VERSIONS: readonly string[] = [NEWSLETTER_CONSENT_VERSION];
-
-/** Odcinek treści: tekst albo link (adres wewnętrzny serwisu i etykieta). */
-export type ConsentSegment = string | { readonly href: string; readonly label: string };
+export const NEWSLETTER_CONSENT_VERSION_BUNDLED = "newsletter-2026-10-21";
 
 /**
- * Treść domyślna jako odcinki - z nich powstaje HTML (lustro SQL) i widok
- * React bez `innerHTML` (`NewsletterConsentText`). Ścieżki EN z prefiksem
- * `/en` (jedna trasa dokumentu na oba języki - `documentIndex.ts`); dawne
- * `/privacy-policy` nie istniało.
+ * Treść (a) - bajt w bajt literały `_newsletter_consent_default` z
+ * 20261020162300 (`c_a_pl`/`c_a_en` w 20261023090000).
  */
-const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
+const SEGMENTS_BUNDLED: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
   pl: [
     "Zapisując się, wyrażasz zgodę na otrzymywanie newslettera i akceptujesz ",
     { href: "/polityka-prywatnosci", label: "Politykę prywatności" },
@@ -67,11 +88,29 @@ const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
   ],
 };
 
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c,
-  );
+/** Treść bieżąca (b) jako odcinki - definicja w liściu `./newsletterConsentCurrent`. */
+const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> =
+  NEWSLETTER_CONSENT_CURRENT_SEGMENTS;
+
+/**
+ * Wydane wersje treści domyślnej zgody na newsletter -> odcinki PL/EN.
+ * Wersja z tej mapy w ładunku zostaje WYŁĄCZNIE przy dokładnej treści tej
+ * wersji (`normalizeConsentVersion`).
+ */
+export const NEWSLETTER_CONSENT_SEGMENTS_BY_VERSION: Readonly<
+  Record<string, Readonly<Record<ConsentLang, readonly ConsentSegment[]>>>
+> = {
+  [NEWSLETTER_CONSENT_VERSION_BUNDLED]: SEGMENTS_BUNDLED,
+  [NEWSLETTER_CONSENT_VERSION]: SEGMENTS,
+};
+
+/** Odcinki wydanej wersji (własne pola mapy - bez łańcucha prototypów). */
+function newsletterSegmentsOf(
+  version: string,
+): Readonly<Record<ConsentLang, readonly ConsentSegment[]>> | undefined {
+  return Object.prototype.hasOwnProperty.call(NEWSLETTER_CONSENT_SEGMENTS_BY_VERSION, version)
+    ? NEWSLETTER_CONSENT_SEGMENTS_BY_VERSION[version]
+    : undefined;
 }
 
 /** Odcinki treści domyślnej (widok React). */
@@ -79,26 +118,25 @@ export function newsletterConsentSegments(lang: ConsentLang): readonly ConsentSe
   return SEGMENTS[lang];
 }
 
-/** Treść domyślna jako HTML - DOKŁADNIE literał SQL (dowód w rejestrze zgód). */
-export function newsletterConsentHtml(lang: ConsentLang): string {
-  return SEGMENTS[lang]
-    .map((part) =>
-      typeof part === "string"
-        ? escapeHtml(part)
-        : `<a href="${escapeHtml(part.href)}">${escapeHtml(part.label)}</a>`,
-    )
-    .join("");
-}
-
 /** Treść domyślna bez znaczników (tekst maila, czytniki bez HTML). */
 export function newsletterConsentPlain(lang: ConsentLang): string {
-  return SEGMENTS[lang].map((part) => (typeof part === "string" ? part : part.label)).join("");
+  return segmentsPlain(SEGMENTS[lang]);
 }
 
+/** Dawne DEFAULT kolumn `policy_html_*` (= `c_old_pl`/`c_old_en` w 20261020162300). */
+const OLD_POLICY_HTML_PL =
+  'Zapisując się akceptujesz <a href="/polityka-prywatnosci">Politykę prywatności</a>. Możesz wypisać się w każdej chwili.';
+const OLD_POLICY_HTML_EN =
+  'By signing up, you agree to our <a href="/privacy-policy">Privacy Policy</a>. You may unsubscribe at any time.';
+
+/** Treść (a) jako HTML (= `c_a_pl`/`c_a_en` w 20261023090000). */
+const BUNDLED_POLICY_HTML_PL = segmentsHtml(SEGMENTS_BUNDLED.pl);
+const BUNDLED_POLICY_HTML_EN = segmentsHtml(SEGMENTS_BUNDLED.en);
+
 /**
- * DAWNE TREŚCI DOMYŚLNE (bez pomiaru) - kopie zapisane w danych sprzed Y2:
- * kolumny `policy_html_*` (DEFAULT 20260601054247; migracja 20261020162300
- * podmieniła tylko wiersze równe staremu domyślnemu), akapit dokumentu
+ * DAWNE TREŚCI DOMYŚLNE - kopie zapisane w danych: kolumny `policy_html_*`
+ * (DEFAULT 20260601054247 i treść pakietowa (a) z 20261020162300; migracje
+ * podmieniają tylko wiersze równe dawnym domyślnym), akapit dokumentu
  * buildera newslettera (kopia `policy_html` przy zasiewie), właściwość
  * `consentText` widżetu „Dołącz do nas" (kopia słownika) i etykiety pól
  * wyboru newslettera. Treść równa któremuś z nich jest traktowana jak
@@ -106,9 +144,12 @@ export function newsletterConsentPlain(lang: ConsentLang): string {
  * nigdy nie podmieniamy.
  */
 export const LEGACY_NEWSLETTER_CONSENT_DEFAULTS: readonly string[] = [
-  // `newsletter_settings.policy_html_*` (= c_old_pl/c_old_en w 20261020162300).
-  'Zapisując się akceptujesz <a href="/polityka-prywatnosci">Politykę prywatności</a>. Możesz wypisać się w każdej chwili.',
-  'By signing up, you agree to our <a href="/privacy-policy">Privacy Policy</a>. You may unsubscribe at any time.',
+  // `newsletter_settings.policy_html_*` sprzed Y2 (= c_old_pl/c_old_en).
+  OLD_POLICY_HTML_PL,
+  OLD_POLICY_HTML_EN,
+  // Treść pakietowa (a) `newsletter-2026-10-21` (= c_a_pl/c_a_en).
+  BUNDLED_POLICY_HTML_PL,
+  BUNDLED_POLICY_HTML_EN,
   // Słownik `newsletterForm.consentDefault` (zapisywany, gdy `policy_html` był pusty).
   "Wyrażam zgodę na otrzymywanie newslettera i przetwarzanie mojego adresu e-mail w tym celu.",
   "I agree to receive the newsletter and processing of my e-mail address for that purpose.",
@@ -118,7 +159,7 @@ export const LEGACY_NEWSLETTER_CONSENT_DEFAULTS: readonly string[] = [
   // Domyślne etykiety pól wyboru „newsletter" (popup rejestracji
   // `popup_fields`, widżet rejestracji, bramka klubu, formularz kontaktu -
   // rejestr buildera kopiował je do treści strony). Pole z taką etykietą
-  // pokazuje pełną treść zgody: sama etykieta nie mówiła o pomiarze.
+  // pokazuje pełną treść zgody.
   "Chcę otrzymywać newsletter",
   "I want to receive the newsletter",
   "Subscribe to newsletter",
@@ -127,8 +168,17 @@ export const LEGACY_NEWSLETTER_CONSENT_DEFAULTS: readonly string[] = [
 ];
 
 const LEGACY = new Set(LEGACY_NEWSLETTER_CONSENT_DEFAULTS.map((text) => text.trim()));
-/** Dwie pierwsze pozycje listy = dawne DEFAULT kolumn `policy_html_pl/_en`. */
-const LEGACY_POLICY_HTML = new Set(LEGACY_NEWSLETTER_CONSENT_DEFAULTS.slice(0, 2));
+/**
+ * Kopie treści `policy_html` (dawne DEFAULT kolumn i treść (a)) - jawna
+ * lista, nie wycinek: kolejność `LEGACY_NEWSLETTER_CONSENT_DEFAULTS` nie jest
+ * kontraktem.
+ */
+const LEGACY_POLICY_HTML = new Set([
+  OLD_POLICY_HTML_PL,
+  OLD_POLICY_HTML_EN,
+  BUNDLED_POLICY_HTML_PL,
+  BUNDLED_POLICY_HTML_EN,
+]);
 
 /** Czy tekst (po obcięciu brzegów) jest dawną albo bieżącą treścią domyślną. */
 export function isNewsletterConsentDefault(text: string | null | undefined): boolean {
@@ -143,10 +193,10 @@ export function isNewsletterConsentDefault(text: string | null | undefined): boo
 
 /**
  * Akapit z KOPIĄ treści zgody (dokument buildera newslettera kopiuje
- * `policy_html` przy zasiewie): dawna albo bieżąca treść domyślna -> bieżąca
- * w języku formularza, każdy inny tekst (także pusty) bez zmian. Mapowanie
- * przy renderze zamiast masowej aktualizacji JSON-u dokumentów (szkice,
- * rewizje, publikacje).
+ * `policy_html` przy zasiewie): dawna (także (a)) albo bieżąca treść domyślna
+ * -> bieżąca w języku formularza, każdy inny tekst (także pusty) bez zmian.
+ * Mapowanie przy renderze zamiast masowej aktualizacji JSON-u dokumentów
+ * (szkice, rewizje, publikacje).
  */
 export function upgradeLegacyConsentHtml(html: string, lang: ConsentLang): string {
   const value = html.trim();
@@ -165,11 +215,11 @@ export type ResolvedNewsletterConsent =
   | { readonly isDefault: false; readonly text: string; readonly version?: undefined };
 
 /**
- * Pole z panelu albo buildera -> treść zgody. Puste, dawne domyślne i bieżące
- * domyślne = BIEŻĄCA treść domyślna w języku formularza z wersją z pomiarem.
- * Tekst własny admina zostaje bez zmian i bez wersji (serwer dopisze skrót
- * treści; pomiar obejmie go tylko po jawnym oznaczeniu w panelu - skrót
- * zapisanego tekstu w `newsletter_consent_measurement_marks`).
+ * Pole z panelu albo buildera -> treść zgody. Puste, dawne domyślne (także
+ * (a)) i bieżące domyślne = BIEŻĄCA treść domyślna w języku formularza
+ * z wersją (b). Tekst własny admina zostaje bez zmian i bez wersji (serwer
+ * dopisze skrót treści). Żadna treść zgody na newsletter nie daje pomiaru -
+ * pomiar ma osobne pole.
  */
 export function resolveNewsletterConsent(
   custom: string | null | undefined,
@@ -205,11 +255,15 @@ export function newsletterConsentPayload(
 }
 
 /**
- * Wersja z pomiarem w ładunku jest PRZYWILEJEM treści z rejestru: klient
- * może podać dowolny napis, więc serwer zostawia wersję z pomiarem wyłącznie
- * wtedy, gdy treść jest DOKŁADNIE treścią tej wersji (HTML albo tekst, PL
- * albo EN). Inaczej wersja znika, a baza zapisze skrót treści - fałszywa
- * wersja nie da zgody na pomiar za kogoś, kto jej nie widział.
+ * Wersja z rejestru w ładunku jest PRZYWILEJEM treści z rejestru: klient
+ * może podać dowolny napis, więc serwer zostawia ją wyłącznie przy DOKŁADNEJ
+ * treści tej wersji (HTML albo tekst, PL albo EN). Inaczej wersja znika,
+ * a baza zapisze skrót treści.
+ *   * wersja treści zgody na newsletter (a albo b) - tylko z treścią tej wersji;
+ *   * wersja treści pomiaru - tylko przy kluczu deklaracji
+ *     `email_measurement_declared` z treścią pola pomiaru;
+ *   * pozostałe wersje (skróty popupu, premium `2026-10-12`, wydarzenia) -
+ *     bez zmian.
  */
 export function normalizeConsentVersion(entry: {
   key: string;
@@ -217,19 +271,106 @@ export function normalizeConsentVersion(entry: {
   version?: string | null;
 }): string | undefined {
   const version = entry.version?.trim() || undefined;
-  if (!version || !MEASUREMENT_CONSENT_VERSIONS.includes(version)) return version;
-  if (version !== NEWSLETTER_CONSENT_VERSION) return undefined;
-  const text = entry.text.trim();
-  const matches = (["pl", "en"] as const).some(
-    (lang) => text === newsletterConsentHtml(lang) || text === newsletterConsentPlain(lang),
-  );
-  return matches ? version : undefined;
+  if (!version) return undefined;
+  const newsletterSegments = newsletterSegmentsOf(version);
+  if (newsletterSegments) {
+    const text = entry.text.trim();
+    const matches = CONSENT_LANGS.some(
+      (lang) =>
+        text === segmentsHtml(newsletterSegments[lang]) ||
+        text === segmentsPlain(newsletterSegments[lang]),
+    );
+    return matches ? version : undefined;
+  }
+  if (MEASUREMENT_CONSENT_VERSIONS.includes(version)) {
+    return normalizeConsentKey(entry.key) === EMAIL_MEASUREMENT_DECLARED_KEY &&
+      isMeasurementConsentText(entry.text)
+      ? version
+      : undefined;
+  }
+  return version;
+}
+
+/** Minimalny kształt pozycji zgody, którą czyści `sanitizeConsentEntries`. */
+export interface SanitizableConsentEntry {
+  key: string;
+  text: string;
+  version?: string | null;
+  given?: boolean;
+  lang?: string;
+}
+
+/** Zgoda na newsletter/marketing w ładunku (warunek deklaracji pomiaru). */
+function isNewsletterOptIn(entry: SanitizableConsentEntry): boolean {
+  const key = normalizeConsentKey(entry.key);
+  return (key.startsWith("newsletter") || key.startsWith("marketing")) && entry.given !== false;
+}
+
+/**
+ * Pozycje `consents` z formularza -> pozycje do zapisu (serwer, przed
+ * subskrybentem i `contact_messages`). Funkcja NIE mutuje wejścia.
+ *
+ * 1. Klucz `email_measurement` (po `trim().toLowerCase()`) jest ZAWSZE
+ *    usuwany: zgodę na pomiar zapisuje wyłącznie baza po decyzji właściciela
+ *    skrzynki, nigdy formularz (także stara paczka JS z treścią (a)).
+ * 2. Deklaracja `email_measurement_declared` przechodzi WYŁĄCZNIE, gdy:
+ *    `given === true`, wersja = `EMAIL_MEASUREMENT_CONSENT_VERSION`, treść =
+ *    treść pola pomiaru (HTML albo tekst, PL albo EN) i w tym samym ładunku
+ *    jest zgoda `newsletter*`/`marketing*` z `given !== false`. Przechodzi
+ *    najwyżej jedna; klucz jest normalizowany, a treść PRZEPISANA na HTML
+ *    dopasowanego języka (`lang` = ten język) - dokładnie tę postać rozpoznaje
+ *    SQL (`_newsletter_measurement_declared_at`). Każda inna deklaracja znika.
+ * 3. Pozostałe pozycje: wersja przez `normalizeConsentVersion`.
+ */
+export function sanitizeConsentEntries<T extends SanitizableConsentEntry>(
+  entries: readonly T[],
+): T[] {
+  const newsletterOptIn = entries.some(isNewsletterOptIn);
+  let declared = false;
+  const out: T[] = [];
+  for (const entry of entries) {
+    const key = normalizeConsentKey(entry.key);
+    if (key === EMAIL_MEASUREMENT_CONSENT_KEY) continue;
+    if (key === EMAIL_MEASUREMENT_DECLARED_KEY) {
+      const lang = measurementConsentLangOf(entry.text);
+      if (
+        lang === null ||
+        declared ||
+        !newsletterOptIn ||
+        entry.given !== true ||
+        entry.version?.trim() !== EMAIL_MEASUREMENT_CONSENT_VERSION
+      ) {
+        continue;
+      }
+      declared = true;
+      out.push({
+        ...entry,
+        key: EMAIL_MEASUREMENT_DECLARED_KEY,
+        text: measurementConsentHtml(lang),
+        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        given: true,
+        lang,
+      });
+      continue;
+    }
+    const { version: _claimed, ...rest } = entry;
+    const version = normalizeConsentVersion(entry);
+    out.push((version ? { ...rest, version } : rest) as unknown as T);
+  }
+  return out;
+}
+
+/**
+ * Czy ładunek niesie deklarację pola pomiaru. Wołać na pozycjach PO
+ * `sanitizeConsentEntries` (sam klucz nie jest tu walidowany).
+ */
+export function hasMeasurementDeclaration(entries: readonly { key: string }[]): boolean {
+  return entries.some((entry) => normalizeConsentKey(entry.key) === EMAIL_MEASUREMENT_DECLARED_KEY);
 }
 
 /**
  * Domyślna treść akceptacji polityki prywatności w popupie rejestracji, gdy
- * redakcja nie wpisała własnej. Dotąd popup brał `policy_html` - od Y2 to
- * treść zgody na NEWSLETTER, a wymagane pole „prywatność" nie może nieść
+ * redakcja nie wpisała własnej. Wymagane pole „prywatność" nie może nieść
  * zgody marketingowej (uzależnienie rejestracji od zgody - art. 7 ust. 4).
  */
 const PRIVACY_ACCEPTANCE: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
@@ -238,22 +379,16 @@ const PRIVACY_ACCEPTANCE: Readonly<Record<ConsentLang, readonly ConsentSegment[]
 };
 
 export function privacyAcceptanceHtml(lang: ConsentLang): string {
-  return PRIVACY_ACCEPTANCE[lang]
-    .map((part) =>
-      typeof part === "string"
-        ? escapeHtml(part)
-        : `<a href="${escapeHtml(part.href)}">${escapeHtml(part.label)}</a>`,
-    )
-    .join("");
+  return segmentsHtml(PRIVACY_ACCEPTANCE[lang]);
 }
 
 /**
  * Zapis na newsletter po rejestracji konta z zaznaczonym polem „newsletter"
- * (widżet rejestracji, bramka klubu - jak popup rejestracji). Dotąd zgoda
- * jechała wyłącznie flagą `marketing_opt_in` w metadanych konta: nie było
- * ani subskrypcji, ani wpisu w rejestrze zgód (dowodu treści i wersji).
- * Zapis idzie tą samą funkcją serwerową co formularze (double opt-in wg
- * ustawień najemcy), a wyzwalacz bazy loguje zgodę z wersją.
+ * (widżet rejestracji, bramka klubu - jak popup rejestracji). Zapis idzie tą
+ * samą funkcją serwerową co formularze (double opt-in wg ustawień najemcy),
+ * a wyzwalacz bazy loguje zgodę z wersją. `measurement: true` (zaznaczone
+ * osobne pole pomiaru) dokłada DEKLARACJĘ pomiaru - zgodę i tak zapisze
+ * dopiero decyzja właściciela skrzynki.
  */
 export function signupNewsletterSubscription(input: {
   email: string;
@@ -262,9 +397,14 @@ export function signupNewsletterSubscription(input: {
   lang: ConsentLang;
   source: string;
   consent: ResolvedNewsletterConsent;
+  measurement?: boolean;
 }) {
   const firstName = input.firstName?.trim() || undefined;
   const lastName = input.lastName?.trim() || undefined;
+  const consents: Array<NewsletterConsentPayload | MeasurementConsentPayload> = [
+    newsletterConsentPayload(input.consent, input.lang),
+  ];
+  if (input.measurement) consents.push(measurementConsentPayload(input.lang));
   return {
     email: input.email.trim().toLowerCase(),
     firstName,
@@ -272,6 +412,6 @@ export function signupNewsletterSubscription(input: {
     name: [firstName, lastName].filter(Boolean).join(" ") || undefined,
     language: input.lang,
     source: `signup_${input.source}`,
-    consents: [newsletterConsentPayload(input.consent, input.lang)],
+    consents,
   };
 }
