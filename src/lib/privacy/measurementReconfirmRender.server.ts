@@ -1,5 +1,7 @@
-// Render prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2): treść z panelu
-// albo domyślna -> temat, HTML i tekst dla kolejki poczty.
+// Render prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2, I9d-Y2b): treść
+// -> temat, HTML i tekst dla kolejki poczty. Prośba z panelu - treść z panelu
+// albo domyślna; prośba po zapisie (`origin = 'signup'`) - treść STAŁA,
+// nadpisania z panelu ignorowane (`resolveNewsletterMeasurementMailCopy`).
 //
 // JEDNO miejsce renderu dla wysyłki (`measurementReconfirmMail.server.ts`)
 // i podglądu w panelu (`previewNewsletterMeasurementEmail`) - admin widzi
@@ -7,13 +9,16 @@
 import * as React from "react";
 
 import {
-  resolveNewsletterMeasurementCopy,
+  resolveNewsletterMeasurementMailCopy,
   type NewsletterMeasurementCopyOverrides,
   type NewsletterMeasurementLang,
+  type NewsletterMeasurementOrigin,
 } from "./measurementReconfirm";
 
 export interface MeasurementReconfirmRenderInput {
   lang: NewsletterMeasurementLang;
+  /** Pochodzenie prośby; brak = `panel` (podgląd w panelu). */
+  origin?: NewsletterMeasurementOrigin;
   overrides: NewsletterMeasurementCopyOverrides;
   firstName: string | null;
   confirmUrl: string;
@@ -32,9 +37,12 @@ export async function renderMeasurementReconfirmEmail(
   input: MeasurementReconfirmRenderInput,
 ): Promise<MeasurementReconfirmRendered> {
   const firstName = input.firstName?.trim() || null;
-  const copy = resolveNewsletterMeasurementCopy(input.overrides, input.lang, {
-    firstName: firstName ?? "",
-  });
+  const copy = resolveNewsletterMeasurementMailCopy(
+    input.origin ?? "panel",
+    input.overrides,
+    input.lang,
+    { firstName: firstName ?? "" },
+  );
   const [{ render }, { MeasurementReconfirmEmail }] = await Promise.all([
     import("@react-email/render"),
     import("./measurementReconfirmEmail"),

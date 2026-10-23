@@ -10,6 +10,11 @@
 // po potwierdzeniu - dzięki temu ponowne kliknięcie linku z maila (a klienci
 // pocztowe i skanery antywirusowe klikają go same) trafia w gałąź „już
 // potwierdzone" zamiast w 404 albo w drugą wysyłkę powitania.
+//
+// OSOBNA ZGODA NA POMIAR (I9d-Y2b). GET po sukcesie niesie stan karty zgody
+// na pomiar (`measurement`, `measurementLang`) i NIGDY jej nie udziela
+// (skaner linków klika GET za człowieka); decyzję zapisuje wyłącznie POST
+// z JSON-em, po limiterze, przez `newsletter_doi_measurement_decide`.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
 import { routeServerHandlers } from "@/test/routeHarness";
@@ -28,12 +33,13 @@ import { DZIEN, freezeClock, relativeIso } from "@/test/time";
 // gdzie wymuszała je asercja, a nie tam, gdzie wymagała go reguła czasu.
 freezeClock();
 
-const h = vi.hoisted(() => ({ sendTxEmail: vi.fn() }));
+const h = vi.hoisted(() => ({ sendTxEmail: vi.fn(), rpc: vi.fn(), rateLimit: vi.fn() }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (t: string) => db.from(t) },
+  supabaseAdmin: { from: (t: string) => db.from(t), rpc: h.rpc },
 }));
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: h.sendTxEmail }));
+vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
 
 import { Route } from "@/routes/api.public.newsletter.confirm";
 
@@ -69,6 +75,17 @@ function pendingRow(overrides: Record<string, unknown> = {}): Record<string, unk
   };
 }
 
+/** Domyślny stan karty: brak deklaracji pola pomiaru (karty nie ma). */
+const NO_CARD = { measurement: "none", measurementLang: "pl" } as const;
+
+function stateRpc(result: unknown, error: { message: string } | null = null): void {
+  h.rpc.mockImplementation(async (fn: string) =>
+    fn === "newsletter_doi_measurement_state"
+      ? { data: error ? null : result, error }
+      : { data: null, error: { message: `nieoczekiwane RPC ${fn}` } },
+  );
+}
+
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
@@ -77,6 +94,8 @@ beforeEach(() => {
   db.setResponse(SUBSCRIBERS, (chain) => (chain.has("update") ? ok(null) : ok(pendingRow())));
   db.setResponse(SUPPRESSIONS, ok(null));
   h.sendTxEmail.mockResolvedValue(undefined);
+  stateRpc({ result: "none", lang: "pl" });
+  h.rateLimit.mockResolvedValue(true);
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -105,7 +124,7 @@ describe("klik z maila trafia na stronę, nie na surowy JSON", () => {
     const res = await get(TOKEN, { accept: "*/*" });
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true });
+    await expect(res.json()).resolves.toEqual({ ok: true, ...NO_CARD });
   });
 });
 
@@ -164,7 +183,7 @@ describe("idempotencja ponownego kliknięcia", () => {
     const res = await get();
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, already: true });
+    await expect(res.json()).resolves.toEqual({ ok: true, already: true, ...NO_CARD });
   });
 
   it("ponowne kliknięcie NIE wysyła powitania drugi raz", async () => {
@@ -221,7 +240,7 @@ describe("potwierdzenie", () => {
     expect(read?.has("maybeSingle")).toBe(true);
   });
 
-  it("nieudany zapis potwierdzenia to 500 z powodem", async () => {
+  it("nieudany zapis potwierdzenia to 500 ze STAŁYM kodem (komunikat Postgresa tylko w logu)", async () => {
     db.setResponse(SUBSCRIBERS, (chain) =>
       chain.has("update") ? fail("update rejected") : ok(pendingRow()),
     );
@@ -229,7 +248,10 @@ describe("potwierdzenie", () => {
     const res = await get();
 
     expect(res.status).toBe(500);
-    await expect(res.json()).resolves.toEqual({ ok: false, error: "update rejected" });
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "update_failed" });
+    expect(errorSpy).toHaveBeenCalledWith("[newsletter/confirm] update failed", "update rejected");
+    // Karta pomiaru nie powstaje dla niepotwierdzonego zapisu.
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -270,7 +292,7 @@ describe("ponowny zapis po wypisie", () => {
 
     expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
     // Gałąź „already" - a nie błąd, który też ominąłby listę wykluczeń.
-    await expect(res.json()).resolves.toEqual({ ok: true, already: true });
+    await expect(res.json()).resolves.toEqual({ ok: true, already: true, ...NO_CARD });
   });
 });
 
@@ -339,7 +361,281 @@ describe("mail powitalny", () => {
 
     // Subskrypcja JEST potwierdzona - użytkownik nie może zobaczyć błędu.
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true });
+    await expect(res.json()).resolves.toEqual({ ok: true, ...NO_CARD });
     expect(errorSpy).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I9d-Y2b: karta zgody na pomiar na stronie potwierdzenia (GET - stan)
+// ---------------------------------------------------------------------------
+
+describe("GET: stan karty zgody na pomiar (bez zapisu zgody)", () => {
+  it("po potwierdzeniu pyta o stan TYM tokenem, PO zmianie statusu; `offer` = karta w języku z bazy", async () => {
+    stateRpc({ result: "offer", lang: "en" });
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      measurement: "offer",
+      measurementLang: "en",
+    });
+    expect(h.rpc.mock.calls).toEqual([["newsletter_doi_measurement_state", { p_token: TOKEN }]]);
+    // GET nigdy nie woła pisarza decyzji.
+    expect(h.rpc.mock.calls.map((c) => c[0])).not.toContain("newsletter_doi_measurement_decide");
+    // Stan czytany po zapisie statusu (oferta tylko dla aktywnego subskrybenta).
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("update"))).toBe(true);
+  });
+
+  it("ponowny klik (`already`) też niesie stan karty - decyzję można podjąć później", async () => {
+    db.setResponse(SUBSCRIBERS, ok(pendingRow({ status: "subscribed" })));
+    stateRpc({ result: "offer", lang: "pl" });
+
+    const res = await get();
+
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      already: true,
+      measurement: "offer",
+      measurementLang: "pl",
+    });
+  });
+
+  it("decyzja już zapisana: `granted` / `declined` przechodzą bez karty decyzji", async () => {
+    for (const result of ["granted", "declined"] as const) {
+      stateRpc({ result, lang: "pl" });
+      const res = await get();
+      await expect(res.json()).resolves.toMatchObject({ ok: true, measurement: result });
+    }
+  });
+
+  it.each([
+    ["invalid", { result: "invalid" }],
+    ["inactive", { result: "inactive", lang: "pl" }],
+    ["gone", { result: "gone" }],
+    ["nieznany wynik", { result: "granted_maybe", lang: "pl" }],
+    ["pusty wynik", null],
+  ])("FAIL-CLOSED: %s -> `none` (bez karty)", async (_why, data) => {
+    stateRpc(data);
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ ok: true, measurement: "none" });
+  });
+
+  it("błąd RPC: potwierdzenie dalej 200, karta `none`, język awaryjnie z wiersza subskrybenta", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("update") ? ok(null) : ok(pendingRow({ language: "en" })),
+    );
+    stateRpc(null, { message: "function newsletter_doi_measurement_state does not exist" });
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      measurement: "none",
+      measurementLang: "en",
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[newsletter/confirm] measurement state failed",
+      "function newsletter_doi_measurement_state does not exist",
+    );
+    expect(h.sendTxEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("wyjątek RPC też nie psuje potwierdzenia (fail-closed)", async () => {
+    h.rpc.mockRejectedValue(new Error("connection reset"));
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, ...NO_CARD });
+  });
+
+  it("bez potwierdzenia (wygasły, nieznany, zły token) stanu karty NIE czytamy", async () => {
+    db.setResponse(SUBSCRIBERS, ok(pendingRow({ confirmation_expires_at: relativeIso(-DZIEN) })));
+    expect((await get()).status).toBe(410);
+    db.setResponse(SUBSCRIBERS, ok(null));
+    expect((await get()).status).toBe(404);
+    expect((await get("xyz")).status).toBe(400);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("odpowiedź GET nie niesie adresu ani najemcy", async () => {
+    stateRpc({ result: "offer", lang: "pl", tenant_id: "tenant-1", email: "nowy@example.test" });
+
+    const body = JSON.stringify(await (await get()).json());
+
+    expect(body).not.toContain("@");
+    expect(body).not.toContain("tenant-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// I9d-Y2b: decyzja z karty (POST)
+// ---------------------------------------------------------------------------
+
+function post(
+  body: unknown,
+  headers: Record<string, string> = {},
+  raw?: string,
+): Promise<Response> {
+  const handlers = routeServerHandlers(Route);
+  return handlers.POST({
+    request: new Request("https://example.test/api/public/newsletter/confirm", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "cf-connecting-ip": "203.0.113.7",
+        "user-agent": "Przeglądarka/1.0",
+        ...headers,
+      },
+      body: raw ?? JSON.stringify(body),
+    }),
+  });
+}
+
+function decideRpc(result: unknown, error: { message: string } | null = null): void {
+  h.rpc.mockImplementation(async (fn: string) =>
+    fn === "newsletter_doi_measurement_decide"
+      ? { data: error ? null : result, error }
+      : { data: null, error: { message: `nieoczekiwane RPC ${fn}` } },
+  );
+}
+
+describe("POST: decyzja z karty pomiaru", () => {
+  it("„Zgadzam się”: RPC z tokenem, decyzją, IP i UA; 200 `granted`", async () => {
+    decideRpc({ result: "granted", lang: "pl" });
+
+    const res = await post({ token: TOKEN, decision: "grant" });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, result: "granted" });
+    expect(h.rpc.mock.calls).toEqual([
+      [
+        "newsletter_doi_measurement_decide",
+        {
+          p_token: TOKEN,
+          p_grant: true,
+          p_ip: "203.0.113.7",
+          p_user_agent: "Przeglądarka/1.0",
+        },
+      ],
+    ]);
+    // Bez odczytu i zapisu tabel z TS - decyzję zapisuje wyłącznie baza.
+    expect(db.chainsFor(SUBSCRIBERS)).toHaveLength(0);
+  });
+
+  it("„Nie zgadzam się”: `p_grant: false`, 200 `declined`; powtórka `already`", async () => {
+    decideRpc({ result: "declined", lang: "en" });
+    const res = await post({ token: TOKEN, decision: "decline" });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, result: "declined" });
+    expect(h.rpc.mock.calls[0]?.[1]).toMatchObject({ p_grant: false });
+
+    decideRpc({ result: "already", lang: "en" });
+    const again = await post({ token: TOKEN, decision: "decline" });
+    expect(again.status).toBe(200);
+    await expect(again.json()).resolves.toEqual({ ok: true, result: "already" });
+  });
+
+  it.each([
+    ["inactive", 409, "inactive"],
+    ["none", 422, "none"],
+    ["invalid", 400, "invalid_token"],
+    ["gone", 400, "invalid_token"],
+  ])("wynik RPC `%s` -> %i `%s`", async (result, status, error) => {
+    decideRpc({ result, lang: "pl" });
+
+    const res = await post({ token: TOKEN, decision: "grant" });
+
+    expect(res.status).toBe(status);
+    await expect(res.json()).resolves.toEqual({ ok: false, error });
+  });
+
+  it("tylko JSON: inny typ ciała to 415 bez limitera i bez bazy", async () => {
+    const res = await post(
+      null,
+      { "content-type": "application/x-www-form-urlencoded" },
+      `token=${TOKEN}&decision=grant`,
+    );
+
+    expect(res.status).toBe(415);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "unsupported_media_type" });
+    expect(h.rateLimit).not.toHaveBeenCalled();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("zły token albo decyzja to 400 bez limitera i bez bazy; nieparsowalne ciało = zły token", async () => {
+    const badToken = await post({ token: "abc' OR 1=1 --", decision: "grant" });
+    expect(badToken.status).toBe(400);
+    await expect(badToken.json()).resolves.toEqual({ ok: false, error: "invalid_token" });
+
+    const badDecision = await post({ token: TOKEN, decision: "maybe" });
+    expect(badDecision.status).toBe(400);
+    await expect(badDecision.json()).resolves.toEqual({ ok: false, error: "invalid_decision" });
+
+    const garbage = await post(null, {}, "{nie-json");
+    expect(garbage.status).toBe(400);
+    await expect(garbage.json()).resolves.toEqual({ ok: false, error: "invalid_token" });
+
+    expect(h.rateLimit).not.toHaveBeenCalled();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("limiter per IP PRZED zapisem: odmowa = 429 bez RPC", async () => {
+    h.rateLimit.mockResolvedValue(false);
+
+    const res = await post({ token: TOKEN, decision: "grant" });
+
+    expect(res.status).toBe(429);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "rate_limited" });
+    expect(h.rateLimit).toHaveBeenCalledWith({
+      scope: "newsletter.confirm_measurement",
+      subjectId: "203.0.113.7",
+      max: 10,
+      windowMinutes: 10,
+    });
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("nieznane IP: fail-open (bez kubełka), RPC z `p_ip: null`", async () => {
+    decideRpc({ result: "granted", lang: "pl" });
+
+    const res = await post({ token: TOKEN, decision: "grant" }, { "cf-connecting-ip": "" });
+
+    expect(res.status).toBe(200);
+    expect(h.rateLimit).not.toHaveBeenCalled();
+    expect(h.rpc.mock.calls[0]?.[1]).toMatchObject({ p_ip: null });
+  });
+
+  it("błąd bazy, nieznany kształt i wyjątek: 500 `update_failed`, komunikat tylko w logu", async () => {
+    decideRpc(null, { message: 'relation "crm_consent_log" is locked' });
+    const failed = await post({ token: TOKEN, decision: "grant" });
+    expect(failed.status).toBe(500);
+    const body = JSON.stringify(await failed.json());
+    expect(body).toBe(JSON.stringify({ ok: false, error: "update_failed" }));
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[newsletter/confirm] measurement decision failed",
+      'relation "crm_consent_log" is locked',
+    );
+
+    decideRpc({ result: "confirmed" });
+    expect((await post({ token: TOKEN, decision: "grant" })).status).toBe(500);
+
+    h.rpc.mockRejectedValue(new Error("connection reset"));
+    expect((await post({ token: TOKEN, decision: "grant" })).status).toBe(500);
+  });
+
+  it("odpowiedź POST nie ujawnia adresu, najemcy ani języka", async () => {
+    decideRpc({ result: "granted", lang: "pl", tenant_id: "tenant-1", email: "nowy@example.test" });
+
+    const body = JSON.stringify(await (await post({ token: TOKEN, decision: "grant" })).json());
+
+    expect(body).toBe(JSON.stringify({ ok: true, result: "granted" }));
   });
 });

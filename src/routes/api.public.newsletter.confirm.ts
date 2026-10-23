@@ -1,8 +1,9 @@
 // Publiczny endpoint potwierdzenia adresu e-mail dla newslettera (double opt-in).
-// GET /api/public/newsletter/confirm?token=...
+// GET  /api/public/newsletter/confirm?token=...
+// POST /api/public/newsletter/confirm  {token, decision: "grant"|"decline"}
 // Używa supabaseAdmin (omija RLS), bo aktualizuje rekord pending → subscribed.
 //
-// Kontrakt:
+// Kontrakt (kształty: `@/lib/newsletter/confirmMeasurement`):
 // - Przeglądarka (Accept: text/html) dostaje 303 na stronę /newsletter/confirm,
 //   która renderuje przyjazny, zlokalizowany wynik - stare maile linkujące
 //   bezpośrednio do API nigdy nie pokazują surowego JSON-a.
@@ -10,11 +11,40 @@
 // - Potwierdzenie jest idempotentne: token NIE jest kasowany po sukcesie,
 //   więc ponowne kliknięcie tego samego linku zwraca { already: true }
 //   zamiast błędu not_found.
+// - OSOBNA ZGODA NA POMIAR (I9d-Y2b, decyzje właściciela 2026-10-23: D1
+//   wariant (b), D2 - pomiar tylko dla skrzynki potwierdzonej przez jej
+//   właściciela). Odpowiedź GET po sukcesie (także `already`) niesie stan
+//   karty zgody na pomiar z `newsletter_doi_measurement_state`
+//   (`measurement`, `measurementLang`); karta pojawia się tylko, gdy
+//   w formularzu zaznaczono osobne pole pomiaru. FAIL-CLOSED: błąd RPC albo
+//   nieznany stan -> `measurement: "none"` (brak karty). GET NIGDY nie
+//   udziela zgody - skanery linków w bramkach pocztowych wykonują GET na
+//   każdym adresie z maila, a zgoda ma być świadomym działaniem osoby
+//   (art. 4 pkt 11 i art. 7 ust. 1 RODO).
+// - Decyzję z karty zapisuje WYŁĄCZNIE POST (przycisk): tylko
+//   `content-type: application/json` (formularz z obcej strony nie przejdzie
+//   bez zapytania wstępnego CORS), limiter per IP, potem
+//   `newsletter_doi_measurement_decide` (tylko service_role). Token DOI
+//   z linku maila to dowód skrzynki; „tak" zapisuje baza z kanałem
+//   `measurement:doi`, treścią i wersją pola pomiaru, IP i User-Agentem.
+//   Odpowiedzi nigdy nie zawierają adresu e-mail ani komunikatu Postgresa.
 import { createFileRoute } from "@tanstack/react-router";
+import { consentLangOf } from "@/lib/newsletter/consentSegments";
+import {
+  doiMeasurementDecisionError,
+  doiMeasurementDecisionReplyOf,
+  doiMeasurementFieldsOf,
+  isConfirmTokenFormat,
+  parseDoiMeasurementDecisionRequest,
+  type DoiMeasurementDecisionReply,
+  type DoiMeasurementFields,
+  type NewsletterConfirmGetResponse,
+} from "@/lib/newsletter/confirmMeasurement";
+import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 
-/** A confirmation token is 16-128 lowercase-hex chars. Exported for tests. */
+/** A confirmation token is 16-128 hex chars (jedna reguła z `confirmMeasurement`). */
 export function isValidConfirmToken(token: string | null): token is string {
-  return !!token && token.length >= 16 && token.length <= 128 && /^[a-f0-9]+$/i.test(token);
+  return isConfirmTokenFormat(token);
 }
 
 export interface ConfirmSubscriberRow {
@@ -48,6 +78,79 @@ export function wantsHtml(acceptHeader: string | null): boolean {
   return !!acceptHeader && acceptHeader.includes("text/html");
 }
 
+/** Czy ciało POST to JSON (jedyny przyjmowany typ decyzji z karty). */
+export function isJsonRequest(contentType: string | null): boolean {
+  return !!contentType && contentType.toLowerCase().includes("application/json");
+}
+
+/**
+ * Limit per IP decyzji z karty: osoba klika raz, czasem dwa (jak strona
+ * pomiaru). Brak IP -> fail-open: token DOI jest i tak dowodem skrzynki,
+ * a decyzja nie może się nie udać człowiekowi zza nietypowego proxy.
+ */
+export const CONFIRM_MEASUREMENT_LIMIT = {
+  scope: "newsletter.confirm_measurement",
+  max: 10,
+  windowMinutes: 10,
+} as const;
+
+async function clientSubject(request: Request): Promise<string | null> {
+  const { rateLimitIpSubject } = await import("@/lib/http/rateLimit");
+  const subject = rateLimitIpSubject(request.headers);
+  return subject === "unknown" ? null : subject;
+}
+
+async function passesRateLimit(ip: string | null): Promise<boolean> {
+  if (!ip) return true;
+  const { rateLimit } = await import("@/lib/server/rate-limit.server");
+  return rateLimit({
+    scope: CONFIRM_MEASUREMENT_LIMIT.scope,
+    subjectId: ip,
+    max: CONFIRM_MEASUREMENT_LIMIT.max,
+    windowMinutes: CONFIRM_MEASUREMENT_LIMIT.windowMinutes,
+  });
+}
+
+function json(body: NewsletterConfirmGetResponse, status = 200): Response {
+  return Response.json(body, { status });
+}
+
+function decisionResponse(reply: DoiMeasurementDecisionReply): Response {
+  return Response.json(reply.body, { status: reply.status });
+}
+
+/**
+ * Stan karty zgody na pomiar dla potwierdzonego zapisu (odczyt bez mutacji).
+ * Fail-closed: każda awaria daje `none` - lepiej nie zapytać o zgodę, niż
+ * pokazać kartę dla stanu, którego baza nie potwierdziła. Język treści
+ * zgody: z RPC, a awaryjnie z wiersza (ta sama reguła co zapis w SQL).
+ */
+async function doiMeasurementFields(
+  admin: unknown,
+  token: string,
+  language: string | null | undefined,
+): Promise<DoiMeasurementFields> {
+  const fallbackLang = consentLangOf(language);
+  try {
+    // RPC spoza wygenerowanych typów do czasu regeneracji `types.ts` - nazwa
+    // zostaje LITERAŁEM (bramka kontraktu TS <-> SQL).
+    const { data, error } = await (admin as RpcCallable).rpc("newsletter_doi_measurement_state", {
+      p_token: token,
+    });
+    if (error) {
+      console.error("[newsletter/confirm] measurement state failed", error.message);
+      return doiMeasurementFieldsOf(null, fallbackLang);
+    }
+    return doiMeasurementFieldsOf(data, fallbackLang);
+  } catch (err) {
+    console.error(
+      "[newsletter/confirm] measurement state failed",
+      err instanceof Error ? err.message : String(err),
+    );
+    return doiMeasurementFieldsOf(null, fallbackLang);
+  }
+}
+
 export const Route = createFileRoute("/api/public/newsletter/confirm")({
   server: {
     handlers: {
@@ -64,7 +167,7 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         }
 
         if (!isValidConfirmToken(token)) {
-          return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
+          return json({ ok: false, error: "invalid_token" }, 400);
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -77,15 +180,17 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
           .maybeSingle();
 
         if (error || !sub) {
-          return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+          return json({ ok: false, error: "not_found" }, 404);
         }
 
         const outcome = resolveConfirmOutcome(sub, new Date());
         if (outcome.kind === "already") {
-          return Response.json({ ok: true, already: true });
+          // Ponowny klik: karta pomiaru wraca, dopóki osoba nie zdecydowała.
+          const measurement = await doiMeasurementFields(supabaseAdmin, token, sub.language);
+          return json({ ok: true, already: true, ...measurement });
         }
         if (outcome.kind === "expired") {
-          return Response.json({ ok: false, error: "expired" }, { status: 410 });
+          return json({ ok: false, error: "expired" }, 410);
         }
 
         // Potwierdzony ponowny zapis zdejmuje wcześniejszy wypis z listy
@@ -95,7 +200,7 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
         // w ten sam link ponawia całość.
         const { releaseUnsubscribeOnOptIn } = await import("@/lib/email/suppression.server");
         if (!(await releaseUnsubscribeOnOptIn(supabaseAdmin, sub.tenant_id, sub.email))) {
-          return Response.json({ ok: false, error: "confirm_failed" }, { status: 500 });
+          return json({ ok: false, error: "confirm_failed" }, 500);
         }
 
         // Token zostaje w rekordzie po potwierdzeniu - to on czyni operację
@@ -111,7 +216,10 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
           .eq("id", sub.id);
 
         if (updErr) {
-          return Response.json({ ok: false, error: updErr.message }, { status: 500 });
+          // Komunikat Postgresa niesie nazwy tabel i kolumn - do klienta idzie
+          // stały kod, pełna treść do logu workera.
+          console.error("[newsletter/confirm] update failed", updErr.message);
+          return json({ ok: false, error: "update_failed" }, 500);
         }
 
         // Potwierdzenie zapisu (kolejka transakcyjna) - ten sam mail co w
@@ -136,7 +244,56 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
           console.error("[newsletter/confirm] welcome mail failed", mailErr);
         }
 
-        return Response.json({ ok: true });
+        // Stan karty PO zmianie statusu: oferta istnieje wyłącznie dla
+        // aktywnego subskrybenta (D2 - `pending` nigdy nie dostaje pomiaru).
+        const measurement = await doiMeasurementFields(supabaseAdmin, token, sub.language);
+        return json({ ok: true, ...measurement });
+      },
+      POST: async ({ request }) => {
+        if (!isJsonRequest(request.headers.get("content-type"))) {
+          return decisionResponse(doiMeasurementDecisionError("unsupported_media_type"));
+        }
+        let body: unknown = null;
+        try {
+          body = await request.json();
+        } catch {
+          // Puste albo nieparsowalne ciało - parser odpowie `invalid_token`.
+        }
+        const parsed = parseDoiMeasurementDecisionRequest(body);
+        if (!parsed.ok) return decisionResponse(doiMeasurementDecisionError(parsed.error));
+        const ip = await clientSubject(request);
+        if (!(await passesRateLimit(ip))) {
+          return decisionResponse(doiMeasurementDecisionError("rate_limited"));
+        }
+        const userAgent = request.headers.get("user-agent");
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data, error } = await (supabaseAdmin as unknown as RpcCallable).rpc(
+            "newsletter_doi_measurement_decide",
+            {
+              p_token: parsed.request.token,
+              p_grant: parsed.request.decision === "grant",
+              p_ip: ip,
+              p_user_agent: userAgent,
+            },
+          );
+          if (error) {
+            console.error("[newsletter/confirm] measurement decision failed", error.message);
+            return decisionResponse(doiMeasurementDecisionError("update_failed"));
+          }
+          const reply = doiMeasurementDecisionReplyOf(data);
+          if (reply === null) {
+            console.error("[newsletter/confirm] measurement decision: unexpected result shape");
+            return decisionResponse(doiMeasurementDecisionError("update_failed"));
+          }
+          return decisionResponse(reply);
+        } catch (err) {
+          console.error(
+            "[newsletter/confirm] measurement decision failed",
+            err instanceof Error ? err.message : String(err),
+          );
+          return decisionResponse(doiMeasurementDecisionError("update_failed"));
+        }
       },
     },
   },

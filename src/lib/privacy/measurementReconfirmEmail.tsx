@@ -1,12 +1,15 @@
-// Szablon prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2) - ramka maili
-// systemowych NES (`NesEmailLayout`), ta sama co prośba wygaszania Y1
-// i potwierdzenie zapisu, więc odbiorca rozpozna nadawcę.
+// Szablon prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2, I9d-Y2b) -
+// ramka maili systemowych NES (`NesEmailLayout`), ta sama co prośba
+// wygaszania Y1 i potwierdzenie zapisu, więc odbiorca rozpozna nadawcę.
 //
-// Mail pokazuje DOSŁOWNĄ treść zgody, którą zapisze kliknięcie (bieżąca
-// treść domyślna z jednego źródła `@/lib/newsletter/consentText`, w języku
-// subskrybenta) - osoba wie, na co się zgadza, zanim kliknie (art. 7 ust. 2
-// RODO: prośba wyraźnie odróżniona, zrozumiała). Sam mail NIE ma piksela ani
-// linków z identyfikatorem - prosimy o zgodę na pomiar, więc nie mierzymy.
+// Mail pokazuje DOSŁOWNĄ treść OSOBNEJ zgody na pomiar, którą zapisze
+// kliknięcie (treść pola pomiaru z jednego źródła
+// `@/lib/newsletter/measurementConsentText`, w języku subskrybenta - tym
+// samym, w którym zapisze ją `_email_measurement_grant`) - osoba wie, na co
+// się zgadza, zanim kliknie (art. 7 ust. 2 RODO: prośba wyraźnie odróżniona,
+// zrozumiała). Od wariantu (b) treść zgody na newsletter nie dotyczy pomiaru,
+// więc ramka jej nie pokazuje. Sam mail NIE ma piksela ani linków
+// z identyfikatorem - prosimy o zgodę na pomiar, więc nie mierzymy.
 //
 // TYLKO IMPORT DYNAMICZNY (`measurementReconfirmRender.server.ts`): moduł
 // ciągnie `@react-email/components`, który nie może trafić do grafu żadnego
@@ -27,7 +30,7 @@ import {
   text,
 } from "@/lib/email-templates/nes-layout";
 import { emailGreeting } from "@/lib/i18n/polishVocative";
-import { newsletterConsentPlain } from "@/lib/newsletter/consentText";
+import { measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
 import {
   NEWSLETTER_MEASUREMENT_FIXED_COPY,
   type NewsletterMeasurementCopy,
@@ -80,7 +83,7 @@ export const MeasurementReconfirmEmail = ({
 
       <Section style={infoBox}>
         <Text style={noteLabel}>{fixed.consentLead}</Text>
-        <Text style={infoText}>{newsletterConsentPlain(lang)}</Text>
+        <Text style={infoText}>{measurementConsentPlain(lang)}</Text>
       </Section>
 
       <Section style={{ margin: "0 0 22px" }}>

@@ -1531,7 +1531,9 @@ describe("wygaszanie newslettera: prośby w oknie dziennym (minuta 9)", () => {
 });
 
 // ===========================================================================
-// PROŚBY O ZGODĘ NA POMIAR (I9d-Y2): jednorazowy mail z panelu newslettera
+// PROŚBY O ZGODĘ NA POMIAR (I9d-Y2): jednorazowy mail z panelu newslettera;
+// I9d-Y2b: prośba po zapisie bez double opt-in (`origin: "signup"`) - bez
+// okna dziennego, więc poza oknem krok rusza WYŁĄCZNIE dla takich próśb.
 // ===========================================================================
 describe("prośby o zgodę na pomiar: okno dzienne (minuta 4)", () => {
   it("poza minutą 4: krok nie rusza, wynik to zaplanowane pominięcie", async () => {
@@ -1561,11 +1563,24 @@ describe("prośby o zgodę na pomiar: okno dzienne (minuta 4)", () => {
     expect(result.newsletterMeasurement).toEqual({ error: "skipped_duty_cycle" });
   });
 
-  it("noc (22:04 UTC): poza oknem dziennym czasu polskiego", async () => {
-    vi.setSystemTime(new Date(Date.UTC(2026, 8, 4, 22, 4, 0, 0)));
+  it("noc (22:04 UTC): poza oknem dziennym - WYŁĄCZNIE prośby po zapisie (`origin: signup`)", async () => {
+    const night = new Date(Date.UTC(2026, 8, 4, 22, 4, 0, 0));
+    vi.setSystemTime(night);
 
     const result = await runJobsTick(admin);
 
+    expect(result.newsletterMeasurement).toEqual(fixtures.newsletterMeasurement);
+    const [client, options] = jobs.argsOf("newsletterMeasurement") ?? [];
+    expect(client).toBe(admin);
+    expect(options).toEqual({ origin: "signup", deadlineAt: night.getTime() + 4_000 });
+  });
+
+  it("noc poza minutą 4 (22:07 UTC): krok nie rusza", async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 4, 22, 7, 0, 0)));
+
+    const result = await runJobsTick(admin);
+
+    expect(jobs.steps()).not.toContain("newsletterMeasurement");
     expect(result.newsletterMeasurement).toEqual({ error: "skipped_duty_cycle" });
   });
 

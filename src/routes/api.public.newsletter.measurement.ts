@@ -1,14 +1,25 @@
-// Publiczny endpoint linków pomiaru otwarć i kliknięć (I9d-Y2):
+// Publiczny endpoint linków pomiaru otwarć i kliknięć (I9d-Y2, I9d-Y2b):
 // /api/public/newsletter/measurement?token=...
 //
 // Dwa linki, jedna trasa - rodzaj akcji wynika z PODPISANEGO tokenu
 // (`measurementToken.server.ts`), nigdy z parametru adresu:
 //   * „Nie mierz moich otwarć i kliknięć" (`mw:`, stopka maili kampanii
 //     i ścieżek, strona preferencji) - wycofanie SAMEGO pomiaru: wpis
-//     `email_measurement` „nie", zgoda na newsletter bez zmian (wariant (a)
-//     decyzji właściciela 2026-10-21);
-//   * „Zgadzam się na pomiar" (`mc:`, jednorazowa prośba z panelu) - wpis
-//     zgody w bieżącej wersji treści, baza dopisuje `email_measurement` „tak".
+//     `email_measurement` „nie", zgoda na newsletter bez zmian;
+//   * „Potwierdzam / Zgadzam się na pomiar" (`mc:`, jednorazowa prośba
+//     z panelu albo prośba po zapisie bez double opt-in z zaznaczonym
+//     osobnym polem pomiaru) - zapis OSOBNEJ zgody na pomiar: wpis
+//     `email_measurement` „tak" z treścią i wersją pola pomiaru robi WYŁĄCZNIE
+//     baza (`_email_measurement_grant`, kanał `measurement:reconfirm` albo
+//     `measurement:signup`), bez wpisu zgody na newsletter. Od wariantu (b)
+//     decyzji właściciela 2026-10-23 żadna treść zgody na newsletter nie
+//     daje pomiaru, a pomiar działa tylko dla aktywnego subskrybenta, który
+//     sam potwierdził zgodę (D2).
+//
+// JĘZYK TREŚCI ZGODY = JĘZYK ZAPISU. GET akcji „zgoda" zwraca `lang`
+// subskrybenta (`email_measurement_state`, reguła `consentLangOf` - ta sama
+// co w `_email_measurement_grant`): strona pokazuje treść zgody w języku,
+// w którym baza ją zapisze, a nie w języku z adresu (art. 7 ust. 1 RODO).
 //
 // WZORZEC /api/public/newsletter/keep i /unsubscribe:
 //   * GET z przeglądarki (Accept: text/html) -> 303 na stronę
@@ -30,6 +41,8 @@
 // IP i User-Agent trafiają WYŁĄCZNIE do wpisu rejestru zgód (dowód decyzji).
 import { createFileRoute } from "@tanstack/react-router";
 import { normalizeLang } from "@/lib/i18n/localePath";
+import type { MeasurementPageCheckBody } from "@/lib/newsletter/confirmMeasurement";
+import { consentLangOf } from "@/lib/newsletter/consentSegments";
 import {
   measurementChannelOf,
   NEWSLETTER_MEASUREMENT_PAGE_PATH,
@@ -143,7 +156,40 @@ export const Route = createFileRoute("/api/public/newsletter/measurement")({
         if (!check.ok) return tokenError(check.reason);
         if (check.action === "confirm") {
           // Nonce prośby sprawdza dopiero POST - GET niczego nie zużywa.
-          return Response.json({ ok: true, action: "confirm" });
+          // Język treści zgody z wiersza subskrybenta (odczyt bez mutacji);
+          // bez niego strona nie pokaże przycisku zgody (błąd z ponowieniem).
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { data, error } = await (supabaseAdmin as unknown as RpcCallable).rpc(
+              "email_measurement_state",
+              { p_subscriber: check.subscriberId, p_lead: null },
+            );
+            const row =
+              !error && typeof data === "object" && data !== null
+                ? (data as Record<string, unknown>)
+                : null;
+            if (row?.result === "gone") {
+              return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+            }
+            if (row?.result === "ok") {
+              const body: MeasurementPageCheckBody = {
+                ok: true,
+                action: "confirm",
+                lang: consentLangOf(typeof row.lang === "string" ? row.lang : null),
+              };
+              return Response.json(body);
+            }
+            console.error(
+              "[newsletter.measurement] confirm state failed",
+              error?.message ?? "shape",
+            );
+          } catch (err) {
+            console.error(
+              "[newsletter.measurement] confirm state failed",
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+          return Response.json({ ok: false, error: "state_failed" }, { status: 500 });
         }
         // Wycofanie: ODCZYT stanu zgody (bez zapisu), żeby strona od razu
         // powiedziała „pomiar jest wyłączony", zamiast pytać o pustą decyzję.
@@ -190,6 +236,9 @@ export const Route = createFileRoute("/api/public/newsletter/measurement")({
             const subject = check.subject;
             // RPC pomiaru nie ma jeszcze w wygenerowanych typach - kształt
             // wywołania z nazwą RPC jako literałem (bramka kontraktu TS <-> SQL).
+            // Kanał z listy publicznej (stopka, preferencje) - odmowa osoby
+            // wyklucza ją z kolejnych próśb; kanał wypisu (neutralny) ustawia
+            // wyłącznie wyzwalacz bazy.
             const { data, error } = await rpc.rpc("email_measurement_withdraw", {
               p_subscriber: subject.kind === "subscriber" ? subject.subscriberId : null,
               p_lead: subject.kind === "lead" ? subject.leadId : null,
@@ -215,6 +264,8 @@ export const Route = createFileRoute("/api/public/newsletter/measurement")({
                 return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
             }
           }
+          // Zgoda: baza sprawdza nonce prośby i zapisuje „tak" WYŁĄCZNIE przez
+          // `_email_measurement_grant` (kanał z pochodzenia prośby).
           const { data, error } = await rpc.rpc("newsletter_measurement_confirm", {
             p_subscriber: check.subscriberId,
             p_nonce: check.nonce,
