@@ -135,7 +135,14 @@ test.describe("popup registration (local account and mailbox)", () => {
       await passwords.nth(0).fill("Popup-test-1234!");
       await passwords.nth(1).fill("Popup-test-1234!");
       await dialog.getByRole("checkbox").nth(0).setChecked(scenario.newsletter);
-      await dialog.getByRole("checkbox").nth(1).check();
+      // Osobne pole zgody na pomiar (I9d-Y2b) stoi między newsletterem a
+      // prywatnością: domyślnie niezaznaczone, bez newslettera wyłączone.
+      const measurement = dialog.locator(
+        'label[data-consent="email_measurement"] [role="checkbox"]',
+      );
+      await expect(measurement).not.toBeChecked();
+      if (!scenario.newsletter) await expect(measurement).toBeDisabled();
+      await dialog.getByRole("checkbox", { name: /Akceptuję politykę prywatności/ }).check();
 
       if (scenario.viewport.width < 500) {
         await page.screenshot({ path: testInfo.outputPath("mobile-popup.png") });
