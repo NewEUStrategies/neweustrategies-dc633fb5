@@ -35,7 +35,9 @@ import {
   privacyAcceptanceHtml,
   resolveNewsletterConsent,
 } from "@/lib/newsletter/consentText";
+import { measurementConsentPayload } from "@/lib/newsletter/measurementConsentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import { SignupSuccessPanel } from "@/components/auth/SignupSuccessPanel";
 
 import { SubscribeButton } from "@/components/ui/subscribe-button";
@@ -71,6 +73,8 @@ interface SignupFields {
   passwordConfirm: string;
   list: string;
   newsletter: boolean;
+  /** Osobne pole zgody na pomiar (I9d-Y2b) - tylko przy zaznaczonym newsletterze. */
+  measurement: boolean;
   terms: boolean;
   privacy: boolean;
 }
@@ -89,6 +93,8 @@ const empty: SignupFields = {
   // P08 (RODO): zgoda marketingowa nie może być domyślnie zaznaczona -
   // brak aktywnego kliknięcia oznacza brak zgody (tak samo jak w ClubAccessGate).
   newsletter: false,
+  // Osobne pole zgody na pomiar otwarć i kliknięć - DOMYŚLNIE NIEZAZNACZONE.
+  measurement: false,
   terms: false,
   privacy: false,
 };
@@ -141,17 +147,21 @@ export function PopupSignupForm({
   // jedną wersję, zgoda pokazuje ją zamiast pustki (pusta zgoda RODO to zgoda,
   // której użytkownik nie mógł przeczytać).
   //
-  // I9d-Y2: `policy_html` jest od Y2 treścią zgody na NEWSLETTER (pomiar,
-  // wycofanie) - wymagane pole „prywatność" rejestracji nie może jej nieść
-  // (uzależnienie konta od zgody marketingowej, art. 7 ust. 4 RODO). Własny
-  // tekst polityki admina zostaje źródłem zastępczym; domyślny - nie.
-  const globalPolicy = pickLocalized(settings, "policy_html", lang);
+  // I9d-Y2, I9d-Y2b: `policy_html` to treść zgody na NEWSLETTER - wymagane
+  // pole „prywatność" rejestracji nie może jej nieść ani w kopii, ani jako
+  // źródło zastępcze (uzależnienie konta od zgody marketingowej, art. 7
+  // ust. 4 RODO; wariant (b): każda zgoda ma osobne pole). Własny tekst
+  // prywatności popupu zostaje, a pusty albo równy dowolnej (dawnej lub
+  // bieżącej) treści domyślnej zgody na newsletter -> akceptacja polityki
+  // prywatności (strażnik TS obok migracji czyszczącej kopie w danych).
+  const popupPrivacy = pickLocalized(settings, "popup_privacy_html", lang);
   const privacyHtml =
-    pickLocalized(settings, "popup_privacy_html", lang) ||
-    (isNewsletterConsentDefault(globalPolicy) ? privacyAcceptanceHtml(lang) : globalPolicy);
+    popupPrivacy && !isNewsletterConsentDefault(popupPrivacy)
+      ? popupPrivacy
+      : privacyAcceptanceHtml(lang);
   // Pole „newsletter": etykieta domyślna (albo jej kopia w `popup_fields`)
-  // = pełna treść zgody z pomiarem z jednego źródła; etykieta własna - bez
-  // zmian i bez wersji pomiaru.
+  // = pełna treść zgody (b, bez pomiaru) z jednego źródła; etykieta własna -
+  // bez zmian i bez wersji. Pomiar ma osobne pole pod nim.
   const newsletterConsent = resolveNewsletterConsent(label("newsletter_optin"), lang);
   const termsHtml = pickLocalized(settings, "popup_terms_html", lang);
   // Krótkie pola (imię/nazwisko, hasło/powtórz) stoją w dwóch kolumnach także
@@ -302,7 +312,7 @@ export function PopupSignupForm({
       }
 
       const consentEntries: ConsentSnapshotInput[] = [];
-      // Treść domyślna ma wersję z rejestru (pomiar) - nie skrót z migawki.
+      // Treść domyślna ma wersję z rejestru - nie skrót z migawki.
       const newsletterDefault = showNewsletter && v.newsletter && newsletterConsent.isDefault;
       if (showNewsletter && v.newsletter && !newsletterConsent.isDefault) {
         consentEntries.push({
@@ -325,12 +335,19 @@ export function PopupSignupForm({
       }
       const consentAt = new Date().toISOString();
       const snapshots = await snapshotConsents(consentEntries, consentAt);
-      const consents = newsletterDefault
-        ? [
-            { ...newsletterConsentPayload(newsletterConsent, lang), timestamp: consentAt },
-            ...snapshots,
-          ]
-        : snapshots;
+      // Deklaracja osobnego pola pomiaru POZA migawkami (`snapshotConsents`
+      // nadpisuje wersję skrótem treści, a serwer przyjmuje deklarację tylko
+      // z wersją z rejestru) - jak pozycja treści domyślnej newslettera.
+      const measurementDeclared = showNewsletter && v.newsletter && v.measurement;
+      const consents = [
+        ...(newsletterDefault
+          ? [{ ...newsletterConsentPayload(newsletterConsent, lang), timestamp: consentAt }]
+          : []),
+        ...snapshots,
+        ...(measurementDeclared
+          ? [{ ...measurementConsentPayload(lang), timestamp: consentAt }]
+          : []),
+      ];
       const { error } = await supabase.auth.signUp({
         email,
         password: v.password,
@@ -604,7 +621,14 @@ export function PopupSignupForm({
           <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
               checked={v.newsletter}
-              onCheckedChange={(checked) => upd("newsletter", checked === true)}
+              onCheckedChange={(checked) =>
+                // Odznaczenie newslettera czyści też osobne pole pomiaru.
+                setV((p) => ({
+                  ...p,
+                  newsletter: checked === true,
+                  measurement: checked === true ? p.measurement : false,
+                }))
+              }
               className="mt-px h-[16px] w-[16px] shrink-0"
             />
             <span>
@@ -615,6 +639,19 @@ export function PopupSignupForm({
               )}
             </span>
           </label>
+        )}
+
+        {/* Osobne pole zgody na pomiar (I9d-Y2b) - tylko pod widocznym polem
+            newslettera, ta sama geometria; bez newslettera wyłączone. */}
+        {showNewsletter && (
+          <MeasurementConsentField
+            lang={lang}
+            checked={v.measurement}
+            onCheckedChange={(checked) => upd("measurement", checked)}
+            disabled={!v.newsletter}
+            className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]"
+            checkboxClassName="mt-px h-[16px] w-[16px] shrink-0"
+          />
         )}
 
         {requirePrivacy && privacyHtml && (

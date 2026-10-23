@@ -39,6 +39,7 @@ import {
   signupNewsletterSubscription,
 } from "@/lib/newsletter/consentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserBadges } from "@/lib/profile/badges";
 import { useMembershipTiers } from "@/lib/billing/tiers";
@@ -319,8 +320,9 @@ function GateSignupForm({ plan }: { plan: string }) {
   // Te same pola, etykiety i wymagalność co popup rejestracji i /login -
   // jedno źródło prawdy: newsletter_settings.popup_fields (Admin → Popupy).
   const reg = useRegistrationFields(lang);
-  // Pole „newsletter" (I9d-Y2): etykieta domyślna = pełna treść zgody
-  // z pomiarem z jednego źródła; etykieta własna z panelu - bez zmian.
+  // Pole „newsletter" (I9d-Y2b): etykieta domyślna = pełna treść zgody (b,
+  // bez pomiaru - pomiar ma osobne pole) z jednego źródła; etykieta własna
+  // z panelu - bez zmian.
   const newsletterConsent = resolveNewsletterConsent(reg.label("newsletter_optin", ""), lang);
 
   const [values, setValues] = useState<Record<RegistrationFieldKey, string>>({
@@ -339,6 +341,9 @@ function GateSignupForm({ plan }: { plan: string }) {
   // P08 (RODO): zgoda marketingowa domyślnie ODZNACZONA - brak zaznaczenia
   // to brak zgody, a nie zgoda „z rozpędu".
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  // Osobne pole zgody na pomiar (I9d-Y2b) - DOMYŚLNIE NIEZAZNACZONE, aktywne
+  // tylko przy zaznaczonym newsletterze (odznaczenie newslettera je czyści).
+  const [measurement, setMeasurement] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -425,12 +430,14 @@ function GateSignupForm({ plan }: { plan: string }) {
               lang,
               source: "club_gate",
               consent: newsletterConsent,
+              measurement,
             }),
           });
         } catch {
           // Niekrytyczne: konto powstało, zapis można ponowić formularzem.
         }
       }
+      setMeasurement(false);
       setSent(true);
     } catch {
       toast.error(t("clubGate.errors.generic"));
@@ -567,7 +574,10 @@ function GateSignupForm({ plan }: { plan: string }) {
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <Checkbox
             checked={newsletterOptIn}
-            onCheckedChange={(checked) => setNewsletterOptIn(checked === true)}
+            onCheckedChange={(checked) => {
+              setNewsletterOptIn(checked === true);
+              if (checked !== true) setMeasurement(false);
+            }}
             className="mt-0.5"
           />
           <span>
@@ -578,6 +588,18 @@ function GateSignupForm({ plan }: { plan: string }) {
             )}
           </span>
         </label>
+      ) : null}
+      {/* Osobne pole zgody na pomiar (I9d-Y2b) - pod polem newslettera, ta
+          sama geometria; bez newslettera wyłączone. */}
+      {on("newsletter_optin") ? (
+        <MeasurementConsentField
+          lang={lang}
+          checked={measurement}
+          onCheckedChange={setMeasurement}
+          disabled={!newsletterOptIn}
+          className="flex items-start gap-2 text-xs text-muted-foreground"
+          checkboxClassName="mt-0.5"
+        />
       ) : null}
 
       <Button type="submit" className="w-full rounded-lg" disabled={busy}>

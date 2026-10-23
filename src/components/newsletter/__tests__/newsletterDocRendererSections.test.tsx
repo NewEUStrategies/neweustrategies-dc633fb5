@@ -63,6 +63,7 @@ vi.mock("@/lib/newsletter.functions", () => ({
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
+import { measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
 import {
   makeCheckbox,
   makeCountdown,
@@ -345,7 +346,9 @@ describe("nieznany typ widgetu", () => {
     mount(makeDoc([makeSection([obcy])]));
 
     expect(form()).toBeInTheDocument();
-    expect(form().textContent).toBe("");
+    // Jedyna treść to stały wiersz osobnego pola zgody na pomiar (I9d-Y2b) -
+    // formularz dokłada go sam, niezależnie od widżetów dokumentu.
+    expect(form().textContent).toBe(measurementConsentPlain("pl"));
   });
 
   it("nieznany widget nie blokuje zapisu - dane z pozostałych pól nadal jadą do CRM", async () => {
@@ -511,7 +514,11 @@ describe("ścieżka zapisu", () => {
     await submitAndSettle();
 
     expect(h.payloads).toHaveLength(0);
-    expect(form().textContent).toBe("Zapisz sie na newsletterZapisz mnie");
+    // Widżety dokumentu + stały wiersz pola pomiaru (I9d-Y2b) - żadnego
+    // komunikatu o brakującym polu e-mail.
+    expect(form().textContent).toBe(
+      `Zapisz sie na newsletterZapisz mnie${measurementConsentPlain("pl")}`,
+    );
   });
 
   it("błąd walidacji nie pokazuje komunikatu serwerowego - nie było żadnego zapytania", async () => {

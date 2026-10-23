@@ -145,11 +145,33 @@ vi.mock("@/lib/auth/registrationFields", () => ({
 }));
 
 import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentHtml,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { axeViolations, summarize } from "@/test/axe";
 import { clubViewRow } from "@/test/clubs/fixtures";
 import type { ClubViewRow } from "@/lib/clubs/types";
 
 function gate(overrides: Partial<ClubViewRow> = {}) {
   return render(<ClubAccessGate club={clubViewRow(overrides)} />);
+}
+
+/** Pole zgody newsletterowej (osobne pole pomiaru ma własny pomocnik). */
+function zgodaNewslettera(): HTMLElement {
+  const pola = screen
+    .getAllByRole("checkbox")
+    .filter((el) => !el.closest('[data-consent="email_measurement"]'));
+  expect(pola).toHaveLength(1);
+  return pola[0];
+}
+
+/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
+function poleMiaru(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    '[data-consent="email_measurement"] [role="checkbox"]',
+  );
 }
 
 /** Czy w dokumencie jest element, którego treść niesie dany klucz i18n. */
@@ -447,8 +469,10 @@ describe("pola rejestracji sterowane z panelu", () => {
     for (const key of WSZYSTKIE_POLA.filter((k) => k !== "newsletter_optin")) {
       expect(czyJestPole(key), `brak pola ${key}`).toBe(true);
     }
-    // Zgoda newsletterowa nie jest polem tekstowym - to pole wyboru.
-    expect(screen.getByRole("checkbox")).toBeTruthy();
+    // Zgoda newsletterowa nie jest polem tekstowym - to pole wyboru (obok
+    // niego osobne pole pomiaru, I9d-Y2b).
+    expect(zgodaNewslettera()).toBeTruthy();
+    expect(poleMiaru()).toBeTruthy();
   });
 
   it.each(["first_name", "last_name", "job", "company", "linkedin", "phone"])(
@@ -499,16 +523,55 @@ describe("pola rejestracji sterowane z panelu", () => {
   it("zgoda newsletterowa jest domyślnie ODZNACZONA (P08, RODO) i daje się włączyć", () => {
     h.enabled = [...WSZYSTKIE_POLA];
     gate();
-    const checkbox = screen.getByRole("checkbox");
+    const checkbox = zgodaNewslettera();
     expect(checkbox.getAttribute("data-state")).toBe("unchecked");
     fireEvent.click(checkbox);
     expect(checkbox.getAttribute("data-state")).toBe("checked");
   });
 
+  it("osobne pole pomiaru (I9d-Y2b): pod newsletterem, odznaczone, wyłączone bez newslettera i czyszczone przy jego odznaczeniu", () => {
+    h.enabled = [...WSZYSTKIE_POLA];
+    gate();
+    const pole = poleMiaru();
+    expect(pole).not.toBeNull();
+    expect(pole?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(pole?.getAttribute("data-state")).toBe("unchecked");
+    expect(pole).toBeDisabled();
+    expect(
+      zgodaNewslettera().compareDocumentPosition(pole as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(zgodaNewslettera());
+    expect(poleMiaru()).not.toBeDisabled();
+    fireEvent.click(poleMiaru() as HTMLElement);
+    expect(poleMiaru()?.getAttribute("data-state")).toBe("checked");
+    fireEvent.click(zgodaNewslettera());
+    expect(poleMiaru()?.getAttribute("data-state")).toBe("unchecked");
+    expect(poleMiaru()).toBeDisabled();
+  });
+
+  it.each(["light", "dark"] as const)(
+    "wiersz pola pomiaru bez naruszeń axe (motyw %s)",
+    async (theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        h.enabled = [...WSZYSTKIE_POLA];
+        gate();
+        fireEvent.click(zgodaNewslettera());
+        const violations = await axeViolations(poleMiaru()?.closest("label") as HTMLElement);
+        expect(violations, summarize(violations)).toEqual([]);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
+    },
+  );
+
   it("wyłączona zgoda newsletterowa nie renderuje pola wyboru", () => {
     h.enabled = ["email", "password"];
     gate();
     expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(poleMiaru()).toBeNull();
   });
 });
 
@@ -668,7 +731,7 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     wpisz("password", "haslo12345");
     wpisz("password_confirm", "haslo12345");
     // Zaznaczenie przez użytkownika - jedyna droga do zgody (domyślnie brak).
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(zgodaNewslettera());
     wyslij();
     await waitFor(() => {
       expect(h.signUp).toHaveBeenCalledTimes(1);
@@ -687,6 +750,35 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
           source: "signup_club_gate",
           consents: [
             { key: "newsletter", text: "panel:newsletter_optin:", given: true, lang: "pl" },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("osobne pole pomiaru (I9d-Y2b): zaznaczone dokłada deklarację z wersją z rejestru", async () => {
+    h.enabled = [...WSZYSTKIE_POLA];
+    h.required = ["email", "password", "password_confirm"];
+    gate();
+    wpisz("email", "kandydat@example.org");
+    wpisz("password", "haslo12345");
+    wpisz("password_confirm", "haslo12345");
+    fireEvent.click(zgodaNewslettera());
+    fireEvent.click(poleMiaru() as HTMLElement);
+    wyslij();
+    await waitFor(() =>
+      expect(h.preAuthGuard).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          source: "signup_club_gate",
+          consents: [
+            { key: "newsletter", text: "panel:newsletter_optin:", given: true, lang: "pl" },
+            {
+              key: "email_measurement_declared",
+              text: measurementConsentHtml("pl"),
+              version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+              given: true,
+              lang: "pl",
+            },
           ],
         }),
       }),

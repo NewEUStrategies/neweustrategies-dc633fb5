@@ -105,9 +105,16 @@ describe("SignupPopupPanel", () => {
     expect(screen.getByLabelText("Hasło *")).toBeTruthy();
     expect(screen.getByLabelText("Powtórz hasło *")).toBeTruthy();
     expect(screen.getByLabelText("Twój e-mail *")).toBeTruthy();
-    // Newsletter zostaje opcjonalnym checkboxem - z pełną treścią zgody
-    // (pomiar, osobne wyłączenie, wycofanie) zamiast samej etykiety (I9d-Y2).
-    expect(screen.getByText(/Wiadomości mogą zawierać elementy mierzące otwarcia/)).toBeTruthy();
+    // Newsletter zostaje opcjonalnym checkboxem - z pełną treścią zgody (b,
+    // bez pomiaru) zamiast samej etykiety (I9d-Y2, I9d-Y2b), a pod nim stoi
+    // osobne, domyślnie niezaznaczone pole zgody na pomiar.
+    expect(screen.getByText(/Zasady przetwarzania danych opisuje/)).toBeTruthy();
+    const measurement = document.querySelector('[data-consent="email_measurement"]');
+    expect(measurement?.textContent).toMatch(/^Zgadzam się na pomiar otwarć i kliknięć/);
+    expect(measurement?.querySelector('[role="checkbox"]')).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
   it("bierze teksty z ustawień w wybranym języku", () => {

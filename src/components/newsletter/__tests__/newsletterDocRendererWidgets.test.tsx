@@ -541,7 +541,10 @@ describe("przycisk akcji (CTA)", () => {
       makeCtaButton({ url: "/wydarzenia" }),
     ]);
 
-    const linki = [...document.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    // Bez linku „szczegóły" ze stałego wiersza pola pomiaru (I9d-Y2b).
+    const linki = [...document.querySelectorAll("a")]
+      .filter((a) => !a.closest('[data-consent="email_measurement"]'))
+      .map((a) => a.getAttribute("href"));
     expect(linki).toEqual(["mailto:biuro@example.pl", "tel:+48221234567", "/wydarzenia"]);
   });
 

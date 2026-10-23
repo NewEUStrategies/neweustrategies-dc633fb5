@@ -89,6 +89,12 @@ import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/content-model
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { WIDGETS } from "@/lib/builder/registry";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentHtml,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { axeViolations, summarize } from "@/test/axe";
 
 type Data = Record<string, unknown>;
 type Lang = "pl" | "en";
@@ -120,6 +126,12 @@ const form = (): HTMLFormElement => {
   expect(el, "form").toBeTruthy();
   return el as HTMLFormElement;
 };
+/** Pola wyboru formularza bez osobnego pola pomiaru (I9d-Y2b). */
+const consentBoxes = (): HTMLElement[] =>
+  screen.getAllByRole("checkbox").filter((el) => !el.closest('[data-consent="email_measurement"]'));
+/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
+const measurementBox = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>('[data-consent="email_measurement"] [role="checkbox"]');
 
 beforeEach(() => {
   h.navigate.mockReset();
@@ -447,8 +459,9 @@ describe("register-form: rozjazdy kluczy działają z obu stron", () => {
     expect(document.getElementById("reg-confirm")).toBeTruthy();
   });
 
-  // Domyślne pole „newsletter" pokazuje pełną treść zgody z pomiarem (I9d-Y2).
-  const NEWSLETTER_DEFAULT = /Wiadomości mogą zawierać elementy mierzące otwarcia/;
+  // Domyślne pole „newsletter" pokazuje pełną treść zgody (b, bez pomiaru -
+  // I9d-Y2b; pomiar ma osobne pole).
+  const NEWSLETTER_DEFAULT = /Zasady przetwarzania danych opisuje/;
 
   it("newsletterOptIn (schemat) i showNewsletterOptIn (komponent) sterują tym samym", () => {
     register({ newsletterOptIn: "0" });
@@ -496,7 +509,8 @@ describe("register-form: rozjazdy kluczy działają z obu stron", () => {
 
   it("odrzuca niebezpieczny schemat w linku zgody", () => {
     register({ consentText_pl: "Zgoda [tutaj](javascript:alert(1))." });
-    expect(screen.getByText(/Zgoda/).querySelector("a")).toBeNull();
+    // `^`: treść osobnego pola pomiaru też zawiera słowo „Zgoda".
+    expect(screen.getByText(/^Zgoda/).querySelector("a")).toBeNull();
   });
 });
 
@@ -595,7 +609,7 @@ describe("register-form: walidacja i payload", () => {
   it("zaznaczony newsletter zapisuje na listę z treścią i wersją zgody (I9d-Y2)", async () => {
     register({ requireConsent: false });
     fillMinimal();
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(consentBoxes()[0]);
     fireEvent.submit(form());
     await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -620,6 +634,71 @@ describe("register-form: walidacja i payload", () => {
       }),
     );
   });
+
+  it("osobne pole pomiaru: pod newsletterem, niezaznaczone, wyłączone bez newslettera i czyszczone przy jego odznaczeniu", () => {
+    register({ requireConsent: false });
+    const box = measurementBox();
+    expect(box).not.toBeNull();
+    expect(box).toHaveAttribute("aria-checked", "false");
+    expect(box).toBeDisabled();
+    expect(box?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+
+    const [newsletter] = consentBoxes();
+    fireEvent.click(newsletter);
+    expect(measurementBox()).not.toBeDisabled();
+    fireEvent.click(measurementBox() as HTMLElement);
+    expect(measurementBox()).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(newsletter);
+    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
+    expect(measurementBox()).toBeDisabled();
+  });
+
+  it("zaznaczone pole pomiaru dokłada deklarację z wersją z rejestru do zapisu na listę", async () => {
+    register({ requireConsent: false });
+    fillMinimal();
+    fireEvent.click(consentBoxes()[0]);
+    fireEvent.click(measurementBox() as HTMLElement);
+    fireEvent.submit(form());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(h.guard).toHaveBeenCalledTimes(1));
+    const [{ data }] = h.guard.mock.calls[0] as [{ data: { consents: unknown[] } }];
+    expect(data.consents).toEqual([
+      {
+        key: "newsletter",
+        text: newsletterConsentHtml("pl"),
+        given: true,
+        lang: "pl",
+        version: NEWSLETTER_CONSENT_VERSION,
+      },
+      {
+        key: "email_measurement_declared",
+        text: measurementConsentHtml("pl"),
+        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        given: true,
+        lang: "pl",
+      },
+    ]);
+  });
+
+  it("wyłączone pole newslettera chowa też pole pomiaru", () => {
+    register({ newsletterOptIn: false });
+    expect(measurementBox()).toBeNull();
+  });
+
+  it.each(["light", "dark"] as const)(
+    "rejestracja z polem pomiaru bez naruszeń axe (motyw %s)",
+    async (theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        const { container } = register();
+        const violations = await axeViolations(container);
+        expect(violations, summarize(violations)).toEqual([]);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
+    },
+  );
 
   it("bez zaznaczenia newslettera nikt nie trafia na listę", async () => {
     register({ requireConsent: false });

@@ -38,6 +38,12 @@ import {
   newsletterConsentHtml,
   newsletterConsentPlain,
 } from "@/lib/newsletter/consentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentHtml,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { axeViolations, summarize } from "@/test/axe";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -222,7 +228,22 @@ function field(autocomplete: string): HTMLInputElement {
   return node;
 }
 const form = () => document.querySelector("form")!;
-const consent = () => screen.getByRole("checkbox");
+/** Wymagana zgoda na newsletter (osobne pole pomiaru ma własny pomocnik). */
+const consent = () => {
+  const boxes = screen
+    .getAllByRole("checkbox")
+    .filter((el) => !el.closest('[data-consent="email_measurement"]'));
+  expect(boxes).toHaveLength(1);
+  return boxes[0];
+};
+/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
+const measurementBox = () => {
+  const box = document.querySelector<HTMLElement>(
+    '[data-consent="email_measurement"] [role="checkbox"]',
+  );
+  if (!box) throw new Error("test: brak pola pomiaru");
+  return box;
+};
 const submit = () => fireEvent.submit(form());
 
 /** Wypełnia minimum potrzebne do przejścia walidacji. */
@@ -416,12 +437,10 @@ describe("kształt payloadu", () => {
     expect(lastPayload()?.consents[0].text.length).toBeGreaterThan(20);
   });
 
-  it("zapisuje DOKŁADNIE treść pokazaną przy polu zgody - domyślną z wersją pomiaru (I9d-Y2)", async () => {
+  it("zapisuje DOKŁADNIE treść pokazaną przy polu zgody - domyślną (b) z wersją (I9d-Y2b)", async () => {
     mount();
     // Widoczna treść = jedno źródło treści domyślnej (bez zaszytej kopii).
-    expect(screen.getByRole("checkbox").closest("label")?.textContent).toContain(
-      newsletterConsentPlain("pl"),
-    );
+    expect(consent().closest("label")?.textContent).toContain(newsletterConsentPlain("pl"));
     fillMinimum();
     submit();
     await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
@@ -434,7 +453,7 @@ describe("kształt payloadu", () => {
     });
   });
 
-  it("własna treść zgody z buildera jest zapisywana jako dowód, bez wersji pomiaru", async () => {
+  it("własna treść zgody z buildera jest zapisywana jako dowód, bez wersji", async () => {
     mount({ consentText: "Moja zgoda na newsletter" });
     fillMinimum();
     submit();
@@ -1121,6 +1140,68 @@ describe("pola własne z surowej treści widgetu (P3.9)", () => {
     const blank = mount({ customFieldsSource: "" });
     expect(blank.container.querySelectorAll("input").length).toBe(baseline);
   });
+});
+
+describe("osobne pole zgody na pomiar (I9d-Y2b)", () => {
+  it("pole jest pod wymaganą zgodą, domyślnie niezaznaczone, aktywne i z treścią pomiaru", () => {
+    mount();
+    const box = measurementBox();
+    expect(box).toHaveAttribute("aria-checked", "false");
+    expect(box).not.toBeDisabled();
+    expect(box.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(consent().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Ten sam rozmiar z widżetu (`consentSize`) co wymagana zgoda.
+    expect(box.closest("label")?.getAttribute("data-edit-target")).toBe("consentSize");
+    expect(box.closest("label")?.getAttribute("style")).toBe(
+      consent().closest("label")?.getAttribute("style"),
+    );
+  });
+
+  it("bez zaznaczenia pola ładunek ma wyłącznie zgodę na newsletter", async () => {
+    mount();
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
+    expect(lastPayload()?.consents.map((entry) => entry.key)).toEqual(["newsletter"]);
+  });
+
+  it("zaznaczone pole dokłada deklarację z treścią i wersją z rejestru", async () => {
+    mount();
+    fillMinimum();
+    fireEvent.click(measurementBox());
+    submit();
+    await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
+    expect(lastPayload()?.consents).toEqual([
+      {
+        key: "newsletter",
+        text: newsletterConsentHtml("pl"),
+        given: true,
+        lang: "pl",
+        version: NEWSLETTER_CONSENT_VERSION,
+      },
+      {
+        key: "email_measurement_declared",
+        text: measurementConsentHtml("pl"),
+        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        given: true,
+        lang: "pl",
+      },
+    ]);
+  });
+
+  it.each(["light", "dark"] as const)(
+    "brak naruszeń axe z polem pomiaru (motyw %s)",
+    async (theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        const { container } = mount();
+        const violations = await axeViolations(container);
+        expect(violations, summarize(violations)).toEqual([]);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
+    },
+  );
 });
 
 describe("język angielski", () => {

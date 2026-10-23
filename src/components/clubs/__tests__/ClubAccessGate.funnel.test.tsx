@@ -134,7 +134,11 @@ describe("ClubAccessGate - lejek", () => {
 
   it("zgoda newsletterowa domyślnie odznaczona (P08)", () => {
     render(<ClubAccessGate club={clubViewRow()} />);
-    expect(screen.getByRole("checkbox").getAttribute("data-state")).toBe("unchecked");
+    // Każde pole wyboru (zgoda na newsletter i osobne pole pomiaru, I9d-Y2b)
+    // startuje odznaczone.
+    const boxes = screen.getAllByRole("checkbox");
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) expect(box.getAttribute("data-state")).toBe("unchecked");
   });
 
   it("zalogowany z planem za niskim: RPC z progiem, upgrade pamięta klub", async () => {
