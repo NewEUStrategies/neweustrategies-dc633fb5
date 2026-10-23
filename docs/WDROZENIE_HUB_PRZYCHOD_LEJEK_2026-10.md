@@ -6265,3 +6265,45 @@ supabase - po `20261023090200`; pas drizzle - `0397` (bliźniaki
 treści pola pomiaru albo zgody na newsletter = nowa wersja (stała TS
 i literał w nowej migracji ze znacznikami parytetu) - wersji wydanej nie
 zmienia się.
+
+**12. Integracja (2026-10-23).** Scalenia `--no-ff` do gałęzi PR, bez
+konfliktów (listy plików pasów rozłączne): pas A `2f698cf0e` → `f19a61ee4`,
+pas B `27add84b4` → `ecd886fc3`, pas C `761ba0d1f` → `158776a14`, pas D
+`977e59ce6` → `15cf11a93`. Pliki współdzielone (`8ba13d57b`): bliźniaki
+drizzle `0394…0396` bajt w bajt z wpisami dziennika (idx 394-396, `when`
+co 60 s za `0393`) i snapshotami meta w łańcuchu `prevId` od `0393`;
+`MIGRATION_LANES` - `twin` dla `0394…0396` i `drizzleOnly` dla `0392`/`0393`
+(naprawa dryfu produkcji z panelu Lovable: `0392` ponawia kolumnę
+`membership_grants.source_coupon_id` bez klucza, nadpisuje komentarz
+i zakłada indeks `(tenant_id, source_coupon_id)`, którego pas supabase nie
+ma; `0393` dodaje klucz obcy bez `IF NOT EXISTS` pod nazwą, którą pas
+supabase nadaje już przez `REFERENCES` w `20260725090300` - bliźniak
+wywróciłby bazy stawiane z pasa supabase); `types.ts` w konwencji
+generatora (kolumna `origin`, `claim(p_limit, p_origin)`, trzy nowe RPC,
+nowe funkcje wewnętrzne, bez usuniętych `_consent_covers_measurement`
+i RPC oznaczeń); `authzSnapshot` (1320 migracji, 1913 funkcji); komentarze
+`domainEvents` i `hubDelivery` (część rejestru I9d-Y2 wygaszona
+w `20261023090000`). Kontrakt TS⇄SQL (`ts_sql_contract_test.sql`) nie
+jest w repozytorium - generuje go runner pgTAP. Ratchet D-08 (`12a179a45`):
+najpierw cięcie - hook korzenia czyta treść domyślną z liścia
+`newsletterConsentCurrent`, więc sanitizer zgód i treść pola pomiaru
+wyszły z chunku startowego (`app-initial` 260,7 → 259,2 KB gzip, baza
+259,8; boot 474,4 → 473,0, baza 473,6); potem `overall` 5371 → 5378 (baza
+`28fb2299` 5369,2 / public 2789,4, po Y2b 5376,7 / public 2796,1,
+admin-only +0,7; rozbicie w kronice `scripts/check-bundle-size.ts`).
+Bramki lokalnie: `tsgo --noEmit` (także `tsconfig.e2e.json`) i
+`tsc` skryptów - 0 błędów; `prettier --check .` - zielony; eslint na
+109 zmienionych plikach TS - 0 błędów (5 ostrzeżeń sprzed zmian; pełny
+`eslint .` nie zmieścił się w 25 min hosta); `check:sql-*`,
+`check:migration-lanes`, `check:rpc-contract`, `check:ts-sql-contract`,
+`check:types-freshness`, `check:on-conflict-arbiters` i pozostałe bramki
+joba `verify` - zielone; pełny pgTAP (świeża baza, 1320 migracji): 263
+plików OK, 4 z błędem środowiska (pg_net, vector, domyślne uprawnienia -
+te same co na bazie), w tym `hub_i9d_y2b_measurement_separate_test` 59/59
+i `ts_sql_contract_test` 9/9; `plpgsql_check` 19 funkcji - 0 uwag; vitest
+w 4 shardach - 3914 plików, 0 porażek (shard 4 przekroczył 10 min hosta po
+859 plikach - pozostałe 119 dokończone osobnym przebiegiem; po cięciu
+chunku startowego ponownie 298 plików dotkniętych katalogów); build,
+`check:bundle`, `check:chunks`, `check:entry-purity`,
+`check:server-entry-purity` - zielone. Bez bazy na żywo:
+`check:db-contract` i `check:migration-ledger` (job po wdrożeniu).
