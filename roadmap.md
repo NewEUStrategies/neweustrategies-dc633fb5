@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #533 (2026-10-23)
+
+- [ ] Potwierdzić wszystkie commity i integrację scalenia #533.
+- [ ] Sprawdzić w żywej bazie tabele, widoki, RPC, kolumny, granty i rejestry; zastosować brakujące zmiany.
+- [ ] Uruchomić testy zakresowe i sprawdzić rzeczywisty przepływ zgód PL/EN.
+- [ ] Potwierdzić opublikowanie kodu PR #533 albo wskazać brak potwierdzenia publikacji.
+
 ## Kupony i waluta cennika (2026-10-23)
 
 - [x] Naprawić brak membership_grants.source_coupon_id: kolumna, indeks i FK istnieją w żywej bazie; kontrakt 1903 obiekty / 772 kolumny bez nowych braków; brak kuponów nadających warstwę i zaległych efektów do ponowienia.

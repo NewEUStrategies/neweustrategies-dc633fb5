@@ -2787,6 +2787,13 @@
       "when": 1792754003654,
       "tag": "0397_consent_measurement_separate_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 398,
+      "version": "7",
+      "when": 1792789886300,
+      "tag": "0398_pr533_deployment_completion",
+      "breakpoints": true
     }
   ]
 }
