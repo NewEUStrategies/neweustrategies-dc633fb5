@@ -35,6 +35,11 @@ import {
   type ConsentSegment,
 } from "./consentSegments";
 import {
+  NEWSLETTER_CONSENT_CURRENT_SEGMENTS,
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+} from "./newsletterConsentCurrent";
+import {
   EMAIL_MEASUREMENT_CONSENT_KEY,
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   EMAIL_MEASUREMENT_DECLARED_KEY,
@@ -50,8 +55,10 @@ import {
 // Zgodność importów: typy odcinków mieszkają w liściu `consentSegments`.
 export type { ConsentLang, ConsentSegment } from "./consentSegments";
 
-/** Wersja bieżącej treści domyślnej (b, bez pomiaru). Limit ładunku `version`: 32 znaki. */
-export const NEWSLETTER_CONSENT_VERSION = "newsletter-2026-10-23";
+// Wersja i odcinki treści bieżącej (b) mieszkają w liściu
+// `./newsletterConsentCurrent` - chunk startowy (hook korzenia) bierze je
+// stamtąd bez reszty tego modułu i bez treści pola pomiaru.
+export { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml };
 
 /**
  * Wersja treści pakietowej (a) z 2026-10-21 (zgoda na newsletter z opisem
@@ -81,28 +88,9 @@ const SEGMENTS_BUNDLED: Readonly<Record<ConsentLang, readonly ConsentSegment[]>>
   ],
 };
 
-/**
- * Treść bieżąca (b) jako odcinki - z nich powstaje HTML (lustro SQL) i widok
- * React bez `innerHTML` (`NewsletterConsentText`). Ścieżki EN z prefiksem
- * `/en` (jedna trasa dokumentu na oba języki - `documentIndex.ts`); dawne
- * `/privacy-policy` nie istniało.
- */
-const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
-  pl: [
-    "Zapisując się, wyrażasz zgodę na otrzymywanie newslettera. Zasady przetwarzania danych opisuje ",
-    { href: "/polityka-prywatnosci", label: "Polityka prywatności" },
-    ". Zgodę możesz wycofać w każdej chwili (",
-    { href: "/komunikacja-i-marketing#rezygnacja", label: "jak to zrobić" },
-    ").",
-  ],
-  en: [
-    "By signing up, you agree to receive the newsletter. How we process your data is described in our ",
-    { href: "/en/polityka-prywatnosci", label: "Privacy Policy" },
-    ". You can withdraw your consent at any time (",
-    { href: "/en/komunikacja-i-marketing#rezygnacja", label: "how to do it" },
-    ").",
-  ],
-};
+/** Treść bieżąca (b) jako odcinki - definicja w liściu `./newsletterConsentCurrent`. */
+const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> =
+  NEWSLETTER_CONSENT_CURRENT_SEGMENTS;
 
 /**
  * Wydane wersje treści domyślnej zgody na newsletter -> odcinki PL/EN.
@@ -128,11 +116,6 @@ function newsletterSegmentsOf(
 /** Odcinki treści domyślnej (widok React). */
 export function newsletterConsentSegments(lang: ConsentLang): readonly ConsentSegment[] {
   return SEGMENTS[lang];
-}
-
-/** Treść domyślna jako HTML - DOKŁADNIE literał SQL (dowód w rejestrze zgód). */
-export function newsletterConsentHtml(lang: ConsentLang): string {
-  return segmentsHtml(SEGMENTS[lang]);
 }
 
 /** Treść domyślna bez znaczników (tekst maila, czytniki bez HTML). */

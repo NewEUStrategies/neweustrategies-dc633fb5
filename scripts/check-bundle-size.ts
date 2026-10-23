@@ -2650,7 +2650,44 @@ const FROZEN_BUDGET_KB = {
   // publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
   // 2790,9 / 2881 w zamrożonych progach.
   // Host 5369,8 -> 5370 -> +1.
-  overall: 5371,
+  //
+  // Ratchet 5371 -> 5378 (2026-10-23, I9d-Y2b - osobne pole zgody na pomiar
+  // otwarć i kliknięć (wariant (b)) i pomiar tylko po potwierdzeniu skrzynki
+  // przez jej właściciela (D2), decyzje właściciela 2026-10-23), decyzją
+  // zamawiającego D-08. Baza 28fb2299 (origin/main, baza PR; kopia
+  // `git archive`, ten sam `node_modules`, ten sam host) 5369,2 / public
+  // 2789,4 / admin-only 2579,8; po Y2b z integracją 5376,7: +7,5 KB, w tym
+  // public +6,7 (2796,1) i admin-only +0,7 (2580,5). Rozbicie public: pole
+  // pomiaru w siedmiu formularzach - atom `MeasurementConsentField` +0,46,
+  // reguły wiersza NlDoc `nlDocMeasurement` +0,6, `NewsletterDocRenderer`
+  // +0,2; treść osobnego pola pomiaru `measurementConsentText` +1,0
+  // i sanitizer zgód `consentText` +1,3 (oba w leniwych chunkach - patrz
+  // cięcie niżej); karta decyzji na stronie DOI ładowana leniwie
+  // (`NewsletterConfirmMeasurementCard` +0,75, trasa `newsletter.confirm`
+  // +0,3) z kontraktem trasy `confirmMeasurement` +0,46; słownik strony
+  // pomiaru wydzielony do wspólnego chunku strony i karty DOI
+  // (`i18n-newsletter-measurement` +2,8 przy `newsletter.measurement` -1,8,
+  // netto +1,0 - sześć nowych kluczy PL/EN i wspólny panel decyzji);
+  // polityka komunikacji `communications` +0,64 (akapity wariantu (b));
+  // reszta to entropia hashy (869 chunków o |Δ| < 150 B, razem +0,6 KB).
+  // Admin-only: słownik panelu zgody wydzielony z `consentTextRules`
+  // (`i18n-admin-newsletter-measurement` +4,6 przy `consentTextRules` -4,5),
+  // bez oznaczeń admina (`NewsletterMeasurementPanel` -0,25,
+  // `measurementQueries` -0,23), etykieta deklaracji w oknie subskrybenta
+  // (`admin.newsletter.subscribers` +0,3), dymki `i18n-admin-measurement-hint`
+  // +0,4, opis double opt-in `admin.newsletter.overview` +0,15, podgląd pola
+  // pomiaru w `NewsletterBuilder` +0,16. CIĘCIE PRZED RATCHETEM: hook korzenia
+  // `useNewsletterSettings` czyta treść domyślną z liścia
+  // `newsletterConsentCurrent` zamiast z `consentText` - przedtem do chunku
+  // startowego wchodził cały sanitizer z treścią (a) i, przez jego import,
+  // treść pola pomiaru (`app-initial` 260,7 -> 259,2, czyli -0,6 względem
+  // bazy 259,8; boot 474,4 -> 473,0 przy bazie 473,6). Suma OVERALL się nie
+  // zmienia (moduły przeszły do leniwych chunków), więc próg rośnie
+  // o zmierzony przyrost. Arkusze CSS bit w bit te same (css 99,8 / 100,
+  // publicCss 83,8 / 85); chunk 259,2 / 286, boot 473,0 / 579, public
+  // 2796,1 / 2881 w zamrożonych progach.
+  // Host 5376,7 -> 5377 -> +1.
+  overall: 5378,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
