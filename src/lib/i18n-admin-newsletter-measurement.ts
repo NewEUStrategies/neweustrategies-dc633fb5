@@ -1,11 +1,13 @@
 // i18n panelu newslettera - TREŚĆ ZGODY I POMIAR OTWARĆ I KLIKNIĘĆ (I9d-Y2,
-// decyzje właściciela 2026-10-20 „tak, uzupełnij" i 2026-10-21, wariant (a)).
+// decyzje właściciela 2026-10-20 „tak, uzupełnij"; I9d-Y2b, decyzje
+// 2026-10-23: D1 wariant (b) - każda zgoda ma osobne pole, D2 - pomiar tylko
+// dla skrzynki potwierdzonej przez jej właściciela).
 //
 // Trzy powierzchnie, jeden słownik (ładowany WYŁĄCZNIE w leniwych chunkach
 // panelu, nigdy z pliku trasy):
-//   * `consent` - edycja treści zgody na newsletter PL/EN z ostrzeżeniem,
-//     gdy własny tekst nie obejmuje pomiaru, i z jawnym oznaczeniem admina
-//     „mój tekst obejmuje pomiar" (zamiast heurystyki słów);
+//   * `consent` - edycja treści zgody na newsletter PL/EN (bez pomiaru),
+//     ostrzeżenie, gdy własny tekst wspomina pomiar, i sekcja tylko do
+//     odczytu z treścią i wersją OSOBNEGO pola zgody na pomiar;
 //   * `request` - „Poproś o zgodę na pomiar" (podgląd liczby, potwierdzenie,
 //     stan wysyłki) i wspólny przełącznik pomiaru ścieżek i kampanii
 //     (Z-I9c-09);
@@ -28,10 +30,10 @@ const pl = {
     consent: {
       title: "Treść zgody na newsletter",
       subtitle:
-        "Tekst przy formularzach zapisu (formularz w treści strony, kreator formularzy, popup newslettera). Puste pole = treść domyślna w wersji {{version}}: mówi o pomiarze otwarć i kliknięć, jego celu, osobnym wyłączeniu pomiaru i wycofaniu zgody.",
+        "Tekst pod formularzami zapisu (formularz w treści strony, kreator formularzy, popup newslettera). Treść zgody na newsletter nie dotyczy pomiaru otwarć i kliknięć - pomiar ma osobne, domyślnie niezaznaczone pole z własną treścią.",
       fieldPl: "Treść zgody - polski",
       fieldEn: "Treść zgody - angielski",
-      hint: "Dozwolony HTML z linkami. Puste pole = treść domyślna (podpowiedź w polu).",
+      hint: "Dozwolony HTML z linkami. Puste pole = treść domyślna (podpowiedź w polu). Nie opisuj pomiaru w treści zgody na newsletter - zgoda na pomiar ma osobne pole.",
       reset: "Przywróć domyślną",
       save: "Zapisz treść zgody",
       saving: "Zapisywanie…",
@@ -39,34 +41,30 @@ const pl = {
       unsaved: "Niezapisane zmiany",
       previewLabel: "Tak zobaczy ją czytelnik:",
       status: {
-        default: "Treść domyślna - obejmuje pomiar otwarć i kliknięć.",
-        marked: "Własny tekst oznaczony jako obejmujący pomiar ({{date}}).",
-        uncovered:
-          "Własny tekst nie obejmuje pomiaru: osoby zapisane tym formularzem dostaną newsletter bez pomiaru otwarć i kliknięć. Przywróć treść domyślną albo uzupełnij tekst i oznacz go.",
-        stale: "Tekst zmieniono po oznaczeniu - oznaczenie przestało działać.",
-        draftCustom:
-          "Po zapisie własny tekst nie obejmie pomiaru, dopóki administrator go nie oznaczy.",
+        default: "Treść domyślna (wersja {{version}}).",
+        custom: "Treść własna.",
       },
+      mentionsMeasurement:
+        "Ten tekst wspomina pomiar otwarć i kliknięć. Opis pomiaru należy do osobnego pola zgody na pomiar: zapis z formularza nie daje zgody na pomiar, a czytelnik mógłby uznać, że ją wyraża. Usuń opis pomiaru albo przywróć treść domyślną.",
       state: {
-        loading: "Sprawdzanie treści zgody…",
-        readError: "Nie udało się sprawdzić, czy treść zgody obejmuje pomiar.",
-        unavailable:
-          "Sprawdzanie treści zgody zadziała po wdrożeniu migracji pomiaru (20261020162300-162500).",
+        loading: "Wczytywanie treści zgody…",
+        loadError: "Nie udało się wczytać treści zgody.",
       },
-      mark: {
-        label: "Mój tekst obejmuje pomiar otwarć i kliknięć",
-        hint: "Oznacz tylko tekst, który mówi, że wiadomości mogą zawierać elementy mierzące otwarcia i kliknięcia, podaje cel (dopasowanie treści i częstotliwości, statystyka), że pomiar można wyłączyć osobno bez rezygnacji z newslettera i że zgodę można wycofać w każdej chwili. Oznaczenie dotyczy zapisanego tekstu - każda zmiana tekstu je unieważnia.",
-        saveFirst: "Zapisz tekst, zanim go oznaczysz.",
-        adminOnly: "Oznaczenie zmienia wyłącznie administrator.",
-        marked: "Oznaczono tekst jako obejmujący pomiar.",
-        unmarked: "Zdjęto oznaczenie tekstu.",
-        error: "Nie udało się zapisać oznaczenia.",
+      measurement: {
+        title: "Zgoda na pomiar otwarć i kliknięć - osobne pole",
+        version: "Wersja treści: {{version}}",
+        note: "Pole pojawia się automatycznie pod zgodą na newsletter we wszystkich formularzach, domyślnie niezaznaczone. Pomiar działa dopiero, gdy właściciel adresu potwierdzi zgodę przyciskiem na stronie z linku w e-mailu.",
+        fixedNote:
+          "Treść pola jest stała i wersjonowana - nie edytuje się jej w panelu, bo dowód zgody musi wskazywać jedną treść.",
+        previewLabel: "Treść pola, którą widzi czytelnik:",
+        langPl: "Polski",
+        langEn: "Angielski",
       },
     },
     request: {
       title: "Zgoda na pomiar otwarć i kliknięć",
       subtitle:
-        "Piksel i linki z identyfikatorem odbiorcy dostają wyłącznie osoby ze zgodą obejmującą pomiar. Subskrybenci zapisani przed treścią z pomiarem mogą ją wyrazić jednym kliknięciem w mailu z prośbą.",
+        "Subskrybenci bez zgody na pomiar (np. zapisani przed osobnym polem). Prośba dotyczy osobnej zgody na pomiar; brak odpowiedzi niczego nie zmienia. Piksel i linki z identyfikatorem dostają wyłącznie aktywni subskrybenci, którzy sami potwierdzili tę zgodę.",
       switchLabel: "Mierz otwarcia i kliknięcia (ścieżki i kampanie)",
       switchHint:
         "Wspólny przełącznik maili ścieżek i kampanii newslettera - ten sam w ustawieniach silnika ścieżek i w karcie „Retencja danych”. Włączony: pomiar tylko u odbiorców ze zgodą. Wyłączony: żaden mail nie ma piksela ani linków z identyfikatorem, a otwarcia i kliknięcia nie są zapisywane.",
@@ -82,19 +80,21 @@ const pl = {
         candidates: "Do prośby",
         suppressed: "Na liście wyłączeń (bez prośby)",
       },
-      progressTitle: "Prośby dla wersji treści {{version}}",
+      progressTitle: "Prośby z panelu dla wersji treści {{version}}",
       progress: {
         requested: "Zlecone",
         pending: "W kolejce",
         mailed: "Wysłane",
         blocked: "Zablokowane listą wyłączeń",
-        skipped: "Pominięte (zgoda innym kanałem albo wypis)",
+        skipped: "Pominięte (zgoda innym kanałem, odmowa albo wypis)",
         failed: "Nieudane",
         confirmed: "Potwierdzone",
       },
       lastRequested: "Ostatnie zlecenie: {{date}}",
       button: "Poproś o zgodę na pomiar",
-      none: "Nie ma subskrybentów, do których można wysłać prośbę - wszyscy mają zgodę, dostali prośbę o tę wersję albo sami wyłączyli pomiar.",
+      none: "Nie ma subskrybentów, do których można wysłać prośbę - wszyscy mają zgodę na pomiar, dostali już prośbę o nią albo sami odmówili pomiaru.",
+      originNote:
+        "Prośby wysyłane automatycznie po zapisie z zaznaczonym polem pomiaru (bez double opt-in) nie są tu liczone - mają własny dzienny limit i stałą treść.",
       confirmTitle: "Wysłać prośbę o zgodę na pomiar?",
       confirmBody_one:
         "Wyślemy jednorazowy mail do {{count}} subskrybenta w jego języku - między 8:00 a 18:00 czasu polskiego, najwyżej {{cap}} maili dziennie (limit wspólny z prośbami o potwierdzenie subskrypcji). Link jest ważny {{days}} dni. Brak reakcji niczego nie zmienia: newsletter przychodzi dalej, bez pomiaru.",
@@ -126,7 +126,7 @@ const pl = {
     copy: {
       title: "Prośba o zgodę na pomiar otwarć i kliknięć",
       subtitle:
-        "Jednorazowy mail z panelu newslettera do subskrybentów ze zgodą sprzed treści z pomiarem. Puste pole = treść domyślna; treść zgody, przycisk „Zgadzam się na pomiar” i link wypisu dokłada system.",
+        "Treść jednorazowej prośby do subskrybentów bez zgody na pomiar. Puste pole = treść domyślna; treść zgody na pomiar, przycisk i link wypisu dokłada system. Prośba wysyłana po zapisie z zaznaczonym polem pomiaru ma stałą treść - ta edycja jej nie dotyczy.",
       tokens: "Zmienne: {{tokens}} - imię subskrybenta.",
       saved: "Zapisano treść prośby o zgodę na pomiar.",
       saveError: "Nie udało się zapisać treści prośby o zgodę na pomiar.",
@@ -134,7 +134,7 @@ const pl = {
         "Ktoś zapisał treść prośby o zgodę na pomiar w innej karcie. Twoje zmiany zostały w edytorze - sprawdź je i zapisz ponownie, aby nadpisać tamtą wersję.",
       previewFrame: "Podgląd maila z prośbą o zgodę na pomiar",
       previewNote:
-        "Podgląd z przykładowym imieniem i treścią zgody, którą zapisze kliknięcie; przyciski w podglądzie są nieaktywne.",
+        "Pod przyciskiem mail pokazuje treść zgody na pomiar, którą zapisze kliknięcie. Podgląd z przykładowym imieniem; przyciski w podglądzie są nieaktywne.",
       loading: "Wczytywanie treści prośby o zgodę na pomiar…",
       readError: "Nie udało się wczytać treści prośby o zgodę na pomiar.",
       forbidden: "Treść prośby o zgodę na pomiar zmienia wyłącznie administrator.",
@@ -150,10 +150,10 @@ const en: typeof pl = {
     consent: {
       title: "Newsletter consent wording",
       subtitle:
-        "The wording next to sign-up forms (the form in page content, the form builder, the newsletter popup). An empty field uses the default wording, version {{version}}: it covers measuring opens and clicks, its purpose, switching off the measurement separately and withdrawing consent.",
+        "The wording under sign-up forms (the form in page content, the form builder, the newsletter popup). The newsletter consent wording does not cover measuring opens and clicks - measurement has its own unticked box with its own text.",
       fieldPl: "Consent wording - Polish",
       fieldEn: "Consent wording - English",
-      hint: "HTML with links is allowed. An empty field uses the default wording (shown as the field hint).",
+      hint: "HTML with links is allowed. An empty field uses the default wording (shown as the field hint). Do not describe measurement in the newsletter consent wording - consent to measurement has its own box.",
       reset: "Restore default",
       save: "Save consent wording",
       saving: "Saving…",
@@ -161,34 +161,30 @@ const en: typeof pl = {
       unsaved: "Unsaved changes",
       previewLabel: "What the reader will see:",
       status: {
-        default: "Default wording - covers measuring opens and clicks.",
-        marked: "Own wording marked as covering the measurement ({{date}}).",
-        uncovered:
-          "Own wording does not cover the measurement: people who sign up with this form will get the newsletter without measuring opens and clicks. Restore the default wording, or extend your text and mark it.",
-        stale: "The wording changed after it was marked - the mark no longer applies.",
-        draftCustom:
-          "Once saved, your own wording will not cover the measurement until an administrator marks it.",
+        default: "Default wording (version {{version}}).",
+        custom: "Own wording.",
       },
+      mentionsMeasurement:
+        "This wording mentions measuring opens and clicks. A description of measurement belongs to the separate consent to measurement box: signing up with the form does not give consent to measurement, yet a reader could think it does. Remove the description of measurement or restore the default wording.",
       state: {
-        loading: "Checking the consent wording…",
-        readError: "Could not check whether the consent wording covers the measurement.",
-        unavailable:
-          "Checking the consent wording will work once the measurement migrations (20261020162300-162500) are deployed.",
+        loading: "Loading the consent wording…",
+        loadError: "Could not load the consent wording.",
       },
-      mark: {
-        label: "My wording covers measuring opens and clicks",
-        hint: "Mark only wording that says emails may contain elements that measure opens and clicks, states the purpose (tailoring content and frequency, statistics), that the measurement can be switched off separately without unsubscribing, and that consent can be withdrawn at any time. The mark applies to the saved wording - any change to the text cancels it.",
-        saveFirst: "Save the wording before marking it.",
-        adminOnly: "Only an administrator changes the mark.",
-        marked: "Wording marked as covering the measurement.",
-        unmarked: "Mark removed.",
-        error: "Could not save the mark.",
+      measurement: {
+        title: "Consent to measuring opens and clicks - its own box",
+        version: "Wording version: {{version}}",
+        note: "The box appears automatically under the newsletter consent in every form, unticked by default. Measurement works only once the owner of the address confirms the consent with the button on the page opened from a link in an email.",
+        fixedNote:
+          "The box wording is set in code and versioned - it is not edited in the panel, because proof of consent must point to one wording.",
+        previewLabel: "The box wording the reader sees:",
+        langPl: "Polish",
+        langEn: "English",
       },
     },
     request: {
       title: "Consent to measuring opens and clicks",
       subtitle:
-        "Only people whose consent covers the measurement get the pixel and links with a recipient identifier. Subscribers who signed up before the wording with measurement can give it with one click in a request email.",
+        "Subscribers without consent to measurement (for example, signed up before the separate box). The request is about the separate consent to measurement; not answering changes nothing. Only active subscribers who confirmed this consent themselves get the pixel and links with an identifier.",
       switchLabel: "Measure opens and clicks (journeys and campaigns)",
       switchHint:
         "One switch for journey emails and newsletter campaigns - the same one as in the journey engine settings and on the “Data retention” card. On: measurement only for recipients who consented. Off: no email carries the pixel or links with an identifier, and opens and clicks are not recorded.",
@@ -204,19 +200,21 @@ const en: typeof pl = {
         candidates: "To be asked",
         suppressed: "On the suppression list (not asked)",
       },
-      progressTitle: "Requests for wording version {{version}}",
+      progressTitle: "Panel requests for wording version {{version}}",
       progress: {
         requested: "Requested",
         pending: "Queued",
         mailed: "Sent",
         blocked: "Stopped by the suppression list",
-        skipped: "Skipped (consent through another channel or unsubscribed)",
+        skipped: "Skipped (consent through another channel, declined or unsubscribed)",
         failed: "Failed",
         confirmed: "Confirmed",
       },
       lastRequested: "Last request: {{date}}",
       button: "Ask for measurement consent",
-      none: "There is nobody to ask - every subscriber has consented, has already been asked about this version or switched the measurement off.",
+      none: "There is nobody to ask - every subscriber has consented to measurement, has already been asked for it or declined measurement themselves.",
+      originNote:
+        "Requests sent automatically after a sign-up with the measurement box ticked (without double opt-in) are not counted here - they have their own daily limit and unchangeable wording.",
       confirmTitle: "Send the measurement consent request?",
       confirmBody_one:
         "We will send a one-off email to {{count}} subscriber in their language - between 8:00 and 18:00 Polish time, at most {{cap}} emails a day (a limit shared with subscription confirmation requests). The link is valid for {{days}} days. No reply changes nothing: the newsletter keeps coming, without measurement.",
@@ -249,7 +247,7 @@ const en: typeof pl = {
     copy: {
       title: "Request for consent to measuring opens and clicks",
       subtitle:
-        "A one-off email from the newsletter panel to subscribers whose consent predates the wording with measurement. An empty field uses the default text; the system adds the consent wording, the “I agree to the measurement” button and the unsubscribe link.",
+        "The wording of the one-off request to subscribers without consent to measurement. An empty field uses the default text; the system adds the measurement consent wording, the button and the unsubscribe link. The request sent after a sign-up with the measurement box ticked has unchangeable wording - this editor does not affect it.",
       tokens: "Variables: {{tokens}} - the subscriber's first name.",
       saved: "Measurement consent request text saved.",
       saveError: "Could not save the measurement consent request text.",
@@ -257,7 +255,7 @@ const en: typeof pl = {
         "Someone saved the measurement consent request text in another tab. Your changes stayed in the editor - check them and save again to overwrite that version.",
       previewFrame: "Preview of the measurement consent request email",
       previewNote:
-        "Preview with a sample first name and the consent wording a click will record; buttons in the preview do nothing.",
+        "Under the button the email shows the measurement consent wording a click will record. Preview with a sample first name; buttons in the preview do nothing.",
       loading: "Loading the measurement consent request text…",
       readError: "Could not load the measurement consent request text.",
       forbidden: "Only an administrator changes the measurement consent request text.",

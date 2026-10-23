@@ -1,8 +1,11 @@
-// Funkcje serwerowe panelu pomiaru (I9d-Y2) - handler przez atrapę
+// Funkcje serwerowe panelu pomiaru (I9d-Y2, I9d-Y2b) - handler przez atrapę
 // `createServerFn` (prawdziwy kod handlera, kontekst sesji wstrzyknięty).
-// Dowody: role z dokładnych bramek (prośba i oznaczenie - admin; odczyt
-// treści zgody i mianownika - admin/redaktor), literalne nazwy RPC, najemca
-// NIGDY z ładunku (schematy ścisłe), mapowanie kodów SQL na stany panelu.
+// Dowody: role z dokładnych bramek (prośba - admin; mianownik -
+// admin/redaktor), literalne nazwy RPC, najemca NIGDY z ładunku (schematy
+// ścisłe), mapowanie kodów SQL na stany panelu. Od I9d-Y2b moduł NIE ma
+// funkcji oznaczeń admina „mój tekst obejmuje pomiar" (RPC usunięte
+// migracją 20261023090000 - wywołanie skończyłoby się błędem bramki
+// `rpcContract` i 404 w bazie).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ok, supabaseFromStub } from "@/test/supabaseChain";
@@ -14,12 +17,11 @@ vi.mock("@tanstack/react-start", async () =>
 
 import { requireAdmin, requireAdminEditor } from "@/integrations/supabase/require-staff";
 import { NEWSLETTER_MEASUREMENT_EMPTY_OVERRIDES } from "../measurementReconfirm";
+import * as measurementFunctions from "../measurement.functions";
 import {
   getCampaignMeasurement,
-  getNewsletterConsentMeasurement,
   getNewsletterMeasurementCopy,
   getNewsletterMeasurementPreview,
-  markNewsletterConsentMeasurement,
   previewNewsletterMeasurementEmail,
   requestNewsletterMeasurement,
   saveNewsletterMeasurementCopy,
@@ -32,22 +34,6 @@ const STAMP = "2026-10-22T08:00:00.123456+00:00";
 
 const db = supabaseFromStub();
 const rpc = vi.fn();
-
-const CONSENT = {
-  version: "newsletter-2026-10-21",
-  fields: [
-    {
-      field: "policy_html_pl",
-      lang: "pl",
-      text_present: true,
-      is_default: false,
-      marked: true,
-      stale: false,
-      covers: true,
-      marked_at: "2026-10-22T07:00:00+00:00",
-    },
-  ],
-};
 
 beforeEach(() => {
   db.reset();
@@ -62,11 +48,9 @@ describe("obudowa: role z dokładnych bramek SQL", () => {
   it.each([
     ["getNewsletterMeasurementPreview", getNewsletterMeasurementPreview, requireAdmin],
     ["requestNewsletterMeasurement", requestNewsletterMeasurement, requireAdmin],
-    ["markNewsletterConsentMeasurement", markNewsletterConsentMeasurement, requireAdmin],
     ["getNewsletterMeasurementCopy", getNewsletterMeasurementCopy, requireAdmin],
     ["saveNewsletterMeasurementCopy", saveNewsletterMeasurementCopy, requireAdmin],
     ["previewNewsletterMeasurementEmail", previewNewsletterMeasurementEmail, requireAdmin],
-    ["getNewsletterConsentMeasurement", getNewsletterConsentMeasurement, requireAdminEditor],
     ["getCampaignMeasurement", getCampaignMeasurement, requireAdminEditor],
   ])("%s: POST + właściwa rola", (_name, fn, middleware) => {
     const meta = serverFnMeta(fn);
@@ -79,7 +63,7 @@ describe("„Poproś o zgodę na pomiar”", () => {
   it("podgląd: RPC literałem bez parametrów (najemca z sesji), stany odmowy i braku migracji", async () => {
     rpc.mockResolvedValueOnce({
       data: {
-        version: "newsletter-2026-10-21",
+        version: "email-measurement-2026-10-23",
         enabled: true,
         subscribers: 10,
         with_consent: 2,
@@ -136,41 +120,12 @@ describe("„Poproś o zgodę na pomiar”", () => {
   });
 });
 
-describe("treść zgody: „mój tekst obejmuje pomiar”", () => {
-  it("odczyt stanu pól", async () => {
-    rpc.mockResolvedValueOnce({ data: CONSENT, error: null });
-    expect(await getNewsletterConsentMeasurement()).toMatchObject({
-      state: "ready",
-      data: { fields: [{ field: "policy_html_pl", marked: true, covers: true }] },
-    });
-    expect(rpc).toHaveBeenCalledWith("admin_newsletter_consent_measurement_get");
-  });
-
-  it("oznaczenie: pole z listy i flaga; skrót liczy baza (żadnego tekstu w ładunku)", async () => {
-    rpc.mockResolvedValueOnce({ data: CONSENT, error: null });
-    const result = await markNewsletterConsentMeasurement({
-      data: { field: "policy_html_pl", marked: true },
-    });
-    expect(result).toMatchObject({ ok: true });
-    expect(rpc).toHaveBeenCalledWith("admin_newsletter_consent_measurement_mark", {
-      p_field: "policy_html_pl",
-      p_marked: true,
-    });
-    await expect(
-      markNewsletterConsentMeasurement({ data: { field: "heading_pl", marked: true } }),
-    ).rejects.toThrow();
-    await expect(
-      markNewsletterConsentMeasurement({
-        data: { field: "policy_html_pl", marked: true, textSha256: "a".repeat(64) },
-      }),
-    ).rejects.toThrow();
-  });
-
-  it("pole bez tekstu (22023 text_missing) = `invalid` z powodem", async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: { message: "text_missing", code: "22023" } });
-    expect(
-      await markNewsletterConsentMeasurement({ data: { field: "policy_html_en", marked: true } }),
-    ).toEqual({ ok: false, error: "invalid", reason: "text_missing" });
+describe("bez oznaczeń admina (I9d-Y2b, wariant (b))", () => {
+  it("moduł nie eksportuje funkcji oznaczeń „mój tekst obejmuje pomiar”", () => {
+    const names = Object.keys(measurementFunctions);
+    expect(names).not.toContain("getNewsletterConsentMeasurement");
+    expect(names).not.toContain("markNewsletterConsentMeasurement");
+    expect(names).not.toContain("MarkConsentMeasurementSchema");
   });
 });
 

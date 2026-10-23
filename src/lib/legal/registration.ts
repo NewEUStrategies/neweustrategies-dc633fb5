@@ -45,6 +45,12 @@ export const COMPLIANCE_PACK_UPDATED = "2026-09-14";
  * się ani jednym zdaniem). 2026-10-22 (I9d-Y2, decyzja właściciela
  * 2026-10-21, wariant (a)): pomiar otwarć i kliknięć tylko za zgodą
  * obejmującą pomiar, wersja treści przy każdej zgodzie, osobne wyłączenie
- * pomiaru bez rezygnacji z newslettera.
+ * pomiaru bez rezygnacji z newslettera. 2026-10-23 (I9d-Y2b, decyzje
+ * właściciela 2026-10-23: D1 wariant (b), D2): zgoda na pomiar ma osobne,
+ * domyślnie niezaznaczone pole i własną treść, działa dopiero po
+ * potwierdzeniu przyciskiem przez właściciela skrzynki i tylko u aktywnego
+ * subskrybenta; koniec subskrypcji kończy zgodę na pomiar. Gdy wdrożenie
+ * przypadnie później - wpisać dzień wdrożenia (data mówi o treści, którą
+ * czytelnik widzi).
  */
-export const COMMUNICATIONS_UPDATED = "2026-10-22";
+export const COMMUNICATIONS_UPDATED = "2026-10-23";

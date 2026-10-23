@@ -172,6 +172,39 @@ describe("zgody - dowód zgody marketingowej", () => {
     expect(screen.queryByText("brak")).toBeNull();
   });
 
+  it("DEKLARACJA pola pomiaru (I9d-Y2b) to nie zgoda: „czeka na potwierdzenie”, nie „udzielona”", async () => {
+    await mount(
+      subscriber({
+        consents: [
+          { key: "newsletter", text: "Zgoda na newsletter", given: true, lang: "pl" },
+          {
+            key: "email_measurement_declared",
+            text: "Zgadzam się na pomiar otwarć i kliknięć",
+            given: true,
+            lang: "pl",
+          },
+        ],
+      }),
+    );
+
+    // Zgoda na newsletter - udzielona; deklaracja pomiaru - tylko zadeklarowana.
+    expect(screen.getAllByText("✓ udzielona")).toHaveLength(1);
+    expect(screen.getByText("zadeklarowana w formularzu - czeka na potwierdzenie")).toBeTruthy();
+    const declared = document.querySelector('[data-consent-state="declared"]');
+    expect(declared?.textContent).toMatch(/email_measurement_declared/);
+    expect(declared?.textContent).toMatch(/rejestr zgód/);
+    expect(document.querySelector('[data-consent-state="given"]')?.textContent).toMatch(
+      /newsletter/,
+    );
+  });
+
+  it("deklaracja z `given: false` to zwykłe „brak” - bez dopisku o potwierdzeniu", async () => {
+    await mount(subscriber({ consents: [{ key: "email_measurement_declared", given: false }] }));
+
+    expect(screen.getByText("brak")).toBeTruthy();
+    expect(screen.queryByText(/czeka na potwierdzenie/)).toBeNull();
+  });
+
   it("zgoda NIEUDZIELONA jest oznaczona jako brak - nigdy pustym polem", async () => {
     await mount(subscriber({ consents: [{ key: "profilowanie", given: false }] }));
 

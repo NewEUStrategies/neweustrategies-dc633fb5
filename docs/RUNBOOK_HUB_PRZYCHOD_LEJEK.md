@@ -23,18 +23,18 @@ Zasady, które obowiązują w każdym punkcie:
 
 ## 1. Mapa: co działa gdzie
 
-| Element                                                                          | Miejsce w panelu                                                     | Rola                                                 | Mechanizm                                                                   |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| Hub (Kokpit, Przychód, Retencja, Lejek, Dostęp, Oferta, Społeczność, Wskaźniki…) | `/admin/revenue` (⌘K: zakładki, „Dane wejściowe”, skróty wskaźników) | admin i redaktor wg zakładki (`canSeeTab`)           | RPC `admin_revenue_*`, migawka, szyna zdarzeń z mapą inwalidacji            |
-| Diagnostyka (55 reguł, wyciszenia, mapa systemu)                                 | `/admin/revenue/diagnostics`; chipy sygnału w 10 ekranach modułów    | admin, redaktor (bez kwot)                           | `admin_revenue_facts()`, `admin_revenue_diagnostic_snooze*`                 |
-| Ścieżki komunikacji (lista, galeria, edytor kanwy, wyniki, przewodnik)           | `/admin/revenue/journeys`, edytor `/admin/revenue/journeys/<id>`     | edycja: admin i redaktor; publikacja i status: admin | tabele `journey_*`, runner w `jobs-tick`                                    |
-| Ustawienia silnika ścieżek (włącznik, limit maili, cisza nocna, nadawca, pomiar) | zakładka Ścieżki → „Ustawienia silnika”                              | admin                                                | `admin_journey_settings_get/save`                                           |
-| Harmonogram i jego zdrowie (karta „Silnik ścieżek komunikacji”)                  | `/admin/community/notifications` (panel zdrowia harmonogramu)        | admin, redaktor (podgląd, „Uruchom tick teraz”)      | `job_runner_runs`, `admin_journey_engine_health()`                          |
-| Retencja danych (kategorie, karencja, „Włącz teraz”, lista „do wygaszenia”)      | `/admin/settings/privacy` - karta „Retencja danych”                  | admin                                                | `data_retention_*`, krok `dataRetention` w `jobs-tick`                      |
-| Treść zgody na newsletter i pomiar, „Poproś o zgodę na pomiar”                   | `/admin/newsletter/overview`                                         | treść: admin i redaktor; oznaczenie i prośba: admin  | `admin_newsletter_consent_measurement_*`, `admin_newsletter_measurement_*`  |
-| Treść maili próśb (wygaszanie, zgoda na pomiar)                                  | `/admin/newsletter/email-content`                                    | admin                                                | ustawienia newslettera                                                      |
-| Skrzynka wysyłek (powody zatrzymania z etykietami PL/EN)                         | `/admin/newsletter/outbox`                                           | admin i redaktor                                     | `email_send_log` (`suppressed:*`, `skipped:*`, `cancelled:account_deleted`) |
-| CRM (lista, karta leada z kartą „Ścieżki”, import CSV, przypisanie zadań)        | `/admin/crm`, `/admin/crm/<id>`                                      | personel CRM (admin, redaktor)                       | `crm_*`, oś leada z typem `journey`                                         |
+| Element                                                                                      | Miejsce w panelu                                                     | Rola                                                 | Mechanizm                                                                                                               |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Hub (Kokpit, Przychód, Retencja, Lejek, Dostęp, Oferta, Społeczność, Wskaźniki…)             | `/admin/revenue` (⌘K: zakładki, „Dane wejściowe”, skróty wskaźników) | admin i redaktor wg zakładki (`canSeeTab`)           | RPC `admin_revenue_*`, migawka, szyna zdarzeń z mapą inwalidacji                                                        |
+| Diagnostyka (55 reguł, wyciszenia, mapa systemu)                                             | `/admin/revenue/diagnostics`; chipy sygnału w 10 ekranach modułów    | admin, redaktor (bez kwot)                           | `admin_revenue_facts()`, `admin_revenue_diagnostic_snooze*`                                                             |
+| Ścieżki komunikacji (lista, galeria, edytor kanwy, wyniki, przewodnik)                       | `/admin/revenue/journeys`, edytor `/admin/revenue/journeys/<id>`     | edycja: admin i redaktor; publikacja i status: admin | tabele `journey_*`, runner w `jobs-tick`                                                                                |
+| Ustawienia silnika ścieżek (włącznik, limit maili, cisza nocna, nadawca, pomiar)             | zakładka Ścieżki → „Ustawienia silnika”                              | admin                                                | `admin_journey_settings_get/save`                                                                                       |
+| Harmonogram i jego zdrowie (karta „Silnik ścieżek komunikacji”)                              | `/admin/community/notifications` (panel zdrowia harmonogramu)        | admin, redaktor (podgląd, „Uruchom tick teraz”)      | `job_runner_runs`, `admin_journey_engine_health()`                                                                      |
+| Retencja danych (kategorie, karencja, „Włącz teraz”, lista „do wygaszenia”)                  | `/admin/settings/privacy` - karta „Retencja danych”                  | admin                                                | `data_retention_*`, krok `dataRetention` w `jobs-tick`                                                                  |
+| Treść zgody na newsletter, podgląd osobnego pola zgody na pomiar, „Poproś o zgodę na pomiar” | `/admin/newsletter/overview`                                         | treść: admin i redaktor; prośba: admin               | `newsletter_settings.policy_html_*` (grupa `inline`), `admin_newsletter_measurement_*` (od I9d-Y2b bez oznaczeń admina) |
+| Treść maili próśb (wygaszanie, zgoda na pomiar)                                              | `/admin/newsletter/email-content`                                    | admin                                                | ustawienia newslettera                                                                                                  |
+| Skrzynka wysyłek (powody zatrzymania z etykietami PL/EN)                                     | `/admin/newsletter/outbox`                                           | admin i redaktor                                     | `email_send_log` (`suppressed:*`, `skipped:*`, `cancelled:account_deleted`)                                             |
+| CRM (lista, karta leada z kartą „Ścieżki”, import CSV, przypisanie zadań)                    | `/admin/crm`, `/admin/crm/<id>`                                      | personel CRM (admin, redaktor)                       | `crm_*`, oś leada z typem `journey`                                                                                     |
 
 ## 2. Harmonogram (`jobs-tick`)
 
@@ -44,17 +44,17 @@ sam przebieg. Siatka bezpieczeństwa to `community-cron` (pg_cron co 5 minut
 i workflow GitHub `scheduler.yml`) - szczegóły w `docs/RUNBOOK_COMMUNITY.md`.
 Kroki huba i ich rytm:
 
-| Krok w `job_runner_runs.result` | Kiedy                                                 | Co robi                                                                                                    | Limity i termin                                            |
-| ------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `journeys`                      | co minutę, po zadaniach uczestnika, PRZED drenem      | `runJourneysTick`: skrzynka → zapisy → kroki → maile (dren wysyła je w tym samym ticku)                    | `ingestLimit` 200, `claimLimit` 50, termin 3 s od startu   |
-| `emailQueue`                    | co minutę, po `journeys`                              | dren kolejek poczty                                                                                        | 60 wiadomości, min. 4 s                                    |
-| `revenueLifecycle`              | co 5 min (minuty 0, 5, 10…)                           | `run_revenue_lifecycle_scanner` (koniec okresu próbnego, wygaśnięcia, windykacja, migawki MRR)             | literał RPC, znaczniki `revenue_event_marks`               |
-| `retentionFlow`                 | co 5 min                                              | `run_retention_flow_scanner` (porzucone przepływy anulowania)                                              | jw.                                                        |
-| `newsletterSunset`              | co 10 min (minuty 9, 19…), okno 08-17 czasu polskiego | prośby „Chcę dalej otrzymywać” (wygaszanie nieaktywnych)                                                   | ≤ 200 maili/dobę/najemcę (wspólnie z prośbami pomiaru)     |
-| `newsletterMeasurement`         | co 10 min (minuty 4, 14…), okno 08-17 czasu polskiego | prośby „Poproś o zgodę na pomiar”                                                                          | jw., termin 4 s                                            |
-| `journeysRollup`                | co godzinę w minucie 13                               | `journey_rollup_daily()` - dzienne liczniki kroków ścieżek                                                 | -                                                          |
-| `journeysPurge`                 | raz na dobę o 03:11 UTC                               | `journey_purge('30 days')` - przetworzona skrzynka > 30 dni, błędy silnika > 90 dni                        | pominięty tick = sprzątanie dzień później (wiersze 31 dni) |
-| `dataRetention`                 | 02:07-02:57 UTC co 10 min (ostatni krok ticku)        | `data_retention_run(p_limit => 5000)` - podgląd albo wykonanie kategorii, pieczęcie agregatów, zestawienia | budżet 8 s, `more: true` = reszta w kolejnym oknie         |
+| Krok w `job_runner_runs.result` | Kiedy                                                                                                                                      | Co robi                                                                                                              | Limity i termin                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `journeys`                      | co minutę, po zadaniach uczestnika, PRZED drenem                                                                                           | `runJourneysTick`: skrzynka → zapisy → kroki → maile (dren wysyła je w tym samym ticku)                              | `ingestLimit` 200, `claimLimit` 50, termin 3 s od startu                                                        |
+| `emailQueue`                    | co minutę, po `journeys`                                                                                                                   | dren kolejek poczty                                                                                                  | 60 wiadomości, min. 4 s                                                                                         |
+| `revenueLifecycle`              | co 5 min (minuty 0, 5, 10…)                                                                                                                | `run_revenue_lifecycle_scanner` (koniec okresu próbnego, wygaśnięcia, windykacja, migawki MRR)                       | literał RPC, znaczniki `revenue_event_marks`                                                                    |
+| `retentionFlow`                 | co 5 min                                                                                                                                   | `run_retention_flow_scanner` (porzucone przepływy anulowania)                                                        | jw.                                                                                                             |
+| `newsletterSunset`              | co 10 min (minuty 9, 19…), okno 08-17 czasu polskiego                                                                                      | prośby „Chcę dalej otrzymywać” (wygaszanie nieaktywnych)                                                             | ≤ 200 maili/dobę/najemcę (wspólnie z prośbami pomiaru)                                                          |
+| `newsletterMeasurement`         | co 10 min (minuty 4, 14…): prośby z panelu w oknie 08-17 czasu polskiego, prośby po zapisie (`origin = 'signup'`, I9d-Y2b) przez całą dobę | prośby o osobną zgodę na pomiar - z panelu („Poproś o zgodę na pomiar”) i po zapisie bez double opt-in (stała treść) | panel ≤ 200 maili/dobę/najemcę wspólnie z wygaszaniem; po zapisie ≤ 500/dobę/najemcę (własny limit); termin 4 s |
+| `journeysRollup`                | co godzinę w minucie 13                                                                                                                    | `journey_rollup_daily()` - dzienne liczniki kroków ścieżek                                                           | -                                                                                                               |
+| `journeysPurge`                 | raz na dobę o 03:11 UTC                                                                                                                    | `journey_purge('30 days')` - przetworzona skrzynka > 30 dni, błędy silnika > 90 dni                                  | pominięty tick = sprzątanie dzień później (wiersze 31 dni)                                                      |
+| `dataRetention`                 | 02:07-02:57 UTC co 10 min (ostatni krok ticku)                                                                                             | `data_retention_run(p_limit => 5000)` - podgląd albo wykonanie kategorii, pieczęcie agregatów, zestawienia           | budżet 8 s, `more: true` = reszta w kolejnym oknie                                                              |
 
 - Kroki `journeys` i `revenue-lifecycle` w `community-cron` są dostępne tylko
   jawnie (parametr `job`), nie w `all`: pg_cron woła `all` co 5 minut, a ta
@@ -114,24 +114,59 @@ Karta „Retencja danych” (`/admin/settings/privacy`, admin):
   obejmuje ścieżki i kampanie, otwarcia i kliknięcia (render, zapis zdarzeń,
   webhook dostawcy). Ten sam przełącznik jest w trzech miejscach: karta
   retencji, ustawienia silnika ścieżek i przegląd newslettera.
-- **Pomiar tylko za zgodą** (`crm_consent_log.consent_key =
-'email_measurement'`, I9d-Y2): piksel i linki z identyfikatorem odbiorcy
-  wyłącznie u osób, których zgoda obejmuje pomiar. Wycofanie linkiem „Nie
-  mierz moich otwarć i kliknięć” (osobno od wypisu).
-- **Treść zgody** (PL/EN, z wersją) - przegląd newslettera; własny tekst
-  admina może dostać oznaczenie „obejmuje pomiar” (działa od chwili
-  oznaczenia, nie wstecz - Z-I9d-13).
+- **Pomiar tylko za OSOBNĄ zgodą, potwierdzoną przez właściciela skrzynki**
+  (I9d-Y2b, decyzje właściciela 2026-10-23: D1 wariant (b), D2; dziennik
+  §25). Piksel i linki z identyfikatorem odbiorcy wyłącznie u aktywnego
+  subskrybenta (`subscribed`/`confirmed`) z wpisem
+  `crm_consent_log.consent_key = 'email_measurement'` „tak”, który jest
+  związany z jego wierszem (`source_id`), pochodzi z kanału udzielenia
+  i ma wersję treści pomiaru `email-measurement-2026-10-23` - i jest
+  późniejszy niż każde „nie” pomiaru, wycofanie zgody newsletter/marketing
+  i wypis (remis chwil = brak pomiaru).
+- **Pole w formularzu to deklaracja, nie zgoda.** Osobne, domyślnie
+  niezaznaczone pole zapisuje w `newsletter_subscribers.consents` pozycję
+  `email_measurement_declared`; rejestr zgód jej nie loguje. Zgodę zapisuje
+  WYŁĄCZNIE `_email_measurement_grant` (strażnik `trg_crm_consent_log_measurement_guard`
+  odrzuca każde inne „tak”, `trg_crm_consent_log_measurement_lock` blokuje
+  zmianę decyzji, kanału, wersji i chwili wpisu).
+- **Kanały udzielenia** (`form_id`): `measurement:doi` (karta na stronie
+  potwierdzenia double opt-in, POST z tokenem DOI; oferta wygasa 60 dni po
+  deklaracji), `measurement:signup` (mail z prośbą po zapisie bez DOI albo
+  przy ponownym zapisie aktywnego adresu), `measurement:reconfirm` (prośba
+  z panelu). **Kanały własnej odmowy** (wykluczają z próśb):
+  `measurement:email_footer`, `measurement:preferences`,
+  `measurement:account`, `measurement:doi_declined`.
+- **Wypis daje „nie”.** Każde przejście subskrybenta na `unsubscribed`
+  (link, personel, odbicie, skarga, import) dopisuje „nie” z kanałem
+  neutralnym `measurement:unsubscribe` (nie wyklucza z próśb), gdy ostatnie
+  słowo łańcucha brzmi „tak”. „Przywróć” w panelu nie wskrzesza zgody;
+  ponowny zapis wymaga nowego potwierdzenia skrzynką.
+- **Treść zgody na newsletter** (PL/EN, wersja `newsletter-2026-10-23`,
+  bez pomiaru) - przegląd newslettera. Oznaczeń admina „mój tekst obejmuje
+  pomiar” nie ma (tabela oznaczeń - archiwum). Karta pokazuje tylko do
+  odczytu treść i wersję pola pomiaru oraz ostrzega, gdy własny tekst
+  zgody na newsletter wspomina pomiar (kontrola Y2b-K5b, §8.2).
 - **„Poproś o zgodę na pomiar”** - przegląd newslettera: podgląd liczby
-  adresatów, potwierdzenie, wysyłka krokiem `newsletterMeasurement`
-  (co 10 minut w minutach 4, 14…, okno 08-17, ≤ 200/dobę/najemcę wspólnie z prośbami wygaszania).
+  adresatów (liczniki tylko próśb `origin = 'panel'`), potwierdzenie,
+  wysyłka krokiem `newsletterMeasurement` (minuta 4, okno 08-17,
+  ≤ 200/dobę/najemcę wspólnie z prośbami wygaszania). Kandydat, który
+  dostał już mail prośby w DOWOLNEJ wersji treści albo sam odmówił, nie
+  dostaje drugiej prośby. Prośby po zapisie (`origin = 'signup'`) mają
+  stałą treść, idą przez całą dobę i mają własny limit 500/dobę.
+- **Wyłącznik awaryjny bez kodu:** wspólny przełącznik pomiaru najemcy
+  (karta „Retencja danych”, ustawienia silnika ścieżek albo przegląd
+  newslettera; w SQL `journey_settings.open_tracking_enabled = false`) -
+  od razu `measured = false` u wszystkich, wpisy rejestru zgód zostają.
 - **Tryb źródła zaangażowania** `NEWSLETTER_ENGAGEMENT_SOURCE` musi zostać
   `first_party` (domyślnie), a śledzenie otwarć i kliknięć u dostawcy poczty
   (Resend) - wyłączone. Tryb `provider` nie daje się pogodzić z pomiarem
   tylko za zgodą (dostawca mierzy wszystkich). Zmiana trybu nie jest
   przełącznikiem panelu z założenia - to decyzja prawna, nie operacyjna.
-- **Skutek zamierzony wdrożenia I9d-Y2:** zgody sprzed nowej treści nie
-  obejmują pomiaru, więc wskaźniki otwarć i kliknięć spadają skokowo
-  (mianownik kampanii = mierzeni; ścieżki - dymek).
+- **Skutek zamierzony wdrożenia I9d-Y2 i I9d-Y2b:** zgody sprzed nowej
+  treści nie obejmują pomiaru, a od I9d-Y2b także zgody wyprowadzone
+  z treści zgody na newsletter (a) - wskaźniki otwarć i kliknięć spadają
+  niemal do zera na starcie (mianownik kampanii = mierzeni; ścieżki -
+  dymek). Skutki szczegółowo - §6.
 - Otwarcia ludzkie i CTOR są **górną granicą** (Apple MPP odsiewa tylko próg
   czasu `machine_open_seconds`) - dymki w wynikach ścieżek, nakładce kanwy,
   tabeli maili, A/B i notka w Kokpicie (Z-S5-06, Z-I9d-16).
@@ -235,6 +270,23 @@ SELECT form_id, count(*), max(created_at)
   FROM public.crm_consent_log
  WHERE form_id IN ('crm_staff:withdraw', 'journey:unsubscribe', 'retention:newsletter_sunset')
  GROUP BY 1;
+
+-- Q11. Osobna zgoda na pomiar (I9d-Y2b): łańcuch per kanał i wersja z ostatniej
+--      doby, prośby per pochodzenie i stan, aktywni z deklaracją bez decyzji.
+SELECT form_id, consent_version, given, count(*), max(created_at)
+  FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement' AND created_at > now() - interval '24 hours'
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+SELECT origin, consent_version, mail_outcome, count(*),
+       count(*) FILTER (WHERE confirmed_at IS NOT NULL) AS potwierdzone
+  FROM public.newsletter_measurement_requests
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
+  FROM public.newsletter_subscribers s
+ WHERE s.status IN ('subscribed', 'confirmed')
+   AND s.consents @> '[{"key": "email_measurement_declared"}]'::jsonb
+   AND NOT public._email_measurement_consent(s.tenant_id, s.email)
+ GROUP BY 1;
 ```
 
 ## 6. Znane skutki i świadome granice (bez zmian w kodzie)
@@ -301,6 +353,28 @@ SELECT form_id, count(*), max(created_at)
   (decyzja właściciela). Do tego czasu pulpit liczy własny ranking powodów
   rezygnacji (z `not_given` jako powodem).
 
+- **I9d-Y2b - pomiar tylko po potwierdzeniu skrzynki (dziennik §25).**
+  Świadome skutki decyzji D1 i D2, bez zmian w kodzie:
+  - odsetek mierzonych odbiorców spada na starcie niemal do zera (zgody
+    wyprowadzone z treści (a) nie mają mocy; potwierdzenia (a) z osobnego
+    kliknięcia na stronie pomiaru - `newsletter:measurement_reconfirm` -
+    zachowują moc);
+  - kontakty ścieżek bez subskrypcji newslettera (także w mailach
+    serwisowych) i subskrybenci `pending` tracą piksel - wprost z D2;
+  - **ścieżka powitalna** (`newsletter_welcome`): warunek `email_opened`
+    dla niemierzonego odbiorcy daje „nie”, więc prawie każdy nowy
+    subskrybent dostanie mail „preferences”, choć czyta. Predykat zostaje
+    bez zmian (silnik ścieżek jest domyślnie wyłączony - M3); edytor
+    warunków `email_opened`/`email_clicked` mówi to w ostrzeżeniu. Przed
+    włączeniem silnika przejrzyj gałęzie oparte na otwarciach;
+  - jedna prośba na wersję treści i subskrybenta (klucz główny tabeli
+    próśb); kto dostał mail prośby (a), nie dostanie drugiej z panelu;
+  - subskrybent już zapisany (gałąź „już zapisany”) z zaznaczonym polem
+    dostaje prośbę po zapisie, jeśli sam wcześniej nie odmówił;
+  - własne teksty zgody admina z opisem pomiaru (kopie (a) zmienione przez
+    admina) migracja zostawia bez zmian - panel ostrzega, a kontrola
+    Y2b-K5b (§8.2) je wskazuje.
+
 ## 7. Wycofanie
 
 ### 7.1 Zasady
@@ -322,17 +396,18 @@ SELECT form_id, count(*), max(created_at)
 
 ### 7.2 Per fala (szczegóły w sekcjach dziennika)
 
-| Fala (wersje, bliźniaki)                | Wycofanie                                                                                                                                                                                                                                                                              | Dziennik             |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| S3 `120000…120400`, `0347…0351`         | revert kodu przywraca dawny paywall; wyzwalacze `trg_profiles_account_registered_emit`, `payment_orders_checkout_emit` - migracją; `_metered_view_consume` z ciała `20261013090400`                                                                                                    | §18.9                |
-| S5 `140000…140500`, `0352…0357`         | `enabled = false` w panelu; awaryjnie `JOURNEYS_ENGINE_DISABLED=1`; wyzwalacz `trg_journey_route_event` - migracją; `email_apply_delivery_event` z ciała `20260725123624`                                                                                                              | §20.9                |
-| I9b A/A2/B `160000…160800`, `0358…0366` | segmenty - migracja z mapą sprzed I9b; limit miejsc Zespołu - `DROP TRIGGER` obu wyzwalaczy; limit tagu - ciała z `20261020130200`/`140200` i `CRM_TAG_MAX = 40`; redakcja księgi i szyny nieodwracalna                                                                                | §21.6, §21.9, §21.17 |
-| I9c-X1 `160900`, `0367`                 | ciało `_hub_account_erase` z `20261020160700`; dren bez warstwy 2 - revert `queueDrain.server.ts`                                                                                                                                                                                      | §21.20               |
-| I9c-X2 `161000…161400`, `0368…0372`     | wyłączenie kategorii albo przesunięcie karencji w karcie; odczyty agregatów działają bez pieczęci                                                                                                                                                                                      | §21.21               |
-| S7 `150000…150100`, `0373…0375`         | front bez zmian SQL (nowych funkcji nikt nie woła); `DROP FUNCTION` - migracją, decyzją właściciela                                                                                                                                                                                    | §23.9                |
-| I9d-Y1 `161500…162200`, `0376…0383`     | wyłączenie kategorii albo karencja w karcie; zanonimizowane wiersze i usunięci subskrybenci nie wracają                                                                                                                                                                                | §21.22               |
-| I9d-Y2 `162300…162500`, `0384…0386`     | wspólny przełącznik pomiaru zatrzymuje pomiar u wszystkich; wpisy rejestru zgód zostają (dowód)                                                                                                                                                                                        | §21.23               |
-| I9 `162600…162900`, `0387…0390`         | zestawienia: odczyty liczą surowe + zestawienie, puste zestawienie = zachowanie sprzed I9; pomocnik zgody - ciała z `20261012180900`, `20261020140500`, `20261020162000`; emiter formularza - §7.3; czytelnicy kampanii - ciała z `20260912110000`, `20261003180000`, `20261020161200` | §24                  |
+| Fala (wersje, bliźniaki)                | Wycofanie                                                                                                                                                                                                                                                                                                | Dziennik             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| S3 `120000…120400`, `0347…0351`         | revert kodu przywraca dawny paywall; wyzwalacze `trg_profiles_account_registered_emit`, `payment_orders_checkout_emit` - migracją; `_metered_view_consume` z ciała `20261013090400`                                                                                                                      | §18.9                |
+| S5 `140000…140500`, `0352…0357`         | `enabled = false` w panelu; awaryjnie `JOURNEYS_ENGINE_DISABLED=1`; wyzwalacz `trg_journey_route_event` - migracją; `email_apply_delivery_event` z ciała `20260725123624`                                                                                                                                | §20.9                |
+| I9b A/A2/B `160000…160800`, `0358…0366` | segmenty - migracja z mapą sprzed I9b; limit miejsc Zespołu - `DROP TRIGGER` obu wyzwalaczy; limit tagu - ciała z `20261020130200`/`140200` i `CRM_TAG_MAX = 40`; redakcja księgi i szyny nieodwracalna                                                                                                  | §21.6, §21.9, §21.17 |
+| I9c-X1 `160900`, `0367`                 | ciało `_hub_account_erase` z `20261020160700`; dren bez warstwy 2 - revert `queueDrain.server.ts`                                                                                                                                                                                                        | §21.20               |
+| I9c-X2 `161000…161400`, `0368…0372`     | wyłączenie kategorii albo przesunięcie karencji w karcie; odczyty agregatów działają bez pieczęci                                                                                                                                                                                                        | §21.21               |
+| S7 `150000…150100`, `0373…0375`         | front bez zmian SQL (nowych funkcji nikt nie woła); `DROP FUNCTION` - migracją, decyzją właściciela                                                                                                                                                                                                      | §23.9                |
+| I9d-Y1 `161500…162200`, `0376…0383`     | wyłączenie kategorii albo karencja w karcie; zanonimizowane wiersze i usunięci subskrybenci nie wracają                                                                                                                                                                                                  | §21.22               |
+| I9d-Y2 `162300…162500`, `0384…0386`     | wspólny przełącznik pomiaru zatrzymuje pomiar u wszystkich; wpisy rejestru zgód zostają (dowód)                                                                                                                                                                                                          | §21.23               |
+| I9d-Y2b `090000…090200`, `0394…0396`    | baza tylko do przodu (powrót do pakietowania wykluczony decyzją D1); wyłącznik awaryjny - wspólny przełącznik pomiaru (`measured = false` od razu); błąd czytelnika - nowa migracja z czytelnikiem zwracającym `false`; revert frontu po migracji - uwaga na pole „prywatność” popupu rejestracji (§8.2) | §25                  |
+| I9 `162600…162900`, `0387…0390`         | zestawienia: odczyty liczą surowe + zestawienie, puste zestawienie = zachowanie sprzed I9; pomocnik zgody - ciała z `20261012180900`, `20261020140500`, `20261020162000`; emiter formularza - §7.3; czytelnicy kampanii - ciała z `20260912110000`, `20261003180000`, `20261020161200`                   | §24                  |
 
 ### 7.3 Szablon awaryjny: emiter albo wyzwalacz jako no-op
 
@@ -496,6 +571,214 @@ SELECT has_function_privilege('authenticated',
 --   oczekiwane: false, false, false.
 ```
 
+### 8.2 I9d-Y2b - osobna zgoda na pomiar (`20261023090000…090200`, `0394…0396`)
+
+Decyzje właściciela 2026-10-23: **D1 wariant (b)** - każda zgoda ma osobne
+pole (osobne, domyślnie niezaznaczone pole zgody na pomiar z własną,
+wersjonowaną treścią; treść zgody na newsletter bez pomiaru) i **D2** -
+pomiar tylko dla skrzynki potwierdzonej przez jej właściciela. Dziennik
+§25. Fale `0347…0390` są na produkcji (potwierdzenie
+`0391_pr530_deployment_completion`); `0392`/`0393` (źródło kuponu) to pas
+Drizzle. Kontrole mają prefiks `Y2b-`, żeby nie myliły się z K1-K9 fal
+z §8.1 (w projekcie I9d-Y2b i w dzienniku §25 - K1-K9 i K5b).
+
+**Przed wdrożeniem (SQL editor, tylko odczyt):**
+
+```sql
+-- Y2b-K1 (pytanie Q2): double opt-in per najemca. DEFAULT kolumny to false -
+--     bez DOI zaznaczone pole daje osobny mail z prośbą (origin signup).
+SELECT tenant_id, double_opt_in FROM public.newsletter_settings ORDER BY 1;
+
+-- Y2b-K2: skala unieważnienia wpisów (a). Moc zachowują tylko potwierdzenia
+--     z osobnego kliknięcia na stronie pomiaru (form_id
+--     'newsletter:measurement_reconfirm' z potwierdzoną prośbą); wiersze
+--     wyprowadzone wyzwalaczem z treści zgody na newsletter (a) - nie.
+SELECT l.form_id, l.source_type, s.status, count(*)
+  FROM public.crm_consent_log l
+  LEFT JOIN public.newsletter_subscribers s ON s.id = l.source_id
+ WHERE l.consent_key = 'email_measurement' AND l.given AND l.created_at >= '2026-10-21'
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+
+-- Y2b-K3: musi dać 0 (wersji treści pomiaru nikt jeszcze nie zapisał).
+SELECT count(*) FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement' AND consent_version = 'email-measurement-2026-10-23';
+
+-- Y2b-K4: prośby per wersja treści (niewysłane prośby (a) migracja przepnie
+--     na wersję pomiaru; wysłane i potwierdzone zostają).
+SELECT consent_version,
+       count(*) FILTER (WHERE mailed_at IS NULL) AS w_kolejce,
+       count(*) FILTER (WHERE confirmed_at IS NOT NULL) AS potwierdzone,
+       count(*) AS razem
+  FROM public.newsletter_measurement_requests GROUP BY 1 ORDER BY 1;
+
+-- Y2b-K5: oznaczenia admina z okresu (a) - po migracji archiwum tylko do
+--     odczytu; przejrzyj ręcznie te teksty (mogą opisywać pomiar).
+SELECT tenant_id, field, marked_at FROM public.newsletter_consent_measurement_marks ORDER BY 1, 2;
+
+-- Y2b-K5b (R1.24): własne teksty zgody na newsletter, które WSPOMINAJĄ pomiar -
+--     migracja ich nie zmienia (podmienia tylko dokładne kopie treści
+--     domyślnych). To samo wyrażenie co ostrzeżenie panelu
+--     (`consentTextRules.ts`, CONSENT_MEASUREMENT_MENTION). Treść domyślna (a)
+--     też pasuje - po migracji jej kopii już nie ma, więc wynik po wdrożeniu
+--     to wyłącznie teksty admina. Każdy wiersz: popraw tekst w panelu
+--     (opis pomiaru należy do osobnego pola).
+SELECT tenant_id, 'policy_html_pl' AS pole, policy_html_pl AS tekst
+  FROM public.newsletter_settings WHERE policy_html_pl ~* 'mierz|pomiar|measur'
+UNION ALL
+SELECT tenant_id, 'policy_html_en', policy_html_en
+  FROM public.newsletter_settings WHERE policy_html_en ~* 'mierz|pomiar|measur'
+UNION ALL
+SELECT tenant_id, 'popup_privacy_html_pl', popup_privacy_html_pl
+  FROM public.newsletter_settings WHERE popup_privacy_html_pl ~* 'mierz|pomiar|measur'
+UNION ALL
+SELECT tenant_id, 'popup_privacy_html_en', popup_privacy_html_en
+  FROM public.newsletter_settings WHERE popup_privacy_html_en ~* 'mierz|pomiar|measur'
+UNION ALL
+SELECT tenant_id, 'popup_fields (newsletter_optin)', f::text
+  FROM public.newsletter_settings, jsonb_array_elements(
+         CASE WHEN jsonb_typeof(popup_fields) = 'array' THEN popup_fields ELSE '[]'::jsonb END) AS f
+ WHERE f ->> 'key' = 'newsletter_optin'
+   AND concat_ws(' ', f ->> 'label_pl', f ->> 'label_en') ~* 'mierz|pomiar|measur';
+--   Treść zgody w widżetach buildera („Dołącz do nas” `consentText_*`,
+--   etykieta zapisu w formularzu kontaktu `newsletterLabel_*`): strony,
+--   których dane buildera mają taki tekst - otwórz widżet i popraw.
+SELECT p.tenant_id, p.slug
+  FROM public.pages p
+ WHERE p.builder_data::text ~* '"(consentText|newsletterLabel)_(pl|en)"\s*:\s*"[^"]*(mierz|pomiar|measur)'
+ ORDER BY 1, 2;
+
+-- Y2b-K6a (pytanie Q1 - do decyzji właściciela; NIC nie usuwamy w tym PR):
+--     zdarzenia otwarć i kliknięć z okresu (a), od 2026-10-22 do wdrożenia.
+--     Kampanie: odbiorca bez potwierdzonej skrzynki w chwili zdarzenia
+--     (brak subskrybenta, `pending` albo potwierdzenie później niż zdarzenie)
+--     kontra pozostali. Status i potwierdzenie są BIEŻĄCE - wynik orientacyjny.
+SELECT CASE WHEN s.id IS NULL THEN 'brak_subskrybenta'
+            WHEN s.confirmed_at IS NULL AND s.status NOT IN ('subscribed', 'confirmed')
+              THEN 'niepotwierdzony'
+            WHEN s.confirmed_at > e.created_at THEN 'potwierdzony_pozniej'
+            ELSE 'aktywny_w_chwili_zdarzenia' END AS odbiorca,
+       e.kind, count(*)
+  FROM public.newsletter_campaign_events e
+  LEFT JOIN public.newsletter_subscribers s ON s.id = e.subscriber_id
+ WHERE e.created_at >= '2026-10-22' AND e.kind IN ('open', 'click')
+ GROUP BY 1, 2 ORDER BY 1, 2;
+--     Ścieżki: kontakt CRM bez aktywnej subskrypcji (dziś - orientacyjnie).
+SELECT CASE WHEN s.id IS NULL THEN 'kontakt_bez_subskrypcji'
+            WHEN s.status IN ('subscribed', 'confirmed') THEN 'aktywny_subskrybent'
+            ELSE s.status END AS odbiorca,
+       ev.kind, count(*)
+  FROM public.journey_message_events ev
+  JOIN public.journey_messages m ON m.message_id = ev.message_id
+  JOIN public.crm_leads l ON l.id = m.lead_id
+  LEFT JOIN public.newsletter_subscribers s
+         ON s.tenant_id = l.tenant_id AND lower(s.email) = lower(l.email)
+ WHERE ev.occurred_at >= '2026-10-22' AND ev.kind IN ('open', 'click')
+ GROUP BY 1, 2 ORDER BY 1, 2;
+```
+
+```sql
+-- Y2b-K6b - GOTOWE do wykonania DOPIERO po decyzji właściciela (Q1, wariant
+--     rekomendowany: usunąć zdarzenia odbiorców bez potwierdzonej skrzynki
+--     w chwili zdarzenia, zdarzenia aktywnych subskrybentów zostawić
+--     w zwykłej retencji). Usunięcie jest NIEODWRACALNE: najpierw wynik K6a
+--     do dziennika §10, potem ten blok. Domyślnie kończy się ROLLBACK -
+--     zamień na COMMIT świadomie, po sprawdzeniu liczb.
+BEGIN;
+DELETE FROM public.newsletter_campaign_events e
+ WHERE e.created_at >= '2026-10-22' AND e.created_at < '<chwila wdrożenia>'
+   AND e.kind IN ('open', 'click')
+   AND NOT EXISTS (SELECT 1 FROM public.newsletter_subscribers s
+                    WHERE s.id = e.subscriber_id
+                      AND (s.confirmed_at <= e.created_at
+                           OR (s.confirmed_at IS NULL AND s.status IN ('subscribed', 'confirmed'))));
+DELETE FROM public.journey_message_events ev
+ USING public.journey_messages m, public.crm_leads l
+ WHERE m.message_id = ev.message_id AND l.id = m.lead_id
+   AND ev.occurred_at >= '2026-10-22' AND ev.occurred_at < '<chwila wdrożenia>'
+   AND ev.kind IN ('open', 'click')
+   AND NOT EXISTS (SELECT 1 FROM public.newsletter_subscribers s
+                    WHERE s.tenant_id = l.tenant_id AND lower(s.email) = lower(l.email)
+                      AND (s.confirmed_at <= ev.occurred_at
+                           OR (s.confirmed_at IS NULL AND s.status IN ('subscribed', 'confirmed'))));
+ROLLBACK;
+--   Zestawienia dzienne (`newsletter_campaign_engagement_daily`) i liczniki
+--   per krok ścieżek, zapisane wcześniej przez retencję, zostają - to sumy
+--   bez danych osoby.
+```
+
+**Wdrożenie - kolejność obowiązkowa:**
+
+1. Migracje `20261023090000` → `090100` → `090200` (bliźniaki `0394` →
+   `0396`, kopie bajt w bajt - po panelu Lovable no-op). Poza oknem wysyłki
+   próśb z panelu (08:00-17:59 czasu polskiego) i poza wysyłką kampanii:
+   krótkie blokady `newsletter_settings`, `crm_consent_log`,
+   `newsletter_subscribers` i `newsletter_measurement_requests` za
+   `lock_timeout` 5 s (`55P03` = ponów plik; wszystkie są idempotentne).
+2. **Zaraz potem** publikacja frontu I9d-Y2b. Nowy front ze starym SQL
+   zapisałby deklarację pola pomiaru do rejestru zgód jako wpis „tak”
+   klucza `email_measurement_declared` (stary pisarz przepuszcza każdy
+   klucz - w CRM wyglądałoby to jak zgoda), karta pomiaru na stronie DOI
+   by się nie pokazała, a prośby po zapisie by nie powstały (RPC jeszcze
+   nie istnieją - błąd w logu, zapis działa).
+3. Publikacja nowych wersji polityk komunikacji i prywatności w panelu
+   dokumentów prawnych, jeśli najemca ma własne opublikowane wersje
+   (`legal_document_versions` ma pierwszeństwo przed kodem -
+   `src/lib/legal/resolve.ts`); daty w kodzie: 2026-10-23 (przy późniejszym
+   wdrożeniu - dzień wdrożenia).
+4. `workflow_dispatch` CI na `main` → `post-deploy`, wpis w §10 dziennika.
+
+**Po wdrożeniu:**
+
+```sql
+-- Y2b-K7: subskrybent `pending` z pomiarem - musi dać 0; strażnicy i wypis
+--     (3 wyzwalacze), wyzwalacz pakietowania usunięty (0).
+SELECT count(*) FROM public.newsletter_subscribers s
+ WHERE s.status = 'pending' AND public._email_measurement_consent(s.tenant_id, s.email);
+SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN (
+  'trg_crm_consent_log_measurement_guard', 'trg_crm_consent_log_measurement_lock',
+  'trg_newsletter_unsubscribed_measurement');
+SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname = 'trg_crm_consent_log_measurement';
+
+-- Y2b-K8 (codziennie przez 7 dni): nowe „tak” pomiaru wyłącznie z trzech
+--     kanałów udzielenia i w wersji email-measurement-2026-10-23.
+SELECT form_id, consent_version, count(*)
+  FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement' AND given AND created_at > '<chwila wdrożenia>'
+ GROUP BY 1, 2 ORDER BY 1, 2;
+--   dopuszczalne: measurement:doi | measurement:signup | measurement:reconfirm.
+```
+
+- **Y2b-K9 (ręcznie, skrzynki testowe):**
+  - wypis testowego adresu dopisuje „nie” `measurement:unsubscribe` (Q11);
+  - skrzynka z DOI: zapis z zaznaczonym polem → notka w mailu DOI → karta
+    na stronie potwierdzenia → „Zgadzam się na pomiar” → wpis
+    `measurement:doi` → `measured = true` w porcji kampanii;
+  - drugi adres: „Nie zgadzam się” → wpis `measurement:doi_declined`,
+    adres nie jest kandydatem do prośby z panelu;
+  - najemca bez DOI (jeśli jest): mail prośby po zapisie (stała treść) →
+    `/newsletter/measurement` → wpis `measurement:signup`;
+  - formularz bez zaznaczonego pola: zapis działa jak dotąd, w `consents`
+    brak `email_measurement_declared`.
+
+**Wyłącznik awaryjny (bez kodu):** wspólny przełącznik pomiaru najemcy
+(§3.3) - `journey_settings.open_tracking_enabled = false` daje od razu
+`measured = false` wszędzie. Błąd czytelnika naprawia nowa migracja
+z czytelnikiem zwracającym `false`. Migracje działają tylko do przodu;
+powrót do pakietowania (a) wykluczony decyzją D1.
+
+**Cofnięcie samego frontu po migracji** jest bezpieczne dla zgód (stary
+front nie wysyła deklaracji; stara karta treści zgody pokaże stan
+„niedostępne” zamiast oznaczeń), ALE stary popup rejestracji nie zna treści
+(b): tam, gdzie `policy_html_*` niesie treść (b) (DEFAULT kolumny i wiersze
+podmienione migracją), a `popup_privacy_html_*` jest puste, pokazałby treść
+zgody na newsletter w WYMAGANYM polu „prywatność” (art. 7 ust. 4 RODO). Na
+czas cofnięcia wyłącz popup rejestracji albo wpisz własną treść pola
+„prywatność” w zakładce „Zgody”.
+
+**Świadome skutki** - §6 (I9d-Y2b): odsetek mierzonych spada niemal do
+zera, kontakty ścieżek bez subskrypcji tracą piksel, ścieżka powitalna,
+jedna prośba na wersję i subskrybenta.
+
 ## 9. Po wdrożeniu - pierwsze dni (właściciel)
 
 1. **14 dni podglądu retencji.** Karta „Retencja danych” pokazuje liczby
@@ -503,8 +786,11 @@ SELECT has_function_privilege('authenticated',
    i listę „do wygaszenia”, potem „Włącz teraz” albo przesuń termin.
 2. **Polityki.** Jeśli najemca ma własną opublikowaną wersję polityki
    komunikacji albo prywatności (`legal_document_versions`), opublikuj nową
-   wersję z akapitem o pomiarze w panelu dokumentów prawnych - wersja w bazie
-   ma pierwszeństwo przed kodem.
+   wersję w panelu dokumentów prawnych - wersja w bazie ma pierwszeństwo
+   przed kodem. Od I9d-Y2b (2026-10-23) polityki opisują osobne,
+   niezaznaczone pole zgody na pomiar, potwierdzenie przyciskiem przez
+   właściciela skrzynki, osobne wycofanie i koniec zgody z końcem
+   subskrypcji (§8.2 krok 3).
 3. **M3 - test na żywo ścieżek (Z-S5-07).** W zakładce Ścieżki zainstaluj
    `welcome_onboarding` i `abandoned_checkout`, uzupełnij nadawcę i Reply-To,
    opublikuj, uruchom „Testuj na sobie” („pomiń czekanie” prowadzi przez

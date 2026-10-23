@@ -4,8 +4,9 @@
 // opportunistic tick `processDueCampaigns` (wysyłka zaległych zaplanowanych
 // kampanii; fallback zamiast pg_cron, patrz docs/ARCHITECTURE.md §2.6).
 //
-// I9d-Y2: pod panelem - treść zgody na newsletter (PL/EN, ostrzeżenie, gdy
-// własny tekst nie obejmuje pomiaru) i „Poproś o zgodę na pomiar" ze wspólnym
+// I9d-Y2, I9d-Y2b: pod panelem - treść zgody na newsletter (PL/EN, bez
+// pomiaru; ostrzeżenie, gdy własny tekst wspomina pomiar; podgląd osobnego
+// pola zgody na pomiar) i „Poproś o zgodę na pomiar" ze wspólnym
 // przełącznikiem pomiaru; sekcja wchodzi leniwie (`NewsletterMeasurementSection`).
 import { useEffect, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";

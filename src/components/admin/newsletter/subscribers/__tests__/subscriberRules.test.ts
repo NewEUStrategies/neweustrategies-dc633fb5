@@ -22,6 +22,7 @@ import {
   type SubscriberRow,
 } from "@/components/admin/newsletter/subscribers/subscriberTable";
 import {
+  consentEntryState,
   formatTimestamp,
   jsonStr,
   readConsents,
@@ -366,6 +367,21 @@ describe("readConsents - odczyt zgód z jsonb", () => {
     expect(readConsents("tekst")).toEqual([]);
     expect(readConsents({ key: "marketing" })).toEqual([]);
     expect(readConsents([])).toEqual([]);
+  });
+});
+
+describe("consentEntryState - deklaracja pola pomiaru to nie zgoda (I9d-Y2b)", () => {
+  it("klucz deklaracji (także innej pisowni) z `given: true` = `declared`", () => {
+    for (const key of ["email_measurement_declared", " Email_Measurement_Declared "]) {
+      expect(consentEntryState({ key, given: true }), key).toBe("declared");
+    }
+  });
+
+  it("zwykła zgoda = `given`, brak zgody albo deklaracja `false` = `missing`", () => {
+    expect(consentEntryState({ key: "newsletter", given: true })).toBe("given");
+    expect(consentEntryState({ given: true })).toBe("given");
+    expect(consentEntryState({ key: "email_measurement_declared", given: false })).toBe("missing");
+    expect(consentEntryState({ key: "newsletter", given: false })).toBe("missing");
   });
 });
 

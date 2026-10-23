@@ -2,6 +2,13 @@
 // Otwierany klikniciem wiersza w SubscribersPanel. Pokazuje pelne dane
 // z newsletter_subscribers wraz z consents i meta (JSONB) w czytelnym
 // atomowym layoucie. Read-only w Turze 3; edycja statusow w kolejnej.
+//
+// I9d-Y2b (R1.8): pozycja `email_measurement_declared` w `consents` to
+// DEKLARACJA z osobnego pola pomiaru (zaznaczone w formularzu), nie zgoda.
+// Okno pokazuje ją jako „zadeklarowana w formularzu - czeka na
+// potwierdzenie" z dopiskiem, że rzeczywisty stan zgody na pomiar zapisuje
+// rejestr zgód (`crm_consent_log`, klucz `email_measurement` - historia
+// zgód kontaktu w CRM) po potwierdzeniu przez właściciela skrzynki.
 import { useQuery } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { formatTimestamp, readConsents, readMeta } from "./subscriberDetail";
+import { consentEntryState, formatTimestamp, readConsents, readMeta } from "./subscriberDetail";
 
 /**
  * Kolumny czytane przez ten kod - WYPROWADZONE z wygenerowanych typów.
@@ -107,37 +114,55 @@ export function SubscriberDetailDialog({
             <Section title="Zgody">
               {readConsents(data.consents).length ? (
                 <ul className="space-y-2">
-                  {readConsents(data.consents).map((c, i) => (
-                    <li
-                      key={i}
-                      className="p-3 rounded-md bg-muted/40 border border-border/60 text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono uppercase tracking-wider">{c.key ?? "-"}</span>
-                        <span
-                          className={
-                            c.given
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {c.given ? "✓ udzielona" : "brak"}
-                        </span>
-                      </div>
-                      {c.text && (
-                        <div
-                          className="text-muted-foreground [&_a]:underline"
-                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
-                        />
-                      )}
-                      {c.at && (
-                        <div className="text-muted-foreground/70 text-[10px]">
-                          {formatTimestamp(c.at)}
-                          {c.lang ? ` • ${c.lang.toUpperCase()}` : ""}
+                  {readConsents(data.consents).map((c, i) => {
+                    const state = consentEntryState(c);
+                    return (
+                      <li
+                        key={i}
+                        data-consent-state={state}
+                        className="p-3 rounded-md bg-muted/40 border border-border/60 text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono uppercase tracking-wider">{c.key ?? "-"}</span>
+                          <span
+                            className={
+                              state === "given"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : state === "declared"
+                                  ? "text-foreground"
+                                  : "text-muted-foreground"
+                            }
+                          >
+                            {state === "given"
+                              ? "✓ udzielona"
+                              : state === "declared"
+                                ? "zadeklarowana w formularzu - czeka na potwierdzenie"
+                                : "brak"}
+                          </span>
                         </div>
-                      )}
-                    </li>
-                  ))}
+                        {state === "declared" && (
+                          <p className="text-muted-foreground">
+                            Zaznaczenie pola pomiaru nie jest zgodą. Zgodę na pomiar otwarć i
+                            kliknięć zapisuje dopiero potwierdzenie właściciela skrzynki -
+                            rzeczywisty stan pokazuje rejestr zgód (historia zgód kontaktu w CRM,
+                            klucz email_measurement).
+                          </p>
+                        )}
+                        {c.text && (
+                          <div
+                            className="text-muted-foreground [&_a]:underline"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(c.text) }}
+                          />
+                        )}
+                        {c.at && (
+                          <div className="text-muted-foreground/70 text-[10px]">
+                            {formatTimestamp(c.at)}
+                            {c.lang ? ` • ${c.lang.toUpperCase()}` : ""}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">Brak zapisanych zgod.</p>

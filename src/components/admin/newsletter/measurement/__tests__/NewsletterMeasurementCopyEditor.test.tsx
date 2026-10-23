@@ -30,9 +30,7 @@ vi.mock("@/lib/privacy/measurement.functions", () => ({
   saveNewsletterMeasurementCopy: (input: unknown) => h.save(input),
   previewNewsletterMeasurementEmail: (input: unknown) => h.preview(input),
   getCampaignMeasurement: vi.fn(),
-  getNewsletterConsentMeasurement: vi.fn(),
   getNewsletterMeasurementPreview: vi.fn(),
-  markNewsletterConsentMeasurement: vi.fn(),
   requestNewsletterMeasurement: vi.fn(),
 }));
 // Panel przeglądu (sekcja wejściowa) - atrapa: tu liczy się wyłącznie, KOMU
@@ -118,6 +116,13 @@ describe("treść maila prośby o zgodę na pomiar", () => {
     );
     expect(screen.getByText(/Zmienne: \{firstName\} - imię subskrybenta\./)).toBeTruthy();
     expect(document.getElementById("newsletter-measurement-copy")).not.toBeNull();
+    // I9d-Y2b: prośba dotyczy OSOBNEJ zgody na pomiar; prośba po zapisie bez
+    // double opt-in ma stałą treść, a mail pokazuje treść pola pomiaru.
+    expect(
+      screen.getByText(/Treść jednorazowej prośby do subskrybentów bez zgody na pomiar/),
+    ).toBeTruthy();
+    expect(screen.getByText(/ma stałą treść - ta edycja jej nie dotyczy/)).toBeTruthy();
+    expect(screen.getByText(/treść zgody na pomiar, którą zapisze kliknięcie/)).toBeTruthy();
   });
 
   it("zapis mutatorem pomiaru z tokenem CAS; podgląd z treścią szkicu", async () => {

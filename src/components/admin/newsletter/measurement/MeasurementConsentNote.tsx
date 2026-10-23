@@ -3,9 +3,11 @@
 // ścieżek (tabela maili, panel kroku).
 //
 // DLACZEGO. Od I9d-Y2 piksel i linki z identyfikatorem odbiorcy dostają
-// wyłącznie osoby ze zgodą obejmującą pomiar (przy włączonym wspólnym
-// przełączniku najemcy). Wskaźniki otwarć i kliknięć spadną skokowo po
-// wdrożeniu - bez notki admin uznałby to za realny spadek zaangażowania.
+// wyłącznie osoby ze zgodą na pomiar (przy włączonym wspólnym przełączniku
+// najemcy), a od I9d-Y2b - wyłącznie aktywni subskrybenci, którzy sami
+// potwierdzili OSOBNĄ zgodę na pomiar (pole formularza to tylko
+// deklaracja). Wskaźniki otwarć i kliknięć spadną skokowo po wdrożeniu -
+// bez notki admin uznałby to za realny spadek zaangażowania.
 // Trzy warianty mówią o MIANOWNIKU uczciwie:
 //   * `campaign` - kampanie znają liczbę odbiorców mierzonych
 //     (`admin_newsletter_campaign_measurement`), więc wskaźnik dzieli przez

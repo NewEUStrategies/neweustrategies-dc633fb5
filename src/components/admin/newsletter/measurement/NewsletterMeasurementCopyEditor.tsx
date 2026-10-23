@@ -1,6 +1,9 @@
 // Organizm: treść maila „Poproś o zgodę na pomiar" (I9d-Y2) w treściach maili
 // newslettera (`/admin/newsletter/email-content`) - obok prośby wygaszania,
-// bo tam redakcja szuka edytowalnych maili.
+// bo tam redakcja szuka edytowalnych maili. Od I9d-Y2b prośba dotyczy
+// OSOBNEJ zgody na pomiar (w mailu - treść pola pomiaru, którą zapisze
+// kliknięcie); edytor dotyczy wyłącznie próśb z panelu - prośba po zapisie
+// bez double opt-in ma treść stałą (`NEWSLETTER_MEASUREMENT_SIGNUP_COPY`).
 //
 // JEDEN EDYTOR, DWIE PROŚBY. Ciało (pola PL/EN z limitami, „Przywróć
 // domyślne" per język, podgląd renderu serwera z treścią szkicu, zapis z CAS

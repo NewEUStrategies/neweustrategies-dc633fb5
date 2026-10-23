@@ -1,9 +1,11 @@
 // „Poproś o zgodę na pomiar" i wspólny przełącznik pomiaru w przeglądzie
-// newslettera (I9d-Y2, Z-I9c-09) - RTL + axe.
+// newslettera (I9d-Y2, Z-I9c-09; I9d-Y2b - prośba o OSOBNĄ zgodę na pomiar,
+// wersja treści pola pomiaru) - RTL + axe.
 //
 // CO TEN PLIK DOWODZI.
 //   1. Podgląd liczb (aktywni, ze zgodą, do prośby, na liście wyłączeń) i stan
-//      próśb bieżącej wersji treści.
+//      próśb z PANELU bieżącej wersji treści pomiaru; notka, że prośby po
+//      zapisie bez double opt-in nie są tu liczone (`request.originNote`).
 //   2. Start WYŁĄCZNIE po potwierdzeniu w oknie z liczbą z podglądu; do bazy
 //      idzie dokładnie ta liczba (`expected`), wynik mówi, ilu zlecono.
 //   3. Konflikt (kandydatów przybyło po podglądzie) - komunikat, nic nie
@@ -41,9 +43,7 @@ vi.mock("@/lib/privacy/measurement.functions", () => ({
   getNewsletterMeasurementPreview: () => h.preview(),
   requestNewsletterMeasurement: (input: unknown) => h.request(input),
   getCampaignMeasurement: vi.fn(),
-  getNewsletterConsentMeasurement: vi.fn(),
   getNewsletterMeasurementCopy: vi.fn(),
-  markNewsletterConsentMeasurement: vi.fn(),
   previewNewsletterMeasurementEmail: vi.fn(),
   saveNewsletterMeasurementCopy: vi.fn(),
 }));
@@ -75,7 +75,7 @@ const TOKEN = "2026-10-21T10:00:00.000000+00:00";
 
 function preview(over: Partial<NewsletterMeasurementPreviewDto> = {}) {
   const data: NewsletterMeasurementPreviewDto = {
-    version: "newsletter-2026-10-21",
+    version: "email-measurement-2026-10-23",
     enabled: true,
     subscribers: 1200,
     withConsent: 300,
@@ -124,7 +124,7 @@ beforeEach(() => {
   h.journeySettings.mockResolvedValue(journeySettings());
   h.request.mockResolvedValue({
     ok: true,
-    data: { requested: 850, version: "newsletter-2026-10-21" },
+    data: { requested: 850, version: "email-measurement-2026-10-23" },
   });
   h.journeySave.mockResolvedValue({ ok: true, data: { openTrackingEnabled: false } });
 });
@@ -146,7 +146,13 @@ describe("prośba o zgodę na pomiar - podgląd i start", () => {
       screen.getByRole("link", { name: "Edytuj treść maila z prośbą" }).getAttribute("href"),
     ).toBe("/admin/newsletter/email-content#newsletter-measurement-copy");
     // Bez próśb tej wersji - bez sekcji stanu.
-    expect(screen.queryByText(/Prośby dla wersji treści/)).toBeNull();
+    expect(screen.queryByText(/Prośby z panelu dla wersji treści/)).toBeNull();
+    // Prośby po zapisie (origin signup) nie wchodzą do liczników karty.
+    const originNote = document.querySelector('[data-request-note="origin"]') as HTMLElement;
+    expect(originNote.textContent).toMatch(/po zapisie z zaznaczonym polem pomiaru/);
+    expect(originNote.textContent).toMatch(/nie są tu liczone/);
+    // Podtytuł mówi o OSOBNEJ zgodzie na pomiar, nie o treści zgody z pomiarem.
+    expect(screen.getByText(/Prośba dotyczy osobnej zgody na pomiar/)).toBeTruthy();
   });
 
   it("start dopiero po potwierdzeniu, z liczbą z podglądu", async () => {
@@ -193,7 +199,7 @@ describe("prośba o zgodę na pomiar - podgląd i start", () => {
   it("nikt nowy: powtórny start nie dubluje próśb", async () => {
     h.request.mockResolvedValue({
       ok: true,
-      data: { requested: 0, version: "newsletter-2026-10-21" },
+      data: { requested: 0, version: "email-measurement-2026-10-23" },
     });
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Poproś o zgodę na pomiar" }));
@@ -224,7 +230,9 @@ describe("prośba o zgodę na pomiar - podgląd i start", () => {
       }),
     );
     mount();
-    expect(await screen.findByText("Prośby dla wersji treści newsletter-2026-10-21")).toBeTruthy();
+    expect(
+      await screen.findByText("Prośby z panelu dla wersji treści email-measurement-2026-10-23"),
+    ).toBeTruthy();
     const confirmed = document.querySelector('[data-progress="confirmed"]') as HTMLElement;
     expect(within(confirmed).getByText("120")).toBeTruthy();
     expect(screen.getByText(/Ostatnie zlecenie: 21/)).toBeTruthy();
