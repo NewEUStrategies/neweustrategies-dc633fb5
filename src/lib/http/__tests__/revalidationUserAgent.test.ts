@@ -20,7 +20,7 @@ const hoisted = vi.hoisted(() => ({
   revalidator: null as DocumentRevalidator | null,
 }));
 
-vi.mock("@tanstack/react-start/server-entry", () => ({
+vi.mock("@/lib/ssr/serverEntry", () => ({
   default: {
     fetch: (request: Request) => {
       hoisted.requests.push(request);

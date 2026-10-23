@@ -16,6 +16,11 @@ import {
   postsConstrainedByTaxonomy,
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
+import {
+  fetchLatestPostsSuperset,
+  latestPostsSupersetCovers,
+  projectLatestPostRows,
+} from "@/lib/builder/latestPostsSuperset";
 
 /**
  * Wiersz slidera w cache. Pola językowe są OPCJONALNE, bo zapytanie oddaje
@@ -130,10 +135,41 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
 }
 
 /** Kolumny wiersza slidera - jeden literał dla zapytania i typu wiersza. */
-const SLIDER_POST_COLUMNS =
+export const SLIDER_POST_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
 
+/**
+ * Czy slider to „najnowsze opublikowane bez filtrów" (`latestPostsSuperset.ts`):
+ * bez kategorii, tagów i wykluczonych id, a sortowanie DOKŁADNIE takie, jakie
+ * zbudowałby `fetchSliderPosts` dla "newest" - `published_at` malejąco. Warunek
+ * czyta skutek, nie nazwę: każda wartość `orderBy` poza "oldest" i "title"
+ * sortuje dziś po `published_at` malejąco (także nieznana z importu).
+ */
+function sliderReadsLatestSuperset(input: SliderPostsFetchInput): boolean {
+  return (
+    input.categorySlugs.length === 0 &&
+    input.tagSlugs.length === 0 &&
+    input.excludeIds.length === 0 &&
+    input.orderBy !== "oldest" &&
+    sliderPostsOrderColumn(input.orderBy, input.lang) === "published_at" &&
+    latestPostsSupersetCovers(0, input.limit)
+  );
+}
+
 async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPostRow[]> {
+  // SSR: hero-slider dzieli z post-listami JEDEN odczyt najnowszych wpisów
+  // (zimny izolat, 6 połączeń Workera, bramka sekcji czekająca na
+  // najwolniejsze zapytanie - `latestPostsSuperset.ts`). Błąd nadzbioru nie
+  // jest pustym sliderem: wracamy do własnego zapytania poniżej.
+  if (import.meta.env.SSR && typeof window === "undefined" && sliderReadsLatestSuperset(input)) {
+    const superset = await fetchLatestPostsSuperset().catch((): null => null);
+    if (superset !== null) {
+      return projectLatestPostRows<SliderPostRow>(
+        superset.slice(0, input.limit),
+        SLIDER_POST_COLUMNS,
+      );
+    }
+  }
   const { limit, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
   // Zawężenie kategorią i tagiem robi BAZA (osadzenia `!inner()` po
   // identyfikatorach terminów) - wcześniej stał tu odczyt całej tabeli

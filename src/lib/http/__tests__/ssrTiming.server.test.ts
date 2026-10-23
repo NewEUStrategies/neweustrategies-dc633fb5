@@ -747,6 +747,15 @@ describe("classifyUserAgent - z UA do logu trafia wyłącznie klasa", () => {
 });
 
 describe("buildEntryServerTimingValue - część dopisywana w src/server.ts", () => {
+  it("stan izolatu: numer żądania i zimny import entry, przed kolonią", () => {
+    expect(
+      buildEntryServerTimingValue(0, 37, null, { isoReq: 1, isoAgeS: 0, coldEntry: true }),
+    ).toBe('server-init;dur=0, app;dur=37, nes-iso;desc="req=1 cold=1"');
+    expect(
+      buildEntryServerTimingValue(0, 5, "WAW", { isoReq: 7, isoAgeS: 42, coldEntry: false }),
+    ).toBe('server-init;dur=0, app;dur=5, nes-iso;desc="req=7 cold=0", colo;desc="WAW"');
+  });
+
   it("bez kolonii to bajt w bajt dawny napis", () => {
     expect(buildEntryServerTimingValue(0, 37)).toBe("server-init;dur=0, app;dur=37");
     expect(buildEntryServerTimingValue(0, 37, null)).toBe("server-init;dur=0, app;dur=37");

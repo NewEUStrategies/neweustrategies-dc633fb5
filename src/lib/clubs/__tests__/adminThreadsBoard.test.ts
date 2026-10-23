@@ -26,8 +26,8 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Nie sprawdza, czy RPC przyjmie ładunek
 // (`admin_club_thread_create`, `admin_club_moderate` - pgTAP), ani czy
 // moderator ma prawo akcji (SECURITY DEFINER). Nie powtarza reguł kolejki
-// premoderacji (`moderationRules.test.ts`), dynamiki wątku
-// (`threadDynamics.test.ts`) ani liczników obszarów (`threadTopics.test.ts`).
+// premoderacji (`moderationRules.test.ts`) ani liczników obszarów
+// (`threadTopics.test.ts`).
 // Nie testuje renderu - to `ClubThreadsTab.test.tsx` i molekuły.
 import { describe, expect, it } from "vitest";
 import {

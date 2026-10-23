@@ -14,6 +14,13 @@ import {
   postsConstrainedByTaxonomy,
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
+import {
+  fetchLatestPostsSuperset,
+  fetchLatestSupersetAuthors,
+  latestPostsSupersetCovers,
+  latestSupersetAuthorIds,
+  projectLatestPostRows,
+} from "@/lib/builder/latestPostsSuperset";
 
 export type Lang = "pl" | "en";
 
@@ -319,10 +326,66 @@ async function fetchPopularPostIds(
  * `post-list` zasila strony główne budowane builderem - bez tych kolumn
  * sponsorowany materiał trafiałby tam bez żadnego wyróżnienia.
  */
-const POST_LIST_COLUMNS =
+export const POST_LIST_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
+/**
+ * Czy wejście to „najnowsze opublikowane bez filtrów" w oknie nadzbioru
+ * (`latestPostsSuperset.ts`). Lista warunków to WSZYSTKIE pola wejścia, które
+ * zmieniają zapytanie `fetchPostListRows`: taksonomia (włącz/wyklucz
+ * kategorie i tagi), jawne id (włącz/wyklucz), format, autor, zakres dat
+ * i sortowanie inne niż `published_at` malejąco (w tym "popular" i "random").
+ * `uniqueOnPage` NIE jest filtrem zapytania - deduplikacja biegnie na
+ * kliencie (`dedupeAndSlice`), a jedyny ślad w zapytaniu to zapas w `limit`,
+ * który liczy się do okna. `popularDays` czyta wyłącznie gałąź "popular".
+ */
+function postListReadsLatestSuperset(input: PostListFetchInput): boolean {
+  return (
+    input.orderByRaw === "published_at" &&
+    input.orderDir === "desc" &&
+    input.includeCats.length === 0 &&
+    input.excludeCats.length === 0 &&
+    input.includeTags.length === 0 &&
+    input.excludeTags.length === 0 &&
+    input.includeIds.length === 0 &&
+    input.excludeIds.length === 0 &&
+    input.postFormat === "" &&
+    input.authorId === "" &&
+    input.dateFrom === "" &&
+    input.dateTo === "" &&
+    latestPostsSupersetCovers(input.offset, input.limit)
+  );
+}
+
+/**
+ * Wycinek nadzbioru w kształcie wierszy `fetchPostListRows`: kolumny
+ * `POST_LIST_COLUMNS`, byline z jednego odczytu profili wszystkich autorów
+ * nadzbioru (podzbiór id wiersza daje te same profile co `.in("id", ...)`
+ * widgetu). `null` = nadzbiór niedostępny, wołający pyta jak dotąd.
+ */
+async function postListRowsFromLatestSuperset(
+  input: PostListFetchInput,
+): Promise<PostRow[] | null> {
+  const superset = await fetchLatestPostsSuperset().catch((): null => null);
+  if (superset === null) return null;
+  const rows = projectLatestPostRows<PostRow>(
+    superset.slice(input.offset, input.offset + input.limit),
+    POST_LIST_COLUMNS,
+  );
+  return attachAuthorNames(rows, input.withAuthors, () =>
+    fetchLatestSupersetAuthors(latestSupersetAuthorIds(superset)).catch(() => []),
+  );
+}
+
 async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> {
+  // SSR: zimny izolat, 6 połączeń Workera i bramka sekcji czekająca na
+  // najwolniejsze zapytanie - widgety „najnowsze bez filtrów" czytają wycinek
+  // JEDNEGO wspólnego odczytu (`latestPostsSuperset.ts`). Stała Vite pierwsza:
+  // w bundlu klienta gałąź jest martwa, przeglądarka pyta jak dotąd.
+  if (import.meta.env.SSR && typeof window === "undefined" && postListReadsLatestSuperset(input)) {
+    const served = await postListRowsFromLatestSuperset(input);
+    if (served !== null) return served;
+  }
   // Ranking popularności nie zależy od taksonomii, więc RPC biegnie w TEJ SAMEJ
   // fali co odczyt słowników - jedna fala round-tripów mniej przed zapytaniem
   // o wpisy.
@@ -405,6 +468,22 @@ async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> 
   return attachAuthorNames(rows, input.withAuthors);
 }
 
+interface BylineProfile {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  slug: string | null;
+}
+
+/** Odczyt profili autorów wierszy widgetu - własne zapytanie post-listy. */
+async function readBylineProfiles(authorIds: string[]): Promise<BylineProfile[]> {
+  const { data: profs } = await supabase
+    .from("profiles_public")
+    .select("id, display_name, avatar_url, slug")
+    .in("id", authorIds);
+  return (profs ?? []) as BylineProfile[];
+}
+
 /**
  * Resolve author display names as part of the SAME query that fetches the
  * rows. posts.author_id references auth.users (not profiles), so PostgREST
@@ -416,27 +495,23 @@ async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> 
  * Round-trip placi WYLACZNIE widget, ktory autora naprawde rysuje: wariant z
  * bylinem (POST_LIST_BYLINE_VARIANTS) i wlaczona prezentacja autora
  * (authorDisplay != "none"). Patrz `withAuthors` w PostListInput.
+ *
+ * `readProfiles` podaje ścieżka nadzbioru (`latestPostsSuperset.ts`): wspólny
+ * odczyt profili WSZYSTKICH autorów nadzbioru zamiast jednego na widget. Mapa
+ * jest indeksowana `author_id` wiersza, więc profile autorów spoza widgetu
+ * niczego nie zmieniają - kształt bylinu jest ten sam co z `.in("id", ...)`.
  */
-async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise<PostRow[]> {
+async function attachAuthorNames(
+  rows: PostRow[],
+  withAuthors: boolean,
+  readProfiles: (authorIds: string[]) => Promise<readonly BylineProfile[]> = readBylineProfiles,
+): Promise<PostRow[]> {
   if (!withAuthors || rows.length === 0) return rows;
   const authorIds = Array.from(
     new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
   );
   if (authorIds.length === 0) return rows;
-  const { data: profs } = await supabase
-    .from("profiles_public")
-    .select("id, display_name, avatar_url, slug")
-    .in("id", authorIds);
-  const map = new Map(
-    (
-      (profs ?? []) as Array<{
-        id: string;
-        display_name: string | null;
-        avatar_url: string | null;
-        slug: string | null;
-      }>
-    ).map((p) => [p.id, p]),
-  );
+  const map = new Map((await readProfiles(authorIds)).map((p) => [p.id, p]));
   // Wzbogacamy, nigdy nie kasujemy: gdy profil autora jest niedostepny (usuniety,
   // odciety przez RLS), zostawiamy to, co wiersz juz niesie, zamiast nadpisywac
   // nazwisko null-em i chowac byline, ktory mial czym sie wyrenderowac.

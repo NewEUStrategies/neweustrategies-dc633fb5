@@ -9,7 +9,7 @@
 // kalendarz). Czat nie jest w narzędziach, bo jest skrótem.
 //
 // Zasady:
-//  - tylko dla zalogowanych, nigdy w /admin i /login (jak ChatDock),
+//  - tylko dla zalogowanych, nigdy w /admin i /login,
 //  - pasek sam publikuje `--mbb-space` na <html>, więc stopka i ostatni
 //    akapit treści nigdy nie chowają się pod paskiem,
 //  - panele są lazy - pierwsze wejście nie pobiera ich kodu,
@@ -159,11 +159,12 @@ export function WorkspaceDock() {
   const { user } = useAuth();
 
   // TOASTY NOWYCH WIADOMOŚCI montuje ten pasek - raz na sesję członka.
-  // Jedynym ich montażem był `ChatBell`, którego od przeniesienia rozmów do
-  // doku nic nie renderuje, więc żadna wiadomość nie dawała toasta. Pasek ma
-  // właściwe bramki (zalogowany, poza /admin i /login, leniwy chunk - gość
-  // nie pobiera kodu ani nie otwiera kanału), stoi w stałej pozycji drzewa
-  // `SiteChrome` i to on słucha szyny, w którą celuje akcja toasta.
+  // Jedynym ich montażem był `ChatBell` (usunięty w P3.10 jako martwy kod),
+  // którego po przeniesieniu rozmów do doku nic nie renderowało, więc żadna
+  // wiadomość nie dawała toasta. Pasek ma właściwe bramki (zalogowany, poza
+  // /admin i /login, leniwy chunk - gość nie pobiera kodu ani nie otwiera
+  // kanału), stoi w stałej pozycji drzewa `SiteChrome` i to on słucha szyny,
+  // w którą celuje akcja toasta.
   //
   // Kanał nie powstaje (a otwarty się zamyka), gdy:
   //  - moduł czatu jest wyłączony w panelu (to samo zapytanie `site_settings`,

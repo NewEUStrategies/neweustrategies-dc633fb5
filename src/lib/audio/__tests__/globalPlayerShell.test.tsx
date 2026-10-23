@@ -7,8 +7,8 @@
 //      tworzy elementu `<audio>`, nie woła sieci i nie powoduje rozjazdu
 //      hydratacji - identyczne poddrzewo po obu stronach;
 //   2. KONTRAKT API: fasada, atrapa poza providerem i wartość silnika mają TEN
-//      SAM zestaw kluczy - konsumenci (`ArticleListenButton`, `GlobalAudioBar`,
-//      `SidebarListenCard`) nie widzą, kto za nimi stoi;
+//      SAM zestaw kluczy - konsumenci (`GlobalAudioBar`, `SidebarListenCard`)
+//      nie widzą, kto za nimi stoi;
 //   3. ZIMNE KLIKNIĘCIE: `loadAndPlay` przez fasadę natychmiast zgłasza
 //      `loading` + etap `preparing` (ten sam stan, który silnik przyjmuje
 //      przed pobraniem nagrania), dociąga silnik, a ten wykonuje

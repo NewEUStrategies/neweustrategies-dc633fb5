@@ -1,4 +1,4 @@
-import { getColoCache } from "./documentCacheL2.server";
+import { getColoCache, type ColoCache } from "./documentCacheL2.server";
 
 /** Public routing metadata survives Worker rotation, just like HTML in L2.
  * Keys include the configured database origin: environments sharing a colo
@@ -69,6 +69,43 @@ function snapshotRequest(key: string): Request | null {
   }
 }
 
+/**
+ * TERMIN odczytu migawki (2026-10-22). Migawki tenantów i przekierowań stoją
+ * na ścieżce KAŻDEGO dokumentu przed cache dokumentów, a na hostingu, na którym
+ * zimny izolat obsługuje jedno żądanie, ich odczyt biegnie zawsze w oknie
+ * OPTYMISTYCZNYM - zanim samotest L2 zdąży wyłączyć martwy magazyn. Odczyt bez
+ * terminu czekał tyle, ile magazyn zechciał. Po terminie migawka jest
+ * chybieniem, a wołający idzie do bazy jak dotąd; spóźniony wynik jest
+ * ignorowany. Ten sam rząd wielkości co `EDGE_TTL_L2_READ_TIMEOUT_MS` (150 ms)
+ * w `ssrCache.ts`, ale krótszy: tu dwa odczyty idą szeregowo.
+ */
+export const BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS = 100;
+
+const READ_TIMED_OUT = Symbol("bootstrap-snapshot-read-timeout");
+
+/** Treść migawki z magazynu albo `READ_TIMED_OUT` po terminie. */
+function readSnapshotBody(
+  cache: ColoCache,
+  request: Request,
+): Promise<unknown | typeof READ_TIMED_OUT> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(READ_TIMED_OUT), BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS);
+    cache
+      .match(request)
+      .then((response) => (response?.ok ? response.json() : null))
+      .then(
+        (body: unknown) => {
+          clearTimeout(timer);
+          resolve(body);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+  });
+}
+
 export async function readBootstrapSnapshot<T>(
   key: string,
   ttlMs: number,
@@ -79,9 +116,8 @@ export async function readBootstrapSnapshot<T>(
     const request = snapshotRequest(key);
     const cache = getColoCache();
     if (!request || !cache) return null;
-    const response = await cache.match(request);
-    if (!response?.ok) return null;
-    const snapshot: unknown = await response.json();
+    const snapshot = await readSnapshotBody(cache, request);
+    if (snapshot === READ_TIMED_OUT) return null;
     if (!snapshot || typeof snapshot !== "object") return null;
     const { at, value } = snapshot as { at?: unknown; value?: unknown };
     const age = typeof at === "number" ? Date.now() - at : Number.NaN;

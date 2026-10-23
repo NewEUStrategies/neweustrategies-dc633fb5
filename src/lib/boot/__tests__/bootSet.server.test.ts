@@ -16,7 +16,8 @@
 //      wzorzec `src/__tests__/serverEntryRequestOptions.test.ts`). Dowodzi tego, czego wymaga bramka
 //      planu - i czego zabrakło przy pierwszym podejściu do podbicia TanStack (zestaw po cichu nie
 //      trafiał do dokumentu, strona nie hydratowała się nigdy): `#nes-boot-set` stoi DOKŁADNIE RAZ
-//      w `<head>` dokumentu ze ścieżki `allReady` (UA bota `Chrome-Lighthouse`, czyli PSI na MISS),
+//      w `<head>` dokumentu ze ścieżki `allReady` (UA crawlera; Lighthouse/PSI od 2026-10-22 idzie
+//      ścieżką strumieniową przeglądarki - lib/http/lighthouseStreaming.ts),
 //      strumieniowej (UA przeglądarki) i `renderToString`, ten sam węzeł jest w ciele odtworzonym
 //      z NES Edge Cache (HIT), `<` jest escapowane, a nagłówek `Link` dokumentu po LCP nie niesie
 //      żadnego `modulepreload`.
@@ -70,7 +71,7 @@ vi.mock("@/lib/seo/localeChunks", () => ({
 
 // Wirtualne entry: zasięg żądania Start jak w buildzie (`createServerEntry`); nagłówki trasy
 // (`Link`, `Cache-Control`) i tryb bootu nakłada granica odpowiedzi w PRAWDZIWYM `src/server.ts`.
-vi.mock("@tanstack/react-start/server-entry", async () => {
+vi.mock("@/lib/ssr/serverEntry", async () => {
   const { startRequestScope: scope } = await import("@/test/startRequestScope");
   return {
     default: {
@@ -295,9 +296,9 @@ describe("prepareBootSet - warunki", () => {
 
 // ── PRAWDZIWY RENDER ROUTERA PRZEZ src/server.ts ─────────────────────────────
 
-const CHROME_LIGHTHOUSE =
-  "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) " +
-  "Chrome/136.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse";
+const CRAWLER =
+  "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) " +
+  "Chrome/136.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 const BROWSER =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/136.0.0.0 Safari/537.36";
@@ -418,7 +419,7 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
   };
 
   it.each([
-    ["bot Chrome-Lighthouse (ścieżka allReady)", CHROME_LIGHTHOUSE, "stream"],
+    ["crawler Googlebot (ścieżka allReady)", CRAWLER, "stream"],
     ["przeglądarka (strumień)", BROWSER, "stream"],
     ["renderToString (`defaultRenderHandler`)", BROWSER, "string"],
   ] as const)(

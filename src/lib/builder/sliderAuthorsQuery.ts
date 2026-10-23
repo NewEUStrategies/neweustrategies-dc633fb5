@@ -15,6 +15,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SliderPostRow } from "@/lib/builder/sliderPostsQuery";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { edgeTtlCache } from "@/lib/ssrCache";
+import { latestSupersetAuthorsFor } from "@/lib/builder/latestPostsSuperset";
 
 export interface SliderAuthorInfo {
   name: string;
@@ -34,30 +36,57 @@ export function sliderAuthorIds(items: readonly SliderPostRow[] | undefined): st
   );
 }
 
-/** Rekord zamiast Map: prosty do serializacji w dehydratowanym payloadzie SSR. */
-async function fetchSliderAuthors(authorIds: string[]): Promise<Record<string, SliderAuthorInfo>> {
-  const { data } = await supabase
+interface SliderAuthorProfile {
+  id: string;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  slug: string | null;
+}
+
+/** Własny odczyt profili slajdów. Błąd RZUCA, żeby nie trafił do cache (niżej). */
+async function readSliderAuthorProfiles(authorIds: string[]): Promise<SliderAuthorProfile[]> {
+  const { data, error } = await supabase
     .from("profiles_public")
     .select("id, display_name, first_name, last_name, avatar_url, slug")
     .in("id", authorIds);
-  const map: Record<string, SliderAuthorInfo> = {};
-  (data ?? []).forEach((row) => {
-    const r = row as {
-      id: string;
-      display_name: string | null;
-      first_name: string | null;
-      last_name: string | null;
-      avatar_url: string | null;
-      slug: string | null;
-    };
-    const composed = [r.first_name, r.last_name].filter(Boolean).join(" ").trim();
-    map[r.id] = {
-      name: r.display_name?.trim() || composed || "",
-      avatar: r.avatar_url ?? "",
-      slug: r.slug ?? "",
-    };
-  });
-  return map;
+  if (error) throw error;
+  return (data ?? []) as SliderAuthorProfile[];
+}
+
+/**
+ * Rekord zamiast Map: prosty do serializacji w dehydratowanym payloadzie SSR.
+ *
+ * Per-isolate TTL (60 s) po UPORZĄDKOWANEJ liście id - tej samej, która jest
+ * kluczem zapytania. Wcześniej ten odczyt nie był memoizowany wcale: każdy
+ * render SSR na zimnym izolacie płacił za niego osobny round-trip, i to po
+ * odczycie wpisów, więc bramka sekcji hero czekała na dwa odcinki szeregowo.
+ * Na serwerze profile przychodzą najpierw ze wspólnego odczytu autorów
+ * nadzbioru najnowszych wpisów (ten sam, z którego biorą byline post-listy -
+ * `latestPostsSuperset.ts`), o ile wszyscy autorzy slajdów są w nadzbiorze.
+ *
+ * Odmowa odczytu daje PUSTĄ mapę (slider renderuje się bez bylinu), ale nie
+ * jest cache'owana: rzut wewnątrz `edgeTtlCache` omija zapis, a pustą mapę
+ * składamy dopiero na zewnątrz.
+ */
+async function fetchSliderAuthors(authorIds: string[]): Promise<Record<string, SliderAuthorInfo>> {
+  return edgeTtlCache(`builder:slider-authors:${JSON.stringify(authorIds)}`, 60_000, async () => {
+    const rows: readonly SliderAuthorProfile[] =
+      (import.meta.env.SSR && typeof window === "undefined"
+        ? await latestSupersetAuthorsFor(authorIds)
+        : null) ?? (await readSliderAuthorProfiles(authorIds));
+    const map: Record<string, SliderAuthorInfo> = {};
+    rows.forEach((r) => {
+      const composed = [r.first_name, r.last_name].filter(Boolean).join(" ").trim();
+      map[r.id] = {
+        name: r.display_name?.trim() || composed || "",
+        avatar: r.avatar_url ?? "",
+        slug: r.slug ?? "",
+      };
+    });
+    return map;
+  }).catch((): Record<string, SliderAuthorInfo> => ({}));
 }
 
 export const sliderAuthorsQueryOptions = (authorIds: string[]) =>

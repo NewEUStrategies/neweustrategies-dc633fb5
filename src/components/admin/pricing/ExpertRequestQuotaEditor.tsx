@@ -1,5 +1,5 @@
 // Edytor liczbowej puli „Zapytań do eksperta" (membership_tiers.features
-// .expert_request_quota) - dedykowana kontrolka obok TierFeatureTogglesEditor.
+// .expert_request_quota) - dedykowana kontrolka w `TierCapabilitiesPanel`.
 // Edytuje ten sam string-draft co pole surowego JSON-a (reszta flag przechodzi
 // nietknięta), więc panel, cennik i bramka send_expert_request są zawsze zgodne.
 // Gdy warstwa ma chat_direct_gated (pisanie wprost, np. VIP), liczba nie ma

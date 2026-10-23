@@ -28,8 +28,10 @@ export const INTERNAL_VITALS_ENDPOINT = "/api/public/vitals";
  */
 export function observabilityEndpoint(fallback: string = INTERNAL_ERROR_ENDPOINT): string {
   try {
-    const env = import.meta.env as unknown as Record<string, string | undefined>;
-    const url = env.VITE_OBSERVABILITY_ENDPOINT;
+    // Odczyt POJEDYNCZEGO klucza, nie całego obiektu: `import.meta.env` jako
+    // wartość Vite wkleja do bundla w całości (każdy klucz VITE_/TSS_ build-u,
+    // ~600 B w chunku bootu każdej strony), a tu potrzebny jest jeden adres.
+    const url = import.meta.env.VITE_OBSERVABILITY_ENDPOINT as string | undefined;
     return url && url.length > 0 ? url : fallback;
   } catch {
     return fallback;

@@ -959,6 +959,69 @@ describe("__root beforeLoad", () => {
   });
 });
 
+// STRONA GŁÓWNA CZEKA NA FALĘ CHROME'U (2026-10-22). Wspólny odczyt
+// najnowszych wpisów startuje w pierwszej fali, więc loader strony głównej
+// potrafi skończyć się przed rozgrzewką chrome'u. Gdyby korzeń na nią nie
+// czekał, zamiatanie przed renderem anulowałoby lecące zapytanie paska
+// „Na czasie", a nagłówek szedłby strumieniem za powłoką (szkielet
+// w pierwszym malowaniu, `s-maxage=30`). Czekanie ma ten sam sufit co
+// `warm()`: min(start + CHROME_WARM_BUDGET_MS, wspólny termin strony głównej).
+describe("strona główna: korzeń czeka na falę chrome'u w terminie", () => {
+  it("SSR `/`: loader nie kończy się przed rozgrzewką, najpóźniej we wspólnym terminie", async () => {
+    h.server = true;
+    h.menusHang = true;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    try {
+      const started = Date.now();
+      let settled = false;
+      const run = runLoader(qc, "/").then(() => {
+        settled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(settled).toBe(false);
+      await run;
+      expect(Date.now() - started).toBeLessThan(CHROME_WARM_BUDGET_MS + 400);
+    } finally {
+      h.menusHang = false;
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  });
+
+  it("SSR `/` z wyczerpanym zegarem: bez czekania", async () => {
+    h.server = true;
+    h.menusHang = true;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now - 10_000);
+    homeSsrDeadline(qc);
+    clock.mockRestore();
+    try {
+      const started = Date.now();
+      await runLoader(qc, "/");
+      expect(Date.now() - started).toBeLessThan(250);
+    } finally {
+      h.menusHang = false;
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  });
+
+  it("nawigacja klientowa `/`: bez czekania na falę chrome'u", async () => {
+    h.menusHang = true;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    try {
+      const started = Date.now();
+      await runLoader(qc, "/");
+      expect(Date.now() - started).toBeLessThan(250);
+    } finally {
+      h.menusHang = false;
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  });
+});
+
 describe("root chrome gate uses real query freshness", () => {
   it("pending chrome before the shell flushes = KRÓTKA świeżość wspólna, nie no-store (F02)", async () => {
     // Do 2026-09-20 stało tu `private, no-store`: każdy dokument, którego menu
@@ -1205,11 +1268,10 @@ describe("root chrome gate uses real query freshness", () => {
     } finally {
       vi.unstubAllEnvs();
     }
-    // Fala chrome strony głównej biegnie w tle - loader `/` na nią nie czeka
-    // (import dynamiczny modułu popupów: luz na obciążony CI).
-    await vi.waitFor(() => expect(qc.getQueryData(["builder-popups-active"])).toEqual([]), {
-      timeout: 5_000,
-    });
+    // Od 2026-10-22 loader korzenia czeka na falę chrome'u także na stronie
+    // głównej (najwyżej do wspólnego terminu) - sygnał popupów jest więc już
+    // zasiany, gdy loader się kończy.
+    expect(qc.getQueryData(["builder-popups-active"])).toEqual([]);
     // Przesłanki: sygnał to zasiew `updatedAt: 0` (nie dane hosta), tabela
     // rozmiarów to prawdziwe dane z fali 1, układ treści - celowy zasiew korzenia.
     expect(h.popupWarms).toBe(1);

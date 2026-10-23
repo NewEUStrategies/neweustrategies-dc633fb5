@@ -55,7 +55,7 @@ const hoisted = vi.hoisted(() => ({
   failBeforeDispatch: undefined as unknown,
 }));
 
-vi.mock("@tanstack/react-start/server-entry", async () => {
+vi.mock("@/lib/ssr/serverEntry", async () => {
   const { startRequestScope } = await import("@/test/startRequestScope");
   // Ta sama granica, którą build wstawia w wirtualne entry (`createServerEntry`).
   const boundary = startRequestScope(async (request) => {
@@ -148,7 +148,9 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       });
     };
     const response = await entryFetch(new Request("https://tenant-a.eu/"));
-    expect(response.headers.get("server-timing")).toBe("ssr;dur=12, server-init;dur=0, app;dur=37");
+    expect(response.headers.get("server-timing")).toMatch(
+      /^ssr;dur=12, server-init;dur=0, app;dur=37, nes-iso;desc="req=\d+ cold=[01]"$/,
+    );
     expect(await response.text()).toContain("ok");
   });
 
@@ -779,5 +781,38 @@ describe("entry SSR: licznik izolatu na świeżym module", () => {
     // `isoReq == 1` uznałoby to żądanie za ciepłe, choć czekało na ten sam import.
     expect(byPath.get("/rownolegle-b")).toMatchObject({ isoReq: 2, coldEntry: true });
     expect(byPath.get("/po-starcie")).toMatchObject({ isoReq: 3, coldEntry: false });
+  });
+});
+
+describe("entry SSR: ścieżki analityki hostingu (`/~api/*`) bez routera", () => {
+  it("beacon POST dostaje 204 bez renderu, GET krótkie 404 text/plain", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const calls = hoisted.calls.length;
+
+    const beacon = await entryFetch(
+      new Request("https://tenant-a.eu/~api/analytics", { method: "POST", body: "{}" }),
+    );
+    expect(beacon.status).toBe(204);
+    expect(beacon.headers.get("cache-control")).toBe("no-store");
+    expect(await beacon.text()).toBe("");
+
+    const probe = await entryFetch(new Request("https://tenant-a.eu/~api/analytics"));
+    expect(probe.status).toBe(404);
+    expect(probe.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(probe.headers.get("set-cookie")).toBeNull();
+
+    // Router (handler.fetch) nie został wywołany ani razu, log dokumentu też nie.
+    expect(hoisted.calls.length).toBe(calls);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("nasze `/api/*` (bez tyldy) i ścieżki podobne idą do routera jak dotąd", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.render = () => Response.json({ ok: true });
+    for (const path of ["/api/public/vitals", "/~apix", "/blog/~api/x"]) {
+      const calls = hoisted.calls.length;
+      await (await entryFetch(new Request(`https://tenant-a.eu${path}`))).text();
+      expect(hoisted.calls.length, path).toBe(calls + 1);
+    }
   });
 });

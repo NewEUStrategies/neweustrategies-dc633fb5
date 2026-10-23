@@ -390,9 +390,12 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
   try {
     // ZEGAR NA CAŁYM ODCINKU ROUTINGU KRAWĘDZIOWEGO (`edge-routing`).
     //
-    // `resolveRedirectForRequest` robi DWA SZEREGOWE odczyty planu
-    // service-role: host -> tenant (katalog tenantów) i dopiero potem reguły
-    // przekierowań. Oba mają własne terminy po 1 500 ms, oba stoją PRZED
+    // `resolveRedirectForRequest` robi DWA odczyty planu service-role:
+    // host -> tenant (katalog tenantów) i reguły przekierowań. Na zimnym
+    // izolacie od 2026-10-22 biegną RÓWNOLEGLE (reguły wszystkich tenantów
+    // lecą razem z katalogiem; szeregowo ten zegar mierzył 456-1291 ms),
+    // szeregowo już tylko w zejściu do odczytu per tenant. Oba mają własne
+    // terminy po 1 500 ms, oba stoją PRZED
     // `documentCacheMiddleware` - czyli przed jakimkolwiek trafieniem w cache
     // dokumentów - i ŻADEN z nich nie wchodzi do `db;dur`, bo ta metryka
     // mierzy wyłącznie plan anon. Do tej pory ten odcinek był w telemetrii

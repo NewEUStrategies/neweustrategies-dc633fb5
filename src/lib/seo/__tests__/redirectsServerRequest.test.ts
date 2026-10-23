@@ -22,7 +22,15 @@
 //      żądania; HEAD i pudło nie liczą, 410 liczy,
 //   6. dławienie licznika: najwyżej 5 zapisów jednej reguły na 10 s w izolacie
 //      (seria skanera WP na wildcard 410 nie zamienia się w setki UPDATE-ów
-//      tego samego wiersza), budżet per reguła, odnawiany po oknie.
+//      tego samego wiersza), budżet per reguła, odnawiany po oknie,
+//   7. odczyt ZIMNEGO izolatu: reguły wszystkich tenantów jednym zapytaniem,
+//      wystartowanym RÓWNOLEGLE z katalogiem tenantów (nie po nim); do indeksu
+//      trafiają wyłącznie reguły tenanta hosta, a wynik na limicie albo błąd
+//      schodzi do odczytu per tenant. Ciepły izolat tego odczytu nie robi.
+//
+// ATRAPA PostgREST stosuje filtr `tenant_id` i `limit` tak jak baza - inaczej
+// odczyt per tenant i odczyt wszystkich reguł byłyby nieodróżnialne, a test
+// izolacji tenantów niczego by nie dowodził.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //   * `redirectsServerSwr.test.ts` - kontrakt stale-while-revalidate cache
@@ -56,12 +64,13 @@ import {
   resolveRedirectForRequest,
 } from "@/lib/seo/redirects.server";
 
-/** Wiersz tabeli `redirects` w kształcie, w jakim czyta go loader indeksu. */
+/** Wiersz tabeli `redirects` w kształcie, w jakim czytają go loadery indeksu. */
 interface RedirectRow {
   id: string;
   source_path: string;
   target_path: string;
   status_code: number;
+  tenant_id: string;
 }
 
 /** Odpowiedź PostgREST w kształcie, jaki rozpakowuje kod produkcyjny. */
@@ -90,6 +99,13 @@ interface SelectBuilder {
   maybeSingle(): Promise<Reply>;
 }
 
+/**
+ * Awaria WYŁĄCZNIE odczytu bez filtra `tenant_id` (odczyt zimnego izolatu):
+ * `error` - PostgREST oddaje `{ error }`, `null` - `data: null` bez błędu,
+ * `hang` - odpowiedź nigdy nie przychodzi. Odczyt per tenant działa dalej.
+ */
+type UnscopedFailure = "none" | "error" | "null" | "hang";
+
 interface UpdateBuilder {
   eq(column: string, value: unknown): UpdateBuilder;
   then(
@@ -106,12 +122,16 @@ const mockState = vi.hoisted(() => {
     /** host -> tenant_id; brak wpisu = host nieznany (`resolveTenantForHost` -> null). */
     tenantsByHost: new Map<string, string>(),
     tenantCalls: [] as Array<string | null>,
+    /** Odpowiedź katalogu tenantów jest wstrzymana do ręcznego `releaseTenants()`. */
+    tenantHeld: false,
+    heldTenants: [] as Array<() => void>,
     /** Obietnice oddane do `runAfterResponse` - test domyka nimi tło. */
     background: [] as Array<Promise<unknown>>,
     matcherCalls: 0,
     ops: [] as RecordedOp[],
     redirectRows: null as RedirectRow[] | null,
     redirectError: null as Error | null,
+    unscopedFailure: "none" as UnscopedFailure,
     /** Import `client.server` rzuca (moduł klienta service-role niedostępny). */
     clientThrows: false,
     /** Samo zapytanie rzuca (klient wybuchł na `from`). */
@@ -127,9 +147,24 @@ const mockState = vi.hoisted(() => {
     heldRpc: [] as Array<() => void>,
   };
 
-  function redirectsReply(): Promise<Reply> {
+  function redirectsReply(op: RecordedOp): Promise<Reply> {
+    const scoped = "tenant_id" in op.filters;
+    if (!scoped && state.unscopedFailure === "hang") return new Promise(() => {});
+    if (!scoped && state.unscopedFailure === "error") {
+      return Promise.resolve({
+        data: null,
+        error: new Error("odczyt wszystkich reguł odrzucony przez PostgREST"),
+      });
+    }
+    if (!scoped && state.unscopedFailure === "null")
+      return Promise.resolve({ data: null, error: null });
     if (state.redirectError) return Promise.resolve({ data: null, error: state.redirectError });
-    return Promise.resolve({ data: state.redirectRows, error: null });
+    if (state.redirectRows === null) return Promise.resolve({ data: null, error: null });
+    // Filtr tenanta i limit wierszy - jak w bazie.
+    const rows = state.redirectRows
+      .filter((row) => !scoped || row.tenant_id === op.filters.tenant_id)
+      .slice(0, op.limit ?? undefined);
+    return Promise.resolve({ data: rows, error: null });
   }
 
   function rpcReply(fn: string): Promise<Reply> {
@@ -177,7 +212,7 @@ const mockState = vi.hoisted(() => {
             },
             limit(count) {
               op.limit = count;
-              return redirectsReply();
+              return redirectsReply(op);
             },
             maybeSingle() {
               return legacyReply();
@@ -252,9 +287,9 @@ vi.mock("@/lib/server/tenant.server", () => ({
   resolveTenantForHost: (rawHost: string | null | undefined) => {
     mockState.tenantCalls.push(rawHost ?? null);
     const id = mockState.tenantsByHost.get((rawHost ?? "").toLowerCase());
-    return Promise.resolve(
-      id ? { id, slug: "nes", domain: rawHost ?? null, isDefault: true } : null,
-    );
+    const tenant = id ? { id, slug: "nes", domain: rawHost ?? null, isDefault: true } : null;
+    if (!mockState.tenantHeld) return Promise.resolve(tenant);
+    return new Promise((resolve) => mockState.heldTenants.push(() => resolve(tenant)));
   },
 }));
 
@@ -286,7 +321,18 @@ const TENANT_ID = "t-nes";
 const SEO_404_DB_LIMIT = 500;
 
 function rule(source: string, target: string, status = 301): RedirectRow {
-  return { id: `r${source}`, source_path: source, target_path: target, status_code: status };
+  return {
+    id: `r${source}`,
+    source_path: source,
+    target_path: target,
+    status_code: status,
+    tenant_id: TENANT_ID,
+  };
+}
+
+/** Ta sama reguła, ale należąca do INNEGO tenanta. */
+function foreignRule(source: string, target: string, tenantId: string): RedirectRow {
+  return { ...rule(source, target), id: `${tenantId}${source}`, tenant_id: tenantId };
 }
 
 function request(path: string, init?: { method?: string; host?: string }): Request {
@@ -324,6 +370,22 @@ function opsFor(table: string): RecordedOp[] {
   return mockState.ops.filter((op) => op.table === table);
 }
 
+/** Kolumny odczytu zimnego izolatu - `tenant_id`, bo filtr tenanta nakłada kod. */
+const COLD_READ_COLUMNS = "id, source_path, target_path, status_code, tenant_id";
+
+/** Odczyty `redirects` bez filtra tenanta (zimny izolat) i z filtrem (per tenant). */
+function redirectReads(): { unscoped: RecordedOp[]; scoped: RecordedOp[] } {
+  const reads = opsFor("redirects");
+  return {
+    unscoped: reads.filter((op) => !("tenant_id" in op.filters)),
+    scoped: reads.filter((op) => "tenant_id" in op.filters),
+  };
+}
+
+function releaseTenants(): void {
+  for (const release of mockState.heldTenants.splice(0)) release();
+}
+
 /** Wywołania RPC o danej nazwie, w kolejności. */
 function rpcCalls(fn: string): RecordedOp[] {
   return mockState.ops.filter((op) => op.kind === "rpc" && op.table === fn);
@@ -343,11 +405,14 @@ beforeEach(() => {
   warn = spyOnWarn();
   mockState.tenantsByHost = new Map([[HOST, TENANT_ID]]);
   mockState.tenantCalls = [];
+  mockState.tenantHeld = false;
+  mockState.heldTenants = [];
   mockState.background = [];
   mockState.matcherCalls = 0;
   mockState.ops = [];
   mockState.redirectRows = [];
   mockState.redirectError = null;
+  mockState.unscopedFailure = "none";
   mockState.clientThrows = false;
   mockState.fromThrows = false;
   mockState.rpcFailure = "none";
@@ -399,21 +464,24 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
     });
   });
 
-  // `isProtectedPath` (PROTECTED_PREFIXES: /admin, /api, /_) - reguła
-  // przekierowania nie może przesłonić panelu ani API, nawet gdy operator
-  // wpisze ją do tabeli. Bramka stoi PRZED odczytem katalogu tenantów.
-  it.each(["/admin", "/admin/redirects", "/api/newsletter/subscribe", "/_/vite-hmr"])(
-    "ścieżka chroniona %s nie przekierowuje i nie dotyka bazy",
-    async (path) => {
-      mockState.redirectRows = [rule(path, "/przejete-przez-regule")];
+  // `isProtectedPath` (PROTECTED_PREFIXES: /admin, /api, /_, /media) - reguła
+  // przekierowania nie może przesłonić panelu, API ani proxy mediów, nawet gdy
+  // operator wpisze ją do tabeli. Bramka stoi PRZED odczytem katalogu tenantów.
+  it.each([
+    "/admin",
+    "/admin/redirects",
+    "/api/newsletter/subscribe",
+    "/_/vite-hmr",
+    "/media/07167e87/wp-import/okladka.webp",
+  ])("ścieżka chroniona %s nie przekierowuje i nie dotyka bazy", async (path) => {
+    mockState.redirectRows = [rule(path, "/przejete-przez-regule")];
 
-      const result = await resolveRedirectForRequest(request(path));
+    const result = await resolveRedirectForRequest(request(path));
 
-      expect(result).toBeNull();
-      expect(mockState.tenantCalls).toHaveLength(0);
-      expect(mockState.ops).toHaveLength(0);
-    },
-  );
+    expect(result).toBeNull();
+    expect(mockState.tenantCalls).toHaveLength(0);
+    expect(mockState.ops).toHaveLength(0);
+  });
 
   it("nieznany host nie przekierowuje (brak tenanta = brak reguł)", async () => {
     mockState.redirectRows = [rule("/stary", "/nowy")];
@@ -422,8 +490,25 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
 
     expect(result).toBeNull();
     expect(mockState.tenantCalls).toEqual(["obca.example"]);
-    // Service role obchodzi RLS - bez tenanta NIE WOLNO nawet czytać tabeli.
-    expect(mockState.ops).toHaveLength(0);
+    // ZIMNY izolat czyta reguły wszystkich tenantów RÓWNOLEGLE z katalogiem,
+    // więc zanim wiadomo, że host jest obcy, ten jeden odczyt już poszedł.
+    // Bez tenanta nic z niego nie trafia ani do matchera, ani do indeksu.
+    expect(redirectReads()).toEqual({ unscoped: [expect.anything()], scoped: [] });
+    expect(mockState.matcherCalls).toBe(0);
+    expect(mockState.ops).toHaveLength(1);
+  });
+
+  it("ciepły izolat: nieznany host nie dotyka bazy wcale", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    await resolveRedirectForRequest(request("/stary"));
+    const opsBefore = mockState.ops.length;
+
+    const result = await resolveRedirectForRequest(request("/stary", { host: "obca.example" }));
+
+    expect(result).toBeNull();
+    // Service role obchodzi RLS - bez tenanta NIE WOLNO czytać tabeli; jedyny
+    // wyjątek to odczyt zimnego izolatu, a tego izolat z indeksem nie robi.
+    expect(mockState.ops).toHaveLength(opsBefore);
   });
 
   it("pusty indeks (zero reguł) kończy żądanie bez wołania matchera", async () => {
@@ -478,12 +563,25 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
     expect(opsFor("redirects")).toHaveLength(1);
   });
 
-  it("odczyt indeksu jest filtrowany tenantem i włączonymi regułami", async () => {
+  it("odczyt zimnego izolatu: wszystkie WŁĄCZONE reguły, z kolumną tenant_id, z limitem", async () => {
     mockState.redirectRows = [rule("/stary", "/nowy")];
 
     await resolveRedirectForRequest(request("/stary"));
 
+    const reads = opsFor("redirects");
+    expect(reads).toHaveLength(1);
+    expect(reads[0].columns).toBe(COLD_READ_COLUMNS);
+    expect(reads[0].filters).toEqual({ is_enabled: true });
+    expect(reads[0].limit).toBe(5000);
+  });
+
+  it("odczyt per tenant (odświeżenie, getRedirectIndexForTenant) jest filtrowany tenantem i włączonymi regułami", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    await getRedirectIndexForTenant(TENANT_ID);
+
     const read = opsFor("redirects")[0];
+    expect(read.columns).toBe("id, source_path, target_path, status_code");
     expect(read.filters).toEqual({ tenant_id: TENANT_ID, is_enabled: true });
     expect(read.limit).toBe(5000);
   });
@@ -694,6 +792,178 @@ describe("getRedirectIndexForTenant - degradacja odczytu indeksu", () => {
     expect(index.wildcards).toHaveLength(0);
     // Gałąź `?? []` to NIE błąd - żadnego ostrzeżenia być nie może.
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveRedirectForRequest - odczyt zimnego izolatu (reguły równolegle z katalogiem)", () => {
+  it("odczyt reguł startuje, ZANIM katalog tenantów odpowie - równolegle, nie po nim", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    mockState.tenantHeld = true;
+
+    const pending = resolveRedirectForRequest(request("/stary"));
+
+    // Katalog tenantów wciąż NIE odpowiedział, a odczyt reguł już poszedł -
+    // tylko tak zimne żądanie płaci max(katalog, reguły) zamiast ich sumy.
+    await vi.waitFor(() => expect(opsFor("redirects")).toHaveLength(1));
+    expect(mockState.tenantCalls).toEqual([HOST]);
+    expect(mockState.heldTenants).toHaveLength(1);
+    expect(opsFor("redirects")[0].filters).toEqual({ is_enabled: true });
+
+    releaseTenants();
+    await expect(pending).resolves.toEqual({ target: "/nowy", status: 301 });
+    // Jeden odczyt na całe zimne żądanie - żadnego drugiego, per tenant.
+    expect(opsFor("redirects")).toHaveLength(1);
+  });
+
+  it("reguła INNEGO tenanta z tego samego odczytu nigdy nie przekierowuje ani nie trafia do indeksu", async () => {
+    mockState.redirectRows = [
+      foreignRule("/cudzy", "/przejety", "t-obcy"),
+      foreignRule("/stary", "/cel-obcego", "t-obcy"),
+      rule("/stary", "/nowy"),
+    ];
+
+    await expect(resolveRedirectForRequest(request("/cudzy"))).resolves.toBeNull();
+    await expect(resolveRedirectForRequest(request("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+    await Promise.all(mockState.background);
+
+    // Indeks tenanta hosta ma WYŁĄCZNIE jego regułę, w kształcie odczytu per
+    // tenant (bez `tenant_id`), a licznik trafień nie zna id reguł obcych.
+    const own = await getRedirectIndexForTenant(TENANT_ID);
+    expect([...own.exact.values()]).toEqual([
+      { id: "r/stary", source_path: "/stary", target_path: "/nowy", status_code: 301 },
+    ]);
+    expect(own.wildcards).toHaveLength(0);
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([{ _id: "r/stary" }]);
+    // Cache obcego tenanta NIE został zasiany odczytem zimnego izolatu - jego
+    // indeks to osobny odczyt, filtrowany jego `tenant_id`.
+    expect(redirectReads().scoped).toHaveLength(0);
+    const foreign = await getRedirectIndexForTenant("t-obcy");
+    expect(foreign.exact.get("/stary")?.target_path).toBe("/cel-obcego");
+    expect(redirectReads().scoped.map((op) => op.filters)).toEqual([
+      { tenant_id: "t-obcy", is_enabled: true },
+    ]);
+  });
+
+  it("dwa hosty RÓWNOLEGLE na zimnym izolacie: jeden odczyt, każdy tenant widzi tylko swoje reguły", async () => {
+    mockState.tenantsByHost.set("drugi.example", "t-drugi");
+    mockState.redirectRows = [
+      rule("/stary", "/nowy"),
+      foreignRule("/stary", "/cel-drugiego", "t-drugi"),
+      foreignRule("/tylko-drugi", "/x", "t-drugi"),
+    ];
+
+    const [pierwszy, drugi, cudzaSciezka] = await Promise.all([
+      resolveRedirectForRequest(request("/stary")),
+      resolveRedirectForRequest(request("/stary", { host: "drugi.example" })),
+      resolveRedirectForRequest(request("/tylko-drugi")),
+    ]);
+
+    expect(pierwszy).toEqual({ target: "/nowy", status: 301 });
+    expect(drugi).toEqual({ target: "/cel-drugiego", status: 301 });
+    expect(cudzaSciezka).toBeNull();
+    expect(opsFor("redirects")).toHaveLength(1);
+  });
+
+  it("wynik NA LIMICIE (mógł uciąć reguły dowolnego tenanta) schodzi do odczytu per tenant", async () => {
+    // 5 000 reguł innego tenanta wypełnia limit, a reguła tenanta hosta jest
+    // 5 001. - ucięty odczyt jej NIE zawiera. Gdyby kod użył takiego wyniku,
+    // /stary nie przekierowałby wcale.
+    mockState.redirectRows = [
+      ...Array.from({ length: 5000 }, (_, i) => foreignRule(`/obcy-${i}`, "/x", "t-obcy")),
+      rule("/stary", "/nowy"),
+    ];
+
+    await expect(resolveRedirectForRequest(request("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+
+    const { unscoped, scoped } = redirectReads();
+    expect(unscoped).toHaveLength(1);
+    expect(scoped.map((op) => op.filters)).toEqual([{ tenant_id: TENANT_ID, is_enabled: true }]);
+    // Limit wypełnił odczyt WSZYSTKICH tenantów, nie tego tenanta - zejście
+    // przeczytało jedną regułę, więc ostrzeżenia o ucinaniu nie ma.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { tryb: "error" as const, opis: "błąd PostgREST" },
+    { tryb: "null" as const, opis: "data: null bez błędu" },
+  ])("$opis odczytu zimnego izolatu schodzi do odczytu per tenant", async ({ tryb }) => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    mockState.unscopedFailure = tryb;
+
+    await expect(resolveRedirectForRequest(request("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+
+    const { unscoped, scoped } = redirectReads();
+    expect(unscoped).toHaveLength(1);
+    expect(scoped.map((op) => op.filters)).toEqual([{ tenant_id: TENANT_ID, is_enabled: true }]);
+    // Zejście się udało - żądanie nie ma czego zgłaszać.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("wiszący odczyt zimnego izolatu kończy się NA terminie zejściem „timeout”, bez drugiego blokującego odczytu", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    mockState.unscopedFailure = "hang";
+    let settled = false;
+
+    const pending = resolveRedirectForRequest(request("/stary")).then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(settled).toBe(true);
+    await expect(pending).resolves.toBeNull();
+    expect(redirectReads()).toEqual({ unscoped: [expect.anything()], scoped: [] });
+    expect(warn).toHaveBeenCalledWith(
+      "[redirects] index load timed out after 1500ms (budget lapsed, no database error)",
+    );
+  });
+
+  it("ciepły izolat (indeks w cache) nie robi odczytu wszystkich reguł - ani w TTL, ani po nim, ani dla nowego tenanta", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    await resolveRedirectForRequest(request("/stary"));
+    expect(redirectReads().unscoped).toHaveLength(1);
+
+    // W oknie TTL: zero odczytów.
+    await resolveRedirectForRequest(request("/stary"));
+    // Po TTL: SWR - nieświeży indeks od ręki, odświeżenie per tenant w tle.
+    vi.advanceTimersByTime(31_000);
+    await resolveRedirectForRequest(request("/stary"));
+    await Promise.all(mockState.background);
+    // Pierwsze żądanie INNEGO tenanta na ciepłym izolacie - też per tenant.
+    mockState.tenantsByHost.set("drugi.example", "t-drugi");
+    await resolveRedirectForRequest(request("/stary", { host: "drugi.example" }));
+
+    const { unscoped, scoped } = redirectReads();
+    expect(unscoped).toHaveLength(1);
+    expect(scoped.map((op) => op.filters)).toEqual([
+      { tenant_id: TENANT_ID, is_enabled: true },
+      { tenant_id: "t-drugi", is_enabled: true },
+    ]);
+  });
+
+  it("inwalidacja cache'u w trakcie odczytu: wynik sprzed inwalidacji nie zasiewa indeksu", async () => {
+    mockState.redirectRows = [rule("/stary", "/sprzed-inwalidacji")];
+    mockState.tenantHeld = true;
+    const pending = resolveRedirectForRequest(request("/stary"));
+    await vi.waitFor(() => expect(opsFor("redirects")).toHaveLength(1));
+
+    invalidateRedirectCache();
+    mockState.redirectRows = [rule("/stary", "/po-inwalidacji")];
+    releaseTenants();
+
+    await expect(pending).resolves.toEqual({ target: "/po-inwalidacji", status: 301 });
+    expect(redirectReads().scoped).toHaveLength(1);
   });
 });
 
@@ -1001,16 +1271,36 @@ describe("resolveRedirectForRequest - licznik trafień reguły (record_redirect_
 
   it("id pochodzi z indeksu tenanta HOSTA żądania", async () => {
     // Funkcja SQL aktualizuje po samym `id` - izolację daje to, że id bierze
-    // się wyłącznie z odczytu przefiltrowanego tenantem hosta.
+    // się wyłącznie z reguł przefiltrowanych tenantem hosta. Ta sama ścieżka
+    // ma regułę u DWÓCH tenantów, a odczyt zimnego izolatu przynosi obie.
     mockState.tenantsByHost.set("drugi.example", "t-drugi");
-    mockState.redirectRows = [{ ...rule("/stary", "/nowy"), id: "id-drugiego-tenanta" }];
+    mockState.redirectRows = [
+      rule("/stary", "/cel-pierwszego"),
+      { ...foreignRule("/stary", "/nowy", "t-drugi"), id: "id-drugiego-tenanta" },
+    ];
 
+    await expect(
+      resolveRedirectForRequest(request("/stary", { host: "drugi.example" })),
+    ).resolves.toEqual({ target: "/nowy", status: 301 });
+    await drainBackground();
+
+    expect(redirectReads().unscoped).toHaveLength(1);
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([
+      { _id: "id-drugiego-tenanta" },
+    ]);
+  });
+
+  it("odświeżenie per tenant też czyta wyłącznie tenanta hosta", async () => {
+    mockState.tenantsByHost.set("drugi.example", "t-drugi");
+    mockState.redirectRows = [foreignRule("/stary", "/nowy", "t-drugi")];
+    await resolveRedirectForRequest(request("/stary", { host: "drugi.example" }));
+
+    vi.advanceTimersByTime(31_000);
     await resolveRedirectForRequest(request("/stary", { host: "drugi.example" }));
     await drainBackground();
 
-    expect(opsFor("redirects")[0]?.filters).toEqual({ tenant_id: "t-drugi", is_enabled: true });
-    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([
-      { _id: "id-drugiego-tenanta" },
+    expect(redirectReads().scoped.map((op) => op.filters)).toEqual([
+      { tenant_id: "t-drugi", is_enabled: true },
     ]);
   });
 

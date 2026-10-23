@@ -16,6 +16,11 @@
 //
 //   * Redirect rules and 404 hits are scoped by request-host tenant (service
 //     role bypasses RLS, so this filter is what stops cross-tenant leakage).
+//     Jedyny wyjątek od filtra W SQL to odczyt zimnego izolatu
+//     (`readEnabledRulesOfAllTenants`): biegnie, zanim host jest rozstrzygnięty,
+//     więc filtr `tenant_id` tenanta hosta nakłada KOD, zanim cokolwiek trafi
+//     do indeksu - cudze reguły nigdy nie wchodzą do cache per tenant, do
+//     matchera ani do migawki L2.
 //
 //   * Only text/html 404s from the router feed the monitor - asset / API /
 //     sitemap 404s are noise. `.` in the last segment is treated as a static
@@ -78,10 +83,12 @@ const REDIRECT_CACHE_TTL_MS = 30_000;
  * zawieszenie nie rzuca, ono czeka.
  *
  * DLACZEGO 1 500 ms, tak samo jak w katalogu tenantów: to odczyt po indeksie
- * (`tenant_id`, `is_enabled`), a nie raport. Dwa terminy tej płaszczyzny są
- * SZEREGOWE (najpierw host -> tenant, potem reguły), więc wspólny sufit tej
- * warstwy to 3 000 ms - tyle, co cała rozgrzewka korzenia. Zejście po terminie
- * to TA SAMA gałąź, co dla błędu (nieświeży indeks albo pusty).
+ * (`tenant_id`, `is_enabled`), a nie raport. Na zimnym izolacie oba terminy
+ * tej płaszczyzny biegną RÓWNOLEGLE (`coldRulesReadForRequest`), więc sufit
+ * warstwy to 1 500 ms; szeregowo (host -> tenant, potem reguły, razem
+ * 3 000 ms - tyle, co cała rozgrzewka korzenia) idą już tylko zejścia, gdy
+ * odczyt wszystkich reguł nie nadaje się do użycia. Zejście po terminie to TA
+ * SAMA gałąź, co dla błędu (nieświeży indeks albo pusty).
  */
 const REDIRECT_INDEX_BUDGET_MS = 1_500;
 
@@ -98,6 +105,11 @@ const cache = new Map<string, CachedIndex>();
 const inflight = new Map<string, Promise<RedirectIndex>>();
 let sharedSnapshotsAllowed = true;
 
+/** Stan odczytu zimnego izolatu - opis i uzasadnienie przy `coldRulesReadForRequest`. */
+let coldReadGeneration = 0;
+let coldReadInFlight: ColdRulesRead | null = null;
+const coldReadsByTenant = new Map<string, ColdRulesRead>();
+
 /** Test hook - drop every cached tenant index. */
 export function invalidateRedirectCache(): void {
   // An explicit local invalidation must not immediately restore an old L2
@@ -105,6 +117,11 @@ export function invalidateRedirectCache(): void {
   sharedSnapshotsAllowed = false;
   cache.clear();
   inflight.clear();
+  // Odczyt zimnego izolatu sprzed inwalidacji nie może zasiać indeksu po niej:
+  // nowe pokolenie unieważnia też uchwyty trzymane przez żądania w locie.
+  coldReadGeneration += 1;
+  coldReadInFlight = null;
+  coldReadsByTenant.clear();
   hitWindows.clear();
 }
 
@@ -134,15 +151,8 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
     // nieświeże 301-ki są lepsze niż pusty indeks, na który spadała
     // degradacja po terminie.
     if (sharedSnapshotsAllowed && !cache.has(tenantId)) {
-      const snapshot = await readBootstrapSnapshot(
-        `redirects:${tenantId}`,
-        REDIRECT_CACHE_TTL_MS,
-        isRedirectRules,
-      );
-      if (snapshot) {
-        const index = buildRedirectIndex(snapshot.value);
-        return { at: snapshot.at, index, count: index.exact.size + index.wildcards.length };
-      }
+      const snapshot = await readRedirectSnapshot(tenantId);
+      if (snapshot) return snapshot;
     }
     const { supabaseAdmin } = await loadAdminClient();
     const settled = await settleWithinBudget(
@@ -162,19 +172,195 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
         `[redirects] rule set hit the ${REDIRECT_ROW_LIMIT}-row read limit for tenant ${tenantId} - rules beyond it are SILENTLY not served`,
       );
     }
-    const rules: RedirectRule[] = (data ?? []).map((row) => ({
-      id: row.id as string,
-      source_path: row.source_path as string,
-      target_path: row.target_path as string,
-      status_code: row.status_code as number,
-    }));
-    const at = Date.now();
-    const index = buildRedirectIndex(rules);
-    // Świeżość = REDIRECT_CACHE_TTL_MS, przetrwanie = domyślna doba migawki.
-    runAfterResponse(
-      writeBootstrapSnapshot(`redirects:${tenantId}`, { at, value: rules }, REDIRECT_CACHE_TTL_MS),
+    return publishLoadedRules(tenantId, (data ?? []).map(toRedirectRule), Date.now());
+  } catch (e) {
+    console.warn("[redirects] index load failed:", e);
+    return degradedIndex(tenantId, "error");
+  }
+}
+
+/** Migawka L2 reguł tenanta jako wpis cache'u z ORYGINALNYM `at` albo null. */
+async function readRedirectSnapshot(tenantId: string): Promise<CachedIndex | null> {
+  const snapshot = await readBootstrapSnapshot(
+    `redirects:${tenantId}`,
+    REDIRECT_CACHE_TTL_MS,
+    isRedirectRules,
+  );
+  if (!snapshot) return null;
+  const index = buildRedirectIndex(snapshot.value);
+  return { at: snapshot.at, index, count: index.exact.size + index.wildcards.length };
+}
+
+/** Wiersz `redirects` w kolumnach, które czyta indeks (oba odczyty: per tenant i zimny). */
+interface RedirectRuleRow {
+  id: unknown;
+  source_path: unknown;
+  target_path: unknown;
+  status_code: unknown;
+}
+
+function toRedirectRule(row: RedirectRuleRow): RedirectRule {
+  return {
+    id: row.id as string,
+    source_path: row.source_path as string,
+    target_path: row.target_path as string,
+    status_code: row.status_code as number,
+  };
+}
+
+/**
+ * Indeks z reguł UDANEGO odczytu bazy i jego migawka współdzielona za
+ * odpowiedzią - jedna ścieżka dla odczytu per tenant i odczytu zimnego izolatu,
+ * więc oba publikują w kolonii ten sam kształt pod tym samym kluczem.
+ */
+function publishLoadedRules(tenantId: string, rules: RedirectRule[], at: number): CachedIndex {
+  const index = buildRedirectIndex(rules);
+  // Świeżość = REDIRECT_CACHE_TTL_MS, przetrwanie = domyślna doba migawki.
+  runAfterResponse(
+    writeBootstrapSnapshot(`redirects:${tenantId}`, { at, value: rules }, REDIRECT_CACHE_TTL_MS),
+  );
+  return { at, index, count: index.exact.size + index.wildcards.length };
+}
+
+// ---------------------------------------------------------------------------
+// Zimny izolat: reguły wszystkich tenantów równolegle z katalogiem tenantów
+// ---------------------------------------------------------------------------
+
+/** Wiersz odczytu zimnego izolatu - z `tenant_id`, bo filtr tenanta nakłada kod. */
+interface ColdRuleRow extends RedirectRuleRow {
+  tenant_id: unknown;
+}
+
+/** Wynik odczytu zimnego izolatu. Nigdy nie odrzuca. */
+type ColdRulesOutcome =
+  | { kind: "rows"; at: number; rows: readonly ColdRuleRow[] }
+  /** Termin minął - zejście jak w `loadIndexForTenant`, bez drugiego odczytu. */
+  | { kind: "timeout" }
+  /** Błąd, `data: null` albo wynik na limicie - zejście do odczytu per tenant. */
+  | { kind: "unusable" };
+
+interface ColdRulesRead {
+  /** Pokolenie `invalidateRedirectCache`; uchwyt starszego pokolenia jest martwy. */
+  generation: number;
+  outcome: Promise<ColdRulesOutcome>;
+}
+
+/**
+ * ODCZYT ZIMNEGO IZOLATU (2026-10-22) - reguły WSZYSTKICH tenantów jednym
+ * zapytaniem, wystartowanym RÓWNOLEGLE z `resolveTenantForHost`.
+ *
+ * DLACZEGO. Na hostingu produkcyjnym (Lovable, Workers for Platforms) każde
+ * żądanie trafia w zimny izolat, a Cache API nie działa (`nes-l2;desc="off"`),
+ * więc ani cache w pamięci, ani migawki L2 niczego nie ratują. Przed cache
+ * dokumentów `redirectMiddleware` czekał na DWA SZEREGOWE odczyty planu
+ * service-role do eu-west-1: katalog tenantów, a dopiero po nim reguły
+ * przekierowań tenanta hosta. Server-Timing `edge-routing` mierzył na tym
+ * odcinku 456-1291 ms, a Speed Index PageSpeed liczy realny czas odpowiedzi
+ * serwera (mobile x1,4). Reguł nie da się przefiltrować tenantem, zanim
+ * katalog odpowie - da się je natomiast przeczytać WSZYSTKIE w tym samym
+ * czasie: koszt zimnego żądania spada z katalog + reguły do max(katalog,
+ * reguły).
+ *
+ * IZOLACJA TENANTÓW. Filtr `tenant_id` nakłada `loadIndexFromColdRead` -
+ * wyłącznie tenantem rozstrzygniętym ze ZWALIDOWANEGO hosta żądania, nigdy
+ * z ładunku. Cudze wiersze żyją tylko w obietnicy odczytu: nie trafiają do
+ * cache per tenant, do matchera ani do migawki `redirects:<tenant>`.
+ *
+ * KIEDY NIE. Ścieżki chronione i metody inne niż GET/HEAD wychodzą wcześniej.
+ * Izolat z JAKIMKOLWIEK indeksem w cache albo w locie idzie zwykłą ścieżką
+ * per tenant (SWR) - odczyt wszystkich reguł opłaca się tylko wtedy, gdy i tak
+ * trzeba czekać na katalog. Wynik na limicie `REDIRECT_ROW_LIMIT` mógł uciąć
+ * reguły dowolnego tenanta, więc razem z błędem i `data: null` schodzi do
+ * dzisiejszego odczytu per tenant; lapsus terminu idzie zejściem „timeout"
+ * bez drugiego blokującego odczytu.
+ *
+ * KOSZT, świadomy: przy DZIAŁAJĄCYM L2 zimny izolat i tak wysyła ten odczyt,
+ * choć świeża migawka odpowie szybciej (wyścig w `loadIndexFromColdRead`) -
+ * jeden odczyt w tle na zimny izolat, bez wpływu na czas odpowiedzi. Przy
+ * migawce NIEŚWIEŻEJ ten sam odczyt jest jej odświeżeniem, nie dodatkowym.
+ *
+ * Równoległe żądania zimnego izolatu dzielą jeden odczyt w locie.
+ */
+function coldRulesReadForRequest(): ColdRulesRead | null {
+  if (cache.size > 0 || inflight.size > 0) return null;
+  if (coldReadInFlight) return coldReadInFlight;
+  const read: ColdRulesRead = {
+    generation: coldReadGeneration,
+    outcome: readEnabledRulesOfAllTenants(),
+  };
+  coldReadInFlight = read;
+  // Współdzielony tylko w locie: rozstrzygnięty wynik nie może zasiać indeksu
+  // żądania, które przyjdzie dowolnie później.
+  void read.outcome.then(() => {
+    if (coldReadInFlight === read) coldReadInFlight = null;
+  });
+  return read;
+}
+
+async function readEnabledRulesOfAllTenants(): Promise<ColdRulesOutcome> {
+  try {
+    const { supabaseAdmin } = await loadAdminClient();
+    const settled = await settleWithinBudget(
+      supabaseAdmin
+        .from("redirects")
+        .select("id, source_path, target_path, status_code, tenant_id")
+        .eq("is_enabled", true)
+        .limit(REDIRECT_ROW_LIMIT),
+      REDIRECT_INDEX_BUDGET_MS,
     );
-    return { at, index, count: index.exact.size + index.wildcards.length };
+    if (settled === BUDGET_LAPSED) return { kind: "timeout" };
+    const { data, error } = settled;
+    if (error || !data || data.length >= REDIRECT_ROW_LIMIT) return { kind: "unusable" };
+    return { kind: "rows", at: Date.now(), rows: data };
+  } catch {
+    // Bez ostrzeżenia: zejście per tenant zaloguje błąd, jeśli się powtórzy.
+    return { kind: "unusable" };
+  }
+}
+
+/**
+ * Przypisz odczyt zimnego izolatu tenantowi hosta. Konsumuje go
+ * `startIndexRefresh`, więc single-flight i SWR zostają te same co dla odczytu
+ * per tenant. Tenant z indeksem w cache albo w locie go nie dostaje.
+ */
+function adoptColdRulesRead(tenantId: string, read: ColdRulesRead): void {
+  if (read.generation !== coldReadGeneration) return;
+  if (cache.has(tenantId) || inflight.has(tenantId)) return;
+  coldReadsByTenant.set(tenantId, read);
+}
+
+/**
+ * Indeks tenanta z odczytu zimnego izolatu. Migawka L2 (gdy wolno jej użyć)
+ * ŚCIGA się z odczytem, który już leci: przy działającym L2 wygrywa jak dotąd
+ * (zero czekania na bazę, także dla migawki nieświeżej), przy martwym jej
+ * chybienie nie dokłada do ścieżki żądania niczego ponad odczyt w locie.
+ * `null` z wyścigu to „odczyt rozstrzygnął się pierwszy" ALBO „migawki nie
+ * ma" - w obu przypadkach decyduje odczyt.
+ */
+async function loadIndexFromColdRead(tenantId: string, read: ColdRulesRead): Promise<CachedIndex> {
+  try {
+    if (sharedSnapshotsAllowed && !cache.has(tenantId)) {
+      const first = await Promise.race([
+        read.outcome.then(() => null),
+        readRedirectSnapshot(tenantId),
+      ]);
+      if (first) {
+        // Nieświeża migawka: odczyt w locie zostaje przy tenancie i staje się
+        // odświeżeniem, które `getIndexForTenant` startuje zaraz po niej.
+        if (
+          Date.now() - first.at >= REDIRECT_CACHE_TTL_MS &&
+          read.generation === coldReadGeneration
+        ) {
+          coldReadsByTenant.set(tenantId, read);
+        }
+        return first;
+      }
+    }
+    const outcome = await read.outcome;
+    if (outcome.kind === "timeout") return degradedIndex(tenantId, "timeout");
+    if (outcome.kind === "unusable") return await loadIndexForTenant(tenantId);
+    const rules = outcome.rows.filter((row) => row.tenant_id === tenantId).map(toRedirectRule);
+    return publishLoadedRules(tenantId, rules, outcome.at);
   } catch (e) {
     console.warn("[redirects] index load failed:", e);
     return degradedIndex(tenantId, "error");
@@ -212,8 +398,10 @@ function degradedIndex(tenantId: string, reason: "error" | "timeout"): CachedInd
  * 30 s na każdym izolacie - zanim NES Edge Cache mógł w ogóle odpowiedzieć.
  * Nowa reguła przekierowania może obowiązywać o sekundy później; zimny
  * izolat bez ŻADNEJ migawki w kolonii nadal blokuje jednorazowo - 301-ki
- * pozostają poprawne; zimny izolat z migawką nieświeżą serwuje ją od ręki
- * i odświeża w tle jeszcze w tym samym żądaniu (patrz `loadIndexForTenant`).
+ * pozostają poprawne - ale na żądaniu dokumentu czeka na odczyt wystartowany
+ * równolegle z katalogiem tenantów (`coldRulesReadForRequest`); zimny izolat
+ * z migawką nieświeżą serwuje ją od ręki i odświeża w tle jeszcze w tym samym
+ * żądaniu (patrz `loadIndexForTenant` i `loadIndexFromColdRead`).
  */
 async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
@@ -231,18 +419,27 @@ async function getIndexForTenant(tenantId: string): Promise<RedirectIndex> {
   return index;
 }
 
-/** Single-flight per tenant: jedno odświeżenie indeksu naraz, dokończone pod waitUntil. */
+/**
+ * Single-flight per tenant: jedno odświeżenie indeksu naraz, dokończone pod
+ * waitUntil. Odczyt zimnego izolatu przypisany tenantowi (`adoptColdRulesRead`)
+ * jest konsumowany TU, jako jego ładowanie - stąd te same single-flight i SWR.
+ */
 function startIndexRefresh(tenantId: string): Promise<RedirectIndex> {
   let pending = inflight.get(tenantId);
   if (!pending) {
-    pending = loadIndexForTenant(tenantId).then((loaded) => {
+    const coldRead = coldReadsByTenant.get(tenantId);
+    coldReadsByTenant.delete(tenantId);
+    const load = coldRead
+      ? loadIndexFromColdRead(tenantId, coldRead)
+      : loadIndexForTenant(tenantId);
+    pending = load.then((loaded) => {
       cache.set(tenantId, loaded);
       inflight.delete(tenantId);
       return loaded.index;
     });
     inflight.set(tenantId, pending);
     // Bez waitUntil runtime Workers ucinałby odświeżenie w tle razem
-    // z domknięciem żądania. loadIndexForTenant nigdy nie rzuca.
+    // z domknięciem żądania. Żaden z dwóch loaderów nigdy nie rzuca.
     runAfterResponse(pending.then(() => undefined));
   }
   return pending;
@@ -339,9 +536,11 @@ function admitRedirectHit(ruleId: string, now: number): boolean {
  *   * nigdy nie rzuca i nigdy nie oddaje odrzuconej obietnicy - błąd (także
  *     `{ error }` z PostgREST) kończy się `console.warn`, nie 500-ką;
  *   * RPC aktualizuje po samym `id`, bez filtra tenanta - i nie musi go mieć:
- *     `id` pochodzi z indeksu wczytanego `.eq("tenant_id", <tenant hosta>)`
- *     (albo z migawki L2 pod kluczem `redirects:<tenant>`), więc żądanie na
- *     hoście tenanta A fizycznie nie zna identyfikatora reguły tenanta B.
+ *     `id` pochodzi z indeksu wczytanego `.eq("tenant_id", <tenant hosta>)`,
+ *     z odczytu zimnego izolatu przefiltrowanego w kodzie tym samym
+ *     `tenant_id` (`loadIndexFromColdRead`) albo z migawki L2 pod kluczem
+ *     `redirects:<tenant>`, więc indeks żądania na hoście tenanta A nie
+ *     zawiera identyfikatora reguły tenanta B.
  */
 function scheduleRedirectHit(ruleId: string): void {
   if (!admitRedirectHit(ruleId, Date.now())) return;
@@ -380,8 +579,13 @@ export async function resolveRedirectForRequest(request: Request): Promise<{
   if (method !== "GET" && method !== "HEAD") return null;
   const url = new URL(request.url);
   if (isProtectedPath(url.pathname)) return null;
+  // Zimny izolat: reguły wszystkich tenantów lecą RÓWNOLEGLE z katalogiem
+  // tenantów (zamiast po nim), a do indeksu trafiają wyłącznie reguły tenanta
+  // rozstrzygniętego niżej z hosta - patrz `coldRulesReadForRequest`.
+  const coldRead = coldRulesReadForRequest();
   const tenant = await resolveTenantForHost(url.hostname);
   if (!tenant) return null;
+  if (coldRead) adoptColdRulesRead(tenant.id, coldRead);
   const index = await getIndexForTenant(tenant.id);
   if (index.exact.size === 0 && index.wildcards.length === 0) return null;
   const hit = matchRedirectForPath(index, url.pathname, url.search);

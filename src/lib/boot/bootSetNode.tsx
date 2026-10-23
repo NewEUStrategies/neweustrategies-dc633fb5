@@ -9,8 +9,8 @@
 // DLACZEGO WĘZEŁ W DRZEWIE REACTA. Od router-core 1.171.37 `serverSsr` nie ma kanału HTML
 // (`injectHtml` zniknęło, `router-core/dist/esm/router.d.ts:516-551`): sam router dopisuje
 // wyłącznie skrypty hydratacji w `<body>`. Powłoka dokumentu (`<head>` nigdy nie stoi
-// w Suspense) wychodzi tak samo na ścieżce strumieniowej, `allReady` (boty, w tym
-// `Chrome-Lighthouse`) i `renderToString`, więc węzeł stoi ZAWSZE w `<head>` przed loaderem -
+// w Suspense) wychodzi tak samo na ścieżce strumieniowej (przeglądarki, także Lighthouse/PSI),
+// `allReady` (crawlery) i `renderToString`, więc węzeł stoi ZAWSZE w `<head>` przed loaderem -
 // deterministyczniej niż dawna „pierwsza granica strumienia". Bajty są te same co
 // `bootSetHtml(set)`: kolejność atrybutów `type`, `id` czytają regexy e2e i `documentWeight.ts`.
 //

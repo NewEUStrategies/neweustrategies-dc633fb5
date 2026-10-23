@@ -14,6 +14,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { GPC_COOKIE, GPC_COOKIE_VALUE } from "@/lib/consent/gpc";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 const UID = "22222222-2222-2222-2222-222222222222";
 
@@ -166,6 +170,10 @@ beforeEach(() => {
   sb.rpcCalls = 0;
   sb.updates = [];
   sb.authListeners = [];
+  // Domyślnie klient Supabase już istnieje (zalogowany: tworzy go AuthProvider);
+  // ścieżkę gościa bez klienta pokrywa osobny blok niżej.
+  __resetSupabaseClientRegistryForTests();
+  markSupabaseClientCreated();
   bridge.sync.mockReset().mockResolvedValue(undefined);
   bridge.backfill.mockReset().mockResolvedValue(undefined);
   bridge.gpc.mockReset().mockResolvedValue(undefined);
@@ -311,6 +319,38 @@ describe("hydracja decyzji z profilu przy zdarzeniu sesji", () => {
 
     unmount();
 
+    expect(sb.authListeners).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GOŚĆ BEZ KLIENTA SUPABASE (2026-10-22, plan P3.1 B). Hook nie tworzy klienta
+// w efekcie hydratacji - zadanie hydratacji strony głównej gościa nie czeka
+// przez to na chunk vendor-supabase. Nasłuch sesji podpina się dopiero, gdy
+// klienta utworzy ktokolwiek (logowanie, zapytanie o dane).
+describe("gość: nasłuch sesji czeka na utworzenie klienta", () => {
+  beforeEach(() => {
+    __resetSupabaseClientRegistryForTests();
+  });
+
+  it("montaż nie dotyka klienta; utworzenie klienta podpina nasłuch i hydratuje decyzję", async () => {
+    sb.userId = UID;
+    sb.prefs = { consent: stored({ marketing: true, analytics: true }, 2_000) };
+    const { result } = renderHook(() => useConsent());
+    await act(async () => {});
+    expect(sb.authListeners).toHaveLength(0);
+
+    act(() => markSupabaseClientCreated());
+    expect(sb.authListeners).toHaveLength(1);
+    act(() => emitAuth("INITIAL_SESSION"));
+    await waitFor(() => expect(result.current.state?.categories.marketing).toBe(true));
+    expect(readLocalState()).toMatchObject({ ts: 2_000, source: "profile" });
+  });
+
+  it("odpięcie przed utworzeniem klienta: nasłuch nigdy nie powstaje", async () => {
+    const { unmount } = renderHook(() => useConsent());
+    unmount();
+    act(() => markSupabaseClientCreated());
     expect(sb.authListeners).toHaveLength(0);
   });
 });

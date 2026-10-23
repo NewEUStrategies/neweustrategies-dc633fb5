@@ -195,9 +195,17 @@ export function classifyUserAgent(userAgent: string | null | undefined): UaClass
 
 /**
  * Wartość Server-Timing dopisywana w `src/server.ts` ZA nagłówkiem potoku
- * routera: czas startu entry, czas obsługi do oddania Response i (gdy znana)
- * kolonia. Kształt `server-init`/`app` bez zmian względem wersji sprzed
- * kolonii - bez kolonii wynik jest bajt w bajt dawnym napisem.
+ * routera: czas startu entry, czas obsługi do oddania Response, (gdy podany)
+ * stan izolatu i (gdy znana) kolonia. Kształt `server-init`/`app` bez zmian
+ * względem wersji sprzed kolonii - bez izolatu i kolonii wynik jest bajt
+ * w bajt dawnym napisem.
+ *
+ * IZOLAT (`nes-iso;desc="req=N cold=0|1"`, 2026-10-22). Numer żądania izolatu
+ * i to, czy żądanie płaciło import entry routera. Zegar Workers stoi w czasie
+ * pracy CPU, więc zimny start (ewaluacja ~9 MB chunku routera) nie widać
+ * w `app;dur` - a na hostingu, na którym KAŻDE żądanie trafia w świeży izolat,
+ * to on dominuje TTFB. Dotąd te pola żyły wyłącznie w Workers Logs, do których
+ * na tym hostingu nie ma dostępu; teraz rozstrzyga je jedno `curl`.
  *
  * ŚWIADOMIE BEZ metryki końca strumienia: nagłówki wychodzą PRZED body,
  * a trailerów HTTP tu nie ma, więc `streamMs` żyje wyłącznie w logu.
@@ -206,8 +214,12 @@ export function buildEntryServerTimingValue(
   serverInitMs: number,
   appMs: number,
   colo?: string | null,
+  isolate?: IsolateSample,
 ): string {
-  const value = `server-init;dur=${serverInitMs}, app;dur=${appMs}`;
+  let value = `server-init;dur=${serverInitMs}, app;dur=${appMs}`;
+  if (isolate) {
+    value += `, nes-iso;desc="req=${isolate.isoReq} cold=${isolate.coldEntry ? 1 : 0}"`;
+  }
   return colo && COLO_RE.test(colo) ? `${value}, colo;desc="${colo}"` : value;
 }
 

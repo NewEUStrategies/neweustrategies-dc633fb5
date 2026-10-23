@@ -28,7 +28,7 @@ vi.mock("../requestHost", () => ({
   currentTenantHost: async () => "tenant-a.eu",
 }));
 
-vi.mock("@tanstack/react-start/server-entry", async () => {
+vi.mock("@/lib/ssr/serverEntry", async () => {
   const cache = await import("@/lib/http/documentCache.server");
   return {
     default: {

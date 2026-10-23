@@ -307,68 +307,6 @@ describe("accentFor - deterministyczna paleta rekomendacji", () => {
   });
 });
 
-describe("MobileArticleActions", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  it("renderuje DWA przyciski rzędu: odsłuchaj i pobierz", async () => {
-    vi.doMock("@/components/audio/ArticleListenButton", () => ({
-      ArticleListenButton: () => <button type="button">Odsłuchaj artykuł</button>,
-    }));
-    const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
-    render(<MobileArticleActions lang="pl" postId="p1" title="Analiza" audioUrl={null} />);
-    expect(screen.getByRole("button", { name: "Odsłuchaj artykuł" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
-    ).toBeInTheDocument();
-  });
-
-  it("przycisk pobierania woła druk przeglądarki (ścieżka Zapisz jako PDF)", async () => {
-    vi.doMock("@/components/audio/ArticleListenButton", () => ({
-      ArticleListenButton: () => null,
-    }));
-    const print = vi.fn();
-    Object.defineProperty(window, "print", { value: print, configurable: true, writable: true });
-    const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
-    render(<MobileArticleActions lang="pl" postId="p1" title="Analiza" />);
-
-    await act(async () => {
-      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }).click();
-    });
-
-    expect(print).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
-    ).toBeEnabled();
-  });
-
-  it("pasek jest UKRYTY W DRUKU i ograniczony do mobile", async () => {
-    vi.doMock("@/components/audio/ArticleListenButton", () => ({
-      ArticleListenButton: () => null,
-    }));
-    const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
-    const { container } = render(<MobileArticleActions lang="pl" postId="p1" title="Analiza" />);
-    const bar = container.querySelector("[data-mobile-article-actions]");
-    expect(bar?.className).toContain("no-print");
-    expect(bar?.className).toContain("sm:hidden");
-  });
-
-  it("wariant angielski zmienia etykietę pobierania", async () => {
-    vi.doMock("@/components/audio/ArticleListenButton", () => ({
-      ArticleListenButton: () => null,
-    }));
-    const { MobileArticleActions } = await import("@/components/post/MobileArticleActions");
-    render(<MobileArticleActions lang="en" postId="p1" title="Analysis" />);
-    expect(
-      screen.getByRole("button", { name: "postExperience.actions.download(lng=en)" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "postExperience.actions.download(lng=pl)" }),
-    ).toBeNull();
-  });
-});
-
 describe("PostFeedback", () => {
   const submit = vi.fn();
 

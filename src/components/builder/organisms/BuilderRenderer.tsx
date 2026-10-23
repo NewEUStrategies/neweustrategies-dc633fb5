@@ -42,7 +42,8 @@ import {
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
-import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl, hardenStyleCss } from "@/lib/sanitizePure";
+import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitizePure";
+import { StyleSink } from "@/components/theme/StyleSink";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -1288,8 +1289,15 @@ const RenderSection = memo(function RenderSection({
           maluje kolumny od razu po wczytaniu, a bloki na końcu sekcji docierały
           dopiero po nich - pierwsza klatka szła bez typografii sekcji i bez
           mobilnej kolejności kolumn, czyli z przesunięciem układu. */}
-      {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
-      {mobileHidden && <style dangerouslySetInnerHTML={{ __html: HIDE_ON_MOBILE_CSS }} />}
+      {/* `StyleSink` (memo po napisie CSS), nie literał `{__html}`: React 19
+          przepisuje `innerHTML` przy każdej NOWEJ tożsamości obiektu, także
+          dla identycznego tekstu. Re-render sekcji po hydratacji (np. commit
+          przełączenia urządzenia po dojściu leniwych widgetów) parsował więc
+          te bloki od nowa i budził obserwatory arkuszy, choć CSS się nie
+          zmienił - te bloki nie zależą od urządzenia. HTML serwera bez zmian
+          (ten sam `hardenStyleCss`, ten sam napis). */}
+      {typoCss && <StyleSink css={typoCss} />}
+      {mobileHidden && <StyleSink css={HIDE_ON_MOBILE_CSS} />}
       {(() => {
         const mobileOrderCss = visibleCols
           .filter((c): c is ColumnNode => c.kind === "column" && !!c.order)
@@ -1298,13 +1306,10 @@ const RenderSection = memo(function RenderSection({
               `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order?.mobile ?? 0} !important;}`,
           )
           .join("");
-        return mobileOrderCss ? (
-          <style
-            dangerouslySetInnerHTML={{
-              __html: hardenStyleCss(`@media (max-width: 767px){${mobileOrderCss}}`),
-            }}
-          />
-        ) : null;
+        // Napis budowany poza atrybutem JSX: szablon wprost w `css={...}`
+        // Prettier formatuje jako CSS i dokłada białe znaki do HTML-a serwera.
+        const mobileOrderMedia = `@media (max-width: 767px){${mobileOrderCss}}`;
+        return mobileOrderCss ? <StyleSink css={mobileOrderMedia} /> : null;
       })()}
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />

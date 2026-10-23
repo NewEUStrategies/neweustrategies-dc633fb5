@@ -121,8 +121,8 @@ describe("correlation tracker", () => {
   });
 
   it("a failing fallback RPC rejects with CorrelationTimeoutError, not the RPC error", async () => {
-    // Wołający (useEventConfirmedMutation) rozróżnia wyłącznie "potwierdzone"
-    // i "brak potwierdzenia" - błąd bazy nie może wyciec jako trzeci stan.
+    // Wołający rozróżnia wyłącznie "potwierdzone" i "brak potwierdzenia" -
+    // błąd bazy nie może wyciec jako trzeci stan.
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: "permission denied" } });
     const promise = awaitDomainEvent(CID, { timeoutMs: 100 });
     const assertion = expect(promise).rejects.toBeInstanceOf(CorrelationTimeoutError);

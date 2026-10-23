@@ -6,8 +6,7 @@
 // interakcją i eksportem. Tutaj rysujemy CZTERY serie po dwadzieścia kilka
 // słupków o znanym z góry kształcie, a cała ta maszyneria byłaby kodem
 // dociąganym na trasę wątku, która ma być szybka, bez niczego, czego ten
-// panel potrzebuje. Ta sama decyzja i to samo uzasadnienie, co
-// w `ClubThreadPulse`.
+// panel potrzebuje.
 //
 // Wykres jest `role="img"` z pełnym opisem w `aria-label`, a pod nim stoi
 // TABELA z tymi samymi liczbami. Wykres, którego nie da się przeczytać inaczej

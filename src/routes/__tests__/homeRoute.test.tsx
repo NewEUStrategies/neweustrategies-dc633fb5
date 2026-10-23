@@ -101,7 +101,23 @@ const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
   /** Wywołania `builderHeroPreloads` - moduł tylko-serwerowy (P1.4, recenzja runda 3, m3). */
   heroPreloadCalls: 0,
+  /** Wywołania rozgrzewki wspólnego odczytu najnowszych wpisów (2026-10-22). */
+  supersetWarms: 0,
 }));
+
+// Rozgrzewka nadzbioru najnowszych wpisów: tylko serwer, tylko poza trybem
+// „najnowsze wpisy" i przy niezdegradowanym trybie. Sama funkcja ma bramkę
+// `import.meta.env.SSR` (pod vitestem fałsz), więc licznik mierzy WOŁANIE
+// z loadera - to ono jest tu przedmiotem dowodu.
+vi.mock("@/lib/builder/latestPostsSuperset", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/latestPostsSuperset")>();
+  return {
+    ...actual,
+    warmLatestPostsSuperset: () => {
+      h.supersetWarms += 1;
+    },
+  };
+});
 
 // `heroImage.ts` jest TYLKO SERWEROWY: loader woła go pod warunek serwera (`aboveFold.tsx`),
 // więc bundler wycina go z grafu przeglądarki. Licznik dowodzi, że nawigacja
@@ -412,6 +428,7 @@ beforeEach(() => {
   h.builderThrows = false;
   h.renderLang = "pl";
   h.session = null;
+  h.supersetWarms = 0;
 });
 
 afterEach(() => {
@@ -1333,6 +1350,53 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     expect(screen.getByTestId("kanwa")).toBeTruthy();
     expect(view.queryClient.getQueryData(["site-settings"])).toEqual({});
     expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+});
+
+// WSPÓLNY ODCZYT NAJNOWSZYCH WPISÓW W PIERWSZEJ FALI (2026-10-22). Loader
+// strony głównej startuje go zaraz po trybie strony, równolegle ze stroną
+// i treścią kanwy - dzięki temu dane widgetów nad zgięciem (hero-slider,
+// post-listy) mieszczą się w terminie loadera, a preload obrazu LCP trafia do
+// `<head>`. W trybie „najnowsze wpisy" treścią jest archiwum - tam odczyt
+// byłby zmarnowanym round-tripem w fali, w której lecą odczyty krytyczne.
+describe("/ - rozgrzewka wspólnego odczytu najnowszych wpisów", () => {
+  type Loader = (args: {
+    context: { queryClient: QueryClient };
+    deps: { page: number };
+  }) => Promise<unknown>;
+  const runLoader = () =>
+    (HomeRoute.options.loader as unknown as Loader)({
+      context: { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+      deps: { page: 1 },
+    });
+
+  it("SSR kanwy buildera: jedna rozgrzewka", async () => {
+    h.server = true;
+    h.homePage = homePageData();
+    await runLoader();
+    expect(h.supersetWarms).toBe(1);
+  });
+
+  it("SSR w trybie „najnowsze wpisy”: bez rozgrzewki", async () => {
+    h.server = true;
+    h.homeMode = "latest_posts";
+    h.archive = { posts: [post("p1")], total: 1, page: 1, pageSize: 2 };
+    await runLoader();
+    expect(h.supersetWarms).toBe(0);
+  });
+
+  it("SSR przy zdegradowanym trybie strony: bez rozgrzewki", async () => {
+    h.server = true;
+    h.homeModeFails = true;
+    h.homePage = homePageData();
+    await runLoader();
+    expect(h.supersetWarms).toBe(0);
+  });
+
+  it("nawigacja klientowa: bez rozgrzewki", async () => {
+    h.homePage = homePageData();
+    await runLoader();
+    expect(h.supersetWarms).toBe(0);
   });
 });
 

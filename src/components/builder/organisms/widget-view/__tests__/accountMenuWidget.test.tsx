@@ -41,9 +41,6 @@ vi.mock("@/lib/greetings/useGreeting", () => ({
 vi.mock("@/components/notifications/NotificationsBell", () => ({
   NotificationsBell: () => <span data-testid="bell" />,
 }));
-vi.mock("@/components/chat/ChatBell", () => ({
-  ChatBell: () => <span data-testid="chat-bell" />,
-}));
 vi.mock("@/integrations/supabase/client", () => {
   const chain: Record<string, unknown> = {};
   for (const m of ["from", "select", "eq", "order", "in", "limit"]) {

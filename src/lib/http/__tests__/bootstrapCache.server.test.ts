@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BOOTSTRAP_SNAPSHOT_MAX_AGE_MS,
+  BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS,
   readBootstrapSnapshot,
   writeBootstrapSnapshot,
 } from "../bootstrapCache.server";
@@ -170,5 +171,34 @@ describe("routing metadata across Worker isolates", () => {
       writeBootstrapSnapshot("x", { at: Date.now(), value: [] }, 1000),
     ).resolves.toBeUndefined();
     expect(await readBootstrapSnapshot("x", 1000, isStrings)).toBeNull();
+  });
+});
+
+// TERMIN ODCZYTU (2026-10-22). Na hostingu, na którym zimny izolat obsługuje
+// jedno żądanie, odczyt migawki biegnie zawsze przed werdyktem samotestu L2 -
+// także na magazynie, który nie odpowiada. Migawki stoją przed cache
+// dokumentów, więc wiszący odczyt byłby wprost doliczany do TTFB.
+describe("read deadline", () => {
+  it("a store that never answers is a miss after the deadline, not a hang", async () => {
+    setColoCacheForTests({ match: () => new Promise<Response | undefined>(() => {}), put });
+    const read = readBootstrapSnapshot("tenants", 60_000, isStrings);
+    await vi.advanceTimersByTimeAsync(BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS);
+    await expect(read).resolves.toBeNull();
+  });
+
+  it("an answer within the deadline is still served", async () => {
+    const snapshot = { at: Date.now(), value: ["tenant-a"] };
+    await writeBootstrapSnapshot("tenants", snapshot, 60_000);
+    const slowMatch = (request: Request) =>
+      new Promise<Response | undefined>((resolve) =>
+        setTimeout(
+          () => resolve(entries.get(request.url)?.clone()),
+          BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS - 10,
+        ),
+      );
+    setColoCacheForTests({ match: slowMatch, put });
+    const read = readBootstrapSnapshot("tenants", 60_000, isStrings);
+    await vi.advanceTimersByTimeAsync(BOOTSTRAP_SNAPSHOT_READ_TIMEOUT_MS - 10);
+    await expect(read).resolves.toEqual({ ...snapshot, stale: false });
   });
 });

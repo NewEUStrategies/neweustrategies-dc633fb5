@@ -1,6 +1,6 @@
 // Kontekst korelacji - id, które łączy kliknięcie z wierszem w domain_events.
-// Bez niego optymistyczne mutacje nie mają czego oczekiwać (useEventConfirmedMutation
-// wycofa poprawny zapis po timeoucie), a ślad „co się wydarzyło po moim kliknięciu"
+// Bez niego potwierdzenie zdarzenia nie ma czego oczekiwać (`awaitDomainEvent`
+// zgłosi timeout mimo poprawnego zapisu), a ślad „co się wydarzyło po moim kliknięciu"
 // przestaje istnieć.
 //
 // Dwie rzeczy nie były tu mierzone i obie psują się CICHO:

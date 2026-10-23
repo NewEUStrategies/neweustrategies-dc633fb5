@@ -48,7 +48,10 @@ import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useLang } from "@/lib/i18n/useLang";
 import { resolveHeaderMode, type ContentKind } from "@/lib/layout/headerMode";
 import { HydrationIsland, type IslandTrigger } from "@/lib/performance/hydrationIsland";
-import { onInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
+import {
+  isInteractionOrQuietOpen,
+  onInteractionOrQuiet,
+} from "@/lib/performance/interactionOrQuiet";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
 type ThemeLogoCfg = { logo?: HeaderLogoVariants };
@@ -505,18 +508,49 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // stały i treść pod nim ani drgnie (wcześniej podskakiwała o ~77 px, a każda
   // klatka animacji przeliczała pozycje całego dokumentu).
   //
-  // Pomiar jest rzadki: montaż, resize okna, załadowanie fontów i realna zmiana
-  // zawartości headera. ResizeObserver tylko odracza go do ustabilizowania się
-  // rozmiaru, więc nigdy nie wypada w trakcie animacji. Gdy się nie uda (header
-  // ukryty na landingach, chrome jeszcze nie zamontowany), data-metrics znika
-  // i header po prostu się nie zmniejsza - lepiej brak efektu niż rozjechany
-  // układ.
+  // Pomiar jest rzadki: pierwsza publikacja, resize okna, załadowanie fontów
+  // i realna zmiana zawartości headera. ResizeObserver tylko odracza go do
+  // ustabilizowania się rozmiaru, więc nigdy nie wypada w trakcie animacji. Gdy
+  // się nie uda (header ukryty na landingach, chrome jeszcze nie zamontowany),
+  // data-metrics znika i header po prostu się nie zmniejsza - lepiej brak
+  // efektu niż rozjechany układ.
+  //
+  // LENIWA PIERWSZA PUBLIKACJA (2026-10-22, Speed Index). Pomiar przy montażu
+  // zapisywał zmienne i data-metrics w zadaniu hydratacji, a odczyt
+  // `document.fonts.ready` zaraz po nim wymuszał przeliczenie stylu i Layout
+  // nagłówka (129-272 el.) - to był JEDYNY Layout w tym zadaniu. Lantern liczy
+  // część Speed Indexu jako ważoną średnią końców zadań z Layoutem, a zadanie
+  // hydratacji kończy się w symulacji mobile po całym bootcie JS (~4,4 s), więc
+  // ten jeden odczyt podnosił SI strony głównej o ~0,2 s (pomiar what-if na
+  // śladach produkcji). W spoczynku (data-scrolled=false) reguły data-metrics
+  // odtwarzają naturalną wysokość, więc odroczenie nie zmienia ani piksela.
+  // Pierwszy pomiar robi `publish` przy tym, co przyjdzie pierwsze:
+  //  - SYNCHRONICZNIE w pierwszym `scroll` (zanim rAF nasłuchu `scrolled`
+  //    zwinie header - mierzymy więc stan rozwinięty);
+  //  - zatrzask „pierwsza interakcja albo cisza" (`onInteractionOrQuiet`) -
+  //    otwiera się po geście i po klatce, więc pomiar nie trafia do INP;
+  //  - od razu przy montażu, gdy header ma być zwinięty od startu
+  //    (`forceCompact`, strona przewinięta przy wejściu) albo zatrzask jest już
+  //    otwarty (nawigacja SPA).
+  // Bez wyzwalaczy pointerdown/keydown/focusin: wymiarów nikt nie czyta, dopóki
+  // nie przełączy się data-scrolled, a to następuje wyłącznie po `scroll`.
+  // Synchroniczny pomiar w pierwszym dotknięciu dokładałby tylko przeliczenie
+  // nagłówka do czasu przetwarzania tej interakcji.
+  // W `publish` odczyt `document.fonts.ready` idzie PRZED pomiarem: na czystym
+  // drzewie getter jest praktycznie darmowy, a po zapisie zmiennych wymuszałby
+  // drugie przeliczenie stylu i Layout nagłówka.
+  // Koszt w Lantern: zadanie hydratacji bez Layoutu jest symulowane z pełnym
+  // mnożnikiem CPU, więc TBT mobile rośnie o kilkadziesiąt ms przy TBT
+  // produkcji 0 - świadomy kompromis na rzecz Speed Indexu (decyzja P3.1 §0/H5
+  // z 95,6 ms zadania jest nieaktualna: dziś 25-33 ms, PSI TBT 0).
   useEffect(() => {
     const el = headerRef.current;
     if (!stickyShrink || !el) return;
     const SETTLE_MS = 160;
     let raf = 0;
     let timer = 0;
+    // Pierwsza publikacja już zaszła - od niej pomiar planują RO, resize i fonty.
+    let armed = false;
 
     const measure = () => {
       raf = 0;
@@ -559,14 +593,13 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     };
 
     const schedule = () => {
+      if (!armed) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         if (raf) return;
         raf = window.requestAnimationFrame(measure);
       }, SETTLE_MS);
     };
-
-    measure();
 
     // Obserwujemy chrome, nie header: wysokość headera jest teraz narzucona
     // przez zmienne, więc obserwowanie jej wprost byłoby zapętleniem.
@@ -593,10 +626,29 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     // Chrome montuje się dopiero gdy rozwiąże się <Suspense> nad HeaderInner.
     const mo = new MutationObserver(attachChrome);
     mo.observe(el, { childList: true });
-    window.addEventListener("resize", schedule);
-    if (document.fonts?.ready) void document.fonts.ready.then(schedule).catch(() => undefined);
+
+    const onFirstScroll = () => publish();
+    let stopWaiting = (): void => {};
+    function publish(): void {
+      if (armed) return;
+      armed = true;
+      stopWaiting();
+      window.removeEventListener("scroll", onFirstScroll);
+      const fontsReady = document.fonts?.ready;
+      if (fontsReady) void fontsReady.then(schedule).catch(() => undefined);
+      measure();
+      window.addEventListener("resize", schedule);
+    }
+    if (forceCompact || isInteractionOrQuietOpen() || window.scrollY > 0) {
+      publish();
+    } else {
+      stopWaiting = onInteractionOrQuiet(publish);
+      window.addEventListener("scroll", onFirstScroll, { passive: true });
+    }
 
     return () => {
+      stopWaiting();
+      window.removeEventListener("scroll", onFirstScroll);
       window.clearTimeout(timer);
       if (raf) window.cancelAnimationFrame(raf);
       ro.disconnect();
@@ -608,7 +660,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       el.style.removeProperty("--hdr-tt");
       el.style.removeProperty("--hdr-extra");
     };
-  }, [stickyShrink]);
+  }, [stickyShrink, forceCompact]);
 
   // Kotwice (#newsletter itd.) nie mogą chować się pod sticky headerem -
   // mierzymy realną wysokość i publikujemy ją jako --sticky-header-h.
@@ -658,7 +710,8 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // boot każdej wizyty. Przed publikacją ResizeObserver nic nie planuje -
   // zmiana wysokości nie ma jeszcze odbiorcy. Wejście z `#kotwica` w adresie
   // przewija się natywnie przed hydratacją, jak dotąd.
-  // `measure()` i `document.fonts.ready` zostają nietknięte (reguła Layout).
+  // Pomiar wymiarów zwijania (`measure()` wyżej) też jest leniwy od 2026-10-22 -
+  // ta sama zasada: nic, co wymusza Layout, nie biegnie w zadaniu hydratacji.
   useEffect(() => {
     const root = document.documentElement;
     const el = headerRef.current;

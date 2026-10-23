@@ -1,20 +1,19 @@
-// Trzy droplisty klubu: słownik domknięty CHECK-iem (`ClubEnumSelect`), katalog
-// obszarów tematycznych (`ClubTopicSelect`) i katalog specjalizacji
-// (`ClubSpecializationSelect`).
+// Dwie droplisty klubu: słownik domknięty CHECK-iem (`ClubEnumSelect`)
+// i katalog obszarów tematycznych (`ClubTopicSelect`).
 //
 // CO TEN PLIK DOWODZI.
 //  1. WYBÓR EMITUJE DOKŁADNIE TO ID, KTÓRE STOI PRZY KLIKNIĘTEJ ETYKIECIE.
-//     Wszystkie trzy droplisty składają opcje w `map()` po tablicy z zewnątrz,
-//     więc przestawiona para „etykieta -> wartość” przechodzi przez `tsc`
+//     Obie droplisty składają opcje w `map()` po tablicy z zewnątrz, więc
+//     przestawiona para „etykieta -> wartość” przechodzi przez `tsc`
 //     (typ jest ten sam) i przez ekran (etykieta wygląda poprawnie). Dlatego
 //     każda opcja jest tu klikana OSOBNO, a asercja porównuje emisję z tą
 //     konkretną opcją.
 //  2. SENTINEL „BRAK” NIE JEST ZAPISYWANY DO BAZY. Radix nie przyjmuje pustego
-//     stringa, więc „bez obszaru”/„bez specjalizacji” jedzie w UI jako `none`
-//     / `__none__` - i MUSI wrócić do wołającego jako `null`. Zapisany sentinel
-//     byłby obszarem o nazwie „none”, którego nie ma w katalogu.
-//  3. WARTOŚĆ WYŁĄCZONA W MIĘDZYCZASIE NIE ZNIKA Z FORMULARZA. Obie droplisty
-//     katalogowe dokładają opcję dla wartości spoza listy - bez tego pierwszy
+//     stringa, więc „bez obszaru” jedzie w UI jako `none` - i MUSI wrócić
+//     do wołającego jako `null`. Zapisany sentinel byłby obszarem o nazwie
+//     „none”, którego nie ma w katalogu.
+//  3. WARTOŚĆ WYŁĄCZONA W MIĘDZYCZASIE NIE ZNIKA Z FORMULARZA. Droplista
+//     katalogowa dokłada opcję dla wartości spoza listy - bez tego pierwszy
 //     zapis edytowanego klubu po cichu skasowałby przypisanie.
 //  4. `ClubEnumSelect` ODRZUCA WARTOŚĆ SPOZA SŁOWNIKA. To jedyna reguła tego
 //     komponentu, której nie widać w interfejsie: Radix oddaje `string`, więc
@@ -22,11 +21,10 @@
 //     droplisty ma dlatego JAWNE wyjście awaryjne, którym wypycha wartość spoza
 //     `options` - natywnym `<select>` nie da się tego zrobić, bo taka opcja
 //     w DOM-ie nie istnieje.
-//  5. TRZY STANY DANYCH KATALOGU dla obu droplist czytających RPC: PEŁNY
-//     katalog, katalog PUSTY (`data: []` - lista awaryjna albo sam sentinel)
-//     i zapytanie W LOCIE / PO AWARII (`data: undefined` -> `?? []`). Do tego
-//     stan CZĘŚCIOWY: wartość bieżąca poza katalogiem i wiersz opisany tylko
-//     w jednym języku.
+//  5. TRZY STANY DANYCH KATALOGU dla droplisty czytającej RPC: PEŁNY
+//     katalog, katalog PUSTY (`data: []` - sam sentinel) i zapytanie W LOCIE
+//     / PO AWARII (`data: undefined` -> `?? []`, lista awaryjna). Do tego
+//     stan CZĘŚCIOWY: wartość bieżąca poza katalogiem.
 //  6. `disabled` REALNIE ODCINA ZMIANĘ, a nie tylko przygasza kontrolkę.
 //  7. `id` DOJEŻDŻA NA WYZWALACZ, więc `<Label htmlFor>` wiąże etykietę
 //     z kontrolką (asercja przez `getByLabelText`, czyli przez drzewo dostępności).
@@ -34,12 +32,11 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //  - Reguł czystych funkcji katalogu: `normalizeTopicValue`, `optionsWithCurrent`,
 //    `topicLabel` (`src/lib/clubs/__tests__/topics.test.ts`,
-//    `clubPureModules.test.ts`) i `buildSpecializationViews`
-//    (`specializationPage.test.ts`, `clubPureModules.test.ts`). Tutaj dowodzimy
-//    WYŁĄCZNIE tego, że droplista je woła i respektuje wynik.
-//  - Warstwy danych (`fetchActiveClubTopics`, `fetchPublicClubSpecializations`)
-//    - kontrakt nazw argumentów RPC ma dowód w `src/lib/clubs/__tests__/api.test.ts`
-//    i `catalogApi.test.ts`. Tu RPC jest tylko źródłem trzech stanów danych.
+//    `clubPureModules.test.ts`). Tutaj dowodzimy WYŁĄCZNIE tego, że droplista
+//    je woła i respektuje wynik.
+//  - Warstwy danych (`fetchActiveClubTopics`) - kontrakt nazw argumentów RPC
+//    ma dowód w `src/lib/clubs/__tests__/api.test.ts` i `catalogApi.test.ts`.
+//    Tu RPC jest tylko źródłem trzech stanów danych.
 //  - Radixowej warstwy rozwijanej - nie działa pod happy-dom i żadna asercja
 //    tego pliku jej nie dotyczy.
 //  - Istnienia kluczy i18n - pilnują bramki słownikowe.
@@ -132,15 +129,10 @@ vi.mock("@/components/ui/select", async () => {
 
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
 import { ClubTopicSelect } from "@/components/clubs/molecules/ClubTopicSelect";
-import { ClubSpecializationSelect } from "@/components/clubs/molecules/ClubSpecializationSelect";
 import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 import { CLUB_TOPIC_NONE, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
-import { CLUB_SPECIALIZATIONS } from "@/lib/clubs/specializations";
-import type { ClubSpecializationRow } from "@/lib/clubs/specializationsApi";
 import { clubRpc, resetClubRpc } from "@/test/clubs/fixtures";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-
-const NONE_SPEC = "__none__";
 
 /** Opcja po wartości technicznej - to ONA jedzie do bazy, nie etykieta. */
 function option(value: string): HTMLElement {
@@ -165,28 +157,10 @@ function topicRow(overrides: Partial<ClubTopicOption> = {}): ClubTopicOption {
   };
 }
 
-function specRow(overrides: Partial<ClubSpecializationRow> = {}): ClubSpecializationRow {
-  return {
-    slug: "energetyka",
-    key: "energy",
-    label_pl: "Energetyka i klimat",
-    label_en: "Energy and climate",
-    lead_pl: null,
-    lead_en: null,
-    desc_pl: null,
-    desc_en: null,
-    icon: "zap",
-    sort_order: 10,
-    club_count: 2,
-    ...overrides,
-  };
-}
-
 beforeEach(() => {
   resetClubRpc();
   h.lang = "pl";
   clubRpc.setData("club_topics_active", []);
-  clubRpc.setData("club_specializations_public", []);
 });
 
 afterEach(() => {
@@ -416,149 +390,6 @@ describe("ClubTopicSelect", () => {
 
     cleanup();
     renderTopic({ value: null });
-
-    expect(document.querySelector("label")).toBeNull();
-    expect(document.querySelector("p")).toBeNull();
-  });
-});
-
-// --- ClubSpecializationSelect ----------------------------------------------
-
-describe("ClubSpecializationSelect", () => {
-  function renderSpec(
-    over: {
-      value?: string | null;
-      label?: string;
-      hint?: string;
-      disabled?: boolean;
-      id?: string;
-    } = {},
-  ) {
-    const onChange = vi.fn<(value: string | null) => void>();
-    renderWithQueryClient(
-      <ClubSpecializationSelect
-        id={over.id}
-        label={over.label}
-        hint={over.hint}
-        value={over.value ?? null}
-        onChange={onChange}
-        disabled={over.disabled}
-      />,
-    );
-    return { onChange };
-  }
-
-  it("buduje listę z katalogu organizacji i zaznacza bieżącą specjalizację", async () => {
-    clubRpc.setData("club_specializations_public", [
-      specRow(),
-      specRow({ slug: "transport", key: "transport", label_pl: "Transport", sort_order: 20 }),
-    ]);
-    renderSpec({ value: "transport" });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, "energetyka", "transport"]);
-    });
-    expect(option("energetyka")).toHaveTextContent("Energetyka i klimat");
-    expect(option("transport")).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("wybór specjalizacji emituje jej SLUG, a wybór sentinela - `null`", async () => {
-    clubRpc.setData("club_specializations_public", [specRow()]);
-    const { onChange } = renderSpec({ value: null });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, "energetyka"]);
-    });
-
-    fireEvent.click(option("energetyka"));
-    expect(onChange).toHaveBeenNthCalledWith(1, "energetyka");
-
-    fireEvent.click(option(NONE_SPEC));
-    expect(onChange).toHaveBeenNthCalledWith(2, null);
-  });
-
-  it("wartość z samych spacji liczy się jako BRAK specjalizacji", async () => {
-    clubRpc.setData("club_specializations_public", [specRow()]);
-    renderSpec({ value: "   " });
-
-    await waitFor(() => {
-      // Brak dodatkowej opcji dla wartości „pustej”.
-      expect(optionValues()).toEqual([NONE_SPEC, "energetyka"]);
-    });
-    expect(option(NONE_SPEC)).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("specjalizacja WYŁĄCZONA w międzyczasie dostaje własną opcję ze swoim slugiem", async () => {
-    clubRpc.setData("club_specializations_public", [specRow()]);
-    renderSpec({ value: "specjalizacja-wylaczona" });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, "specjalizacja-wylaczona", "energetyka"]);
-    });
-    const orphan = option("specjalizacja-wylaczona");
-    expect(orphan).toHaveTextContent("specjalizacja-wylaczona");
-    expect(orphan).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("wiersz opisany tylko po polsku ma tytuł także przy interfejsie angielskim", async () => {
-    clubRpc.setData("club_specializations_public", [
-      specRow({
-        slug: "wlasna-specjalizacja",
-        key: "wlasna",
-        label_pl: "Specjalizacja własna",
-        label_en: "",
-      }),
-    ]);
-    h.lang = "en";
-    renderSpec({ value: null });
-
-    await waitFor(() => {
-      expect(option("wlasna-specjalizacja")).toHaveTextContent("Specjalizacja własna");
-    });
-  });
-
-  it("katalog PUSTY i AWARIA katalogu degradują do ośmiu specjalizacji systemowych", async () => {
-    clubRpc.setData("club_specializations_public", []);
-    renderSpec({ value: null });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, ...CLUB_SPECIALIZATIONS.map((spec) => spec.slug)]);
-    });
-
-    cleanup();
-    clubRpc.setError("club_specializations_public", "test: katalog niedostępny");
-    renderSpec({ value: null });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, ...CLUB_SPECIALIZATIONS.map((spec) => spec.slug)]);
-    });
-  });
-
-  it("`disabled` odcina zmianę", async () => {
-    clubRpc.setData("club_specializations_public", [specRow()]);
-    const { onChange } = renderSpec({ value: null, disabled: true });
-
-    await waitFor(() => {
-      expect(optionValues()).toEqual([NONE_SPEC, "energetyka"]);
-    });
-    fireEvent.click(option("energetyka"));
-
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("etykieta i podpowiedź są opcjonalne - bez nich nie ma ani `<label>`, ani akapitu", () => {
-    renderSpec({
-      value: null,
-      label: "Specjalizacja",
-      hint: "Klub bez specjalizacji nie trafi na jej stronę",
-      id: "club-spec",
-    });
-
-    expect(screen.getByLabelText("Specjalizacja")).toHaveAttribute("id", "club-spec");
-    expect(screen.getByText("Klub bez specjalizacji nie trafi na jej stronę")).toBeVisible();
-
-    cleanup();
-    renderSpec({ value: null });
 
     expect(document.querySelector("label")).toBeNull();
     expect(document.querySelector("p")).toBeNull();

@@ -125,6 +125,9 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/_internal")).toBe(false);
     expect(isProtectedPath("/_/x")).toBe(true);
     expect(isProtectedPath("/blog")).toBe(false);
+    expect(isProtectedPath("/media")).toBe(true);
+    expect(isProtectedPath("/media/tenant/wp-import/okladka.webp")).toBe(true);
+    expect(isProtectedPath("/mediacje")).toBe(false);
   });
 });
 
