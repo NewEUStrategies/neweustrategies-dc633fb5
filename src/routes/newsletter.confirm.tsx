@@ -11,12 +11,22 @@
 // (fail-closed: każdy inny stan, błąd albo nieznany kształt - bez karty).
 // GET NIGDY nie udziela zgody: zapisuje ją dopiero kliknięcie w karcie
 // (POST). Słownik i treść karty jadą wyłącznie w jej chunku (D-08).
+//
+// SEKRET SKRZYNKI (przegląd R1, sql-r1-1/zgoda-r1-1). Sam token DOI nie
+// dowodzi skrzynki (personel go czytał). Link z maila DOI z zaznaczonym
+// polem pomiaru niesie drugi parametr `m` (`DOI_MEASUREMENT_PARAM`): strona
+// przekazuje go w GET (`newsletterConfirmApiUrl`), a karta w ciele POST
+// (`doiMeasurementDecisionBody`). Bez `m` (albo w złym kształcie) GET zwraca
+// `measurement: "none"` - karty nie ma, a samo potwierdzenie zapisu działa
+// jak dotąd.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import {
-  NEWSLETTER_CONFIRM_API_PATH,
+  DOI_MEASUREMENT_PARAM,
+  isDoiMeasurementTokenFormat,
+  newsletterConfirmApiUrl,
   newsletterConfirmViewOf,
 } from "@/lib/newsletter/confirmMeasurement";
 import type { ConsentLang } from "@/lib/newsletter/consentSegments";
@@ -55,9 +65,13 @@ const NewsletterConfirmMeasurementCard = lazy(() =>
 
 type State = "loading" | "ok" | "already" | "expired" | "error";
 
-/** Karta decyzji o pomiarze: token z adresu i język treści z odpowiedzi GET. */
+/**
+ * Karta decyzji o pomiarze: token DOI i sekret skrzynki `m` z adresu, język
+ * treści z odpowiedzi GET.
+ */
 interface MeasurementCard {
   token: string;
+  secret: string;
   lang: ConsentLang;
 }
 
@@ -68,17 +82,23 @@ function Page() {
   const [measurementCard, setMeasurementCard] = useState<MeasurementCard | null>(null);
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("token") ?? "";
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") ?? "";
     if (!token) {
       setState("error");
       return;
     }
-    fetch(`${NEWSLETTER_CONFIRM_API_PATH}?token=${encodeURIComponent(token)}`)
+    const rawSecret = params.get(DOI_MEASUREMENT_PARAM);
+    const secret = isDoiMeasurementTokenFormat(rawSecret) ? rawSecret : null;
+    fetch(newsletterConfirmApiUrl(token, secret))
       .then(async (r) => {
         const view = newsletterConfirmViewOf(r.status, await r.json().catch(() => ({})));
         setState(view.state);
         if (view.detail) setDetail(view.detail);
-        if (view.measurementCard) setMeasurementCard({ token, lang: view.measurementCard.lang });
+        // Karta wyłącznie z sekretem skrzynki (bez niego serwer i tak daje `none`).
+        if (view.measurementCard && secret) {
+          setMeasurementCard({ token, secret, lang: view.measurementCard.lang });
+        }
       })
       .catch((e: unknown) => {
         setState("error");
@@ -116,6 +136,7 @@ function Page() {
               <Suspense fallback={null}>
                 <NewsletterConfirmMeasurementCard
                   token={measurementCard.token}
+                  secret={measurementCard.secret}
                   lang={measurementCard.lang}
                 />
               </Suspense>

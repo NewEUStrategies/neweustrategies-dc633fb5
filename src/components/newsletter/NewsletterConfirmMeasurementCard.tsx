@@ -9,10 +9,12 @@
 // Karta pokazuje DOKŁADNIE treść, którą baza zapisze
 // (`_email_measurement_consent_default` w języku subskrybenta =
 // `measurementLang` z odpowiedzi), i dwa równorzędne przyciski. Decyzję
-// zapisuje dopiero kliknięcie: POST JSON `{ token, decision }` do tej samej
-// trasy (`newsletter_doi_measurement_decide`); skaner linków w bramce
-// pocztowej robi wyłącznie GET, więc nigdy nie udzieli ani nie odmówi zgody
-// za osobę.
+// zapisuje dopiero kliknięcie: POST JSON `{ token, decision, m }`
+// (`doiMeasurementDecisionBody`) do tej samej trasy
+// (`newsletter_doi_measurement_decide`); `m` to sekret skrzynki z linku
+// maila DOI (przegląd R1, sql-r1-1) - sam token DOI nie dowodzi skrzynki.
+// Skaner linków w bramce pocztowej robi wyłącznie GET, więc nigdy nie
+// udzieli ani nie odmówi zgody za osobę.
 //
 // Wspólny panel decyzji (`MeasurementDecisionPanel`) i słownik
 // (`i18n-newsletter-measurement`) ze stroną `/newsletter/measurement` -
@@ -31,6 +33,7 @@ import {
 import i18n from "@/lib/i18n";
 import { ensureI18n } from "@/lib/i18n-newsletter-measurement";
 import {
+  doiMeasurementDecisionBody,
   doiMeasurementDecisionViewOf,
   NEWSLETTER_CONFIRM_API_PATH,
   type DoiMeasurementDecision,
@@ -41,6 +44,8 @@ import type { ConsentLang } from "@/lib/newsletter/consentSegments";
 export interface NewsletterConfirmMeasurementCardProps {
   /** Token DOI z linku maila (ten sam, którym strona potwierdziła zapis). */
   token: string;
+  /** Sekret skrzynki `m` z tego samego linku (kształt sprawdzony przez stronę). */
+  secret: string;
   /** Język treści zgody = `measurementLang` z odpowiedzi GET. */
   lang: ConsentLang;
 }
@@ -52,7 +57,7 @@ const OUTCOME: Record<DoiMeasurementDecisionView, MeasurementOutcome> = {
   already: "alreadyDecided",
   invalid: "invalid",
   inactive: "inactive",
-  // Brak deklaracji albo decyzja po terminie (60 dni od zaznaczenia pola).
+  // Brak deklaracji albo decyzja po terminie (60 dni od wysłania maila DOI).
   none: "expired",
   rateLimited: "rateLimited",
   error: "error",
@@ -68,6 +73,7 @@ async function readJson(response: Response): Promise<unknown> {
 
 export function NewsletterConfirmMeasurementCard({
   token,
+  secret,
   lang,
 }: NewsletterConfirmMeasurementCardProps) {
   ensureI18n();
@@ -87,7 +93,7 @@ export function NewsletterConfirmMeasurementCard({
       const response = await fetch(NEWSLETTER_CONFIRM_API_PATH, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ token, decision }),
+        body: JSON.stringify(doiMeasurementDecisionBody(token, secret, decision)),
       });
       setOutcome(OUTCOME[doiMeasurementDecisionViewOf(response.status, await readJson(response))]);
     } catch {

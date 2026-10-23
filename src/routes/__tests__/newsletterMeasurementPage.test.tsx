@@ -110,6 +110,32 @@ describe("„Nie mierz moich otwarć i kliknięć”", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("bez zgody i bez zapisanej odmowy (`refused: false`): przycisk zapisuje odmowę (przegląd R1, zgoda-r1-2)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, action: "withdraw", consent: false, refused: false }),
+    );
+    await mount("?token=wsabc");
+    const button = await screen.findByRole("button", {
+      name: pl("newsletterMeasurement.withdrawBtn"),
+    });
+    expect(screen.queryByText(pl("newsletterMeasurement.alreadyOffTitle"))).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, action: "withdraw" }));
+    fireEvent.click(button);
+    expect(await screen.findByText(pl("newsletterMeasurement.withdrawnTitle"))).toBeTruthy();
+    expect(postBody(1)).toEqual({ token: "wsabc", channel: "email_footer" });
+  });
+
+  it("bez zgody z odmową już zapisaną (`refused: true`): „pomiar jest wyłączony” bez przycisku", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, action: "withdraw", consent: false, refused: true }),
+    );
+    await mount("?token=wsabc");
+    expect(await screen.findByText(pl("newsletterMeasurement.alreadyOffTitle"))).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("język odbiorcy z linku (`lang=en`)", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, action: "withdraw", consent: true }));
     await mount("?token=wsabc&lang=en");

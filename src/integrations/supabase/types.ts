@@ -17682,6 +17682,7 @@ export type Database = {
           claimed_until: string | null
           confirmed_at: string | null
           consent_version: string
+          email_norm: string | null
           last_error: string | null
           mail_outcome: string | null
           mailed_at: string | null
@@ -17697,6 +17698,7 @@ export type Database = {
           claimed_until?: string | null
           confirmed_at?: string | null
           consent_version: string
+          email_norm?: string | null
           last_error?: string | null
           mail_outcome?: string | null
           mailed_at?: string | null
@@ -17712,6 +17714,7 @@ export type Database = {
           claimed_until?: string | null
           confirmed_at?: string | null
           consent_version?: string
+          email_norm?: string | null
           last_error?: string | null
           mail_outcome?: string | null
           mailed_at?: string | null
@@ -25708,6 +25711,11 @@ export type Database = {
         Args: { p_dlq_at: string; p_message: Json }
         Returns: Json
       }
+      _email_measurement_close_backfill: { Args: never; Returns: number }
+      _email_measurement_close_on_opt_out: {
+        Args: { p_at: string; p_email: string; p_tenant: string }
+        Returns: boolean
+      }
       _email_measurement_close_on_unsubscribe: {
         Args: { p_subscriber: string }
         Returns: boolean
@@ -25721,6 +25729,10 @@ export type Database = {
         Returns: string
       }
       _email_measurement_consent_version: { Args: never; Returns: string }
+      _email_measurement_expiry_text: {
+        Args: { p_lang: string; p_reason: string }
+        Returns: string
+      }
       _email_measurement_grant: {
         Args: {
           p_channel: string
@@ -27478,6 +27490,14 @@ export type Database = {
       _newsletter_consent_default: { Args: { p_lang: string }; Returns: string }
       _newsletter_consent_upgrade_defaults: { Args: never; Returns: number }
       _newsletter_consent_version: { Args: never; Returns: string }
+      _newsletter_doi_measurement_offer_state: {
+        Args: {
+          p_consent_version: string
+          p_expires_at: string
+          p_subscriber: string
+        }
+        Returns: string
+      }
       _newsletter_engagement_daily_sum: {
         Args: {
           p_kind: string
@@ -35757,15 +35777,25 @@ export type Database = {
       }
       newsletter_doi_measurement_decide: {
         Args: {
+          p_consent_version: string
+          p_email: string
+          p_expires_at: string
           p_grant: boolean
           p_ip?: string
+          p_subscriber: string
           p_token: string
           p_user_agent?: string
         }
         Returns: Json
       }
       newsletter_doi_measurement_state: {
-        Args: { p_token: string }
+        Args: {
+          p_consent_version: string
+          p_email: string
+          p_expires_at: string
+          p_subscriber: string
+          p_token: string
+        }
         Returns: Json
       }
       newsletter_engagement_touch: {

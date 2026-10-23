@@ -66,8 +66,14 @@ export type LaneEntry =
  */
 export const MIGRATION_LANES: readonly LaneEntry[] = [
   // I9d-Y2b: osobna zgoda na pomiar (wariant (b)) i pomiar tylko po
-  // potwierdzeniu skrzynki (D2) - trzy części z limitu rozmiaru migracji, każda
-  // para to pełne bliźniaki bajt w bajt.
+  // potwierdzeniu skrzynki (D2) - trzy części z limitu rozmiaru migracji
+  // i poprawki przeglądu R1 (0397: sekret skrzynki na stronie DOI, kolumny
+  // personelu, domknięcie łańcuchów pomiaru); każda para to pełne bliźniaki
+  // bajt w bajt.
+  {
+    tag: "0397_consent_measurement_separate_fixes",
+    twin: "20261023090300_consent_measurement_separate_fixes.sql",
+  },
   {
     tag: "0396_consent_measurement_separate_requests",
     twin: "20261023090200_consent_measurement_separate_requests.sql",

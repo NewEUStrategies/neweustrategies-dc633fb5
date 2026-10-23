@@ -5,8 +5,9 @@
 //
 // CO TEN PLIK DOWODZI.
 //   1. Wejście na stronę zapisuje WYŁĄCZNIE potwierdzenie zapisu (GET) -
-//      decyzja o pomiarze tylko po kliknięciu (POST JSON `{ token, decision }`
-//      na tę samą trasę).
+//      decyzja o pomiarze tylko po kliknięciu (POST JSON `{ token, decision,
+//      m }` na tę samą trasę). Sekret skrzynki `m` z adresu strony jedzie
+//      w GET i w POST; bez niego karty nie ma (przegląd R1, sql-r1-1).
 //   2. Karta pokazuje DOKŁADNIE treść, którą baza zapisze (pole pomiaru,
 //      język subskrybenta z odpowiedzi GET), i dwa równorzędne przyciski.
 //   3. Każdy wynik POST ma własny ekran w regionie `aria-live`; błędy
@@ -25,6 +26,8 @@ const pl = i18n.getFixedT("pl");
 const en = i18n.getFixedT("en");
 const API = "/api/public/newsletter/confirm";
 const TOKEN = "abcdef0123456789abcdef";
+// Sekret skrzynki z maila DOI: `d` + 72 znaki szesnastkowe (kształt).
+const SECRET = `d${"0123456789abcdef".repeat(4)}${"ab".repeat(4)}`;
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -39,7 +42,7 @@ async function mountWithCard(lang: "pl" | "en" = "pl") {
   fetchMock.mockResolvedValueOnce(
     jsonResponse({ ok: true, measurement: "offer", measurementLang: lang }),
   );
-  window.history.replaceState({}, "", `/newsletter/confirm?token=${TOKEN}`);
+  window.history.replaceState({}, "", `/newsletter/confirm?token=${TOKEN}&m=${SECRET}`);
   const view = await renderRoute({
     route: ConfirmRoute,
     path: "/newsletter/confirm",
@@ -89,9 +92,29 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     expect(screen.getByText(pl("newsletterMeasurement.doiLead"))).toBeTruthy();
     expect(grantButton()).toBeTruthy();
     expect(declineButton()).toBeTruthy();
-    // Jedno wywołanie: GET potwierdzenia.
+    // Jedno wywołanie: GET potwierdzenia z tokenem DOI i sekretem skrzynki.
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}?token=${TOKEN}&m=${SECRET}`);
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.method).toBeUndefined();
+  });
+
+  it.each([
+    ["bez sekretu skrzynki", `/newsletter/confirm?token=${TOKEN}`],
+    ["sekret w złym kształcie", `/newsletter/confirm?token=${TOKEN}&m=zly`],
+  ])("%s: GET bez `m` i bez karty, nawet gdy odpowiedź mówi `offer`", async (_case, href) => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ok: true, measurement: "offer", measurementLang: "pl" }),
+    );
+    window.history.replaceState({}, "", href);
+    await renderRoute({
+      route: ConfirmRoute,
+      path: "/newsletter/confirm",
+      initialEntry: "/newsletter/confirm",
+    });
+    expect(await screen.findByText(pl("newsletter.confirmPage.okTitle"))).toBeTruthy();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${API}?token=${TOKEN}`);
+    expect(screen.queryByRole("button", { name: pl("newsletterMeasurement.grantBtn") })).toBeNull();
+    expect(card()).toBeNull();
   });
 
   it("EN: karta w języku treści zgody subskrybenta", async () => {
@@ -106,7 +129,7 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, result: "granted" }));
     fireEvent.click(grantButton());
     expect(await screen.findByText(pl("newsletterMeasurement.grantedTitle"))).toBeTruthy();
-    expect(postBody(1)).toEqual({ token: TOKEN, decision: "grant" });
+    expect(postBody(1)).toEqual({ token: TOKEN, decision: "grant", m: SECRET });
     expect(screen.queryByRole("button", { name: pl("newsletterMeasurement.grantBtn") })).toBeNull();
   });
 
@@ -116,7 +139,7 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     fireEvent.click(declineButton());
     expect(await screen.findByText(pl("newsletterMeasurement.declinedTitle"))).toBeTruthy();
     expect(screen.getByText(pl("newsletterMeasurement.declinedBody"))).toBeTruthy();
-    expect(postBody(1)).toEqual({ token: TOKEN, decision: "decline" });
+    expect(postBody(1)).toEqual({ token: TOKEN, decision: "decline", m: SECRET });
   });
 
   it.each([
@@ -141,7 +164,7 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, result: "declined" }));
     fireEvent.click(screen.getByRole("button", { name: pl("newsletterMeasurement.retryBtn") }));
     expect(await screen.findByText(pl("newsletterMeasurement.declinedTitle"))).toBeTruthy();
-    expect(postBody(2)).toEqual({ token: TOKEN, decision: "decline" });
+    expect(postBody(2)).toEqual({ token: TOKEN, decision: "decline", m: SECRET });
   });
 
   it("awaria sieci i nieznany kształt odpowiedzi: błąd z ponowieniem", async () => {
@@ -154,7 +177,7 @@ describe("karta zgody na pomiar na stronie potwierdzenia", () => {
     fireEvent.click(screen.getByRole("button", { name: pl("newsletterMeasurement.retryBtn") }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     expect(await screen.findByText(pl("newsletterMeasurement.errorBody"))).toBeTruthy();
-    expect(postBody(2)).toEqual({ token: TOKEN, decision: "grant" });
+    expect(postBody(2)).toEqual({ token: TOKEN, decision: "grant", m: SECRET });
   });
 
   it("po decyzji fokus przechodzi na nagłówek wyniku - kliknięty przycisk znika (WCAG 2.4.3)", async () => {

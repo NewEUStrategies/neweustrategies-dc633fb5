@@ -149,23 +149,41 @@ describe("strona potwierdzenia zapisu", () => {
 
   // --- Karta zgody na pomiar (I9d-Y2b) -------------------------------------
   // Karta (leniwa, słownik nakładki pomiaru - napisy prawdziwe, nie klucze)
-  // pojawia się WYŁĄCZNIE przy `measurement: "offer"` z poprawnym językiem.
+  // pojawia się WYŁĄCZNIE przy `measurement: "offer"` z poprawnym językiem
+  // i z sekretem skrzynki `m` w adresie strony (przegląd R1, sql-r1-1).
   const CARD_TITLE = {
     pl: "Zgoda na pomiar otwarć i kliknięć",
     en: "Consent to measuring opens and clicks",
   };
+  const SECRET = `d${"ab".repeat(36)}`;
 
   it.each([
     [{ ok: true, measurement: "offer", measurementLang: "pl" }, "pl"],
     [{ ok: true, already: true, measurement: "offer", measurementLang: "en" }, "en"],
   ] as const)("karta pomiaru przy `offer` (%j)", async (body, lang) => {
     fetchMock.mockResolvedValue(jsonResponse(body));
-    await mount("?token=abcdef0123456789");
+    await mount(`?token=abcdef0123456789&m=${SECRET}`);
 
     expect(await screen.findByRole("heading", { name: CARD_TITLE[lang] })).toBeTruthy();
     // Wejście na stronę nie zapisuje decyzji - tylko GET potwierdzenia.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]).not.toMatchObject({ method: "POST" });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`&m=${SECRET}`);
+  });
+
+  it("bez sekretu skrzynki `m` karty nie ma, nawet przy `offer`", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ok: true, measurement: "offer", measurementLang: "pl" }),
+    );
+    await mount("?token=abcdef0123456789");
+
+    await screen.findByText("newsletter.confirmPage.okTitle");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("m=");
+    expect(screen.queryByRole("heading", { name: CARD_TITLE.pl })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it.each([
