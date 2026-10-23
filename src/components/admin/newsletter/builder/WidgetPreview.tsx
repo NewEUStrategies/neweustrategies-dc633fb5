@@ -2,9 +2,24 @@ import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // WidgetPreview - wizualny render pojedynczego widgetu na kanwie buildera.
 // Uzywane rowniez w DragOverlay. HTML uzytkownika sanityzowany przez
 // `sanitizeHtml`; input fieldy renderowane jako read-only.
+//
+// I9d-Y2b (przegląd R1 - ui-r1-4): widżet „pole wyboru" z kluczem
+// ZASTRZEŻONYM dla osobnego pola pomiaru (`RESERVED_CONSENT_KEYS`) nie trafia
+// do formularza - `NewsletterDocRenderer` ani go nie rysuje, ani nie zbiera
+// (deklarację pomiaru niesie wyłącznie `NlDocMeasurementConsent` ze stałą,
+// wersjonowaną treścią). Płótno pokazuje więc zamiast pola notkę, a nie pole,
+// którego na stronie nie będzie - podgląd mówi to samo co formularz.
 import { useEffect, useRef, useState } from "react";
 import type { NlWidget, NlLang, NlImageWidget } from "@/lib/newsletter-builder/types";
+import { isReservedConsentKey } from "@/lib/newsletter/measurementConsentText";
 import { sanitizeHtml } from "@/lib/sanitize";
+
+/** Notka płótna dla widżetu „pole wyboru" z kluczem zastrzeżonym. */
+function reservedConsentKeyNote(key: string, lang: NlLang): string {
+  return lang === "pl"
+    ? `Klucz „${key.trim()}” jest zastrzeżony dla osobnego pola zgody na pomiar - to pole nie trafi do formularza. Zmień klucz albo usuń widżet; pole pomiaru formularz dokłada sam.`
+    : `The key “${key.trim()}” is reserved for the separate consent to measurement box - this field will not appear in the form. Change the key or remove the widget; the form adds the measurement box itself.`;
+}
 
 const ASPECT_RATIO: Record<NonNullable<NlImageWidget["aspect"]>, number | null> = {
   "16/7": 16 / 7,
@@ -163,6 +178,17 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
         </label>
       );
     case "field.checkbox":
+      if (isReservedConsentKey(widget.key)) {
+        return (
+          <p
+            role="note"
+            data-reserved-consent-key=""
+            className="rounded border border-dashed border-destructive/60 px-2 py-1.5 text-xs text-destructive"
+          >
+            {reservedConsentKeyNote(widget.key, lang)}
+          </p>
+        );
+      }
       return (
         <label className="flex items-start gap-2 text-xs opacity-95">
           <input type="checkbox" className="mt-0.5" readOnly />

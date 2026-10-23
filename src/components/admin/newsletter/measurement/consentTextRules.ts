@@ -6,7 +6,9 @@
 // edytora treści maila) i sam edytor treści maila (kotwica) - import
 // z modułu komponentu wciągałby całą kartę do chunku edytora i odwrotnie.
 // Czyta go też zakładka „Pola" popupu rejestracji (etykieta zgody na
-// newsletter).
+// newsletter) i inspektor buildera (`SchemaFieldControl`, reguła `warning`
+// pól `consentText_*` „Dołącz do nas" i `newsletterLabel_*` formularzy
+// kontaktu i rejestracji - przegląd R1, ui-r1-2).
 //
 // WARIANT (b) OD 2026-10-23 (decyzja właściciela D1): KAŻDA ZGODA MA OSOBNE
 // POLE. Treść zgody na newsletter nie dotyczy pomiaru otwarć i kliknięć -

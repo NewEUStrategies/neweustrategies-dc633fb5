@@ -12,6 +12,7 @@
 // w obu językach.
 import { describe, it, expect, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { axeViolations, summarize } from "@/test/axe";
 import { WidgetPreview } from "@/components/admin/newsletter/builder/WidgetPreview";
 import { makeWidget } from "@/lib/newsletter-builder/defaults";
 import { WIDGET_REGISTRY } from "@/lib/newsletter-builder/registry";
@@ -215,6 +216,36 @@ describe("pola formularza", () => {
     expect(screen.getByText("Zgoda marketingowa")).toBeTruthy();
     // Treść zgody idzie przez sanityzację - znacznik ma zostać, skryptu nie ma.
     expect(container.querySelector("span")).toBeTruthy();
+  });
+
+  it.each(["email_measurement", " Email_Measurement_Declared "])(
+    "checkbox z kluczem ZASTRZEŻONYM (%j) - notka zamiast pola, jak w formularzu (I9d-Y2b)",
+    async (key) => {
+      const widget = {
+        ...makeWidget("field.checkbox"),
+        key,
+        required: true,
+        html: { pl: "<span>Zgoda na pomiar</span>", en: "<span>Measurement</span>" },
+      };
+      const { container } = show(widget as NlWidget);
+
+      // Formularz publiczny takiego pola nie rysuje ani nie zbiera - płótno też
+      // nie może udawać, że jest.
+      expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+      expect(screen.queryByText("Zgoda na pomiar")).toBeNull();
+      const note = screen.getByRole("note");
+      expect(note.textContent).toContain(key.trim());
+      expect(note.textContent).toMatch(/zastrzeżony dla osobnego pola zgody na pomiar/);
+      const violations = await axeViolations(container);
+      expect(violations, summarize(violations)).toEqual([]);
+    },
+  );
+
+  it("notka klucza zastrzeżonego w języku podglądu (EN)", () => {
+    const widget = { ...makeWidget("field.checkbox"), key: "email_measurement" };
+    show(widget as NlWidget, "en");
+
+    expect(screen.getByRole("note").textContent).toMatch(/reserved for the separate consent/);
   });
 
   it("lista wyboru pokazuje etykietę, podpowiedź i WSZYSTKIE opcje", () => {

@@ -64,6 +64,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { PropertiesPanel } from "@/components/admin/newsletter/builder/PropertiesPanel";
+import { axeViolations, summarize } from "@/test/axe";
 import { buildDefaultDoc, makeSection, makeWidget } from "@/lib/newsletter-builder/defaults";
 import { WIDGET_REGISTRY } from "@/lib/newsletter-builder/registry";
 import type {
@@ -428,6 +429,42 @@ describe("pola formularza", () => {
     expect(document.querySelectorAll("textarea").length).toBeGreaterThanOrEqual(2);
     // Treść zgody to HTML, więc panel ostrzega o sanityzacji tak jak w akapicie.
     expect(screen.getByText(/Skrypty sa usuwane/)).toBeTruthy();
+  });
+
+  it("klucz zgody zwykły - bez ostrzeżenia, pole opisane etykietą", () => {
+    mount({ selected: { ...makeWidget("field.checkbox"), key: "terms" } as NlWidget });
+
+    const input = screen.getByLabelText("Klucz zgody");
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("klucz ZASTRZEŻONY dla pola pomiaru (I9d-Y2b) - pole oznaczone jako błędne z wyjaśnieniem", async () => {
+    mount({
+      selected: { ...makeWidget("field.checkbox"), key: "EMAIL_MEASUREMENT" } as NlWidget,
+    });
+
+    const input = screen.getByLabelText("Klucz zgody");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    const alert = screen.getByRole("alert");
+    expect(input.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(alert.textContent).toMatch(/nie trafi do formularza/);
+    // axe na bloku klucza (pola treści I18nField mają własne, starsze braki
+    // etykiet - poza zakresem tej zmiany).
+    const violations = await axeViolations(input.parentElement as HTMLElement);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("wpisanie klucza zastrzeżonego NIE jest blokowane - panel zapisuje wartość i ostrzega", () => {
+    const { onPatch } = mount({
+      selected: { ...makeWidget("field.checkbox"), key: "email_measuremen" } as NlWidget,
+    });
+
+    fireEvent.change(screen.getByLabelText("Klucz zgody"), {
+      target: { value: "email_measurement" },
+    });
+    // Przez `email_measurement` przechodzi się, wpisując `email_measurement_x`.
+    expect(onPatch).toHaveBeenCalledWith({ key: "email_measurement" });
   });
 
   it("lista wyboru pozwala edytować opcje", () => {

@@ -5,11 +5,17 @@
 //
 // I9d-Y2b (R1.8): pozycja `email_measurement_declared` w `consents` to
 // DEKLARACJA z osobnego pola pomiaru (zaznaczone w formularzu), nie zgoda.
-// Okno pokazuje ją jako „zadeklarowana w formularzu - czeka na
-// potwierdzenie" z dopiskiem, że rzeczywisty stan zgody na pomiar zapisuje
-// rejestr zgód (`crm_consent_log`, klucz `email_measurement` - historia
-// zgód kontaktu w CRM) po potwierdzeniu przez właściciela skrzynki.
+// Deklaracja nie zmienia się po decyzji właściciela skrzynki ani po
+// wygaśnięciu oferty, więc etykieta nie może mówić na stałe „czeka na
+// potwierdzenie" (przegląd R1 - ui-r1-1). Okno dociąga RZECZYWISTY stan
+// z czytelnika zgody w bazie (`getSubscriberMeasurementConsent` ->
+// `email_measurement_state`, tylko gdy jest deklaracja) i pokazuje
+// „zadeklarowana w formularzu - zgoda udzielona" albo „- bez zgody"; dopóki
+// stanu nie ma (odczyt w toku, błąd) - neutralnie „zadeklarowana
+// w formularzu" z odesłaniem do rejestru zgód (historia zgód kontaktu
+// w CRM, klucz `email_measurement`).
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,6 +27,12 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { getSubscriberMeasurementConsent } from "@/lib/newsletter-admin.functions";
+import {
+  declaredMeasurementView,
+  type DeclaredMeasurementView,
+  type SubscriberMeasurementConsent,
+} from "@/lib/newsletter/subscriberMeasurementState";
 import { consentEntryState, formatTimestamp, readConsents, readMeta } from "./subscriberDetail";
 
 /**
@@ -74,6 +86,19 @@ export function SubscriberDetailDialog({
     },
   });
 
+  // Rzeczywisty stan zgody na pomiar - tylko gdy wiersz ma deklarację z pola
+  // pomiaru (bez niej okno nic o pomiarze nie mówi, więc nie pyta serwera).
+  const consents = data ? readConsents(data.consents) : [];
+  const hasDeclaration = consents.some((c) => consentEntryState(c) === "declared");
+  const fetchMeasurement = useServerFn(getSubscriberMeasurementConsent);
+  const measurement = useQuery({
+    queryKey: ["newsletter-subscriber", subscriberId, "measurement"],
+    enabled: open && hasDeclaration,
+    queryFn: (): Promise<SubscriberMeasurementConsent> =>
+      fetchMeasurement({ data: { subscriberId: subscriberId ?? "" } }),
+  });
+  const declaredView = declaredMeasurementView(measurement.data);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -112,9 +137,9 @@ export function SubscriberDetailDialog({
             </Section>
 
             <Section title="Zgody">
-              {readConsents(data.consents).length ? (
+              {consents.length ? (
                 <ul className="space-y-2">
-                  {readConsents(data.consents).map((c, i) => {
+                  {consents.map((c, i) => {
                     const state = consentEntryState(c);
                     return (
                       <li
@@ -136,16 +161,18 @@ export function SubscriberDetailDialog({
                             {state === "given"
                               ? "✓ udzielona"
                               : state === "declared"
-                                ? "zadeklarowana w formularzu - czeka na potwierdzenie"
+                                ? DECLARED_LABEL[declaredView]
                                 : "brak"}
                           </span>
                         </div>
                         {state === "declared" && (
-                          <p className="text-muted-foreground">
-                            Zaznaczenie pola pomiaru nie jest zgodą. Zgodę na pomiar otwarć i
-                            kliknięć zapisuje dopiero potwierdzenie właściciela skrzynki -
-                            rzeczywisty stan pokazuje rejestr zgód (historia zgód kontaktu w CRM,
-                            klucz email_measurement).
+                          <p
+                            className="text-muted-foreground"
+                            data-measurement-state={declaredView}
+                          >
+                            Zaznaczenie pola pomiaru nie jest zgodą - zgodę na pomiar otwarć i
+                            kliknięć zapisuje dopiero potwierdzenie właściciela skrzynki.{" "}
+                            {declaredNote(declaredView, measurement.data, measurement.isPending)}
                           </p>
                         )}
                         {c.text && (
@@ -196,6 +223,33 @@ export function SubscriberDetailDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Etykieta deklaracji - stan zgody z czytelnika w bazie, nigdy stałe „czeka". */
+const DECLARED_LABEL: Record<DeclaredMeasurementView, string> = {
+  granted: "zadeklarowana w formularzu - zgoda udzielona",
+  notGranted: "zadeklarowana w formularzu - bez zgody",
+  unknown: "zadeklarowana w formularzu",
+};
+
+/** Dopisek pod deklaracją: skąd stan i co znaczy (albo czemu go nie ma). */
+function declaredNote(
+  view: DeclaredMeasurementView,
+  state: SubscriberMeasurementConsent | undefined,
+  pending: boolean,
+): string {
+  if (view === "granted") {
+    const off =
+      state?.result === "ok" && !state.enabled
+        ? " Pomiar jest jednak wyłączony w ustawieniach newslettera."
+        : "";
+    return `Rejestr zgód: zgoda na pomiar udzielona - potwierdzona przez właściciela skrzynki.${off}`;
+  }
+  if (view === "notGranted") {
+    return "Rejestr zgód: zgody na pomiar nie ma - właściciel skrzynki jej nie potwierdził albo odmówił, zgoda została wycofana, oferta wygasła albo subskrypcja nie jest aktywna.";
+  }
+  if (pending) return "Sprawdzam stan w rejestrze zgód…";
+  return "Stanu z rejestru zgód nie udało się odczytać - historia decyzji: historia zgód kontaktu w CRM (klucz email_measurement).";
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

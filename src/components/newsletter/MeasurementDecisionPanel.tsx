@@ -24,6 +24,14 @@
 //   * Geometria i kolory z tokenów platformy (te same w jasnym i ciemnym
 //     motywie); bez własnej typografii poza klasami strony, z której panel
 //     wyszedł.
+//   * FOKUS PO DECYZJI (WCAG 2.4.3, przegląd R1 - ui-r1-3). Kliknięty przycisk
+//     znika razem z ekranem decyzji (albo z ekranem błędu po ponowieniu), więc
+//     fokus spadał na `<body>` i następny Tab zaczynał od początku strony.
+//     Host podaje `focusKey` (licznik zakończonych decyzji): każda zmiana -
+//     także ponowienie z tym samym wynikiem - przenosi fokus na nagłówek
+//     wyniku (`tabIndex={-1}`, bez obwódki - to nie kontrolka). Wynik od razu
+//     po wejściu na stronę (bez kliknięcia) nie przesuwa fokusu.
+import { useEffect, useRef, type Ref } from "react";
 import type { TFunction } from "i18next";
 import { CheckCircle2, MailCheck, XCircle } from "lucide-react";
 
@@ -91,11 +99,27 @@ function isRetryableOutcome(outcome: MeasurementOutcome): boolean {
   return outcome === "error" || outcome === "rateLimited";
 }
 
-function Heading({ level, children }: { level: 1 | 2; children: string }) {
+function Heading({
+  level,
+  children,
+  headingRef,
+  focusable = false,
+}: {
+  level: 1 | 2;
+  children: string;
+  headingRef?: Ref<HTMLHeadingElement>;
+  /** Cel fokusu po decyzji: `tabIndex={-1}` (fokus programowy, nie w kolejce Tab). */
+  focusable?: boolean;
+}) {
+  const tabIndex = focusable ? -1 : undefined;
   return level === 1 ? (
-    <h1 className="font-display text-2xl">{children}</h1>
+    <h1 ref={headingRef} tabIndex={tabIndex} className="font-display text-2xl focus:outline-none">
+      {children}
+    </h1>
   ) : (
-    <h2 className="font-display text-xl">{children}</h2>
+    <h2 ref={headingRef} tabIndex={tabIndex} className="font-display text-xl focus:outline-none">
+      {children}
+    </h2>
   );
 }
 
@@ -153,6 +177,12 @@ export interface MeasurementOutcomeViewProps {
   /** Ponowienie przy błędzie przejściowym (`error`, `rateLimited`). */
   onRetry: () => void;
   headingLevel?: 1 | 2;
+  /**
+   * Licznik zakończonych decyzji hosta. Każda zmiana przenosi fokus na
+   * nagłówek wyniku (przycisk, który miał fokus, zniknął). Brak = wynik bez
+   * kliknięcia (np. zaraz po wejściu na stronę) - fokus zostaje, gdzie był.
+   */
+  focusKey?: number;
 }
 
 /** Ekran wyniku: ikona, tytuł, treść i - przy błędzie przejściowym - ponowienie. */
@@ -162,7 +192,12 @@ export function MeasurementOutcomeView({
   busy,
   onRetry,
   headingLevel = 1,
+  focusKey,
 }: MeasurementOutcomeViewProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusKey !== undefined) headingRef.current?.focus();
+  }, [focusKey]);
   return (
     <>
       {POSITIVE.has(outcome) ? (
@@ -170,7 +205,9 @@ export function MeasurementOutcomeView({
       ) : (
         <XCircle className="w-10 h-10 mx-auto text-destructive" aria-hidden="true" />
       )}
-      <Heading level={headingLevel}>{t(TITLE_KEY[outcome])}</Heading>
+      <Heading level={headingLevel} headingRef={headingRef} focusable={focusKey !== undefined}>
+        {t(TITLE_KEY[outcome])}
+      </Heading>
       <p className="text-sm text-muted-foreground">{t(BODY_KEY[outcome])}</p>
       {isRetryableOutcome(outcome) && (
         <Button type="button" onClick={onRetry} disabled={busy} className="mt-2">

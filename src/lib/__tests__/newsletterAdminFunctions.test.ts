@@ -41,6 +41,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 import {
   getJobRunnerSettings,
+  getSubscriberMeasurementConsent,
   importNewsletterSubscribers,
   updateJobRunnerSettings,
 } from "@/lib/newsletter-admin.functions";
@@ -163,10 +164,82 @@ describe("obudowa - kto w ogóle może wołać te funkcje", () => {
     ]);
   });
 
+  it("stan zgody na pomiar subskrybenta stoi na tej samej roli co RLS odczytu listy", () => {
+    // RLS „newsletter staff read" wpuszcza admina i redaktora; RPC stanu jest
+    // tylko dla `service_role`, więc bramka po stronie serwera musi być ta sama.
+    expect(serverFnMeta(getSubscriberMeasurementConsent)?.middleware).toEqual([
+      { __mw: "requireAdminEditor" },
+    ]);
+    expect(serverFnMeta(getSubscriberMeasurementConsent)?.hasValidator).toBe(true);
+  });
+
   it("operacje zmieniające stan idą metodą POST, odczyt stanu automatu GET", () => {
     expect(serverFnMeta(importNewsletterSubscribers)?.method).toBe("POST");
     expect(serverFnMeta(updateJobRunnerSettings)?.method).toBe("POST");
     expect(serverFnMeta(getJobRunnerSettings)?.method).toBe("GET");
+  });
+});
+
+describe("stan zgody na pomiar w oknie subskrybenta (I9d-Y2b, przegląd R1)", () => {
+  const SUBSCRIBER = "6f1c2a52-6b7e-4c55-9d0e-6a1f6f0b2c11";
+
+  function planState(data: unknown, error: { message: string; code?: string } | null = null) {
+    h.rpc.mockImplementation((name: string) =>
+      Promise.resolve(
+        name === "email_measurement_state" ? { data, error } : { data: null, error: null },
+      ),
+    );
+  }
+
+  it("woła czytelnika zgody w bazie dla TEGO subskrybenta i oddaje samą decyzję", async () => {
+    planState({
+      result: "ok",
+      consent: true,
+      measured: true,
+      enabled: true,
+      tenant_id: TENANT,
+      lang: "pl",
+    });
+
+    const res = await getSubscriberMeasurementConsent({ data: { subscriberId: SUBSCRIBER } });
+
+    expect(res).toEqual({ result: "ok", consent: true, enabled: true });
+    expect(h.rpc).toHaveBeenCalledWith("email_measurement_state", { p_subscriber: SUBSCRIBER });
+  });
+
+  it("wiersz INNEGO najemcy niż najemca sesji = `gone` (bez stanu cudzego subskrybenta)", async () => {
+    planState({ result: "ok", consent: true, enabled: true, tenant_id: "tenant-obcy" });
+
+    const res = await getSubscriberMeasurementConsent({ data: { subscriberId: SUBSCRIBER } });
+
+    expect(res).toEqual({ result: "gone" });
+  });
+
+  it("profil bez najemcy - błąd, a RPC nie jest wołane", async () => {
+    db.setResponse(PROFILES, ok({ tenant_id: null }));
+    planState({ result: "ok", consent: true, enabled: true, tenant_id: TENANT });
+
+    const res = await getSubscriberMeasurementConsent({ data: { subscriberId: SUBSCRIBER } });
+
+    expect(res).toEqual({ result: "error" });
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("błąd RPC - `error` (okno mówi „nie udało się odczytać”, nie „brak zgody”)", async () => {
+    planState(null, { message: "boom", code: "XX000" });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await getSubscriberMeasurementConsent({ data: { subscriberId: SUBSCRIBER } });
+
+    expect(res).toEqual({ result: "error" });
+    spy.mockRestore();
+  });
+
+  it("identyfikator spoza UUID odpada na walidatorze", async () => {
+    await expect(
+      getSubscriberMeasurementConsent({ data: { subscriberId: "nie-uuid" } }),
+    ).rejects.toThrow();
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 });
 
