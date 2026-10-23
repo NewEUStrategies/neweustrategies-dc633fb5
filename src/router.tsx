@@ -18,6 +18,27 @@ import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { compactRouterDehydrated, expandRouterDehydrated } from "./lib/ssr/dehydratedQueryEnvelope";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
+import { timeoutManager } from "@tanstack/react-query";
+
+// Prerender strony głównej w buildzie: jawne `gcTime` uzbraja timery GC, które
+// trzymałyby proces buildu przy życiu. Pod `TSS_PRERENDERING` timery są unref.
+if (typeof process !== "undefined" && process.env?.TSS_PRERENDERING === "true") {
+  type Unrefable = { unref?: () => void };
+  timeoutManager.setTimeoutProvider({
+    setTimeout: (cb, ms) => {
+      const id = setTimeout(cb, ms);
+      (id as unknown as Unrefable).unref?.();
+      return id;
+    },
+    clearTimeout: (id) => clearTimeout(id),
+    setInterval: (cb, ms) => {
+      const id = setInterval(cb, ms);
+      (id as unknown as Unrefable).unref?.();
+      return id;
+    },
+    clearInterval: (id) => clearInterval(id),
+  });
+}
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 import { prepareBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
 import {
