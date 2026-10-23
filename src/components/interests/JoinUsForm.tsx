@@ -16,7 +16,9 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { useNewsletterInlineSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
+import { measurementConsentPayload } from "@/lib/newsletter/measurementConsentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
@@ -236,8 +238,9 @@ export function JoinUsForm({
 
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  // Treść zgody z JEDNEGO źródła (I9d-Y2): pusta albo dawna domyślna = bieżąca
-  // treść z pomiarem i wersją; tekst z buildera zostaje bez zmian.
+  // Treść zgody z JEDNEGO źródła (I9d-Y2b): pusta albo dawna domyślna =
+  // bieżąca treść (b, bez pomiaru) i wersja; tekst z buildera zostaje bez
+  // zmian. Pomiar ma osobne pole pod tą zgodą.
   const resolvedConsent = resolveNewsletterConsent(consentText, lang);
   // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
   const { data: nl } = useNewsletterInlineSettings();
@@ -292,6 +295,10 @@ export function JoinUsForm({
   // lokalnie, a po udanym zapisie propagujemy do rejestru `user_consents`
   // (jedno źródło prawdy widoczne w profilu użytkownika).
   const [consentAccepted, setConsentAccepted] = useState(false);
+  // Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b, wariant (b)):
+  // opcjonalne, DOMYŚLNIE NIEZAZNACZONE; zaznaczenie dokłada deklarację do
+  // `consents` (zgodę zapisze dopiero decyzja właściciela skrzynki).
+  const [measurement, setMeasurement] = useState(false);
 
   const useSplitName = showFirstName || showLastName;
 
@@ -481,7 +488,10 @@ export function JoinUsForm({
           // Dowód = DOKŁADNIE tekst przy zaznaczonym polu (I9d-Y2). Dotąd
           // rejestr dostawał zaszyty tekst „Zapisuję się do newslettera…",
           // a osoba widziała inny (art. 7 ust. 1 RODO).
-          consents: [newsletterConsentPayload(resolvedConsent, lang)],
+          consents: [
+            newsletterConsentPayload(resolvedConsent, lang),
+            ...(measurement ? [measurementConsentPayload(lang)] : []),
+          ],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
           requiredFields,
@@ -570,6 +580,7 @@ export function JoinUsForm({
     });
     setCustomValues({});
     setConsentAccepted(false);
+    setMeasurement(false);
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
@@ -649,6 +660,9 @@ export function JoinUsForm({
   // z tych dwóch atrybutów i skaluje się wyłącznie przez `em`.
   const iconStyle: CSSProperties = { width: `${ICON_EM}em`, height: `${ICON_EM}em` };
   const iconTargetProps = { "data-jus-icon": true, "data-edit-target": "iconSize" } as const;
+  // Rozmiar zgód (`consentSize`) w stylu KAŻDEGO wiersza zgody: globalna
+  // reguła `label` widżetów nie pozwala odziedziczyć go z rodzica.
+  const consentStyle: CSSProperties = { fontSize: consentSize ? `${consentSize}px` : "11px" };
 
   /** Jeden bulletpoint korzyści - wspólny atom wariantów split / split-image.
    *  `data-keep-color` chroni własny kolor ikony przed globalnym override'em
@@ -916,29 +930,42 @@ export function JoinUsForm({
         />
       )}
 
-      {/* Zgoda i przycisk w jednym rzędzie - checkbox + tekst wyśrodkowane
-          w pionie względem wysokości przycisku (na mobile układ kolumnowy). */}
+      {/* Zgody i przycisk w jednym rzędzie - kolumna zgód wyśrodkowana
+          w pionie względem wysokości przycisku (na mobile układ kolumnowy).
+          Osobne pole pomiaru (I9d-Y2b) stoi pod wymaganą zgodą na newsletter,
+          w tej samej geometrii i tym samym rozmiarze `consentSize`. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <label
-          className="flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground"
-          style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
-          data-edit-target="consentSize"
-        >
-          <Checkbox
-            checked={consentAccepted}
-            onCheckedChange={(v) => setConsentAccepted(v === true)}
-            aria-required="true"
-            className="h-[16px] w-[16px] shrink-0"
+        <div className="flex min-w-0 flex-col gap-2">
+          <label
+            className="flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground"
+            style={consentStyle}
+            data-edit-target="consentSize"
+          >
+            <Checkbox
+              checked={consentAccepted}
+              onCheckedChange={(v) => setConsentAccepted(v === true)}
+              aria-required="true"
+              className="h-[16px] w-[16px] shrink-0"
+            />
+            <span>
+              {resolvedConsent.isDefault ? (
+                <NewsletterConsentText lang={lang} />
+              ) : (
+                resolvedConsent.text
+              )}
+              <span className="ml-1 text-destructive">*</span>
+            </span>
+          </label>
+          <MeasurementConsentField
+            lang={lang}
+            checked={measurement}
+            onCheckedChange={setMeasurement}
+            className="flex items-center gap-2 font-sans leading-relaxed text-muted-foreground"
+            checkboxClassName="h-[16px] w-[16px] shrink-0"
+            style={consentStyle}
+            editTarget="consentSize"
           />
-          <span>
-            {resolvedConsent.isDefault ? (
-              <NewsletterConsentText lang={lang} />
-            ) : (
-              resolvedConsent.text
-            )}
-            <span className="ml-1 text-destructive">*</span>
-          </span>
-        </label>
+        </div>
 
         <SubscribeButton
           loading={state === "loading"}

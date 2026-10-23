@@ -82,10 +82,18 @@ import { PopupSignupForm } from "@/components/PopupSignupForm";
 import { defaultNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
 import {
+  LEGACY_NEWSLETTER_CONSENT_DEFAULTS,
   NEWSLETTER_CONSENT_VERSION,
   newsletterConsentHtml,
   privacyAcceptanceHtml,
 } from "@/lib/newsletter/consentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_VERSION,
+  measurementConsentHtml,
+  measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
+import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
+import { axeViolations, summarize } from "@/test/axe";
 import { defaultPopupDesign } from "@/lib/newsletter/popupDesign";
 
 const MOUNTED_AT = new Date("2026-08-22T10:00:00.000Z");
@@ -131,10 +139,20 @@ function passwordInputs(): HTMLInputElement[] {
 
 /**
  * Checkboxy zgód w kolejności renderowania: newsletter (opcjonalny, bez
- * `aria-required`), następnie prywatność i regulamin (obowiązkowe).
+ * `aria-required`), następnie prywatność i regulamin (obowiązkowe). Osobne
+ * pole pomiaru (I9d-Y2b) ma własny pomocnik `measurementBox()`.
  */
 function consentBoxes(): HTMLElement[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="checkbox"]')).filter(
+    (el) => !el.closest('[data-consent="email_measurement"]'),
+  );
+}
+
+/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
+function measurementBox(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    '[data-consent="email_measurement"] [role="checkbox"]',
+  );
 }
 
 const type = (el: HTMLInputElement, value: string) => fireEvent.change(el, { target: { value } });
@@ -220,7 +238,9 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("signupPopup.errors.termsRequired");
   });
 
-  it("treść zgody obowiązkowej może pochodzić z globalnej polityki i nadal blokuje zapis", async () => {
+  it("pusta prywatność popupu NIE bierze treści zgody na newsletter (także własnej) i nadal blokuje zapis", async () => {
+    // I9d-Y2b: `policy_html` to treść zgody na NEWSLETTER - wymagane pole
+    // „prywatność" nie może jej nieść ani jako źródła zastępczego.
     renderForm({
       settings: settings({
         popup_privacy_html_pl: null,
@@ -229,11 +249,29 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
       }),
     });
 
-    expect(screen.getByText("Akceptuję politykę prywatności redakcji.")).toBeInTheDocument();
+    expect(screen.queryByText("Akceptuję politykę prywatności redakcji.")).toBeNull();
+    expect(document.querySelector(".nl-consent")?.innerHTML).toBe(privacyAcceptanceHtml("pl"));
     fillMinimal();
     actLikeHuman();
     await submit();
     expect(h.signUp).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["bieżąca (b)", newsletterConsentHtml("pl")],
+    ["pakietowa (a)", LEGACY_NEWSLETTER_CONSENT_DEFAULTS[2]],
+    ["dawna sprzed Y2", LEGACY_NEWSLETTER_CONSENT_DEFAULTS[0]],
+  ])(
+    "kopia treści zgody na newsletter (%s) w polu prywatności popupu -> akceptacja polityki",
+    (_label, copy) => {
+      renderForm({ settings: settings({ popup_privacy_html_pl: copy }) });
+      expect(document.querySelector(".nl-consent")?.innerHTML).toBe(privacyAcceptanceHtml("pl"));
+    },
+  );
+
+  it("własny tekst prywatności popupu zostaje", () => {
+    renderForm({ settings: settings({ popup_privacy_html_pl: "Zgoda na przetwarzanie danych." }) });
+    expect(screen.getByText("Zgoda na przetwarzanie danych.")).toBeInTheDocument();
   });
 
   it("zaznaczona zgoda trafia do bazy z treścią, językiem i faktem udzielenia", async () => {
@@ -245,9 +283,10 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 
     await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
     const { consents } = h.subscribe.mock.calls[0][0].data;
-    // I9d-Y2: domyślna etykieta = pełna treść zgody z pomiarem (jedno źródło,
-    // wersja z rejestru), a wymagana „prywatność" NIE niesie treści zgody
-    // marketingowej (`policy_html` jest od Y2 treścią zgody na newsletter).
+    // I9d-Y2b: domyślna etykieta = pełna treść zgody (b, bez pomiaru; jedno
+    // źródło, wersja z rejestru), a wymagana „prywatność" NIE niesie treści
+    // zgody marketingowej (`policy_html` to treść zgody na newsletter).
+    // Niezaznaczone pole pomiaru nie dokłada żadnej pozycji.
     expect(consents).toMatchObject([
       {
         key: "newsletter",
@@ -328,9 +367,10 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
     const { consents } = h.subscribe.mock.calls[0][0].data;
     expect(consents.map((entry) => entry.key)).toEqual(["newsletter", "privacy", "terms"]);
     expect(consents.every((entry) => entry.given)).toBe(true);
-    // Schemat dopuszcza najwyżej dziesięć zgód - realny formularz mieści się
-    // w limicie z dużym zapasem, więc walidator serwera nigdy nie odrzuci wpisu.
-    expect(consents.length).toBeLessThanOrEqual(10);
+    // Schemat dopuszcza najwyżej `CONSENT_ENTRIES_MAX` zgód - realny formularz
+    // mieści się w limicie z dużym zapasem (także z deklaracją pomiaru), więc
+    // walidator serwera nigdy nie odrzuci wpisu.
+    expect(consents.length + 1).toBeLessThanOrEqual(CONSENT_ENTRIES_MAX);
   });
 
   it("zgoda OPCJONALNA odznaczona: konto powstaje, ale na listę mailingową nic nie leci", async () => {
@@ -377,6 +417,131 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
     expect(h.subscribe).not.toHaveBeenCalled();
     expect(h.signUp.mock.calls[0][0].options.data.marketing_opt_in).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// OSOBNE POLE ZGODY NA POMIAR (I9d-Y2b, wariant (b))
+// ---------------------------------------------------------------------------
+
+describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
+  it("pole jest pod newsletterem, niezaznaczone i wyłączone, dopóki newsletter nie jest zaznaczony", () => {
+    renderForm();
+    const box = measurementBox();
+    expect(box).not.toBeNull();
+    expect(box).toHaveAttribute("aria-checked", "false");
+    expect(box).toBeDisabled();
+    // Nazwa dostępna = treść pola pomiaru (happy-dom dokleja spacje wokół linku).
+    expect(box).toHaveAccessibleName(/^Zgadzam się na pomiar otwarć i kliknięć/);
+    expect(document.querySelector('[data-consent="email_measurement"]')?.textContent).toBe(
+      measurementConsentPlain("pl"),
+    );
+    const [newsletter] = consentBoxes();
+    // Kolejność w dokumencie: newsletter, potem pomiar.
+    expect(
+      newsletter.compareDocumentPosition(box as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(newsletter);
+    expect(measurementBox()).not.toBeDisabled();
+  });
+
+  it("odznaczenie newslettera czyści i wyłącza pole pomiaru", () => {
+    renderForm();
+    const [newsletter] = consentBoxes();
+    fireEvent.click(newsletter);
+    fireEvent.click(measurementBox() as HTMLElement);
+    expect(measurementBox()).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(newsletter);
+    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
+    expect(measurementBox()).toBeDisabled();
+  });
+
+  it("bez zaznaczenia pola ładunek nie ma pozycji pomiaru", async () => {
+    renderForm();
+    fillMinimal();
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const keys = h.subscribe.mock.calls[0][0].data.consents.map((entry) => entry.key);
+    expect(keys).not.toContain("email_measurement_declared");
+    expect(keys).not.toContain("email_measurement");
+  });
+
+  it("zaznaczone pole dokłada deklarację z wersją z rejestru POZA migawkami (bez skrótu sha256)", async () => {
+    renderForm();
+    fillMinimal();
+    fireEvent.click(measurementBox() as HTMLElement);
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const { consents } = h.subscribe.mock.calls[0][0].data;
+    const declared = consents.filter((entry) => entry.key === "email_measurement_declared");
+    expect(declared).toEqual([
+      {
+        key: "email_measurement_declared",
+        text: measurementConsentHtml("pl"),
+        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
+        given: true,
+        lang: "pl",
+        timestamp: HUMAN_AT.toISOString(),
+      },
+    ]);
+    // Zgoda na newsletter w wersji (b), a w metadanych konta ten sam ładunek.
+    expect(consents.find((entry) => entry.key === "newsletter")?.version).toBe(
+      NEWSLETTER_CONSENT_VERSION,
+    );
+    expect(h.signUp.mock.calls[0][0].options.data.signup_consents).toEqual(consents);
+  });
+
+  it("własna etykieta newslettera (migawka) też niesie deklarację z wersją pomiaru", async () => {
+    renderForm({
+      settings: settings({
+        popup_fields: fieldsWith({ key: "newsletter_optin", label_pl: "Chcę dostawać analizy" }),
+      }),
+    });
+    fillMinimal();
+    fireEvent.click(measurementBox() as HTMLElement);
+    fireEvent.click(consentBoxes()[1]);
+    actLikeHuman();
+    await submit();
+
+    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
+    const { consents } = h.subscribe.mock.calls[0][0].data;
+    expect(consents.find((entry) => entry.key === "newsletter")?.version).toMatch(/^sha256:/);
+    expect(consents.find((entry) => entry.key === "email_measurement_declared")?.version).toBe(
+      EMAIL_MEASUREMENT_CONSENT_VERSION,
+    );
+  });
+
+  it("wyłączony opt-in newslettera: pola pomiaru nie ma", () => {
+    renderForm({
+      settings: settings({
+        popup_fields: fieldsWith({ key: "newsletter_optin", enabled: false }),
+      }),
+    });
+    expect(measurementBox()).toBeNull();
+  });
+
+  it.each(["light", "dark"] as const)(
+    "brak naruszeń axe z polem pomiaru (motyw %s)",
+    async (theme) => {
+      vi.useRealTimers();
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        const { container } = renderForm();
+        fireEvent.click(consentBoxes()[0]);
+        const violations = await axeViolations(container);
+        expect(violations, summarize(violations)).toEqual([]);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

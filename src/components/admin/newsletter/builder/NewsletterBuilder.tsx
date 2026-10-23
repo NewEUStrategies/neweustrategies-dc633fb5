@@ -66,6 +66,8 @@ import { WidgetLibrary } from "./WidgetLibrary";
 import { BuilderCanvas } from "./BuilderCanvas";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { WidgetPreview } from "./WidgetPreview";
+import { NlDocMeasurementConsent } from "@/components/newsletter/NlDocMeasurementConsent";
+import { nlDocMeasurementSectionIndex } from "@/components/newsletter/nlDocMeasurement";
 
 const uid = (): string => {
   try {
@@ -448,6 +450,9 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
               >
                 {doc.sections.map((section, sIdx) => {
                   const isSelected = selectedSectionId === section.id;
+                  // Podgląd osobnego pola zgody na pomiar (I9d-Y2b, R1.17): ten
+                  // sam wiersz i to samo miejsce co w formularzu publicznym.
+                  const showsMeasurement = sIdx === nlDocMeasurementSectionIndex(doc.sections);
                   const st = section.style ?? {};
                   return (
                     <div key={section.id} className="space-y-2">
@@ -571,6 +576,19 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                                   onRemove={removeWidget}
                                   onDuplicate={duplicateWidget}
                                 />
+                                {showsMeasurement && (
+                                  <div
+                                    data-builder-measurement-preview=""
+                                    style={{ marginTop: `${st.gap ?? 12}px` }}
+                                  >
+                                    <NlDocMeasurementConsent lang={lang} checked={false} />
+                                    <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                      {lang === "pl"
+                                        ? "Pole dodawane automatycznie - osobna zgoda na pomiar"
+                                        : "Added automatically - separate measurement consent"}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                               {splitMedia && section.media!.position === "right" && (
                                 <div

@@ -649,7 +649,7 @@ describe("zgoda newsletterowa doklejana zawsze", () => {
     typeInto("email", "jan@example.pl");
     await submitAndSettle();
 
-    // Jedno źródło treści domyślnej (I9d-Y2): treść z pomiarem i jej wersja.
+    // Jedno źródło treści domyślnej (I9d-Y2b): treść (b, bez pomiaru) i jej wersja.
     expect(lastPayload().consents[0]).toMatchObject({
       text: newsletterConsentHtml("pl"),
       version: NEWSLETTER_CONSENT_VERSION,
@@ -670,7 +670,7 @@ describe("zgoda newsletterowa doklejana zawsze", () => {
     });
   });
 
-  it("tekst polityki admina zostaje i nie dostaje wersji z pomiarem", async () => {
+  it("tekst polityki admina zostaje i nie dostaje wersji z rejestru", async () => {
     mount(makeFormDoc(), {
       settings: makeSettings({ policy_html_pl: "Zgoda PL", policy_html_en: null }),
     });

@@ -136,6 +136,27 @@ describe("MeasurementConsentField", () => {
     expect(box()).toHaveAttribute("id", "nl-measurement");
   });
 
+  it("styl i znacznik edycji wiersza od hosta (rozmiar `consentSize` widżetu)", () => {
+    const { container } = render(
+      <MeasurementConsentField
+        lang="pl"
+        checked={false}
+        onCheckedChange={() => {}}
+        className={ROW}
+        style={{ fontSize: "13px" }}
+        editTarget="consentSize"
+      />,
+    );
+    const label = container.querySelector("label");
+    expect(label?.style.fontSize).toBe("13px");
+    expect(label).toHaveAttribute("data-edit-target", "consentSize");
+    // Bez tych właściwości wiersz nie ma ani stylu, ani znacznika.
+    cleanup();
+    const plain = render(<Host />);
+    expect(plain.container.querySelector("label")?.getAttribute("style")).toBeNull();
+    expect(plain.container.querySelector("label")).not.toHaveAttribute("data-edit-target");
+  });
+
   it("jasny i ciemny motyw: ten sam znacznik, bez naruszeń axe", async () => {
     const light = render(<Host />);
     const lightHtml = light.container.innerHTML;

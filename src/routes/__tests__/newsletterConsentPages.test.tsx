@@ -11,7 +11,7 @@
 // Asercje celują w KLUCZE i18n (atrapa `t` zwraca klucz), nie w treść - dzięki
 // temu zmiana copy nie psuje testu, a zmiana zachowania psuje.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({ requestUrl: "" }));
 
@@ -145,6 +145,49 @@ describe("strona potwierdzenia zapisu", () => {
 
     expect(await screen.findByText("newsletter.confirmPage.errorTitle")).toBeTruthy();
     expect(screen.getByText("offline")).toBeTruthy();
+  });
+
+  // --- Karta zgody na pomiar (I9d-Y2b) -------------------------------------
+  // Karta (leniwa, słownik nakładki pomiaru - napisy prawdziwe, nie klucze)
+  // pojawia się WYŁĄCZNIE przy `measurement: "offer"` z poprawnym językiem.
+  const CARD_TITLE = {
+    pl: "Zgoda na pomiar otwarć i kliknięć",
+    en: "Consent to measuring opens and clicks",
+  };
+
+  it.each([
+    [{ ok: true, measurement: "offer", measurementLang: "pl" }, "pl"],
+    [{ ok: true, already: true, measurement: "offer", measurementLang: "en" }, "en"],
+  ] as const)("karta pomiaru przy `offer` (%j)", async (body, lang) => {
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await mount("?token=abcdef0123456789");
+
+    expect(await screen.findByRole("heading", { name: CARD_TITLE[lang] })).toBeTruthy();
+    // Wejście na stronę nie zapisuje decyzji - tylko GET potwierdzenia.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]).not.toMatchObject({ method: "POST" });
+  });
+
+  it.each([
+    { ok: true },
+    { ok: true, measurement: "none", measurementLang: "pl" },
+    { ok: true, measurement: "granted", measurementLang: "pl" },
+    { ok: true, measurement: "declined", measurementLang: "pl" },
+    { ok: true, measurement: "offer" },
+    { ok: true, measurement: "offer", measurementLang: "de" },
+    { ok: false, error: "expired", measurement: "offer", measurementLang: "pl" },
+  ])("bez karty pomiaru przy %j", async (body) => {
+    fetchMock.mockResolvedValue(jsonResponse(body, body.ok ? 200 : 410));
+    await mount();
+
+    await screen.findByText(
+      body.ok ? "newsletter.confirmPage.okTitle" : "newsletter.confirmPage.expiredTitle",
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("heading", { name: CARD_TITLE.pl })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("strona jest wyłączona z indeksowania (token w adresie)", async () => {

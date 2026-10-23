@@ -1,13 +1,19 @@
-// i18n strony linków pomiaru otwarć i kliknięć (/newsletter/measurement,
-// I9d-Y2): „Nie mierz moich otwarć i kliknięć" (stopka maili, preferencje)
-// i „Zgadzam się na pomiar" (jednorazowa prośba z panelu newslettera) - PL/EN.
+// i18n decyzji o pomiarze otwarć i kliknięć - PL/EN (I9d-Y2, I9d-Y2b):
+//   * strona linków `/newsletter/measurement`: „Nie mierz moich otwarć
+//     i kliknięć" (stopka maili, preferencje) i „Zgadzam się na pomiar"
+//     (prośba z panelu newslettera albo po zapisie z zaznaczonym polem
+//     pomiaru bez double opt-in);
+//   * karta decyzji na stronie potwierdzenia double opt-in
+//     (`NewsletterConfirmMeasurementCard`: „Zgadzam się" / „Nie zgadzam się").
+// Oba ekrany składa wspólny panel `MeasurementDecisionPanel` - jeden słownik,
+// jedna geometria.
 //
-// Nakładka ładowana WYŁĄCZNIE z chunku komponentu strony: plik trasy woła
-// `ensureI18n()` tylko w komponencie, więc automatyczny podział kodu wynosi
-// import do chunku strony - napisy nie trafiają do słownika rdzenia ani na
-// ścieżkę bootowania żadnej innej strony czytelnika (D-08). Dwa zdania
-// nagłówka dokumentu (`head()` jedzie w chunku startowym) żyją osobno:
-// `i18n-newsletter-measurement-head.ts`.
+// Nakładka ładowana WYŁĄCZNIE z chunku komponentu strony albo leniwej karty:
+// plik trasy woła `ensureI18n()` tylko w komponencie, a karta DOI jest
+// `React.lazy`, więc podział kodu wynosi import do tych chunków - napisy nie
+// trafiają do słownika rdzenia ani na ścieżkę bootowania żadnej innej strony
+// czytelnika (D-08). Dwa zdania nagłówka dokumentu (`head()` jedzie
+// w chunku startowym) żyją osobno: `i18n-newsletter-measurement-head.ts`.
 //
 // UWAGA NA ARKUSZ CSS. Pliki `src/lib/i18n-*.ts` skanuje generator arkusza
 // PUBLICZNEGO - angielskie słowo równe klasie narzędziowej Tailwinda dokłada
@@ -27,6 +33,9 @@ const pl = {
     grantNote:
       "Zgodę możesz wycofać w każdej chwili linkiem „Nie mierz moich otwarć i kliknięć” w stopce każdej wiadomości. Bez tej zgody newsletter przychodzi dalej - po prostu bez pomiaru.",
     grantBtn: "Zgadzam się na pomiar",
+    doiLead:
+      "W formularzu zaznaczono pole zgody na pomiar. Zdecyduj, czy ją potwierdzasz - treść zgody, którą zapiszemy:",
+    declineBtn: "Nie zgadzam się",
     working: "Zapisujemy…",
     withdrawnTitle: "Pomiar wyłączony",
     withdrawnBody:
@@ -39,6 +48,10 @@ const pl = {
       "Możesz ją wycofać w każdej chwili linkiem „Nie mierz moich otwarć i kliknięć” w stopce wiadomości.",
     alreadyOnTitle: "Zgoda już zapisana",
     alreadyOnBody: "Ten link został już użyty - Twoja decyzja jest zapisana.",
+    declinedTitle: "Zapisaliśmy Twoją decyzję",
+    declinedBody: "Pomiar otwarć i kliknięć pozostaje wyłączony. Newsletter otrzymujesz dalej.",
+    alreadyDecidedTitle: "Decyzja już zapisana",
+    alreadyDecidedBody: "Twoja decyzja w sprawie pomiaru jest już zapisana.",
     inactiveTitle: "Subskrypcja nieaktywna",
     inactiveBody:
       "Ten adres nie jest zapisany do newslettera, więc nie wysyłamy do niego wiadomości.",
@@ -69,6 +82,9 @@ const en: typeof pl = {
     grantNote:
       "You can withdraw this consent at any time using the “Don't measure my opens and clicks” link at the bottom of every email. Without it, the newsletter keeps coming - just without measurement.",
     grantBtn: "I agree to the measurement",
+    doiLead:
+      "The measurement consent box was ticked in the form. Decide whether you confirm it - the consent wording we will record:",
+    declineBtn: "I do not agree",
     working: "Saving…",
     withdrawnTitle: "Measurement switched off",
     withdrawnBody:
@@ -81,6 +97,10 @@ const en: typeof pl = {
       "You can withdraw it at any time using the “Don't measure my opens and clicks” link at the bottom of our emails.",
     alreadyOnTitle: "Consent already recorded",
     alreadyOnBody: "This link has already been used - your decision is saved.",
+    declinedTitle: "Your decision is saved",
+    declinedBody: "Measuring opens and clicks stays off. You keep receiving the newsletter.",
+    alreadyDecidedTitle: "Decision already saved",
+    alreadyDecidedBody: "Your decision on measurement is already saved.",
     inactiveTitle: "Subscription not active",
     inactiveBody: "This address is not subscribed to the newsletter, so we send it no emails.",
     goneTitle: "Address not found",

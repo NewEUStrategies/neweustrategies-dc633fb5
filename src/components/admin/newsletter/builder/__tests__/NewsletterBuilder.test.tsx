@@ -21,6 +21,7 @@ import { supabaseFromStub, ok } from "@/test/supabaseChain";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { makeWidget } from "@/lib/newsletter-builder/defaults";
 import type { NlDoc, NlWidget } from "@/lib/newsletter-builder/types";
+import { measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
 
 const h = vi.hoisted(() => ({
   from: (_table: string): unknown => ({}),
@@ -918,5 +919,57 @@ describe("identyfikatory kopii", () => {
         configurable: true,
       });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("podgląd osobnego pola zgody na pomiar (I9d-Y2b, R1.17)", () => {
+  const preview = () => document.querySelector<HTMLElement>("[data-builder-measurement-preview]");
+
+  it("pole stoi na kanwie na końcu sekcji z przyciskiem - tam, gdzie zobaczy je odbiorca", async () => {
+    await mounted({
+      doc: storedDoc({
+        sections: [
+          {
+            id: "sekcja-1",
+            widgets: [
+              { ...makeWidget("field.email"), id: "w-email" },
+              { ...makeWidget("submit"), id: "w-submit" },
+            ] as NlWidget[],
+          },
+          {
+            id: "sekcja-2",
+            widgets: [
+              { ...makeWidget("heading"), id: "w-stopka", text: { pl: "Stopka", en: "Footer" } },
+            ] as NlWidget[],
+          },
+        ],
+      }),
+    });
+
+    const row = preview();
+    expect(row).not.toBeNull();
+    expect(row?.textContent).toContain(measurementConsentPlain("pl"));
+    expect(row?.textContent).toContain("Pole dodawane automatycznie");
+    // Tylko do odczytu, niezaznaczone - podgląd, nie formularz.
+    const box = row?.querySelector<HTMLInputElement>("input[type='checkbox']");
+    expect(box?.checked).toBe(false);
+    expect(box?.readOnly).toBe(true);
+    // Przed sekcją 2, czyli na końcu sekcji 1 (z przyciskiem).
+    expect(
+      (row as HTMLElement).compareDocumentPosition(screen.getByText("Stopka")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(document.querySelectorAll("[data-builder-measurement-preview]")).toHaveLength(1);
+  });
+
+  it("dokument bez przycisku: podgląd na końcu ostatniej sekcji", async () => {
+    await mounted();
+    const row = preview();
+    expect(row).not.toBeNull();
+    expect(
+      screen.getByText("Tytuł").compareDocumentPosition(row as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

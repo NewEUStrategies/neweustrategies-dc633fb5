@@ -548,9 +548,11 @@ describe("NewsletterPopup: zamykanie ma trzy drogi i jest zapamiętywane", () =>
 
     const email = dialog().querySelector<HTMLInputElement>('input[type="email"]');
     const passwords = Array.from(dialog().querySelectorAll<HTMLInputElement>("input[minlength]"));
+    // Osobne pole pomiaru (I9d-Y2b) stoi między newsletterem a prywatnością -
+    // tu liczą się wyłącznie zgody newslettera i prywatności.
     const [newsletter, privacy] = Array.from(
       dialog().querySelectorAll<HTMLElement>('[role="checkbox"]'),
-    );
+    ).filter((el) => !el.closest('[data-consent="email_measurement"]'));
     expect(email).not.toBeNull();
 
     fireEvent.change(email as HTMLInputElement, { target: { value: "jan@firma.pl" } });
