@@ -14,13 +14,44 @@ import type { BlockRenderer } from "./context";
 import { bool, num, sanitize, str, strList } from "./data";
 import { blockPaletteVar } from "@/lib/blocks/variants";
 
-/** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
+/**
+ * Treść bez tekstu i mediów (białe znaki, `&nbsp;`, `<br>`, puste znaczniki).
+ * Taki blok dostaje `data-block-empty`, a widok artykułu go chowa - pusty
+ * akapit z importu nie może dokładać drugiego odstępu między akapitami.
+ */
+const MEDIA_TAG = /<(?:img|picture|video|audio|iframe|svg|canvas|object|embed|hr|input|math)\b/i;
+function isBlankHtml(html: string): boolean {
+  if (MEDIA_TAG.test(html)) return false;
+  return (
+    html.replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;|&#xa0;|[\s\u00a0\u200b\ufeff]/gi, "") === ""
+  );
+}
+
+/**
+ * Blok `html` z tabelą, obrazem albo osadzeniem może zająć całą kolumnę
+ * treści; blok `html` z samym tekstem trzyma miarę tekstu wpisu.
+ */
+const WIDE_TAG = /<(?:table|figure|img|picture|video|iframe|canvas|object|embed)\b/i;
+
+/**
+ * Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami).
+ * `div`, nie `p`: treść bywa blokowa (import WordPressa), a `<p>` z elementem
+ * blokowym w środku łamie zagnieżdżenie i hydratację. `data-block-type` niesie
+ * typ bloku dla reguły odstępów (`--cms-paragraph-spacing`).
+ */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
   // Pre-pass sanityzuje i rozwija `[fn]`; fallback zachowuje sanityzację,
   // gdy mapa nie ma wpisu (blok w kontenerze nieobjętym rekurencją
   // `precomputeFootnotes`). Bliźniak: molecules.tsx::renderSpoiler.
   const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? sanitize(str(block.data, "html")));
-  return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
+  return (
+    <div
+      className={cls}
+      data-block-type="paragraph"
+      data-block-empty={isBlankHtml(safe) ? "" : undefined}
+      dangerouslySetInnerHTML={{ __html: safe }}
+    />
+  );
 };
 
 /**
@@ -293,7 +324,15 @@ export const renderHtml: BlockRenderer = ({ block, fnHtml, cls }) => {
   // gdy mapa nie ma wpisu (blok w kontenerze nieobjętym rekurencją
   // `precomputeFootnotes`). Bliźniak: molecules.tsx::renderSpoiler.
   const safe = decorateCmsStatusIcons(fnHtml.get(block.id) ?? sanitize(str(block.data, "html")));
-  return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
+  return (
+    <div
+      className={cls}
+      data-block-type="html"
+      data-block-wide={WIDE_TAG.test(safe) ? "" : undefined}
+      data-block-empty={isBlankHtml(safe) ? "" : undefined}
+      dangerouslySetInnerHTML={{ __html: safe }}
+    />
+  );
 };
 
 /** Separator: linia, kropki lub gradientowa linia. */

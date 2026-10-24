@@ -16,6 +16,21 @@ function num(px: number | null | undefined, fallback: string) {
 }
 
 /**
+ * Odstęp między akapitami treści wpisu (`data-reading="article"` na
+ * `.article-body`, `$.tsx`) - ta sama zmienna `--cms-paragraph-spacing` co
+ * builder wyżej, więc jedna wartość z /admin/content-area rządzi oboma.
+ * `data-block-type` niosą tylko bloki `paragraph` i `html` (`div` bez
+ * marginesu, `renderer/atoms.tsx`), więc odstęp stoi między sąsiednimi blokami
+ * tekstu; pusty blok (`data-block-empty`: białe znaki, `&nbsp;`, `<br>`) znika
+ * i nie dokłada drugiego odstępu. Widget `text` buildera: preflight zeruje
+ * marginesy `<p>`. Komentarze CSS zostają tutaj, nie w szablonie - bramka wagi
+ * dokumentu liczy bajty komentarzy w `<style>` (`inlineCssCommentBytes`).
+ */
+const ARTICLE_SPACING_CSS = `[data-reading="article"] .blocks-content > [data-block-type] + [data-block-type] { margin-top: var(--cms-paragraph-spacing); }
+[data-reading="article"] .blocks-content > [data-block-empty] { display: none; }
+[data-reading="article"] .cms-elementor-richtext > p:not(:last-child) { margin-bottom: var(--cms-paragraph-spacing); }`;
+
+/**
  * Budowa CSS wydzielona z ciała komponentu: `useMemo` przelicza ją tylko przy
  * zmianie wiersza ustawień, a nie przy każdym renderze korzenia aplikacji.
  */
@@ -59,7 +74,8 @@ function contentAreaCss(s: PostLayoutSettings): string {
 /* Sync builder canvas: Enter in Gutenberg tworzy nowy blok akapitu - odstęp
    między kolejnymi akapitami w edytorze musi być IDENTYCZNY z odstępem na
    froncie (var: paragraph_spacing_rem z /admin/content-area). */
-[data-builder-renderer] { --cms-paragraph-spacing: ${s.paragraph_spacing_rem || 1.5}rem; }
+[data-builder-renderer], [data-reading="article"] { --cms-paragraph-spacing: ${s.paragraph_spacing_rem || 1.5}rem; }
+${ARTICLE_SPACING_CSS}
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="paragraph"],
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="list"],
 [data-builder-renderer] > [data-block-type="paragraph"] + [data-block-type="html"] {

@@ -36,6 +36,8 @@ function renderLayout(
     sidebarOverride?: boolean | null;
     coverViewTransitionId?: string;
     categoryBadges?: ReactNode;
+    excerpt?: string | null;
+    bodyStartText?: string;
   } = {},
 ) {
   const settings = { ...defaultPostLayoutSettings(), ...overrides };
@@ -299,8 +301,11 @@ describe("PostLayoutRenderer", () => {
       expect(preset.contentMaxWidth).toBe(BOXED_COVER_MAX_WIDTH);
       const { container } = renderLayout("layout-2");
       const boxed = `${BOXED_COVER_MAX_WIDTH}px`;
-      // Header, boxed cover frame and content column share one narrow measure.
-      expect(articleHeader(container)!.style.maxWidth).toBe(boxed);
+      // Header, boxed cover frame and content column share one narrow measure;
+      // the header also never exceeds the article text column.
+      expect(articleHeader(container)!.style.maxWidth).toBe(
+        `min(${boxed}, var(--article-measure))`,
+      );
       const coverFrame = container.querySelector("img")!.closest("div")!.parentElement!;
       expect(coverFrame.style.maxWidth).toBe(boxed);
       const content = container.querySelector('[data-testid="content"]')!
@@ -403,6 +408,45 @@ describe("PostLayoutRenderer", () => {
       const content = container.querySelector('[data-testid="content"]')!
         .parentElement as HTMLElement;
       expect(content.style.maxWidth).toBe(`${settings.has_sidebar_max_width}px`);
+    });
+  });
+
+  describe("lead (excerptToLead)", () => {
+    const AUTO =
+      "Pierwsza wojna światowa zakończyła niepodzielnie panowanie brytyjskiego funta (GBP). " +
+      "Stany Zjednoczone pożyczyły Wielkiej Brytanii 5 mld USD oraz Francji 4 mld USD (30 mld USD). " +
+      "Niemcy natomiast były zadłużone [&hellip;]";
+    const lead = (c: HTMLElement) => c.querySelector(".header-excerpt-typography");
+
+    it("urwana zajawka WordPressa kończy się pełnym zdaniem", () => {
+      const { container } = renderLayout("layout-1", {}, { excerpt: AUTO });
+      expect(lead(container)!.textContent!.endsWith("(30 mld USD).")).toBe(true);
+      expect(lead(container)!.textContent).not.toContain("Niemcy natomiast");
+    });
+
+    it("lead powtarzający początek treści nie jest renderowany", () => {
+      const body = AUTO.replace(" [&hellip;]", " na 47 mld USD. Dalszy tekst.");
+      const { container } = renderLayout("layout-1", {}, { excerpt: AUTO, bodyStartText: body });
+      expect(lead(container)).toBeNull();
+      // Tytuł i reszta nagłówka zostają.
+      expect(container.querySelector("h1")!.textContent).toBe("Tytuł wpisu");
+    });
+
+    it("ręczna zajawka bez zmian, od lewej także przy center_header", () => {
+      const { container } = renderLayout(
+        "layout-1",
+        { center_header: true },
+        { bodyStartText: "Zupełnie inny początek treści wpisu, bez związku z zajawką." },
+      );
+      expect(articleHeader(container)!.className).toContain("text-center");
+      expect(lead(container)!.textContent).toBe("Krótki wstęp do artykułu.");
+      expect(lead(container)!.className).toContain("text-start");
+    });
+
+    it("overlay (layout-4) korzysta z tego samego pomocnika", () => {
+      const { container } = renderLayout("layout-4", {}, { excerpt: AUTO });
+      const overlay = container.querySelector(".overlay-excerpt-typography")!;
+      expect(overlay.textContent!.endsWith("(30 mld USD).")).toBe(true);
     });
   });
 

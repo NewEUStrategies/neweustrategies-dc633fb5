@@ -154,9 +154,25 @@ function mapStandalone(tag: string, openAttrs: string): Block | null {
   };
 }
 
+/** Akapit złożony wyłącznie z jednego `<iframe src>` (białe znaki i `<br>` pomijane). */
+const LONE_IFRAME =
+  /^(?:<p\b[^>]*>)?(?:\s|&nbsp;|<br\s*\/?>)*<iframe\b([^>]*)\/?>(?:\s*<\/iframe\s*>)?(?:\s|&nbsp;|<br\s*\/?>)*(?:<\/p>)?$/i;
+
+/**
+ * Blok `embed` z akapitu, którego całą treścią jest `<iframe>` (shortcode
+ * osadzenia po `stripFoxizShortcodes`). Bez tego `<p><iframe></p>` dawał pusty
+ * akapit albo akapit, z którego sanitizer usuwa osadzenie.
+ */
+export function standaloneIframeBlock(html: string): Block | null {
+  const m = LONE_IFRAME.exec(html.trim());
+  return m ? mapStandalone("iframe", m[1]) : null;
+}
+
 function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
   const lower = tag.toLowerCase();
   if (lower === "p") {
+    const embed = standaloneIframeBlock(inner);
+    if (embed) return embed;
     if (!stripTags(inner)) return null;
     return { id: newBlockId(), type: "paragraph", data: { html: inner.trim() } };
   }

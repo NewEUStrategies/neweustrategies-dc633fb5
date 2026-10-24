@@ -13,7 +13,8 @@ import { useTranslation } from "react-i18next";
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { errorCopy } from "@/lib/errorCopy";
-import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
+import { excerptToLead } from "@/lib/text/excerptToLead";
+import { bodyStartText } from "@/lib/text/bodyStartText";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { preferCanonicalBio } from "@/lib/profile/canonicalBio";
@@ -1163,9 +1164,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
   const isPost = data.kind === "post";
   const post = isPost ? (it as PostData) : null;
-  const excerpt = post
-    ? (cleanExcerpt(lang === "en" ? post.excerpt_en : post.excerpt_pl) ?? null)
-    : null;
+  // Surowa zajawka: lead nagłówka (`excerptToLead` w PostLayoutRenderer) musi
+  // widzieć znacznik skrócenia WordPressa (`[&hellip;]`), który `cleanExcerpt`
+  // zdejmuje.
+  const rawExcerpt = post ? ((lang === "en" ? post.excerpt_en : post.excerpt_pl) ?? null) : null;
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
@@ -1339,6 +1341,17 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const doc = prepared.builderDoc;
   const processedHtml = prepared.html;
   const notes = prepared.footnotes;
+  // Początek tekstu treści - lead, który go powtarza (automatyczna zajawka
+  // WordPressa), nie jest renderowany w nagłówku. Tylko z treści dostarczonej
+  // w SSR (`!needsUnlock` => `body` to `ssrBody`): odblokowanie po hydratacji
+  // nie może zdjąć leadu i przesunąć nagłówka.
+  const bodyStart = useMemo(
+    () =>
+      isPost && !needsUnlock
+        ? bodyStartText({ editor: it.editor, builderDoc: rawDoc, blocksDoc, html: rawHtml, lang })
+        : "",
+    [isPost, needsUnlock, it.editor, rawDoc, blocksDoc, rawHtml, lang],
+  );
   const articleRef = useRef<HTMLDivElement>(null);
 
   // Custom meta definitions (publicly readable, cached).
@@ -1530,13 +1543,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   })();
 
   const contentBlock = (
-    <div ref={articleRef} className="article-body">
+    // `data-reading` tylko dla wpisów: kolumna tekstu i typografia artykułu
+    // (styles.css, „Kolumna tekstu wpisu”); strony renderują ten sam blok bez niej.
+    <div ref={articleRef} className="article-body" data-reading={isPost ? "article" : undefined}>
       {bannerVariant && <GiftBanner variant={bannerVariant} />}
       {accessRule && showPaywall ? (
         <Paywall
           rule={accessRule}
           lang={lang}
-          fallbackText={excerpt}
+          fallbackText={excerptToLead(rawExcerpt).text ?? null}
           onPasswordVerify={pwdUnlock.verify}
           passwordVerifying={pwdUnlock.loading}
           meterSettings={meterSettings}
@@ -1673,7 +1688,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             layoutId={layoutId}
             settings={merged}
             title={title}
-            excerpt={excerpt}
+            excerpt={rawExcerpt}
+            bodyStartText={bodyStart}
             coverImageUrl={it.cover_image_url}
             coverViewTransitionId={it.id}
             // Para z `lcpOwner={!coverAboveBody}` treści wyżej: dokładnie jeden

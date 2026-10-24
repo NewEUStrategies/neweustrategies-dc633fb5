@@ -38,6 +38,7 @@ export type EmbedProvider =
   | "bluesky"
   | "threads"
   | "mastodon"
+  | "infogram"
   | "unknown";
 
 export interface ParsedEmbed {
@@ -47,6 +48,9 @@ export interface ParsedEmbed {
   /** Original input URL, always preserved for lossless re-export. */
   sourceUrl: string;
 }
+
+/** Identyfikator wykresu Infogram (UUID albo krótki identyfikator). */
+export const INFOGRAM_ID = /^[A-Za-z0-9_-]{8,64}$/;
 
 function safeUrl(raw: string): URL | null {
   try {
@@ -296,6 +300,19 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
       };
   }
 
+  // ---- Infogram (e.infogram.com/{id}, infogram.com/{id}) ----
+  // Identyfikator wykresu trafia do adresu iframe tylko po walidacji wzorca;
+  // reszta ścieżki i zapytania nie przechodzi do osadzenia.
+  if (host === "e.infogram.com" || host === "infogram.com") {
+    const id = u.pathname.split("/").filter(Boolean)[0] ?? "";
+    if (INFOGRAM_ID.test(id))
+      return {
+        provider: "infogram",
+        embedUrl: `https://e.infogram.com/${id}?src=embed`,
+        sourceUrl,
+      };
+  }
+
   // ---- Bluesky / Threads / Mastodon-ish (no canonical iframe; preserve) ----
   if (host === "bsky.app") return { provider: "bluesky", embedUrl: sourceUrl, sourceUrl };
   if (host === "threads.net" || host === "threads.com")
@@ -330,6 +347,7 @@ const IFRAME_PROVIDERS = new Set<EmbedProvider>([
   "codesandbox",
   "reddit",
   "linkedin",
+  "infogram",
 ]);
 
 export function isIframeEmbed(parsed: ParsedEmbed | null | undefined): boolean {

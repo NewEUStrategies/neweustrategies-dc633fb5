@@ -61,7 +61,6 @@ const emptyTables = new Set([
   "ad_zone_assignments",
   "content_access_public",
   "newsletter_settings",
-  "post_layout_settings",
   // Valid empty catalogs for the cross-platform cold-entry smoke test.
   // Route tests separately exercise populated catalogs and failure recovery.
   "research_programs",
@@ -99,6 +98,30 @@ const emptyTables = new Set([
  * nie wołają żadnego z nich (ślad żądań fixture 2026-10-17), więc ich pomiar się nie zmienia.
  */
 const DOCUMENT_WEIGHT_CASE = "document-weight";
+/**
+ * WPIS Z TREŚCIĄ - WYŁĄCZNIE DLA SPECU KOLUMNY TEKSTU (`e2e/article-reading.boot-home.spec.ts`).
+ *
+ * Ten sam adres co wpis bramki wagi (`posts[0]`, `/blog/fixture-2`), ale z treścią bloków
+ * wpisu z produkcji, automatyczną zajawką WordPressa i ustawieniami układu produkcji
+ * (`e2e/fixtures/article-reading-post.json`). Tylko w przypadku `artifact-boot` (serwer
+ * `playwright.artifact.config.ts`): bramka wagi (`document-weight`) mierzy wpis jak dotąd,
+ * bez treści, a pozostałe przypadki widzą `Unrecorded…` jak przed zmianą. Specy `/`
+ * w `artifact-boot` nie wołają `resolve_path` ani `get_entity_content` dla wpisu, a wiersz
+ * `post_layout_settings` różni się od domyślnych wyłącznie szerokościami kolumny wpisu.
+ */
+const ARTICLE_READING_CASE = "artifact-boot";
+interface ArticleReadingFixture {
+  post: Row;
+  blocks_pl: unknown;
+  post_layout_settings: Row;
+}
+const articleReading = JSON.parse(
+  readFileSync(new URL("../../e2e/fixtures/article-reading-post.json", import.meta.url), "utf8"),
+) as ArticleReadingFixture;
+const isArticleReadingCase = () => process.env.NES_PERFORMANCE_CASE === ARTICLE_READING_CASE;
+/** Wpis pod `DOCUMENT_WEIGHT_POST_PATH` istnieje w bramce wagi i w specu kolumny tekstu. */
+const servesFixturePost = () =>
+  process.env.NES_PERFORMANCE_CASE === DOCUMENT_WEIGHT_CASE || isArticleReadingCase();
 const documentWeightPost = homeFixture.posts[0];
 const documentWeightSection = {
   id: "00000000-0000-0000-0000-0000000000b1",
@@ -112,13 +135,15 @@ export const DOCUMENT_WEIGHT_POST_PATH = `/${documentWeightSection.full_path}/${
 
 /** Odpowiedź RPC strony wpisu bramki wagi; poza jej przypadkiem - `Unrecorded…`, jak dotąd. */
 function documentWeightPostRpc(name: string, input: Record<string, unknown>): unknown {
-  if (process.env.NES_PERFORMANCE_CASE !== DOCUMENT_WEIGHT_CASE)
-    throw new Error(`Unrecorded performance fixture RPC: ${name}`);
+  if (!servesFixturePost()) throw new Error(`Unrecorded performance fixture RPC: ${name}`);
   if (name === "rpc/resolve_path") {
     // Jedyny adres treści `/$` w tym przypadku; każdy inny to czyste 404, nie degradacja.
     const segments = input._segments;
     const hit = Array.isArray(segments) && `/${segments.join("/")}` === DOCUMENT_WEIGHT_POST_PATH;
-    return hit ? [{ page_id: documentWeightSection.id, post_id: documentWeightPost.id }] : [];
+    if (hit) return [{ page_id: documentWeightSection.id, post_id: documentWeightPost.id }];
+    // `artifact-boot`: inne ścieżki rzucają jak przed zmianą (żaden spec `/` ich nie woła).
+    if (isArticleReadingCase()) throw new Error(`Unrecorded performance fixture RPC: ${name}`);
+    return [];
   }
   if (name === "rpc/page_breadcrumbs")
     return input._page_id === documentWeightSection.id ? [documentWeightSection] : [];
@@ -201,7 +226,18 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
         data =
           input._entity_type === "page" && input._entity_id === homeFixture.pages[0].id
             ? homeFixture["home-body"]
-            : [];
+            : isArticleReadingCase() &&
+                input._entity_type === "post" &&
+                input._entity_id === documentWeightPost.id
+              ? [
+                  {
+                    content_pl: null,
+                    content_en: null,
+                    builder_data: null,
+                    blocks_data: { pl: articleReading.blocks_pl },
+                  },
+                ]
+              : [];
         break;
       case "rpc/page_full_path":
         data = "/blog";
@@ -259,12 +295,22 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
         rows = homeFixture.pages;
         break;
       case "posts":
-        rows = homeFixture.posts;
+        // Wiersz wpisu czytany po id (`.maybeSingle()`) w specu kolumny tekstu niesie
+        // pola artykułu (silnik bloków, zajawka WordPressa, punkty); listy - bez zmian.
+        rows =
+          isArticleReadingCase() &&
+          url.searchParams.get("id") === `eq.${String(documentWeightPost.id)}`
+            ? homeFixture.posts.map((post) =>
+                post.id === documentWeightPost.id ? { ...post, ...articleReading.post } : post,
+              )
+            : homeFixture.posts;
+        break;
+      case "post_layout_settings":
+        rows = isArticleReadingCase() ? [articleReading.post_layout_settings] : [];
         break;
       case "post_authors":
         // Wpis bramki wagi bez współautorów (`author_id` też null); poza nią - jak dotąd.
-        if (process.env.NES_PERFORMANCE_CASE !== DOCUMENT_WEIGHT_CASE)
-          throw new Error(`Unrecorded performance fixture table: ${name}`);
+        if (!servesFixturePost()) throw new Error(`Unrecorded performance fixture table: ${name}`);
         rows = [];
         break;
       case "menus":

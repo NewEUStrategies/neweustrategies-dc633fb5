@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
+import { resolveStandaloneShortcode } from "@/lib/content/shortcodes";
 import { XIcon } from "@/components/atoms/XIcon";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import type { BlockRenderer } from "./context";
@@ -176,8 +177,12 @@ export const renderEmbed: BlockRenderer = ({ block, cls }) => {
       </p>
     ) : null;
   }
+  // Infografika nie ma proporcji wideo: ramka 16:9 ucinała wykres albo
+  // zostawiała pusty pas. Stała minimalna wysokość rezerwuje miejsce w SSR
+  // (bez przesunięcia układu po załadowaniu ramki).
+  const frameCls = parsed.provider === "infogram" ? "min-h-[480px]" : "aspect-video";
   return (
-    <div className={`relative aspect-video w-full ${cls}`}>
+    <div className={`relative ${frameCls} w-full ${cls}`}>
       <iframe
         src={parsed.embedUrl}
         title={parsed.provider}
@@ -189,6 +194,35 @@ export const renderEmbed: BlockRenderer = ({ block, cls }) => {
     </div>
   );
 };
+
+/**
+ * Blok `paragraph`/`html`, którego CAŁĄ treścią jest shortcode WordPressa
+ * (wpisy zaimportowane przed obsługą `[infogram]` i cudzysłowów `”…”`):
+ * znany dostawca idzie przez `renderEmbed`, nieznany nie renderuje się
+ * czytelnikowi - w panelu zostaje plakietka z nazwą. Shortcode w środku
+ * zdania nie jest samodzielny, więc blok renderuje się bez zmian.
+ */
+export function withStandaloneShortcode(render: BlockRenderer): BlockRenderer {
+  return (ctx) => {
+    const resolved = resolveStandaloneShortcode(str(ctx.block.data, "html"));
+    if (!resolved) return render(ctx);
+    if (resolved.kind === "embed") {
+      return renderEmbed({
+        ...ctx,
+        block: { ...ctx.block, type: "embed", data: { url: resolved.url } },
+      });
+    }
+    if (!ctx.authoring) return null;
+    return (
+      <p
+        className={`not-prose inline-flex rounded-md border border-dashed border-border px-2 py-1 text-xs text-muted-foreground ${ctx.cls}`}
+        data-unsupported-shortcode={resolved.name}
+      >
+        {ctx.t("blocksUi.unsupportedShortcode", { name: resolved.name })}
+      </p>
+    );
+  };
+}
 
 export const renderVideo: BlockRenderer = ({ block, cls, t }) => {
   const url = safeUrl(str(block.data, "url"), "");

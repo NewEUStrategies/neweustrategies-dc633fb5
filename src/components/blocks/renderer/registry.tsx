@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import type { Block, BlockType } from "@/lib/blocks/types";
 import type { BlockLang, BlockRenderContext, BlockRenderer } from "./context";
 import { alignClass } from "./data";
+import { useBlocksAuthoring } from "./authoring";
 import {
   renderButton,
   renderCallout,
@@ -46,6 +47,7 @@ import {
   renderDetails,
   renderDividerText,
   renderEmbed,
+  withStandaloneShortcode,
   renderFaq,
   renderFeatureGrid,
   renderFile,
@@ -123,11 +125,11 @@ import {
  */
 export const BLOCK_RENDERERS: Record<BlockType, BlockRenderer> = {
   // atoms
-  paragraph: renderParagraph,
+  paragraph: withStandaloneShortcode(renderParagraph),
   heading: renderHeading,
   list: renderList,
   quote: renderQuote,
-  html: renderHtml,
+  html: withStandaloneShortcode(renderHtml),
   separator: renderSeparator,
   callout: renderCallout,
   button: renderButton,
@@ -251,6 +253,7 @@ export function BlockView({
   allBlocks,
 }: BlockViewProps): ReactNode {
   const { t } = useTranslation();
+  const authoring = useBlocksAuthoring();
   if (block.style?.hidden) return null;
   const list = allBlocks ?? [];
   const ctx: BlockRenderContext = {
@@ -261,6 +264,7 @@ export function BlockView({
     postId,
     allBlocks: list,
     t,
+    authoring,
     renderChild: (child) => (
       <BlockView
         key={child.id}

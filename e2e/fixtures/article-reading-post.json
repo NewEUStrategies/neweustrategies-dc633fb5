@@ -1,0 +1,443 @@
+{
+  "_comment": [
+    "Wpis /blog/droga-obalenia-hegemonii-funta-i-ustanowienie-imperium-dolara (opublikowany, pomiar 24.10.2026): treść bloków odtworzona z renderu produkcji (dzieci `article.blocks-content`: akapity, nagłówki H2, lista, akapit z samym shortcode'em `[infogram]` w cudzysłowach WordPressa), zajawka automatyczna WordPressa z `[&hellip;]` (excerpt_pl ze zrzutu docs/performance/2026-10-03-pagespeed-85-95/faza1/html-weight/barrier.json). Dodane na potrzeby testu: pusty akapit z importu (`&nbsp;<br>`) i trzy punkty sekcji „Z tego materiału dowiesz się, że” (takeaways_pl).",
+    "Używa go wyłącznie przypadek `artifact-boot` (scripts/performance/homeFixture.ts) na trasie /blog/fixture-2 - spec e2e/article-reading.boot-home.spec.ts. Bramki wagi dokumentu (`document-weight`) go nie widzą."
+  ],
+  "post": {
+    "editor": "blocks",
+    "excerpt_pl": "Pierwsza wojna światowa zakończyła niepodzielnie panowanie brytyjskiego funta (GBP), a wraz z nią zachwiane zostały struktury parytetu złota. Stany Zjednoczone na potrzeby prowadzenia działań wojennych pożyczyły Wielkiej Brytanii 5 mld USD (całkowite wojenne zadłużenie – 43 mld USD, w przeliczeniu na aktualne wartości) oraz Francji 4 mld USD (30 mld USD). Niemcy natomiast były zadłużone [&hellip;]",
+    "takeaways_pl": [
+      "Po I wojnie światowej Stany Zjednoczone stały się wierzycielem Europy, a Wielka Brytania straciła pozycję największego kredytodawcy.",
+      "Spór o długi wojenne i reparacje osłabił system parytetu złota opartego na funcie.",
+      "Dolar stopniowo przejął rolę waluty rozliczeniowej i rezerwowej świata."
+    ]
+  },
+  "blocks_pl": {
+    "version": 1,
+    "blocks": [
+      {
+        "id": "b001",
+        "type": "paragraph",
+        "data": {
+          "html": "<p>Pierwsza wojna światowa zakończyła niepodzielnie panowanie brytyjskiego funta (GBP), a wraz z nią zachwiane zostały struktury parytetu złota. Stany Zjednoczone na potrzeby prowadzenia działań wojennych pożyczyły Wielkiej Brytanii 5 mld USD (całkowite wojenne zadłużenie – 43 mld USD, w przeliczeniu na aktualne wartości) oraz Francji 4 mld USD (30 mld USD). Niemcy natomiast były zadłużone na 47 mld USD. Kraje europejskie łącznie posiadały zadłużenie sięgające 200 mld USD. Wielka Brytania przez finansowanie działań wojennych i zaciągania pożyczek w Stanach Zjednoczonych przestała być największym kredytodawcą USA, które to stały się wolne od dyktatu Banku Anglii.</p>"
+        }
+      },
+      {
+        "id": "b002",
+        "type": "paragraph",
+        "data": {
+          "html": "USA bezwzględnie nalegały na wypłatę wszystkich należności wobec nich powtarzając, iż <em>„Stany Zjednoczone nie są sprzymierzeńcem, a jedynie współpracownikiem, a długi wojenne europejskich sojuszników są pożyczkami handlowymi”</em>. Z drugiej strony Niemcy nie były skore do natychmiastowego uregulowania reparacji wojennych, co działało na niekorzyść zwycięskich krajów europejskich na wypłacanie zobowiązań w stosunku do Stanów Zjednoczonych."
+        }
+      },
+      {
+        "id": "b003",
+        "type": "paragraph",
+        "data": {
+          "html": "Wobec zagrożenia utraty rezerw złota podczas wojny, które to były wyznacznikiem siły nabywczej waluty, kraje europejskie postanowiły przechowywać je na terenie Stanów Zjednoczonych. Uwarunkowania geograficzne oraz działania aliantów spowodowały, iż dolar amerykański zyskał ogromną siłę nabywczą oraz zaufanie międzynarodowych rynków stwarzając zagrożenie dla Imperium Brytyjskiego oraz wpływów funta."
+        }
+      },
+      {
+        "id": "b-empty",
+        "type": "paragraph",
+        "data": {
+          "html": "&nbsp;<br>"
+        }
+      },
+      {
+        "id": "b004",
+        "type": "paragraph",
+        "data": {
+          "html": "<div class=\"wp-block-columns is-layout-flex wp-container-core-columns-is-layout-8f761849 wp-block-columns-is-layout-flex\">\n<div class=\"wp-block-column is-layout-flow wp-block-column-is-layout-flow\">\n<p class=\"wp-block-paragraph\">Do Stanów Zjednoczonych, posiadających rezerwy złota wyceniane na 2 mld USD, podczas wojny trafiły rezerwy złota krajów europejskich wycenianych na 20 mld USD. Następnie Stany Zjednoczone dokupiły złoto powiększając swoje rezerwy do 4,5 mld USD. Spowodowało to, iż amerykański dolar był pięciokrotnie silniejszy od brytyjskiego funta (rezerwy Wielkiej Brytanii były wyceniane na około 800 mln USD).</p>\n\n\n\n<p class=\"wp-block-paragraph\">Podstawy modelu funkcjonowania systemu parytetu złota w bankowości stworzył Bank Anglii wykorzystując hegemonię Zjednoczonego Królestwa. Obligacje rządowe pełniły rolę zabezpieczenia pod emisję waluty. Poprzez powiększanie długu jakim była emisja obligacji, rząd musiał emitować walutę co doprowadzało do coraz większego transferu kapitału i pogłębiania zadłużenia. „Problemem” w tym systemie jest to, iż akumulacja kapitału w parytecie złota jest dość powolna nie chcąc wywołać zjawiska inflacji. Inflacja w systemie parytetu złota nie jest pożądane ponieważ pochłania ona powstałe odsetki od pożyczki (czyli zarobek banku).</p>\n</div></div>"
+        }
+      },
+      {
+        "id": "b005",
+        "type": "paragraph",
+        "data": {
+          "html": ""
+        }
+      },
+      {
+        "id": "b006",
+        "type": "paragraph",
+        "data": {
+          "html": "Złoto oraz noty krótkoterminowe są kluczowymi aktywami w funkcjonowaniu systemu parytetu złota. Ponieważ złoto charakteryzuje się wysoką płynnością (wymienialnością) i międzynarodowym uznaniem jako waluty to ceny dóbr, stopy procentowe (co za tym idzie kredyty) i bilans handlowy mogą regulować się same. Waluty narodowe w takim systemie podążają za trendem złota co w rzeczywistości powoduje, iż wahania kursowe są niewielkie."
+        }
+      },
+      {
+        "id": "b007",
+        "type": "paragraph",
+        "data": {
+          "html": "Wielka Brytania aby utrzymać status hegemona i światowego centrum finansowego po pierwszej wojnie światowej musiała podjąć kroki do odzyskania zaufania funta – wykonać działania mające na celu powrót do poziomu wartości funta sprzed wojny. Problemem była inflacja wynikająca z nadmiernej ilość waluty wyemitowanej podczas wojny względem posiadanych rezerw w złocie. Powodowało to sytuację, w której Stany Zjednoczone posiadające absolutną przewagę w posiadaniu rezerw złota mają wystarczającą siłę do podważania brytyjskiego systemu finansowego zapewniającemu mu pozycję ustalania standardów walutowych w rozrachunkach międzynarodowych i przywilejów cenowych (dzięki systemowi kolonialnemu mogli narzucać ceny surowców naturalnych i były one ogromnym rynkiem zbytu)."
+        }
+      },
+      {
+        "id": "b008",
+        "type": "paragraph",
+        "data": {
+          "html": "[infogram id=”70a51249-9c3c-4ce0-9929-83c21de9113a” prefix=”fKm” format=”interactive” title=””]"
+        }
+      },
+      {
+        "id": "b009",
+        "type": "paragraph",
+        "data": {
+          "html": "Należy pamiętać o tym, że Zjednoczone Królestwo posiadało potężne udziały w kluczowych amerykańskich gałęziach gospodarczych oraz, że flota Imperium Brytyjskiego była największa na świecie i kontrolowała główne szlaki morskie. Dzięki panowaniu morzach i ocenach Zjednoczone Królestwo miało udział w <sup>2</sup>/<sub>3 </sub>wszystkich transakcjach handlowych. Z tego powodu całkowicie kontrolowało wyminę weksli bankowych w rozrachunkach międzynarodowego handlu na gotówkę (czyli na brytyjskie funty) ze względu na szybkość i wszędobylskiego funta, co czyniło, iż szterling był światową walutą rozliczeniową.  Stany Zjednoczone i jego handel nie był w stanie konkurować z rozwiniętą siatką Imperium Brytyjskiego, które jednocześnie było największym światowym kredytodawcą ze względu na gwarancje wypłacalności dzięki długoterminowej akumulacji kapitału przemysłowego."
+        }
+      },
+      {
+        "id": "b010",
+        "type": "paragraph",
+        "data": {
+          "html": "Konkurencyjność brytyjskiego przemysłu pod koniec XIX wieku był coraz mniejszy ze względu na dynamiczny rozwój gospodarek Niemiec oraz Stanów Zjednoczonych, co powodowało iż procent udziału brytyjskiego eksportu na rynkach międzynarodowych malał."
+        }
+      },
+      {
+        "id": "b011",
+        "type": "paragraph",
+        "data": {
+          "html": "Dodruk walut na potrzeby finansowania krótkoterminowych działań wojennych i przy zachowaniu względnie stałej ilości złota doprowadził do nadpłynności w międzynarodowym systemie finansów. <em>Pax Britannica</em> został poważnie naruszony, a system handlu międzynarodowego kontrolowany przez Brytyjczyków zachwiany i poddany ciężkiej próbie."
+        }
+      },
+      {
+        "id": "b012",
+        "type": "heading",
+        "data": {
+          "level": 2,
+          "text": "BRYTYJCZYCY BRONIĄ FUNTA. POWRÓT DO PARYTETU ZŁOTA"
+        }
+      },
+      {
+        "id": "b013",
+        "type": "paragraph",
+        "data": {
+          "html": "Od 10 kwietnia do 19 maja 1922 roku miała miejsce Konferencja w Genui gdzie poruszano kwestię budowy nowego ładu gospodarczego, stworzenia niezależnych banków centralnych jako najważniejszej jednostki finansowej w poszczególnym kraju, współpracy banków centralnych oraz przywrócenia parytetu złota. Na konferencję zaproszono również przedstawicielstwo Związku Radzieckiego oraz Niemiec kończąc ich międzynarodową izolację. Sowieci chcieli również, aby Turcja również wzięła udział w konferencji, jednak nie została ostatecznie zaproszona."
+        }
+      },
+      {
+        "id": "b014",
+        "type": "paragraph",
+        "data": {
+          "html": "Prezes Banku Anglii – Montagu Norman, wszystkimi sposobami dążył do przywrócenia parytetu złota i udowodnienie, że funt może być w każdej chwili wymienialny na złoto.  Po raz pierwszy w historii stworzono pojęcie i funkcjonowanie rezerw walutowych w postaci systemu rezerw cząstkowych wykorzystując złoto oraz walutę obcą (dewizę wymienialną na złoto) deponowaną w skarbcach banków jako zabezpieczenia oraz podstawy do prowadzenia polityki monetarnej (emisja pieniądza i tworzenie kredytów). Keynes natomiast był zwolennikiem porzucenia łańcucha parytetu złota ponieważ narzucał ograniczenia dla potencjału rozwoju gospodarczego Imperium Brytyjskiego. Londyńskie City pragnęło również zniesienia wszelkich barier handlowych powstałych podczas prowadzenia wojny przez wszystkie kraje."
+        }
+      },
+      {
+        "id": "b015",
+        "type": "paragraph",
+        "data": {
+          "html": "Większość krajów uczestniczących w konferencji była sceptycznie nastawiona do tego pomysłu. Kluczowy ruch wykonał jednak Hjalmar Schacht (Prezes Reichsbanku), który doszedł do porozumienia z Normanem, iż Niemcy będą posiadać rezerwy walutowe w brytyjskim funcie, co wiązało największą ówcześnie gospodarkę w Europie i jej walutę (markę niemiecką) z brytyjskim szterlingiem. Przywracając parytet złota Brytyjczycy przywracali zaufanie do swojej waluty w oczach międzynarodowej opinii."
+        }
+      },
+      {
+        "id": "b016",
+        "type": "paragraph",
+        "data": {
+          "html": "Podczas trwania Konferencji w Genui Związek Radziecki oraz Niemcy podpisały Układ w Rapollo, który zobowiązywał oba kraje do wzajemnego umorzenia wszelkich reparacji wojennych, odbudowy relacji na szczeblu międzyrządowym i tajnej współpracy militarnej oraz handlowej. To właśnie dzięki tej współpracy (przede wszystkim niemieckim technologiom produkcji przemysłowej) możliwa była niesamowita industrializacja Związku Radzieckiego."
+        }
+      },
+      {
+        "id": "b017",
+        "type": "paragraph",
+        "data": {
+          "html": "Powierzenie gestii regulowania systemu bankowego każdego kraju poprzez poszczególny Bank Centralny miało na celu szybsze zapobieganie kryzysom gospodarczym poprzez harmonijną współpracę i konsultacje tychże banków. Jak się jednak okazało w przyszłości, Bank Centralny pełniąc rolę pożyczkodawcy ostatniej instancji, skłaniał banki komercyjne do podejmowania jeszcze większego ryzyka w swojej polityce ekspansji kredytowej, co wpływało na wydłużanie okresu produkowania inflacji zamiast jego zapobiegania co jest celem Banku Centralnego. Banki prywatne popierały powstanie Banków Centralnych ponieważ pozbywały się one odpowiedzialności za swoje zobowiązania. Wybrany system rezerwy cząstkowej w połączeniu z silną presją polityczną na Banki Centralne skazany jest na pojawianie się kryzysów gospodarczych o wiele głębszych od systemu szkoły obiegu pieniężnego (<em>Currency School</em>), który funkcjonował dotychczas."
+        }
+      },
+      {
+        "id": "b018",
+        "type": "paragraph",
+        "data": {
+          "html": "Banki centralne posiadły w swojej gestii rezerw: złoto, waluty narodowe z certyfikatami rozliczania w złocie i zostały zmuszane do powiększania swoich dewiz. Dewizy ze względu na to, iż dolar amerykański oraz funt brytyjski były walutami rezerwowymi, a Banki Centralne zwiększały dewizy to tym samym zwiększały podaż dolara oraz funta. Z tego powodu nastąpił problem <em>podwójnego kredytowania (Double-spending)</em>, co spowodowało obniżenie standardów kredytowania i powstawała coraz to silniejsza bańka spekulacyjna."
+        }
+      },
+      {
+        "id": "b019",
+        "type": "paragraph",
+        "data": {
+          "html": "13 maja 1925 roku rząd, w którym zasiadał Wilson Churchill przegłosował <em>Gold Standard Act</em> w celu obrony dominującej pozycji i siły funta brytyjskiego. Konsekwencją tego działania było usztywnienie kursu szterlinga. Eksport i konkurencyjność przemysłu Wielkiej Brytanii jeszcze bardziej malały. Gospodarka weszła w stan recesji, rosło bezrobocie (do 18%), niezadowolenie społeczne objawiało się strajkami, a także rosły koszty utrzymania brytyjskiej dominacji na oceanach."
+        }
+      },
+      {
+        "id": "b020",
+        "type": "paragraph",
+        "data": {
+          "html": "W 1928 roku przeprowadzając reformę finansową w Wielkiej Brytanii został przegłosowany <em>Currency and Bank Notes Act</em>, zrywając z uchwaloną w 1844 roku tzw. <em>Ustawą Peela</em> <em>(Bank Charter Act 1844)</em>. Uchwalona ustawa z 1844 roku zakazywała wydawania nowych banknotów przez banki komercyjne działające w obrębie Zjednoczonego Królestwa i nadawało monopol Bankowi Anglii do emisji nowych banknotów tylko wtedy, gdy były w 100% oparte o złoto lub do tworząc maksymalny deficyt rządowy warty 14 milionów funtów poprzez emisję obligacji."
+        }
+      },
+      {
+        "id": "b021",
+        "type": "paragraph",
+        "data": {
+          "html": "Ustawa służyła ograniczeniu dostarczania nowych banknotów do obiegu i jednocześnie wyłączała depozyty zabezpieczające od wymogu prawnego utrzymywania 100% rezerwy opartej o złoto. <em>Currency and Bank Notes Act </em>umożliwiało Bankowi Anglii po zgodzie parlamentu oraz ministerstwa finansów na nieograniczony dodruk pieniądza. Wcześniej takie możliwości posiadała Rezerwa Federalna."
+        }
+      },
+      {
+        "id": "b022",
+        "type": "heading",
+        "data": {
+          "level": 2,
+          "text": "AMERYKAŃSKA OFENSYWA"
+        }
+      },
+      {
+        "id": "b023",
+        "type": "paragraph",
+        "data": {
+          "html": "Rezerwa Federalna została utworzona w 1913 roku. Regulacja stopy dyskontowej (<em>procentowy wskaźnik służący do obliczania dyskonta – procentu od sumy weksla potrącanego przy jego nabyciu przed terminem płatności</em>) przez FED miało być głównym narzędziem wpływania na środowisko kredytowe. Podnosząc stopy dyskontowe FED hamował ekspansję kredytową banków prywatnych i <em>viceversa</em>."
+        }
+      },
+      {
+        "id": "b024",
+        "type": "paragraph",
+        "data": {
+          "html": "Wzrost innowacji technologicznych na początku XX. wieku spowodował ogromny skok produktywności w Stanach Zjednoczonych co doprowadziło do tego, iż USA były największą gospodarką świata detronizując Zjednoczone Królestwo (podobna sytuacja do aktualnej pomiędzy Chinami, a USA). Potężne sumy złota napływającego do amerykańskich banków powodowało, że banki prywatne (komercyjne) nie widziały potrzeby zaciągania pożyczek w Rezerwie Federalnej posiadając zabezpieczenie jakim było złoto do prowadzenia własnej ekspansji kredytowej. Gdyby nie zwiększano podaży pieniądza w postaci pożyczek, ceny dóbr konsumpcyjnych i usług wyraźnie by spadły, a płace realne amerykanów wzrosły. Ekspansja kredytowa spowodowała inflację, a ceny utrzymywały się na podobnym poziomie. Był to fundament pod <em>boom</em> i następnie Wielki Kryzys z 1929 roku."
+        }
+      },
+      {
+        "id": "b025",
+        "type": "paragraph",
+        "data": {
+          "html": "FED wykorzystując działania otwartego rynku poprzez sprzedaż aktywów w postaci obligacji skarbowych (zmniejszenie podaży pieniądza) oraz skup obligacji skarbowych (zwiększenie podaży pieniądza). W systemie parytetu złota największy procent aktywów rezerwowych powinno pełnić właśnie złoto, a pozostałe aktywa (papiery wartościowe i obligacje skarbowe) wspomagać system. Złoto jest kluczowe ponieważ prawnie określa ile kruszcu powinno znaleźć się w walucie, którą wypuszcza dany Bank Centralny i musi być bezwzględnie przestrzegana zasada równorzędności aby zapewnić stabilność bilansu bankowego. Ustawienie złota w jednym szeregu z aktywami bankowymi jest gwarantem stabilności jednak dochód w postaci odsetek jest niewielki."
+        }
+      },
+      {
+        "id": "b026",
+        "type": "paragraph",
+        "data": {
+          "html": "Zastąpienie złota obligacjami (kredytami) powoduje załamanie rdzenia waluty ponieważ warunki umowy mogą być niedotrzymane. W tym procesie występuje ryzyko przed którym należało się zabezpieczyć. Zabezpieczeniem i gwarantem wypłacalności rządu są przyszłe wpływy z podatków swoich obywateli. Tak więc bankierzy używając obligacji jako składnika aktywów bankowych poszerzali możliwości do ekspansji kredytowej i pozwalały na uzyskanie większych odsetek. Tym samym powodowało sytuację w której im więcej pieniędzy było na rynku tym większy był dług publiczny, co w konsekwencji prowadziło do powstawania inflacji."
+        }
+      },
+      {
+        "id": "b027",
+        "type": "paragraph",
+        "data": {
+          "html": "W Europie ze względu na wybuch wojny malały możliwości produkcji przemysłowej i rolnej, to zapotrzebowanie na amerykańskie produkty rosły. Kapitał finansowy został przekierowany na potrzeby militarne, a niedobór kredytów handlowych powodował przenoszenie dyskontowania weksli handlowych w dolarze na rynku amerykańskim. Amerykanie finansowali działania Europejczyków wypuszczając m.in. <em>Liberty bond</em>. Wahania funta i stabilność dolara powodowała, iż Europejczycy zaczęli rozliczać się bezpośrednio w amerykańskim dolarze. Kongres amerykański zezwolił swoim bankom (posiadającym kapitał wyższy niż 1 mln USD) do otwierania filii zagranicznych. Musiały jednak wspierać amerykański handel. Wszystkie te czynniki spowodowały, że amerykański rynek weksli handlowych (dodatkowo zabezpieczone gwarancją banków w formie akceptu handlowego) był dwukrotnie większy w 1924 roku niż brytyjski. W ten sposób dolar stał się kluczową walutą międzynarodową."
+        }
+      },
+      {
+        "id": "b028",
+        "type": "paragraph",
+        "data": {
+          "html": "Ustanowienie parytetu dolara wymagało, aby państwa zaczęły tworzyć popyt na dolara. Z tego względu Amerykanie pragmatycznie żądali spłaty zobowiązań z Europy. Nie otrzymawszy ich, widząc jak słabnie brytyjski hegemon, dążyli do związania swoich dłużników z amerykańskim dolarem tym samym podważając system stworzony przez Brytyjczyków. Kraje europejskie czekały na spłatę reparacji przez Niemcy, a pozyskane pieniądze przez Europejczyków miały powędrować do skarbca Stanów Zjednoczonych. Niemcy jednak w pierwszej kolejności dążyły do postawienia na nogi swoją gospodarkę, a następnie spłacić zobowiązania. Drugim wariantem było eksportowanie nadwyżek towarowych z Europy do Stanów Zjednoczonych. Stany Zjednoczone od początku lat 20. XX wieku powróciły do polityki izolacjonizmy i rozpoczeły zwiększanie poboru podatków od swoich obywateli, a także podnosić cła importowe aby chronić swój młody przemysł zabezpieczając się przed towarami z Europy. Europa była zmuszona do powiększania swojego dolarowego długu, aby spłacać krótkoterminowe zobowiązania (<em>rolowanie długu</em>)."
+        }
+      },
+      {
+        "id": "b029",
+        "type": "paragraph",
+        "data": {
+          "html": "W takiej sytuacji amerykanie dostrzegli swoją szansę. Podczas konferencji londyńskiej w 1924 roku w życie wszedł <a href=\"http://historycznyambasador.com/2016/05/09/ii-wojna-swiatowa-historia-ktora-wstrzasnela-swiatem/\" target=\"_blank\" rel=\"noreferrer noopener\"><em>Plan Dawesa</em></a>, który zakładał rozłożenie niemieckich reparacji w czasie oraz udzielenie pożyczki w wysokości 200 mln USD. USA pozbawiły funta do monopolizacji rezerw walutowych Niemiec. Pożyczka miała być spłacana w kwocie początkowej 200 mln USD/rok rosnąc w następnych lat do 600 mln USD. Okres spłaty rozłożony był na 40 lat. Tym samym uruchomiono napływ amerykańskich inwestycji do Niemiec, które to przejmowały za bezcen kluczowe sektory niemieckiej gospodarki. Następnie zastosowano <em>Plan Younga</em> wobec Niemiec. Reforma walutowa powojennych Niemiec została również konsultowana z amerykanami, co wiązało ten kraj z dolarem jako walutą rezerwową. Niemcy napływające dolary wykorzystały do odbudowania własnej gospodarki, a następnie spłacały reparacje wobec krajów europejskich i USA. Strategia Stanów Zjednoczonych miała na celu dolaryzację Europy."
+        }
+      },
+      {
+        "id": "b030",
+        "type": "paragraph",
+        "data": {
+          "html": "Wykorzystując osłabienie funta, przywrócenie parytetu złota w formie systemu rezerw cząstkowych i ogromną przewagę USA w złocie, kraje decydowały się na zwiększanie swoich dewiz w rezerwach walutowych stawiając na amerykańskiego dolara. Konsekwencją tych działań było budowanie fundamentu dla przyszłej hegemonii waluty amerykańskiej w nowym systemie międzynarodowym."
+        }
+      },
+      {
+        "id": "b031",
+        "type": "heading",
+        "data": {
+          "level": 2,
+          "text": "RYWALIZACJA DOLARA Z FUNTEM O ŚWIATOWĄ DOMINACJĘ"
+        }
+      },
+      {
+        "id": "b032",
+        "type": "paragraph",
+        "data": {
+          "html": "W okresie międzywojennym, póki Stany Zjednoczone pożyczały pieniądze, rozwijać mógł się światowy dobrobyt. Szał na Wall Street w udzielaniu kredytów lewarowanych w 1929 roku napompował bańkę spekulacyjną do rozmiarów 300% amerykańskiego PKB. Nagły skok w górę stóp procentowych przez FED spowodował masowy odpływ złota z Wielkiej Brytanii, która musiała uczynić podobny krok aby powstrzymać odpływ złota powodując zwiększenie recesji w kraju."
+        }
+      },
+      {
+        "id": "b033",
+        "type": "paragraph",
+        "data": {
+          "html": "Wielki Kryzys z 1929 roku „rozlał” się na Europę w 1931 roku kiedy to upadek największego austriackiego banku Creditanstalt (założonego przez Rothschildów) spowodował poważne kłopoty i bankructwa w systemie niemieckim, szwajcarskim, węgierskim, polskim, francuskim i krajach wchodzących w skład Imperium Brytyjskiego. Ludzie rozpoczęli masowo wycofywać pieniądze z banków i kupować złoto. Francuzi będąc nieufni wobec Brytyjczyków zażądali wycofania swojej części depozytu w złocie z Banku Anglii. Brytyjczycy stanowczo odmówili, mówiąc że nie mają złota w skarbcu i zrywają ze standardem złota w maju 1931 roku."
+        }
+      },
+      {
+        "id": "b034",
+        "type": "paragraph",
+        "data": {
+          "html": "Po Wielkim Kryzysie długi wobec USA zostały częściowo anulowane co w konsekwencji wiązało się z ograniczeniem zasięgu i siły wpływu dolara na inne kraje. Funt brytyjski porzucając parytet złota ożywił gospodarkę i wykorzystał rozległe terytorium Imperium Brytyjskiego, które to panowało nadal kontrolowało morskie szlaki handlowe, posiadało ogromną bazę surowcową oraz rynki zbytu."
+        }
+      },
+      {
+        "id": "b035",
+        "type": "paragraph",
+        "data": {
+          "html": "W 1932 roku podczas Konferencji w Ottawie został wprowadzony „System Korzyści Imperialnych”, który obniżał stawki podatkowe (lub z nich zwalniał) kraje które posługiwały się funtem. W stosunku krajów spoza „bloku szterlinga” stosowano podwyższone cła importowe. Silna dewaluacja funta, pozbycie się powiązania ze złotem (i dolarem) pozwoliło na prowadzenie strategicznej wojny handlowej ze Stanami Zjednoczonymi, które to znalazły się w recesji gospodarczej."
+        }
+      },
+      {
+        "id": "b036",
+        "type": "paragraph",
+        "data": {
+          "html": "Niezależny funt otoczył dolara, który był w defensywie."
+        }
+      },
+      {
+        "id": "b037",
+        "type": "paragraph",
+        "data": {
+          "html": "Stany Zjednoczone w 1929 roku po raz pierwszy użyły mechanizm <em>polityki luzowania ilościowego</em> (<em>Quantitive Easing – QE</em>) znane nam przez jej zastosowanie podczas kryzysu finansowego z 2007 roku. Następnie FED użył ponownie tej strategii w 1932 roku zrywając z zasadą, iż emisja 100 USD musi być pokryta w 40% złotem, a w 60% krótkoterminowymi papierami dłużnymi. Prowadząc <em>politykę taniego pieniądza</em> przez operację otwartego rynku, FED w rzeczywistości zaczął kontrolować Kongres."
+        }
+      },
+      {
+        "id": "b038",
+        "type": "paragraph",
+        "data": {
+          "html": "4 marca 1933 roku na urząd prezydenta wstąpił Franklin Delano Roosevelt, który to natychmiast zamknął wszystkie banki w USA na okres 10 dni. W owym okresie 13 milionów amerykanów było bezrobotnych. Ceny dóbr i usług spadały. Zmniejszały się inwestycje, a zwiększały się zobowiązania obywateli wobec banków. Brak osób pracujących oznacza, iż nie można udzielać kredytów. Z tego powodu, aby dać impuls do rozwoju gospodarce USA, prezydent uruchomił wielki program <em>New Deal</em>, tworząc liczne miejsca pracy dla obywateli."
+        }
+      },
+      {
+        "id": "b039",
+        "type": "paragraph",
+        "data": {
+          "html": "Roosevelt upatrywał źródło kryzysu w spadku cen. George F. Warren powrócił do polityki z początku lat 20. XX wieku, mówiąc Rooseveltowi, iż posiadanie dużych ilości złota powoduje spadek cen, jednak jest to również okazja do prowadzenia polityki ekspansji kredytowej (polityki inflacyjnej), która to będzie zachęcać ludzi do kupowania dóbr, a nie do oszczędzania. Prezydent postanowił zatem zmusić obywateli, poprzez <em>Rozporządzenie wykonawcze 6102 (z 5 kwietnia 1933r.),</em> do oddania całego posiadanego złota obywateli (wyjątki: drobna ilość złotych monet i certyfikatów złota) do Rezerwy Federalnej po kursie 20,67 USD/uncja. Następnie w 1934 roku Roosevelt uchylił owe rozporządzenie i obniżył cenę złota do 35 USD/uncja. Była to jawna grabież oszczędności obywateli USA."
+        }
+      },
+      {
+        "id": "b040",
+        "type": "paragraph",
+        "data": {
+          "html": "Następnie w 1933 roku ruszył kolejny program polityki luzowania ilościowego, który okazał się skuteczny i dostarczył czteroletniego ożywienia gospodarczego, aby w 1937 roku ponownie wkroczyć na tory recesji."
+        }
+      },
+      {
+        "id": "b041",
+        "type": "paragraph",
+        "data": {
+          "html": "W 1934 roku w życie weszło <em>Foreign Securities Act</em> (tzw. <em>Ustawa Johnsona</em>), które to mówiło, iż kraje które nie spłaciły długu wojennego wobec USA nie mogą w przyszłości liczyć na jej finansowe wsparcie. Ustawa o neutralności USA z z ’35,’36 i ’39 roku (<em>Neutrality Acts</em>) zakazywały USA dostarczanie broni krajom będącym w konflikcie, sprzedaży materiałów wojennych i udzielania pożyczek stronom konfliktu."
+        }
+      },
+      {
+        "id": "b042",
+        "type": "paragraph",
+        "data": {
+          "html": "Neutralną postawę USA wobec wybuchu II Wojny Światowej oficjalne zmienił japoński atak na Pearl Harbour, a nieoficjalnie chęć bankierów do zysku i dominacji USA na świecie. PKB krajów Osi łącznie wynosiło 50% PKB USA. Wkraczając do wojny i tworząc <em>Lend-Lease act</em>, Amerykanie chcieli pozyskać brytyjskie terytoria kolonialne jako formę spłaty długów z I Wojny Światowej i możliwości finansowania działań Zjednoczonego Królestwa podczas II Wojny Światowej. W książce autorstwa Charles Merlin Umpenhour <em>Freedom, a Fading Illusion</em>, opisane zostało działanie doradcy Roosevelta – Armanda Hammera, który proponował Roosveltowi właśnie pozyskanie brytyjskich baz morskich, wydzierżawić terytoria kolonii brytyjskich na okres 99 lat oraz dostarczenie 50 niszczycieli w zamian za spłatę długu. Porozumienie jest znane jako <em>Destroyers for Bases Agreement</em> i zostało podpisane 2 września 1940 roku. Tym samym, Amerykanie otrzymali od Brytyjczyków terytoria dzięki którym można kontrolować morskie szlaki handlowe."
+        }
+      },
+      {
+        "id": "b043",
+        "type": "paragraph",
+        "data": {
+          "html": "Brytyjczycy chroniąc blok szterlinga Brytyjczycy wymuszali na swoich koloniach płacenie za importowane towary z innych krajów korzystających z systemu preferencji kolonialnych w funtach, a broń kupować za amerykańskie dolary. Wielka Brytania zamroziła również wymianę funta na jakąkolwiek inną walutę podczas wojny."
+        }
+      },
+      {
+        "id": "b044",
+        "type": "paragraph",
+        "data": {
+          "html": "Po wojnie, 15 czerwca 1946 roku, Amerykanie otworzyli linie kredytowe dla Kanady oraz Wielkiej Brytanii (<em>Anglo-American loan</em>). W umowie był jeden kluczowy warunek, odmrożenie rezerw walutowych przez Imperium Brytyjskie do 15 lipca 1947 roku. Było to jednoznaczne z otwarciem furtki dla gromadzenia rezerw walutowych w dolarze amerykańskim. W tym momencie skończyła się hegemonia funta, nastała era zimnej wojny i walki klasycznych koncepcji geopolitycznych."
+        }
+      },
+      {
+        "id": "b045",
+        "type": "paragraph",
+        "data": {
+          "html": "<div class=\"wp-block-awpa-user-profile aligncenter awpa-0e2b9053-6e10-4 awpa-authorprofile authorbox\"><div class=\"awpa-section-wrapper\"></div><div class=\"awpa-layout-3 awpa-layout-left awpa-block-profile awpa-profile-columns\"></div><div class=\"awpa-profile-image-wrap\"><img data-recalc-dims=\"1\" decoding=\"async\" src=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/wp-import/c0480b27361d686af28f3c54327bca85.jpg\" alt class=\"awpa-avatar\"></div></div>"
+        }
+      },
+      {
+        "id": "b046",
+        "type": "paragraph",
+        "data": {
+          "html": ""
+        }
+      },
+      {
+        "id": "b047",
+        "type": "paragraph",
+        "data": {
+          "html": "<div class=\"awpa-profile-column awpa-profile-content-wrap\"><div class=\"awpa-section-header-wrapper awpa-blocks\"></div><div class=\"awpa-title-wrapper\"><span class=\"awpa-title-dash awpa-upper-dash\"></span><h1 class=\"awpa-title\">Autor analizy</h1><span class=\"awpa-title-dash awpa-lower-dash\"></span></div></div>"
+        }
+      },
+      {
+        "id": "b048",
+        "type": "paragraph",
+        "data": {
+          "html": "<div class=\"awpa-subtitle-wrapper\"><span class=\"awpa-title-dash awpa-upper-dash\"></span><p class=\"awpa-subtitle\">Igor Miasnikow</p><span class=\"awpa-title-dash awpa-lower-dash\"></span></div>"
+        }
+      },
+      {
+        "id": "b049",
+        "type": "paragraph",
+        "data": {
+          "html": ""
+        }
+      },
+      {
+        "id": "b050",
+        "type": "paragraph",
+        "data": {
+          "html": "<div class=\"awpa-profile-text awpa-user-profile-desc\"><p>Założyciel New European Strategies</p></div>"
+        }
+      },
+      {
+        "id": "b051",
+        "type": "list",
+        "data": {
+          "ordered": false,
+          "items": ["Facebook", "Linkedin", "Twitter", "Email", "Website"]
+        }
+      },
+      {
+        "id": "b052",
+        "type": "paragraph",
+        "data": {
+          "html": ""
+        }
+      }
+    ]
+  },
+  "post_layout_settings": {
+    "tenant_id": "",
+    "standard_layout": "layout-1",
+    "video_layout": "video-1",
+    "audio_layout": "audio-1",
+    "gallery_layout": "gallery-1",
+    "featured_ratio_l6": 150,
+    "featured_ratio_l10": 45,
+    "featured_ratio_l11": 45,
+    "center_header": true,
+    "center_entry_meta": true,
+    "has_sidebar_max_width": 1180,
+    "no_sidebar_max_width": 1180,
+    "paragraph_spacing_rem": 1.5,
+    "hyperlink_style": "bold",
+    "hyperlink_underline": true,
+    "hyperlink_color": null,
+    "hyperlink_color_dark": null,
+    "underline_color": null,
+    "underline_color_dark": null,
+    "list_style": "circle",
+    "wide_align_max_width": 1600,
+    "image_caption_left_border": false,
+    "quick_view_info": false,
+    "show_post_tags_bar": true,
+    "show_author_card": false,
+    "show_prev_next": false,
+    "prev_next_mobile_hide": true,
+    "show_bottom_newsletter": true,
+    "show_floating_share_bar": true,
+    "show_citation": true,
+    "show_quote_share": true,
+    "auto_load_next_post": false,
+    "layout_sidebar_overrides": {},
+    "title_size_source": "theme",
+    "overlay_title_size_base": 24,
+    "overlay_title_size_md": 30,
+    "overlay_title_size_lg": 36,
+    "overlay_excerpt_size_base": 12,
+    "overlay_excerpt_size_md": 14,
+    "overlay_excerpt_size_lg": 16,
+    "header_title_size_base": 30,
+    "header_title_size_md": 36,
+    "header_title_size_lg": 48,
+    "header_excerpt_size_base": 16,
+    "header_excerpt_size_md": 18,
+    "header_excerpt_size_lg": 18
+  }
+}

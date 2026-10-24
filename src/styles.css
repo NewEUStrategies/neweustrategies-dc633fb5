@@ -5004,6 +5004,78 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
  * ------------------------------------------------------------- */
 
 /* -------------------------------------------------------------
+ * Kolumna tekstu wpisu - `data-reading="article"` na `.article-body`
+ * (wyłącznie wpisy, `$.tsx`; strony, widgety i karty bez zmian).
+ *
+ * Jedna reguła dla trzech silników treści: bloki (`.blocks-content`, także
+ * w widgecie `rich-text` buildera), builder (widget `text` ->
+ * `.cms-elementor-richtext`) i legacy HTML (`.single-post-content`).
+ *
+ * - Tokeny: 16 px / 1,6 na telefonie, 17 px / 1,65 od `lg` (nadpisanie
+ *   w regule rozmiaru korzenia `@media (min-width: 1024px)` niżej).
+ * - Miara ok. 850 px = 50em przy 17 px. Liczona z `--fs-article`, nie
+ *   w `em`/`ch`: `em` nagłówka dawałby inną miarę dla każdego elementu, a cyfra
+ *   0 w Red Hat Display jest szeroka, więc `ch` rozjeżdża się z liczbą znaków.
+ * - Tekst (akapit, nagłówek, lista, cytat, przypisy, blok `html` bez
+ *   tabeli/obrazu/osadzenia - `data-block-wide`) stoi w mierze, wyśrodkowany
+ *   w kolumnie treści; obraz, embed, tabela, kolumny, galeria i `alignwide`/
+ *   `alignfull` (`w-full`) zajmują całą kolumnę. Miarę dają symetryczne
+ *   marginesy, a nie `max-width`: element zachowuje własną szerokość (spis
+ *   treści „pół kolumny”) i lewą krawędź tekstu.
+ * - Rozmiar i interlinia na kontenerze: akapity bloków to `div` bez `<p>`, więc
+ *   dziedziczą. `--lh-body` lokalnie, bo `ThemeFontSizesStyle` (p/li bloków
+ *   i legacy HTML, 0-2-1, później w dokumencie), builder (p/li) i listy
+ *   (`--cms-list-lh`) czytają interlinię z niej. Globalny `--fs-body` zostaje.
+ * - Podwojony `[data-reading]` (0-3-0) wygrywa z `[data-builder-renderer]
+ *   .prose` (0-2-0, `--fs-body`) i - kolejnością - z `[data-debug-type="text"]
+ *   .prose` (0-3-0); H2 (0-3-1) z `ThemeFontSizesStyle` (0-2-1).
+ * - Odstęp między akapitami: `ContentAreaStyle` (`--cms-paragraph-spacing`).
+ * - Wartości w CSS z `<head>` (SSR), bez JS: hydratacja niczego nie przesuwa.
+ *   Tylko `@media screen`: wydruk ma własne 11.5pt / 1.55 i pełną szerokość.
+ * - Bez wariantów `.dark` i bez `!important`: wartości wpisane w widgecie
+ *   (`[data-wt]`, `!important`) nadal wygrywają.
+ * ------------------------------------------------------------- */
+:root {
+  --fs-article: 16px;
+  --lh-article: 1.6;
+  --article-measure: calc(var(--fs-article) * 50);
+}
+@media screen {
+  [data-reading="article"][data-reading]
+    :is(.blocks-content, .single-post-content, .cms-elementor-richtext) {
+    --lh-body: var(--lh-article);
+    font-size: var(--fs-article);
+    line-height: var(--lh-article);
+  }
+  /* H2 w treści: ok. 2em nad, 0,6em pod. */
+  [data-reading="article"][data-reading]
+    :is(.blocks-content, .single-post-content, .cms-elementor-richtext)
+    h2 {
+    margin-top: 2em;
+    margin-bottom: 0.6em;
+  }
+  /* Builder ustawia `--fs-body` wprost na p/li (`[data-builder-renderer]
+     :is(p, li)`, 0-2-1). Widoki bloków (`.not-prose`: karty, autor, callout)
+     zachowują własny rozmiar. */
+  [data-reading="article"]
+    [data-builder-renderer]
+    :is(.blocks-content, .cms-elementor-richtext)
+    :is(p, li):not(.not-prose *) {
+    font-size: inherit;
+  }
+  [data-reading="article"]
+    :is(.blocks-content, .single-post-content, .cms-elementor-richtext)
+    > :is([data-block-type]:not([data-block-wide]), p, h2, h3, h4, h5, h6, ul, ol, blockquote, .footnotes):not(
+      .w-full
+    ),
+  /* Sekcja „Z tego materiału dowiesz się, że” (punkty), spis treści w treści
+     (i nawigacja serii - też `nav`) oraz przypisy trasy - w kolumnie tekstu. */
+  [data-reading="article"] > :is(.key-takeaways, nav, section) {
+    margin-inline: max(0px, 50% - var(--article-measure) / 2);
+  }
+}
+
+/* -------------------------------------------------------------
  * Global input UX: hide placeholder on focus, restore on blur.
  * Applies to every form field project-wide (inputs, textareas,
  * [contenteditable]). Placeholder naturally returns when the
@@ -6868,6 +6940,10 @@ header[data-site-header][data-metrics="ready"]
 @media (min-width: 1024px) {
   :root {
     font-size: clamp(15px, calc(9px + 0.46875vw), 18px);
+    /* Tekst wpisu od `lg` (sekcja „Kolumna tekstu wpisu”): stałe 17 px, nie
+       płynny rozmiar korzenia - miara 50em = 850 px. */
+    --fs-article: 17px;
+    --lh-article: 1.65;
   }
 }
 

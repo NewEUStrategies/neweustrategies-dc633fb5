@@ -4,5 +4,6 @@
 export type { BlockLang, BlockRenderContext, BlockRenderer } from "./context";
 export { BlockView, BLOCK_RENDERERS, type BlockViewProps } from "./registry";
 export { BlocksTenantProvider, useBlocksTenantScope, type BlocksTenantScope } from "./tenant";
+export { BlocksAuthoringProvider, useBlocksAuthoring } from "./authoring";
 export { type FootnoteCollector, precomputeFootnotes, renderFootnoteHtml } from "./footnotes";
 export { alignClass, sanitize, slugify } from "./data";

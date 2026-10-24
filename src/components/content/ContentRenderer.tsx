@@ -22,6 +22,7 @@ import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { enhanceContentImages } from "@/lib/content/enhanceImages";
+import { decorateStandaloneShortcodes } from "@/lib/content/shortcodes";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
 
 interface Props {
@@ -99,8 +100,13 @@ export function ContentRenderer({
       // enhanceContentImages runs AFTER the sanitizer (never instead of it):
       // it only adds loading/decoding/srcset to <img> tags, closing the
       // lazy-loading + responsive-candidates gap in imported WordPress bodies.
+      // decorateStandaloneShortcodes też PO sanitizerze (który usuwa iframe):
+      // akapit z samym shortcode'em WordPressa staje się osadzeniem dostawcy
+      // z listy `parseEmbedUrl`, a nieznany shortcode znika dla czytelnika.
       dangerouslySetInnerHTML={{
-        __html: enhanceContentImages(sanitizeMarkdownHtml(html), { eagerFirstImage }),
+        __html: decorateStandaloneShortcodes(
+          enhanceContentImages(sanitizeMarkdownHtml(html), { eagerFirstImage }),
+        ),
       }}
     />
   );
