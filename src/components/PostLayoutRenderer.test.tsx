@@ -125,11 +125,10 @@ describe("PostLayoutRenderer", () => {
       const sidebarLayout = STANDARD_LAYOUTS.find((l) => l.hasSidebar)!;
       const { getByTestId, container } = renderLayout(sidebarLayout.id);
       expect(getByTestId("sidebar").textContent).toBe("Sidebar");
-      // Szyna 320 px na `lg`, od `xl` szersza (384 px) - zaczyna się bliżej tekstu,
-      // który przy sidebarze wypełnia całą kolumnę (styles.css, `data-layout-sidebar`).
+      // Kompaktowa szyna: 280 px na `lg`, 320 px od `xl`.
       const grid = getByTestId("sidebar").closest("aside")!.parentElement!;
-      expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_320px]");
-      expect(grid.className).toContain("xl:grid-cols-[minmax(0,1fr)_384px]");
+      expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_280px]");
+      expect(grid.className).toContain("xl:grid-cols-[minmax(0,1fr)_320px]");
       expect(
         container.querySelector("[data-layout-sidebar]")!.getAttribute("data-layout-sidebar"),
       ).toBe("true");
