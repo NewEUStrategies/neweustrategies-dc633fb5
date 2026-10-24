@@ -5039,6 +5039,13 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   --fs-article: 16px;
   --lh-article: 1.6;
   --article-measure: calc(var(--fs-article) * 50);
+  --article-page-width: 94%;
+}
+/* Delikatnie węższa wspólna ramka wpisu; strony CMS i wydruk bez zmian. */
+@media screen and (min-width: 1024px) {
+  .article-page-shell {
+    width: var(--article-page-width);
+  }
 }
 @media screen {
   [data-reading="article"][data-reading]
