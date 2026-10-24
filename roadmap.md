@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #536 (2026-10-24)
+
+- [ ] Potwierdzić wszystkie commity i zakres scalenia PR #536.
+- [ ] Zweryfikować w żywej bazie wymagane tabele, widoki, RPC, kolumny i rejestr migracji; uzupełnić wyłącznie potwierdzone braki.
+- [ ] Uruchomić testy zakresowe i sprawdzić rzeczywisty artykuł PL/EN.
+- [ ] Opublikować i potwierdzić aktualną wersję na domenie produkcyjnej.
+
 ## Weryfikacja PR #535 (2026-10-24)
 
 - [ ] Potwierdzić wszystkie commity i zakres scalenia.
