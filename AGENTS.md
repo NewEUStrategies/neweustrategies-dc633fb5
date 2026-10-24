@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep streamed-boundary visibility recovery in the shared head script; drain React's shared queue when a queued frame is suspended so later frames cannot duplicate content.
+
 - Share plan currency formatting between pricing and checkout; derive displayed currency from each plan, not the interface language, to match provider charges without changing donation FX.
 
 - Share archive skyline geometry and theme ink.

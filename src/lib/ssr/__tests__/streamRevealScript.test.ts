@@ -30,7 +30,11 @@ function reactRevealRuntime(): string {
 /** Skrypt powłoki Reacta (`shellTimeRuntimeScript`) - ustawia `$RT` w pierwszej klatce. */
 const SHELL_TIME = "$RT=performance.now();";
 
-type Globals = typeof globalThis & { $RT?: unknown; $RC?: (b: string, s: string) => void };
+type Globals = typeof globalThis & {
+  $RT?: unknown;
+  $RC?: (b: string, s: string) => void;
+  __nesRevealVisibility?: () => void;
+};
 const g = globalThis as Globals;
 const runScript = (code: string) => (0, eval)(code);
 
@@ -56,6 +60,11 @@ describe("STREAM_REVEAL_SCRIPT - odsłonięcie granicy strumienia w najbliższej
   });
 
   afterEach(() => {
+    if (g.__nesRevealVisibility) {
+      document.removeEventListener("visibilitychange", g.__nesRevealVisibility);
+      delete g.__nesRevealVisibility;
+    }
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     timeout.mockRestore();
     delete g.$RT;
@@ -135,6 +144,39 @@ describe("STREAM_REVEAL_SCRIPT - odsłonięcie granicy strumienia w najbliższej
     expect(timeout).not.toHaveBeenCalled();
     expect(raf).toHaveBeenCalledTimes(1);
     expect(document.getElementById("fallback")).toBeNull();
+  });
+
+  it("hiding after scheduling reveals queued content in the background without a duplicate flush", () => {
+    vi.useFakeTimers();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    setHidden(false);
+    runScript(STREAM_REVEAL_SCRIPT);
+    runScript(reactRevealRuntime());
+    runScript(SHELL_TIME);
+    g.$RC?.("B:0", "S:0");
+    expect(frames).toHaveLength(1);
+    expect(document.getElementById("fallback")).not.toBeNull();
+    setHidden(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    vi.runOnlyPendingTimers();
+    expect(document.getElementById("fallback")).toBeNull();
+    expect(document.querySelector("main")?.textContent).toBe("treść");
+    setHidden(false);
+    for (const frame of frames) frame(performance.now());
+    expect(document.querySelector("main")?.textContent).toBe("treść");
+    expect(document.querySelectorAll("#content")).toHaveLength(1);
+  });
+
+  it("repeated script execution installs only one visibility listener", () => {
+    const add = vi.spyOn(document, "addEventListener");
+    runScript(STREAM_REVEAL_SCRIPT);
+    runScript(STREAM_REVEAL_SCRIPT);
+    expect(add.mock.calls.filter(([event]) => event === "visibilitychange")).toHaveLength(1);
+    add.mockRestore();
   });
 
   it("karta otwarta w tle przed pierwszą klatką: rAF jak w samym Reakcie (wartość jeszcze pusta)", () => {
