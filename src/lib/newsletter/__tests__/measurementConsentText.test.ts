@@ -32,6 +32,7 @@ import {
   measurementConsentPlain,
   measurementConsentSegments,
   measurementConsentSummaryPlain,
+  measurementConsentSummarySegments,
   normalizeConsentKey,
   RESERVED_CONSENT_KEYS,
 } from "../measurementConsentText";
@@ -142,19 +143,24 @@ describe("treść pola pomiaru - kształt i obowiązkowe elementy", () => {
 describe("krótka etykieta pola (prezentacja; pełna treść zostaje w rejestrze)", () => {
   it("PL i EN: dokładnie skrót, którego chciał właściciel", () => {
     expect(measurementConsentSummaryPlain("pl")).toBe(
-      "Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły).",
+      "Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową.",
     );
     expect(measurementConsentSummaryPlain("en")).toBe(
-      "Consent is optional, is not required for the newsletter and takes effect after confirmation via email. You can withdraw it in any email footer (details).",
+      "Consent to measuring interactions on our platform, to improve the quality of personalized services and tailor marketing communications.",
     );
   });
 
-  it("skrót nie opisuje techniki pomiaru i jest krótszy od treści dowodowej", () => {
+  it("skrót nie opisuje techniki pomiaru, jest jednym zdaniem bez linku i jest krótszy od treści dowodowej", () => {
     for (const lang of ["pl", "en"] as const) {
       const summary = measurementConsentSummaryPlain(lang);
       expect(summary.length).toBeLessThan(measurementConsentPlain(lang).length);
       expect(summary).not.toMatch(/niewidoczn|identyfikatorem|tracking image|identifier/i);
       expect(summary).not.toMatch(/\bod Was\b/i);
+      // Etykieta to samo zdanie: bez linku „szczegóły" - ten niesie pełna
+      // treść dowodowa na stronie potwierdzenia.
+      expect(
+        measurementConsentSummarySegments(lang).every((part) => typeof part === "string"),
+      ).toBe(true);
     }
   });
 

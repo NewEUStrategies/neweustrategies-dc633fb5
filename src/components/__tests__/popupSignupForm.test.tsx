@@ -432,7 +432,7 @@ describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
     // Krótka etykieta widoczna; nazwa dostępna pola nazywa to, czego dotyczy zgoda.
     expect(box).toHaveAccessibleName(/^Zgoda na pomiar otwarć i kliknięć w e-mailach$/);
     expect(document.querySelector('[data-consent="email_measurement"]')?.textContent).toBe(
-      "Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły).",
+      "Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową.",
     );
     const [newsletter] = consentBoxes();
     // Kolejność w dokumencie: newsletter, potem pomiar.
