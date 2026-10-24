@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #534 (2026-10-24)
+
+- [ ] Potwierdzić wszystkie commity gałęzi i zgodność drzewa scalenia.
+- [ ] Zweryfikować istniejące tabele, widoki, RPC, kolumny i rejestry migracji w działającej bazie.
+- [ ] Uruchomić testy zmienionych obszarów i sprawdzić stronę PL/EN oraz zalogowany panel.
+- [ ] Opublikować aktualną wersję i sprawdzić wynik na domenie produkcyjnej.
+
 ## Weryfikacja PR #533 (2026-10-23)
 
 - [x] Wszystkie 20 commitów gałęzi (15 nie-merge) i merge 2e554a813 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi.
