@@ -63,6 +63,7 @@ import {
   isClientOnlyDocument,
 } from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
+import { STREAM_REVEAL_SCRIPT } from "../lib/ssr/streamRevealScript";
 // Skrypty zgód i powłoka banera - WYŁĄCZNIE w gałęziach `.server()` niżej
 // (`RootShell`, `ConsentShellSlot`): kompilator Start wycina je z bundla
 // przeglądarki razem z tymi importami. W przeglądarce `consentInitScript` to
@@ -1356,6 +1357,11 @@ function RootShell({ children }: { children: ReactNode }) {
           data-nes-fragment-landing=""
           dangerouslySetInnerHTML={{ __html: fragmentLandingScript() }}
         />
+        {/* Odsłanianie granic strumienia SSR w najbliższej klatce zamiast co >= 300 ms
+            (dławienie Reacta 19.2 trzymało szkielet nagłówka i sekcji z hero na ekranie po
+            FCP). W `<head>`, czyli przed skryptem powłoki Reacta w `<body>` -
+            `lib/ssr/streamRevealScript.ts`. */}
+        <script dangerouslySetInnerHTML={{ __html: STREAM_REVEAL_SCRIPT }} />
       </head>
       <body>
         {children}

@@ -112,3 +112,41 @@ w TTFB rośnie proporcjonalnie.
 `import()` komponentu trasy `/admin/…` wskazuje plik ≤ 256 B (zaślepka ma 48 B);
 zero sprawdzonych tras to defekt skanu. Na artefakcie bazowym oblewa: 191 z 204
 komponentów pełnych.
+
+## 4. Pierwsze malowanie pokazywało szkielety, choć treść była już w przeglądarce
+
+Taśma klatek produkcji (Lighthouse desktop, zimny MISS): FCP 5,67 s, a do
+~6,12 s na ekranie stał **szkielet nagłówka i pierwszej sekcji** z hero (mobile:
+blady szkielet w klatce 5,46 s, treść dopiero w 6,25 s). Dokument skończył się
+w przeglądarce już w 4,9 s.
+
+Przyczyna: na zimnym izolacie nagłówek (`B:0`) i pierwsza sekcja (`B:1`)
+nie mieszczą się w terminie loadera i idą strumieniem jako granice Suspense.
+React 19.2 odsłania je partiami: po pierwszej klatce (`$RT`) każda partia czeka
+`setTimeout`-em do `$RT + 300 ms` - w śladzie `TimerInstall 5558 ms, 253 ms, $RC`,
+a obraz LCP (pobrany ~5,5 s) czekał na odsłonięcie sekcji
+(`elementRenderDelay` 646 ms).
+
+**Zmiana:** `src/lib/ssr/streamRevealScript.ts` - klasyczny skrypt inline
+w `<head>` definiuje `window.$RT` jako akcesor zwracający zawsze `undefined`;
+runtime `$RC` idzie wtedy zawsze ścieżką `requestAnimationFrame`, czyli
+odsłania każdą partię w najbliższej klatce (zachowanie sprzed 19.2). Klient
+React `$RT` nie czyta; siatki przewijania (`restoreAfterReveal`,
+`fragmentLandingScript`) działają przy odsłonięciu w dowolnej chwili. Test na
+PRAWDZIWYM runtime wyciętym z `react-dom-server` (bez skryptu: `setTimeout`,
+szkielet zostaje; ze skryptem: odsłonięcie w klatce) - zmiana runtime'u w
+kolejnej wersji Reacta go obleje.
+
+**Pomiar A/B** (Lighthouse 13.5 lokalnie, artefakt node-server, pierwsza
+sekcja strumieniem 900 ms za powłoką - `NES_PERFORMANCE_CASE=slow-first-fold`,
+cache dokumentów wyłączony; mediany, A = bez skryptu, B = ze skryptem):
+
+| Forma   | observedSI A → B | ostatnia zmiana wizualna A → B | przebiegi A / B |
+| ------- | ---------------: | -----------------------------: | --------------: |
+| desktop |     342 → 263 ms |                  1044 → 683 ms |           2 / 3 |
+| mobile  |     306 → 292 ms |                   782 → 769 ms |           2 / 3 |
+
+(dwa przebiegi A odrzucone przez Lighthouse: `NO_NAVSTART`). Na mobile parser
+zwykle kończy dokument przed pierwszą klatką, więc dławienie rzadziej się
+włącza; na produkcji, gdzie dokument przychodzi porcjami przez ~0,5 s,
+dotyczy obu form.
