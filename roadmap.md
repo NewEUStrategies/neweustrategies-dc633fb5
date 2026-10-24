@@ -1,5 +1,10 @@
 # Roadmap
 
+## Jeszcze krótsza etykieta zgody na pomiar (2026-10-24)
+
+- [x] Usunięto zdanie „Wyrażasz zgodę na pomiar…" z widocznej etykiety PL/EN; zostało: „Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły)." Przedmiot zgody niesie aria-label pola („Zgoda na pomiar otwarć i kliknięć w e-mailach"). Pełna wersjonowana treść dowodowa, wersja i rejestr zgód bez zmian.
+- [x] 121 testów (pole, popup, formularz, treść) przechodzi, tsgo exit 0, build OK. Przeglądarka: PL i EN pokazują krótką etykietę, pole niezaznaczone, bez błędów JS. Zmiana w podglądzie, bez publikacji.
+
 ## Pasek autora inline (2026-10-24)
 
 - [x] Istniejące social media inline obok obserwowania; przycisk wypełnia pozostałą szerokość, dodatkowe ikony zawijają się bez ukrywania. Logika i dane bez zmian.
