@@ -15,12 +15,19 @@
 // tylko treść nad zgięciem od pierwszego malowania o >= 300 ms - Speed Index liczy właśnie
 // postęp wizualny od FCP, a LCP czeka na odsłonięcie sekcji z hero.
 //
-// CO ROBI. Definiuje `window.$RT` jako akcesor, który zawsze oddaje `undefined` i ignoruje
-// zapis - zanim wykona się jakikolwiek skrypt Reacta (inline w `<head>` korzenia). `$RC` idzie
-// wtedy zawsze ścieżką `requestAnimationFrame`, czyli zachowaniem sprzed 19.2: każda partia
-// segmentów odsłania się w najbliższej klatce. Klient React (`react-dom-client`) `$RT` nie czyta;
-// siatki przewijania (`lib/scroll/restoreAfterReveal.ts`, `lib/scroll/fragmentLandingScript.ts`)
-// obsługują odsłonięcie w dowolnej chwili, a wcześniejsze to dla nich „zwykły przypadek".
-// `try` - środowisko z zamrożonym `window` dostaje dotychczasowe zachowanie Reacta.
+// CO ROBI. Definiuje `window.$RT` jako akcesor - zanim wykona się jakikolwiek skrypt Reacta
+// (inline w `<head>` korzenia). Zapis Reacta jest zapamiętywany, ale odczyt na WIDOCZNEJ karcie
+// oddaje `undefined`: `$RC` idzie wtedy ścieżką `requestAnimationFrame`, czyli zachowaniem sprzed
+// 19.2 - każda partia odsłania się w najbliższej klatce. Na UKRYTEJ karcie odczyt oddaje wartość
+// Reacta bez zmian: ukryty dokument nie wykonuje `requestAnimationFrame`, a timer Reacta tak
+// (z dławieniem przeglądarki), więc segmenty odsłaniają się w tle jak dotąd. Bez tego karta
+// schowana po pierwszej klatce trzymała szkielety do powrotu, a `restoreAfterReveal` (sufit 5 s
+// od hydratacji, która w tle biegnie) odpuszczał i pozycja przeładowania odjeżdżała o różnicę
+// szkielet/treść (przegląd adwersaryjny PR #534, odtworzone w przeglądarce).
+//
+// Klient React (`react-dom-client`) `$RT` nie czyta; siatki przewijania
+// (`lib/scroll/restoreAfterReveal.ts`, `lib/scroll/fragmentLandingScript.ts`) obsługują
+// odsłonięcie w dowolnej chwili, a wcześniejsze to dla nich „zwykły przypadek". `try` -
+// środowisko z zamrożonym `window` dostaje dotychczasowe zachowanie Reacta.
 export const STREAM_REVEAL_SCRIPT =
-  'try{Object.defineProperty(window,"$RT",{configurable:true,get:function(){},set:function(){}})}catch(e){}';
+  'try{(function(t){Object.defineProperty(window,"$RT",{configurable:true,get:function(){return document.hidden?t:void 0},set:function(v){t=v}})})()}catch(e){}';

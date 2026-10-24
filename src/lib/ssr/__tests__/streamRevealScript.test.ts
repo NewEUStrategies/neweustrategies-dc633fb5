@@ -59,8 +59,13 @@ describe("STREAM_REVEAL_SCRIPT - odsłonięcie granicy strumienia w najbliższej
     vi.unstubAllGlobals();
     timeout.mockRestore();
     delete g.$RT;
+    delete (document as { hidden?: boolean }).hidden;
     document.body.innerHTML = "";
   });
+
+  /** Widoczność karty - własna właściwość dokumentu przesłania getter środowiska testowego. */
+  const setHidden = (hidden: boolean) =>
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
 
   it("bez skryptu React 19.2 dławi odsłonięcie po pierwszej klatce (punkt odniesienia)", () => {
     runScript(reactRevealRuntime());
@@ -74,7 +79,8 @@ describe("STREAM_REVEAL_SCRIPT - odsłonięcie granicy strumienia w najbliższej
     expect(document.getElementById("content")?.closest("[hidden]")).not.toBeNull();
   });
 
-  it("ze skryptem zapis `$RT` jest ignorowany, a granica odsłania się w najbliższej klatce", () => {
+  it("na widocznej karcie odczyt `$RT` jest pusty, a granica odsłania się w najbliższej klatce", () => {
+    setHidden(false);
     runScript(STREAM_REVEAL_SCRIPT);
     runScript(reactRevealRuntime());
     runScript(SHELL_TIME);
@@ -101,6 +107,44 @@ describe("STREAM_REVEAL_SCRIPT - odsłonięcie granicy strumienia w najbliższej
     expect(raf).toHaveBeenCalledTimes(2);
     expect(document.getElementById("fb1")).toBeNull();
     expect(document.getElementById("c1")?.closest("[hidden]")).toBeNull();
+  });
+
+  it("na karcie ukrytej po pierwszej klatce zostaje timer Reacta - rAF w tle nie biegnie", () => {
+    // Przegląd PR #534: ukryty dokument nie wykonuje `requestAnimationFrame`, więc ścieżka rAF
+    // trzymałaby szkielety do powrotu na kartę; timer Reacta przeglądarka wykonuje także w tle.
+    runScript(STREAM_REVEAL_SCRIPT);
+    runScript(reactRevealRuntime());
+    setHidden(false);
+    runScript(SHELL_TIME);
+    setHidden(true);
+    expect(typeof g.$RT).toBe("number");
+    g.$RC!("B:0", "S:0");
+    expect(raf).not.toHaveBeenCalled();
+    expect(timeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("po powrocie na kartę kolejna granica znów idzie w najbliższej klatce", () => {
+    runScript(STREAM_REVEAL_SCRIPT);
+    runScript(reactRevealRuntime());
+    runScript(SHELL_TIME);
+    setHidden(true);
+    expect(typeof g.$RT).toBe("number");
+    setHidden(false);
+    expect(g.$RT).toBeUndefined();
+    g.$RC!("B:0", "S:0");
+    expect(timeout).not.toHaveBeenCalled();
+    expect(raf).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("fallback")).toBeNull();
+  });
+
+  it("karta otwarta w tle przed pierwszą klatką: rAF jak w samym Reakcie (wartość jeszcze pusta)", () => {
+    setHidden(true);
+    runScript(STREAM_REVEAL_SCRIPT);
+    runScript(reactRevealRuntime());
+    expect(g.$RT).toBeUndefined();
+    g.$RC!("B:0", "S:0");
+    expect(timeout).not.toHaveBeenCalled();
+    expect(raf).toHaveBeenCalledTimes(1);
   });
 
   it("skrypt jest jednym klasycznym literałem bez wstawek i nie rzuca przy ponownym wykonaniu", () => {

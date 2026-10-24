@@ -47,7 +47,7 @@
 //    RESEND_API_KEY, stąd wywołanie HTTP do aplikacji).
 //  - zapasowy (opportunistic, docs/ARCHITECTURE.md §2.6): `processDueCampaigns`
 //    przy wejściu admina na listę kampanii / overview + przycisk ręczny.
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdminEditor, requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -446,26 +446,34 @@ export type CampaignRow = Pick<
   | "updated_at"
 >;
 
+/**
+ * Moduł żądania TanStack Start - WYŁĄCZNIE na serwerze.
+ *
+ * Eksport tickNewsletterCampaigns (zwykła funkcja) trzyma ten moduł w grafie
+ * klienta, a import-protection Startu odrzuca `@tanstack/react-start/server`
+ * po stronie klienta: w `vite dev` (podgląd Lovable, e2e na serwerze dev)
+ * natychmiast - Lovable ustawia `behavior: "error"`, a dev nie robi
+ * tree-shakingu - więc ekrany newslettera, kampanii kuponowych i kroku e-mail
+ * ścieżki nie ładowały się. `createServerOnlyFn` kompilator Startu wycina po
+ * stronie klienta PRZED analizą importów (ta sama granica co `.handler()`
+ * funkcji serwerowych), a na serwerze specyfikator zostaje literałem.
+ *
+ * NIGDY specyfikator przez zmienną + `@vite-ignore` (stan do 2026-10-24):
+ * build SSR zostawiał wtedy `@tanstack/react-start/server` jako pakiet
+ * zewnętrzny, Nitro dociągał jego DRUGĄ kopię, a jej `createStartHandler`
+ * importuje `#tanstack-router-entry` - do workera trafiała druga, niepodzielona
+ * kopia całej aplikacji (`_chunks/router.mjs` 9 MB + 860 chunków, 17 MB).
+ * workerd kompiluje każdy moduł skryptu przy starcie izolatu, więc płacił za
+ * nią każdy zimny start (pomiar: docs/performance/2026-10-24-zimny-start-workera.md).
+ * Pilnuje: bramka `check:server-entry-purity` (jedna kopia aplikacji w artefakcie).
+ */
+const loadStartServer = createServerOnlyFn(() => import("@tanstack/react-start/server"));
+
 async function originFromRequest(): Promise<string> {
   const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
   if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
-    // Dynamicznie: eksport tickNewsletterCampaigns (zwykła funkcja) trzyma ten
-    // moduł w grafie klienta, a statyczny import react-start/server wywala
-    // import-protection buildu. Import dynamiczny z LITERAŁEM jest bezpieczny:
-    // klient nie używa tickNewsletterCampaigns, więc tree-shaking usuwa ten
-    // import, a odroczona weryfikacja import-protection (generateBundle) go
-    // nie zgłasza - tak jak w `optionalUser.server.ts` i handlerach darowizn.
-    //
-    // NIGDY specyfikator przez zmienną + `@vite-ignore` (stan do 2026-10-24):
-    // build SSR zostawiał wtedy `@tanstack/react-start/server` jako pakiet
-    // zewnętrzny, Nitro dociągał jego DRUGĄ kopię, a jej `createStartHandler`
-    // importuje `#tanstack-router-entry` - do workera trafiała druga, niepodzielona
-    // kopia całej aplikacji (`_chunks/router.mjs` 9 MB + 860 chunków, 17 MB).
-    // workerd kompiluje każdy moduł skryptu przy starcie izolatu, więc płacił za
-    // nią każdy zimny start (pomiar: docs/performance/2026-10-24-zimny-start-workera.md).
-    // Pilnuje: bramka `check:server-entry-purity` (jedna kopia aplikacji w artefakcie).
-    const { getRequest } = await import("@tanstack/react-start/server");
+    const { getRequest } = await loadStartServer();
     const req = getRequest();
     return new URL(req.url).origin;
   } catch {

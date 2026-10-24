@@ -66,9 +66,14 @@ zimnym starcie; na maszynach hostingu, gdzie zimny izolat płaci 2,4–3,7 s CPU
 zysk proporcjonalnie większy. Szacunek SI: mobile −0,6…−1,5 s, desktop
 −0,25…−0,6 s (×1,4 / ×0,575 od TTFB).
 
-**Naprawa:** import literałem (`await import("@tanstack/react-start/server")`),
-jak w `optionalUser.server.ts` - import-protection w buildzie weryfikuje
-naruszenia po tree-shakingu, a klient nie używa `tickNewsletterCampaigns`.
+**Naprawa:** import literałem za granicą `createServerOnlyFn`
+(`createServerOnlyFn(() => import("@tanstack/react-start/server"))`).
+Sam literał w zwykłej funkcji osiągalnej z klienta wystarczał buildowi
+(import-protection weryfikuje naruszenia po tree-shakingu), ale `vite dev`
+(podgląd Lovable, `behavior: "error"`) odrzucał go od razu i ekrany newslettera
+w panelu się nie ładowały - wychwycone przeglądem adwersaryjnym (§7).
+`createServerOnlyFn` kompilator Startu wycina po stronie klienta przed analizą
+importów, a na serwerze specyfikator zostaje literałem - jedna kopia Startu.
 
 **Strażnik:** bramka CI `check:server-entry-purity` ma regułę „jedna kopia
 aplikacji": artefakt ma mieć dokładnie jeden loader wejść TanStack Start
@@ -128,9 +133,13 @@ a obraz LCP (pobrany ~5,5 s) czekał na odsłonięcie sekcji
 (`elementRenderDelay` 646 ms).
 
 **Zmiana:** `src/lib/ssr/streamRevealScript.ts` - klasyczny skrypt inline
-w `<head>` definiuje `window.$RT` jako akcesor zwracający zawsze `undefined`;
-runtime `$RC` idzie wtedy zawsze ścieżką `requestAnimationFrame`, czyli
-odsłania każdą partię w najbliższej klatce (zachowanie sprzed 19.2). Klient
+w `<head>` definiuje `window.$RT` jako akcesor: zapis Reacta jest
+zapamiętywany, a odczyt na widocznej karcie oddaje `undefined`, więc runtime
+`$RC` idzie ścieżką `requestAnimationFrame`, czyli odsłania każdą partię
+w najbliższej klatce (zachowanie sprzed 19.2). Na ukrytej karcie odczyt oddaje
+wartość Reacta (ukryty dokument nie wykonuje rAF, timer tak) - inaczej karta
+schowana po pierwszej klatce trzymałaby szkielety do powrotu, a pozycja
+przeładowania odjeżdżała (§7). Klient
 React `$RT` nie czyta; siatki przewijania (`restoreAfterReveal`,
 `fragmentLandingScript`) działają przy odsłonięciu w dowolnej chwili. Test na
 PRAWDZIWYM runtime wyciętym z `react-dom-server` (bez skryptu: `setTimeout`,
@@ -183,3 +192,15 @@ Dalej, w kolejności wpływu na SI:
      dwie szeregowe podróże do bazy po odczycie ustawień. Wymaga migracji
      z grantami i bramki `generate:ts-sql-contract`.
 3. Ustawić „Proporcje" w widgetach obrazu bez kadru (dane CMS).
+
+## 7. Przegląd adwersaryjny i poprawki po nim
+
+Niezależny przegląd zmian (5 recenzentów, każde znalezisko weryfikowane przez
+dwóch sceptyków - odtworzenie i osiągalność; 6 kandydatów, 3 obalone) zostawił
+trzy usterki, wszystkie naprawione w tym PR:
+
+| Usterka                                                                                                                                                                                                                     | Waga    | Naprawa                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Literalny `import("@tanstack/react-start/server")` w funkcji osiągalnej z klienta odrzucany przez import-protection w `vite dev` (podgląd Lovable): ekrany newslettera, kampanii kuponowych i kroku e-mail nie ładowały się | średnia | `createServerOnlyFn`; transform klienta w dev sprawdzony na prawdziwej konfiguracji (wcześniej błąd, teraz OK), build nadal z jedną kopią aplikacji                                      |
+| Karta ukryta po pierwszej klatce: ścieżka rAF nie biegnie w tle, segmenty czekały do powrotu, `restoreAfterReveal` odpuszczał po 5 s (odtworzone w przeglądarce: 200 px dryfu przewinięcia)                                 | niska   | akcesor `$RT` oddaje wartość Reacta, gdy `document.hidden` - w tle timer Reacta jak dotąd; testy ukrytej karty, powrotu i karty otwartej w tle                                           |
+| Bramka zaślepek nie widziała 7 tras, w których Oxc wyciąga importer do zmiennej (`am=()=>import(…)`, `T(am,"component")`)                                                                                                   | niska   | rozwiązywanie importerów ze zmiennej + lista tras z `component` bez rozwiązanego importera (oblewa zamiast pomijać); na HEAD 211 sprawdzonych, 0 nierozwiązanych; na bazie reguła oblewa |

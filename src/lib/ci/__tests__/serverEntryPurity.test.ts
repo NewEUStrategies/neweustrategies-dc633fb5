@@ -310,7 +310,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
 
   it("zaślepka komponentu trasy panelu przechodzi", () => {
     const report = surowa([TRASA_PANELU, ZASLEPKA]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [] });
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
     expect(serverEntryPurityFailed(report)).toBe(false);
   });
 
@@ -346,7 +346,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [] });
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
   });
 
   it("węzły błędu i 404 trasy panelu też muszą być zaślepką; loader nie jest sprawdzany", () => {
@@ -377,7 +377,42 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [] });
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+  });
+
+  it("importer wyciągnięty przez Oxc do zmiennej też jest sprawdzany (przegląd PR #534)", () => {
+    // Kształt z artefaktu HEAD: `am=()=>import(...)` przed definicją, w opcjach `T(am,"component")`.
+    const trasa: ServerChunk = {
+      path: "_ssr/routes-HOI.mjs",
+      source:
+        "var x=1,am=()=>import(`./admin.coupons-H.mjs`),lm=()=>import(`./admin.kokpit-K.mjs`);var Q=C(`/admin/coupons`)({validateSearch:e=>e,component:T(am,`component`)}),R=C(`/admin/kokpit`)({loader:L(lm,`loader`),component:T(lm,`component`)});",
+    };
+    const zaslepka = surowa([trasa, { path: "_ssr/admin.coupons-H.mjs", source: ZASLEPKA.source }]);
+    expect(zaslepka.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    const pelny = surowa([
+      trasa,
+      { path: "_ssr/admin.coupons-H.mjs", source: "w".repeat(53_228) },
+      { path: "_ssr/admin.kokpit-K.mjs", source: "k".repeat(6_000) },
+    ]);
+    expect(pelny.clientOnlyComponents.heavy).toEqual([
+      { route: "/admin/coupons", chunk: "_ssr/admin.coupons-H.mjs", bytes: 53_228 },
+    ]);
+    expect(serverEntryPurityFailed(pelny)).toBe(true);
+  });
+
+  it("trasa z `component`, którego importera skan nie rozwiązał, oblewa zamiast wypaść po cichu", () => {
+    const nowyKsztalt: ServerChunk = {
+      path: "_ssr/routes-NEW.mjs",
+      source:
+        "var A=C(`/admin/nowa`)({component:lazy(`./admin.nowa-N.mjs`)}),B=C(`/admin/przekierowanie`)({beforeLoad:()=>{throw r({to:`/admin`})}});",
+    };
+    const report = surowa([nowyKsztalt, TRASA_PANELU, ZASLEPKA]);
+    // Trasa-przekierowanie bez `component` nie jest defektem skanu.
+    expect(report.clientOnlyComponents.unresolved).toEqual(["/admin/nowa"]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("1 tras renderowanych wyłącznie po hydratacji ma `component`");
+    expect(text).toContain("    /admin/nowa");
   });
 
   it("zero sprawdzonych tras to defekt skanu", () => {
