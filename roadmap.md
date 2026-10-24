@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #534 (2026-10-24)
+
+- [x] Wszystkie 6 commitów gałęzi są przodkami merge 5782ca8e6 i HEAD; drzewo merge identyczne z końcem gałęzi. PR zmienia 16 plików, nie dodaje tabel, widoków ani migracji.
+- [x] Żywa baza: 380 tabel (wszystkie RLS), 15 widoków, 1842 sygnatury funkcji; kontrakt 1918 obiektów i 774 kolumn bez nowych braków (5 historycznych), rejestr 452/452. Bramki RPC, TS-SQL, typów i obu pasów przechodzą; 22 historyczne braki kopii migracji pozostają poza zakresem PR.
+- [x] Naprawiono wyścig widoczna -> ukryta karta po zaplanowaniu klatki; wspólna kolejka Reacta odsłania treść raz. 186 testów PR i 17 przewijania przechodzą (203 razem); build OK. Podgląd PL/EN i zalogowane newsletter/overview, newsletter/campaigns, posts HTTP 200 bez błędów JS; kampanie odczytane z bazy. Przeglądarka potwierdza poprawkę przy symulowanej zmianie widoczności. Nie wysyłano kampanii i nie zmieniano danych użytkowników.
+- [ ] Potwierdzić zakończenie publikacji: zlecona z poprawką; pojedynczy odczyt domeny zwraca HTTP 200, ale nie zawiera jeszcze znacznika PR534 ani poprawki widoczności. Oczekiwanie na platformę. Artefakt produkcyjny i mediany PSI pozostają niezweryfikowane: brak lokalnego artefaktu (nie uruchamiano ręcznego builda).
+
 ## Weryfikacja PR #533 (2026-10-23)
 
 - [x] Wszystkie 20 commitów gałęzi (15 nie-merge) i merge 2e554a813 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi.

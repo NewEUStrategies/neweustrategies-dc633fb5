@@ -29,5 +29,8 @@
 // (`lib/scroll/restoreAfterReveal.ts`, `lib/scroll/fragmentLandingScript.ts`) obsługują
 // odsłonięcie w dowolnej chwili, a wcześniejsze to dla nich „zwykły przypadek". `try` -
 // środowisko z zamrożonym `window` dostaje dotychczasowe zachowanie Reacta.
+// A frame queued while visible can be suspended if the tab is hidden before it runs.
+// Drain React's shared queue on that transition; the later frame sees an empty queue.
+// Reuse one listener even if the head script is executed again during navigation.
 export const STREAM_REVEAL_SCRIPT =
-  'try{(function(t){Object.defineProperty(window,"$RT",{configurable:true,get:function(){return document.hidden?t:void 0},set:function(v){t=v}})})()}catch(e){}';
+  'try{(function(t){Object.defineProperty(window,"$RT",{configurable:true,get:function(){return document.hidden?t:void 0},set:function(v){t=v}});if(!window.__nesRevealVisibility){window.__nesRevealVisibility=function(){if(document.hidden)setTimeout(function(){var q=window.$RB,f=window.$RV;if(document.hidden&&Array.isArray(q)&&q.length&&typeof f==="function")f(q)},0)};document.addEventListener("visibilitychange",window.__nesRevealVisibility)}})()}catch(e){}';
