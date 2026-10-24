@@ -23,7 +23,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import type { ConsentLang } from "@/lib/newsletter/consentSegments";
-import { measurementConsentSummaryPlain as measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
+import {
+  measurementConsentFieldAccessibleName,
+  measurementConsentSummaryPlain as measurementConsentPlain,
+} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
 const ROW = "flex items-start gap-2.5 text-[12.5px] leading-relaxed";
@@ -63,10 +66,13 @@ afterEach(() => {
 });
 
 describe("MeasurementConsentField", () => {
-  it("domyślnie niezaznaczone; etykieta = treść pola pomiaru; link w nowej karcie", () => {
+  it("domyślnie niezaznaczone; krótka etykieta widoczna; nazwa pola nazywa zgodę", () => {
     const { container } = render(<Host />);
     expect(box()).toHaveAttribute("aria-checked", "false");
-    expect(box()).toHaveAccessibleName(measurementConsentPlain("pl"));
+    // Widoczna etykieta jest krótka (tylko dobrowolność), więc nazwa dostępna
+    // pola musi sama mówić, czego dotyczy zgoda.
+    expect(box()).toHaveAccessibleName(measurementConsentFieldAccessibleName("pl"));
+    expect(container.querySelector("label")?.textContent).toBe(measurementConsentPlain("pl"));
     const label = container.querySelector("label");
     expect(label).toHaveAttribute("data-consent", "email_measurement");
     expect(label).not.toHaveAttribute("data-disabled");
@@ -77,8 +83,9 @@ describe("MeasurementConsentField", () => {
   });
 
   it("EN: treść i link w języku formularza", () => {
-    render(<Host lang="en" />);
-    expect(box()).toHaveAccessibleName(measurementConsentPlain("en"));
+    const { container } = render(<Host lang="en" />);
+    expect(box()).toHaveAccessibleName(measurementConsentFieldAccessibleName("en"));
+    expect(container.querySelector("label")?.textContent).toBe(measurementConsentPlain("en"));
     expect(screen.getByRole("link", { name: "details" })).toHaveAttribute(
       "href",
       "/en/komunikacja-i-marketing#pomiar",
@@ -91,7 +98,7 @@ describe("MeasurementConsentField", () => {
     fireEvent.click(box());
     expect(onChange).toHaveBeenLastCalledWith(true);
     expect(box()).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByText(/^Wyrażasz zgodę na pomiar/));
+    fireEvent.click(screen.getByText(/^Zgoda jest dobrowolna/));
     expect(onChange).toHaveBeenLastCalledWith(false);
     expect(box()).toHaveAttribute("aria-checked", "false");
   });
@@ -118,7 +125,7 @@ describe("MeasurementConsentField", () => {
     const { container } = render(<Host disabled onChange={onChange} />);
     expect(box()).toBeDisabled();
     fireEvent.click(box());
-    fireEvent.click(screen.getByText(/^Wyrażasz zgodę na pomiar/));
+    fireEvent.click(screen.getByText(/^Zgoda jest dobrowolna/));
     expect(onChange).not.toHaveBeenCalled();
     expect(box()).toHaveAttribute("aria-checked", "false");
     const label = container.querySelector("label");

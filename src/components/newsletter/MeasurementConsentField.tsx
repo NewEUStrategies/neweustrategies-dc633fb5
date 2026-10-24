@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { ConsentLang } from "@/lib/newsletter/consentSegments";
 import {
   EMAIL_MEASUREMENT_CONSENT_KEY,
+  measurementConsentFieldAccessibleName,
   measurementConsentSummarySegments,
 } from "@/lib/newsletter/measurementConsentText";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,7 @@ export function MeasurementConsentField({
         disabled={disabled}
         onCheckedChange={(next) => onCheckedChange(next === true)}
         className={checkboxClassName}
+        aria-label={measurementConsentFieldAccessibleName(lang)}
       />
       <span className={cn("min-w-0", disabled && "opacity-60")} onClick={keepLinkClickFromToggling}>
         <ConsentSegmentsText segments={measurementConsentSummarySegments(lang)} />
