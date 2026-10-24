@@ -100,7 +100,7 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
     : (visible.find((w) => w.type === "author-card")?.id ?? null);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2.5">
       {visible.map((w) => (
         <WidgetView key={w.id} widget={w} authorCardWidgetId={authorCardWidgetId} {...props} />
       ))}

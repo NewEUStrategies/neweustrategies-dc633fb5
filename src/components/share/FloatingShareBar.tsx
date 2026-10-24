@@ -336,7 +336,7 @@ export function FloatingShareBar({
         // bezpośrednio pod sekcją "Share article + Recommend us", żeby nie
         // wędrował na sam dół sidebara na wąskich ekranach.
         <>
-          <div className="hidden lg:block mb-4">
+          <div className="hidden lg:block">
             <SidebarListenCard
               postId={listen.postId}
               lang={lang}
@@ -349,7 +349,7 @@ export function FloatingShareBar({
             />
           </div>
           {listen.author && (
-            <div className="mb-4">
+            <div>
               <AuthorBusinessCard
                 lang={lang}
                 name={listen.author}

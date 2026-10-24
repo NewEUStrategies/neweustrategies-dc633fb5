@@ -195,7 +195,23 @@ describe("PostSidebarRenderer - kompozycja sidebara wpisu", () => {
     expect(screen.getByTestId("reading-panel-p1")).toBeInTheDocument();
   });
 
+  it("stos sidebara trzyma wspólny zwarty odstęp między blokami", async () => {
+    h.byId = {
+      id: "override",
+      widgets: [
+        { id: "w1", type: "reading-panel", settings: {}, hidden: false },
+        { id: "w2", type: "tags", settings: {}, hidden: false },
+      ],
+    };
+    const { container } = renderWithQuery(<PostSidebarRenderer {...props} layoutId="override" />);
+    await waitFor(() => expect(screen.getByTestId("reading-panel-p1")).toBeInTheDocument());
+    const stack = container.firstElementChild as HTMLElement;
+    expect(stack.className).toContain("flex");
+    expect(stack.className).toContain("gap-2.5");
+  });
+
   it("układ z PUSTĄ listą widgetów renderuje pusty kontener, nie wyjątek", async () => {
+
     h.byId = { id: "override", widgets: [] };
     const { container } = renderWithQuery(<PostSidebarRenderer {...props} layoutId="override" />);
     // Pierwszy render idzie na układzie AWARYJNYM (dane jeszcze nie przyszły),

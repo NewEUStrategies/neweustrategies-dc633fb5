@@ -306,3 +306,8 @@
 - [x] FIX-R67 (`20261012182000`-`182200`): wycofanie zgody SMS i e-mail kluczem zamkniętym albo wygasłym, `not_entry_code` skanera po stronie serwera bez blokady urządzenia, `ticket.server` tylko z własnego zgłoszenia, zgoda zdejmowana przy zmianie adresata SMS, `unsubscribe_url` poza DLQ, bramka jedynego wyjścia SMS na drzewie składni, `phone_hint` -> `phone_changed`, numer z kartoteki w SMS o awansie; pgTAP 53/53, harness `16_`, `17_`, `79_`.
 - [ ] Uzgodnienie z `origin/main` `6733f8ef`: 28 migracji `20261013110000`-`112700` redefiniuje 11 funkcji serii (m.in. `event_register`, `event_package_invite_accept`, `event_registration_manage_view`, RPC skanera); potem nowy dowód kolejności produkcyjnej i ponowna generacja `weryfikacja-po-wdrozeniu.sql`.
 - [ ] Wdrożenie: ustawienia Supabase Auth, liczby z audytu dowiązań przed naprawą, audyt = 0 po `20261012190100` i `20261013900900`, `EVENT_SMS_ENABLED`, ponowne `_event_unsettled_qr_repair()`, powody `review_reason` na danych produkcji przed `170000`/`900000`, pusty wynik `weryfikacja-po-wdrozeniu.sql` z ręczną kontrolą tego, czego kwerenda nie widzi (granty, stare przeciążenia, zadania pg_cron), `check:migration-ledger` i `check:db-contract` po publikacji.
+
+## Zwarty odstęp w sidebarze artykułu (2026-10-24)
+
+- [x] Wspólny odstęp między blokami prawej kolumny zmniejszony do `gap-2.5` (kontener sidebara) i `space-y-2.5` (kolumna); usunięte podwajające się `mb-4` przy odsłuchu i karcie autora.
+- [x] Testy: 300 przechodzi (`PostLayoutRenderer`, `postSidebarAndBadge`), `tsgo` bez błędów, build OK; w podglądzie odstęp między kartami 10 px (wcześniej 31-32 px), light i dark identycznie.

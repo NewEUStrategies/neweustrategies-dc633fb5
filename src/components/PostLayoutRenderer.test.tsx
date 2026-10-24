@@ -125,8 +125,12 @@ describe("PostLayoutRenderer", () => {
       const sidebarLayout = STANDARD_LAYOUTS.find((l) => l.hasSidebar)!;
       const { getByTestId, container } = renderLayout(sidebarLayout.id);
       expect(getByTestId("sidebar").textContent).toBe("Sidebar");
+      // Zwarty stos: bloki w prawej szynie dzieli jeden mały odstęp.
+      const aside = getByTestId("sidebar").closest("aside")!;
+      expect(aside.className).toContain("space-y-2.5");
       // Kompaktowa szyna: 280 px na `lg`, 320 px od `xl`.
       const grid = getByTestId("sidebar").closest("aside")!.parentElement!;
+
       expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_280px]");
       expect(grid.className).toContain("xl:grid-cols-[minmax(0,1fr)_320px]");
       expect(
