@@ -1,5 +1,10 @@
 # Roadmap
 
+## Pasek autora inline (2026-10-24)
+
+- [ ] Przenieść istniejące social media obok obserwowania; dopasować szerokość i zawijanie bez zmiany logiki ani danych.
+- [ ] Sprawdzić testy akcji i rzeczywistą kartę autora na desktop i telefonie.
+
 ## Delikatne zwężenie strony artykułów (2026-10-24)
 
 - [x] Kolejna prośba: ramka 86% szerokości desktop, sidebar 280 px od lg / 320 px od xl, odstęp 32 px. 297 testów przechodzi, build OK; przeglądarka potwierdza identyczną geometrię light/dark i brak przepełnienia oraz błędów JS przy 1286/1440/390 px. Telefon i wielkość tekstu bez zmian; w podglądzie, bez publikacji.
