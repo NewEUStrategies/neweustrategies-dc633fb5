@@ -1,5 +1,10 @@
 # Roadmap
 
+## Etykieta zgody na pomiar - treść właściciela (2026-10-24)
+
+- [x] Widoczna etykieta pola to jedno zdanie: „Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową." EN: „Consent to measuring interactions on our platform, to improve the quality of personalized services and tailor marketing communications." Skrót nie niesie już linku „szczegóły" - odnośnik do polityki komunikacji zostaje w pełnej treści na stronie potwierdzenia. Przedmiot zgody nadal niesie aria-label pola. Pełna wersjonowana treść dowodowa, wersja i rejestr zgód bez zmian.
+- [x] 120 testów (pole, popup, formularz, treść) przechodzi, tsgo exit 0, build OK. Przeglądarka: pola na stronie pokazują nową etykietę, bez błędów JS; wersja PL dowodzona testem formularza. Zmiana w podglądzie, bez publikacji.
+
 ## Jeszcze krótsza etykieta zgody na pomiar (2026-10-24)
 
 - [x] Usunięto zdanie „Wyrażasz zgodę na pomiar…" z widocznej etykiety PL/EN; zostało: „Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły)." Przedmiot zgody niesie aria-label pola („Zgoda na pomiar otwarć i kliknięć w e-mailach"). Pełna wersjonowana treść dowodowa, wersja i rejestr zgód bez zmian.
