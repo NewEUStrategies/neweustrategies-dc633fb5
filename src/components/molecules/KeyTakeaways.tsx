@@ -149,9 +149,9 @@ export function KeyTakeaways({
       )}
       {variant === "card" ? (
         <div className="key-takeaways__card rounded-2xl p-6 md:p-8">
-          {/* Siatka: ikona i tytuł w pierwszym wierszu. Na telefonie lista zajmuje
-              całą szerokość karty i zaczyna się pod ikoną (wąska kolumna obok
-              ikony łamała punkty co 3-4 słowa); od `md` stoi pod tytułem. */}
+          {/* Siatka: ikona i tytuł w pierwszym wierszu, punkty pod spodem na całą
+              szerokość karty - od lewej krawędzi, pod ikoną (wąska kolumna obok
+              ikony łamała punkty na telefonie co 3-4 słowa). */}
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4">
             <div
               className="key-takeaways__icon shrink-0 flex items-center justify-center rounded-[6px]"
@@ -162,7 +162,7 @@ export function KeyTakeaways({
             <h2 className="key-takeaways__title font-display text-xl md:text-2xl font-semibold self-center min-w-0">
               {label}
             </h2>
-            <ol className="key-takeaways__list col-span-2 md:col-span-1 md:col-start-2 mt-3 space-y-2.5 list-decimal list-inside marker:font-semibold text-base leading-relaxed">
+            <ol className="key-takeaways__list col-span-2 mt-3 space-y-2.5 list-decimal list-inside marker:font-semibold text-base leading-relaxed">
               {clean.map((bullet, i) => (
                 <li key={i} className="pl-1">
                   <span className="align-top">{bullet}</span>

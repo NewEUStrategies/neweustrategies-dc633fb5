@@ -199,7 +199,6 @@ function takeawaysGeometry(page: Page) {
       document.querySelector(`.key-takeaways ${sel}`)?.getBoundingClientRect() ?? null;
     return {
       iconLeft: rect(".key-takeaways__icon")?.left ?? null,
-      iconRight: rect(".key-takeaways__icon")?.right ?? null,
       listLeft: rect(".key-takeaways__list")?.left ?? null,
     };
   });
@@ -238,9 +237,10 @@ test.describe("kolumna tekstu wpisu, desktop 1440", () => {
     await expect(page.locator(".key-takeaways li")).toHaveCount(
       articleFixture.post.takeaways_pl.length,
     );
-    // Desktop: punkty w kolumnie obok ikony (pod tytułem).
+    // Punkty na całą szerokość karty, od lewej krawędzi - pod ikoną.
     const kt = await takeawaysGeometry(page);
-    expect(kt.listLeft ?? 0).toBeGreaterThan(kt.iconRight ?? Infinity);
+    expect(kt.iconLeft).not.toBeNull();
+    expect(Math.abs((kt.listLeft ?? 0) - (kt.iconLeft ?? 0))).toBeLessThanOrEqual(1);
 
     // Zajawka WordPressa to pierwsze zdania treści - lead nie jest renderowany.
     expect(m.leadPresent).toBe(false);
