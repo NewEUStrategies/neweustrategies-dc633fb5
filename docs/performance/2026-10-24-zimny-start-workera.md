@@ -150,3 +150,36 @@ cache dokumentów wyłączony; mediany, A = bez skryptu, B = ze skryptem):
 zwykle kończy dokument przed pierwszą klatką, więc dławienie rzadziej się
 włącza; na produkcji, gdzie dokument przychodzi porcjami przez ~0,5 s,
 dotyczy obu form.
+
+## 5. Pozostałe audyty PSI
+
+| Audyt PSI                                                                    | Stan po tej zmianie                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cache TTL (9 KiB)                                                            | `/~flock.js` wstrzykuje hosting (poza kodem). Awatar w bylinie (`users/<id>/avatar-<ms>.png`, 1 h) - pliki profilu zapisywane pod `<rodzaj>-${Date.now()}` dostają teraz `immutable` na rok (`routes/media.$.ts`).  |
+| Obrazy bez `width`/`height`                                                  | Widget obrazu z proporcją „auto" (naturalna) nie zna wymiarów pliku. Kod nie ma ich skąd wziąć - **ustawić „Proporcje" w builderze** dla tego widgetu (daje `aspect-ratio`). CLS = 0, obraz jest pod zgięciem.      |
+| Blokujący CSS (80 KiB gz, ~50-80 ms)                                         | Jeden arkusz `styles-*.css`; krytyczny CSS inline to osobny projekt. Po wyjściu z hostingu Lovable: Early Hints (103) z istniejącego nagłówka `Link` (`2026-10-22-speed-index.md` §5).                              |
+| Nieużywany JS (204 KiB: `app-initial`, `vendor-supabase`, `vendor-tanstack`) | Boot startuje po LCP (`bootAfterLcpPlugin`), więc JS nie blokuje pierwszego malowania; TBT 0-20 ms. Wydzielenie `vendor-supabase` z bootu gościa to dalszy krok planu P3.1 - wpływ na SI pomijalny przy TTFB > 1 s. |
+| Opóźnienie dokumentu / zależności sieci                                      | §1-§4: kod Workera −64 %, zimny start −46 %, odsłonięcie bez dławienia. Reszta to I/O do Supabase w eu-west-1 (fale: katalog tenantów → ustawienia → wiersz strony → treść kanwy) - patrz §6.                       |
+
+## 6. Wynik i dalsze kroki
+
+**Zimny start, ten sam kontener i backend-fixture (5 przebiegów, lokalny
+workerd):** baza `ebb315e9` 1 409-1 532 ms od startu procesu do końca
+dokumentu, TTFB 1,06-1,16 s → **HEAD 773-818 ms, TTFB 0,61-0,64 s**
+(−46 %, −0,5 s TTFB). Produkcja płaci za zimny start 2,4-3,7 s CPU, czyli
+wielokrotność lokalnego kosztu - zysk w TTFB powinien być proporcjonalnie
+większy; potwierdzić PSI po wdrożeniu (kilka przebiegów, mediana, bo rozrzut
+zimnych izolatów to sekundy).
+
+Dalej, w kolejności wpływu na SI:
+
+1. **Infrastruktura (właściciel):** własny Worker na koncie Cloudflare
+   ze **Smart Placement** (render blisko eu-west-1), działający Cache API (L2
+   dokumentów - dziś `nes-l2-fail;desc="put"`), Brotli i Early Hints -
+   `2026-10-22-speed-index.md` §5. To nadal największa dźwignia: ciepły izolat
+   z cache'em podaje dokument w 0,32-0,38 s.
+2. **Jedno RPC strony głównej** (`get_public_homepage(slug)`: wiersz strony
+   - treść kanwy) - produkcja ma `homepage_page_slug: "main"`, więc dziś to
+     dwie szeregowe podróże do bazy po odczycie ustawień. Wymaga migracji
+     z grantami i bramki `generate:ts-sql-contract`.
+3. Ustawić „Proporcje" w widgetach obrazu bez kadru (dane CMS).
