@@ -10,10 +10,10 @@
 // nie komponent.
 //
 // CO TEN PLIK DOWODZI.
-//   1. Pole jest domyślnie niezaznaczone, etykieta = treść pola pomiaru
-//      z jednego źródła (PL i EN), link „szczegóły" w nowej karcie.
+//   1. Pole jest domyślnie niezaznaczone, etykieta = krótki skrót z jednego
+//      źródła (PL i EN) - jednym zdaniem, bez linku.
 //   2. Przełączanie (atom i tekst etykiety) przez stan hosta; `disabled`
-//      blokuje zmianę; klik w link nie przełącza pola.
+//      blokuje zmianę.
 //   3. Geometria od hosta (klasy wiersza i atomu, `id`), bez klas zależnych
 //      od motywu - ten sam znacznik w jasnym i ciemnym motywie; brak naruszeń
 //      axe w obu.
@@ -69,27 +69,23 @@ describe("MeasurementConsentField", () => {
   it("domyślnie niezaznaczone; krótka etykieta widoczna; nazwa pola nazywa zgodę", () => {
     const { container } = render(<Host />);
     expect(box()).toHaveAttribute("aria-checked", "false");
-    // Widoczna etykieta jest krótka (tylko dobrowolność), więc nazwa dostępna
-    // pola musi sama mówić, czego dotyczy zgoda.
+    // Widoczna etykieta jest jednym zdaniem (bez linku), więc nazwa dostępna
+    // pola musi sama mówić, czego dokładnie dotyczy zgoda.
     expect(box()).toHaveAccessibleName(measurementConsentFieldAccessibleName("pl"));
     expect(container.querySelector("label")?.textContent).toBe(measurementConsentPlain("pl"));
     const label = container.querySelector("label");
     expect(label).toHaveAttribute("data-consent", "email_measurement");
     expect(label).not.toHaveAttribute("data-disabled");
-    const link = screen.getByRole("link", { name: "szczegóły" });
-    expect(link).toHaveAttribute("href", "/komunikacja-i-marketing#pomiar");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    // Skrót nie niesie linku - „szczegóły" z odnośnikiem do polityki
+    // komunikacji są w pełnej treści na stronie potwierdzenia.
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("EN: treść i link w języku formularza", () => {
+  it("EN: treść w języku formularza, bez linku w skrócie", () => {
     const { container } = render(<Host lang="en" />);
     expect(box()).toHaveAccessibleName(measurementConsentFieldAccessibleName("en"));
     expect(container.querySelector("label")?.textContent).toBe(measurementConsentPlain("en"));
-    expect(screen.getByRole("link", { name: "details" })).toHaveAttribute(
-      "href",
-      "/en/komunikacja-i-marketing#pomiar",
-    );
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("przełącza atomem i tekstem etykiety (stan hosta)", () => {
@@ -98,34 +94,18 @@ describe("MeasurementConsentField", () => {
     fireEvent.click(box());
     expect(onChange).toHaveBeenLastCalledWith(true);
     expect(box()).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByText(/^Zgoda jest dobrowolna/));
+    fireEvent.click(screen.getByText(/^Zgoda na pomiar interakcji/));
     expect(onChange).toHaveBeenLastCalledWith(false);
     expect(box()).toHaveAttribute("aria-checked", "false");
   });
 
-  it("klik w link „szczegóły” nie przełącza pola", () => {
-    const onChange = vi.fn();
-    // Nawigacji jsdom nie wykonuje - zatrzymujemy domyślną akcję linku na
-    // dokumencie, żeby nie zaśmiecać logu; aktywacji etykiety to nie dotyczy
-    // (celem aktywacji jest sam link).
-    const stopNavigation = (event: Event) => event.preventDefault();
-    document.addEventListener("click", stopNavigation);
-    try {
-      render(<Host onChange={onChange} />);
-      fireEvent.click(screen.getByRole("link", { name: "szczegóły" }));
-    } finally {
-      document.removeEventListener("click", stopNavigation);
-    }
-    expect(onChange).not.toHaveBeenCalled();
-    expect(box()).toHaveAttribute("aria-checked", "false");
-  });
 
   it("disabled: wyszarzone, nieklikalne, atom wyłączony", () => {
     const onChange = vi.fn();
     const { container } = render(<Host disabled onChange={onChange} />);
     expect(box()).toBeDisabled();
     fireEvent.click(box());
-    fireEvent.click(screen.getByText(/^Zgoda jest dobrowolna/));
+    fireEvent.click(screen.getByText(/^Zgoda na pomiar interakcji/));
     expect(onChange).not.toHaveBeenCalled();
     expect(box()).toHaveAttribute("aria-checked", "false");
     const label = container.querySelector("label");
