@@ -46,6 +46,17 @@ interface SidebarListenCardProps {
 // widoczność fokusu klawiatury w całym odtwarzaczu.
 const FOCUS_RING = AUDIO_FOCUS_RING;
 
+/**
+ * Ikonowa kontrolka w nagłówku karty: ten sam krążek, ten sam gest i ten sam
+ * tooltip dla słuchawek (narracja AI) oraz pobierania pliku.
+ */
+const HEADER_ICON_BUTTON = [
+  "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
+  "text-muted-foreground/70 hover:text-brand transition-colors",
+  FOCUS_RING,
+].join(" ");
+
+
 /** Deterministyczny kształt fali (procent wysokości) - stabilny w SSR i obu motywach. */
 const WAVE_BARS: readonly number[] = Array.from({ length: 48 }, (_, i) =>
   Math.round(28 + 52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21))),
@@ -201,26 +212,22 @@ export function SidebarListenCard({
           playing ? "scale-x-100" : "scale-x-[0.18]",
         ].join(" ")}
       />
-      {/* Section label */}
+      {/* Section label + kontrolki: obie są ikonami z tooltipem po najechaniu. */}
       <div className="flex items-center gap-2 mb-3">
         <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
           {copy("label")}
         </h3>
         <div className="h-px flex-1 bg-border/60" />
-        {/* Headphones informują o możliwości odsłuchu / narracji AI - ukrywamy
-            gdy jest wgrany MP3 (wtedy odtwarzamy oryginał, ElevenLabs nie jest używany). */}
-        {!audioUrl && (
-          <TooltipProvider delayDuration={200}>
+        <TooltipProvider delayDuration={200}>
+          {/* Headphones informują o możliwości odsłuchu / narracji AI - ukrywamy
+              gdy jest wgrany MP3 (wtedy odtwarzamy oryginał, ElevenLabs nie jest używany). */}
+          {!audioUrl && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   aria-label={copy("aiNarration")}
-                  className={[
-                    "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full",
-                    "text-muted-foreground/70 hover:text-brand transition-colors",
-                    FOCUS_RING,
-                  ].join(" ")}
+                  className={HEADER_ICON_BUTTON}
                 >
                   <Headphones className="h-3 w-3" aria-hidden />
                 </button>
@@ -229,9 +236,31 @@ export function SidebarListenCard({
                 {copy("aiNarration")}
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
-        )}
+          )}
+          {/* Pobieranie to ikona, nie podpis: opis niesie tooltip i `aria-label`. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => void onDownload()}
+                disabled={downloading || loading}
+                aria-label={shared(downloadKey(downloading))}
+                aria-busy={downloading || undefined}
+                className={[
+                  HEADER_ICON_BUTTON,
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                ].join(" ")}
+              >
+                <AnimatedDownloadIcon downloading={downloading} className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6} className="rounded-[6px]">
+              {shared(downloadKey(downloading))}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
+
 
       {/* Main row: play + time/progress */}
       <div className={variant === "full-width" ? "flex flex-col gap-3" : "flex items-center gap-3"}>
@@ -361,47 +390,33 @@ export function SidebarListenCard({
         </div>
       </div>
 
-      {/* Footer: download + status/retry */}
-      <div className="mt-3 pt-3 flex items-center justify-between border-t border-border/50">
-        <button
-          type="button"
-          onClick={() => void onDownload()}
-          disabled={downloading || loading}
-          aria-label={shared(downloadKey(downloading))}
-          title={shared("download")}
-          className={[
-            "inline-flex items-center gap-1.5 rounded-[6px] text-muted-foreground",
-            "hover:text-brand transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-            FOCUS_RING,
-          ].join(" ")}
-        >
-          <AnimatedDownloadIcon downloading={downloading} className="h-3.5 w-3.5" />
-          <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
-            {shared("download")}
-          </span>
-        </button>
+      {/* Footer: tylko stan (ponowienie po błędzie albo etap syntezy).
+          Pobieranie jest ikoną w nagłówku - nie dublujemy go tu. */}
+      {errored || loading ? (
+        <div className="mt-3 pt-3 flex items-center justify-end border-t border-border/50">
+          {errored ? (
+            <button
+              type="button"
+              onClick={() => void player.loadAndPlay(meta)}
+              className={`cms-widget-kicker font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
+            >
+              {copy("retry")}
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
+              <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
+                <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
+              </span>
+              <span className="cms-widget-note font-medium text-muted-foreground tabular-nums">
+                {stageLabel}
+                {stagePct !== null ? ` · ${stagePct}%` : null}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : null}
 
-        {errored ? (
-          <button
-            type="button"
-            onClick={() => void player.loadAndPlay(meta)}
-            className={`cms-widget-kicker font-semibold text-brand underline hover:no-underline rounded-[6px] ${FOCUS_RING}`}
-          >
-            {copy("retry")}
-          </button>
-        ) : loading ? (
-          <div className="flex items-center gap-1.5" aria-live="polite" aria-atomic="true">
-            <span className="relative flex h-1.5 w-1.5" aria-hidden>
-              <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
-              <span className="relative rounded-full bg-brand h-1.5 w-1.5" />
-            </span>
-            <span className="cms-widget-note font-medium text-muted-foreground tabular-nums">
-              {stageLabel}
-              {stagePct !== null ? ` · ${stagePct}%` : null}
-            </span>
-          </div>
-        ) : null}
-      </div>
     </aside>
   );
 }
