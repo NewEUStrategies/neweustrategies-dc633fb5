@@ -1519,6 +1519,28 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     expect(doc.body.querySelector(`script[${FRAGMENT_LANDING_ATTR}]`)).toBeNull();
   });
 
+  it("skrypt odsłaniania granic strumienia stoi w `<head>`, przed powłoką Reacta w `<body>`", async () => {
+    // Wyłącza dławienie odsłonięć Reacta 19.2 (`lib/ssr/streamRevealScript.ts`): musi wykonać się
+    // przed skryptem powłoki (`$RT=performance.now()` w `<body>`), więc wyłącznie w `<head>`.
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { STREAM_REVEAL_SCRIPT } = await import("@/lib/ssr/streamRevealScript");
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    const html = renderToStaticMarkup(<Shell>{null}</Shell>);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const reveal = [...doc.head.querySelectorAll("script")].filter(
+      (el) => el.textContent === STREAM_REVEAL_SCRIPT,
+    );
+    expect(reveal).toHaveLength(1);
+    expect(
+      [...doc.body.querySelectorAll("script")].some(
+        (el) => el.textContent === STREAM_REVEAL_SCRIPT,
+      ),
+    ).toBe(false);
+  });
+
   it("hydratacja gniazda: HTML serwera zostaje, bez błędu, te same węzły po re-renderze", async () => {
     const { renderToString } = await import("react-dom/server");
     const { hydrateRoot } = await import("react-dom/client");

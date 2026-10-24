@@ -4,9 +4,12 @@
 import { describe, expect, it } from "vitest";
 import {
   analyzeServerEntryPurity,
+  clientOnlyRouteComponents,
+  CLIENT_ONLY_ROUTE_PREFIXES,
   renderServerEntryPurityReport,
   resolveChunkPath,
   serverEntryPurityFailed,
+  startEntryLoaders,
   startupChunks,
   staticImportersOfChunk,
   valueImportersOfPackage,
@@ -51,9 +54,39 @@ const ZRODLA: SourceFile[] = [
   },
 ];
 
+/** Loader wejść TanStack Start (`getEntries`) w kształcie po Oxc - jedna kopia aplikacji. */
+const LOADER: ServerChunk = {
+  path: "_ssr/server-LLL.mjs",
+  source:
+    "async function u(){let[e,t,n]=await Promise.all([import(`./router-RRR.mjs`),import(`./start-SSS.mjs`),import(`./empty-plugin-adapters-PPP.mjs`)]);return{routerEntry:e,startEntry:t,pluginAdapters:n}}export{u};",
+};
+
+/** Druga kopia z artefaktu sprzed 2026-10-24: Nitro, chunki bez hashy, cudzysłowy. */
+const LOADER_NITRO: ServerChunk = {
+  path: "_libs/@tanstack/react-start+[...].mjs",
+  source:
+    'async function Qi(){let[e,t,n]=await Promise.all([import("../../_chunks/router.mjs"),import("../../_chunks/start.mjs"),import("../_10.mjs")]);return{routerEntry:e,startEntry:t,pluginAdapters:n}}export{Qi};',
+};
+
+/** Trasa panelu w kształcie po Oxc, z komponentem podmienionym na zaślepkę (czwarta klasa). */
+const TRASA_PANELU: ServerChunk = {
+  path: "_ssr/routes-ADM.mjs",
+  source:
+    "var Kv=S(`/admin/posts/$slug`)({component:w(()=>import(`./admin.posts._slug-AAA.mjs`),`component`),remountDeps:({params:e})=>e.slug});export{Kv};",
+};
+const ZASLEPKA: ServerChunk = {
+  path: "_ssr/admin.posts._slug-AAA.mjs",
+  source: "function e(){return null}export{e as component};",
+};
+
+/**
+ * Analiza z jednym loaderem wejść i trasą panelu z zaślepką dołożonymi do niepustego
+ * artefaktu, żeby testy pozostałych reguł nie oblewały na regułach jednej kopii i zaślepek;
+ * pusty artefakt zostaje pusty.
+ */
 function analiza(chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) {
   return analyzeServerEntryPurity({
-    chunks,
+    chunks: chunks.length > 0 ? [...chunks, LOADER, TRASA_PANELU, ZASLEPKA] : chunks,
     sources,
     lazyOnlyPackages: LAZY_ONLY_PACKAGES,
     frozenRules: FROZEN_STATIC_IMPORTERS,
@@ -210,6 +243,188 @@ describe("serverEntryPurity - graf startu i raport", () => {
     );
     expect(text).toContain("nie znaleziono chunku `_libs/stripe.mjs`");
     expect(text).toContain("Zaktualizuj regułę lub ją usuń");
+  });
+});
+
+describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
+  const surowa = (chunks: ServerChunk[]) =>
+    analyzeServerEntryPurity({
+      chunks,
+      sources: ZRODLA,
+      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("rozpoznaje loader wejść w backtickach Oxc i w cudzysłowach, z hashem i bez", () => {
+    expect(startEntryLoaders([...CZYSTE, LOADER, LOADER_NITRO])).toEqual([
+      "_libs/@tanstack/react-start+[...].mjs",
+      "_ssr/server-LLL.mjs",
+    ]);
+  });
+
+  it("sam `import()` chunku routera albo startu to nie loader wejść", () => {
+    const chunks: ServerChunk[] = [
+      { path: "_ssr/a.mjs", source: "const r=()=>import(`./router-RRR.mjs`);export{r};" },
+      { path: "_ssr/b.mjs", source: "const s=()=>import(`./start-SSS.mjs`);export{s};" },
+      {
+        path: "_ssr/c.mjs",
+        source: "Promise.all([import(`./start-SSS.mjs`),import(`./router-RRR.mjs`)]);",
+      },
+    ];
+    expect(startEntryLoaders(chunks)).toEqual([]);
+  });
+
+  it("przechodzi z dokładnie jednym loaderem", () => {
+    const report = surowa([...CZYSTE, LOADER, TRASA_PANELU, ZASLEPKA]);
+    expect(report.startEntryLoaders).toEqual(["_ssr/server-LLL.mjs"]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("oblewa na drugiej kopii aplikacji i wskazuje oba loadery z naprawą", () => {
+    const report = surowa([...CZYSTE, LOADER, LOADER_NITRO]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("artefakt serwera niesie 2 kopie aplikacji");
+    expect(text).toContain("    _libs/@tanstack/react-start+[...].mjs");
+    expect(text).toContain("    _ssr/server-LLL.mjs");
+    expect(text).toContain("importuj LITERAŁEM");
+  });
+
+  it("oblewa bez loadera - zmieniony kształt kodu frameworka to defekt skanu", () => {
+    const report = surowa([...CZYSTE, TRASA_PANELU, ZASLEPKA]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    expect(renderServerEntryPurityReport(report)).toContain(
+      "nie znaleziono loadera wejść TanStack Start",
+    );
+  });
+});
+
+describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydratacji", () => {
+  const surowa = (chunks: ServerChunk[]) =>
+    analyzeServerEntryPurity({
+      chunks: [...CZYSTE, LOADER, ...chunks],
+      sources: ZRODLA,
+      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("zaślepka komponentu trasy panelu przechodzi", () => {
+    const report = surowa([TRASA_PANELU, ZASLEPKA]);
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("pełny komponent panelu w artefakcie serwera oblewa z trasą, plikiem i rozmiarem", () => {
+    const pelny: ServerChunk = { path: ZASLEPKA.path, source: "x".repeat(170_000) };
+    const report = surowa([TRASA_PANELU, pelny]);
+    expect(report.clientOnlyComponents.heavy).toEqual([
+      { route: "/admin/posts/$slug", chunk: "_ssr/admin.posts._slug-AAA.mjs", bytes: 170_000 },
+    ]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("1 z 1 komponentów tras renderowanych wyłącznie po hydratacji");
+    expect(text).toContain("    /admin/posts/$slug: _ssr/admin.posts._slug-AAA.mjs (170000 B)");
+    expect(text).toContain("clientOnlyRouteStubPlugin.ts");
+  });
+
+  it("brak pliku zaślepki jest naruszeniem, a nie zielonym światłem", () => {
+    const report = surowa([TRASA_PANELU]);
+    expect(report.clientOnlyComponents.heavy[0]).toMatchObject({ bytes: -1 });
+    expect(renderServerEntryPurityReport(report)).toContain("(brak pliku)");
+  });
+
+  it("trasy publiczne, layout `/admin` i komponenty innych tras nie są sprawdzane", () => {
+    const publiczne: ServerChunk = {
+      path: "_ssr/routes-PUB.mjs",
+      source:
+        "var A=S(`/admin`)({component:w(()=>import(`./admin-L.mjs`),`component`)});var B=S(`/blog`)({component:w(()=>import(`./blog-B.mjs`),`component`)});",
+    };
+    const report = surowa([
+      publiczne,
+      { path: "_ssr/admin-L.mjs", source: "y".repeat(5_000) },
+      { path: "_ssr/blog-B.mjs", source: "z".repeat(5_000) },
+      TRASA_PANELU,
+      ZASLEPKA,
+    ]);
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+  });
+
+  it("węzły błędu i 404 trasy panelu też muszą być zaślepką; loader nie jest sprawdzany", () => {
+    const trasa: ServerChunk = {
+      path: "_ssr/routes-ADM.mjs",
+      source:
+        "S(`/admin/x`)({loader:l(()=>import(`./admin.x-L.mjs`),`loader`),component:w(()=>import(`./admin.x-C.mjs`),`component`),errorComponent:w(()=>import(`./admin.x-E.mjs`),`errorComponent`)});",
+    };
+    const report = surowa([
+      trasa,
+      { path: "_ssr/admin.x-L.mjs", source: "l".repeat(5_000) },
+      { path: "_ssr/admin.x-C.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/admin.x-E.mjs", source: "e".repeat(5_000) },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(2);
+    expect(report.clientOnlyComponents.heavy.map((h) => h.chunk)).toEqual(["_ssr/admin.x-E.mjs"]);
+  });
+
+  it("grupa podziału wspólna z loaderem (kokpit `/admin/`) nie jest sprawdzana", () => {
+    const kokpit: ServerChunk = {
+      path: "_ssr/routes-KOK.mjs",
+      source:
+        "S(`/admin/`)({loader:C(()=>import(`./admin.index-K.mjs`),`loader`),component:w(()=>import(`./admin.index-K.mjs`),`component`)});",
+    };
+    const report = surowa([
+      kokpit,
+      { path: "_ssr/admin.index-K.mjs", source: "k".repeat(6_000) },
+      TRASA_PANELU,
+      ZASLEPKA,
+    ]);
+    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+  });
+
+  it("importer wyciągnięty przez Oxc do zmiennej też jest sprawdzany (przegląd PR #534)", () => {
+    // Kształt z artefaktu HEAD: `am=()=>import(...)` przed definicją, w opcjach `T(am,"component")`.
+    const trasa: ServerChunk = {
+      path: "_ssr/routes-HOI.mjs",
+      source:
+        "var x=1,am=()=>import(`./admin.coupons-H.mjs`),lm=()=>import(`./admin.kokpit-K.mjs`);var Q=C(`/admin/coupons`)({validateSearch:e=>e,component:T(am,`component`)}),R=C(`/admin/kokpit`)({loader:L(lm,`loader`),component:T(lm,`component`)});",
+    };
+    const zaslepka = surowa([trasa, { path: "_ssr/admin.coupons-H.mjs", source: ZASLEPKA.source }]);
+    expect(zaslepka.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    const pelny = surowa([
+      trasa,
+      { path: "_ssr/admin.coupons-H.mjs", source: "w".repeat(53_228) },
+      { path: "_ssr/admin.kokpit-K.mjs", source: "k".repeat(6_000) },
+    ]);
+    expect(pelny.clientOnlyComponents.heavy).toEqual([
+      { route: "/admin/coupons", chunk: "_ssr/admin.coupons-H.mjs", bytes: 53_228 },
+    ]);
+    expect(serverEntryPurityFailed(pelny)).toBe(true);
+  });
+
+  it("trasa z `component`, którego importera skan nie rozwiązał, oblewa zamiast wypaść po cichu", () => {
+    const nowyKsztalt: ServerChunk = {
+      path: "_ssr/routes-NEW.mjs",
+      source:
+        "var A=C(`/admin/nowa`)({component:lazy(`./admin.nowa-N.mjs`)}),B=C(`/admin/przekierowanie`)({beforeLoad:()=>{throw r({to:`/admin`})}});",
+    };
+    const report = surowa([nowyKsztalt, TRASA_PANELU, ZASLEPKA]);
+    // Trasa-przekierowanie bez `component` nie jest defektem skanu.
+    expect(report.clientOnlyComponents.unresolved).toEqual(["/admin/nowa"]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("1 tras renderowanych wyłącznie po hydratacji ma `component`");
+    expect(text).toContain("    /admin/nowa");
+  });
+
+  it("zero sprawdzonych tras to defekt skanu", () => {
+    const report = surowa([]);
+    expect(report.clientOnlyComponents.checked).toBe(0);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    expect(renderServerEntryPurityReport(report)).toContain("nie znaleziono komponentów tras");
+  });
+
+  it("prefiks reguły to `/admin/` - layout `/admin` renderuje szkielet na serwerze", () => {
+    expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/"]);
+    expect(clientOnlyRouteComponents([TRASA_PANELU, ZASLEPKA]).checked).toBe(1);
   });
 });
 

@@ -68,10 +68,14 @@ function imageTransform(url: URL): URLSearchParams | null {
 
 // Uploads and WP imports use unique keys; replacements receive a new URL.
 // Keep short revalidation for human-named files that may be overwritten.
+// Pliki profilu (`<tenant>/users/<id>/<rodzaj>-${Date.now()}.<ext>`:
+// AccountIdentityPanel, useProfileEditor, AuthorProfileEditor, ProfileExtraSections)
+// też dostają nowy klucz przy każdym przesłaniu - bez losowego sufiksu, ale ze
+// znacznikiem czasu w ms. Godzinny TTL awatara w bylinie zgłaszał PSI (cache-insight).
 function mediaCacheControl(path: string): string {
   const file = path.split("/").at(-1) ?? "";
   const versioned =
-    /^(?:[a-f0-9]{32,64}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|(?:avatar-)?\d{13}-[a-z0-9]+)\.[a-z0-9]+$/i.test(
+    /^(?:[a-f0-9]{32,64}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|(?:avatar-)?\d{13}-[a-z0-9]+|(?:avatar|cover|author-avatar|cv)-\d{13})\.[a-z0-9]+$/i.test(
       file,
     );
   return versioned

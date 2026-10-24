@@ -67,6 +67,13 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
+    symbol: "STREAM_REVEAL_SCRIPT",
+    reason:
+      "Stała z lib/ssr/streamRevealScript - jeden literał (`Object.defineProperty` akcesora `$RT`), bez wstawek z bazy ani z żądania. MUSI być inline w `<head>` i wykonać się przed skryptem powłoki Reacta: wyłącza dławienie odsłonięć granic strumienia SSR (>= 300 ms po pierwszym malowaniu w React 19.2), więc treść nad zgięciem pojawia się w najbliższej klatce.",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
     symbol: "consentInitScript",
     reason:
       "Skrypt zgód (P1.3): na serwerze stała CONSENT_INIT_SCRIPT z lib/consent/consentInitScript - literał złożony wyłącznie ze stałych modułów (klucze magazynu, nazwy atrybutów i zdarzeń, fragmenty CONSENT_*_JS z lib/ads/consent.ts), bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-consent-init]`. MUSI wykonać się przed pierwszym malowaniem: ukrywa powłokę banera odwiedzającemu z decyzją i utrwala decyzję klikniętą przed bootem.",

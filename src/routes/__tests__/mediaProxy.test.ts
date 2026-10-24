@@ -212,6 +212,10 @@ it.each([
   "widgets/1780000000000-5jgrel.webp",
   "logo/1780000000000-zx9she.svg",
   "profiles/avatar-1780000000000-random.png",
+  "tenant/users/user-id/avatar-1784010884008.png",
+  "tenant/users/user-id/cover-1784010884008.jpg",
+  "tenant/users/user-id/author-avatar-1784010884008.jpg",
+  "tenant/users/user-id/cv-1784010884008.pdf",
 ])("caches versioned media for a year: %s", async (path) => {
   h.fetch.mockResolvedValue(new Response("image"));
   const response = await serve("GET", path, {}, "?width=640&resize=contain&quality=80");
@@ -220,12 +224,15 @@ it.each([
   );
 });
 
-it("revalidates mutable named media instead of pinning stale content", async () => {
-  h.fetch.mockResolvedValue(new Response("image"));
-  const response = await serve("GET", "logo/current.svg");
-  expect(response.headers.get("cache-control")).toContain("max-age=3600,");
-  expect(response.headers.get("cache-control")).not.toContain("immutable");
-});
+it.each(["logo/current.svg", "users/user-id/avatar.png", "users/user-id/cover-2024.jpg"])(
+  "revalidates mutable named media instead of pinning stale content: %s",
+  async (path) => {
+    h.fetch.mockResolvedValue(new Response("image"));
+    const response = await serve("GET", path);
+    expect(response.headers.get("cache-control")).toContain("max-age=3600,");
+    expect(response.headers.get("cache-control")).not.toContain("immutable");
+  },
+);
 
 it("shares normalized image transformations across visitors without fetching storage again", async () => {
   const entries = new Map<string, Response>();
