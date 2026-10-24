@@ -123,8 +123,16 @@ describe("PostLayoutRenderer", () => {
   describe("sidebar", () => {
     it("renders the sidebar for presets with hasSidebar", () => {
       const sidebarLayout = STANDARD_LAYOUTS.find((l) => l.hasSidebar)!;
-      const { getByTestId } = renderLayout(sidebarLayout.id);
+      const { getByTestId, container } = renderLayout(sidebarLayout.id);
       expect(getByTestId("sidebar").textContent).toBe("Sidebar");
+      // Szyna 320 px na `lg`, od `xl` szersza (384 px) - zaczyna się bliżej tekstu,
+      // który przy sidebarze wypełnia całą kolumnę (styles.css, `data-layout-sidebar`).
+      const grid = getByTestId("sidebar").closest("aside")!.parentElement!;
+      expect(grid.className).toContain("lg:grid-cols-[minmax(0,1fr)_320px]");
+      expect(grid.className).toContain("xl:grid-cols-[minmax(0,1fr)_384px]");
+      expect(
+        container.querySelector("[data-layout-sidebar]")!.getAttribute("data-layout-sidebar"),
+      ).toBe("true");
     });
 
     it("does not render the sidebar for presets without one", () => {

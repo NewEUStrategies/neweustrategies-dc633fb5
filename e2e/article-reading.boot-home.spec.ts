@@ -25,6 +25,8 @@ const articleFixture = JSON.parse(
 //     ciemny motyw i wydruk bez regresji.
 
 const POST_PATH = "/blog/fixture-2";
+/** Ten sam wpis z sidebarem obok tekstu (`layout_overrides.has_sidebar`), jak na produkcji. */
+const SIDEBAR_POST_PATH = "/blog/fixture-2-sidebar";
 const INFOGRAM_ID = "70a51249-9c3c-4ce0-9929-83c21de9113a";
 
 declare global {
@@ -34,7 +36,7 @@ declare global {
   }
 }
 
-async function openPost(page: Page): Promise<string[]> {
+async function openPost(page: Page, path = POST_PATH): Promise<string[]> {
   const mismatches: string[] = [];
   const hydration = /hydrat|did not match|server rendered html/i;
   page.on("console", (m) => {
@@ -67,7 +69,7 @@ async function openPost(page: Page): Promise<string[]> {
     }),
   );
   await page.setExtraHTTPHeaders({ "accept-language": "pl" });
-  await page.goto(POST_PATH);
+  await page.goto(path);
   await expect.poll(() => page.evaluate(() => window.__nesAppReady === true)).toBe(true);
   return mismatches;
 }
@@ -331,3 +333,65 @@ test.describe("kolumna tekstu wpisu, telefon 390", () => {
     expect(mismatches).toEqual([]);
   });
 });
+
+/** Krawędzie tekstu, nagłówka, punktów i sidebara wpisu z sidebarem. */
+function sidebarGeometry(page: Page) {
+  return page.evaluate(() => {
+    const rect = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+    const paragraph = [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-reading="article"] .blocks-content > [data-block-type="paragraph"]',
+      ),
+    ].find((el) => (el.textContent ?? "").trim().length > 200);
+    const p = paragraph?.getBoundingClientRect() ?? null;
+    const aside = rect('[data-layout-sidebar="true"] > .grid > aside');
+    const header = rect("[data-post-layout] header");
+    const kt = rect('[data-reading="article"] > .key-takeaways');
+    return {
+      layoutSidebar: document
+        .querySelector("[data-post-layout]")
+        ?.getAttribute("data-layout-sidebar"),
+      paragraphLeft: p?.left ?? null,
+      paragraphRight: p?.right ?? null,
+      fontSize: paragraph ? parseFloat(getComputedStyle(paragraph).fontSize) : null,
+      headerLeft: header?.left ?? null,
+      headerRight: header?.right ?? null,
+      asideLeft: aside?.left ?? null,
+      asideWidth: aside?.width ?? null,
+      takeawaysLeft: kt?.left ?? null,
+      takeawaysRight: kt?.right ?? null,
+      // `gap-10` siatki = 2,5rem (korzeń jest płynny od `lg`).
+      gap: 2.5 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+    };
+  });
+}
+
+// Wpis z sidebarem obok tekstu (od `lg`): tekst wypełnia całą kolumnę artykułu - od lewej
+// krawędzi nagłówka do sidebara (odstęp siatki `gap-10`) - zamiast stać w mierze pośrodku.
+// Od `xl` sidebar ma 384 px, na `lg` 320 px.
+for (const { width, sidebar } of [
+  { width: 1440, sidebar: 384 },
+  { width: 1100, sidebar: 320 },
+]) {
+  test.describe(`kolumna tekstu wpisu z sidebarem, desktop ${width}`, () => {
+    test.use({ viewport: { width, height: 900 }, locale: "pl-PL" });
+
+    test("tekst od lewej krawędzi nagłówka do sidebara, sidebar po prawej", async ({ page }) => {
+      const mismatches = await openPost(page, SIDEBAR_POST_PATH);
+      const g = await sidebarGeometry(page);
+      test.info().annotations.push({ type: `sidebar ${width}`, description: JSON.stringify(g) });
+
+      expect(g.layoutSidebar).toBe("true");
+      expect(g.fontSize).toBe(17);
+      expect(g.asideWidth).toBeCloseTo(sidebar, 0);
+      // Tekst zaczyna się na lewej krawędzi nagłówka i kończy odstęp siatki przed sidebarem.
+      expect(Math.abs((g.paragraphLeft ?? 0) - (g.headerLeft ?? 0))).toBeLessThanOrEqual(1);
+      expect(Math.abs((g.paragraphRight ?? 0) - (g.headerRight ?? 0))).toBeLessThanOrEqual(1);
+      expect(Math.abs((g.asideLeft ?? 0) - (g.paragraphRight ?? 0) - g.gap)).toBeLessThanOrEqual(1);
+      // Punkty „Z tego materiału dowiesz się, że” na całą szerokość tej samej kolumny.
+      expect(Math.abs((g.takeawaysLeft ?? 0) - (g.paragraphLeft ?? 0))).toBeLessThanOrEqual(1);
+      expect(Math.abs((g.takeawaysRight ?? 0) - (g.paragraphRight ?? 0))).toBeLessThanOrEqual(1);
+      expect(mismatches).toEqual([]);
+    });
+  });
+}

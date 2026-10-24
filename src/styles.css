@@ -5074,6 +5074,15 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
     margin-inline: max(0px, 50% - var(--article-measure) / 2);
   }
 }
+/* Wpis z sidebarem obok tekstu (od `lg`): tekst wypełnia całą kolumnę
+   artykułu - od lewej krawędzi nagłówka do sidebara - zamiast stać w mierze
+   pośrodku (szerokie, puste marginesy po obu stronach). Miara 100% zeruje
+   marginesy kolumny tekstu i zrównuje nagłówek z kolumną. */
+@media (min-width: 1024px) {
+  [data-layout-sidebar="true"] {
+    --article-measure: 100%;
+  }
+}
 
 /* -------------------------------------------------------------
  * Global input UX: hide placeholder on focus, restore on blur.
