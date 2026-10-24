@@ -2,8 +2,8 @@
 
 ## Pasek autora inline (2026-10-24)
 
-- [ ] Przenieść istniejące social media obok obserwowania; dopasować szerokość i zawijanie bez zmiany logiki ani danych.
-- [ ] Sprawdzić testy akcji i rzeczywistą kartę autora na desktop i telefonie.
+- [x] Istniejące social media inline obok obserwowania; przycisk wypełnia pozostałą szerokość, dodatkowe ikony zawijają się bez ukrywania. Logika i dane bez zmian.
+- [x] 21 testów przechodzi, build OK; rzeczywista karta autora przy 1285 i 390 px ma ikony X/LinkedIn obok przycisku, bez przepełnienia i błędów JS. Klik obserwowania gościa otwiera okno logowania. Zmiana w podglądzie, bez publikacji.
 
 ## Delikatne zwężenie strony artykułów (2026-10-24)
 
