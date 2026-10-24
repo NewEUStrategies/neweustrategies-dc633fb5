@@ -1,5 +1,10 @@
 # Roadmap
 
+## Krótsza zgoda na pomiar e-maili (2026-10-24)
+
+- [ ] Skrócić etykietę formularzy PL/EN w języku sąsiedniej zgody; nazwać New European Strategies i cel poprawy jakości usług, bez technicznego opisu pomiaru.
+- [ ] Zachować pełną informację na stronie potwierdzenia oraz dotychczasowe zasady i historię zgód; sprawdzić testy i popup.
+
 ## Weryfikacja PR #536 (2026-10-24)
 
 - [x] Merge 7467b9cda zawiera jedyny commit gałęzi 34de38c62; oba są przodkami HEAD, drzewo merge identyczne z końcem gałęzi. PR #535 również jest przodkiem HEAD. Sześć plików, bez migracji, nowych tabel, widoków ani produkcyjnych RPC.

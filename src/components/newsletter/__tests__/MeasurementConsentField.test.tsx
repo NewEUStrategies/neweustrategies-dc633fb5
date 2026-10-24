@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import type { ConsentLang } from "@/lib/newsletter/consentSegments";
-import { measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
+import { measurementConsentSummaryPlain as measurementConsentPlain } from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
 const ROW = "flex items-start gap-2.5 text-[12.5px] leading-relaxed";
@@ -91,7 +91,7 @@ describe("MeasurementConsentField", () => {
     fireEvent.click(box());
     expect(onChange).toHaveBeenLastCalledWith(true);
     expect(box()).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByText(/^Zgadzam się na pomiar/));
+    fireEvent.click(screen.getByText(/^Wyrażasz zgodę na pomiar/));
     expect(onChange).toHaveBeenLastCalledWith(false);
     expect(box()).toHaveAttribute("aria-checked", "false");
   });
@@ -118,7 +118,7 @@ describe("MeasurementConsentField", () => {
     const { container } = render(<Host disabled onChange={onChange} />);
     expect(box()).toBeDisabled();
     fireEvent.click(box());
-    fireEvent.click(screen.getByText(/^Zgadzam się na pomiar/));
+    fireEvent.click(screen.getByText(/^Wyrażasz zgodę na pomiar/));
     expect(onChange).not.toHaveBeenCalled();
     expect(box()).toHaveAttribute("aria-checked", "false");
     const label = container.querySelector("label");

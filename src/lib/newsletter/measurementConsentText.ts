@@ -100,6 +100,28 @@ const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
   ],
 };
 
+/** Concise form label; the confirmation page retains the versioned full disclosure. */
+const FORM_SUMMARY: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
+  pl: [
+    "Wyrażasz zgodę na pomiar otwarć i kliknięć w e-mailach od New European Strategies, aby poprawiać jakość usług i dopasowywać komunikację marketingową. Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (",
+    { href: "/komunikacja-i-marketing#pomiar", label: "szczegóły" },
+    ").",
+  ],
+  en: [
+    "You consent to measuring opens and clicks in emails from New European Strategies to improve service quality and tailor marketing communications. Consent is optional, is not required for the newsletter and takes effect after confirmation via email. You can withdraw it in any email footer (",
+    { href: "/en/komunikacja-i-marketing#pomiar", label: "details" },
+    ").",
+  ],
+};
+
+export function measurementConsentSummarySegments(lang: ConsentLang): readonly ConsentSegment[] {
+  return FORM_SUMMARY[lang];
+}
+
+export function measurementConsentSummaryPlain(lang: ConsentLang): string {
+  return segmentsPlain(FORM_SUMMARY[lang]);
+}
+
 /** Odcinki treści pola pomiaru (widok React). */
 export function measurementConsentSegments(lang: ConsentLang): readonly ConsentSegment[] {
   return SEGMENTS[lang];
