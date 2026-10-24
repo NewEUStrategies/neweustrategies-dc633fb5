@@ -311,3 +311,8 @@
 
 - [x] Wspólny odstęp między blokami prawej kolumny zmniejszony do `gap-2.5` (kontener sidebara) i `space-y-2.5` (kolumna); usunięte podwajające się `mb-4` przy odsłuchu i karcie autora.
 - [x] Testy: 300 przechodzi (`PostLayoutRenderer`, `postSidebarAndBadge`), `tsgo` bez błędów, build OK; w podglądzie odstęp między kartami 10 px (wcześniej 31-32 px), light i dark identycznie.
+
+## Pobieranie MP3 jako ikona z tooltipem (2026-10-24)
+
+- [x] `SidebarListenCard`: „Pobierz MP3" bez podpisanego przycisku w stopce - ikona w rzędzie nagłówka obok słuchawek (ten sam krążek i akcent marki), tooltip po najechaniu oraz `aria-label`; stopka tylko dla stanu (błąd / etap syntezy).
+- [x] Testy: 63 przechodzi (`audioOrganisms`, `audioControlBorders`), `tsgo` bez błędów; w podglądzie tooltip „Pobierz MP3" nad ikoną, brak podpisu w karcie, brak błędów JS.
