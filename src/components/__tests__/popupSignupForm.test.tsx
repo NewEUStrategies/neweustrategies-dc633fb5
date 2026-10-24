@@ -90,7 +90,6 @@ import {
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
 } from "@/lib/newsletter/measurementConsentText";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
 import { axeViolations, summarize } from "@/test/axe";
