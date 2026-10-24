@@ -2,7 +2,7 @@
 
 ## Delikatne zwężenie strony artykułów (2026-10-24)
 
-- [ ] Mocniej zwęzić ramkę artykułu oraz sidebar zgodnie z kolejną prośbą; sprawdzić testy i geometrię w przeglądarce.
+- [x] Kolejna prośba: ramka 86% szerokości desktop, sidebar 280 px od lg / 320 px od xl, odstęp 32 px. 297 testów przechodzi, build OK; przeglądarka potwierdza identyczną geometrię light/dark i brak przepełnienia oraz błędów JS przy 1286/1440/390 px. Telefon i wielkość tekstu bez zmian; w podglądzie, bez publikacji.
 
 - [x] Zwężono ramkę artykułów do 94% dostępnej szerokości od 1024 px; zachowano limit z panelu, typografię i prawą kolumnę. Strony CMS, telefon i wydruk bez zmian.
 - [x] 297 testów układów i dostępności przechodzi, build OK. Rzeczywisty artykuł przy 1286/1440/390 px: identyczna geometria light/dark, sidebar desktop 384 px, brak poziomego przepełnienia i błędów JS. Zweryfikowano nagłówek i akapity po przewinięciu. Zmiana w podglądzie, bez publikacji.
