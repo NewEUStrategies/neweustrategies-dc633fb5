@@ -2,8 +2,8 @@
 
 ## Krótsza zgoda na pomiar e-maili (2026-10-24)
 
-- [ ] Skrócić etykietę formularzy PL/EN w języku sąsiedniej zgody; nazwać New European Strategies i cel poprawy jakości usług, bez technicznego opisu pomiaru.
-- [ ] Zachować pełną informację na stronie potwierdzenia oraz dotychczasowe zasady i historię zgód; sprawdzić testy i popup.
+- [x] Skrócono wspólną etykietę formularzy PL/EN: New European Strategies, poprawa jakości usług i dopasowanie komunikacji marketingowej; bez technicznego opisu pomiaru.
+- [x] Pełna informacja na stronie potwierdzenia, wersja/payload i historia zgód bez zmian. 132 unikalne testy przechodzą, build OK. Przeglądarka potwierdza krótszą polską etykietę w newsletterze, pole niezaznaczone. Popup sprawdzony testami, nie otwarto go w przeglądarce. Publikacji tej zmiany nie zlecono.
 
 ## Weryfikacja PR #536 (2026-10-24)
 
