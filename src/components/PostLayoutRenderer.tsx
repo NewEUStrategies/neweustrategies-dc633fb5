@@ -394,7 +394,7 @@ export function PostLayoutRenderer({
         // Węższa prawa szyna zachowuje czytelność kart; wspólny odstęp w obu motywach.
         <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
           {article}
-          <aside className="min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
+          <aside className="min-w-0 max-w-full space-y-2.5 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
             {sidebar}
           </aside>
         </div>
