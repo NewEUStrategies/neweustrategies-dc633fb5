@@ -429,10 +429,10 @@ describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
     expect(box).not.toBeNull();
     expect(box).toHaveAttribute("aria-checked", "false");
     expect(box).toBeDisabled();
-    // Nazwa dostępna = treść pola pomiaru (happy-dom dokleja spacje wokół linku).
-    expect(box).toHaveAccessibleName(/^Wyrażasz zgodę na pomiar otwarć i kliknięć/);
+    // Krótka etykieta widoczna; nazwa dostępna pola nazywa to, czego dotyczy zgoda.
+    expect(box).toHaveAccessibleName(/^Zgoda na pomiar otwarć i kliknięć w e-mailach$/);
     expect(document.querySelector('[data-consent="email_measurement"]')?.textContent).toBe(
-      "Wyrażasz zgodę na pomiar otwarć i kliknięć w e-mailach od New European Strategies, aby poprawiać jakość usług i dopasowywać komunikację marketingową. Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły).",
+      "Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (szczegóły).",
     );
     const [newsletter] = consentBoxes();
     // Kolejność w dokumencie: newsletter, potem pomiar.
