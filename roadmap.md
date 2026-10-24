@@ -1,5 +1,10 @@
 # Roadmap
 
+## Pasek autora inline (2026-10-24)
+
+- [x] Istniejące social media inline obok obserwowania; przycisk wypełnia pozostałą szerokość, dodatkowe ikony zawijają się bez ukrywania. Logika i dane bez zmian.
+- [x] 21 testów przechodzi, build OK; rzeczywista karta autora przy 1285 i 390 px ma ikony X/LinkedIn obok przycisku, bez przepełnienia i błędów JS. Klik obserwowania gościa otwiera okno logowania. Zmiana w podglądzie, bez publikacji.
+
 ## Delikatne zwężenie strony artykułów (2026-10-24)
 
 - [x] Kolejna prośba: ramka 86% szerokości desktop, sidebar 280 px od lg / 320 px od xl, odstęp 32 px. 297 testów przechodzi, build OK; przeglądarka potwierdza identyczną geometrię light/dark i brak przepełnienia oraz błędów JS przy 1286/1440/390 px. Telefon i wielkość tekstu bez zmian; w podglądzie, bez publikacji.

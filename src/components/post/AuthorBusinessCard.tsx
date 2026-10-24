@@ -2,6 +2,7 @@
 // między widgetem odsłuchu a spisem treści. Premium, kompaktowy,
 // w pełni responsywny i bilingualny (PL/EN).
 import { AppLink } from "@/components/atoms/AppLink";
+import { Button } from "@/components/ui/button";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { FastForwardIcon } from "@/components/atoms/FastForwardIcon";
 import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
@@ -213,9 +214,9 @@ export function AuthorBusinessCard({
         </div>
       </div>
 
-      {canFollow && (
-        <div className="mt-3">
-          <button
+      {(canFollow || hasAnySocial) && (
+        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+          {canFollow && <Button
             type="button"
             onClick={handleFollow}
             aria-pressed={isFollowing}
@@ -223,7 +224,7 @@ export function AuthorBusinessCard({
             title={t.followHint}
             disabled={toggleFollow.isPending}
             className={[
-              "cms-widget-label group inline-flex w-full items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 font-semibold transition-all duration-200",
+              "cms-widget-label group h-auto min-h-8 min-w-0 flex-[1_0_min(100%,9rem)] items-center justify-center gap-1.5 whitespace-normal rounded-[6px] px-2 py-1.5 font-semibold shadow-none transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/40",
               isFollowing
                 ? "border border-[color:var(--brand)]/40 bg-[color:var(--brand)]/10 text-[color:var(--brand)] hover:bg-[color:var(--brand)]/15"
@@ -244,13 +245,9 @@ export function AuthorBusinessCard({
                 aria-hidden
               />
             )}
-            <span>{isFollowing ? t.following : t.follow}</span>
-          </button>
-        </div>
-      )}
+            <span className="min-w-0 break-words">{isFollowing ? t.following : t.follow}</span>
+          </Button>}
 
-      {hasAnySocial && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
           {socials.map(({ key, url, label, Fallback }) => (
             <a
               key={key}
@@ -258,8 +255,9 @@ export function AuthorBusinessCard({
               target="_blank"
               rel="noreferrer noopener"
               aria-label={label}
+              title={label}
               style={brandTileStyle(key)}
-              className={`${BRAND_TILE_CLASS} h-8 w-8`}
+              className={`${BRAND_TILE_CLASS} h-8 w-8 shrink-0`}
             >
               <BrandIcon name={key} fallback={Fallback} className="h-3.5 w-3.5" alt={label} />
             </a>
@@ -268,8 +266,9 @@ export function AuthorBusinessCard({
             <a
               href={`mailto:${email}`}
               aria-label={t.email}
+              title={t.email}
               style={brandTileStyle("mail")}
-              className={`${BRAND_TILE_CLASS} h-8 w-8`}
+              className={`${BRAND_TILE_CLASS} h-8 w-8 shrink-0`}
             >
               <Mail className="h-3.5 w-3.5" />
             </a>
@@ -281,8 +280,9 @@ export function AuthorBusinessCard({
               target="_blank"
               rel="noreferrer noopener"
               aria-label={s.label}
+              title={s.label}
               style={brandTileStyle("website")}
-              className={`${BRAND_TILE_CLASS} h-8 w-8`}
+              className={`${BRAND_TILE_CLASS} h-8 w-8 shrink-0`}
             >
               {s.iconUrl ? (
                 <img
