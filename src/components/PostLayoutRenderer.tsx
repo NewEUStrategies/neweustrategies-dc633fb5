@@ -391,7 +391,9 @@ export function PostLayoutRenderer({
       <NoteContextBinder entityType={entityType} entityId={entityId} title={title} />
       <ReadingHeader title={title} entityId={entityId} entityType={entityType} />
       {hasSidebar ? (
-        <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] gap-10">
+        // Sidebar od `xl` szerszy (384 px): zaczyna się bliżej tekstu, a kolumna
+        // artykułu (tekst na całą szerokość, styles.css) kończy się odstęp `gap-10` przed nim.
+        <div className="grid min-w-0 max-w-full lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_384px] gap-10">
           {article}
           <aside className="min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
             {sidebar}

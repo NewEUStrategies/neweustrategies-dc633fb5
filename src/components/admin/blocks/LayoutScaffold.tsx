@@ -464,7 +464,7 @@ export function LayoutScaffold({
       {/* Sidebar jest szyną na całą wysokość artykułu - nagłówek i cover
           siedzą w lewej kolumnie, tak jak w publicznym rendererze. */}
       {hasSidebar ? (
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+        <div className="grid lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_384px] gap-6">
           <div className="min-w-0">
             {topZone}
             {contentZone}

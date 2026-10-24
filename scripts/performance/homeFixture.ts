@@ -132,6 +132,16 @@ const documentWeightSection = {
   full_path: "blog",
 };
 export const DOCUMENT_WEIGHT_POST_PATH = `/${documentWeightSection.full_path}/${String(documentWeightPost.slug)}`;
+/**
+ * Ten sam wpis spec-u kolumny tekstu Z SIDEBAREM (`layout_overrides.has_sidebar`), jak na
+ * produkcji: osobny adres i id, bo układ wynika z wiersza wpisu. Tylko `artifact-boot`;
+ * wiersza nie ma w `homeFixture.posts` (listy `/` i `/blog` bez zmian).
+ */
+const ARTICLE_SIDEBAR_POST_ID = "00000000-0000-0000-0000-0000000000a2";
+const ARTICLE_SIDEBAR_SLUG = `${String(documentWeightPost.slug)}-sidebar`;
+export const ARTICLE_SIDEBAR_POST_PATH = `/${documentWeightSection.full_path}/${ARTICLE_SIDEBAR_SLUG}`;
+const isArticlePostId = (id: unknown) =>
+  id === documentWeightPost.id || id === ARTICLE_SIDEBAR_POST_ID;
 
 /** Odpowiedź RPC strony wpisu bramki wagi; poza jej przypadkiem - `Unrecorded…`, jak dotąd. */
 function documentWeightPostRpc(name: string, input: Record<string, unknown>): unknown {
@@ -141,6 +151,12 @@ function documentWeightPostRpc(name: string, input: Record<string, unknown>): un
     const segments = input._segments;
     const hit = Array.isArray(segments) && `/${segments.join("/")}` === DOCUMENT_WEIGHT_POST_PATH;
     if (hit) return [{ page_id: documentWeightSection.id, post_id: documentWeightPost.id }];
+    if (
+      isArticleReadingCase() &&
+      Array.isArray(segments) &&
+      `/${segments.join("/")}` === ARTICLE_SIDEBAR_POST_PATH
+    )
+      return [{ page_id: documentWeightSection.id, post_id: ARTICLE_SIDEBAR_POST_ID }];
     // `artifact-boot`: inne ścieżki rzucają jak przed zmianą (żaden spec `/` ich nie woła).
     if (isArticleReadingCase()) throw new Error(`Unrecorded performance fixture RPC: ${name}`);
     return [];
@@ -228,7 +244,7 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
             ? homeFixture["home-body"]
             : isArticleReadingCase() &&
                 input._entity_type === "post" &&
-                input._entity_id === documentWeightPost.id
+                isArticlePostId(input._entity_id)
               ? [
                   {
                     content_pl: null,
@@ -303,7 +319,18 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
             ? homeFixture.posts.map((post) =>
                 post.id === documentWeightPost.id ? { ...post, ...articleReading.post } : post,
               )
-            : homeFixture.posts;
+            : isArticleReadingCase() &&
+                url.searchParams.get("id") === `eq.${ARTICLE_SIDEBAR_POST_ID}`
+              ? [
+                  {
+                    ...documentWeightPost,
+                    ...articleReading.post,
+                    id: ARTICLE_SIDEBAR_POST_ID,
+                    slug: ARTICLE_SIDEBAR_SLUG,
+                    layout_overrides: { has_sidebar: true },
+                  },
+                ]
+              : homeFixture.posts;
         break;
       case "post_layout_settings":
         rows = isArticleReadingCase() ? [articleReading.post_layout_settings] : [];
