@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #535 (2026-10-24)
+
+- [ ] Potwierdzić wszystkie commity i zakres scalenia.
+- [ ] Zweryfikować w żywej bazie wymagane tabele, widoki, RPC, kolumny i rejestr migracji; uzupełnić wyłącznie potwierdzone braki.
+- [ ] Uruchomić testy zakresowe i sprawdzić rzeczywiste strony artykułów PL/EN.
+- [ ] Opublikować i potwierdzić aktualną wersję na domenie produkcyjnej.
+
 ## Weryfikacja PR #534 (2026-10-24)
 
 - [x] Wszystkie 6 commitów gałęzi są przodkami merge 5782ca8e6 i HEAD; drzewo merge identyczne z końcem gałęzi. PR zmienia 16 plików, nie dodaje tabel, widoków ani migracji.
