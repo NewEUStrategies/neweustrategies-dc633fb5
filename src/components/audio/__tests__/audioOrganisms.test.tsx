@@ -391,7 +391,17 @@ describe("SidebarListenCard", () => {
     expect(screen.getByRole("button", { name: "Pobierz MP3" })).toBeEnabled();
   });
 
+  it("pobieranie jest ikoną bez podpisu - opis niesie `aria-label` i tooltip", () => {
+    h.player = playerStub({ activePostId: null });
+    mount();
+    const btn = screen.getByRole("button", { name: "Pobierz MP3" });
+    // Ikona jest dekoracją: przycisk nie ma własnego tekstu (podpis był wcześniej).
+    expect(btn.textContent).toBe("");
+    expect(btn.querySelector("svg")).not.toBeNull();
+  });
+
   it("przewinięcie suwakiem zatwierdza pozycję po opuszczeniu fokusu", () => {
+
     const player = playerStub({ status: "playing", duration: 600, currentTime: 30 });
     h.player = player;
     mount();
