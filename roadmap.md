@@ -1,5 +1,10 @@
 # Roadmap
 
+## Delikatne zwężenie strony artykułów (2026-10-24)
+
+- [ ] Zwęzić wspólny układ artykułów bez zmiany typografii, treści i ustawień prawej kolumny.
+- [ ] Sprawdzić istniejące testy oraz rzeczywisty artykuł na komputerze i telefonie, w obu motywach.
+
 ## Krótsza zgoda na pomiar e-maili (2026-10-24)
 
 - [x] Skrócono wspólną etykietę formularzy PL/EN: New European Strategies, poprawa jakości usług i dopasowanie komunikacji marketingowej; bez technicznego opisu pomiaru.
