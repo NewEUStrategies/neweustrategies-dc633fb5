@@ -335,7 +335,11 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // jako zależność `dataviz-core` dawałaby tamtym stronom cały model wykresów (+~23 KB surowo).
   // Priorytet wyższy od `dataviz-core`, który ją importuje (zasada priorytetów).
   group("chart-palette", CHUNK_PRIORITY.lazyBase, endsWith("/src/lib/charts/palette.ts")),
-  // Treść wpisu i strony: przypisy, przygotowanie treści, ręczny spis treści, nagłówki.
+  // Treść wpisu i strony: przypisy, przygotowanie treści, ręczny spis treści, nagłówki,
+  // shortcode'y WordPressa i parser osadzeń. `shortcodes.ts` importują renderer bloków,
+  // `ContentRenderer`, widget tekstu buildera i import WordPressa - bez grupy Rolldown
+  // odrywał go (z `embed.ts`) w osobny chunk, a seria bootu wpisu rosła o plik
+  // (`bootBurstCount`, 2026-10-24).
   group(
     "post-content",
     CHUNK_PRIORITY.lazy,
@@ -346,6 +350,8 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
       "/src/lib/manualToc.ts",
       "/src/lib/content/contentEngine.ts",
       "/src/lib/builder/headings.ts",
+      "/src/lib/content/shortcodes.ts",
+      "/src/lib/blocks/embed.ts",
     ),
   ),
   // Karta wpisu archiwów i strony głównej z odznaką sponsorowaną.

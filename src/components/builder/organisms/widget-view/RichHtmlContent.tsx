@@ -11,6 +11,7 @@
 // Silnik `expandFootnotes` jest ten sam, którego używa `/$slug` i `/preview`
 // - dzięki temu kanwa == podgląd == produkcja.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
 import {
   createCounter,
@@ -20,6 +21,8 @@ import {
 } from "@/lib/footnotes";
 import { FootnoteTooltips } from "@/components/Footnotes";
 import { decorateCmsStatusIcons } from "@/lib/content/cmsInlineIcons";
+import { decorateStandaloneShortcodes } from "@/lib/content/shortcodes";
+import { useBlocksAuthoring } from "@/components/blocks/renderer/authoring";
 
 export interface RichHtmlProps {
   html: string;
@@ -31,13 +34,27 @@ export function RichHtmlContent({ html, className, style }: RichHtmlProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [bakedNotes, setBakedNotes] = useState<Footnote[]>([]);
 
+  // Kanwa panelu: nieobsłużony shortcode WordPressa jako plakietka; czytelnik
+  // go nie widzi (`decorateStandaloneShortcodes`).
+  const authoring = useBlocksAuthoring();
+  const { t } = useTranslation();
   // Live [fn] → markery + kolektor przypisów. Jeśli w HTML nie ma shortcode'ów,
   // wynik jest identyczny z sanitizeHtml(html), a `liveNotes` puste.
+  // Akapit z samym shortcode'em (`[infogram …]`) staje się osadzeniem
+  // dostawcy z listy `parseEmbedUrl` - PO sanitizacji, która usuwa iframe.
   const { safe, liveNotes } = useMemo(() => {
     const col = createCounter(1);
     const expanded = expandFootnotes(html, col);
-    return { safe: decorateCmsStatusIcons(sanitizeHtml(expanded)), liveNotes: col.notes };
-  }, [html]);
+    return {
+      safe: decorateStandaloneShortcodes(
+        decorateCmsStatusIcons(sanitizeHtml(expanded)),
+        authoring
+          ? { unsupportedLabel: (name) => t("blocksUi.unsupportedShortcode", { name }) }
+          : {},
+      ),
+      liveNotes: col.notes,
+    };
+  }, [html, authoring, t]);
   // Footnote discovery updates state after hydration. Reuse the content node
   // so that update does not replace an unchanged innerHTML subtree (and images).
   // `style` liczy się po WARTOŚCI: React 19 przepisuje `innerHTML` przy każdym

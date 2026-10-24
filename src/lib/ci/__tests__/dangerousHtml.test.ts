@@ -133,6 +133,29 @@ describe("sanitizer pasujący do rodzaju sinka", () => {
     );
     expect(scan(zly).violations).toHaveLength(1);
   });
+
+  it("15. dekorator shortcode'ów (ContentRenderer, RichHtmlContent) też jest przezroczysty", () => {
+    const dobry = source(
+      "src/components/content/ShortcodeDekor.tsx",
+      'import { sanitizeMarkdownHtml } from "@/lib/sanitize";',
+      'import { enhanceContentImages } from "@/lib/content/enhanceImages";',
+      'import { decorateStandaloneShortcodes } from "@/lib/content/shortcodes";',
+      "export const X = ({ html }: { html: string }) => (",
+      "  <article dangerouslySetInnerHTML={{ __html: decorateStandaloneShortcodes(enhanceContentImages(sanitizeMarkdownHtml(html), {})) }} />",
+      ");",
+    );
+    expect(scan(dobry).violations).toEqual([]);
+
+    // Bez sanitizera pod spodem dekorator niczego nie dowodzi.
+    const zly = source(
+      "src/components/content/ShortcodeDekorZly.tsx",
+      'import { decorateStandaloneShortcodes } from "@/lib/content/shortcodes";',
+      "export const X = ({ html }: { html: string }) => (",
+      "  <article dangerouslySetInnerHTML={{ __html: decorateStandaloneShortcodes(html) }} />",
+      ");",
+    );
+    expect(scan(zly).violations).toHaveLength(1);
+  });
 });
 
 describe("rozwijanie wartości", () => {

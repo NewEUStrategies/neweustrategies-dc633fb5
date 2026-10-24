@@ -65,6 +65,9 @@ const pl = {
     searchButton: "Szukaj",
     tocTitle: "Spis treści",
     source: "Źródło",
+    // Plakietka tylko w panelu (BlocksAuthoringProvider) - czytelnik nie widzi
+    // nieobsłużonego shortcode'u WordPressa.
+    unsupportedShortcode: "Nieobsłużony shortcode: [{{name}}]",
     // Widoki bloków publicznych (InteractiveViews, PresentationViews,
     // MarketingViews, DataSocialViews) - w języku TREŚCI, z `{ lng: lang }`.
     accordionSection: "Sekcja {{n}}",
@@ -175,6 +178,7 @@ const en: typeof pl = {
     searchButton: "Search",
     tocTitle: "Table of contents",
     source: "Source",
+    unsupportedShortcode: "Unsupported shortcode: [{{name}}]",
     accordionSection: "Section {{n}}",
     tabFallback: "Tab {{n}}",
     testimonialsPrevious: "Previous",

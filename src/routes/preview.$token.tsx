@@ -120,7 +120,8 @@ function PreviewPage() {
         )}
         <h1 className="font-display text-3xl lg:text-4xl mb-3">{title}</h1>
         {excerpt && <p className="text-lg text-muted-foreground mb-8">{excerpt}</p>}
-        <div className="article-body" ref={articleRef}>
+        {/* Kolumna i typografia tekstu wpisu jak na produkcji (`data-reading`). */}
+        <div className="article-body" ref={articleRef} data-reading="article">
           <ContentRenderer
             editor={post.editor}
             builderDoc={prepared.builderDoc}

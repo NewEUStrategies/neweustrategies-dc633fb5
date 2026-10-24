@@ -2828,7 +2828,14 @@ const FROZEN_BUDGET_KB = {
   // 2026-10-12: css 98 -> 100 (wpis XXIX), decyzją zamawiającego. +0,5 KB za
   // blok zakładek modułowych wydarzenia (nagłówek, okno, przyklejony pasek);
   // baza 97,8, gałąź 98,3 -> 99 -> +1.
-  css: 100,
+  // 2026-10-24: css 100 -> 101 (PR #535, widok treści wpisu), decyzją zamawiającego.
+  // +219 B gzip (`Bun.gzipSync`, suma 4 arkuszy): kolumna tekstu wpisu w `styles.css`
+  // (tokeny `--fs-article`/`--lh-article`/`--article-measure`, rozmiar i interlinia na
+  // kontenerze, miara, H2 - sekcja „Kolumna tekstu wpisu”). Odstępy akapitów poszły do
+  // `ContentAreaStyle` (inline, już SSR), żeby nie obciążać arkusza; arkusz jest po
+  // zmianie wspólnych selektorów, żeby gzip łapał powtórzenia. Baza 99,80 KB
+  // (102 195 B), gałąź 100,01 KB (102 414 B) -> 101. Zapas po podniesieniu ~1,0 KB.
+  css: 101,
   // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
   // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
   // pliku, a nie dlatego, że próg „przeszkadzał".

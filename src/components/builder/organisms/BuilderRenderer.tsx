@@ -58,6 +58,7 @@ import {
   COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { BlocksAuthoringProvider } from "@/components/blocks/renderer/authoring";
 import { isThemedValue, pickMode } from "@/lib/builder/themed";
 import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
@@ -469,17 +470,21 @@ export function BuilderRenderer({
           {...lcpRootAttributes(lcpRootId, lcpIds)}
         >
           <LcpCandidatesProvider widgetIds={lcpIds ?? NO_LCP_CANDIDATES}>
-            <SectionsList
-              sections={safeDoc.sections}
-              lang={lang}
-              device={effectiveDevice}
-              deviceSource={deviceSource}
-              stream={stream}
-              editorPreview={editorPreview}
-              lcpEagerFirst={lcpEagerFirst}
-              lcpIds={lcpIds}
-              serverCvPlan={ownsDoc ? ownedLcp.cv : null}
-            />
+            {/* Kanwa panelu pokazuje diagnostykę treści (np. nieobsłużony
+                shortcode WordPressa), której czytelnik nie widzi. */}
+            <BlocksAuthoringProvider authoring={editorPreview}>
+              <SectionsList
+                sections={safeDoc.sections}
+                lang={lang}
+                device={effectiveDevice}
+                deviceSource={deviceSource}
+                stream={stream}
+                editorPreview={editorPreview}
+                lcpEagerFirst={lcpEagerFirst}
+                lcpIds={lcpIds}
+                serverCvPlan={ownsDoc ? ownedLcp.cv : null}
+              />
+            </BlocksAuthoringProvider>
           </LcpCandidatesProvider>
         </div>
       </ChromeReserveContext.Provider>

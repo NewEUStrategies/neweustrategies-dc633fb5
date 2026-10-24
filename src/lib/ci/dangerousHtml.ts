@@ -450,6 +450,12 @@ const LOCAL_SANITIZERS: readonly {
 const PASSTHROUGH_WRAPPERS: ReadonlyMap<string, readonly string[]> = new Map([
   ["decorateCmsStatusIcons", ["@/lib/content/cmsInlineIcons"]],
   ["enhanceContentImages", ["@/lib/content/enhanceImages"]],
+  // shortcodes.ts: zastępuje akapit z samym shortcode'em ramką osadzenia, której
+  // adres powstaje wyłącznie z `parseEmbedUrl` (lista dostawców iframe) po
+  // walidacji atrybutów, albo pustym napisem / plakietką z escapowaną nazwą.
+  // Treść atrybutu shortcode'u nigdy nie trafia do HTML (testy w
+  // src/lib/content/__tests__/shortcodes.test.ts).
+  ["decorateStandaloneShortcodes", ["@/lib/content/shortcodes"]],
 ]);
 
 /**

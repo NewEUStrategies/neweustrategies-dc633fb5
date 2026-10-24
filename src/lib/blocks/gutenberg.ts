@@ -14,7 +14,13 @@
 
 import type { Block, BlocksDoc, Json } from "./types";
 import { newBlockId } from "./types";
-import { htmlToBlocks } from "./migrate";
+import { htmlToBlocks, standaloneIframeBlock } from "./migrate";
+import {
+  normalizeShortcodeQuotes,
+  shortcodeAttr,
+  shortcodeEmbedUrl,
+  type Shortcode,
+} from "@/lib/content/shortcodes";
 
 // ---------- shared ----------
 
@@ -47,10 +53,27 @@ function stripTags(s: string): string {
 
 // ---------- Foxiz / Shortcodes Ultimate ----------
 
-// Helper for attribute extraction inside a single shortcode tag body.
+// Helper for attribute extraction inside a single shortcode tag body. WordPress
+// zapisuje cudzysłowy atrybutów jako `”“″` albo encje - wspólny parser
+// (`lib/content/shortcodes`) normalizuje je tak samo jak ścieżka renderu.
 function scAttr(body: string, name: string): string {
-  const m = body.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, "i"));
-  return m ? m[1] : "";
+  return shortcodeAttr(body, name);
+}
+
+/**
+ * `[infogram id="…"]` -> `<iframe>`, który `htmlToBlocks` / `tokenToBlocks`
+ * zamieniają w blok `embed` (sanitizer usuwa surowy `<iframe>` z akapitu).
+ * Tylko shortcode SAMODZIELNY (cały akapit, linia albo blok `wp:shortcode`):
+ * w środku zdania `<iframe>` zostałby wycięty i zostawił dziurę w tekście.
+ * Adres powstaje wyłącznie z walidowanego `id` i listy dostawców
+ * `parseEmbedUrl`; niepoprawny `id` zostawia shortcode bez zmian (render go
+ * ukrywa).
+ */
+function infogramIframe(m: RegExpMatchArray): string {
+  const attrs: Record<string, string> = { id: scAttr(m[3], "id") };
+  const sc: Shortcode = { name: "infogram", attrs, content: "" };
+  const url = shortcodeEmbedUrl(sc);
+  return url ? `${m[1]}<iframe src="${esc(url)}"></iframe>` : m[0];
 }
 
 // Foxiz and Shortcodes Ultimate ship dozens of shortcodes; we normalise the
@@ -141,10 +164,15 @@ const SHORTCODE_RULES: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
   [/\[su_table_of_contents[^\]]*\]/gi, () => "<!-- toc -->"],
   // [gallery ids="1,2,3"] -> drop (image refs unresolvable on import)
   [/\[gallery[^\]]*\]/gi, () => ""],
+  // [infogram id="…" prefix="…" format="interactive"] -> embed e.infogram.com
+  [
+    /(^|<p(?:\s[^>]*)?>|-->|\n)((?:\s|&nbsp;|\u00a0)*)\[infogram\s+([^\]]*)\](?:\s*\[\/infogram\])?(?=(?:\s|&nbsp;|\u00a0|<br\s*\/?>)*(?:<\/p>|<!--|\n|$))/gi,
+    infogramIframe,
+  ],
 ];
 
 export function stripFoxizShortcodes(html: string): string {
-  let out = html;
+  let out = normalizeShortcodeQuotes(html);
   for (const [re, fn] of SHORTCODE_RULES) {
     out = out.replace(re, (...args) => fn(args as unknown as RegExpMatchArray));
   }
@@ -253,6 +281,18 @@ function tokenToBlocks(tok: GbToken): Block[] {
       });
     }
     if (out.length) return out;
+  }
+
+  // Akapit / HTML / shortcode z samym `<iframe>` (np. `[infogram]` po
+  // SHORTCODE_RULES) to osadzenie - jako akapit sanitizer by je wyciął.
+  if (
+    name === "core/paragraph" ||
+    name === "core/html" ||
+    name === "core/shortcode" ||
+    name === "core/freeform"
+  ) {
+    const embed = standaloneIframeBlock(inner);
+    if (embed) return [embed];
   }
 
   switch (name) {

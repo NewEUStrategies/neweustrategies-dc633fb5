@@ -38,6 +38,11 @@ export interface BlockRenderContext {
   /** Funkcja tłumaczeń i18next (podąża za językiem trasy). */
   readonly t: TFunction;
   /**
+   * Render w panelu (`BlocksAuthoringProvider`): bloki mogą pokazać diagnostykę
+   * niewidoczną dla czytelnika. Brak = widok czytelnika.
+   */
+  readonly authoring?: boolean;
+  /**
    * Renderuje blok potomny (kolumny / grupy / siatki) przez pełnego dyspozytora,
    * dzięki czemu zagnieżdżona widoczność i wyrównanie działają rekurencyjnie.
    * Klucz React jest nadawany po `block.id`.

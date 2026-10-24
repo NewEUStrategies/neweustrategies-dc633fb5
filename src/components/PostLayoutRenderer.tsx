@@ -29,14 +29,24 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { lcpCandidateAttr } from "@/lib/builder/aboveFold";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
 import { NoteContextBinder } from "@/components/dock/NoteContextBinder";
-import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
+import { excerptToLead } from "@/lib/text/excerptToLead";
 
 interface Props {
   format: PostFormat;
   layoutId: string;
   settings: PostLayoutSettings;
   title: string;
+  /**
+   * SUROWA zajawka wpisu (ze znacznikiem `[&hellip;]` WordPressa, jeśli jest).
+   * Lead liczy `excerptToLead`: urwana zajawka kończy się na pełnym zdaniu.
+   */
   excerpt?: string | null;
+  /**
+   * Początek tekstu treści (`bodyStartText`). Lead, który go powtarza
+   * (automatyczna zajawka WordPressa = pierwsze zdania wpisu), nie jest
+   * renderowany. Brak = bez porównania.
+   */
+  bodyStartText?: string;
   coverImageUrl?: string | null;
   meta?: ReactNode; // data, autor, czas czytania
   categoryBadges?: ReactNode; // pigułki kategorii nad tytułem
@@ -91,6 +101,7 @@ export function PostLayoutRenderer({
   settings,
   title,
   excerpt: rawExcerpt,
+  bodyStartText,
   coverImageUrl,
   meta,
   categoryBadges,
@@ -104,7 +115,8 @@ export function PostLayoutRenderer({
   entityType = "post",
   sidebarOverride,
 }: Props) {
-  const excerpt = cleanExcerpt(rawExcerpt);
+  const lead = excerptToLead(rawExcerpt, bodyStartText);
+  const excerpt = lead.duplicatesBody ? undefined : lead.text;
   const preset = findLayout(format, layoutId);
   // Sidebar tylko wtedy, gdy preset/override go chce ORAZ strona ma czym go
   // wypełnić - inaczej siatka zostawiłaby po prawej pustą, 320-px kolumnę,
@@ -130,14 +142,19 @@ export function PostLayoutRenderer({
   const showHeaderActions = preset.headerActions === true;
 
   // Klasyczny nagłówek: kategorie -> tytuł -> zajawka -> meta.
-  // `constrained` trzyma go w tej samej skrzynce co treść, więc przy
-  // wyrównaniu do lewej krawędzie tytułu i akapitów są w jednej linii.
+  // `constrained` trzyma go w kolumnie tekstu wpisu (`--article-measure`,
+  // styles.css), więc przy wyrównaniu do lewej krawędzie tytułu, leadu
+  // i akapitów są w jednej linii; węższa kolumna treści wygrywa.
   const classicHeader = (constrained = true) => (
     <header
       className={`mb-8 min-w-0 w-full max-w-full ${constrained ? "mx-auto" : ""} ${
         center ? "text-center" : ""
       }`}
-      style={constrained ? { ...headerTypoStyle, maxWidth: `${contentMaxW}px` } : headerTypoStyle}
+      style={
+        constrained
+          ? { ...headerTypoStyle, maxWidth: `min(${contentMaxW}px, var(--article-measure))` }
+          : headerTypoStyle
+      }
     >
       {categoryBadges && (
         <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
@@ -147,8 +164,12 @@ export function PostLayoutRenderer({
       {/* Grubość/tracking/transform tytułu niesie .header-title-typography
           (tokeny --fw-h1/--ls-h1/--tt-h1 z Opcji motywu) - bez font-bold. */}
       <h1 className="header-title-typography font-display mb-4">{title}</h1>
+      {/* Lead zawsze od lewej (także przy `center_header`), w kolumnie tekstu;
+          rozmiar bez zmian (.header-excerpt-typography). */}
       {showExcerpt && (
-        <p className="header-excerpt-typography text-muted-foreground mb-4">{excerpt}</p>
+        <p className="header-excerpt-typography text-muted-foreground mb-4 text-start text-pretty">
+          {excerpt}
+        </p>
       )}
       {/* Wiersz autora: na desktopie meta po lewej, akcje artykułu po prawej;
           na mobile akcje schodzą pod metadane i zajmują pełną szerokość. */}

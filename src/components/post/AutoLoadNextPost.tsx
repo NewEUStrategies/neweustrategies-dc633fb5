@@ -290,6 +290,9 @@ function AutoLoadNextPostChain({
           <article
             key={c.post.id}
             data-next-post-id={c.post.id}
+            // Ta sama kolumna i typografia tekstu co wpis główny (styles.css,
+            // „Kolumna tekstu wpisu”).
+            data-reading="article"
             className="border-t-2 border-border pt-10 mt-10"
           >
             <SectionEyebrow className="mb-3">{L.next}</SectionEyebrow>
