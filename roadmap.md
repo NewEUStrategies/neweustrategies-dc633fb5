@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #536 (2026-10-24)
+
+- [x] Merge 7467b9cda zawiera jedyny commit gałęzi 34de38c62; oba są przodkami HEAD, drzewo merge identyczne z końcem gałęzi. PR #535 również jest przodkiem HEAD. Sześć plików, bez migracji, nowych tabel, widoków ani produkcyjnych RPC.
+- [x] Żywa baza: 380 tabel (wszystkie RLS), 15 widoków, 1842 sygnatury funkcji; kontrakt 1918 obiektów bez braków, 774 kolumn bez nowych braków (5 historycznych rozbieżności), rejestr 452/452. Bramki RPC, TS-SQL, typów i pasów migracji przechodzą; pasy zachowują 22 historyczne braki kopii, poza zakresem PR. Bazy ani danych nie zmieniano.
+- [x] 283 testy PostLayoutRenderer i 51 testów bramek przechodzą; build OK. Rzeczywisty artykuł w podglądzie: sidebar 384 px przy 1440 px, 320 px przy 1100 px; tekst wyrównany do nagłówka. Telefon 390 px bez poziomego przepełnienia; PL/EN HTTP 200, bez błędów JS. EN tego wpisu nie zawiera treści głównej, więc geometria tekstu EN niezweryfikowana. Artefaktowego E2E nie uruchamiano (wymaga osobnego artefaktu).
+- [ ] Potwierdzić zakończenie publikacji PR #536: zlecona na neweuropeanstrategies.com; odczyt po zleceniu nadal pokazuje starszy sidebar 320 px przy 1440 px i tekst o szerokości 850 px zamiast układu PR536. Oczekiwanie na platformę publikacji, nowa wersja produkcyjna niepotwierdzona.
+
 ## Weryfikacja PR #535 (2026-10-24)
 
 - [ ] Potwierdzić wszystkie commity i zakres scalenia.
