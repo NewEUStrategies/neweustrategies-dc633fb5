@@ -452,11 +452,20 @@ async function originFromRequest(): Promise<string> {
   try {
     // Dynamicznie: eksport tickNewsletterCampaigns (zwykła funkcja) trzyma ten
     // moduł w grafie klienta, a statyczny import react-start/server wywala
-    // import-protection buildu.
-    const mod = "@tanstack/react-start/server";
-    const { getRequest } = (await import(
-      /* @vite-ignore */ mod
-    )) as typeof import("@tanstack/react-start/server");
+    // import-protection buildu. Import dynamiczny z LITERAŁEM jest bezpieczny:
+    // klient nie używa tickNewsletterCampaigns, więc tree-shaking usuwa ten
+    // import, a odroczona weryfikacja import-protection (generateBundle) go
+    // nie zgłasza - tak jak w `optionalUser.server.ts` i handlerach darowizn.
+    //
+    // NIGDY specyfikator przez zmienną + `@vite-ignore` (stan do 2026-10-24):
+    // build SSR zostawiał wtedy `@tanstack/react-start/server` jako pakiet
+    // zewnętrzny, Nitro dociągał jego DRUGĄ kopię, a jej `createStartHandler`
+    // importuje `#tanstack-router-entry` - do workera trafiała druga, niepodzielona
+    // kopia całej aplikacji (`_chunks/router.mjs` 9 MB + 860 chunków, 17 MB).
+    // workerd kompiluje każdy moduł skryptu przy starcie izolatu, więc płacił za
+    // nią każdy zimny start (pomiar: docs/performance/2026-10-24-zimny-start-workera.md).
+    // Pilnuje: bramka `check:server-entry-purity` (jedna kopia aplikacji w artefakcie).
+    const { getRequest } = await import("@tanstack/react-start/server");
     const req = getRequest();
     return new URL(req.url).origin;
   } catch {

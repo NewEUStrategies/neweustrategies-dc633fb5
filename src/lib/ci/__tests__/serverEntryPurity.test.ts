@@ -7,6 +7,7 @@ import {
   renderServerEntryPurityReport,
   resolveChunkPath,
   serverEntryPurityFailed,
+  startEntryLoaders,
   startupChunks,
   staticImportersOfChunk,
   valueImportersOfPackage,
@@ -51,9 +52,27 @@ const ZRODLA: SourceFile[] = [
   },
 ];
 
+/** Loader wejść TanStack Start (`getEntries`) w kształcie po Oxc - jedna kopia aplikacji. */
+const LOADER: ServerChunk = {
+  path: "_ssr/server-LLL.mjs",
+  source:
+    "async function u(){let[e,t,n]=await Promise.all([import(`./router-RRR.mjs`),import(`./start-SSS.mjs`),import(`./empty-plugin-adapters-PPP.mjs`)]);return{routerEntry:e,startEntry:t,pluginAdapters:n}}export{u};",
+};
+
+/** Druga kopia z artefaktu sprzed 2026-10-24: Nitro, chunki bez hashy, cudzysłowy. */
+const LOADER_NITRO: ServerChunk = {
+  path: "_libs/@tanstack/react-start+[...].mjs",
+  source:
+    'async function Qi(){let[e,t,n]=await Promise.all([import("../../_chunks/router.mjs"),import("../../_chunks/start.mjs"),import("../_10.mjs")]);return{routerEntry:e,startEntry:t,pluginAdapters:n}}export{Qi};',
+};
+
+/**
+ * Analiza z jednym loaderem wejść dołożonym do niepustego artefaktu, żeby testy pozostałych
+ * reguł nie oblewały na regule jednej kopii; pusty artefakt zostaje pusty.
+ */
 function analiza(chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) {
   return analyzeServerEntryPurity({
-    chunks,
+    chunks: chunks.length > 0 ? [...chunks, LOADER] : chunks,
     sources,
     lazyOnlyPackages: LAZY_ONLY_PACKAGES,
     frozenRules: FROZEN_STATIC_IMPORTERS,
@@ -210,6 +229,59 @@ describe("serverEntryPurity - graf startu i raport", () => {
     );
     expect(text).toContain("nie znaleziono chunku `_libs/stripe.mjs`");
     expect(text).toContain("Zaktualizuj regułę lub ją usuń");
+  });
+});
+
+describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
+  const surowa = (chunks: ServerChunk[]) =>
+    analyzeServerEntryPurity({
+      chunks,
+      sources: ZRODLA,
+      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("rozpoznaje loader wejść w backtickach Oxc i w cudzysłowach, z hashem i bez", () => {
+    expect(startEntryLoaders([...CZYSTE, LOADER, LOADER_NITRO])).toEqual([
+      "_libs/@tanstack/react-start+[...].mjs",
+      "_ssr/server-LLL.mjs",
+    ]);
+  });
+
+  it("sam `import()` chunku routera albo startu to nie loader wejść", () => {
+    const chunks: ServerChunk[] = [
+      { path: "_ssr/a.mjs", source: "const r=()=>import(`./router-RRR.mjs`);export{r};" },
+      { path: "_ssr/b.mjs", source: "const s=()=>import(`./start-SSS.mjs`);export{s};" },
+      {
+        path: "_ssr/c.mjs",
+        source: "Promise.all([import(`./start-SSS.mjs`),import(`./router-RRR.mjs`)]);",
+      },
+    ];
+    expect(startEntryLoaders(chunks)).toEqual([]);
+  });
+
+  it("przechodzi z dokładnie jednym loaderem", () => {
+    const report = surowa([...CZYSTE, LOADER]);
+    expect(report.startEntryLoaders).toEqual(["_ssr/server-LLL.mjs"]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("oblewa na drugiej kopii aplikacji i wskazuje oba loadery z naprawą", () => {
+    const report = surowa([...CZYSTE, LOADER, LOADER_NITRO]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("artefakt serwera niesie 2 kopie aplikacji");
+    expect(text).toContain("    _libs/@tanstack/react-start+[...].mjs");
+    expect(text).toContain("    _ssr/server-LLL.mjs");
+    expect(text).toContain("importuj LITERAŁEM");
+  });
+
+  it("oblewa bez loadera - zmieniony kształt kodu frameworka to defekt skanu", () => {
+    const report = surowa(CZYSTE);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    expect(renderServerEntryPurityReport(report)).toContain(
+      "nie znaleziono loadera wejść TanStack Start",
+    );
   });
 });
 

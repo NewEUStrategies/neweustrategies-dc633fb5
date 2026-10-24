@@ -38,6 +38,20 @@
 // modułów, którym wolno importować paczkę statycznie: dług nie znika, ale
 // przestaje się rozlewać, a każdy nowy importer wymaga świadomej decyzji.
 //
+// ── TRZECIA KLASA: JEDNA KOPIA APLIKACJI W ARTEFAKCIE ──────────────────────
+// Handler TanStack Start ładuje wejścia aplikacji jednym `Promise.all` z
+// `import()` chunku routera i chunku startu (`getEntries` w start-server-core).
+// Artefakt ma mieć DOKŁADNIE JEDEN taki loader. Do 2026-10-24 miał dwa:
+// specyfikator `@tanstack/react-start/server` podany przez zmienną z
+// `@vite-ignore` zostawał w buildzie SSR pakietem zewnętrznym, Nitro dociągał
+// drugą kopię Startu, a jej loader rozwiązywał `#tanstack-router-entry` po
+// swojemu - do Workera trafiała druga, niepodzielona kopia całej aplikacji
+// (`_chunks/router.mjs` 9 MB + 860 chunków, 17 MB z 40 MB). Nikt jej nie
+// wykonywał, ale workerd kompiluje każdy moduł skryptu przy starcie izolatu:
+// zimny start 1,44 s -> 1,00 s po usunięciu (lokalny workerd, pomiar
+// w docs/performance/2026-10-24-zimny-start-workera.md). Zero loaderów to
+// defekt skanu (zmieniony kształt kodu frameworka), nie zielone światło.
+//
 // Warstwa wykonawcza (odczyt `.output/server` i `src/`, kod wyjścia) żyje
 // w `scripts/check-server-entry-purity.ts`; ten moduł jest czysty.
 
@@ -149,6 +163,23 @@ export function startupChunks(chunks: readonly ServerChunk[]): Set<string> {
   return out;
 }
 
+/**
+ * Loader wejść TanStack Start: `import()` chunku routera, a zaraz po nim `import()` chunku
+ * startu (`Promise.all([import(router), import(start), …])`). Nazwy chunków to `router.mjs`
+ * albo `router-<hash>.mjs` i `start…` - zależnie od tego, czy chunk zbudował Vite (`_ssr/`),
+ * czy Nitro (`_chunks/`). Cudzysłów albo backticki Oxc, jak w `DYNAMIC_EDGE_RE`.
+ */
+const START_ENTRY_LOADER_RE =
+  /import\s*\(\s*["'`][^"'`]*\/router(?:-[\w-]+)?\.mjs["'`]\s*\)\s*,\s*import\s*\(\s*["'`][^"'`]*\/start(?:-[\w-]+)?\.mjs["'`]\s*\)/;
+
+/** Pliki artefaktu z loaderem wejść TanStack Start - każdy to osobna kopia aplikacji. */
+export function startEntryLoaders(chunks: readonly ServerChunk[]): string[] {
+  return chunks
+    .filter((chunk) => START_ENTRY_LOADER_RE.test(chunk.source))
+    .map((chunk) => chunk.path)
+    .sort();
+}
+
 /** Czy chunk paczki w ogóle jest w artefakcie (inaczej reguła nic nie mierzy). */
 export function hasChunk(chunks: readonly ServerChunk[], chunkPath: string): boolean {
   return chunks.some((chunk) => chunk.path === chunkPath);
@@ -200,6 +231,8 @@ export interface ServerEntryPurityReport {
   readonly missingChunks: readonly LazyOnlyPackage[];
   readonly lazyOnly: readonly LazyOnlyViolation[];
   readonly frozen: readonly FrozenViolation[];
+  /** Pliki z loaderem wejść TanStack Start; poprawnie dokładnie jeden (nagłówek pliku). */
+  readonly startEntryLoaders: readonly string[];
 }
 
 export function analyzeServerEntryPurity(input: {
@@ -232,7 +265,13 @@ export function analyzeServerEntryPurity(input: {
     if (added.length > 0 || stale.length > 0) frozen.push({ rule, added, stale });
   }
 
-  return { scannedChunks: input.chunks.length, missingChunks, lazyOnly, frozen };
+  return {
+    scannedChunks: input.chunks.length,
+    missingChunks,
+    lazyOnly,
+    frozen,
+    startEntryLoaders: startEntryLoaders(input.chunks),
+  };
 }
 
 export function serverEntryPurityFailed(report: ServerEntryPurityReport): boolean {
@@ -240,7 +279,8 @@ export function serverEntryPurityFailed(report: ServerEntryPurityReport): boolea
     report.scannedChunks === 0 ||
     report.missingChunks.length > 0 ||
     report.lazyOnly.length > 0 ||
-    report.frozen.length > 0
+    report.frozen.length > 0 ||
+    report.startEntryLoaders.length !== 1
   );
 }
 
@@ -299,6 +339,28 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
         "",
       );
     }
+  }
+
+  if (report.startEntryLoaders.length === 0) {
+    lines.push(
+      "✗ [server-entry-purity] nie znaleziono loadera wejść TanStack Start",
+      "  (`Promise.all([import(router), import(start), …])`).",
+      "  Reguła jednej kopii aplikacji niczego nie mierzy: zmienił się kształt kodu",
+      "  frameworka - zaktualizuj `START_ENTRY_LOADER_RE` w `src/lib/ci/serverEntryPurity.ts`.",
+      "",
+    );
+  } else if (report.startEntryLoaders.length > 1) {
+    lines.push(
+      `✗ [server-entry-purity] artefakt serwera niesie ${report.startEntryLoaders.length} kopie aplikacji (loadery wejść TanStack Start):`,
+      ...report.startEntryLoaders.map((path) => `    ${path}`),
+      "",
+      "Każda kopia to cały graf tras kompilowany przy KAŻDYM zimnym starcie izolatu,",
+      "także gdy nikt jej nie wykonuje.",
+      '  naprawa: `@tanstack/react-start/server` importuj LITERAŁEM (`await import("@tanstack/react-start/server")`),',
+      "  nigdy przez zmienną z `@vite-ignore` - build SSR zostawia taki specyfikator jako",
+      "  pakiet zewnętrzny, a Nitro dociąga drugą kopię Startu razem z jego `#tanstack-router-entry`.",
+      "",
+    );
   }
 
   if (lines.length === 0) {
