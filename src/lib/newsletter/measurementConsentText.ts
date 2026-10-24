@@ -101,20 +101,19 @@ const SEGMENTS: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
 };
 
 /**
- * Krótka etykieta widoczna przy polu. Treść dowodowa (pełna, wersjonowana)
- * pozostaje w `SEGMENTS` i to ona trafia do rejestru zgód - ta etykieta jest
- * prezentacją, więc jej skrócenie nie zmienia wersji ani dowodu zgody.
+ * Krótka etykieta widoczna przy polu: mówi, czego dotyczy zgoda i po co. Treść
+ * dowodowa (pełna, wersjonowana) pozostaje w `SEGMENTS` i to ona trafia do
+ * rejestru zgód - ta etykieta jest prezentacją, więc jej zmiana nie podnosi
+ * wersji ani nie zmienia dowodu zgody. Etykieta jest jednym zdaniem bez linku:
+ * „szczegóły" z odnośnikiem do polityki komunikacji niesie pełna treść na
+ * stronie potwierdzenia.
  */
 const FORM_SUMMARY: Readonly<Record<ConsentLang, readonly ConsentSegment[]>> = {
   pl: [
-    "Zgoda jest dobrowolna, nie warunkuje newslettera i działa po potwierdzeniu z e-maila. Wycofasz ją w stopce każdej wiadomości (",
-    { href: "/komunikacja-i-marketing#pomiar", label: "szczegóły" },
-    ").",
+    "Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową.",
   ],
   en: [
-    "Consent is optional, is not required for the newsletter and takes effect after confirmation via email. You can withdraw it in any email footer (",
-    { href: "/en/komunikacja-i-marketing#pomiar", label: "details" },
-    ").",
+    "Consent to measuring interactions on our platform, to improve the quality of personalized services and tailor marketing communications.",
   ],
 };
 

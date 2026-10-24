@@ -110,7 +110,7 @@ describe("SignupPopupPanel", () => {
     // osobne, domyślnie niezaznaczone pole zgody na pomiar.
     expect(screen.getByText(/Zasady przetwarzania danych opisuje/)).toBeTruthy();
     const measurement = document.querySelector('[data-consent="email_measurement"]');
-    expect(measurement?.textContent).toMatch(/^Zgoda jest dobrowolna, nie warunkuje newslettera/);
+    expect(measurement?.textContent).toMatch(/^Zgoda na pomiar interakcji na naszej platformie/);
     expect(measurement?.querySelector('[role="checkbox"]')).toHaveAttribute(
       "aria-checked",
       "false",
