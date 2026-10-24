@@ -74,3 +74,41 @@ naruszenia po tree-shakingu, a klient nie używa `tickNewsletterCampaigns`.
 aplikacji": artefakt ma mieć dokładnie jeden loader wejść TanStack Start
 (`Promise.all([import(router), import(start), …])`); na starym artefakcie
 oblewa i wskazuje oba pliki.
+
+## 3. Przyczyna nr 2: kod UI panelu, którego serwer nigdy nie renderuje
+
+Podstrony `/admin/*` serwer renderuje wyłącznie jako szkielet: `AdminLayout`
+(`src/routes/admin.tsx`) zwraca przed hydratacją `AdminShellSkeleton`, a
+`<Outlet/>` panelu montuje `AdminSession` dopiero po `useHydrated()`.
+Komponenty 218 tras-dzieci `/admin` (edytor wpisów, studio wydarzeń, CRM,
+billing, newsletter…) nie renderują się więc na serwerze nigdy - granice błędu
+i 404 dziecka też siedzą w `<Outlet/>` rodzica. Ich kod stanowił **7,2 MB
+z 22,5 MB** artefaktu (440 modułów osiągalnych wyłącznie przez komponenty tras).
+
+**Zmiana:** wtyczka `scripts/lib/clientOnlyRouteStubPlugin.ts` (tylko build,
+tylko środowisko `ssr`, w obu presetach) podmienia moduł podziału trasy
+(`<plik>?tsr-split=<grupa>`) na zaślepkę, gdy plik trasy jest potomkiem layoutu
+`/admin` według `src/routeTree.gen.ts`, a grupa zawiera wyłącznie komponenty.
+Grupa z `loader` (kokpit `/admin/`) zostaje. Klient, manifest, modulepreloady
+i 388 funkcji serwerowych (resolver Startu importuje moduły `*.functions`
+własną krawędzią) - bez zmian.
+
+**Dowód równoważności:** 11 adresów (`/`, `/blog`, `/events`, `/login` i 7
+adresów panelu, w tym nieistniejący) z artefaktu bazowego i nowego (preset
+node-server, ten sam backend-fixture) - HTML bajt w bajt identyczny po
+normalizacji nonce, portu i znaczników czasu.
+
+| Lokalny workerd, 1. `GET /` świeżego procesu | Moduły |    MB | start → koniec dokumentu | TTFB 1. żądania |
+| -------------------------------------------- | -----: | ----: | -----------------------: | --------------: |
+| baza (`ebb315e9`)                            |  3 563 | 39,63 |           1 437–1 465 ms |     1,08–1,10 s |
+| po §2 (jedna kopia aplikacji)                |  2 541 | 22,54 |             996–1 012 ms |     0,74–0,78 s |
+| **po §2 + §3 (zaślepki panelu)**             |  1 891 | 14,09 |               798–861 ms |     0,64–0,68 s |
+
+Razem: **−64 % kodu Workera, −43 % zimnego startu** (lokalnie). Produkcja płaci
+za zimny start 2,4–3,7 s CPU, czyli wielokrotność lokalnego kosztu - zysk
+w TTFB rośnie proporcjonalnie.
+
+**Strażnik:** `check:server-entry-purity` sprawdza w artefakcie, że każdy
+`import()` komponentu trasy `/admin/…` wskazuje plik ≤ 256 B (zaślepka ma 48 B);
+zero sprawdzonych tras to defekt skanu. Na artefakcie bazowym oblewa: 191 z 204
+komponentów pełnych.

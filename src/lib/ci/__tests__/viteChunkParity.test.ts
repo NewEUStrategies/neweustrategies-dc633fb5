@@ -133,6 +133,17 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety wyjmują komponenty podstron panelu z artefaktu serwera TĄ SAMĄ wtyczką", () => {
+    // Smoke bez `clientOnlyRouteStubPlugin` niósłby w serwerze kod UI `/admin/*` (7 MB), czyli
+    // pomiar zimnego startu i porównania HTML-a SSR badałyby inny artefakt niż produkcja.
+    const helperImport =
+      'import { clientOnlyRouteStubPlugin } from "./scripts/lib/clientOnlyRouteStubPlugin.ts";';
+    for (const [file, source] of presets) {
+      expect(source, file).toContain(helperImport);
+      expect(source, file).toMatch(/plugins: \[[^\]]*clientOnlyRouteStubPlugin\(\)/);
+    }
+  });
+
   it("oba presety minifikują statyczne literały CSS TĄ SAMĄ wtyczką (P3.7a)", () => {
     // Smoke bez `staticCssPlugin` niósłby literały z komentarzami i wcięciami, czyli bramka
     // wagi dokumentu (`inlineCssCommentBytes`) i boot-test mierzyłyby inny dokument i inny

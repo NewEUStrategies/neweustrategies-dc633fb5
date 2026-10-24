@@ -52,6 +52,15 @@
 // w docs/performance/2026-10-24-zimny-start-workera.md). Zero loaderów to
 // defekt skanu (zmieniony kształt kodu frameworka), nie zielone światło.
 //
+// ── CZWARTA KLASA: KOMPONENTY TRAS RENDEROWANYCH WYŁĄCZNIE PO HYDRATACJI ────
+// Podstrony `/admin/*` serwer renderuje tylko jako szkielet (`<Outlet/>` panelu montuje się
+// po hydratacji), więc w środowisku `ssr` ich moduły komponentów podmienia zaślepka
+// (`scripts/lib/clientOnlyRouteStubPlugin.ts`, −7,2 MB artefaktu). Wtyczka rozpoznaje moduły
+// po formacie `?tsr-split=` router-pluginu i po drzewie tras - zmiana któregokolwiek
+// wyłączyłaby ją PO CICHU (ostrzeżenie buildu nie zatrzymuje CI). Bramka sprawdza wynik:
+// każdy `import()` komponentu trasy `/admin/…` w artefakcie wskazuje plik nie większy niż
+// zaślepka; zero sprawdzonych tras to defekt skanu.
+//
 // Warstwa wykonawcza (odczyt `.output/server` i `src/`, kod wyjścia) żyje
 // w `scripts/check-server-entry-purity.ts`; ten moduł jest czysty.
 
@@ -180,6 +189,70 @@ export function startEntryLoaders(chunks: readonly ServerChunk[]): string[] {
     .sort();
 }
 
+/** Prefiksy tras, których komponenty serwer zastępuje zaślepką (nagłówek pliku, czwarta klasa). */
+export const CLIENT_ONLY_ROUTE_PREFIXES = ["/admin/"] as const;
+
+/** Największa dopuszczalna zaślepka: `function e(){return null}export{e as component};` ma 48 B. */
+export const CLIENT_ONLY_STUB_MAX_BYTES = 256;
+
+/** Definicja trasy po minifikacji: `<alias createFileRoute>(`/ścieżka`)({`. */
+const ROUTE_DEFINITION_RE = /\(\s*[`"'](\/[^`"']*)[`"']\s*\)\s*\(\s*\{/g;
+
+/** `lazyRouteComponent(() => import(X), "component")` i pozostałe węzły-komponenty. */
+const LAZY_ROUTE_COMPONENT_RE =
+  /import\s*\(\s*[`"'](\.{1,2}\/[^`"']+\.mjs)[`"']\s*\)\s*,\s*[`"'](component|pendingComponent|errorComponent|notFoundComponent)[`"']/g;
+
+/** `lazyFn(() => import(X), "loader")` - grupy podziału z loaderem wtyczka zostawia w spokoju. */
+const LAZY_ROUTE_LOADER_RE =
+  /import\s*\(\s*[`"'](\.{1,2}\/[^`"']+\.mjs)[`"']\s*\)\s*,\s*[`"']loader[`"']/g;
+
+/** Komponent trasy „tylko po hydratacji", który w artefakcie serwera nie jest zaślepką. */
+export interface HeavyClientOnlyComponent {
+  readonly route: string;
+  readonly chunk: string;
+  /** Rozmiar pliku; -1 = cel `import()` nie istnieje w artefakcie. */
+  readonly bytes: number;
+}
+
+export interface ClientOnlyComponentsReport {
+  /** Liczba sprawdzonych `import()` komponentów - liczba kontrolna (0 = zepsuty skan). */
+  readonly checked: number;
+  readonly heavy: readonly HeavyClientOnlyComponent[];
+}
+
+/** Komponenty tras spod `prefixes` w artefakcie serwera i te z nich, które nie są zaślepką. */
+export function clientOnlyRouteComponents(
+  chunks: readonly ServerChunk[],
+  prefixes: readonly string[] = CLIENT_ONLY_ROUTE_PREFIXES,
+): ClientOnlyComponentsReport {
+  const sizes = new Map(chunks.map((chunk) => [chunk.path, chunk.source.length]));
+  let checked = 0;
+  const heavy: HeavyClientOnlyComponent[] = [];
+  for (const chunk of chunks) {
+    const definitions = [...chunk.source.matchAll(ROUTE_DEFINITION_RE)];
+    definitions.forEach((definition, index) => {
+      const route = definition[1];
+      if (!prefixes.some((prefix) => route.startsWith(prefix))) return;
+      const start = definition.index ?? 0;
+      const next = definitions[index + 1]?.index ?? chunk.source.length;
+      const body = chunk.source.slice(start, Math.min(next, start + 4_000));
+      // Grupa podziału z loaderem (kokpit `/admin/`, `ADMIN_COCKPIT_SPLIT`) to jeden moduł dla
+      // `loader` i `component` - loader biegnie na serwerze, więc wtyczka go nie podmienia.
+      const loaders = new Set([...body.matchAll(LAZY_ROUTE_LOADER_RE)].map((match) => match[1]));
+      for (const lazy of body.matchAll(LAZY_ROUTE_COMPONENT_RE)) {
+        if (loaders.has(lazy[1])) continue;
+        checked += 1;
+        const target = resolveChunkPath(chunk.path, lazy[1]);
+        const bytes = sizes.get(target) ?? -1;
+        if (bytes < 0 || bytes > CLIENT_ONLY_STUB_MAX_BYTES)
+          heavy.push({ route, chunk: target, bytes });
+      }
+    });
+  }
+  heavy.sort((a, b) => a.route.localeCompare(b.route) || a.chunk.localeCompare(b.chunk));
+  return { checked, heavy };
+}
+
 /** Czy chunk paczki w ogóle jest w artefakcie (inaczej reguła nic nie mierzy). */
 export function hasChunk(chunks: readonly ServerChunk[], chunkPath: string): boolean {
   return chunks.some((chunk) => chunk.path === chunkPath);
@@ -233,6 +306,8 @@ export interface ServerEntryPurityReport {
   readonly frozen: readonly FrozenViolation[];
   /** Pliki z loaderem wejść TanStack Start; poprawnie dokładnie jeden (nagłówek pliku). */
   readonly startEntryLoaders: readonly string[];
+  /** Komponenty tras renderowanych wyłącznie po hydratacji (czwarta klasa). */
+  readonly clientOnlyComponents: ClientOnlyComponentsReport;
 }
 
 export function analyzeServerEntryPurity(input: {
@@ -271,6 +346,7 @@ export function analyzeServerEntryPurity(input: {
     lazyOnly,
     frozen,
     startEntryLoaders: startEntryLoaders(input.chunks),
+    clientOnlyComponents: clientOnlyRouteComponents(input.chunks),
   };
 }
 
@@ -280,7 +356,9 @@ export function serverEntryPurityFailed(report: ServerEntryPurityReport): boolea
     report.missingChunks.length > 0 ||
     report.lazyOnly.length > 0 ||
     report.frozen.length > 0 ||
-    report.startEntryLoaders.length !== 1
+    report.startEntryLoaders.length !== 1 ||
+    report.clientOnlyComponents.checked === 0 ||
+    report.clientOnlyComponents.heavy.length > 0
   );
 }
 
@@ -359,6 +437,31 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
       '  naprawa: `@tanstack/react-start/server` importuj LITERAŁEM (`await import("@tanstack/react-start/server")`),',
       "  nigdy przez zmienną z `@vite-ignore` - build SSR zostawia taki specyfikator jako",
       "  pakiet zewnętrzny, a Nitro dociąga drugą kopię Startu razem z jego `#tanstack-router-entry`.",
+      "",
+    );
+  }
+
+  const clientOnly = report.clientOnlyComponents;
+  if (clientOnly.checked === 0) {
+    lines.push(
+      `✗ [server-entry-purity] nie znaleziono komponentów tras ${CLIENT_ONLY_ROUTE_PREFIXES.join(", ")} w artefakcie serwera.`,
+      "  Reguła zaślepek niczego nie mierzy: zmienił się kształt definicji tras po minifikacji -",
+      "  zaktualizuj `ROUTE_DEFINITION_RE`/`LAZY_ROUTE_COMPONENT_RE` w `src/lib/ci/serverEntryPurity.ts`.",
+      "",
+    );
+  } else if (clientOnly.heavy.length > 0) {
+    lines.push(
+      `✗ [server-entry-purity] ${clientOnly.heavy.length} z ${clientOnly.checked} komponentów tras renderowanych wyłącznie po hydratacji nie są w artefakcie serwera zaślepką (> ${CLIENT_ONLY_STUB_MAX_BYTES} B):`,
+      ...clientOnly.heavy
+        .slice(0, 10)
+        .map(({ route, chunk, bytes }) =>
+          bytes < 0 ? `    ${route}: ${chunk} (brak pliku)` : `    ${route}: ${chunk} (${bytes} B)`,
+        ),
+      ...(clientOnly.heavy.length > 10 ? [`    … i ${clientOnly.heavy.length - 10} więcej`] : []),
+      "",
+      "Ten kod serwer kompiluje przy KAŻDYM zimnym starcie izolatu, choć nigdy go nie renderuje.",
+      "  naprawa: sprawdź `scripts/lib/clientOnlyRouteStubPlugin.ts` (format `?tsr-split=`",
+      "  router-pluginu, parser `src/routeTree.gen.ts`, nazwę środowiska `ssr`).",
       "",
     );
   }

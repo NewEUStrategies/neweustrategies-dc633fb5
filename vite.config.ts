@@ -17,6 +17,7 @@ import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin.ts";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin.ts";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim.ts";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
+import { clientOnlyRouteStubPlugin } from "./scripts/lib/clientOnlyRouteStubPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
@@ -139,6 +140,10 @@ export default defineConfig({
       // BOOT_MANIFEST serwera). Tylko build, tylko środowisko `ssr`; ta sama wtyczka
       // w vite.smoke.config.ts (parytet: viteChunkParity.test.ts).
       bootAfterLcpPlugin(),
+      // Komponenty podstron `/admin/*` (render wyłącznie po hydratacji) poza artefaktem
+      // Workera: tylko build, tylko środowisko `ssr` (zimny start kompiluje każdy moduł);
+      // ta sama wtyczka w vite.smoke.config.ts (parytet: viteChunkParity.test.ts).
+      clientOnlyRouteStubPlugin(),
       // P3.7a: minifikacja oznaczonych statycznych literałów CSS (tylko build, oba
       // środowiska, surowy TS); ta sama wtyczka w vite.smoke.config.ts.
       staticCssPlugin(),

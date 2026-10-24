@@ -26,6 +26,7 @@ import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin.ts";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin.ts";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim.ts";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
+import { clientOnlyRouteStubPlugin } from "./scripts/lib/clientOnlyRouteStubPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
@@ -84,6 +85,8 @@ export default defineConfig({
       officeParserTrimPlugin(),
       // Parytet z vite.config.ts: manifest bez preloadów i skryptu wejścia (P2.1).
       bootAfterLcpPlugin(),
+      // Parytet z vite.config.ts: komponenty podstron `/admin/*` poza artefaktem serwera.
+      clientOnlyRouteStubPlugin(),
       // Parytet z vite.config.ts: zminifikowane statyczne literały CSS (P3.7a).
       staticCssPlugin(),
       // Parytet z vite.config.ts: `keepNames` dla buildu w trybie development.
