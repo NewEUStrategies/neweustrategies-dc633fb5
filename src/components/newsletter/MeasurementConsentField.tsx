@@ -29,10 +29,13 @@
 // `NewsletterForm.tsx`).
 import type { CSSProperties, MouseEvent } from "react";
 
-import { MeasurementConsentText } from "@/components/newsletter/NewsletterConsentText";
+import { ConsentSegmentsText } from "@/components/newsletter/NewsletterConsentText";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { ConsentLang } from "@/lib/newsletter/consentSegments";
-import { EMAIL_MEASUREMENT_CONSENT_KEY } from "@/lib/newsletter/measurementConsentText";
+import {
+  EMAIL_MEASUREMENT_CONSENT_KEY,
+  measurementConsentSummarySegments,
+} from "@/lib/newsletter/measurementConsentText";
 import { cn } from "@/lib/utils";
 
 export interface MeasurementConsentFieldProps {
@@ -85,7 +88,7 @@ export function MeasurementConsentField({
         className={checkboxClassName}
       />
       <span className={cn("min-w-0", disabled && "opacity-60")} onClick={keepLinkClickFromToggling}>
-        <MeasurementConsentText lang={lang} />
+        <ConsentSegmentsText segments={measurementConsentSummarySegments(lang)} />
       </span>
     </label>
   );

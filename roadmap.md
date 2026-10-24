@@ -1,5 +1,10 @@
 # Roadmap
 
+## Krótsza zgoda na pomiar e-maili (2026-10-24)
+
+- [x] Skrócono wspólną etykietę formularzy PL/EN: New European Strategies, poprawa jakości usług i dopasowanie komunikacji marketingowej; bez technicznego opisu pomiaru.
+- [x] Pełna informacja na stronie potwierdzenia, wersja/payload i historia zgód bez zmian. 132 unikalne testy przechodzą, build OK. Przeglądarka potwierdza krótszą polską etykietę w newsletterze, pole niezaznaczone. Popup sprawdzony testami, nie otwarto go w przeglądarce. Publikacji tej zmiany nie zlecono.
+
 ## Weryfikacja PR #536 (2026-10-24)
 
 - [x] Merge 7467b9cda zawiera jedyny commit gałęzi 34de38c62; oba są przodkami HEAD, drzewo merge identyczne z końcem gałęzi. PR #535 również jest przodkiem HEAD. Sześć plików, bez migracji, nowych tabel, widoków ani produkcyjnych RPC.
