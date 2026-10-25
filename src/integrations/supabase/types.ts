@@ -21436,7 +21436,6 @@ export type Database = {
           current_company: string | null
           current_company_id: string | null
           discoverable: boolean
-          discoverable_decided_at: string | null
           discovery_search: string | null
           display_name: string | null
           email: string | null
@@ -21482,7 +21481,6 @@ export type Database = {
           current_company?: string | null
           current_company_id?: string | null
           discoverable?: boolean
-          discoverable_decided_at?: string | null
           discovery_search?: string | null
           display_name?: string | null
           email?: string | null
@@ -21528,7 +21526,6 @@ export type Database = {
           current_company?: string | null
           current_company_id?: string | null
           discoverable?: boolean
-          discoverable_decided_at?: string | null
           discovery_search?: string | null
           display_name?: string | null
           email?: string | null
@@ -21575,51 +21572,6 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profiles_discoverable_corrections: {
-        Row: {
-          bucket: string
-          corrected_at: string
-          notified_at: string | null
-          profile_id: string
-          t_restore: string | null
-          t0001: string
-          tenant_id: string
-        }
-        Insert: {
-          bucket: string
-          corrected_at?: string
-          notified_at?: string | null
-          profile_id: string
-          t_restore?: string | null
-          t0001: string
-          tenant_id: string
-        }
-        Update: {
-          bucket?: string
-          corrected_at?: string
-          notified_at?: string | null
-          profile_id?: string
-          t_restore?: string | null
-          t0001?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_discoverable_corrections_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_discoverable_corrections_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: true
-            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -27623,21 +27575,6 @@ export type Database = {
         Returns: number
       }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
-      _profiles_discoverable_0001_correction: {
-        Args: { p_apply: boolean }
-        Returns: {
-          bucket_a_rows: number
-          bucket_b_rows: number
-          bucket_c_rows: number
-          cluster_rows: number
-          detail: string
-          embeddings_pruned: number
-          measured_t_restore: string
-          measured_t0001: string
-          next_cluster_rows: number
-          status: string
-        }[]
-      }
       _redeem_b2b_coupon: {
         Args: {
           _applied_cents: number
@@ -35576,10 +35513,6 @@ export type Database = {
           show_counter: boolean
           used: number
         }[]
-      }
-      missing_drizzle_migration_hashes: {
-        Args: { _entries: string[] }
-        Returns: string[]
       }
       missing_migration_versions: {
         Args: { _versions: string[] }
