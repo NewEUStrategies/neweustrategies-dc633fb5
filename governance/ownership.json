@@ -478,6 +478,7 @@
         "invoke_jobs",
         "job_",
         "missing_migration_versions",
+        "missing_drizzle_migration_hashes$",
         "notification",
         "notifications",
         "objects$",

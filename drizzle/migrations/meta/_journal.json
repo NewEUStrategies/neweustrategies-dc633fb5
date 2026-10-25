@@ -2794,6 +2794,41 @@
       "when": 1792789886300,
       "tag": "0398_pr533_deployment_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 399,
+      "version": "7",
+      "when": 1792789946300,
+      "tag": "0399_adopt_event_speaker_panel_bio",
+      "breakpoints": true
+    },
+    {
+      "idx": 400,
+      "version": "7",
+      "when": 1792790006300,
+      "tag": "0400_adopt_membership_coupon_source_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 401,
+      "version": "7",
+      "when": 1792790066300,
+      "tag": "0401_profiles_discoverable_decision_stamp",
+      "breakpoints": true
+    },
+    {
+      "idx": 402,
+      "version": "7",
+      "when": 1792790126300,
+      "tag": "0402_profiles_discoverable_0001_correction",
+      "breakpoints": true
+    },
+    {
+      "idx": 403,
+      "version": "7",
+      "when": 1792790186300,
+      "tag": "0403_missing_drizzle_migration_hashes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DeploymentProbeHttpError,
+  isMissingRpc,
+  probeDrizzleMigrationHashes,
+  probeDrizzleRegistry,
   probeMigrationVersions,
   probeSchemaColumns,
   probeSchemaObjects,
@@ -173,5 +177,162 @@ describe("deployment metadata probes", () => {
     expect(await probeSchemaObjects([], config, request)).toEqual([]);
     expect(await probeMigrationVersions([], config, request)).toEqual([]);
     expect(request).not.toHaveBeenCalled();
+  });
+});
+
+// ── Rejestr migratora Drizzle (`missing_drizzle_migration_hashes`) ──
+// Dowód wdrożenia plików z lustrem (wpisy dziennika od 0399): para `when` wpisu
+// i sha256 jego pliku, jak `created_at` i `hash` w `drizzle.__drizzle_migrations`
+// (to samo dopasowanie co `migrations:deploy-sql -- --verify`). Odpowiedź spoza
+// pytania, duplikat albo nie-para to błąd sondy, a brak SAMEJ funkcji na bazie
+// (partia z 20261025090040 niewdrożona) - osobny werdykt, nie zielone przejście.
+const hash = (n: number): string => n.toString(16).padStart(64, "0");
+const entry = (n: number): string => `${1_792_790_186_300 + n}:${hash(n)}`;
+const postgrestError = (status: number, code: string): Response =>
+  new Response(JSON.stringify({ code, message: "x", details: null, hint: null }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+describe("drizzle registry probe", () => {
+  it("asks the literal RPC in bounded batches with PostgreSQL array syntax and returns only requested entries", async () => {
+    const entries = Array.from({ length: 41 }, (_, i) => entry(i + 1));
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json([entries[3]]))
+      .mockResolvedValueOnce(json([entries[40]]));
+    expect(await probeDrizzleMigrationHashes(entries, config, request)).toEqual([
+      entries[3],
+      entries[40],
+    ]);
+    expect(request).toHaveBeenCalledTimes(2);
+    const [first, second] = request.mock.calls.map(([target]) => new URL(String(target)));
+    expect(first!.pathname).toBe("/rest/v1/rpc/missing_drizzle_migration_hashes");
+    expect(first!.searchParams.get("_entries")).toBe(`{${entries.slice(0, 40).join(",")}}`);
+    expect(second!.searchParams.get("_entries")).toBe(`{${entries[40]}}`);
+    expect(first!.searchParams.has("_hashes")).toBe(false);
+    for (const [, init] of request.mock.calls) {
+      expect(init).toMatchObject({ method: "GET", redirect: "error" });
+      expect(init?.body).toBeUndefined();
+    }
+  });
+
+  it.each(
+    [
+      null,
+      {},
+      [12],
+      [entry(99)],
+      [entry(1), entry(1)],
+      ["not-an-entry"],
+      // Sam hash pytanej pary albo ten hash pod innym `when` - to nie jest pytany wpis.
+      [hash(1)],
+      [`${1_792_790_186_300 + 2}:${hash(1)}`],
+    ].map((response) => [response]),
+  )("rejects an invalid registry response %j", async (response) => {
+    await expect(
+      probeDrizzleMigrationHashes([entry(1)], config, vi.fn().mockResolvedValue(json(response))),
+    ).rejects.toThrow("Drizzle registry probe: expected a unique subset of requested entries");
+  });
+
+  it.each([
+    ["ABC"],
+    // Sam hash bez `when` (dawny kontrakt) - rejestr dopasowuje parę, nie hash.
+    [hash(1)],
+    [`1792790186300:${hash(0xabcdef).toUpperCase()}`],
+    [`01792790186300:${hash(1)}`],
+    [`${"1".repeat(17)}:${hash(1)}`],
+    [`-1:${hash(1)}`],
+    [`1792790186300:${hash(1)}:x`],
+    [`${entry(1)},${entry(2)}`],
+    [""],
+  ])(
+    "refuses to send %j - only <when>:<64 lowercase hex> reaches the array literal",
+    async (bad) => {
+      const request = vi.fn<typeof fetch>();
+      await expect(probeDrizzleMigrationHashes([bad], config, request)).rejects.toThrow(
+        "Drizzle registry probe: invalid entry",
+      );
+      expect(request).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not send an empty registry request", async () => {
+    const request = vi.fn<typeof fetch>();
+    expect(await probeDrizzleMigrationHashes([], config, request)).toEqual([]);
+    expect(await probeDrizzleRegistry([], config, request)).toEqual({
+      kind: "answered",
+      missingEntries: [],
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("an HTTP failure carries the status and the PostgREST error code", async () => {
+    const error = await readDeploymentRpc(
+      config,
+      "missing_drizzle_migration_hashes",
+      {},
+      vi.fn().mockResolvedValue(postgrestError(404, "PGRST202")),
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DeploymentProbeHttpError);
+    expect(error).toMatchObject({ status: 404, code: "PGRST202" });
+    expect((error as Error).message).toBe(
+      "Deployment probe missing_drizzle_migration_hashes: HTTP 404 (PGRST202)",
+    );
+    // Treść spoza kontraktu PostgREST nie trafia do komunikatu.
+    const odd = await readDeploymentRpc(
+      config,
+      "missing_drizzle_migration_hashes",
+      {},
+      vi.fn().mockResolvedValue(postgrestError(500, "x\n::error::injected")),
+    ).catch((e: unknown) => e);
+    expect(odd).toMatchObject({ status: 500, code: null });
+  });
+
+  it.each([
+    [postgrestError(404, "PGRST202")],
+    [postgrestError(400, "PGRST202")],
+    [postgrestError(404, "PGRST999")],
+    [new Response("not found", { status: 404 })],
+    [postgrestError(400, "42883")],
+  ])("a missing probe function (%#) is a verdict, not a crash", async (response) => {
+    expect(
+      await probeDrizzleRegistry([entry(1)], config, vi.fn().mockResolvedValue(response)),
+    ).toEqual({
+      kind: "probe-missing",
+      detail: expect.stringContaining("Deployment probe missing_drizzle_migration_hashes: HTTP"),
+    });
+  });
+
+  it("other failures (auth, server, network, bad answer) are rethrown - never a pass", async () => {
+    for (const request of [
+      vi.fn().mockResolvedValue(postgrestError(401, "PGRST301")),
+      vi.fn().mockResolvedValue(postgrestError(500, "XX000")),
+      vi.fn().mockRejectedValue(new Error("offline")),
+      vi.fn().mockResolvedValue(json([entry(2)])),
+    ]) {
+      await expect(probeDrizzleRegistry([entry(1)], config, request)).rejects.toThrow();
+    }
+  });
+
+  it("answers with the subset reported by the registry", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(json([entry(2)]));
+    expect(await probeDrizzleRegistry([entry(1), entry(2)], config, request)).toEqual({
+      kind: "answered",
+      missingEntries: [entry(2)],
+    });
+  });
+
+  it("isMissingRpc recognises only a missing function", () => {
+    expect(
+      isMissingRpc(new DeploymentProbeHttpError("missing_migration_versions", 404, null)),
+    ).toBe(true);
+    expect(
+      isMissingRpc(new DeploymentProbeHttpError("missing_migration_versions", 400, "PGRST202")),
+    ).toBe(true);
+    expect(
+      isMissingRpc(new DeploymentProbeHttpError("missing_migration_versions", 401, null)),
+    ).toBe(false);
+    expect(isMissingRpc(new Error("HTTP 404"))).toBe(false);
   });
 });

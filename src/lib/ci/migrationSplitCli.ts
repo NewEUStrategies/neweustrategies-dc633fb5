@@ -95,6 +95,7 @@ const TOOL_FILES =
  */
 export const SPLIT_NEXT_STEPS: readonly string[] = [
   "bun run generate:authz-snapshot  (snapshot liczy pliki migracji; inaczej authzSnapshotParity.test jest czerwony)",
+  "bun run migrations:mirror  (pas drizzle generuje sie z czesci supabase; lokalny wpis oryginalu zostanie przepisany)",
   "bun run check:sql-migration-replay && bun run check:rpc-contract && bun run check:sql-tenant-scope",
   "testy z ostrzezen UWAGA wyzej (czytaja migracje po nazwie): przejdz na readLogicalMigration() z src/lib/ci/migrationSize.ts dla OBU pasow",
   "harnessy, ktore wybieraja te migracje (np. bash scripts/events-harness/run.sh) - pelny przebieg, nie --only",

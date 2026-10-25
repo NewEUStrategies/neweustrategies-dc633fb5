@@ -47,6 +47,7 @@ import {
   type LaneSource,
 } from "./migrationSplit";
 import type { DeployedMigrations } from "./migrationDeployed";
+import { mirrorHeader } from "../migrations/mirrorHeader";
 import { DRIZZLE_DIR, SUPABASE_DIR } from "./migrationLaneParity";
 import { parseMigrationFile, type MigrationFile } from "./migrationLedger";
 
@@ -395,13 +396,18 @@ export function planMigrationSplit(input: SplitPlanInput): SplitPlan {
     header: (k, n) => partHeader(ctx, k, n),
     trailer: (n) => partTrailer(ctx, n),
   });
-  const lanes = [
-    lane(input.supabaseSql, {
-      original: input.supabaseFile,
-      partName: (k) => supabasePartName(version, label, k),
-      markers,
-      maxBytes,
-    }),
+  const supabasePart = (k: number): string => supabasePartName(version, label, k);
+  const lanes: LaneSource[] = [
+    {
+      ...lane(input.supabaseSql, {
+        original: input.supabaseFile,
+        partName: supabasePart,
+        markers,
+        maxBytes,
+      }),
+      // Lustro drizzle czesci = naglowek generatora + plik; limit dotyczy lustra.
+      envelope: (k: number) => utf8Length(mirrorHeader(supabasePart(k))),
+    },
   ];
   if (drizzle) {
     lanes.push(

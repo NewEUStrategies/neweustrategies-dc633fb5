@@ -211,7 +211,6 @@ describe("PostSidebarRenderer - kompozycja sidebara wpisu", () => {
   });
 
   it("układ z PUSTĄ listą widgetów renderuje pusty kontener, nie wyjątek", async () => {
-
     h.byId = { id: "override", widgets: [] };
     const { container } = renderWithQuery(<PostSidebarRenderer {...props} layoutId="override" />);
     // Pierwszy render idzie na układzie AWARYJNYM (dane jeszcze nie przyszły),

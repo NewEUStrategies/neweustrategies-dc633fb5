@@ -14,8 +14,10 @@ Zasady, które obowiązują w każdym punkcie:
   dla właściwej roli. Zmienna środowiska `JOURNEYS_ENGINE_DISABLED` jest
   wyłącznie awaryjnym hamulcem dyżuru, a jej stan widać w panelu.
 - **SQL tylko do odczytu.** Zapytania z tego dokumentu uruchamiasz w edytorze
-  SQL Supabase jako kontrolę. Zmiany w bazie idą wyłącznie migracją (blok
-  wersji huba, bliźniak drizzle) - także szablony awaryjne z §7.3.
+  SQL jako kontrolę. Zmiany w bazie idą wyłącznie migracją w
+  `supabase/migrations/` (blok wersji huba) z lustrem z
+  `bun run migrations:mirror` - także szablony awaryjne z §7.3; wdrożenie:
+  `docs/RUNBOOK_MIGRACJE_LOVABLE.md` §4.
 - **Kod przed migracją i migracja przed kodem są bezpieczne.** Nowy front bez
   migracji pokazuje stan „źródło jeszcze niewdrożone” (PGRST202/42883 →
   `unavailable`), a kroki `jobs-tick` zwracają `skipped: migration_pending`.
@@ -399,7 +401,8 @@ SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
   w §7.2.
 - **Baza: wyłącznie do przodu.** Bez `DROP` tabel i kolumn z danymi księgi,
   ścieżek i zgód. Zmiana zachowania = nowa migracja w bloku huba z ciałem
-  funkcji z wcześniejszej wersji (`-- CIALO-Z:`), bliźniak drizzle, wpis
+  funkcji z wcześniejszej wersji (`-- CIALO-Z:`), lustro z
+  `bun run migrations:mirror` (docs/RUNBOOK_MIGRACJE_LOVABLE.md §3), wpis
   w `hubDelivery.ts`.
 - **Najpierw przełącznik, potem migracja.** Silnik, pomiar, retencja,
   kategorie i ścieżki mają przełączniki w panelu (§3) - działają od razu,
@@ -428,8 +431,9 @@ SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
 Emitery huba łapią własne błędy (`EXCEPTION` → `domain_event_emit_errors`)
 i nie przerywają zapisu modułu, więc wyzwalacz zdejmuje się tylko wtedy, gdy
 sam zapis modułu jest zagrożony (np. blokady, wolumen). Szablon nowej
-migracji (wersja w bloku huba wyższa od ostatniej, bliźniak drizzle, wpis
-w `hubDelivery.ts`; poza oknem wysyłki, nocą dla gorących tabel):
+migracji (wersja w bloku huba wyższa od ostatniej, lustro z
+`bun run migrations:mirror`, wpis w `hubDelivery.ts`; poza oknem wysyłki,
+nocą dla gorących tabel):
 
 ```sql
 -- ============================================================================
@@ -469,17 +473,20 @@ i limitu miejsc Zespołu nie zdejmuje się tym szablonem (§7.1).
 ## 8. Kolejność wdrożenia migracji `0347…0390`
 
 M0, S1, S2 i S4 (`0313…0346`) są na produkcji (potwierdzenie `0346`,
-dziennik §10, §17.2). Do wdrożenia zostaje 44 bliźniaków. Migrator Drizzle
-stosuje wpisy `drizzle/migrations/meta/_journal.json` po `idx` - kolejność
-poniżej jest kolejnością dziennika. Bliźniaki są kopiami bajt w bajt
-migracji `supabase/migrations/…`, więc po panelu Lovable wykonują się jako
-no-op.
+dziennik §10, §17.2). Do wdrożenia zostaje 44 bliźniaków. Bliźniaki są
+kopiami bajt w bajt migracji `supabase/migrations/…`. Migrator Drizzle
+wykonuje oczekujące wpisy `drizzle/migrations/meta/_journal.json` w kolejności
+dziennika, wszystkie w JEDNEJ transakcji
+(`docs/RUNBOOK_MIGRACJE_LOVABLE.md` §2), więc kroki z tabeli nie wdrażają się
+osobno: scalone wpisy idą jedną partią przy wyzwalaczu wdrożenia, a tabela
+mówi, czego partia dotyka i co sprawdzić po wdrożeniu.
 
-Wspólne zasady: okno nocne przy gorących tabelach; ALTER/wyzwalacze stoją
-za `SET lock_timeout = '5s'` - błąd `55P03` = ponów cały plik (wszystkie
-pliki są idempotentne); po każdej fali `workflow_dispatch` CI na `main` →
-job `post-deploy` (`check:db-contract`, `check:migration-ledger`) i wpis do
-§10 dziennika; front publikować razem z migracjami albo zaraz po nich.
+Wspólne zasady: okno nocne, gdy którykolwiek krok go wymaga; ALTER/wyzwalacze
+stoją za `SET lock_timeout = '5s'` - błąd `55P03` wycofuje całą partię,
+ponów wdrożenie (`docs/RUNBOOK_MIGRACJE_LOVABLE.md` §4.6; wszystkie pliki są
+idempotentne); po wdrożeniu job `post-deploy` (`check:db-contract`,
+`check:migration-ledger`) i wpis do §10 dziennika; front publikować razem
+z migracjami albo zaraz po nich.
 
 | Krok | Bliźniaki   | Wersje                  | Fala                                            | Okno i warunki                                                                                                           | Kontrola           |
 | ---- | ----------- | ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------ |
@@ -723,13 +730,14 @@ ROLLBACK;
 **Wdrożenie - kolejność obowiązkowa:**
 
 1. Migracje `20261023090000` → `090100` → `090200` → `090300` (bliźniaki
-   `0394` → `0397`, kopie bajt w bajt - po panelu Lovable no-op). Poza oknem
-   wysyłki próśb z panelu (08:00-17:59 czasu polskiego) i poza wysyłką
-   kampanii: krótkie blokady `newsletter_settings`, `crm_consent_log`,
-   `newsletter_subscribers` i `newsletter_measurement_requests` za
-   `lock_timeout` 5 s (`55P03` = ponów plik; wszystkie są idempotentne).
-   `090300` (poprawki przeglądu R1) zmienia uprawnienia kolumn personelu
-   do `newsletter_subscribers`, zastępuje sygnatury
+   `0394` → `0397`, kopie bajt w bajt; wykonuje je migrator przy wyzwalaczu
+   wdrożenia). Poza oknem wysyłki próśb z panelu (08:00-17:59 czasu
+   polskiego) i poza wysyłką kampanii: krótkie blokady `newsletter_settings`,
+   `crm_consent_log`, `newsletter_subscribers` i
+   `newsletter_measurement_requests` za `lock_timeout` 5 s (`55P03` = ponów
+   wdrożenie całej partii; wszystkie są idempotentne). `090300` (poprawki
+   przeglądu R1) zmienia uprawnienia kolumn personelu do
+   `newsletter_subscribers`, zastępuje sygnatury
    `newsletter_doi_measurement_state`/`_decide` (sekret skrzynki) i na
    końcu domyka łańcuchy pomiaru pod blokadą `SHARE ROW EXCLUSIVE` na
    `crm_consent_log` (wpisy zgód czekają na koniec migracji). Sekret

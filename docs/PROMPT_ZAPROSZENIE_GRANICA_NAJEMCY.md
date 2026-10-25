@@ -338,7 +338,10 @@ service_role`. Zwraca `true` tylko wtedy, gdy `is_service_role_caller()` **i** s
   `public.has_role(auth.uid(), 'super_admin'::public.app_role)`** (gałąź `INSERT`) - generator migawki odtwarza
   uprawnienie z tego wyrażenia (`20260812102500:57-59`, `src/lib/ci/authzGates.ts:82`); sam literał w komentarzu nie
   wystarczy.
-- **Migracja w obu pasach.** Produkcję zasila migrator drizzle, który wykonuje wyłącznie wpisy
+- **Migracja w obu pasach.** **Nieaktualne od 2026-10-25** (`docs/RUNBOOK_MIGRACJE_LOVABLE.md` §3): migracja tylko
+  w `supabase/migrations/`; lustro, wpis `_journal.json` i snapshot generuje `bun run migrations:mirror`. Ręcznych
+  bliźniaków, wpisów dziennika ani `MIGRATION_LANES` dla luster nie piszesz; regułę `when` > maksimum dziennika
+  pilnuje generator. Dalej zapis z czasu zlecenia: produkcję zasila migrator drizzle, który wykonuje wyłącznie wpisy
   `drizzle/migrations/meta/_journal.json` (`scripts/deploy-order-proof.sh:7-9`), a CI i pgTAP stawiają bazę wyłącznie
   z `supabase/migrations` (rozdz. 16.11 audytu). Uwaga na starsze zlecenie: `docs/PROMPT_MODUL_19_USTAWIENIA_RODO.md`
   (zasada 8) każe pisać migracje do `supabase/migrations/`, nie do `drizzle/migrations/`, bo bramki SQL widzą tylko

@@ -27,18 +27,19 @@ import {
   type SupabaseCoverageOptions,
   type SupabaseLaneGap,
 } from "@/lib/ci/supabaseLaneCoverage";
+import { mirrorHeader } from "@/lib/migrations/mirrorHeader";
 
 /**
  * Niezmienniki rejestru, które mają przetrwać kopię dopisaną przez panel
- * Lovable prosto na `main`: każdy raportowany brak jest wpisem `pending`,
- * a wpis `pending`, którego nie ma w raporcie, czeka „do usunięcia".
+ * Lovable prosto na `main`: każdy raportowany plik poza dziennikiem jest wpisem
+ * `appliedOutOfBand`, a taki wpis, którego nie ma w raporcie, czeka „do usunięcia".
  */
-function pendingInvariants(
+function outOfBandInvariants(
   report: ReturnType<typeof analyzeSupabaseCoverage>,
   registry: readonly SupabaseLaneGap[],
 ): void {
-  const registered = registry.filter((g) => "pending" in g).map((g) => g.file);
-  const reported = report.pending.map((p) => p.file);
+  const registered = registry.filter((g) => "appliedOutOfBand" in g).map((g) => g.file);
+  const reported = report.outOfBand.map((p) => p.file);
   const stale = new Set(report.stale.map((s) => s.file));
   expect(reported.every((f) => registered.includes(f))).toBe(true);
   expect(registered.filter((f) => !reported.includes(f)).every((f) => stale.has(f))).toBe(true);
@@ -78,7 +79,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
   ];
   const gaps: SupabaseLaneGap[] = [
     { file: "20261001000200_bundled.sql", coveredBy: ["0302_bundle"], reason: "zestawienie" },
-    { file: "20261001000300_known_gap.sql", pending: "Indeks bez kopii w dzienniku." },
+    { file: "20261001000300_known_gap.sql", appliedOutOfBand: "Indeks bez kopii w dzienniku." },
   ];
   const base: SupabaseCoverageOptions = {
     gaps,
@@ -99,23 +100,82 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(r.checked).toBe(5);
     expect(r.twins).toBe(2);
     expect(r.consolidated).toBe(1);
-    expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
+    expect(r.outOfBand.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
     // Wpis `twin` sieroty 0399 nie pokrywa 20261101000400 - migrator jej nie wykona.
     expect(kinds(r)).toEqual(["brak-kopii-drizzle:20261101000400_new.sql"]);
     expect(supabaseCoverageFailed(r)).toBe(true);
     const text = renderSupabaseCoverage(r);
     expect(text).toMatch(/^✗/);
     expect(text).toContain("[brak-kopii-drizzle] 20261101000400_new.sql");
+    // Kopię dopisuje generator - nikt nie pisze plików drizzle ręcznie.
+    expect(r.violations[0]!.detail).toContain("bun run migrations:mirror");
+    expect(text).toContain("Naprawa: brak kopii - `bun run migrations:mirror`");
   });
 
-  it("znany brak (`pending`) nie czerwieni, ale raport drukuje go z powodem przy każdym przebiegu", () => {
+  it("plik zastosowany poza dziennikiem nie czerwieni, ale raport drukuje go z powodem przy każdym przebiegu", () => {
     const r = run();
     expect(r.violations).toEqual([]);
     expect(supabaseCoverageFailed(r)).toBe(false);
+    expect(r.outOfBand).toEqual([
+      { file: "20261001000300_known_gap.sql", appliedOutOfBand: "Indeks bez kopii w dzienniku." },
+    ]);
     const text = renderSupabaseCoverage(r);
     expect(text).toMatch(/^✓/);
-    expect(text).toContain("ZNANE BRAKI W DZIENNIKU DRIZZLE (1)");
-    expect(text).toContain("20261001000300_known_gap.sql: Indeks bez kopii w dzienniku.");
+    expect(text).toContain("1 zastosowanych poza dziennikiem");
+    expect(text).toContain("POZA DZIENNIKIEM (1, zamrożone - generator ich NIE wysyła");
+    expect(text).toContain(
+      "20261001000300_known_gap.sql: Indeks bez kopii w dzienniku. [BEZ UZGODNIENIA]",
+    );
+  });
+
+  describe("uzgodnienie pliku poza dziennikiem (`reconciledBy`)", () => {
+    const reconcile = "20261001000400_reconcile.sql";
+    const withReconcile: Record<string, string> = {
+      ...files,
+      [`${SUPABASE_DIR}/${reconcile}`]: "CREATE INDEX IF NOT EXISTS c_x ON public.c (x);",
+      [`${DRIZZLE_DIR}/0303_reconcile.sql`]: "CREATE INDEX IF NOT EXISTS c_x ON public.c (x);",
+    };
+    const runReconciled = (reconciledBy: string) =>
+      analyzeSupabaseCoverage([...journal, "0303_reconcile"], {
+        ...base,
+        read: (p) => withReconcile[p] ?? null,
+        listSupabase: () => [...listWithoutNew(), reconcile].sort(),
+        gaps: [
+          gaps[0]!,
+          {
+            file: "20261001000300_known_gap.sql",
+            appliedOutOfBand: "Indeks bez kopii w dzienniku.",
+            reconciledBy,
+          },
+        ],
+      });
+
+    it("późniejsza migracja z kopią w dzienniku domyka plik; raport ją wskazuje", () => {
+      const r = runReconciled(reconcile);
+      expect(r.violations).toEqual([]);
+      expect(r.outOfBand).toEqual([
+        {
+          file: "20261001000300_known_gap.sql",
+          appliedOutOfBand: "Indeks bez kopii w dzienniku.",
+          reconciledBy: reconcile,
+        },
+      ]);
+      expect(renderSupabaseCoverage(r)).toContain(`[uzgadnia: ${reconcile}]`);
+    });
+
+    it("`reconciledBy` wskazujące plik, którego nie ma w pasie supabase, czerwieni", () => {
+      const r = runReconciled("20261001000900_gone.sql");
+      expect(kinds(r)).toEqual(["bledne-uzgodnienie:20261001000300_known_gap.sql"]);
+      expect(r.violations[0]!.detail).toContain("20261001000900_gone.sql");
+    });
+
+    it("`reconciledBy` wcześniejsze od pliku (albo ten sam plik) czerwieni - uzgodnienie domyka stan PO pliku", () => {
+      for (const earlier of ["20261001000000_copied.sql", "20261001000300_known_gap.sql"]) {
+        const r = runReconciled(earlier);
+        expect(kinds(r)).toEqual(["bledne-uzgodnienie:20261001000300_known_gap.sql"]);
+        expect(r.violations[0]!.detail).toContain("PÓŹNIEJSZĄ");
+      }
+    });
   });
 
   it("`coveredBy` jest MIERZONE: tag z dziennika bez treści pliku niczego nie pokrywa", () => {
@@ -269,14 +329,15 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(r.violations[0]!.detail).toContain("0399_orphan");
   });
 
-  it("lista znanych braków jest ZAMKNIĘTA: `pending` dla nowej migracji czerwieni", () => {
+  it("lista plików poza dziennikiem jest ZAMKNIĘTA: `appliedOutOfBand` dla nowej migracji czerwieni", () => {
     const r = run({
       listSupabase: listAll,
-      gaps: [...gaps, { file: "20261101000400_new.sql", pending: "port później" }],
+      gaps: [...gaps, { file: "20261101000400_new.sql", appliedOutOfBand: "z panelu" }],
     });
     expect(kinds(r)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
-    expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
-    // `uncovered` też jest zamknięte - wyjątek z samych wyjątków byłby cichym `pending`.
+    expect(r.violations[0]!.detail).toContain("bun run migrations:mirror");
+    expect(r.outOfBand.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
+    // `uncovered` też jest zamknięte - wyjątek z samych wyjątków byłby cichym wpisem poza dziennikiem.
     const withUncovered = run({
       listSupabase: listAll,
       gaps: [
@@ -292,7 +353,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(kinds(withUncovered)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
   });
 
-  it("zamknięcie to zbiór NAZW, nie próg wersji: port starszej migracji pod dawną datą nie dostaje cichego `pending`", () => {
+  it("zamknięcie to zbiór NAZW, nie próg wersji: port starszej migracji pod dawną datą nie dostaje cichego wyjątku", () => {
     const backdated = "20261001000600_older_port.sql";
     const withBackdated: Record<string, string> = {
       ...files,
@@ -301,18 +362,18 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     const r = run({
       read: (p) => withBackdated[p] ?? null,
       listSupabase: () => [...listWithoutNew(), backdated].sort(),
-      gaps: [...gaps, { file: backdated, pending: "port później" }],
+      gaps: [...gaps, { file: backdated, appliedOutOfBand: "z panelu" }],
     });
     expect(kinds(r)).toEqual([`zamkniety-rejestr:${backdated}`]);
-    expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
+    expect(r.outOfBand.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
   });
 
   it("wpis dla pliku, którego nie ma w pasie supabase, i wpis sprzed startu pasa czerwienią", () => {
     const r = run({
       gaps: [
         ...gaps,
-        { file: "20260901000000_before_lane.sql", pending: "x" },
-        { file: "20261001000900_gone.sql", pending: "x" },
+        { file: "20260901000000_before_lane.sql", appliedOutOfBand: "x" },
+        { file: "20261001000900_gone.sql", appliedOutOfBand: "x" },
       ],
     });
     expect(kinds(r)).toEqual([
@@ -325,7 +386,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     const r = run({
       gaps: [
         ...gaps,
-        { file: "20261001000000_copied.sql", pending: "port czeka" },
+        { file: "20261001000000_copied.sql", appliedOutOfBand: "z panelu" },
         { file: "20261001000100_declared.sql", coveredBy: ["0301_declared_trimmed"], reason: "" },
       ],
     });
@@ -336,7 +397,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     ]);
     expect(r.stale[0]!.detail).toContain("0300_copied");
     expect(r.twins).toBe(2);
-    expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
+    expect(r.outOfBand.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
     expect(renderSupabaseCoverage(r)).toContain(
       "DO USUNIĘCIA Z SUPABASE_LANE_GAPS (2, bez czerwieni)",
     );
@@ -344,7 +405,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(renderSupabaseCoverage(r)).toMatch(/^✓/);
   });
 
-  it("kopia z panelu dla pliku `pending`: bramka i niezmienniki self-testu zostają zielone", () => {
+  it("kopia z panelu dla pliku poza dziennikiem: bramka i niezmienniki self-testu zostają zielone", () => {
     const withPanelCopy: Record<string, string> = {
       ...files,
       [`${DRIZZLE_DIR}/0304_known_gap.sql`]: "CREATE INDEX c_x ON public.c (x);",
@@ -354,9 +415,9 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
       read: (p) => withPanelCopy[p] ?? null,
     });
     expect(r.violations).toEqual([]);
-    expect(r.pending).toEqual([]);
+    expect(r.outOfBand).toEqual([]);
     expect(r.stale.map((s) => s.file)).toEqual(["20261001000300_known_gap.sql"]);
-    pendingInvariants(r, gaps);
+    outOfBandInvariants(r, gaps);
   });
 
   it("zbiór sprzed pasa jest zamrożony: plik z cofniętą wersją czerwieni zamiast przejść bokiem", () => {
@@ -393,6 +454,104 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
   });
 });
 
+describe("przydział kopii (i): lustro należy do pliku z nagłówka, wpis bota po zamrożeniu - do najstarszego pliku o tym SQL-u", () => {
+  const SQL = "REVOKE ALL ON FUNCTION public.f() FROM anon;";
+  const oob = "20261001000000_f_out_of_band.sql";
+  const first = "20261024000000_f.sql";
+  const rerun = "20261026000000_f_rerun.sql";
+  const adopted = "20261026000000_adopt_lovable_fix.sql";
+  const mirror = (tag: string, file: string): Record<string, string> => ({
+    [`${DRIZZLE_DIR}/${tag}.sql`]: `${mirrorHeader(file)}-- ${file}\n${SQL}\n`,
+  });
+  const coverage = (
+    files: Record<string, string>,
+    journal: readonly string[],
+    gaps: SupabaseLaneGap[] = [],
+  ) =>
+    analyzeSupabaseCoverage(journal, {
+      gaps,
+      read: (p) => files[p] ?? null,
+      listSupabase: () =>
+        Object.keys(files)
+          .filter((p) => p.startsWith(`${SUPABASE_DIR}/`))
+          .map((p) => p.slice(SUPABASE_DIR.length + 1))
+          .sort(),
+      lanes: [],
+      preLane: null,
+      exceptions: new Set([oob]),
+    });
+  const kindsOf = (r: ReturnType<typeof analyzeSupabaseCoverage>) =>
+    r.violations.map((v) => `${v.kind}:${v.file}`);
+
+  it("lustro ponownego przebiegu nie przechodzi na starszy plik appliedOutOfBand o tym samym SQL-u", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${oob}`]: `-- poza dziennikiem\n${SQL}`,
+      [`${SUPABASE_DIR}/${rerun}`]: `-- ponowny przebieg\n${SQL}`,
+      ...mirror("0399_f_rerun", rerun),
+    };
+    const r = coverage(
+      files,
+      ["0399_f_rerun"],
+      [{ file: oob, appliedOutOfBand: "poza dziennikiem" }],
+    );
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([[rerun, "0399_f_rerun"]]);
+    expect(r.outOfBand.map((o) => o.file)).toEqual([oob]);
+    expect(r.stale).toEqual([]);
+  });
+
+  it("lustro z nagłówkiem wskazującym inny SQL (rozjazd) nie pokrywa ani swojego źródła, ani innego pliku", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${SUPABASE_DIR}/${rerun}`]: "GRANT EXECUTE ON FUNCTION public.f() TO service_role;",
+      ...mirror("0399_f_rerun", rerun),
+    };
+    const r = coverage(files, ["0399_f_rerun"]);
+    expect(kindsOf(r)).toEqual([`brak-kopii-drizzle:${first}`, `brak-kopii-drizzle:${rerun}`]);
+    expect(r.copies.size).toBe(0);
+  });
+
+  it("zbędna kopia bota po zamrożeniu zostaje przy niesionym pliku; późniejszy ponowny przebieg dostaje własne lustro", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${SUPABASE_DIR}/${rerun}`]: `-- ponowny przebieg\n${SQL}`,
+      ...mirror("0399_f", first),
+      [`${DRIZZLE_DIR}/0400_lovable_copy.sql`]: SQL,
+    };
+    const r = coverage(files, ["0399_f", "0400_lovable_copy"]);
+    expect(kindsOf(r)).toEqual([`brak-kopii-drizzle:${rerun}`]);
+    expect([...r.copies]).toEqual([[first, "0399_f"]]);
+  });
+
+  it("adopcja: wpis bota po zamrożeniu niesie plik adopcji o tym samym SQL-u (najstarszy taki plik)", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: "CREATE INDEX f_idx ON public.f (x);",
+      [`${DRIZZLE_DIR}/0399_f.sql`]: `${mirrorHeader(first)}CREATE INDEX f_idx ON public.f (x);`,
+      [`${DRIZZLE_DIR}/0400_lovable_fix.sql`]: SQL,
+      [`${SUPABASE_DIR}/${adopted}`]: `-- ADOPCJA: drizzle/migrations/0400_lovable_fix.sql\n${SQL}`,
+    };
+    const r = coverage(files, ["0399_f", "0400_lovable_fix"]);
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([
+      [first, "0399_f"],
+      [adopted, "0400_lovable_fix"],
+    ]);
+  });
+
+  it("historia (do zamrożenia) bez zmian: pliki spoza rejestru biorą kopie przed plikami z SUPABASE_LANE_GAPS", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${oob}`]: `-- poza dziennikiem\n${SQL}`,
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${DRIZZLE_DIR}/0300_copy.sql`]: SQL,
+    };
+    const gaps: SupabaseLaneGap[] = [{ file: oob, appliedOutOfBand: "poza dziennikiem" }];
+    const r = coverage(files, ["0300_copy"], gaps);
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([[first, "0300_copy"]]);
+    expect(r.outOfBand.map((o) => o.file)).toEqual([oob]);
+  });
+});
+
 describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
   const journalTags = (
     JSON.parse(readFileSync(`${DRIZZLE_DIR}/meta/_journal.json`, "utf8")) as {
@@ -403,10 +562,11 @@ describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
 
   it("obecny stan repo przechodzi: każdy plik od startu pasa drizzle jest pokryty albo jawnie znany", () => {
     expect(real.violations).toEqual([]);
-    expect(real.twins + real.consolidated + real.pending.length).toBe(real.checked);
+    expect(real.twins + real.consolidated + real.outOfBand.length).toBe(real.checked);
   });
 
   for (const [file, tag] of [
+    ["20261007140200_release_coupon_server_only.sql", "0309_release_coupon_server_only"],
     ["20261007140300_subscriptions_tenant_from_owner.sql", "0305_subscriptions_tenant_from_owner"],
     [
       "20261018100000_payment_webhook_events_follow_subscription_tenant.sql",
@@ -447,19 +607,24 @@ describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
     expect(names.every((f) => f >= DRIZZLE_LANE_START)).toBe(true);
   });
 
-  it("znane braki to dokładnie wpisy `pending`, wszystkie sprzed zamknięcia rejestru, i ta lista tylko maleje", () => {
-    // Bez `toEqual`: kopia z panelu prosto na `main` zamienia wpis `pending`
+  it("pliki poza dziennikiem to dokładnie wpisy `appliedOutOfBand`, wszystkie sprzed zamknięcia rejestru, i ta lista tylko maleje", () => {
+    // Bez `toEqual`: kopia z panelu prosto na `main` zamienia wpis
     // w „do usunięcia", a to nie może czerwienić `main`.
-    pendingInvariants(real, SUPABASE_LANE_GAPS);
-    const pending = SUPABASE_LANE_GAPS.filter((g) => "pending" in g).map((g) => g.file);
-    expect(pending.length).toBeLessThanOrEqual(23);
-    // Wyjątki (`pending`, `uncovered`) wyłącznie dla plików z zamrożonego zbioru,
-    // a zbiór tylko maleje.
+    outOfBandInvariants(real, SUPABASE_LANE_GAPS);
+    // Stan „czeka na port" zniknął: pliku poza dziennikiem generator nie wysyła.
+    expect(SUPABASE_LANE_GAPS.every((g) => !("pending" in g))).toBe(true);
+    const outOfBand = SUPABASE_LANE_GAPS.filter((g) => "appliedOutOfBand" in g).map((g) => g.file);
+    expect(outOfBand.length).toBeLessThanOrEqual(22);
+    // Wyjątki (`appliedOutOfBand`, `uncovered`) wyłącznie dla plików z zamrożonego
+    // zbioru, a zbiór tylko maleje.
     const excepted = SUPABASE_LANE_GAPS.filter(
-      (g) => "pending" in g || ("uncovered" in g && g.uncovered),
+      (g) => "appliedOutOfBand" in g || ("uncovered" in g && g.uncovered),
     ).map((g) => g.file);
     expect(excepted.every((f) => GAP_EXCEPTIONS_AT_GATE_START.has(f))).toBe(true);
-    expect(GAP_EXCEPTIONS_AT_GATE_START.size).toBeLessThanOrEqual(30);
+    expect(GAP_EXCEPTIONS_AT_GATE_START.size).toBeLessThanOrEqual(29);
+    expect(GAP_EXCEPTIONS_AT_GATE_START.has("20261007140200_release_coupon_server_only.sql")).toBe(
+      false,
+    );
   });
 
   it("zamrożony zbiór sprzed pasa odpowiada repozytorium i jest WŁĄCZONY domyślnie (ścieżka CI)", () => {

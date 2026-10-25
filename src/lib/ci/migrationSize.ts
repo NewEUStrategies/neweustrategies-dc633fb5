@@ -21,11 +21,15 @@
 // zwalnia hurtem wszystkiego, co pod nia: zwolniony jest wylacznie plik
 // z listy, i to tylko przy DOKLADNIE zapisanym rozmiarze.
 //
-// PAS DRIZZLE. Lovable czyta takze pliki `drizzle/migrations/`, wiec blizniak
-// pliku objetego bramka podlega temu samemu limitowi. Zwolnienie idzie za
-// blizniakiem supabase: blizniak wdrozonego pliku z listy jest wdrozony razem
-// z nim. Pliki `drizzleOnly` to zapisy wykonania z panelu (juz wykonane) -
-// bramka ich nie mierzy.
+// PAS DRIZZLE. Lustro z `bun run migrations:mirror` to naglowek generatora
+// i plik supabase bajt w bajt, a migrator czyta je z repozytorium - wiec limit
+// obowiazuje plik supabase razem z naglowkiem. Mierzy go generator na
+// DOSTARCZANYM pliku (blad `za-duzy` w `check:migration-lanes`); za duza
+// migracje tnie sie w pasie supabase, a lustra czesci generuje on sam.
+// Prog 52-62 KB zmierzono, gdy panel Lovable przepisywal migracje na wpisy
+// dziennika (faza A, do 2026-10-18); bez nowego pomiaru limitu nie luzujemy.
+// Pliki `drizzleOnly` to zapisy wykonania z panelu (juz wykonane) - limit ich
+// nie dotyczy.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { DEPLOYED_OVERSIZE, MIGRATION_SIZE_BASELINE } from "./migrationDeployed";
 import { DEFAULT_MAX_BYTES } from "./migrationSplit";
