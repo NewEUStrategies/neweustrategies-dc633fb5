@@ -26,6 +26,10 @@ import {
   DEPLOY_TRIGGER_TAG,
   JOURNAL_FREEZE_IDX,
 } from "@/lib/ci/migrationLaneParity";
+import {
+  DRIZZLE_MISSING_VERDICT,
+  DRIZZLE_REGISTRY_PROBE_MIGRATION,
+} from "@/lib/ci/migrationLedger";
 import { JOURNAL_CONFLICT_FIX, deployLine } from "@/lib/migrations/drizzleMirror";
 import { MIRROR_USAGE } from "@/lib/migrations/drizzleMirrorCli";
 
@@ -319,6 +323,14 @@ describe("docs/RUNBOOK_MIGRACJE_LOVABLE.md - zgodność z kodem", () => {
 
   it("cytuje przepis na konflikt dziennika dosłownie, jak generator i bramka", () => {
     expect(RUNBOOK).toContain(JOURNAL_CONFLICT_FIX);
+  });
+
+  it("dowód z rejestru migratora: sonda, jej plik i werdykt brakującego wpisu jak w check:migration-ledger", () => {
+    // Właściciel czyta czerwony `post-deploy` z runbookiem w ręku - werdykt bramki
+    // i plik, którego brak znaczy niewdrożoną partię, muszą być te same co w kodzie.
+    expect(RUNBOOK).toContain("`missing_drizzle_migration_hashes`");
+    expect(RUNBOOK).toContain(`\`${DRIZZLE_REGISTRY_PROBE_MIGRATION}\``);
+    expect(RUNBOOK).toContain(`„${DRIZZLE_MISSING_VERDICT}"`);
   });
 
   it("nazywa zmienną bazy porównania bramki niezmienności i wartość JOURNAL_FREEZE_IDX", () => {

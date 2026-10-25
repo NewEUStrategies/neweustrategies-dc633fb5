@@ -23,8 +23,8 @@ Powiązane:
 | od wpisu 0399: `drizzle/migrations/NNNN_<nazwa>.sql`, wpis `meta/_journal.json`, `meta/NNNN_snapshot.json` | lustro: pierwsza linia `-- migrations-mirror: supabase/migrations/<plik>`, dalej plik źródłowy bajt w bajt; jedyny kanał SQL-a na produkcję | wyłącznie `bun run migrations:mirror` |
 | `drizzle/migrations/NNNN_pr<NR_PR>_deployment_completion.sql`                                              | wyzwalacz wdrożenia: jedna instrukcja bez skutku, `COMMENT ON SCHEMA public IS 'standard public schema';`                                   | narzędzie migracji Lovable            |
 | wpisy dziennika 0000-0398 (`JOURNAL_FREEZE_IDX` = 398) i rejestr `MIGRATION_LANES`                         | historia sprzed generatora: bliźniaki pisane ręcznie, kopie i wpisy bota; rejestr decyzji jest zamrożony                                    | nikt - historii się nie zmienia       |
-| `drizzle.__drizzle_migrations` (produkcja)                                                                 | rejestr migratora: `hash` = sha256 pliku, `created_at` = `when` wpisu - DOWÓD wdrożenia                                                     | wyłącznie migrator                    |
-| `supabase_migrations.schema_migrations` (produkcja)                                                        | drugi rejestr, historyczny; plików niesionych przez wpisy od 0399 `check:migration-ledger` w nim nie szuka                                  | nikt (ręczne dopisywanie zakazane)    |
+| `drizzle.__drizzle_migrations` (produkcja)                                                                 | rejestr migratora: `hash` = sha256 pliku, `created_at` = `when` wpisu - DOWÓD wdrożenia (pyta go `check:migration-ledger`)                  | wyłącznie migrator                    |
+| `supabase_migrations.schema_migrations` (produkcja)                                                        | drugi rejestr, historyczny; plików niesionych przez wpisy od 0399 `check:migration-ledger` w nim nie szuka (pyta rejestr migratora)         | nikt (ręczne dopisywanie zakazane)    |
 | `drizzle.config.ts`, `drizzle/schema.ts` (celowo pusty)                                                    | konfiguracja Lovable (`LOVABLE_DB_MIGRATION_URL`)                                                                                           | Lovable; nie ruszać                   |
 
 Gdy właściciel zleca zmianę bazy wprost w czacie Lovable, agent pisze plik i lustro jak autor (§3,
@@ -284,9 +284,18 @@ cofa (§5).
 | 6   | właściciel | funkcja z PR na produkcji po publikacji                                         | działa                                                                           |
 
 Zielony PR potwierdza kod, nie stan bazy. Wdrożenie potwierdzają dopiero wiersze 1-4, a dowodem
-jest wiersz 1: każdy wpis zakresu zapisany przez migrator z hashem pliku z repozytorium.
-Automatyczny dowód z rejestru migratora w jobie `post-deploy` przyjdzie osobnym PR-em; do tego
-czasu jest nim ręczne `--verify`.
+jest rejestr migratora: ręcznie wiersz 1 (każdy wpis zakresu zapisany przez migrator z hashem
+pliku z repozytorium i ze swoim `when`), automatycznie wiersz 4. `check:migration-ledger` w jobie
+`post-deploy` dla każdego pliku supabase niesionego przez wpis od 0399 (lustro albo adoptowany
+wpis bota) pyta funkcją `missing_drizzle_migration_hashes` o parę (`when` tego wpisu, sha256
+jego pliku) w `drizzle.__drizzle_migrations` - `created_at` i `hash`, jak `--verify`. Brak pary
+(raport wpisu podaje `when` i hash:
+„brak pary (when, hash) w drizzle.__drizzle_migrations - partia niewdrożona albo wdrożona inną drogą")
+albo brak samej funkcji (partia z `20261025090040_missing_drizzle_migration_hashes.sql`
+niewdrożona) = czerwony `post-deploy`; brak od innego hasha pod tym `when` odróżnia
+`--verify --from <idx> --to <idx>`.
+Przebieg na commicie scalenia, przed wyzwoleniem z §4.2, jest więc czerwony z założenia; liczy się
+przebieg commita bota z wyzwalaczem.
 
 ### 4.5 Zapytania i statusy tylko do odczytu
 
@@ -312,6 +321,13 @@ wdrożenia, nie `--from 0`.
 | `--verify`  | `inny hash`                                        | jak `INNY HASH W REJESTRZE`                                                                                                                                                                        | stop, raport                                                               |
 | `--verify`  | 0 wierszy                                          | każdy wpis zakresu zapisany z hashem pliku z repozytorium                                                                                                                                          | wdrożenie potwierdzone                                                     |
 
+Automatyczny odpowiednik `--verify` to `check:migration-ledger` w jobie `post-deploy` (§4.4, §4.8):
+to samo dopasowanie (`created_at` = `when` wpisu i `hash` = sha256 jego pliku), dla każdego pliku
+supabase niesionego przez wpis od 0399 naraz - pyta funkcję `missing_drizzle_migration_hashes`,
+która zwraca wyłącznie brakujące pary `<when>:<sha256>` z pytania. Ponowna dostawa tych samych
+bajtów (hash w rejestrze pod `when` innego wpisu) nie potwierdza więc wpisu. Nie rozróżnia
+`brak w rejestrze` od `inny hash` - to robi `--verify`.
+
 ```sql
 -- Ostatnie zapisy migratora. Górny wiersz: wyzwalacz tego wdrożenia,
 -- created_at = jego `when` z drizzle/migrations/meta/_journal.json.
@@ -324,7 +340,7 @@ SELECT id, created_at, to_timestamp(created_at / 1000.0) AT TIME ZONE 'UTC' AS u
 ```sql
 -- Długie transakcje na tabelach partii (tylko odczyt): tuż przed wyzwoleniem i po błędzie
 -- 55P03, 40P01 albo 57014 (§4.6). Oczekiwane 0 wierszy; podstaw tabele, których wpisy
--- partii dotykają (sekcja „Wdrożenie bazy" opisu PR; dla 0399-0402 gotowe zapytanie w §9.1).
+-- partii dotykają (sekcja „Wdrożenie bazy" opisu PR; dla 0399-0403 gotowe zapytanie w §9.1).
 SELECT pid, now() - xact_start AS trwa, state, left(query, 80) AS zapytanie
   FROM pg_stat_activity
  WHERE xact_start < now() - interval '1 minute'
@@ -384,8 +400,11 @@ SELECT has_function_privilege('anon', 'public.<funkcja>(<typy>)', 'EXECUTE') AS 
 
 Job `post-deploy` w `.github/workflows/ci.yml` (push na `main` albo `workflow_dispatch`, po
 `Required release checks`) uruchamia `bun run check:db-contract` i `bun run check:migration-ledger`
-kluczem publikowalnym. Adres czyta w kolejności `secrets.SUPABASE_URL`,
-`secrets.VITE_SUPABASE_URL`, `vars.SUPABASE_URL`, `vars.VITE_SUPABASE_URL`, a klucz tak samo
+kluczem publikowalnym. Obie bramki wołają wyłącznie funkcje-sondy, które odpowiadają podzbiorem
+pytania (`missing_schema_objects`, `missing_schema_columns`, `missing_migration_versions`,
+`missing_drizzle_migration_hashes`) i mają EXECUTE dla `anon`. Adres czyta w kolejności
+`secrets.SUPABASE_URL`, `secrets.VITE_SUPABASE_URL`, `vars.SUPABASE_URL`, `vars.VITE_SUPABASE_URL`,
+a klucz tak samo
 (`SUPABASE_PUBLISHABLE_KEY`, potem `VITE_SUPABASE_PUBLISHABLE_KEY`). Bez nich kończy się
 ostrzeżeniem i niczego nie sprawdza.
 
@@ -462,10 +481,11 @@ Adopcja jest ręczna; nie ma osobnego polecenia ani wpisu łączącego w rejestr
    drugi raz. Sprawdź: `bun run migrations:mirror --dry-run` nie planuje wpisu dla pliku adopcji,
    a `bun run check:migration-lanes` pokazuje wpis bota jako zapis wdrożenia. Wersja pliku adopcji
    jest późniejsza niż ostatni plik niesiony przez dziennik, ale wcześniejsza niż nowe migracje tej
-   samej gałęzi (inaczej generator zgłosi dla nich `wersja-wsteczna`). Plik adopcji jest, jak
-   lustro, poza `check:migration-ledger`: niesie go wpis dziennika od 0399 (`MIRROR_LANE_START_IDX`,
-   granica stała - podniesienie `JOURNAL_FREEZE_IDX` z pkt 2 jej nie przesuwa), więc dowodem
-   wdrożenia jest rejestr migratora, a nie `schema_migrations` (do którego nikt nie pisze).
+   samej gałęzi (inaczej generator zgłosi dla nich `wersja-wsteczna`). Plik adopcji, jak lustro,
+   `check:migration-ledger` sprawdza w rejestrze migratora, a nie w `schema_migrations` (do którego
+   nikt nie pisze): niesie go wpis dziennika od 0399 (`MIRROR_LANE_START_IDX`, granica stała -
+   podniesienie `JOURNAL_FREEZE_IDX` z pkt 2 jej nie przesuwa), więc bramka pyta o parę (`when`
+   wpisu bota, sha256 jego pliku) w `drizzle.__drizzle_migrations`.
 2. **SQL bota nie przechodzi na bazie z pasa supabase albo stan końcowy wymaga innej treści.**
    Idempotentny odpowiednik o tym samym stanie końcowym w nowym pliku supabase. Generator
    wygeneruje dla niego lustro i produkcja wykona je przy najbliższym wdrożeniu - musi tam być
@@ -474,9 +494,9 @@ Adopcja jest ręczna; nie ma osobnego polecenia ani wpisu łączącego w rejestr
    (`src/lib/ci/migrationLaneParity.ts`) do idx wpisu bota i dopisz do `MIGRATION_LANES` decyzję
    `drizzleOnly` z powodem wskazującym plik adopcji. Wpisy do nowej granicy bramka ocenia
    rejestrem, więc wyzwalacze i znaczniki z tego zakresu też dostają decyzję `drizzleOnly`; lustra
-   i kopie przechodzą po treści i zostają poza `check:migration-ledger` (granica tej bramki to
-   stałe `MIRROR_LANE_START_IDX`, nie zamrożenie). Test przypina wartość stałej, więc zmiana jest
-   widoczna w przeglądzie. Tę samą drogę (bez pliku adopcji) ma wpis szkodliwy i zapis do drugiego
+   i kopie przechodzą po treści, a `check:migration-ledger` nadal sprawdza je w rejestrze migratora,
+   nie w `schema_migrations` (granica to stałe `MIRROR_LANE_START_IDX`, nie zamrożenie). Test
+   przypina wartość stałej, więc zmiana jest widoczna w przeglądzie. Tę samą drogę (bez pliku adopcji) ma wpis szkodliwy i zapis do drugiego
    rejestru.
 3. Test pgTAP na stan końcowy (np. kolumny zwracane przez funkcję, indeks).
 4. Plik migracji zmieniony albo usunięty przez bota: §6.4.
@@ -650,10 +670,10 @@ rezydencji danych).
 
 ## 9. Pierwsze wdrożenie po przełączeniu (jednorazowe)
 
-PR przełączający dostarcza generator, bramki (pasy z zamrożeniem na 398, niezmienność, wyłączenie
-plików z lustrem z bramki drugiego rejestru), pomocnik `migrations:deploy-sql` i cztery nowe
-migracje supabase, które generator zamienia w lustra (numery to linia z opisu PR; jeśli `main`
-dostał wcześniej wpisy po 0398, przesuwają się):
+PR przełączający dostarcza generator, bramki (pasy z zamrożeniem na 398, niezmienność, dowód
+wdrożenia plików z lustrem z rejestru migratora zamiast drugiego rejestru), pomocnik
+`migrations:deploy-sql` i pięć nowych migracji supabase, które generator zamienia w lustra (numery
+to linia z opisu PR; jeśli `main` dostał wcześniej wpisy po 0398, przesuwają się):
 
 | Wpis | Plik supabase                                               | Co robi na produkcji                                                                                                                                                                                                                                                                                                      |
 | ---- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -661,12 +681,13 @@ dostał wcześniej wpisy po 0398, przesuwają się):
 | 0400 | `20261025090010_adopt_membership_coupon_source_indexes.sql` | adopcja 0392: zakłada brakujący `idx_membership_grants_source_coupon`, przywraca polski komentarz kolumny; `SET lock_timeout = '5s'` na początku (obowiązuje do końca partii), blokada SHARE na `membership_grants` do końca partii                                                                                       |
 | 0401 | `20261025090020_profiles_discoverable_decision_stamp.sql`   | kolumna `profiles.discoverable_decided_at`, wyzwalacz znacznika decyzji i blokada znacznika (jedynym piszącym jest stempel właściciela); ACCESS EXCLUSIVE na `profiles` do końca partii                                                                                                                                   |
 | 0402 | `20261025090030_profiles_discoverable_0001_correction.sql`  | ZMIANA DANYCH: cofa do `false` profile, o których baza dowodzi braku decyzji (kubły A i B), każdy zapisuje w `profiles_discoverable_corrections`; bezpiecznik i trwały błąd to wynik diagnostyczny bez wyjątku (NOTICE i komentarz tabeli rejestru), błąd przejściowy (55P03, 40P01, 57014) wycofuje partię do ponowienia |
+| 0403 | `20261025090040_missing_drizzle_migration_hashes.sql`       | funkcja `missing_drizzle_migration_hashes(text[])` - sonda rejestru migratora dla `check:migration-ledger` (zwraca tylko brakujące pary `<when>:<sha256>` z pytania; EXECUTE dla `anon`, `authenticated`, `service_role`); nie dotyka tabel; bez niej `post-deploy` jest czerwony (§4.4)                                  |
 
 Do tego wyzwalacz bota (§4.3). 22 pliki `appliedOutOfBand` z `SUPABASE_LANE_GAPS` NIE są
 dostarczane (§9.3).
 
 **Scalenie tego PR-a uzbraja partię** (§4.1): od scalenia każde wywołanie narzędzia migracji
-Lovable, o cokolwiek, wykona 0399-0402 - korektę danych i ACCESS EXCLUSIVE na `profiles` - także
+Lovable, o cokolwiek, wykona 0399-0403 - korektę danych i ACCESS EXCLUSIVE na `profiles` - także
 bez eksportu, bez lektury IOD i w ciągu dnia. Dlatego PRZED scaleniem właściciel i inspektor
 ochrony danych czytają `docs/NAPRAWA_PROFILES_DISCOVERABLE_0001_2026-10-25.md` (co zmienia 0402,
 jak czytać wynik, punkty do oceny prawnej) i zatwierdzają zmianę, a kontrole z §9.1 i eksport bazy
@@ -676,9 +697,9 @@ nie zleca Lovable żadnej zmiany bazy (kolejność: §9.2).
 ### 9.1 Kontrole przed scaleniem i ponownie tuż przed wyzwoleniem (tylko odczyt)
 
 1. `bun run migrations:deploy-sql -- --pending --from 399`: kotwica 0398 ma „juz zastosowany",
-   dokładnie 0399-0402 mają „zostanie wykonany", nie ma statusów
+   dokładnie 0399-0403 mają „zostanie wykonany", nie ma statusów
    „POMINIETY: when nie wiekszy od ostatniego zapisu", „INNY HASH W REJESTRZE" ani
-   „PONOWNA DOSTAWA: ten sam plik juz w rejestrze". Przed scaleniem 0399-0402 jeszcze nie ma na
+   „PONOWNA DOSTAWA: ten sam plik juz w rejestrze". Przed scaleniem 0399-0403 jeszcze nie ma na
    `main`: zapytanie generuje się na tej gałęzi (te same `when` i hashe).
 2. Zapytania z poniższego bloku, wynik zapisany w PR:
 
@@ -702,6 +723,12 @@ SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
  WHERE conrelid = 'public.membership_grants'::regclass AND contype = 'f';
 SELECT col_description('public.membership_grants'::regclass, attnum) FROM pg_attribute
  WHERE attrelid = 'public.membership_grants'::regclass AND attname = 'source_coupon_id';
+-- 0403: oczekiwany NULL (funkcji jeszcze nie ma). Funkcja o tej sygnaturze z innym wynikiem
+-- niż text[] albo inną nazwą parametru niż _entries wywróciłaby CREATE OR REPLACE (42P13)
+-- i całą partię.
+SELECT to_regprocedure('public.missing_drizzle_migration_hashes(text[])');
+-- 0403: oczekiwane true - rejestr migratora istnieje; sonda czyta go po wdrożeniu.
+SELECT to_regclass('drizzle.__drizzle_migrations') IS NOT NULL;
 -- Informacyjnie (poza tą partią): oczekiwane false; true = osobny dryf do zgłoszenia.
 SELECT has_function_privilege('authenticated', 'public.is_platform_author(uuid)', 'EXECUTE');
 -- Tuż przed wyzwoleniem: oczekiwane 0 wierszy. Długa transakcja na tych tabelach to 55P03
@@ -724,9 +751,11 @@ SELECT pid, now() - xact_start AS trwa, state, left(query, 80) AS zapytanie
    (ACCESS EXCLUSIVE na `profiles` do końca partii).
 2. Scalenie na początku okna. Od tej chwili do kroku 4 nikt nie zleca Lovable zmiany bazy.
 3. Ponownie §9.1 pkt 1 (`--pending` na `main`) i zapytanie o długie transakcje.
-4. Polecenie z §4.2: OD = 399, DO = 402.
+4. Polecenie z §4.2: OD = 399, DO = 403.
 5. Weryfikacja z §4.4, dodatkowo zapytania z sekcji 4 dokumentu naprawy `profiles.discoverable` i pełny
-   kontrakt `check:db-contract`.
+   kontrakt `check:db-contract`. `check:migration-ledger` (§4.4 wiersz 4) od tej partii potwierdza
+   0399-0403 parami (`when`, hash) z rejestru migratora: zielony przebieg `post-deploy` commita
+   bota to automatyczny dowód.
 6. Wynik `bun run migrations:deploy-sql -- --verify --from 399` (0 wierszy) zapisany w PR - to
    warunek następnego kroku (§9.3).
 
@@ -781,7 +810,8 @@ wierszy.
   `profiles.discoverable`.
 - **2026-10-25 - przełączenie.** Dziennik zamrożony na wpisie 0398, od 0399 lustra z
   `bun run migrations:mirror`; 0148 i 0392 adoptowane, skutki 0001 korygowane (§9); bramka
-  niezmienności plików migracji; drugi rejestr bez ręcznych zapisów.
+  niezmienności plików migracji; drugi rejestr bez ręcznych zapisów, a `check:migration-ledger`
+  dowodzi wdrożenia luster z rejestru migratora.
 
 ## 11. Wiedza projektu Lovable
 
@@ -806,5 +836,5 @@ wierszy.
 | co wykona migrator (SQL tylko do odczytu)        | `bun run migrations:deploy-sql -- --pending --from <idx>`                   |
 | czy wpisy są w rejestrze (SQL tylko do odczytu)  | `bun run migrations:deploy-sql -- --verify --from <idx> [--to <idx>]`       |
 | obiekty i kolumny produkcji                      | `bun run check:db-contract`                                                 |
-| drugi rejestr dla plików bez lustra              | `bun run check:migration-ledger`                                            |
+| rejestry wdrożeń: drugi i migratora (od 0399)    | `bun run check:migration-ledger`                                            |
 | za duża migracja                                 | `bun run scripts/split-migration.ts supabase/migrations/<plik>.sql`         |

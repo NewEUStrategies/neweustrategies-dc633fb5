@@ -35577,6 +35577,10 @@ export type Database = {
           used: number
         }[]
       }
+      missing_drizzle_migration_hashes: {
+        Args: { _entries: string[] }
+        Returns: string[]
+      }
       missing_migration_versions: {
         Args: { _versions: string[] }
         Returns: string[]

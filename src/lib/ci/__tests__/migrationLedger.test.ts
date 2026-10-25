@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DRIZZLE_DIR,
@@ -8,17 +10,36 @@ import {
 import { analyzeSupabaseCoverage } from "../supabaseLaneCoverage";
 import { mirrorHeader } from "../../migrations/mirrorHeader";
 import {
+  DRIZZLE_MISSING_VERDICT,
+  DRIZZLE_REGISTRY_PROBE_MIGRATION,
   buildLedgerReport,
+  drizzleCarriers,
   drizzleProvenFiles,
+  drizzleRegistryKey,
+  drizzleRequirements,
   ledgerFailed,
+  ledgerReportJson,
   ledgerRequirements,
   parseMigrationFile,
   parseMigrationFiles,
   renderLedgerReport,
+  type DrizzleCarrier,
+  type DrizzleRegistryAnswer,
   type LedgerConfig,
 } from "../migrationLedger";
 
 const CONFIG: LedgerConfig = { baseline: "20260101000000", reconciled: {} };
+/** Rejestr migratora potwierdza każdą pytaną parę (`when`, hash). */
+const REGISTRY_OK: DrizzleRegistryAnswer = { kind: "answered", missingEntries: [] };
+/** sha256 jak w drizzle-orm `readMigrationFiles`: tekst pliku wpisu w UTF-8. */
+const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
+/** `when` wpisu o danym idx: jak generator - kolejne wpisy co 60 s. */
+const whenOfIdx = (idx: number): number => 1_792_789_946_300 + (idx - 399) * 60_000;
+/** Wpis dziennika od 0399 niosący plik `file` (lustro), z `when` wpisu i hashem pliku lustra. */
+const carrier = (file: string, idx = 399): DrizzleCarrier => {
+  const tag = `${String(idx).padStart(4, "0")}_${file.replace(/^\d{14}_|\.sql$/g, "")}`;
+  return { file, tag, when: whenOfIdx(idx), hash: sha256(`${mirrorHeader(file)}-- ${file}\n`) };
+};
 
 describe("migrationLedger", () => {
   it("wyciąga 14-cyfrową wersję z nazwy pliku", () => {
@@ -56,7 +77,7 @@ describe("migrationLedger", () => {
       "20260201090000_a.sql",
       "20260825210000_b.sql",
     ]);
-    const report = buildLedgerReport(parsed, malformed, ["20260825210000"], CONFIG);
+    const report = buildLedgerReport(parsed, malformed, ["20260825210000"], CONFIG, REGISTRY_OK);
     expect(report.missing.map((m) => m.file)).toEqual(["20260825210000_b.sql"]);
     expect(ledgerFailed(report)).toBe(true);
     expect(renderLedgerReport(report)).toContain("20260825210000_b.sql");
@@ -68,34 +89,40 @@ describe("migrationLedger", () => {
       baseline: "20260101000000",
       reconciled: { "20260825210000_pr.sql": "20260826101500" },
     };
-    const ok = buildLedgerReport(parsed, malformed, ["20260825210000"], config);
+    const ok = buildLedgerReport(parsed, malformed, ["20260825210000"], config, REGISTRY_OK);
     expect(ledgerFailed(ok)).toBe(false);
 
-    const bad = buildLedgerReport(parsed, malformed, ["20260826101500"], config);
+    const bad = buildLedgerReport(parsed, malformed, ["20260826101500"], config, REGISTRY_OK);
     expect(bad.missing.map((m) => m.ledgerVersion)).toEqual(["20260826101500"]);
     expect(ledgerFailed(bad)).toBe(true);
   });
 
   it("martwe uzgodnienie (plik zniknął z gałęzi) wywala bramkę", () => {
     const { parsed, malformed } = parseMigrationFiles(["20260201090000_a.sql"]);
-    const report = buildLedgerReport(parsed, malformed, [], {
-      baseline: "20260101000000",
-      reconciled: { "20260101100000_gone.sql": "20260101110000" },
-    });
+    const report = buildLedgerReport(
+      parsed,
+      malformed,
+      [],
+      {
+        baseline: "20260101000000",
+        reconciled: { "20260101100000_gone.sql": "20260101110000" },
+      },
+      REGISTRY_OK,
+    );
     expect(report.staleReconciliations).toEqual(["20260101100000_gone.sql"]);
     expect(ledgerFailed(report)).toBe(true);
   });
 
   it("przechodzi, gdy rejestr bazy pokrywa całą gałąź", () => {
     const { parsed, malformed } = parseMigrationFiles(["20260201090000_a.sql"]);
-    const report = buildLedgerReport(parsed, malformed, [], CONFIG);
+    const report = buildLedgerReport(parsed, malformed, [], CONFIG, REGISTRY_OK);
     expect(ledgerFailed(report)).toBe(false);
     expect(renderLedgerReport(report)).toContain("Wszystkie migracje z gałęzi są wykonane");
   });
 
   it("plik o złej nazwie sam w sobie wywala bramkę - taka migracja nigdy się nie wykona", () => {
     const { parsed, malformed } = parseMigrationFiles(["hotfix.sql"]);
-    const report = buildLedgerReport(parsed, malformed, [], CONFIG);
+    const report = buildLedgerReport(parsed, malformed, [], CONFIG, REGISTRY_OK);
     expect(ledgerFailed(report)).toBe(true);
   });
 
@@ -117,7 +144,7 @@ describe("migrationLedger", () => {
         "20260101100000_gone.sql": "20260101110000",
       },
     };
-    const report = buildLedgerReport(parsed, malformed, ["20260826101500"], config);
+    const report = buildLedgerReport(parsed, malformed, ["20260826101500"], config, REGISTRY_OK);
     const rendered = renderLedgerReport(report);
 
     expect(ledgerFailed(report)).toBe(true);
@@ -147,7 +174,7 @@ describe("migrationLedger", () => {
     // o uzgodnionej wersji zawsze, raport kłamałby o istnieniu wpisu
     // uzgodnienia przy każdej zwykłej niewykonanej migracji.
     const { parsed, malformed } = parseMigrationFiles(["20260825210000_zwykla.sql"]);
-    const report = buildLedgerReport(parsed, malformed, ["20260825210000"], CONFIG);
+    const report = buildLedgerReport(parsed, malformed, ["20260825210000"], CONFIG, REGISTRY_OK);
     const rendered = renderLedgerReport(report);
 
     expect(rendered).toContain("- `20260825210000_zwykla.sql`");
@@ -167,14 +194,20 @@ describe("migrationLedger", () => {
 describe("migrationLedger: pliki z lustrem drizzle", () => {
   const MIRRORED = "20261025090000_adopt_a.sql";
   const PLAIN = "20261025090010_plain_b.sql";
-  const WITH_MIRROR: LedgerConfig = { ...CONFIG, drizzleProven: new Set([MIRRORED]) };
+  const WITH_MIRROR: LedgerConfig = { ...CONFIG, drizzleProven: [carrier(MIRRORED)] };
 
   it("plik z lustrem wypada z wymagań - bramka nie pyta o niego rejestru bazy", () => {
     const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
     expect(ledgerRequirements(parsed, WITH_MIRROR).map((r) => r.file)).toEqual([PLAIN]);
 
     // Baza nie zna wersji pliku z lustrem (migrator nie pisze do schema_migrations) - to nie brak.
-    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], WITH_MIRROR);
+    const report = buildLedgerReport(
+      parsed,
+      malformed,
+      ["20261025090000"],
+      WITH_MIRROR,
+      REGISTRY_OK,
+    );
     expect(report.missing).toEqual([]);
     expect(report.drizzleProven).toBe(1);
     expect(report.baselined).toBe(0);
@@ -183,7 +216,13 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
 
   it("plik bez lustra nadal jest wymagany, a jego brak w rejestrze wywala bramkę", () => {
     const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
-    const report = buildLedgerReport(parsed, malformed, ["20261025090010"], WITH_MIRROR);
+    const report = buildLedgerReport(
+      parsed,
+      malformed,
+      ["20261025090010"],
+      WITH_MIRROR,
+      REGISTRY_OK,
+    );
     expect(report.missing.map((m) => m.file)).toEqual([PLAIN]);
     expect(ledgerFailed(report)).toBe(true);
   });
@@ -192,7 +231,7 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
     expect(ledgerRequirements(parsed, CONFIG).map((r) => r.file)).toEqual([MIRRORED, PLAIN]);
 
-    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], CONFIG);
+    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], CONFIG, REGISTRY_OK);
     expect(report.drizzleProven).toBe(0);
     expect(report.missing.map((m) => m.file)).toEqual([MIRRORED]);
     expect(ledgerFailed(report)).toBe(true);
@@ -202,8 +241,11 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const OLD_MIRRORED = "20250101090000_old_mirrored.sql";
     const OLD = "20250101100000_old.sql";
     const { parsed, malformed } = parseMigrationFiles([OLD_MIRRORED, OLD, MIRRORED, PLAIN]);
-    const config: LedgerConfig = { ...CONFIG, drizzleProven: new Set([OLD_MIRRORED, MIRRORED]) };
-    const report = buildLedgerReport(parsed, malformed, [], config);
+    const config: LedgerConfig = {
+      ...CONFIG,
+      drizzleProven: [carrier(OLD_MIRRORED), carrier(MIRRORED)],
+    };
+    const report = buildLedgerReport(parsed, malformed, [], config, REGISTRY_OK);
 
     expect(report.required.map((r) => r.file)).toEqual([PLAIN]);
     // Każdy plik gałęzi w dokładnie jednej kategorii: bazowa linia, lustro albo wymagany.
@@ -218,7 +260,7 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const config: LedgerConfig = {
       baseline: "20260101000000",
       reconciled: { [RECONCILED]: "20260826101500" },
-      drizzleProven: new Set([MIRRORED]),
+      drizzleProven: [carrier(MIRRORED)],
     };
     expect(ledgerRequirements(parsed, config)).toEqual([
       {
@@ -228,11 +270,11 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
         reconciled: true,
       },
     ]);
-    expect(ledgerFailed(buildLedgerReport(parsed, malformed, ["20260825210000"], config))).toBe(
-      false,
-    );
+    expect(
+      ledgerFailed(buildLedgerReport(parsed, malformed, ["20260825210000"], config, REGISTRY_OK)),
+    ).toBe(false);
 
-    const bad = buildLedgerReport(parsed, malformed, ["20260826101500"], config);
+    const bad = buildLedgerReport(parsed, malformed, ["20260826101500"], config, REGISTRY_OK);
     expect(bad.missing.map((m) => m.ledgerVersion)).toEqual(["20260826101500"]);
     expect(ledgerFailed(bad)).toBe(true);
   });
@@ -242,7 +284,13 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const { parsed, malformed } = parseMigrationFiles([MIRRORED, SAME_VERSION]);
     expect(ledgerRequirements(parsed, WITH_MIRROR).map((r) => r.file)).toEqual([SAME_VERSION]);
 
-    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], WITH_MIRROR);
+    const report = buildLedgerReport(
+      parsed,
+      malformed,
+      ["20261025090000"],
+      WITH_MIRROR,
+      REGISTRY_OK,
+    );
     expect(report.missing.map((m) => m.file)).toEqual([SAME_VERSION]);
     expect(ledgerFailed(report)).toBe(true);
   });
@@ -251,9 +299,9 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const { parsed, malformed } = parseMigrationFiles([PLAIN]);
     const config: LedgerConfig = {
       ...CONFIG,
-      drizzleProven: new Set(["20261025090000_gone.sql"]),
+      drizzleProven: [carrier("20261025090000_gone.sql")],
     };
-    const report = buildLedgerReport(parsed, malformed, ["20261025090010"], config);
+    const report = buildLedgerReport(parsed, malformed, ["20261025090010"], config, REGISTRY_OK);
     expect(report.drizzleProven).toBe(0);
     expect(report.missing.map((m) => m.file)).toEqual([PLAIN]);
     expect(ledgerFailed(report)).toBe(true);
@@ -261,7 +309,7 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
 
   it("raport podaje liczbę plików z lustrem i wskazuje, gdzie szukać dowodu ich wdrożenia", () => {
     const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
-    const report = buildLedgerReport(parsed, malformed, [], WITH_MIRROR);
+    const report = buildLedgerReport(parsed, malformed, [], WITH_MIRROR, REGISTRY_OK);
     const rendered = renderLedgerReport(report);
 
     expect(rendered).toContain("Egzekwowanych migracji: **1**");
@@ -274,7 +322,9 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
 
   it("raport bez plików z lustrem nadal pokazuje tę kategorię (zero)", () => {
     const { parsed, malformed } = parseMigrationFiles([PLAIN]);
-    const rendered = renderLedgerReport(buildLedgerReport(parsed, malformed, [], CONFIG));
+    const rendered = renderLedgerReport(
+      buildLedgerReport(parsed, malformed, [], CONFIG, REGISTRY_OK),
+    );
     expect(rendered).toMatch(/- Z lustrem drizzle [^\n]*: \*\*0\*\*/);
   });
 });
@@ -299,9 +349,10 @@ describe("drizzleProvenFiles: przydział z bramki pasów, wpisy po zamrożeniu",
     [`${DRIZZLE_DIR}/${BOT}.sql`]: SQL,
     [`${SUPABASE_DIR}/${ADOPTED}`]: `-- ADOPCJA: drizzle/migrations/${BOT}.sql\n${SQL}`,
   };
+  const read = (p: string): string | null => files[p] ?? null;
   const coverage = analyzeSupabaseCoverage(["0300_old", "0399_mirrored", BOT], {
     gaps: [],
-    read: (p) => files[p] ?? null,
+    read,
     listSupabase: () => [OLD, MIRRORED, ADOPTED],
     lanes: [],
     preLane: null,
@@ -312,11 +363,21 @@ describe("drizzleProvenFiles: przydział z bramki pasów, wpisy po zamrożeniu",
     expect(coverage.violations).toEqual([]);
     const proven = drizzleProvenFiles(coverage.copies, JOURNAL_FREEZE_IDX);
     expect([...proven].sort()).toEqual([MIRRORED, ADOPTED]);
+    const whenByTag = new Map([
+      ["0300_old", whenOfIdx(300)],
+      ["0399_mirrored", whenOfIdx(399)],
+      [BOT, whenOfIdx(JOURNAL_FREEZE_IDX + 5)],
+    ]);
+    const carriers = drizzleCarriers(coverage.copies, read, whenByTag, JOURNAL_FREEZE_IDX);
+    expect(carriers.map((c) => [c.file, c.when])).toEqual([
+      [MIRRORED, whenOfIdx(399)],
+      [ADOPTED, whenOfIdx(JOURNAL_FREEZE_IDX + 5)],
+    ]);
     const { parsed, malformed } = parseMigrationFiles([OLD, MIRRORED, ADOPTED]);
-    const config: LedgerConfig = { ...CONFIG, drizzleProven: proven };
+    const config: LedgerConfig = { ...CONFIG, drizzleProven: carriers };
     expect(ledgerRequirements(parsed, config).map((r) => r.file)).toEqual([OLD]);
     // Nikt nie pisze schema_migrations: baza nie zna ani lustra, ani adopcji - i to nie brak.
-    const report = buildLedgerReport(parsed, malformed, [], config);
+    const report = buildLedgerReport(parsed, malformed, [], config, REGISTRY_OK);
     expect(report.drizzleProven).toBe(2);
     expect(ledgerFailed(report)).toBe(false);
   });
@@ -361,5 +422,256 @@ describe("drizzleProvenFiles: przydział z bramki pasów, wpisy po zamrożeniu",
       "20261001000100_b.sql",
       "20261001000200_c.sql",
     ]);
+  });
+});
+
+// ── Dowód z rejestru migratora (uwaga przeglądu Codex P1) ──
+// Plik niesiony przez wpis dziennika od 0399 wypada z `schema_migrations`, ale NIE
+// z bramki: jego dowodem jest wiersz `drizzle.__drizzle_migrations` z `when` wpisu
+// (`created_at`) i hashem pliku wpisu - para, o którą bramka pyta przez
+// `missing_drizzle_migration_hashes`, tak jak `migrations:deploy-sql -- --verify`.
+// Bez tego pominięte albo nieudane wdrożenie Lovable dawało zieloną bramkę -
+// przydział pliku do wpisu liczy się z dziennika w repozytorium, nie z bazy.
+
+describe("migrationLedger: dowód z rejestru migratora drizzle", () => {
+  const MIRRORED = "20261025090000_adopt_a.sql";
+  const SECOND = "20261025090030_correction_c.sql";
+  const PLAIN = "20260825210000_plain_b.sql";
+  const OLD_MIRRORED = "20250101090000_old_mirrored.sql";
+  const A = carrier(MIRRORED, 399);
+  const C = carrier(SECOND, 402);
+  const config: LedgerConfig = {
+    ...CONFIG,
+    drizzleProven: [C, A, carrier(OLD_MIRRORED, 400), carrier("20261025090050_gone.sql", 404)],
+  };
+  const { parsed, malformed } = parseMigrationFiles([OLD_MIRRORED, PLAIN, MIRRORED, SECOND]);
+
+  it("pyta rejestr migratora o parę (`when`, hash) wpisu niosącego każdy plik z lustrem w zakresie bramki", () => {
+    // Bez pliku spoza gałęzi i bez pliku sprzed bazowej linii; w kolejności plików.
+    expect(drizzleRequirements(parsed, config)).toEqual([A, C]);
+    expect(drizzleRequirements(parsed, CONFIG)).toEqual([]);
+    // Klucz sondy: `when` dziesiętnie, dwukropek, sha256 hex - jak `created_at` i `hash` rejestru.
+    expect(drizzleRegistryKey(A)).toBe(`${A.when}:${A.hash}`);
+    expect(drizzleRegistryKey(A)).toMatch(/^[1-9]\d{0,15}:[0-9a-f]{64}$/);
+  });
+
+  it("wdrożenie pominięte: rejestr schema_migrations bez braków, a pary wpisu nie ma - bramka czerwona", () => {
+    const report = buildLedgerReport(parsed, malformed, [], config, {
+      kind: "answered",
+      missingEntries: [drizzleRegistryKey(C)],
+    });
+    expect(report.missing).toEqual([]);
+    expect(report.drizzleProven).toBe(2);
+    expect(report.drizzleMissing).toEqual([C]);
+    expect(report.drizzleProbeMissing).toBeNull();
+    expect(ledgerFailed(report)).toBe(true);
+
+    const rendered = renderLedgerReport(report);
+    expect(rendered).toContain("Niepotwierdzonych w rejestrze migratora: **1**");
+    expect(DRIZZLE_MISSING_VERDICT).toBe(
+      "brak pary (when, hash) w drizzle.__drizzle_migrations - partia niewdrożona albo wdrożona inną drogą",
+    );
+    expect(rendered).toContain(
+      `- \`${C.tag}\` (\`${SECOND}\`, when \`${C.when}\`, hash \`${C.hash.slice(0, 12)}\`): ${DRIZZLE_MISSING_VERDICT}; runbook §4.4/§4.6`,
+    );
+    expect(rendered).not.toContain(`\`${A.tag}\``);
+    expect(rendered).not.toContain("Wszystkie migracje z gałęzi są wykonane");
+  });
+
+  // Ponowna dostawa tych samych bajtów (w dzienniku 15 razy, np. 0308/0310) daje dwa
+  // wpisy o jednym hashu. Rejestr ma hash pod `when` WCZEŚNIEJSZEGO wpisu, więc pytanie
+  // o sam hash dałoby zieloną bramkę mimo pominiętego późniejszego wpisu, a
+  // `--verify` zgłosiłby go jako brak. Bramka pyta parą - jak `--verify`.
+  it("dwa wpisy o tym samym hashu (ponowna dostawa): pominięty późniejszy wpis to czerwień, nie zieleń przez hash wcześniejszego", () => {
+    const FIRST = "20261101090000_rerun_first.sql";
+    const RERUN = "20261101090010_rerun_again.sql";
+    const shared = sha256("SELECT 1;\n");
+    const first: DrizzleCarrier = {
+      file: FIRST,
+      tag: "0405_rerun",
+      when: whenOfIdx(405),
+      hash: shared,
+    };
+    const again: DrizzleCarrier = {
+      file: RERUN,
+      tag: "0407_rerun",
+      when: whenOfIdx(407),
+      hash: shared,
+    };
+    const rerunConfig: LedgerConfig = { ...CONFIG, drizzleProven: [first, again] };
+    const rerun = parseMigrationFiles([FIRST, RERUN]);
+    const keys = drizzleRequirements(rerun.parsed, rerunConfig).map(drizzleRegistryKey);
+    // Dwa różne pytania mimo jednego hasha - żaden wpis nie znika w deduplikacji.
+    expect(new Set(keys).size).toBe(2);
+
+    const report = buildLedgerReport(rerun.parsed, rerun.malformed, [], rerunConfig, {
+      kind: "answered",
+      missingEntries: [drizzleRegistryKey(again)],
+    });
+    expect(report.drizzleMissing).toEqual([again]);
+    expect(ledgerFailed(report)).toBe(true);
+    expect(renderLedgerReport(report)).toContain(`when \`${again.when}\``);
+  });
+
+  it("każda para w rejestrze: bramka zielona, raport podaje zero niepotwierdzonych", () => {
+    const report = buildLedgerReport(parsed, malformed, [], config, REGISTRY_OK);
+    expect(report.drizzleMissing).toEqual([]);
+    expect(ledgerFailed(report)).toBe(false);
+    const rendered = renderLedgerReport(report);
+    expect(rendered).toContain("Niepotwierdzonych w rejestrze migratora: **0**");
+    expect(rendered).toContain("`missing_drizzle_migration_hashes`");
+    expect(rendered).toContain("Wszystkie migracje z gałęzi są wykonane");
+  });
+
+  it("brak samej funkcji sondy na bazie = partia z jej plikiem niewdrożona: czerwień z nazwą pliku, nie zielone przejście", () => {
+    const detail = "Deployment probe missing_drizzle_migration_hashes: HTTP 404 (PGRST202)";
+    const report = buildLedgerReport(parsed, malformed, [], config, {
+      kind: "probe-missing",
+      detail,
+    });
+    expect(report.drizzleProbeMissing).toBe(detail);
+    expect(report.drizzleMissing).toEqual([]);
+    expect(ledgerFailed(report)).toBe(true);
+    const rendered = renderLedgerReport(report);
+    expect(DRIZZLE_REGISTRY_PROBE_MIGRATION).toBe(
+      "20261025090040_missing_drizzle_migration_hashes.sql",
+    );
+    expect(rendered).toContain("### Sonda rejestru migratora niedostępna");
+    expect(rendered).toContain(
+      `partia z lustrem \`${DRIZZLE_REGISTRY_PROBE_MIGRATION}\` nie jest wdrożona`,
+    );
+    expect(rendered).toContain(detail);
+    expect(rendered).toContain("wdrożenia 2 plików z lustrem nie da się potwierdzić");
+    expect(rendered).not.toContain("Wszystkie migracje z gałęzi są wykonane");
+  });
+
+  it("odpowiedź z wpisem, o który bramka nie pytała, to błąd sondy, nie werdykt", () => {
+    for (const unasked of [
+      `${A.when}:${sha256("niepytany")}`,
+      // Hash pytany, ale pod innym `when` - to inny wpis rejestru.
+      `${C.when}:${A.hash}`,
+      // Sam hash bez `when` (dawny kontrakt sondy).
+      A.hash,
+    ]) {
+      expect(() =>
+        buildLedgerReport(parsed, malformed, [], config, {
+          kind: "answered",
+          missingEntries: [unasked],
+        }),
+      ).toThrow("wpis, o który bramka nie pytała");
+    }
+  });
+
+  it("raport JSON (reports/migration-ledger.json) niesie dowód z rejestru migratora", () => {
+    const failed = buildLedgerReport(parsed, malformed, [], config, {
+      kind: "answered",
+      missingEntries: [drizzleRegistryKey(A)],
+    });
+    expect(ledgerReportJson(failed, CONFIG.baseline)).toMatchObject({
+      status: "failed",
+      baseline: CONFIG.baseline,
+      required: 1,
+      baselined: 1,
+      drizzleProven: 2,
+      drizzleRegistry: "answered",
+      drizzleProbeError: null,
+      drizzleMissing: [{ file: MIRRORED, tag: A.tag, when: A.when, hash: A.hash }],
+      missing: [],
+    });
+    const probeMissing = buildLedgerReport(parsed, malformed, [], config, {
+      kind: "probe-missing",
+      detail: "HTTP 404",
+    });
+    expect(ledgerReportJson(probeMissing, CONFIG.baseline)).toMatchObject({
+      status: "failed",
+      drizzleRegistry: "probe-missing",
+      drizzleProbeError: "HTTP 404",
+      drizzleMissing: [],
+    });
+    expect(
+      ledgerReportJson(buildLedgerReport(parsed, malformed, [], config, REGISTRY_OK), "x"),
+    ).toMatchObject({ status: "passed", drizzleRegistry: "answered", drizzleMissing: [] });
+  });
+});
+
+describe("drizzleCarriers: `when` i hash pliku wpisu, które zapisze migrator", () => {
+  const SQL = "ALTER TABLE public.t ADD COLUMN IF NOT EXISTS c int;";
+  const MIRRORED = "20261025090000_mirrored.sql";
+  const ADOPTED = "20261101120000_adopt_bot_column.sql";
+  const BOT = "0401_lovable_add_column";
+  const MIRROR_TEXT = `${mirrorHeader(MIRRORED)}CREATE INDEX t_c ON public.t (c);\n`;
+  const files: Record<string, string> = {
+    [`${DRIZZLE_DIR}/0300_old.sql`]: "REVOKE ALL ON public.t FROM anon;",
+    [`${DRIZZLE_DIR}/0399_mirrored.sql`]: MIRROR_TEXT,
+    [`${DRIZZLE_DIR}/${BOT}.sql`]: SQL,
+  };
+  const copies = new Map([
+    ["20261001000000_old.sql", "0300_old"],
+    [ADOPTED, BOT],
+    [MIRRORED, "0399_mirrored"],
+  ]);
+  const whenByTag = new Map([
+    ["0300_old", whenOfIdx(300)],
+    ["0399_mirrored", whenOfIdx(399)],
+    [BOT, 1_792_800_000_000],
+  ]);
+  const read = (p: string): string | null => files[p] ?? null;
+
+  it("lustro: sha256 pliku lustra (z nagłówkiem); adopcja: sha256 pliku wpisu bota; `when` z dziennika; historia pominięta", () => {
+    expect(drizzleCarriers(copies, read, whenByTag)).toEqual([
+      { file: MIRRORED, tag: "0399_mirrored", when: whenOfIdx(399), hash: sha256(MIRROR_TEXT) },
+      { file: ADOPTED, tag: BOT, when: 1_792_800_000_000, hash: sha256(SQL) },
+    ]);
+  });
+
+  it("hash liczy się tak jak w drizzle-orm (`readMigrationFiles`): tekst UTF-8 całego pliku", () => {
+    const text = "-- zażółć gęślą jaźń\nSELECT 1;\n";
+    const [only] = drizzleCarriers(
+      new Map([["20261025090000_utf.sql", "0399_utf"]]),
+      (p) => (p === `${DRIZZLE_DIR}/0399_utf.sql` ? text : null),
+      new Map([["0399_utf", whenOfIdx(399)]]),
+    );
+    expect(only!.hash).toBe(createHash("sha256").update(Buffer.from(text, "utf8")).digest("hex"));
+  });
+
+  it("brak pliku wpisu niosącego plik to błąd, nie ciche zwolnienie", () => {
+    expect(() => drizzleCarriers(copies, () => null, whenByTag)).toThrow("0399_mirrored");
+  });
+
+  it.each([
+    ["brak wpisu w dzienniku", undefined],
+    ["ułamek", 1.5],
+    ["ujemny", -1],
+    ["poza bezpiecznym zakresem", Number.MAX_SAFE_INTEGER + 1],
+  ])(
+    "`when` wpisu niosącego plik: %s to błąd - bez niego nie ma o co zapytać rejestru",
+    (_, when) => {
+      const broken = new Map(whenByTag);
+      if (when === undefined) broken.delete(BOT);
+      else broken.set(BOT, when);
+      expect(() => drizzleCarriers(copies, read, broken)).toThrow(BOT);
+    },
+  );
+});
+
+// Funkcja sondy sama jedzie partią luster: gdyby jej plik nie był niesiony przez wpis
+// od 0399, brak funkcji nie znaczyłby „partia niewdrożona", a raport kłamałby o pliku.
+describe("sonda rejestru migratora w repozytorium", () => {
+  it("plik sondy definiuje funkcję o literalnej nazwie i jest niesiony przez lustro od 0399", () => {
+    const source = readFileSync(`${SUPABASE_DIR}/${DRIZZLE_REGISTRY_PROBE_MIGRATION}`, "utf8");
+    expect(source).toContain(
+      "CREATE OR REPLACE FUNCTION public.missing_drizzle_migration_hashes(_entries text[])",
+    );
+    const journal = JSON.parse(readFileSync(`${DRIZZLE_DIR}/meta/_journal.json`, "utf8")) as {
+      entries: { idx: number; tag: string }[];
+    };
+    const carriers = journal.entries.filter(
+      (e) =>
+        e.idx >= MIRROR_LANE_START_IDX &&
+        readFileSync(`${DRIZZLE_DIR}/${e.tag}.sql`, "utf8").startsWith(
+          mirrorHeader(DRIZZLE_REGISTRY_PROBE_MIGRATION),
+        ),
+    );
+    expect(carriers).toHaveLength(1);
   });
 });

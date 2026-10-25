@@ -83,8 +83,9 @@ export const JOURNAL_FREEZE_IDX = 398;
  * JOURNAL_FREEZE_IDX ta granica NIGDY się nie przesuwa: od niej plik niesiony
  * przez wpis dziennika (lustro albo kopia - adopcja wpisu bota) ma dowód
  * wdrożenia w rejestrze migratora Drizzle, nie w `schema_migrations`, więc
- * `check:migration-ledger` go nie egzekwuje - także po podniesieniu zamrożenia
- * (runbook §5.4 pkt 2).
+ * `check:migration-ledger` sprawdza go w `drizzle.__drizzle_migrations`
+ * (para `when` wpisu i sha256 jego pliku, RPC `missing_drizzle_migration_hashes`),
+ * a nie w `schema_migrations` - także po podniesieniu zamrożenia (runbook §5.4 pkt 2).
  */
 export const MIRROR_LANE_START_IDX = 399;
 
