@@ -137,10 +137,9 @@ wycinki (I0, S6, S1, S4, S2) są w `main` (#520, #527).
      (bramka `generate:ts-sql-contract`); server-only = `service_role`;
    - nie edytujesz migracji już wypchniętych; nie dopisujesz
      `supabase/migration-ledger.json`;
-   - bliźniak drizzle: `cp` bajt w bajt do `drizzle/migrations/NNNN_<nazwa bez
-wersji>.sql` (NNNN = następny wolny numer; po I9c: `0373`), wpis na końcu
-     `drizzle/migrations/meta/_journal.json` (idx rosnący, `when` = poprzedni
-     - 60000), `bun run check:migration-lanes`;
+   - lustro drizzle: `bun run migrations:mirror` (bez `cp` i ręcznych wpisów
+     `_journal.json`; od 2026-10-25, `docs/RUNBOOK_MIGRACJE_LOVABLE.md` §3),
+     potem `bun run check:migration-lanes`;
    - **kolejność wersji = kolejność dziennika drizzle**: migracja nie może
      zależeć od obiektów z wersji późniejszej ani redefiniować ich (replay
      w pgTAP idzie po wersjach, produkcja po dzienniku drizzle).

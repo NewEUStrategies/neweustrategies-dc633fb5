@@ -41,6 +41,9 @@ export const OWNER_ONLY_PROFILE_COLUMNS = [
   // Bez grantu SELECT od dodania kolumny (20260807061849); własna wartość
   // przełącznika „ukryj zdjęcie" idzie przez `get_own_profile()`.
   "hide_avatar",
+  // Znacznik decyzji właściciela o wyszukiwalności (20261025090020) - bez
+  // grantu od dodania kolumny; pisze go wyłącznie trigger profilu.
+  "discoverable_decided_at",
 ] as const;
 
 /**

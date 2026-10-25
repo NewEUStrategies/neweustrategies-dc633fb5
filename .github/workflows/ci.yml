@@ -91,9 +91,27 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-definer-views
 
-      - name: Migration lanes (every drizzle journal entry has a decision)
+      - name: Migration lanes (supabase/migrations is the source; drizzle mirror is generated and fresh)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:migration-lanes
+
+      # Niezmienność migracji: scalone pliki obu pasów, snapshoty i wpisy
+      # `_journal.json` nie znikają i nie zmieniają się (wyjątki:
+      # MIGRATION_EDIT_ALLOWLIST). Baza porównania: SHA bazy PR albo
+      # `github.event.before` przy pushu. Checkout zostaje płytki (depth 1):
+      # diff dwóch drzew nie potrzebuje historii, wystarczy dociągnąć jeden
+      # commit bazy. Bez niego (pierwszy push, nieudany fetch) bramka drukuje
+      # ostrzeżenie i przepuszcza.
+      - name: Migration immutability (merged migrations and journal entries are append-only)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          MIGRATION_IMMUTABILITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          case "$MIGRATION_IMMUTABILITY_BASE" in
+            "" | 0000000000000000000000000000000000000000) ;;
+            *) git fetch --no-tags --depth=1 origin "$MIGRATION_IMMUTABILITY_BASE" || true ;;
+          esac
+          bun run check:migration-immutability
 
       - name: SQL app_role literal invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -365,8 +383,10 @@ jobs:
 
   # Po scaleniu do main: czy produkcyjna baza ma wszystkie tabele, widoki, RPC i kolumny
   # oraz czy migracje z repo zostały na niej faktycznie zastosowane. Bez
-  # sekretów Supabase w repozytorium job kończy się ostrzeżeniem zamiast
-  # czerwonego statusu, bo nie ma czego sondować.
+  # adresu i klucza Supabase job kończy się ostrzeżeniem zamiast czerwonego
+  # statusu, bo nie ma czego sondować. Dane dostępowe to ZMIENNE repozytorium
+  # (vars.*): sekret o tej nazwie czytają też build i e2e, które bez niego
+  # jadą na zaślepce (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8).
   post-deploy:
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [release-gate]
@@ -384,7 +404,7 @@ jobs:
           if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Brak SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY w sekretach repozytorium - kontrola produkcyjnej bazy pominięta."
+            echo "::warning::Brak SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY - kontrola produkcyjnej bazy pominięta. Ustaw ZMIENNE repozytorium (vars), nie sekrety: sekret o tej nazwie przełącza build i e2e z zaślepki na produkcję (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8)."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 

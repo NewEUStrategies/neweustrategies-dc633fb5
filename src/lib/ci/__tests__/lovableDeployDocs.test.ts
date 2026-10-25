@@ -78,11 +78,23 @@ function bunRunTargets(text: string): string[] {
   return [...text.matchAll(/\bbun run ([^\s`'"„”,;()]+)/g)].map((m) => m[1]!.replace(/[.:]+$/, ""));
 }
 
-/** Cele `bun run`, których nie ma: skrypt spoza `scripts` albo nieistniejący plik. */
+/** Cele `bun run`, których nie ma (bez powtórzeń): skrypt spoza `scripts` albo nieistniejący plik. */
 function missingBunRunTargets(text: string, scripts: Readonly<Record<string, string>>): string[] {
-  return bunRunTargets(text).filter((target) =>
+  const missing = bunRunTargets(text).filter((target) =>
     target.includes("/") ? !existsSync(target) : !Object.hasOwn(scripts, target),
   );
+  return [...new Set(missing)];
+}
+
+/**
+ * Wystąpienia `quote` ze słowami rozdzielonymi czymś innym niż jedna spacja (np. końcem
+ * linii) - cytat, który przestał być dosłowny i nie da się go już porównać ze statusem.
+ */
+function brokenQuotes(text: string, quote: string): string[] {
+  const words = quote.split(" ").map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return [...text.matchAll(new RegExp(words.join("\\s+"), "g"))]
+    .map(([found]) => found)
+    .filter((found) => found !== quote);
 }
 
 /** Numery sekcji runbooka z nagłówków `## N. ...` i `### N.M ...`. */
@@ -151,7 +163,7 @@ describe("funkcje pomocnicze testu: wyszukiwanie odwołań", () => {
   it("missingBunRunTargets zgłasza nieznany skrypt i nieistniejący plik", () => {
     const scripts = { "check:migration-lanes": "bun run scripts/check-migration-lanes.ts" };
     const text =
-      "bun run check:migration-lanes; bun run check:drizzle-registry; bun run scripts/nie-ma-mnie.ts; bun run scripts/split-migration.ts";
+      "bun run check:migration-lanes; bun run check:drizzle-registry; bun run scripts/nie-ma-mnie.ts; bun run scripts/split-migration.ts; bun run check:drizzle-registry";
     expect(missingBunRunTargets(text, scripts)).toEqual([
       "check:drizzle-registry",
       "scripts/nie-ma-mnie.ts",
@@ -173,6 +185,12 @@ describe("funkcje pomocnicze testu: wyszukiwanie odwołań", () => {
     ].join("\n");
     expect(explicitRunbookRefs(text)).toEqual(["6.3", "4.2", "3.1"]);
     expect(anySectionRefs("§5, §6.3. i (§4)")).toEqual(["5", "6.3", "4"]);
+  });
+
+  it("brokenQuotes znajduje cytat złamany między liniami, pomija dosłowny", () => {
+    const text = "nie ma „INNY HASH W\n   REJESTRZE”, a tu jest „INNY HASH W REJESTRZE”.";
+    expect(brokenQuotes(text, "INNY HASH W REJESTRZE")).toEqual(["INNY HASH W\n   REJESTRZE"]);
+    expect(brokenQuotes("POMINIETY: when nie wiekszy", "POMINIETY: when nie wiekszy")).toEqual([]);
   });
 
   it("triggerTags podstawia placeholdery; zła nazwa nie przechodzi DEPLOY_TRIGGER_TAG", () => {
@@ -206,7 +224,7 @@ describe("docs/LOVABLE_WIEDZA_PROJEKTU.md - wiedza projektu Lovable", () => {
   });
 });
 
-describe.each(DOCS)("%s - zgodność z narzędziami", (path, text) => {
+describe.each(DOCS)("%s - zgodność z narzędziami", (_path, text) => {
   it("cytuje kanoniczny wyzwalacz wdrożenia dosłownie (DEPLOY_TRIGGER_SQL)", () => {
     expect(text).toContain(DEPLOY_TRIGGER_SQL);
   });
@@ -222,9 +240,10 @@ describe.each(DOCS)("%s - zgodność z narzędziami", (path, text) => {
     );
   });
 
-  it("cytuje dosłownie każdy status zapytań migrations:deploy-sql", () => {
+  it("cytuje dosłownie każdy status zapytań migrations:deploy-sql, każde wystąpienie w jednej linii", () => {
     const statuses = [...Object.values(PENDING_STATUS), ...Object.values(VERIFY_PROBLEM)];
     expect(statuses.filter((status) => !text.includes(status))).toEqual([]);
+    expect(statuses.flatMap((status) => brokenQuotes(text, status))).toEqual([]);
   });
 
   it("każde `bun run <cel>` wskazuje skrypt z package.json albo istniejący plik", () => {
@@ -236,7 +255,7 @@ describe.each(DOCS)("%s - zgodność z narzędziami", (path, text) => {
   });
 
   it("nie zawiera półpauzy ani pauzy (U+2013, U+2014) - w dokumentach repo myślnik to „-”", () => {
-    expect(text.match(/[–—]/g) ?? []).toEqual([]);
+    expect(text.match(/[\u2013\u2014]/g) ?? []).toEqual([]);
   });
 
   it("zakazuje ręcznych zapisów w obu rejestrach migracji", () => {

@@ -4,9 +4,12 @@
 # migracje, daje ten sam stan koncowy, co odtworzenie w kolejnosci WERSJI
 # (tak odtwarzaja baze CI, pgTAP i scripts/events-harness/run.sh).
 #
-# PRZYCZYNA. Lovable wdraza migracje przez migrator drizzle, a ten wykonuje
-# KAZDY wpis `drizzle/migrations/meta/_journal.json`, ktorego baza jeszcze nie
-# zapisala - w kolejnosci dziennika, nie wersji supabase. 2026-09-27 przy
+# PRZYCZYNA. Lovable wdraza migracje migratorem drizzle: ten bierze NAJWIEKSZE
+# created_at z drizzle.__drizzle_migrations i w jednej transakcji wykonuje kazdy
+# wpis `drizzle/migrations/meta/_journal.json` o `when` wiekszym od niego -
+# w kolejnosci dziennika, nie wersji supabase (docs/RUNBOOK_MIGRACJE_LOVABLE.md,
+# sekcja 2). Od 2026-10-25 nowe wpisy generuje `bun run migrations:mirror`
+# w kolejnosci wersji; starsze maja kolejnosc historyczna. 2026-09-27 przy
 # wdrozeniu skanera offline (zapisy 0071/0072) migrator wykonal przy okazji
 # 0067-0070 (braki cz. 3 z #407 i most CRM z imionami), czyli 20260926180000-
 # 180002 i 20260927000900 PRZED fundamentem uczestnika z #406

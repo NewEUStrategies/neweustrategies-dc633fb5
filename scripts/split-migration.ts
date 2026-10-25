@@ -1,9 +1,12 @@
 /**
- * Tnie za duza migracje (i jej blizniaka drizzle) na czesci, ktore panel
- * Lovable wdrozy: `supabase/migrations/<wersja>_<nazwa>.sql` zostaje czescia 1,
- * czesci 2..n dostaja kolejne wersje (`<wersja+k-1>_<nazwa>_part<k>.sql`),
- * a pas drizzle - kolejne wolne indeksy dziennika, snapshoty i wpisy
- * MIGRATION_LANES.
+ * Tnie za duza migracje supabase na czesci ponizej limitu wdrozenia Lovable:
+ * `supabase/migrations/<wersja>_<nazwa>.sql` zostaje czescia 1, czesci 2..n
+ * dostaja kolejne wersje (`<wersja+k-1>_<nazwa>_part<k>.sql`). Nowej migracji
+ * skrypt w drizzle/ nie dotyka: lustra czesci generuje `bun run migrations:mirror`
+ * (docs/RUNBOOK_MIGRACJE_LOVABLE.md, sekcja 3). Czesci pasa drizzle (kolejne
+ * wolne indeksy dziennika, snapshoty i wpisy MIGRATION_LANES) powstaja tylko dla
+ * blizniaka sprzed zamrozenia dziennika (JOURNAL_FREEZE_IDX), wskazanego
+ * w MIGRATION_LANES albo przez `--drizzle <tag>` - nigdy dla lustra generatora.
  *
  * Cienki runner: lekser, pakowanie i dowod siedza w src/lib/ci/migrationSplit.ts,
  * nazwy i dziennik w src/lib/ci/migrationSplitPlan.ts, argumenty i wypis
