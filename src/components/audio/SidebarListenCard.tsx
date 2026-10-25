@@ -56,7 +56,6 @@ const HEADER_ICON_BUTTON = [
   FOCUS_RING,
 ].join(" ");
 
-
 /** Deterministyczny kształt fali (procent wysokości) - stabilny w SSR i obu motywach. */
 const WAVE_BARS: readonly number[] = Array.from({ length: 48 }, (_, i) =>
   Math.round(28 + 52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21))),
@@ -261,7 +260,6 @@ export function SidebarListenCard({
         </TooltipProvider>
       </div>
 
-
       {/* Main row: play + time/progress */}
       <div className={variant === "full-width" ? "flex flex-col gap-3" : "flex items-center gap-3"}>
         {variant === "full-width" ? (
@@ -416,7 +414,6 @@ export function SidebarListenCard({
           )}
         </div>
       ) : null}
-
     </aside>
   );
 }

@@ -99,7 +99,6 @@ describe("MeasurementConsentField", () => {
     expect(box()).toHaveAttribute("aria-checked", "false");
   });
 
-
   it("disabled: wyszarzone, nieklikalne, atom wyłączony", () => {
     const onChange = vi.fn();
     const { container } = render(<Host disabled onChange={onChange} />);

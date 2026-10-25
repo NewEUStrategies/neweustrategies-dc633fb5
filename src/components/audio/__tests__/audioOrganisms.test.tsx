@@ -401,7 +401,6 @@ describe("SidebarListenCard", () => {
   });
 
   it("przewinięcie suwakiem zatwierdza pozycję po opuszczeniu fokusu", () => {
-
     const player = playerStub({ status: "playing", duration: 600, currentTime: 30 });
     h.player = player;
     mount();

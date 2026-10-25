@@ -41,7 +41,7 @@ import {
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
+  measurementConsentSummaryPlain,
 } from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -1148,7 +1148,7 @@ describe("osobne pole zgody na pomiar (I9d-Y2b)", () => {
     const box = measurementBox();
     expect(box).toHaveAttribute("aria-checked", "false");
     expect(box).not.toBeDisabled();
-    expect(box.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(box.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
     expect(consent().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Ten sam rozmiar z widżetu (`consentSize`) co wymagana zgoda.
     expect(box.closest("label")?.getAttribute("data-edit-target")).toBe("consentSize");

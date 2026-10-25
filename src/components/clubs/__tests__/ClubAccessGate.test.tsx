@@ -148,7 +148,7 @@ import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
+  measurementConsentSummaryPlain,
 } from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 import { clubViewRow } from "@/test/clubs/fixtures";
@@ -534,7 +534,7 @@ describe("pola rejestracji sterowane z panelu", () => {
     gate();
     const pole = poleMiaru();
     expect(pole).not.toBeNull();
-    expect(pole?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(pole?.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
     expect(pole?.getAttribute("data-state")).toBe("unchecked");
     expect(pole).toBeDisabled();
     expect(

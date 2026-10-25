@@ -360,18 +360,18 @@ function sidebarGeometry(page: Page) {
       asideWidth: aside?.width ?? null,
       takeawaysLeft: kt?.left ?? null,
       takeawaysRight: kt?.right ?? null,
-      // `gap-10` siatki = 2,5rem (korzeń jest płynny od `lg`).
-      gap: 2.5 * parseFloat(getComputedStyle(document.documentElement).fontSize),
+      // `gap-8` siatki = 2rem (korzeń jest płynny od `lg`).
+      gap: 2 * parseFloat(getComputedStyle(document.documentElement).fontSize),
     };
   });
 }
 
 // Wpis z sidebarem obok tekstu (od `lg`): tekst wypełnia całą kolumnę artykułu - od lewej
-// krawędzi nagłówka do sidebara (odstęp siatki `gap-10`) - zamiast stać w mierze pośrodku.
-// Od `xl` sidebar ma 384 px, na `lg` 320 px.
+// krawędzi nagłówka do sidebara (odstęp siatki `gap-8`) - zamiast stać w mierze pośrodku.
+// Od `xl` sidebar ma 320 px, na `lg` 280 px.
 for (const { width, sidebar } of [
-  { width: 1440, sidebar: 384 },
-  { width: 1100, sidebar: 320 },
+  { width: 1440, sidebar: 320 },
+  { width: 1100, sidebar: 280 },
 ]) {
   test.describe(`kolumna tekstu wpisu z sidebarem, desktop ${width}`, () => {
     test.use({ viewport: { width, height: 900 }, locale: "pl-PL" });

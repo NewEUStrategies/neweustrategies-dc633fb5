@@ -216,37 +216,39 @@ export function AuthorBusinessCard({
 
       {(canFollow || hasAnySocial) && (
         <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
-          {canFollow && <Button
-            type="button"
-            onClick={handleFollow}
-            aria-pressed={isFollowing}
-            aria-label={isFollowing ? t.following : t.follow}
-            title={t.followHint}
-            disabled={toggleFollow.isPending}
-            className={[
-              "cms-widget-label group h-auto min-h-8 min-w-0 flex-[1_0_min(100%,9rem)] items-center justify-center gap-1.5 whitespace-normal rounded-[6px] px-2 py-1.5 font-semibold shadow-none transition-all duration-200",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/40",
-              isFollowing
-                ? "border border-[color:var(--brand)]/40 bg-[color:var(--brand)]/10 text-[color:var(--brand)] hover:bg-[color:var(--brand)]/15"
-                : "border border-transparent bg-[color:var(--brand)] text-[color:var(--brand-foreground,white)] hover:opacity-90",
-              toggleFollow.isPending ? "opacity-70" : "",
-            ].join(" ")}
-          >
-            {isFollowing ? (
-              <Check
-                className="h-3.5 w-3.5 [&_*]:stroke-current"
-                style={{ color: "currentColor" }}
-                aria-hidden
-              />
-            ) : (
-              <Plus
-                className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90 [&_*]:stroke-current"
-                style={{ color: "currentColor" }}
-                aria-hidden
-              />
-            )}
-            <span className="min-w-0 break-words">{isFollowing ? t.following : t.follow}</span>
-          </Button>}
+          {canFollow && (
+            <Button
+              type="button"
+              onClick={handleFollow}
+              aria-pressed={isFollowing}
+              aria-label={isFollowing ? t.following : t.follow}
+              title={t.followHint}
+              disabled={toggleFollow.isPending}
+              className={[
+                "cms-widget-label group h-auto min-h-8 min-w-0 flex-[1_0_min(100%,9rem)] items-center justify-center gap-1.5 whitespace-normal rounded-[6px] px-2 py-1.5 font-semibold shadow-none transition-all duration-200",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand)]/40",
+                isFollowing
+                  ? "border border-[color:var(--brand)]/40 bg-[color:var(--brand)]/10 text-[color:var(--brand)] hover:bg-[color:var(--brand)]/15"
+                  : "border border-transparent bg-[color:var(--brand)] text-[color:var(--brand-foreground,white)] hover:opacity-90",
+                toggleFollow.isPending ? "opacity-70" : "",
+              ].join(" ")}
+            >
+              {isFollowing ? (
+                <Check
+                  className="h-3.5 w-3.5 [&_*]:stroke-current"
+                  style={{ color: "currentColor" }}
+                  aria-hidden
+                />
+              ) : (
+                <Plus
+                  className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90 [&_*]:stroke-current"
+                  style={{ color: "currentColor" }}
+                  aria-hidden
+                />
+              )}
+              <span className="min-w-0 break-words">{isFollowing ? t.following : t.follow}</span>
+            </Button>
+          )}
 
           {socials.map(({ key, url, label, Fallback }) => (
             <a

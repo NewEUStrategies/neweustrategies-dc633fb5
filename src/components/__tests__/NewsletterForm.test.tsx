@@ -217,7 +217,7 @@ import {
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
+  measurementConsentSummaryPlain,
 } from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
@@ -860,7 +860,7 @@ describe("NewsletterForm - osobne pole zgody na pomiar", () => {
         box,
       );
       expect(box).toHaveAttribute("aria-checked", "false");
-      expect(box?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+      expect(box?.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
       const button = formEl().querySelector("button[type='submit'], button:not([type])");
       expect(
         (box as HTMLElement).compareDocumentPosition(button as HTMLElement) &
@@ -911,7 +911,9 @@ describe("NewsletterForm - osobne pole zgody na pomiar", () => {
   it("EN: treść pola po angielsku", () => {
     h.lang = "en";
     renderForm({ widgetConfig: { showFirstName: true }, lang: "en" });
-    expect(measurementBox()?.closest("label")?.textContent).toBe(measurementConsentPlain("en"));
+    expect(measurementBox()?.closest("label")?.textContent).toBe(
+      measurementConsentSummaryPlain("en"),
+    );
   });
 
   it.each(["light", "dark"] as const)(

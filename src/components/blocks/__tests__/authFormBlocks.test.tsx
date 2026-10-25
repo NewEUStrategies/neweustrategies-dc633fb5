@@ -92,7 +92,7 @@ import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newslet
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
+  measurementConsentSummaryPlain,
 } from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
@@ -509,8 +509,8 @@ describe("register-form: rozjazdy kluczy działają z obu stron", () => {
 
   it("odrzuca niebezpieczny schemat w linku zgody", () => {
     register({ consentText_pl: "Zgoda [tutaj](javascript:alert(1))." });
-    // `^`: treść osobnego pola pomiaru też zawiera słowo „Zgoda".
-    expect(screen.getByText(/^Zgoda/).querySelector("a")).toBeNull();
+    // Etykieta osobnego pola pomiaru też zaczyna się od „Zgoda" - pomijamy ją.
+    expect(screen.getByText(/^Zgoda (?!na pomiar)/).querySelector("a")).toBeNull();
   });
 });
 
@@ -641,7 +641,7 @@ describe("register-form: walidacja i payload", () => {
     expect(box).not.toBeNull();
     expect(box).toHaveAttribute("aria-checked", "false");
     expect(box).toBeDisabled();
-    expect(box?.closest("label")?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(box?.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
 
     const [newsletter] = consentBoxes();
     fireEvent.click(newsletter);

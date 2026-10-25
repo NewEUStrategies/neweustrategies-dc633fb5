@@ -22,7 +22,7 @@ import {
 import {
   EMAIL_MEASUREMENT_CONSENT_VERSION,
   measurementConsentHtml,
-  measurementConsentPlain,
+  measurementConsentSummaryPlain,
 } from "@/lib/newsletter/measurementConsentText";
 
 const h = vi.hoisted(() => ({ submit: vi.fn() }));
@@ -155,7 +155,7 @@ describe("contact-form: osobne pole zgody na pomiar (I9d-Y2b)", () => {
     expect(box).toHaveAttribute("aria-checked", "false");
     expect(box).toBeDisabled();
     const row = box?.closest("label");
-    expect(row?.textContent).toBe(measurementConsentPlain("pl"));
+    expect(row?.textContent).toBe(measurementConsentSummaryPlain("pl"));
     // Ta sama klasa wiersza co pole newslettera (rozmiar `consentSize`
     // i znacznik edycji z `.cf-consent`).
     expect(row?.classList.contains("cf-consent")).toBe(true);
