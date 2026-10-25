@@ -423,22 +423,140 @@ describe("analyzeMigrationImmutability - dziennik drizzle", () => {
     expect(kinds(report)).toEqual(["dziennik-usuniety"]);
   });
 
-  it("wpis rejestru z SHA dziennika dopuszcza świadome przywrócenie wpisu w środku", () => {
+  it("wpis rejestru z opisem zmiany (journalChange) dopuszcza świadome przywrócenie wpisu w środku", () => {
     const head = journal(BASE_ENTRIES);
     // Rewert bota usuwa wpis, a następne zachowują swoje `idx`.
     const reverted = JSON.parse(head) as { entries: Record<string, unknown>[] };
     reverted.entries.splice(1, 1);
     const base = JSON.stringify(reverted, null, 2);
+    const unallowed = analyzeJournal(base, head);
+    expect(kinds(unallowed)).toEqual(["wpis-wstawiony"]);
     const allowance: MigrationEditAllowance = {
       path: MIGRATION_JOURNAL_PATH,
       kind: "other",
       reason: "przywrócenie wpisu 0001_b usuniętego rewertem bota",
-      blobAfter: blob(11),
+      journalChange: unallowed.violations[0].detail,
     };
-    expect(kinds(analyzeJournal(base, head))).toEqual(["wpis-wstawiony"]);
     const report = analyzeJournal(base, head, [allowance]);
     expect(report.violations).toEqual([]);
     expect(report.allowed).toEqual([allowance]);
+  });
+
+  // Wyjątek dla wpisu dziennika nie może zależeć od SHA całego `_journal.json`:
+  // na main bazą jest ostatni ZIELONY commit, więc gdy przebieg commitu z
+  // wyjątkiem zostanie anulowany (concurrency) albo poprawka bota czeka na PR,
+  // następny commit z nową migracją porównuje się sprzed edycji - z dziennikiem
+  // o innym SHA. Wyjątek po SHA przestałby pasować i main zostałby czerwony.
+  it("wyjątek wpisu dziennika przeżywa późniejsze dopisania (inny SHA dziennika, ten sam opis zmiany)", () => {
+    const edited: Entry[] = [
+      ["0000_a", 1000],
+      ["0001_b", 2500],
+      ["0002_c", 3000],
+    ];
+    const allowance: MigrationEditAllowance = {
+      path: MIGRATION_JOURNAL_PATH,
+      kind: "bot-pending-fix",
+      reason: "bot poprawił when niewdrożonego 0001_b; --verify: brak w rejestrze",
+      journalChange: "0001_b: when 2000 -> 2500",
+    };
+    const heads = [
+      journal(edited),
+      journal([...edited, ["0003_d", 4000]]),
+      journal([...edited, ["0003_d", 4000], ["0004_e", 5000]]),
+    ];
+    heads.forEach((headText, i) => {
+      const blobs = new Map([
+        [blob(10), journal(BASE_ENTRIES)],
+        [blob(40 + i), headText],
+      ]);
+      const report = analyzeMigrationImmutability(
+        [modified(MIGRATION_JOURNAL_PATH, blob(10), blob(40 + i))],
+        (sha) => blobs.get(sha) ?? noBlobs(sha),
+        [allowance],
+      );
+      expect(report.violations).toEqual([]);
+      expect(report.allowed).toEqual([allowance]);
+      expect(report.appendedEntries).toHaveLength(i);
+    });
+  });
+
+  it("wyjątek wpisu dziennika dopuszcza wyłącznie swoją zmianę; inne zmiany tego samego dziennika czerwienią", () => {
+    const head = JSON.parse(
+      journal([
+        ["0000_a", 1500],
+        ["0001_b", 2500],
+        ["0002_c", 3000],
+      ]),
+    ) as { entries: Record<string, unknown>[] };
+    const allowance: MigrationEditAllowance = {
+      path: MIGRATION_JOURNAL_PATH,
+      kind: "other",
+      reason: "świadoma zmiana when 0001_b",
+      journalChange: "0001_b: when 2000 -> 2500",
+    };
+    const report = analyzeJournal(journal(BASE_ENTRIES), JSON.stringify(head), [allowance]);
+    expect(kinds(report)).toEqual(["wpis-zmieniony"]);
+    expect(report.violations[0].detail).toContain("0000_a");
+    expect(report.allowed).toEqual([allowance]);
+    // Inne wartości tej samej zmiany (np. when przestawiony dalej) - wyjątek już nie pasuje.
+    const further = analyzeJournal(
+      journal(BASE_ENTRIES),
+      journal([
+        ["0000_a", 1000],
+        ["0001_b", 2600],
+        ["0002_c", 3000],
+      ]),
+      [allowance],
+    );
+    expect(kinds(further)).toEqual(["wpis-zmieniony"]);
+    expect(further.allowed).toEqual([]);
+  });
+
+  it("nieczytelnego dziennika nie dopuszcza żaden wpis rejestru", () => {
+    const broken = analyzeJournal(journal(BASE_ENTRIES), "{ niepoprawny");
+    const report = analyzeJournal(journal(BASE_ENTRIES), "{ niepoprawny", [
+      {
+        path: MIGRATION_JOURNAL_PATH,
+        kind: "other",
+        reason: "x",
+        journalChange: broken.violations[0].detail,
+      },
+    ]);
+    expect(kinds(report)).toEqual(["dziennik-nieczytelny"]);
+    expect(report.allowed).toEqual([]);
+  });
+
+  it("opis usuniętego wpisu wiąże jego `when`: ten sam tag dopisany ponownie i usunięty znowu czerwieni", () => {
+    const head = JSON.parse(journal(BASE_ENTRIES)) as { entries: Record<string, unknown>[] };
+    head.entries.splice(1, 1);
+    const first = analyzeJournal(journal(BASE_ENTRIES), JSON.stringify(head));
+    expect(kinds(first)).toEqual(["wpis-usuniety"]);
+    expect(first.violations[0].detail).toContain("0001_b (when 2000)");
+    const allowance: MigrationEditAllowance = {
+      path: MIGRATION_JOURNAL_PATH,
+      kind: "other",
+      reason: "usunięcie wpisu, którego produkcja nie wykonała",
+      journalChange: first.violations[0].detail,
+    };
+    expect(
+      analyzeJournal(journal(BASE_ENTRIES), JSON.stringify(head), [allowance]).violations,
+    ).toEqual([]);
+    // Później ten sam tag wraca na końcu z nowym `when` i znowu znika.
+    const readded = journal([
+      ["0000_a", 1000],
+      ["0002_c", 3000],
+      ["0001_b", 9000],
+    ]);
+    const again = analyzeJournal(
+      readded,
+      journal([
+        ["0000_a", 1000],
+        ["0002_c", 3000],
+      ]),
+      [allowance],
+    );
+    expect(kinds(again)).toEqual(["wpis-usuniety"]);
+    expect(again.allowed).toEqual([]);
   });
 });
 
@@ -485,6 +603,53 @@ describe("MIGRATION_EDIT_ALLOWLIST", () => {
       expect.stringContaining("wymaga blobBefore"),
       expect.stringContaining("blobBefore dotyczy wyłącznie usunięcia"),
     ]);
+  });
+
+  it("zmianę wpisów dziennika opisuje journalChange, nie SHA całego `_journal.json`", () => {
+    const change = "0001_b: when 2000 -> 2500";
+    const errors = allowlistErrors([
+      // SHA całego dziennika zmienia każde dopisanie - taki wyjątek przestałby pasować.
+      { path: MIGRATION_JOURNAL_PATH, kind: "other", reason: "x", blobAfter: blob(1) },
+      { path: SUPABASE_FILE, kind: "other", reason: "x", journalChange: change },
+      { path: MIGRATION_JOURNAL_PATH, kind: "other", reason: "x", journalChange: "  " },
+      {
+        path: MIGRATION_JOURNAL_PATH,
+        kind: "other",
+        reason: "x",
+        journalChange: change,
+        blobAfter: blob(2),
+      },
+      {
+        path: MIGRATION_JOURNAL_PATH,
+        kind: "rewrite-unapplied",
+        reason: "x",
+        journalChange: change,
+      },
+      { path: MIGRATION_JOURNAL_PATH, kind: "bot-pending-fix", reason: "y", journalChange: change },
+      { path: DRIZZLE_FILE, kind: "other", reason: "bez blobAfter" },
+    ]);
+    expect(errors).toEqual([
+      expect.stringContaining("journalChange"),
+      expect.stringContaining("journalChange dotyczy wyłącznie"),
+      expect.stringContaining("pusty journalChange"),
+      expect.stringContaining("bez blobAfter i blobBefore"),
+      expect.stringContaining("rewrite-unapplied zmienia treść"),
+      expect.stringContaining("zdublowany"),
+      expect.stringContaining("zdublowany"),
+      expect.stringContaining("brak blobAfter"),
+    ]);
+    // Usunięcie całego dziennika nadal wiąże usuniętą treść (blobBefore).
+    expect(
+      allowlistErrors([
+        {
+          path: MIGRATION_JOURNAL_PATH,
+          kind: "other",
+          reason: "x",
+          blobAfter: null,
+          blobBefore: blob(3),
+        },
+      ]),
+    ).toEqual([]);
   });
 
   it("przyjmuje SHA-256 bloba (repozytorium w formacie sha256)", () => {
@@ -600,9 +765,22 @@ describe("renderImmutabilityReport", () => {
     expect(text).toContain(
       `{ path: "${DRIZZLE_FILE}", kind: "other", reason: "", blobAfter: "${blob(5)}" },`,
     );
+    // Wpis dziennika: gotowy wyjątek opisuje zmianę wpisu, nie SHA całego dziennika.
     expect(text).toContain(
-      `{ path: "${MIGRATION_JOURNAL_PATH}", kind: "other", reason: "", blobAfter: "${blob(11)}" },`,
+      `{ path: "${MIGRATION_JOURNAL_PATH}", kind: "other", reason: "", journalChange: ${JSON.stringify(report.violations.find((v) => v.kind === "wpis-usuniety")!.detail)} },`,
     );
+    expect(text).not.toContain(`blobAfter: "${blob(11)}"`);
+    // Baza PR bywa commitem bota (zmiana w miejscu na main): przywrócenie scalonej
+    // treści to wtedy wyjątek z rejestru, a nie `git checkout` z bazy (runbook §6.4).
+    expect(text).toContain("gdy baza ma scaloną treść");
+    expect(text).toMatch(/baza to commit bota[^\n]*wpis rejestru[^\n]*§6\.4/);
+  });
+
+  it("nieczytelny dziennik nie dostaje gotowego wpisu rejestru", () => {
+    const report = analyzeJournal(journal(BASE_ENTRIES), "{ niepoprawny");
+    const text = renderImmutabilityReport(report, RANGE);
+    expect(text).toContain("[dziennik-nieczytelny]");
+    expect(text).not.toContain("journalChange:");
   });
 
   it("raport pominięcia mówi, czego brakuje i jak to naprawić w CI", () => {
@@ -621,6 +799,8 @@ describe("renderImmutabilityReport", () => {
     const text = renderImmutabilitySkipped("commit bazowy niedostępny", true);
     expect(text).toMatch(/^✗ Niezmienność migracji: BEZ PORÓWNANIA/);
     expect(text).toContain(`${IMMUTABILITY_REQUIRE_BASE_ENV}=1`);
+    // Zapamiętanej bazy main, której nie ma już na origin, ponowny przebieg nie pobierze.
+    expect(text).toContain("gh cache delete migration-immutability-ok-<sha>");
   });
 });
 

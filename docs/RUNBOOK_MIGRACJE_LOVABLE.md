@@ -24,11 +24,14 @@ Powiązane:
 | `drizzle/migrations/NNNN_pr<NR_PR>_deployment_completion.sql`                                              | wyzwalacz wdrożenia: jedna instrukcja bez skutku, `COMMENT ON SCHEMA public IS 'standard public schema';`                                   | narzędzie migracji Lovable            |
 | wpisy dziennika 0000-0398 (`JOURNAL_FREEZE_IDX` = 398) i rejestr `MIGRATION_LANES`                         | historia sprzed generatora: bliźniaki pisane ręcznie, kopie i wpisy bota; rejestr decyzji jest zamrożony                                    | nikt - historii się nie zmienia       |
 | `drizzle.__drizzle_migrations` (produkcja)                                                                 | rejestr migratora: `hash` = sha256 pliku, `created_at` = `when` wpisu - DOWÓD wdrożenia                                                     | wyłącznie migrator                    |
-| `supabase_migrations.schema_migrations` (produkcja)                                                        | drugi rejestr, historyczny; plików z lustrem `check:migration-ledger` w nim nie szuka                                                       | nikt (ręczne dopisywanie zakazane)    |
+| `supabase_migrations.schema_migrations` (produkcja)                                                        | drugi rejestr, historyczny; plików niesionych przez wpisy od 0399 `check:migration-ledger` w nim nie szuka                                  | nikt (ręczne dopisywanie zakazane)    |
 | `drizzle.config.ts`, `drizzle/schema.ts` (celowo pusty)                                                    | konfiguracja Lovable (`LOVABLE_DB_MIGRATION_URL`)                                                                                           | Lovable; nie ruszać                   |
 
-Gdy właściciel zleca zmianę bazy wprost w czacie Lovable, agent postępuje jak autor (§3), a jego
-wyzwalacz nazywa się `lovable_<YYYYMMDD>_deployment_completion`.
+Gdy właściciel zleca zmianę bazy wprost w czacie Lovable, agent pisze plik i lustro jak autor (§3,
+kroki 1-3 i `check:migration-lanes`; pgTAP i harnessy wykonuje CI), commituje na `main`
+i zatrzymuje się. Wdrożenie (§4.2, wyzwalacz `lovable_<YYYYMMDD>_deployment_completion`) przychodzi
+dopiero na polecenie właściciela, gdy `Required release checks` tego commitu są zielone, z eksportem
+i oknem jak w §4.1. Do tego czasu wpis jest uzbrojony jak scalony PR.
 
 Trzy fakty, na których stoi model (dokumentacja Lovable, stan 2026-10-25):
 
@@ -112,8 +115,8 @@ Nie wolno:
 - dzielić lustra: dla nowej migracji `scripts/split-migration.ts` tnie wyłącznie plik supabase,
   a lustra części generuje `migrations:mirror` (ścieżka `--drizzle <tag>` tego skryptu dotyczy
   tylko bliźniaków sprzed zamrożenia dziennika);
-- dopisywać wpisów do `MIGRATION_LANES` (rejestr zamrożony na wpisie 398) ani nowych plików do
-  `reconciled` w `supabase/migration-ledger.json`;
+- dopisywać wpisów do `MIGRATION_LANES` (rejestr zamrożony na wpisie 398; wyjątek: §5.4 pkt 2,
+  w przeglądanym PR) ani nowych plików do `reconciled` w `supabase/migration-ledger.json`;
 - zmieniać ani usuwać scalonych plików migracji w żadnym pasie (§6.4).
 
 ### 3.1 Szablon sekcji „Wdrożenie bazy" w opisie PR
@@ -146,10 +149,14 @@ Pierwszą linię kopiujesz z wyjścia `bun run migrations:mirror` (zapis albo `-
   w `check:migration-lanes`);
 - `--base <ref>` / `--no-base`: dziennik bazy dla luster lokalnych (domyślnie `origin/main`, potem
   `main`; bez bazy generator tylko dopisuje). Domyślną bazę generator najpierw pobiera
-  (`git fetch origin main`) i drukuje jej SHA i datę; nieudane pobranie to ostrzeżenie - stara baza
-  uznałaby lustro innego PR-a, które jest już na `main`, za lokalne i przenumerowała je. Gałąź,
-  która bazy jeszcze nie scaliła, dostaje ostrzeżenie `baza-niescalona` i plan bez linii do opisu
-  PR (numery zmienią się po scaleniu);
+  (`git fetch origin +refs/heads/main:refs/remotes/origin/main` - jawny refspec, bo klon jednej
+  gałęzi nie odświeża `origin/main` samym `git fetch origin main`; w trybie wsadowym, bez pytań
+  o hasło) i drukuje jej SHA i datę; nieudane pobranie to ostrzeżenie - stara baza uznałaby lustro
+  innego PR-a, które jest już na `main`, za lokalne i przenumerowała je. Gałąź, która bazy jeszcze
+  nie scaliła, dostaje ostrzeżenie `baza-niescalona` i plan bez linii do opisu PR (numery zmienią
+  się po scaleniu). Scalanie w toku (po `git merge`, przed `git commit`) liczy się jako scalone
+  (MERGE_HEAD). W płytkim klonie git nie rozstrzyga, czy baza jest przodkiem - ostrzeżenie każe
+  wtedy pogłębić historię (`git fetch --unshallow origin`), nie scalać;
 - `--rewrite <tag>`: wyłącznie przypadek z §6.3.
 
 Kody wyjścia: 0 - plan wykonany albo lustro aktualne; 1 - błędy planu albo (z `--check`) lustro
@@ -174,7 +181,7 @@ Błędy - generator niczego nie zapisze, dopóki są:
 Ostrzeżenia (zapis przechodzi): `ustawienie-sesji` (§2), `enum-nowa-wartosc` (wdróż ten plik
 osobnym uruchomieniem migratora, przed wpisami, które używają nowej wartości),
 `przepisanie-zbedne` (`--rewrite` nie było potrzebne), `baza-niescalona` (najpierw
-`git merge origin/main`, potem generator ponownie).
+`git merge origin/main`, potem generator ponownie; w płytkim klonie `git fetch --unshallow origin`).
 
 ### 3.3 Konflikt dziennika po `git merge origin/main`
 
@@ -192,7 +199,8 @@ i `when`); linia „Wpisy dziennika do wdrożenia" w opisie PR dostaje wtedy now
 `merge=union` dla dziennika w `.gitattributes` (podwójne `idx` bez konfliktu), nigdy ręczne
 przenumerowanie i nigdy „weź nasze" (`git checkout --ours`) dla `meta/`: wpis `main` zniknąłby
 z dziennika, a jego `when` (zapisany już na produkcji) przesunąłby próg migratora ponad nasze
-lustra - pominęłoby je po cichu. Generator zgłasza to jako `wpis-bazy-zmieniony`. Jeśli `main`
+lustra - pominęłoby je po cichu. Generator zgłasza to jako `wpis-bazy-zmieniony`, także przed
+`git commit` scalenia. Jeśli `main`
 zyskał wpis po 0398, który nie jest kopią pliku supabase, kanonicznym wyzwalaczem ani wpisem z
 samych `COMMENT ON`, `check:migration-lanes` zgłasza `wpis-spoza-zrodla` - ten wpis adoptujesz w
 tym samym PR (§5), inaczej `main` będzie czerwony od scalenia.
@@ -238,11 +246,11 @@ Zasady tego zadania (bez wyjątków):
 
 Kroki:
 1. Potwierdź, że merge PR #<NR_PR> i wszystkie jego commity są przodkami HEAD (gdy w piaskownicy brakuje zależności, najpierw bun install).
-2. Uruchom `bun run migrations:deploy-sql -- --pending --from <OD>` i wykonaj wypisane zapytanie narzędziem tylko do odczytu. Wymagane: wiersz o roli `kotwica` (wpis tuż przed <OD>) ma status „juz zastosowany", a wiersze `zakres` <OD>-<DO> mają „zostanie wykonany"; nie ma statusów „POMINIETY: when nie wiekszy od ostatniego zapisu", „INNY HASH W REJESTRZE" ani „PONOWNA DOSTAWA: ten sam plik juz w rejestrze". Kotwica z innym statusem = czekają też wpisy sprzed <OD>, które migrator wykona razem z tymi. Inaczej przerwij i pokaż wynik.
+2. Uruchom `bun run migrations:deploy-sql -- --pending --from <OD>` i wykonaj wypisane zapytanie narzędziem tylko do odczytu. Wymagane: wiersz o roli `kotwica` (wpis tuż przed <OD>) ma status „juz zastosowany", a wiersze `zakres` <OD>-<DO> mają „zostanie wykonany"; żaden wiersz po <DO> nie ma „zostanie wykonany" (to wpisy innego scalonego, niewdrożonego PR, które migrator wykonałby razem z tymi); nie ma statusów „POMINIETY: when nie wiekszy od ostatniego zapisu", „INNY HASH W REJESTRZE" ani „PONOWNA DOSTAWA: ten sam plik juz w rejestrze". Kotwica z innym statusem = czekają też wpisy sprzed <OD>, które migrator wykona razem z tymi. Inaczej przerwij i pokaż wynik.
 3. Wywołaj narzędzie migracji bazy DOKŁADNIE RAZ: nazwa `pr<NR_PR>_deployment_completion`, treść (jedna linia, bez zmian):
 COMMENT ON SCHEMA public IS 'standard public schema';
 To wyzwalacz bez skutku: migrator Drizzle wykona przy nim oczekujące wpisy <OD>-<DO> w jednej transakcji. Nie dopisuj tego wpisu do MIGRATION_LANES.
-4. Błąd migratora: przerwij, niczego nie poprawiaj, podaj SQLSTATE, komunikat i plik. Tylko przy 55P03, 40P01 albo 57014 wolno ponowić krok 3, najwyżej dwa razy.
+4. Błąd migratora: przerwij, niczego nie poprawiaj, podaj SQLSTATE, komunikat i plik. Przy 55P03, 40P01 albo 57014 nie ponawiaj sam: dołącz wynik zapytania o długie transakcje z docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.5 (tylko odczyt) - ponowienie zleca właściciel (§4.6).
 5. Po sukcesie uruchom `bun run migrations:deploy-sql -- --verify --from <OD>` i wynik wykonaj tylko do odczytu - ma zwrócić 0 wierszy (wiersz „brak w rejestrze" albo „inny hash" = raport). Potem `bun run check:migration-lanes`, `bun run check:db-contract` i `bun run check:migration-ledger`; pokaż ostatnie linie każdego.
 6. Sprawdź, że tabele, widoki i RPC z PR #<NR_PR> istnieją, a ich strony działają bez błędów JS. Opublikuj front <KOLEJNOŚĆ>.
 7. Raport: zastosowane wpisy (idx, tag), wyniki kroków 2 i 5, commit z wyzwalaczem. Poza wpisami wykonanymi przez migrator nie zmieniaj danych w bazie.
@@ -314,6 +322,17 @@ SELECT id, created_at, to_timestamp(created_at / 1000.0) AT TIME ZONE 'UTC' AS u
 ```
 
 ```sql
+-- Długie transakcje na tabelach partii (tylko odczyt): tuż przed wyzwoleniem i po błędzie
+-- 55P03, 40P01 albo 57014 (§4.6). Oczekiwane 0 wierszy; podstaw tabele, których wpisy
+-- partii dotykają (sekcja „Wdrożenie bazy" opisu PR; dla 0399-0402 gotowe zapytanie w §9.1).
+SELECT pid, now() - xact_start AS trwa, state, left(query, 80) AS zapytanie
+  FROM pg_stat_activity
+ WHERE xact_start < now() - interval '1 minute'
+   AND pid IN (SELECT l.pid FROM pg_locks l
+                WHERE l.relation IN ('public.<tabela>'::regclass));
+```
+
+```sql
 -- Punkt odniesienia L przed wdrożeniem; pełne zapytanie wypisuje
 -- `bun run migrations:deploy-sql -- --pending --from <OD>`.
 SELECT COALESCE(max(created_at), 0) AS ostatni_zapis FROM drizzle.__drizzle_migrations;
@@ -331,8 +350,11 @@ SELECT has_function_privilege('anon', 'public.<funkcja>(<typy>)', 'EXECUTE') AS 
 - Partia jest wycofana w całości. Potwierdź zapytaniem z §4.5: górny wiersz bez zmian.
 - Lovable przerywa i podaje SQLSTATE, komunikat i plik. Nie poprawia plików i nie wykonuje SQL-a
   ręcznie (tak powstały rozjazdy 0311 i 0367, §10).
-- Błąd przejściowy (`55P03` lock_timeout, `40P01` deadlock, `57014` statement_timeout): ponów
-  polecenie z §4.2 później, w oknie nocnym, najwyżej dwa razy.
+- Błąd przejściowy (`55P03` lock_timeout, `40P01` deadlock, `57014` statement_timeout): Lovable
+  nie ponawia sam. Właściciel ponawia polecenie z §4.2 później, w oknie nocnym, gdy zapytanie
+  o długie transakcje z §4.5 daje 0 wierszy (krok 2 polecenia sprawdza partię od nowa) - łącznie
+  najwyżej dwa razy. Potem stop i eskalacja: partia zostaje uzbrojona, więc do decyzji właściciela
+  nikt nie wywołuje narzędzia migracji (§4.1).
 - Każdy inny błąd (`42703`, `42P07`, `42710`, `23505`, `23514`, `42883`, `2BP01` ...) to dryf
   produkcji albo błąd migracji. Poprawka idzie PR-em: stan produkcji ustalasz zapytaniami tylko do
   odczytu, poprawiasz NIEWDROŻONY plik supabase i jego lustro przez
@@ -425,7 +447,7 @@ nadpisała zmiany bota - adoptujesz STAN KOŃCOWY produkcji, nie historię.
 | kopia jednego z 22 plików `appliedOutOfBand` | brak (dotąd)                                                                                        | eskalacja: produkcja wykonała stary plik drugi raz; tylko do odczytu sprawdź jego obiekty (ciała funkcji, granty) wobec pasa     |
 | zapis do drugiego rejestru                   | 0023, 0149, 0307                                                                                    | zakazany; nie adoptuje się; decyzja `drizzleOnly` (§5.4 pkt 2)                                                                   |
 | SQL nie przechodzi na bazie z pasa supabase  | 0393 (`42710`: ograniczenie jest od 20260725090300)                                                 | decyzja `drizzleOnly`, gdy pas supabase ma już ten stan; inaczej idempotentny odpowiednik (§5.4 pkt 2)                           |
-| edycja albo usunięcie scalonego pliku        | 0367 i jego źródło (30ff38a1e)                                                                      | §6.4: przywrócenie albo świadomy wyjątek w rejestrze                                                                             |
+| edycja albo usunięcie scalonego pliku        | 0367 i jego źródło (30ff38a1e)                                                                      | §6.4: przywrócenie (edycja w miejscu: z wpisem rejestru) albo świadomy wyjątek w rejestrze                                       |
 
 ### 5.4 Adopcja krok po kroku (PR Claude)
 
@@ -441,7 +463,8 @@ Adopcja jest ręczna; nie ma osobnego polecenia ani wpisu łączącego w rejestr
    a `bun run check:migration-lanes` pokazuje wpis bota jako zapis wdrożenia. Wersja pliku adopcji
    jest późniejsza niż ostatni plik niesiony przez dziennik, ale wcześniejsza niż nowe migracje tej
    samej gałęzi (inaczej generator zgłosi dla nich `wersja-wsteczna`). Plik adopcji jest, jak
-   lustro, poza `check:migration-ledger`: niesie go wpis dziennika po zamrożeniu, więc dowodem
+   lustro, poza `check:migration-ledger`: niesie go wpis dziennika od 0399 (`MIRROR_LANE_START_IDX`,
+   granica stała - podniesienie `JOURNAL_FREEZE_IDX` z pkt 2 jej nie przesuwa), więc dowodem
    wdrożenia jest rejestr migratora, a nie `schema_migrations` (do którego nikt nie pisze).
 2. **SQL bota nie przechodzi na bazie z pasa supabase albo stan końcowy wymaga innej treści.**
    Idempotentny odpowiednik o tym samym stanie końcowym w nowym pliku supabase. Generator
@@ -451,8 +474,10 @@ Adopcja jest ręczna; nie ma osobnego polecenia ani wpisu łączącego w rejestr
    (`src/lib/ci/migrationLaneParity.ts`) do idx wpisu bota i dopisz do `MIGRATION_LANES` decyzję
    `drizzleOnly` z powodem wskazującym plik adopcji. Wpisy do nowej granicy bramka ocenia
    rejestrem, więc wyzwalacze i znaczniki z tego zakresu też dostają decyzję `drizzleOnly`; lustra
-   i kopie przechodzą po treści. Test przypina wartość stałej, więc zmiana jest widoczna
-   w przeglądzie. Tę samą drogę (bez pliku adopcji) ma wpis szkodliwy i zapis do drugiego rejestru.
+   i kopie przechodzą po treści i zostają poza `check:migration-ledger` (granica tej bramki to
+   stałe `MIRROR_LANE_START_IDX`, nie zamrożenie). Test przypina wartość stałej, więc zmiana jest
+   widoczna w przeglądzie. Tę samą drogę (bez pliku adopcji) ma wpis szkodliwy i zapis do drugiego
+   rejestru.
 3. Test pgTAP na stan końcowy (np. kolumny zwracane przez funkcję, indeks).
 4. Plik migracji zmieniony albo usunięty przez bota: §6.4.
 
@@ -510,22 +535,40 @@ i generator.
 - **Baza porównania.** `MIGRATION_IMMUTABILITY_BASE` (w CI: SHA bazy PR, a przy pushu na `main`
   ostatni commit `main`, na którym bramka przeszła - zapamiętany w pamięci podręcznej Actions;
   bez niego `github.event.before`), a bez zmiennej `git merge-base HEAD origin/main`. Brak commitu
-  bazy w klonie = lokalnie ostrzeżenie i kod 0, w CI (`MIGRATION_IMMUTABILITY_REQUIRE_BASE=1`)
-  błąd i kod 1.
+  bazy w klonie = lokalnie ostrzeżenie i kod 0, w CI na `pull_request` i `push`
+  (`MIGRATION_IMMUTABILITY_REQUIRE_BASE=1`) błąd i kod 1. `workflow_dispatch` nie ma bazy
+  zdarzenia: bez zapamiętanej bazy (gałąź inna niż `main`, pusta pamięć podręczna) krok kończy się
+  adnotacją „nie porównano", a bramkę egzekwują przebiegi `pull_request` i `push`.
+- **Pamięć podręczna bazy na `main`** (Actions → Caches, klucz `migration-immutability-ok-<sha>`).
+  Zapamiętana baza nie jest brana, gdy to ten sam commit (ponowny przebieg) albo gdy `HEAD` jest jej
+  przodkiem (ponowny przebieg starszego, anulowanego commitu - diff szedłby wstecz i nowsze
+  migracje wyglądałyby na usunięte): wtedy bazą jest `github.event.before` i przebieg niczego nie
+  zapamiętuje. Zapamiętanej bazy, której nie ma już na origin (przepisana historia `main`), CI
+  zastępuje `github.event.before` z ostrzeżeniem, a zielony przebieg zapamiętuje nową; stary wpis
+  usuwa `gh cache delete migration-immutability-ok-<sha>`.
 - **Push bota na `main`.** Czerwień trwa przy każdym kolejnym pushu, aż naprawa trafi na `main`:
   bazą jest ostatni zielony commit, nie poprzedni push, a przebieg anulowany przez nowszy push
-  niczego nie zapamiętuje. Naprawa idzie PR-em: usunięty plik wraca z tą samą treścią (z historii
-  gita - wygenerowany od nowa byłby drugą dostawą, `--pending` pokaże „PONOWNA DOSTAWA"),
-  a świadomy wyjątek dostaje wpis rejestru.
+  niczego nie zapamiętuje. Naprawa idzie PR-em. Usunięty plik wraca z tą samą treścią z historii
+  gita (wygenerowany od nowa byłby drugą dostawą, `--pending` pokaże „PONOWNA DOSTAWA"); bazą PR-a
+  jest commit bez pliku, więc powrót to nowy plik i przechodzi. Przywrócenie treści zmienionej
+  w miejscu (plik albo wpis dziennika) jest w PR-ze naprawy zmianą wobec bazy PR - commitu z treścią
+  bota - więc wymaga wpisu `MIGRATION_EDIT_ALLOWLIST` rodzaju `other`: dla pliku `blobAfter` = SHA
+  przywróconej treści, dla wpisu dziennika `journalChange` z raportu PR. Raport PR drukuje gotowy
+  wpis; jego `git checkout <baza>` przywróciłby treść bota. Zgoda na zmianę bota zamiast
+  przywrócenia to wpis z raportu `main` (`blobAfter` = SHA treści bota albo `journalChange`).
 - **Wyjątki.** Wpis `MIGRATION_EDIT_ALLOWLIST` w `src/lib/ci/migrationImmutability.ts`: ścieżka,
   rodzaj (`rewrite-unapplied` - §6.3; `bot-pending-fix` - poprawka bota we wpisie jeszcze
   niewdrożonym, potwierdzona `--verify`; `other` - pełne uzasadnienie), powód i SHA bloba po
   zmianie (`blobAfter`), a przy usunięciu `blobAfter: null` i SHA usuniętej treści (`blobBefore`).
   SHA wiąże wyjątek z jedną treścią: po scaleniu wpis niczego więcej nie otwiera (także ta sama
   ścieżka dodana później z inną treścią i usunięta znowu jest naruszeniem) i zostaje jako
-  historia. Raport bramki drukuje gotowe wpisy.
+  historia. Wpis `_journal.json` ma zamiast SHA `journalChange`: opis jednej zmiany wpisu
+  dokładnie jak w raporcie (np. `0312_x: when 1 -> 2`, a przy usuniętym albo wstawionym wpisie
+  z jego `when`). SHA całego dziennika zmienia każde dopisanie, a na `main` baza bywa sprzed
+  edycji, więc wyjątek po SHA przestałby pasować po następnej migracji; opis zmiany - nie. Raport
+  bramki drukuje gotowe wpisy.
 - **Kody wyjścia.** 0 - zielono albo (lokalnie) baza niedostępna z ostrzeżeniem; 1 - naruszenie,
-  błędny wpis rejestru albo (w CI) baza niedostępna; 2 - błąd gita.
+  błędny wpis rejestru albo (w CI na `pull_request` i `push`) baza niedostępna; 2 - błąd gita.
 
 ## 7. Wycofanie
 
@@ -612,12 +655,12 @@ plików z lustrem z bramki drugiego rejestru), pomocnik `migrations:deploy-sql` 
 migracje supabase, które generator zamienia w lustra (numery to linia z opisu PR; jeśli `main`
 dostał wcześniej wpisy po 0398, przesuwają się):
 
-| Wpis | Plik supabase                                               | Co robi na produkcji                                                                                                                                                                                                                                                                  |
-| ---- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0399 | `20261025090000_adopt_event_speaker_panel_bio.sql`          | adopcja 0148: warunkowy `DROP` się nie wykona, `CREATE OR REPLACE` podmienia identyczne ciało (OID i granty bez zmian)                                                                                                                                                                |
-| 0400 | `20261025090010_adopt_membership_coupon_source_indexes.sql` | adopcja 0392: zakłada brakujący `idx_membership_grants_source_coupon`, przywraca polski komentarz kolumny; `SET lock_timeout = '5s'` na początku (obowiązuje do końca partii), blokada SHARE na `membership_grants` do końca partii                                                   |
-| 0401 | `20261025090020_profiles_discoverable_decision_stamp.sql`   | kolumna `profiles.discoverable_decided_at`, wyzwalacz znacznika decyzji i blokada znacznika (jedynym piszącym jest stempel właściciela); ACCESS EXCLUSIVE na `profiles` do końca partii                                                                                               |
-| 0402 | `20261025090030_profiles_discoverable_0001_correction.sql`  | ZMIANA DANYCH: cofa do `false` profile, o których baza dowodzi braku decyzji (kubły A i B), każdy zapisuje w `profiles_discoverable_corrections`; bezpiecznik i trwały błąd to wiersz diagnostyczny bez wyjątku, błąd przejściowy (55P03, 40P01, 57014) wycofuje partię do ponowienia |
+| Wpis | Plik supabase                                               | Co robi na produkcji                                                                                                                                                                                                                                                                                                      |
+| ---- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0399 | `20261025090000_adopt_event_speaker_panel_bio.sql`          | adopcja 0148: warunkowy `DROP` się nie wykona, `CREATE OR REPLACE` podmienia identyczne ciało (OID i granty bez zmian)                                                                                                                                                                                                    |
+| 0400 | `20261025090010_adopt_membership_coupon_source_indexes.sql` | adopcja 0392: zakłada brakujący `idx_membership_grants_source_coupon`, przywraca polski komentarz kolumny; `SET lock_timeout = '5s'` na początku (obowiązuje do końca partii), blokada SHARE na `membership_grants` do końca partii                                                                                       |
+| 0401 | `20261025090020_profiles_discoverable_decision_stamp.sql`   | kolumna `profiles.discoverable_decided_at`, wyzwalacz znacznika decyzji i blokada znacznika (jedynym piszącym jest stempel właściciela); ACCESS EXCLUSIVE na `profiles` do końca partii                                                                                                                                   |
+| 0402 | `20261025090030_profiles_discoverable_0001_correction.sql`  | ZMIANA DANYCH: cofa do `false` profile, o których baza dowodzi braku decyzji (kubły A i B), każdy zapisuje w `profiles_discoverable_corrections`; bezpiecznik i trwały błąd to wynik diagnostyczny bez wyjątku (NOTICE i komentarz tabeli rejestru), błąd przejściowy (55P03, 40P01, 57014) wycofuje partię do ponowienia |
 
 Do tego wyzwalacz bota (§4.3). 22 pliki `appliedOutOfBand` z `SUPABASE_LANE_GAPS` NIE są
 dostarczane (§9.3).

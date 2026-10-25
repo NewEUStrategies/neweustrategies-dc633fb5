@@ -634,6 +634,22 @@ describe("lustra z bazy: forward-only", () => {
     expect(text).not.toContain("Wpisy dziennika do wdrożenia");
   });
 
+  it("płytki klon: „nie scalona” bywa granicą historii - ostrzeżenie każe pogłębić historię, nie scalać", () => {
+    const main = {
+      ref: "origin/main",
+      entries: BASE.entries,
+      merged: false,
+      shallow: true,
+    };
+    const p = plan(repo({ [S(B)]: B_SQL }), { base: main });
+    expect(p.warnings.map((w) => w.kind)).toEqual(["baza-niescalona"]);
+    expect(p.warnings[0]!.detail).toContain("klon jest płytki");
+    expect(p.warnings[0]!.detail).toContain("git fetch --unshallow origin");
+    // `git merge` w płytkim klonie kończy się „refusing to merge unrelated histories”.
+    expect(p.warnings[0]!.detail).not.toContain("git merge");
+    expect(p.deploy).toEqual([]);
+  });
+
   it("lustra lokalne muszą stać na końcu dziennika; wpisów bazy nie przenumerowuje się", () => {
     const r = new Map(mirroredB({ base: BASE }))
       .set(D("0002_hand"), "SELECT 1;")

@@ -34,15 +34,22 @@
 // (przy usunięciu - SHA USUNIĘTEJ treści, `blobBefore`). SHA wiąże wpis z jedną
 // konkretną treścią: po scaleniu wpis jest martwy i nie otwiera furtki dla
 // następnej edycji ani następnego usunięcia tej samej ścieżki, więc nie trzeba
-// go sprzątać, a rejestr zostaje historią świadomych wyjątków.
+// go sprzątać, a rejestr zostaje historią świadomych wyjątków. Wyjątek dla
+// wpisu `_journal.json` to `journalChange`: opis JEDNEJ zmiany wpisu dokładnie
+// jak w raporcie (np. `0312_x: when 1 -> 2`), nie SHA całego dziennika - ten
+// zmienia każde dopisanie, a na main baza bywa sprzed edycji (ostatni zielony
+// commit), więc wyjątek po SHA przestałby pasować po następnej migracji. Opis
+// niesie wartości przed i po (usunięty albo wstawiony wpis - swój `when`), więc
+// też dopuszcza wyłącznie tę jedną zmianę.
 //
 // BAZA PORÓWNANIA. `MIGRATION_IMMUTABILITY_BASE` (CI: SHA bazy PR, a na main
 // ostatni commit, na którym bramka przeszła - patrz niżej), a bez niej `git
 // merge-base HEAD origin/main`. Pierwszy push gałęzi (SHA z samych zer) też
 // idzie przez merge-base. Gdy klon nie ma commitu bazy, bramka lokalnie drukuje
 // ostrzeżenie i przechodzi - nie udaje porównania z czymś innym niż ta baza;
-// z `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: PR i main) to błąd, bo pominięte
-// porównanie wyglądałoby jak zielone.
+// z `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: pull_request i push na main) to
+// błąd, bo pominięte porównanie wyglądałoby jak zielone. `workflow_dispatch`
+// nie ma bazy zdarzenia - bez zapamiętanej bazy krok CI jawnie nie porównuje.
 //
 // PUSH NA MAIN. Commit bota trafia na main bez PR-a. Porównanie z
 // `github.event.before` byłoby alarmem jednego przebiegu (następny push
@@ -52,7 +59,9 @@
 // czerwień trwa przy każdym kolejnym pushu, aż naprawa trafi na main, a pominięty
 // albo anulowany przebieg niczego nie przesuwa. Naprawa idzie PR-em: usunięty
 // plik wraca z tą samą treścią (porównanie z bazą nie widzi wtedy zmiany),
-// a świadomy wyjątek dostaje wpis rejestru.
+// a świadomy wyjątek dostaje wpis rejestru. Przywrócenie treści zmienionej
+// w miejscu to w PR-ze naprawy zmiana wobec bazy PR (commitu z treścią bota),
+// więc też wpis rejestru - nie `git checkout` z tej bazy (runbook §6.4).
 //
 // Warstwa czysta (parser diffu, klasyfikacja, dziennik, rejestr, wybór bazy,
 // raport); git siedzi w `scripts/check-migration-immutability.ts`.
@@ -97,16 +106,24 @@ export interface MigrationEditAllowance {
   /** Co się zmieniło, dlaczego i jaki jest dowód (np. wynik `--verify`). */
   readonly reason: string;
   /**
-   * SHA bloba pliku PO zmianie (`git hash-object <ścieżka>`; raport bramki
-   * drukuje gotowy wpis), `null` = zgoda na usunięcie.
+   * Plik: SHA bloba PO zmianie (`git hash-object <ścieżka>`; raport bramki
+   * drukuje gotowy wpis), `null` = zgoda na usunięcie. Wyjątek wpisu dziennika
+   * (`journalChange`) jest bez tego pola.
    */
-  readonly blobAfter: string | null;
+  readonly blobAfter?: string | null;
   /**
    * Wyłącznie przy usunięciu (`blobAfter: null`): SHA bloba USUWANEJ treści
    * (raport bramki drukuje gotowy wpis). Ta sama ścieżka dodana później z inną
    * treścią i znowu usunięta nie przejdzie po starej zgodzie.
    */
   readonly blobBefore?: string;
+  /**
+   * Wyłącznie `_journal.json`: jedna zmiana wpisu dokładnie tak, jak opisuje ją
+   * raport bramki (np. `0312_x: when 1 -> 2`; raport drukuje gotowy wpis). Nie
+   * SHA całego dziennika: ten zmienia każde dopisanie, a na main baza bywa
+   * sprzed edycji (ostatni zielony commit).
+   */
+  readonly journalChange?: string;
 }
 
 /**
@@ -115,6 +132,55 @@ export interface MigrationEditAllowance {
  * Wpisy zostają po scaleniu jako historia (SHA wygasza je same).
  */
 export const MIGRATION_EDIT_ALLOWLIST: readonly MigrationEditAllowance[] = [];
+
+/** Błędy wpisu z `journalChange` (wyjątek jednej zmiany wpisu dziennika). */
+function journalChangeErrors(entry: MigrationEditAllowance, where: string): string[] {
+  const errors: string[] = [];
+  if (entry.path !== MIGRATION_JOURNAL_PATH) {
+    errors.push(`${where}: journalChange dotyczy wyłącznie ${MIGRATION_JOURNAL_PATH}`);
+  }
+  if ((entry.journalChange ?? "").trim() === "") {
+    errors.push(`${where}: pusty journalChange - wklej opis zmiany wpisu z raportu bramki`);
+  }
+  if (entry.blobAfter !== undefined || entry.blobBefore !== undefined) {
+    errors.push(
+      `${where}: wyjątek wpisu dziennika (journalChange) jest bez blobAfter i blobBefore - SHA całego dziennika zmienia każde dopisanie`,
+    );
+  }
+  return errors;
+}
+
+/** Błędy wpisu pliku (SHA bloba po zmianie albo zgoda na usunięcie z SHA usuniętej treści). */
+function fileAllowanceErrors(
+  entry: MigrationEditAllowance,
+  where: string,
+  guarded: GuardedMigrationPath | null,
+): string[] {
+  const errors: string[] = [];
+  if (entry.blobAfter === undefined) {
+    errors.push(
+      `${where}: brak blobAfter - SHA bloba po zmianie (git hash-object) albo null przy usunięciu`,
+    );
+    return errors;
+  }
+  if (guarded === "drizzle-journal" && entry.blobAfter !== null) {
+    errors.push(
+      `${where}: zmianę wpisów dziennika opisuje journalChange (opis zmiany z raportu bramki), nie blobAfter - SHA całego dziennika zmienia każde dopisanie, więc wyjątek przestałby pasować po następnej migracji`,
+    );
+  }
+  if (entry.blobAfter !== null && !BLOB_SHA.test(entry.blobAfter)) {
+    errors.push(`${where}: blobAfter musi być pełnym SHA bloba (git hash-object) albo null`);
+  }
+  if (entry.blobAfter === null && !BLOB_SHA.test(entry.blobBefore ?? "")) {
+    errors.push(
+      `${where}: zgoda na usunięcie (blobAfter: null) wymaga blobBefore - pełnego SHA bloba usuwanej treści, inaczej otwierałaby każde przyszłe usunięcie tej ścieżki`,
+    );
+  }
+  if (entry.blobAfter !== null && entry.blobBefore !== undefined) {
+    errors.push(`${where}: blobBefore dotyczy wyłącznie usunięcia (blobAfter: null)`);
+  }
+  return errors;
+}
 
 /** Błędy rejestru - każdy czerwieni bramkę. */
 export function allowlistErrors(list: readonly MigrationEditAllowance[]): string[] {
@@ -127,35 +193,43 @@ export function allowlistErrors(list: readonly MigrationEditAllowance[]): string
       errors.push(`${where}: ścieżka spoza plików pilnowanych przez bramkę`);
     }
     if (entry.reason.trim() === "") errors.push(`${where}: pusty powód`);
-    if (entry.blobAfter !== null && !BLOB_SHA.test(entry.blobAfter)) {
-      errors.push(`${where}: blobAfter musi być pełnym SHA bloba (git hash-object) albo null`);
-    }
-    if (entry.blobAfter === null && !BLOB_SHA.test(entry.blobBefore ?? "")) {
-      errors.push(
-        `${where}: zgoda na usunięcie (blobAfter: null) wymaga blobBefore - pełnego SHA bloba usuwanej treści, inaczej otwierałaby każde przyszłe usunięcie tej ścieżki`,
-      );
-    }
-    if (entry.blobAfter !== null && entry.blobBefore !== undefined) {
-      errors.push(`${where}: blobBefore dotyczy wyłącznie usunięcia (blobAfter: null)`);
-    }
+    errors.push(
+      ...(entry.journalChange !== undefined
+        ? journalChangeErrors(entry, where)
+        : fileAllowanceErrors(entry, where, guarded)),
+    );
     if (
       entry.kind === "rewrite-unapplied" &&
-      (entry.blobAfter === null || (guarded !== "supabase-sql" && guarded !== "drizzle-sql"))
+      (entry.blobAfter === null ||
+        entry.journalChange !== undefined ||
+        (guarded !== "supabase-sql" && guarded !== "drizzle-sql"))
     ) {
       errors.push(
         `${where}: rewrite-unapplied zmienia treść pliku .sql (migrations:mirror --rewrite) - nie usuwa plików i nie dotyka dziennika ani snapshotów`,
       );
     }
-    const key = allowanceKey(entry.path, entry.blobAfter, entry.blobBefore);
+    const key = entryKey(entry);
     if (seen.has(key)) errors.push(`${where}: zdublowany wpis tej samej zmiany`);
     seen.add(key);
   }
   return errors;
 }
 
-/** Klucz zmiany: treść po zmianie, a przy usunięciu - usunięta treść. */
+/** Klucz zmiany pliku: treść po zmianie, a przy usunięciu - usunięta treść. */
 function allowanceKey(path: string, blobAfter: string | null, blobBefore?: string | null): string {
   return blobAfter === null ? `${path}\0usuniety\0${blobBefore ?? ""}` : `${path}\0${blobAfter}`;
+}
+
+/** Klucz zmiany jednego wpisu dziennika: jej opis z raportu (wartości przed i po). */
+function journalChangeKey(path: string, detail: string): string {
+  return `${path}\0wpis\0${detail}`;
+}
+
+/** Klucz wpisu rejestru; wpis bez blobAfter i journalChange (błąd rejestru) niczego nie dopuszcza. */
+function entryKey(entry: MigrationEditAllowance): string {
+  if (entry.journalChange !== undefined) return journalChangeKey(entry.path, entry.journalChange);
+  if (entry.blobAfter === undefined) return `${entry.path}\0niepelny`;
+  return allowanceKey(entry.path, entry.blobAfter, entry.blobBefore);
 }
 
 /** Zmiana jednej ścieżki między bazą a HEAD; SHA to bloby gita. */
@@ -333,7 +407,7 @@ function compareJournals(baseText: string, headText: string): JournalComparison 
     if (now === undefined) {
       problems.push({
         kind: "wpis-usuniety",
-        detail: `${tag}: wpis zniknął z dziennika - migrator traci plik, a baza produkcji zostaje ze zmianą`,
+        detail: `${entryLabel(entry)}: wpis zniknął z dziennika - migrator traci plik, a baza produkcji zostaje ze zmianą`,
       });
       continue;
     }
@@ -359,31 +433,54 @@ function compareJournals(baseText: string, headText: string): JournalComparison 
   const fresh = head.journal.tags
     .map((tag, i) => ({ tag, i }))
     .filter(({ tag }) => !baseTags.has(tag));
-  for (const { tag } of fresh.filter(({ i }) => i < lastOld)) {
+  for (const { i } of fresh.filter(({ i }) => i < lastOld)) {
     problems.push({
       kind: "wpis-wstawiony",
-      detail: `${tag}: nowy wpis przed ostatnim dawnym wpisem - dopisuj wyłącznie na końcu dziennika`,
+      detail: `${entryLabel(head.journal.entries[i])}: nowy wpis przed ostatnim dawnym wpisem - dopisuj wyłącznie na końcu dziennika`,
     });
   }
   return { appended: fresh.filter(({ i }) => i > lastOld).map(({ tag }) => tag), problems };
 }
 
 /**
+ * Tag z `when` - opis usuniętego albo wstawionego wpisu wiąże wyjątek z jedną
+ * treścią wpisu (ten sam tag dopisany później z innym `when` to inna zmiana).
+ */
+function entryLabel(entry: JournalRecord): string {
+  return `${entry.tag as string} (when ${canonicalJson(entry.when)})`;
+}
+
+/**
+ * Zmiany wpisów dziennika, które wolno dopuścić wpisem `journalChange`.
+ * Nieczytelny dziennik nie jest „zmianą wpisu" - jego wyjątku nie ma.
+ */
+const JOURNAL_CHANGE_KINDS: ReadonlySet<ImmutabilityViolationKind> = new Set([
+  "dziennik-naglowek",
+  "wpis-usuniety",
+  "wpis-zmieniony",
+  "wpis-przestawiony",
+  "wpis-wstawiony",
+]);
+
+/**
  * Klasyfikacja diffu baza -> HEAD. Rejestr konsultujemy tylko wtedy, gdy jest
  * co usprawiedliwić: dopisany dziennik albo nowy plik nie zużywa wpisu.
+ * Zmieniony dziennik rozliczamy zmianą po zmianie (`journalChange`), plik -
+ * SHA bloba.
  */
 export function analyzeMigrationImmutability(
   diff: readonly MigrationDiffEntry[],
   readBlob: (sha: string) => string,
   allowlist: readonly MigrationEditAllowance[] = MIGRATION_EDIT_ALLOWLIST,
 ): ImmutabilityReport {
-  const allowances = new Map(
-    allowlist.map((a) => [allowanceKey(a.path, a.blobAfter, a.blobBefore), a]),
-  );
+  const allowances = new Map(allowlist.map((a) => [entryKey(a), a]));
   const added: string[] = [];
   const appendedEntries: string[] = [];
   const violations: ImmutabilityViolation[] = [];
   const allowed: MigrationEditAllowance[] = [];
+  const allow = (allowance: MigrationEditAllowance): void => {
+    if (!allowed.includes(allowance)) allowed.push(allowance);
+  };
 
   for (const entry of diff) {
     const guarded = guardedMigrationPath(entry.path);
@@ -392,29 +489,30 @@ export function analyzeMigrationImmutability(
       added.push(entry.path);
       continue;
     }
-    const blobAfter = entry.change === "deleted" ? null : entry.blobAfter;
-    const blobBefore = entry.change === "deleted" ? entry.blobBefore : null;
-    let problems: readonly JournalProblem[];
-    if (entry.change === "deleted") {
-      problems = [
-        guarded === "drizzle-journal"
-          ? { kind: "dziennik-usuniety", detail: "plik dziennika usunięty" }
-          : { kind: "plik-usuniety", detail: "plik usunięty" },
-      ];
-    } else if (guarded === "drizzle-journal") {
+    if (entry.change === "modified" && guarded === "drizzle-journal") {
       const comparison = compareJournals(readBlob(entry.blobBefore), readBlob(entry.blobAfter));
       appendedEntries.push(...comparison.appended);
-      problems = comparison.problems;
-    } else {
-      problems = [{ kind: "plik-zmieniony", detail: "treść zmieniona w miejscu" }];
-    }
-    if (problems.length === 0) continue;
-    const allowance = allowances.get(allowanceKey(entry.path, blobAfter, blobBefore));
-    if (allowance !== undefined) {
-      allowed.push(allowance);
+      for (const p of comparison.problems) {
+        const allowance = JOURNAL_CHANGE_KINDS.has(p.kind)
+          ? allowances.get(journalChangeKey(entry.path, p.detail))
+          : undefined;
+        if (allowance !== undefined) allow(allowance);
+        else
+          violations.push({ ...p, path: entry.path, blobAfter: entry.blobAfter, blobBefore: null });
+      }
       continue;
     }
-    for (const p of problems) violations.push({ ...p, path: entry.path, blobAfter, blobBefore });
+    const blobAfter = entry.change === "deleted" ? null : entry.blobAfter;
+    const blobBefore = entry.change === "deleted" ? entry.blobBefore : null;
+    const problem: JournalProblem =
+      entry.change === "modified"
+        ? { kind: "plik-zmieniony", detail: "treść zmieniona w miejscu" }
+        : guarded === "drizzle-journal"
+          ? { kind: "dziennik-usuniety", detail: "plik dziennika usunięty" }
+          : { kind: "plik-usuniety", detail: "plik usunięty" };
+    const allowance = allowances.get(allowanceKey(entry.path, blobAfter, blobBefore));
+    if (allowance !== undefined) allow(allowance);
+    else violations.push({ ...problem, path: entry.path, blobAfter, blobBefore });
   }
 
   return {
@@ -499,12 +597,31 @@ const VIOLATION_SECTIONS: readonly (readonly [
   ],
 ];
 
-function allowanceLiteral(v: ImmutabilityViolation): string {
+/** Zmiana wpisu dziennika (nie usunięcie całego pliku) - wyjątek przez `journalChange`. */
+function isJournalEntryChange(v: ImmutabilityViolation): boolean {
+  return v.path === MIGRATION_JOURNAL_PATH && v.blobAfter !== null;
+}
+
+/** Klucz naruszenia - ten sam, pod którym rejestr by je dopuścił. */
+function violationKey(v: ImmutabilityViolation): string {
+  return isJournalEntryChange(v)
+    ? journalChangeKey(v.path, v.detail)
+    : allowanceKey(v.path, v.blobAfter, v.blobBefore);
+}
+
+/** Gotowy wpis rejestru albo `null`, gdy naruszenia nie da się dopuścić (nieczytelny dziennik). */
+function allowanceLiteral(v: ImmutabilityViolation): string | null {
+  const head = `{ path: ${JSON.stringify(v.path)}, kind: "other", reason: "",`;
+  if (isJournalEntryChange(v)) {
+    return JOURNAL_CHANGE_KINDS.has(v.kind)
+      ? `${head} journalChange: ${JSON.stringify(v.detail)} },`
+      : null;
+  }
   const blob =
     v.blobAfter === null
       ? `null, blobBefore: ${JSON.stringify(v.blobBefore)}`
       : JSON.stringify(v.blobAfter);
-  return `{ path: ${JSON.stringify(v.path)}, kind: "other", reason: "", blobAfter: ${blob} },`;
+  return `${head} blobAfter: ${blob} },`;
 }
 
 export function renderImmutabilityReport(
@@ -518,9 +635,13 @@ export function renderImmutabilityReport(
   if (report.allowed.length > 0) {
     lines.push(`ZMIANY DOPUSZCZONE REJESTREM MIGRATION_EDIT_ALLOWLIST (${report.allowed.length}):`);
     for (const a of report.allowed) {
-      lines.push(
-        `  [${a.kind}] ${a.path} (${a.blobAfter === null ? "usunięty" : "zmieniony"}): ${a.reason}`,
-      );
+      const what =
+        a.journalChange !== undefined
+          ? `wpis: ${a.journalChange}`
+          : a.blobAfter === null
+            ? "usunięty"
+            : "zmieniony";
+      lines.push(`  [${a.kind}] ${a.path} (${what}): ${a.reason}`);
     }
   }
   for (const [label, matches] of VIOLATION_SECTIONS) {
@@ -539,29 +660,35 @@ export function renderImmutabilityReport(
 
   const base = range.base.slice(0, 12);
   const files = report.violations.filter((v) => v.kind.startsWith("plik-")).map((v) => v.path);
-  const pasteable = new Map(
-    report.violations.map((v) => [allowanceKey(v.path, v.blobAfter, v.blobBefore), v]),
-  );
+  const pasteable = new Map(report.violations.map((v) => [violationKey(v), v]));
+  const literals = [...pasteable.values()].flatMap((v) => allowanceLiteral(v) ?? []);
   lines.push("Naprawa:");
   if (files.length > 0) {
-    lines.push(`  - przywróć pliki z bazy: git checkout ${base} -- ${files.join(" ")}`);
+    lines.push(
+      `  - przywróć pliki z bazy (gdy baza ma scaloną treść): git checkout ${base} -- ${files.join(" ")}`,
+    );
   }
   if (files.length < report.violations.length) {
     lines.push(
-      `  - przywróć dawne wpisy dziennika, a własne wygeneruj na końcu: git checkout ${base} -- ${DRIZZLE_DIR}/meta && bun run migrations:mirror`,
+      `  - przywróć dawne wpisy dziennika (gdy baza ma scaloną treść), a własne wygeneruj na końcu: git checkout ${base} -- ${DRIZZLE_DIR}/meta && bun run migrations:mirror`,
     );
   }
   lines.push(
+    "  - baza to commit bota (zmiana w miejscu na main), a ten PR przywraca scaloną treść: nie git checkout z bazy (przywróciłby treść bota), tylko wpis rejestru niżej - docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.4.",
     `  - zmiana schematu to NOWA migracja w ${SUPABASE_DIR}, potem bun run migrations:mirror; scalonych plików i wpisów się nie poprawia.`,
     "  - wyjątek tylko świadomie, w przeglądzie PR: wpis MIGRATION_EDIT_ALLOWLIST w src/lib/ci/migrationImmutability.ts (uzupełnij kind i reason):",
-    ...[...pasteable.values()].map((v) => `      ${allowanceLiteral(v)}`),
+    ...literals.map((literal) => `      ${literal}`),
     "    rewrite-unapplied: wyłącznie wpis, dla którego `bun run migrations:deploy-sql -- --verify --from <idx> --to <idx>` daje „brak w rejestrze” (docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.3, bun run migrations:mirror --rewrite <tag>);",
     "    bot-pending-fix: poprawka bota Lovable we wpisie jeszcze niewdrożonym; other: pełny powód w reason.",
   );
   return lines.join("\n");
 }
 
-/** `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: PR i main): brak bazy to błąd, nie ostrzeżenie. */
+/**
+ * `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: pull_request i push na main): brak
+ * bazy to błąd, nie ostrzeżenie. `workflow_dispatch` nie ma bazy zdarzenia, więc
+ * tam zmienna jest pusta, a krok CI bez zapamiętanej bazy jawnie nie porównuje.
+ */
 export const IMMUTABILITY_REQUIRE_BASE_ENV = "MIGRATION_IMMUTABILITY_REQUIRE_BASE";
 
 export function immutabilityBaseRequired(envValue: string | undefined): boolean {
@@ -577,6 +704,7 @@ export function renderImmutabilitySkipped(reason: string, required = false): str
     ...(required
       ? [
           `  ${IMMUTABILITY_REQUIRE_BASE_ENV}=1: pominięte porównanie wyglądałoby jak zielone, więc to błąd - pobierz commit bazy i uruchom ponownie.`,
+          "  Na main: zapamiętanej bazy, której nie ma już na origin (przepisana historia), ponowny przebieg nie pobierze - usuń jej wpis pamięci podręcznej Actions (gh cache delete migration-immutability-ok-<sha>, docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.4).",
         ]
       : []),
   ].join("\n");

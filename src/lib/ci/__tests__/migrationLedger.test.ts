@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DRIZZLE_DIR, JOURNAL_FREEZE_IDX, SUPABASE_DIR } from "../migrationLaneParity";
+import {
+  DRIZZLE_DIR,
+  JOURNAL_FREEZE_IDX,
+  MIRROR_LANE_START_IDX,
+  SUPABASE_DIR,
+} from "../migrationLaneParity";
 import { analyzeSupabaseCoverage } from "../supabaseLaneCoverage";
 import { mirrorHeader } from "../../migrations/mirrorHeader";
 import {
@@ -314,6 +319,35 @@ describe("drizzleProvenFiles: przydział z bramki pasów, wpisy po zamrożeniu",
     const report = buildLedgerReport(parsed, malformed, [], config);
     expect(report.drizzleProven).toBe(2);
     expect(ledgerFailed(report)).toBe(false);
+  });
+
+  // Runbook §5.4 pkt 2 każe podnieść JOURNAL_FREEZE_IDX do idx wpisu bota, którego
+  // SQL-a nie da się przenieść do pasa supabase. Gdyby granicą bramki rejestru było
+  // zamrożenie, podniesienie wróciłoby wszystkie wcześniejsze lustra do bramki
+  // `schema_migrations`, której nikt nie pisze - `check:migration-ledger` byłby
+  // czerwony na zawsze, a „naprawą" byłby zakazany ręczny INSERT.
+  it("podniesienie JOURNAL_FREEZE_IDX nie wraca luster ani plików adopcji do bramki rejestru (granica to stały start luster)", () => {
+    expect(MIRROR_LANE_START_IDX).toBe(399);
+    const raised = 405;
+    const BOT_401 = "0401_lovable_add_column";
+    const filesAfterRaise: Record<string, string> = {
+      ...files,
+      [`${DRIZZLE_DIR}/${BOT_401}.sql`]: SQL,
+    };
+    const raisedCoverage = analyzeSupabaseCoverage(["0300_old", "0399_mirrored", BOT_401], {
+      gaps: [],
+      read: (p) => filesAfterRaise[p] ?? null,
+      listSupabase: () => [OLD, MIRRORED, ADOPTED],
+      lanes: [],
+      preLane: null,
+      exceptions: new Set(),
+      freezeIdx: raised,
+    });
+    expect(raisedCoverage.copies.get(MIRRORED)).toBe("0399_mirrored");
+    expect(raisedCoverage.copies.get(ADOPTED)).toBe(BOT_401);
+    expect([...drizzleProvenFiles(raisedCoverage.copies)].sort()).toEqual([MIRRORED, ADOPTED]);
+    // Historia sprzed luster (kopia 0300) nadal wymagana w rejestrze.
+    expect(drizzleProvenFiles(raisedCoverage.copies).has(OLD)).toBe(false);
   });
 
   it("granica to idx wpisu: tag o idx równym zamrożeniu to historia, tag bez numeru - po zamrożeniu", () => {

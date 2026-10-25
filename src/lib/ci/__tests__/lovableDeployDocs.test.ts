@@ -327,6 +327,30 @@ describe("docs/RUNBOOK_MIGRACJE_LOVABLE.md - zgodność z kodem", () => {
   });
 });
 
+// Reguły, które agent wykonuje dosłownie z wklejonego polecenia (runbook §4.2) albo
+// z wiedzy projektu - oba dokumenty muszą mówić to samo, inaczej wygrywa łagodniejszy.
+describe("polecenie wdrożenia: te same reguły w runbooku i w wiedzy projektu", () => {
+  it("kontrola --pending: wiersz „zostanie wykonany” po DO zatrzymuje wdrożenie (wpisy innego scalonego PR)", () => {
+    // `--pending --from <OD>` bez `--to` wypisuje dziennik do końca i każdy wiersz
+    // po kotwicy ma rolę `zakres` - bez tej granicy partia innego PR przeszłaby kontrolę.
+    expect(RUNBOOK).toContain('żaden wiersz po <DO> nie ma „zostanie wykonany"');
+    expect(KNOWLEDGE).toMatch(/wiersz po DO z tym statusem[^\n]*= stop i raport/);
+  });
+
+  it("błąd przejściowy (55P03, 40P01, 57014): agent nie ponawia sam, ponowienie zleca właściciel", () => {
+    for (const text of [RUNBOOK, KNOWLEDGE]) {
+      expect(text).toMatch(/nie ponawia(?:j|sz) sam/);
+      expect(text).not.toMatch(/ponowi(?:ć|enie) kroku? 3/i);
+    }
+  });
+
+  it("zmiana bazy zlecona w czacie Lovable: wdrożenie dopiero na polecenie, po zielonym CI tego commitu", () => {
+    expect(KNOWLEDGE).toContain("Po commicie zatrzymaj się");
+    expect(KNOWLEDGE).toMatch(/dopiero na jego polecenie, gdy `Required release checks`/);
+    expect(RUNBOOK).toMatch(/dopiero na polecenie właściciela, gdy `Required release checks`/);
+  });
+});
+
 describe("AGENTS.md", () => {
   // AGENTS.md czyta każdy agent (także Lovable bez wklejonej wiedzy projektu), więc to jedyny
   // pewny kanał zasady wdrożenia: przekazanie SQL-a migracji narzędziu Lovable (dawna faza A)

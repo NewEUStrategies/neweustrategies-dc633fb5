@@ -78,6 +78,16 @@ export const SUPABASE_DIR = "supabase/migrations";
  */
 export const JOURNAL_FREEZE_IDX = 398;
 
+/**
+ * Pierwszy wpis dziennika z generatora lustra (2026-10-25). W przeciwieństwie do
+ * JOURNAL_FREEZE_IDX ta granica NIGDY się nie przesuwa: od niej plik niesiony
+ * przez wpis dziennika (lustro albo kopia - adopcja wpisu bota) ma dowód
+ * wdrożenia w rejestrze migratora Drizzle, nie w `schema_migrations`, więc
+ * `check:migration-ledger` go nie egzekwuje - także po podniesieniu zamrożenia
+ * (runbook §5.4 pkt 2).
+ */
+export const MIRROR_LANE_START_IDX = 399;
+
 /** Tag wyzwalacza wdrożenia (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.2; wiedza projektu Lovable). */
 export const DEPLOY_TRIGGER_TAG = /^\d{4,}_(?:pr\d+|lovable_\d{8})_deployment_completion$/;
 

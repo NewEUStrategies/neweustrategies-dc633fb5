@@ -11,37 +11,39 @@
 -- 2026-09-11 18:12:10.523+00, a wyzwalacz `profiles_set_updated` jest wyłączony
 -- tylko na moment przesunięć `updated_at` (konwencja suity, np.
 -- newsletter_settings_patch_test). Baza z pasa supabase nie ma tego śladu,
--- więc migracja była na niej no-opem - asercje 8-9 to przypinają.
+-- więc migracja była na niej no-opem - asercje 8-10 to przypinają.
 --
 -- CO PRZYPINA
 --   1-7.   rejestr korekty (RLS bez polityk, klient bez grantów, service_role:
 --          SELECT, INSERT, UPDATE tylko `notified_at`) i funkcja (SECURITY
 --          INVOKER, search_path i lock_timeout przypięte, EXECUTE tylko
 --          service_role, klient dostaje 42501);
---   8-9.   baza z tego pasa: rejestr pusty, wynik `no_cluster`;
---   10-13. bezpieczniki bez zmian: klaster za mały, dwa podobne klastry,
+--   8-10.  baza z tego pasa: rejestr pusty, wynik `no_cluster`, a wynik
+--          wywołania z migracji zapisany w komentarzu rejestru (NOTICE bywa
+--          niewidoczny, a po trwałym błędzie rejestr jest pusty);
+--   11-14. bezpieczniki bez zmian: klaster za mały, dwa podobne klastry,
 --          podpis niezgodny (false w klastrze), brak T_RESTORE pomija kubeł B;
---   14.    podgląd: T0001, T_RESTORE i liczebności kubłów;
---   15-18. błędy w trakcie korekty: przejściowy (55P03, 40P01) wychodzi
+--   15.    podgląd: T0001, T_RESTORE i liczebności kubłów;
+--   16-19. błędy w trakcie korekty: przejściowy (55P03, 40P01) wychodzi
 --          z funkcji, więc wsad migratora wycofa się i da ponowić; trwały
 --          (P0001) to wiersz `error` bez wyjątku; błąd przycięcia embeddingów
 --          (55P03) NIE unieważnia korekty (przebieg próbny w wycofanej
 --          podtransakcji);
---   19-25. potem korekta jako service_role: kubeł A (przestawieni
+--   20-26. potem korekta jako service_role: kubeł A (przestawieni
 --          i niezmieniani), kubeł B (rejestracja z okna DEFAULT true,
 --          niezmieniana), T_RESTORE przycięte do when(0013) + 1 h; opt-in
 --          sprzed 0001, późniejszy przełącznik, edycja i anomalia za sufitem
 --          NIETKNIĘTE; rejestr przed przestawieniem, bez stempla decyzji,
 --          embedding usunięty;
---   26-28. drugi przebieg: `already_applied`, zero zmian; potwierdzenie
+--   27-29. drugi przebieg: `already_applied`, zero zmian; potwierdzenie
 --          właściciela zdejmuje go z kubła C.
 --
 -- Awarię w trakcie przestawiania symuluje wyzwalacz testu na `profiles`
 -- (SQLSTATE z ustawienia `korekta_test.sqlstate`), a awarię przycięcia -
--- podmieniona `prune_profile_embeddings()`; oba znikają przed korektą 19-25.
+-- podmieniona `prune_profile_embeddings()`; oba znikają przed korektą 20-26.
 -- WYZWALACZE UŻYTKOWNIKA NA auth.users WYŁĄCZONE - konwencja suity.
 BEGIN;
-SELECT plan(28);
+SELECT plan(29);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -110,7 +112,7 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
--- ── 8-9. Baza z tego pasa: brak śladu 0001, migracja była no-opem ───────────
+-- ── 8-10. Baza z tego pasa: brak śladu 0001, migracja była no-opem ──────────
 SELECT is(
   (SELECT count(*)::integer FROM public.profiles_discoverable_corrections),
   0,
@@ -121,6 +123,14 @@ SELECT is(
   (SELECT status FROM public._profiles_discoverable_0001_correction(false)),
   'no_cluster',
   'baza z pasa supabase: brak klastra w oknie 0001 -> no_cluster'
+);
+
+-- Wynik wywołania z migracji zostaje w katalogu: po trwałym błędzie rejestr jest
+-- pusty, a podgląd (p_apply = false) pokazałby tylko `dry_run` bez SQLSTATE.
+SELECT matches(
+  obj_description('public.profiles_discoverable_corrections'::regclass, 'pg_class'),
+  E'^Rejestr korekty wpisu 0001 .*\nWynik korekty przy wdrożeniu \\(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC\\): no_cluster \\(.* - Brak klastra',
+  'komentarz rejestru: opis tabeli i wynik korekty przy wdrożeniu (tu: no_cluster) ze szczegółem'
 );
 
 -- ── Fikstura: historia 0001 (T0001 = 2026-09-11 18:12:10.523+00) ────────────
@@ -166,7 +176,7 @@ SELECT ('e8c00000-0000-4000-8000-0000000000' || lpad(v.n::text, 2, '0'))::uuid,
   ) AS v(n, d, c, u);
 
 -- Pozostałe profile bazy (seed): niezmieniane konta z false założone po T0001
--- wyznaczałyby T_RESTORE - tu mają go nie wyznaczać (asercja 13).
+-- wyznaczałyby T_RESTORE - tu mają go nie wyznaczać (asercja 14).
 ALTER TABLE public.profiles DISABLE TRIGGER profiles_set_updated;
 UPDATE public.profiles SET updated_at = created_at + interval '1 minute'
  WHERE tenant_id <> 'e8c00000-0000-4000-8000-000000000000'
@@ -179,7 +189,7 @@ INSERT INTO public.profile_embeddings (profile_id, tenant_id, content_hash, embe
 VALUES ('e8c00000-0000-4000-8000-000000000001', 'e8c00000-0000-4000-8000-000000000000',
         'hash-k1', array_fill(0.1::double precision, ARRAY[768])::extensions.vector);
 
--- ── 10-13. Bezpieczniki: wynik diagnostyczny, ZERO zmian ────────────────────
+-- ── 11-14. Bezpieczniki: wynik diagnostyczny, ZERO zmian ────────────────────
 SELECT is(
   (SELECT status || '|' || cluster_rows FROM public._profiles_discoverable_0001_correction(true)),
   'cluster_too_small|9',
@@ -245,7 +255,7 @@ INSERT INTO public.profiles (id, tenant_id, email, display_name, discoverable, c
   ('e8c00000-0000-4000-8000-000000000026', 'e8c00000-0000-4000-8000-000000000000',
    'k26@korekta.test', 'K26', false, '2026-09-13 21:00+00', '2026-09-13 21:00+00');
 
--- ── 14. Podgląd ─────────────────────────────────────────────────────────────
+-- ── 15. Podgląd ─────────────────────────────────────────────────────────────
 SELECT results_eq(
   $$ SELECT status, measured_t0001, measured_t_restore, cluster_rows, next_cluster_rows,
             bucket_a_rows, bucket_b_rows, bucket_c_rows
@@ -255,7 +265,7 @@ SELECT results_eq(
   'podgląd: T0001 z klastra, T_RESTORE (21:00) przycięte do when(0013) + 1 h, A 12, B 1, C 4'
 );
 
--- ── 15-18. Błędy w trakcie korekty ──────────────────────────────────────────
+-- ── 16-19. Błędy w trakcie korekty ──────────────────────────────────────────
 CREATE FUNCTION public.korekta_test_awaria() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
@@ -325,7 +335,7 @@ SELECT results_eq(
   'błąd przycięcia embeddingów (55P03) nie unieważnia korekty: applied, A 12, B 1, rejestr 13, embeddings_pruned NULL'
 );
 
--- ── 19-25. Korekta jako service_role ────────────────────────────────────────
+-- ── 20-26. Korekta jako service_role ────────────────────────────────────────
 SELECT ok(
   (SELECT count(*) FROM public.profiles_discoverable_corrections) = 0
   AND (SELECT count(*) FROM public.profiles
@@ -403,7 +413,7 @@ SELECT is(
   'embedding profilu z kubła A usunięty (prune_profile_embeddings)'
 );
 
--- ── 26-28. Drugi przebieg i potwierdzenie właściciela ──────────────────────
+-- ── 27-29. Drugi przebieg i potwierdzenie właściciela ──────────────────────
 SELECT results_eq(
   $$ SELECT status, measured_t0001, measured_t_restore, cluster_rows,
             bucket_a_rows, bucket_b_rows, bucket_c_rows

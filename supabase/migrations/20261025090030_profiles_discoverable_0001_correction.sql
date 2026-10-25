@@ -95,7 +95,10 @@
 --      robi co godzinę zadanie embeddingów. Przestawienie przesuwa
 --      `updated_at` (to prawdziwa zmiana wiersza) i zostawia
 --      `discoverable_decided_at` = NULL (to nie jest decyzja właściciela).
---   3. Jedno wywołanie z p_apply = true i NOTICE z wynikiem.
+--   3. Jedno wywołanie z p_apply = true, NOTICE z wynikiem i ten sam wynik
+--      dopisany do komentarza rejestru: NOTICE bywa niewidoczny w panelu
+--      Lovable, a po trwałym błędzie rejestr jest pusty i podgląd
+--      (p_apply = false) pokazałby tylko `dry_run`, bez SQLSTATE.
 --
 -- CZEGO NIE ZMIENIA
 --   * DEFAULT-u: false od 20260913150000 / 0011 / 0013.
@@ -343,15 +346,26 @@ REVOKE ALL ON FUNCTION public._profiles_discoverable_0001_correction(boolean) FR
 GRANT EXECUTE ON FUNCTION public._profiles_discoverable_0001_correction(boolean) TO service_role;
 
 -- ----------------------------------------------------------------------------
--- 3) Jedno wywołanie: na produkcji korekta, na bazie z tego pasa no-op
+-- 3) Jedno wywołanie: na produkcji korekta, na bazie z tego pasa no-op.
+--    Wynik idzie do NOTICE i do komentarza rejestru (trwały w katalogu):
+--    SELECT obj_description('public.profiles_discoverable_corrections'::regclass);
 -- ----------------------------------------------------------------------------
 DO $$
 DECLARE
-  r record;
+  r      record;
+  v_line text;
 BEGIN
   SELECT * INTO r FROM public._profiles_discoverable_0001_correction(true);
-  RAISE NOTICE 'profiles.discoverable, korekta 0001: % (T0001 %, T_RESTORE %, klaster % / następny %, A %, B %, C %, embeddingi %) - %',
-    r.status, r.measured_t0001, r.measured_t_restore, r.cluster_rows, r.next_cluster_rows,
-    r.bucket_a_rows, r.bucket_b_rows, r.bucket_c_rows, r.embeddings_pruned, r.detail;
+  v_line := format('%s (T0001 %s, T_RESTORE %s, klaster %s / następny %s, A %s, B %s, C %s, embeddingi %s) - %s',
+    VARIADIC array_replace(ARRAY[
+      r.status, r.measured_t0001::text, r.measured_t_restore::text, r.cluster_rows::text,
+      r.next_cluster_rows::text, r.bucket_a_rows::text, r.bucket_b_rows::text,
+      r.bucket_c_rows::text, r.embeddings_pruned::text, r.detail], NULL, '<NULL>'));
+  RAISE NOTICE 'profiles.discoverable, korekta 0001: %', v_line;
+  EXECUTE format('COMMENT ON TABLE public.profiles_discoverable_corrections IS %L',
+    concat_ws(E'\n',
+      obj_description('public.profiles_discoverable_corrections'::regclass, 'pg_class'),
+      format('Wynik korekty przy wdrożeniu (%s UTC): %s',
+             to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), v_line)));
 END
 $$;

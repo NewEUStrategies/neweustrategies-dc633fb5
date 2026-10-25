@@ -14,8 +14,9 @@
  *
  * Zakres bramki (bazowa linia + uzgodnienia) opisuje `supabase/migration-ledger.json`.
  *
- * Poza zakresem są pliki niesione przez wpis dziennika drizzle po zamrożeniu
- * (JOURNAL_FREEZE_IDX): lustro z `bun run migrations:mirror` (nagłówek
+ * Poza zakresem są pliki niesione przez wpis dziennika drizzle od
+ * MIRROR_LANE_START_IDX (0399, granica stała - podniesienie JOURNAL_FREEZE_IDX
+ * wg runbooka §5.4 pkt 2 jej nie przesuwa): lustro z `bun run migrations:mirror` (nagłówek
  * `-- migrations-mirror: supabase/migrations/<plik>`) albo wpis bota Lovable,
  * którego SQL adoptował plik supabase (runbook §5.4 pkt 1). Migrator Drizzle
  * zapisuje je w `drizzle.__drizzle_migrations`, nie w `schema_migrations`.
@@ -31,11 +32,7 @@
  */
 import { probeMigrationVersions } from "../src/lib/ci/deploymentProbe";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import {
-  DRIZZLE_DIR,
-  JOURNAL_FREEZE_IDX,
-  type JournalEntry,
-} from "../src/lib/ci/migrationLaneParity";
+import { DRIZZLE_DIR, type JournalEntry } from "../src/lib/ci/migrationLaneParity";
 import {
   buildLedgerReport,
   drizzleProvenFiles,
@@ -89,7 +86,7 @@ function isTagged(entry: unknown): entry is Pick<JournalEntry, "tag"> {
   );
 }
 
-/** Pliki `supabase/migrations/` niesione przez wpisy dziennika po zamrożeniu. */
+/** Pliki `supabase/migrations/` niesione przez wpisy dziennika od MIRROR_LANE_START_IDX. */
 function loadDrizzleProven(): ReadonlySet<string> {
   const journal: unknown = JSON.parse(readFileSync(JOURNAL_PATH, "utf8"));
   const entries: unknown =
@@ -100,7 +97,7 @@ function loadDrizzleProven(): ReadonlySet<string> {
     throw new Error(`${JOURNAL_PATH}: oczekiwano obiektu z listą 'entries' wpisów z 'tag'.`);
   }
   const { copies } = analyzeSupabaseCoverage(entries.map((e) => e.tag));
-  return drizzleProvenFiles(copies, JOURNAL_FREEZE_IDX);
+  return drizzleProvenFiles(copies);
 }
 
 async function main(): Promise<void> {

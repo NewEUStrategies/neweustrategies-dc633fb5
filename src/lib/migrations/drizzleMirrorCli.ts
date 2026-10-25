@@ -24,7 +24,8 @@ export const MIRROR_USAGE = [
   "  (domyślnie)      zapis: dopisuje do dziennika drizzle lustra nowych migracji supabase",
   "  --check          CI: kod 1, gdy zapis cokolwiek by zmienił albo plan ma błędy (bez bazy, chyba że --base)",
   "  --dry-run        pokaż plan, nic nie zapisuj",
-  "  --base <ref>     dziennik bazy dla luster lokalnych gałęzi (domyślnie origin/main, potem main)",
+  "  --base <ref>     dziennik bazy dla luster lokalnych gałęzi (domyślnie origin/main, potem main;",
+  "                   zapis i --dry-run bez --base najpierw pobierają origin/main: git fetch)",
   "  --no-base        bez bazy: tylko dopisywanie",
   "  --rewrite <tag>  przepisz lustro z bazy z bieżącego źródła (idx, when i snapshot bez zmian) -",
   "                   WYŁĄCZNIE wpis, którego produkcja nie zapisała (docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.3)",
@@ -175,7 +176,7 @@ function resolveBase(
     deps.log(`Baza luster lokalnych: ${base.ref}${at} (wpisy dziennika: ${base.entries.length}).`);
     if (base.fetch === "failed")
       deps.log(
-        `UWAGA: nie udało się pobrać ${base.ref} (git fetch) - baza może być nieaktualna. Lustro innego PR-a, które jest już na main, a nie w tej bazie, generator uznałby za lokalne i przenumerował: przed zapisem pobierz main (git fetch origin main) i uruchom ponownie.`,
+        `UWAGA: nie udało się pobrać ${base.ref} (git fetch) - baza może być nieaktualna. Lustro innego PR-a, które jest już na main, a nie w tej bazie, generator uznałby za lokalne i przenumerował: przed zapisem pobierz main (git fetch origin +refs/heads/main:refs/remotes/origin/main) i uruchom ponownie.`,
       );
     return { base };
   }

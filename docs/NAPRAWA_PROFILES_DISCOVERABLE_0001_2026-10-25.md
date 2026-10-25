@@ -136,19 +136,21 @@ w transakcji tylko do odczytu).
 
 Błąd przejściowy (55P03 po `lock_timeout` 5 s, 40P01 zakleszczenie, 57014 anulowanie albo
 `statement_timeout`) nie daje statusu `error`: funkcja rzuca go dalej, cały wsad migratora się
-wycofuje, wpis zostaje oczekujący, a runbook (§4.6 w `docs/RUNBOOK_MIGRACJE_LOVABLE.md`) pozwala
-ponowić wdrożenie. Połknięty, zapisałby wpis w rejestrze migratora jako wykonany, choć korekta
-niczego nie zmieniła - i ponowienie nie byłoby już możliwe.
+wycofuje, wpis zostaje oczekujący, a właściciel ponawia wdrożenie później, w oknie (runbook §4.6
+w `docs/RUNBOOK_MIGRACJE_LOVABLE.md`). Połknięty, zapisałby wpis w rejestrze migratora jako
+wykonany, choć korekta niczego nie zmieniła - i ponowienie nie byłoby już możliwe.
 
 Rejestr `profiles_discoverable_corrections`: `profile_id`, `tenant_id`, `bucket`, `t0001`,
 `t_restore`, `corrected_at`, `notified_at`. RLS bez polityk, klient bez grantów, `service_role`
 czyta, dopisuje i zmienia wyłącznie `notified_at` (wiersz jest dowodem korekty). Wiersz znika
 razem z profilem (`ON DELETE CASCADE`).
 
-Migracja tworzy rejestr i funkcję, wywołuje ją raz z `p_apply = true` i wypisuje wynik jako
-`NOTICE`. Bezpiecznik i trwały błąd nie rzucają wyjątku: migrator Lovable wykonuje wszystkie
-oczekujące wpisy w jednej transakcji, więc wyjątek wycofałby też cudze wpisy, a ponowienie nie
-zmieni danych, które go wywołały.
+Migracja tworzy rejestr i funkcję, wywołuje ją raz z `p_apply = true`, wypisuje wynik jako
+`NOTICE` i ten sam wynik (status, pomiary, `detail` z SQLSTATE przy `error`) dopisuje do
+komentarza tabeli `profiles_discoverable_corrections` - `NOTICE` bywa niewidoczny, a po trwałym
+błędzie rejestr jest pusty. Bezpiecznik i trwały błąd nie rzucają wyjątku: migrator Lovable
+wykonuje wszystkie oczekujące wpisy w jednej transakcji, więc wyjątek wycofałby też cudze wpisy,
+a ponowienie nie zmieni danych, które go wywołały.
 
 Czego zmiana **nie** robi: nie zmienia `DEFAULT`-u (`false` od 0011/0013), nie dotyka kubła C ani
 nikogo z `true` sprzed 0001, nie kopiuje i nie powtarza wpisu 0001.
@@ -190,11 +192,14 @@ nikogo z `true` sprzed 0001, nie kopiuje i nie powtarza wpisu 0001.
   scalenia do wyzwolenia (runbook §9.2) nikt nie wywołuje narzędzia migracji.
 - `ADD COLUMN` na `profiles` zmienia tylko katalog, ale trzyma blokadę ACCESS EXCLUSIVE do końca
   wsadu; `lock_timeout` 5 s (ustawiony już we wpisie z indeksami `membership_grants`) zamienia
-  długie czekanie na szybkie 55P03, po którym runbook pozwala ponowić.
+  długie czekanie na szybkie 55P03, po którym właściciel ponawia wdrożenie później (runbook §4.6).
 
 ## 4. Weryfikacja po wdrożeniu (tylko odczyt, SQL Editor)
 
 ```sql
+-- 0. Wynik korekty przy wdrożeniu (zapisany przez migrację w komentarzu rejestru)
+SELECT obj_description('public.profiles_discoverable_corrections'::regclass, 'pg_class');
+
 -- 1. Wynik korekty z rejestru
 SELECT bucket, count(*) AS profiles, min(t0001) AS t0001, min(t_restore) AS t_restore,
        min(corrected_at) AS corrected_at
@@ -219,15 +224,30 @@ SELECT tgname
  ORDER BY tgname;
 ```
 
-Jak czytać zapytanie 2:
+Jak czytać zapytanie 0 - ostatnia linia komentarza to wynik wywołania z migracji:
+`Wynik korekty przy wdrożeniu (<chwila> UTC): <status> (<pomiary>) - <detail>`.
+
+- `applied` - korekta wykonana; liczby kubłów są w rejestrze (zapytanie 1).
+- status bezpiecznika (`no_cluster`, `cluster_too_small`, `cluster_not_dominant`,
+  `cluster_signature_mismatch`) - korekta **niczego nie zmieniła** (rejestr pusty), a `detail`
+  mówi dlaczego.
+- `error` - trwały błąd w trakcie korekty: rejestr pusty, profile bez zmian, `detail` zaczyna
+  się od SQLSTATE i komunikatu - to przyczyna do usunięcia nową migracją.
+- błąd 42P01 (tabeli nie ma) - wsad z korektą się nie wykonał (np. błąd przejściowy wycofał go
+  w całości): wdrożenie ponawia się według runbooka (§4.6).
+
+Jak czytać zapytanie 2 (liczy na bieżąco; wynik wdrożenia daje zapytanie 0):
 
 - `already_applied` - korekta wykonana; `bucket_a_rows` i `bucket_b_rows` pochodzą z rejestru,
   `bucket_c_rows` liczy na bieżąco profile do ponownego pytania (maleje, gdy ludzie potwierdzają).
-- dowolny inny status - korekta **niczego nie zmieniła** (rejestr pusty), a `detail` mówi
-  dlaczego. Wtedy pomiar okna 0001 (poniżej) pokazuje rzeczywisty kształt danych; kolejny krok to
-  nowa migracja przez generator lustra, nie ręczny SQL na produkcji.
-- błąd 42883 (funkcji nie ma) - wsad z korektą się nie wykonał (np. błąd przejściowy wycofał go
-  w całości): wdrożenie ponawia się według runbooka (§4.6).
+- `dry_run` - rejestr jest pusty, a bezpieczniki dziś przechodzą: przy wdrożeniu korekta niczego
+  nie zmieniła (`error` albo, gdy wszystkie zmierzone wiersze zmieniły się przed blokadą,
+  `applied` z zerami) - przyczynę podaje zapytanie 0, nie `detail` podglądu (to tylko plan).
+- status bezpiecznika - jak w zapytaniu 0; pomiar okna 0001 (poniżej) pokazuje rzeczywisty
+  kształt danych. Kolejny krok to nowa migracja przez generator lustra, nie ręczny SQL na
+  produkcji.
+- błąd 42883 (funkcji nie ma) - wsad z korektą się nie wykonał: wdrożenie ponawia się według
+  runbooka (§4.6).
 
 ```sql
 -- Pomiar okna 0001 (tylko odczyt): klastry identycznych updated_at w when(0001) ± 1 h
@@ -242,8 +262,8 @@ HAVING count(*) > 1
  LIMIT 5;
 ```
 
-`NOTICE` migracji może nie być widoczny w panelu Lovable - źródłem prawdy są rejestr i wiersz
-diagnostyczny.
+`NOTICE` migracji może nie być widoczny w panelu Lovable - źródłem prawdy są rejestr i wynik
+w komentarzu rejestru (zapytanie 0).
 
 ## 5. Dalsze kroki (poza tą zmianą)
 

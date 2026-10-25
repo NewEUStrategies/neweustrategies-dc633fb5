@@ -108,13 +108,22 @@ jobs:
       # niczego nie zapamiętuje - dlatego concurrency może dalej anulować
       # starsze przebiegi main. Checkout zostaje płytki (depth 1): diff dwóch
       # drzew nie potrzebuje historii, wystarczy dociągnąć jeden commit bazy.
-      # MIGRATION_IMMUTABILITY_REQUIRE_BASE=1: niedostępna baza to błąd, nie
-      # ostrzeżenie - pominięte porównanie nie może wyglądać jak zielone.
-      # Zapamiętujemy wyłącznie przebieg z prawdziwą bazą (`compared`), nigdy
-      # porównanie HEAD z samym sobą (workflow_dispatch bez zapamiętanej bazy).
+      # MIGRATION_IMMUTABILITY_REQUIRE_BASE=1 (pull_request i push): niedostępna
+      # baza to błąd, nie ostrzeżenie - pominięte porównanie nie może wyglądać
+      # jak zielone. workflow_dispatch nie ma bazy zdarzenia: bez zapamiętanej
+      # bazy (gałąź inna niż main, pusta pamięć podręczna) krok kończy się
+      # jawną adnotacją „nie porównano", nigdy porównaniem HEAD z samym sobą.
+      # Zapamiętana baza nie jest brana, gdy to ten sam commit (ponowny przebieg
+      # albo dispatch na zapamiętanym commicie) albo gdy HEAD jest jej przodkiem
+      # (ponowny przebieg starszego, anulowanego commitu - diff szedłby wstecz):
+      # wtedy bazą jest `github.event.before` i niczego nie zapamiętujemy, żeby
+      # baza nie cofała się. Zapamiętanej bazy, której nie ma już na origin
+      # (przepisana historia main), zastępuje `github.event.before` z
+      # ostrzeżeniem - zielony przebieg zapamięta nową bazę.
+      # Zapamiętujemy wyłącznie przebieg z prawdziwą bazą (`compared`).
       - name: Restore the last main commit that passed migration immutability
         if: ${{ !cancelled() && steps.install.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/migration-immutability/last-ok
           key: migration-immutability-ok-${{ github.sha }}
@@ -126,18 +135,45 @@ jobs:
         env:
           EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           LAST_OK: ${{ runner.temp }}/migration-immutability/last-ok
-          MIGRATION_IMMUTABILITY_REQUIRE_BASE: "1"
+          # Token tylko dla porównania przodków (compare API) poza PR-ami.
+          GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
+          MIGRATION_IMMUTABILITY_REQUIRE_BASE: ${{ github.event_name != 'workflow_dispatch' && '1' || '' }}
         run: |
+          zero=0000000000000000000000000000000000000000
           base="$EVENT_BASE"
+          from_last_ok=""
+          remember=true
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ -s "$LAST_OK" ]; then
-            base="$(cat "$LAST_OK")"
-            echo "Baza porównania: ostatni commit main z zieloną bramką niezmienności ($base)."
+            candidate="$(cat "$LAST_OK")"
+            if [ "$candidate" = "$GITHUB_SHA" ]; then
+              echo "Ten commit przeszedł już bramkę - porównanie z github.event.before, bez zapamiętywania."
+              remember=false
+            elif [ "$(gh api "repos/$GITHUB_REPOSITORY/compare/$candidate...$GITHUB_SHA?per_page=1" --jq .status 2>/dev/null)" = behind ]; then
+              echo "::notice title=Niezmienność migracji::HEAD jest przodkiem zapamiętanej bazy $candidate (ponowny przebieg starszego commitu) - porównanie z github.event.before, bez zapamiętywania."
+              remember=false
+            else
+              base="$candidate"
+              from_last_ok=1
+              echo "Baza porównania: ostatni commit main z zieloną bramką niezmienności ($base)."
+            fi
+          fi
+          if [ -z "$base" ] && [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            echo "::notice title=Niezmienność migracji::workflow_dispatch bez bazy porównania (gałąź inna niż main albo brak zapamiętanego commitu) - nie porównano; bramkę egzekwują przebiegi pull_request i push."
+            exit 0
           fi
           case "$base" in
-            "" | 0000000000000000000000000000000000000000) ;;
+            "" | "$zero") ;;
             *)
-              git fetch --no-tags --depth=1 origin "$base" || echo "::warning::Nie udało się pobrać commitu bazy $base."
-              echo "compared=true" >> "$GITHUB_OUTPUT"
+              if ! git fetch --no-tags --depth=1 origin "$base"; then
+                if [ -n "$from_last_ok" ] && [ -n "$EVENT_BASE" ] && [ "$EVENT_BASE" != "$zero" ]; then
+                  echo "::warning title=Niezmienność migracji::Zapamiętanej bazy $base nie ma na origin (przepisana historia main?) - porównanie z github.event.before ($EVENT_BASE). Stary wpis: gh cache delete migration-immutability-ok-$base (runbook §6.4)."
+                  base="$EVENT_BASE"
+                  git fetch --no-tags --depth=1 origin "$base" || echo "::warning::Nie udało się pobrać commitu bazy $base."
+                else
+                  echo "::warning::Nie udało się pobrać commitu bazy $base."
+                fi
+              fi
+              if [ "$remember" = true ]; then echo "compared=true" >> "$GITHUB_OUTPUT"; fi
               ;;
           esac
           MIGRATION_IMMUTABILITY_BASE="$base" bun run check:migration-immutability
@@ -152,7 +188,7 @@ jobs:
 
       - name: Save the migration immutability base
         if: ${{ !cancelled() && steps.immutability.outcome == 'success' && steps.immutability.outputs.compared == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/migration-immutability/last-ok
           key: migration-immutability-ok-${{ github.sha }}

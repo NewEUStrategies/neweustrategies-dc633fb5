@@ -251,7 +251,8 @@ describe("runMirrorCli", () => {
     expect(fetched.out).not.toContain("nie udało się pobrać");
     const stale = run(["--dry-run"], repo, { ...BASE, commit, fetch: "failed" });
     expect(stale.out).toContain("UWAGA: nie udało się pobrać origin/main (git fetch)");
-    expect(stale.out).toContain("git fetch origin main");
+    // Jawny refspec: w klonie jednej gałęzi `git fetch origin main` nie odświeża origin/main.
+    expect(stale.out).toContain("git fetch origin +refs/heads/main:refs/remotes/origin/main");
     expect(stale.code).toBe(0);
   });
 

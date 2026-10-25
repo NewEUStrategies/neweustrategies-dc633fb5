@@ -179,6 +179,12 @@ export interface MirrorBase {
    * ostateczne. Brak pola = scalona (ostrzejsza kontrola).
    */
   readonly merged?: boolean;
+  /**
+   * Klon płytki, a `merged` = false: git nie rozstrzyga, czy baza jest przodkiem
+   * HEAD (granica płytkiej historii), więc ostrzeżenie każe pogłębić historię,
+   * nie scalać.
+   */
+  readonly shallow?: boolean;
   /** Commit bazy do komunikatów (SHA i data commitu). */
   readonly commit?: { readonly sha: string; readonly date: string };
   /** Wynik `git fetch` bazy przed odczytem; brak = nie pobierano (jawne `--base`). */
@@ -610,13 +616,10 @@ function unmergedBaseWarning(base: MirrorBase | null): MirrorWarning[] {
   if (base?.merged !== false) return [];
   const at =
     base.commit === undefined ? "" : ` (${base.commit.sha.slice(0, 12)} z ${base.commit.date})`;
-  return [
-    {
-      kind: "baza-niescalona",
-      path: DRIZZLE_JOURNAL,
-      detail: `gałąź nie scaliła ${base.ref}${at}: wpisy dopisane tam od rozgałęzienia staną przed lustrami gałęzi, więc ich idx i when zmienią się po scaleniu - plan nie podaje linii do opisu PR. Najpierw git merge ${base.ref}, potem bun run migrations:mirror.`,
-    },
-  ];
+  const detail = base.shallow
+    ? `klon jest płytki i git nie rozstrzyga, czy gałąź scaliła ${base.ref}${at} (granica historii) - plan nie podaje linii do opisu PR i nie sprawdza wpisów bazy usuniętych z dziennika gałęzi. Pogłęb historię: git fetch --unshallow origin (albo git fetch --deepen=<n>), potem bun run migrations:mirror.`
+    : `gałąź nie scaliła ${base.ref}${at}: wpisy dopisane tam od rozgałęzienia staną przed lustrami gałęzi, więc ich idx i when zmienią się po scaleniu - plan nie podaje linii do opisu PR. Najpierw git merge ${base.ref}, potem bun run migrations:mirror.`;
+  return [{ kind: "baza-niescalona", path: DRIZZLE_JOURNAL, detail }];
 }
 
 interface Generated {
