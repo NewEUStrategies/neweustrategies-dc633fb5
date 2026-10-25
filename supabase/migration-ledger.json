@@ -6,7 +6,8 @@
     "  bramka obiektowa `check:db-contract`. Linia może TYLKO rosnąć.",
     "reconciled: plik migracji -> wersja, pod którą pipeline faktycznie wykonał ten SQL",
     "  (dotyczy migracji przyniesionych w PR-ze i odtworzonych pod nową wersją).",
-    "  Wpis nie zwalnia z kontroli - bramka sprawdza wskazaną wersję w rejestrze."
+    "  Wpis nie zwalnia z kontroli - bramka sprawdza wskazaną wersję w rejestrze.",
+    "Lustro drizzle (bez konfiguracji): wdrożenie pliku niesionego przez wpis dziennika drizzle z `bun run migrations:mirror` dowodzi drizzle.__drizzle_migrations (`bun run migrations:deploy-sql -- --verify`), a nie ten rejestr; nikt nie dopisuje wierszy do supabase_migrations.schema_migrations."
   ],
   "baseline": "20260825230232",
   "reconciled": {

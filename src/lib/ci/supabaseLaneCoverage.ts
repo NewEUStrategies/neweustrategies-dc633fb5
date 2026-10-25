@@ -1,23 +1,23 @@
 // Bramka pasów migracji, KIERUNEK ODWROTNY: każdy plik `supabase/migrations/`
 // od startu pasa drizzle ma kopię w dzienniku drizzle.
 //
-// Kierunek prosty (`migrationLaneParity.ts`) pilnuje, żeby plik dołożony tylko
-// do drizzle/ nie przeszedł po cichu. Kierunku supabase -> drizzle nie
-// pilnowało nic, a według dokumentacji repozytorium to on decyduje
-// o produkcji: od startu pasa drizzle (jego pierwszy wpis,
-// 0000_search_people_super_admin_bypass, to bliźniak 20260911160000) produkcja
-// wykonuje dziennik `_journal.json` (docs/PROMPT_ZAPROSZENIE_GRANICA_NAJEMCY.md,
-// „Migracja w obu pasach"; docs/WDROZENIE_KOD_KWOTOWY_NA_BILET_2026-09-26.md,
-// sekcja 1). Plik leżący tylko w supabase/ przechodzi pgTAP i każdą bramkę
-// `check:sql-*`, a nic w repozytorium nie dowodzi, że trafił na produkcję.
+// MODEL (docs/RUNBOOK_MIGRACJE_LOVABLE.md). `supabase/migrations` jest jedynym
+// źródłem prawdy, a `drizzle/` - lustrem generowanym przez
+// `bun run migrations:mirror`. Produkcja (Lovable Cloud) dostaje schemat
+// wyłącznie migratorem Drizzle, który narzędzie migracji Lovable uruchamia na
+// `drizzle/migrations/meta/_journal.json`; plików przychodzących przez Git
+// Lovable nie wykonuje. Plik leżący tylko w supabase/ przechodzi pgTAP i każdą
+// bramkę `check:sql-*`, a na produkcję nie trafi, dopóki nie ma kopii w dzienniku.
+// Kierunek prosty (`migrationLaneParity.ts`) pilnuje drugiej strony: wpisu
+// dziennika bez źródła w supabase/.
 //
-// Tak przepadło 20261007140300_subscriptions_tenant_from_owner: wyzwalacz
-// przypinający `subscriptions.tenant_id` do najemcy WŁAŚCICIELA, bez którego
-// webhook płatności pod rolą serwisową zapisywał subskrypcję do najemcy
-// DOMYŚLNEGO (ten widział cudze, właściwy - żadnej). pgTAP był zielony, bo baza
-// testowa ma ten plik; dziennik drizzle nie miał jego kopii. Kopia przyszła
-// dopiero jako 0305 (razem z 0306 dla
-// 20261018100000_payment_webhook_events_follow_subscription_tenant).
+// PRZYKŁAD LUKI. 20261007140300_subscriptions_tenant_from_owner (wyzwalacz
+// przypinający `subscriptions.tenant_id` do najemcy WŁAŚCICIELA) do 2026-10-18
+// nie miał kopii w dzienniku, więc repozytorium nie dowodziło, że jest na
+// produkcji (mógł tam trafić narzędziem z panelu - tego nie wiadomo). pgTAP był
+// zielony, bo baza testowa ma ten plik. Kopia weszła jako 0305 (razem z 0306
+// dla 20261018100000_payment_webhook_events_follow_subscription_tenant),
+// a webhook od tamtej pory wpisuje najemcę jawnie.
 //
 // CO ZNACZY „POKRYTY". Plik supabase z wersją >= DRIZZLE_LANE_START jest
 // pokryty, gdy:
@@ -28,7 +28,10 @@
 //   (ii)  wpis MIGRATION_LANES o tagu Z DZIENNIKA wskazuje go jako `twin`
 //         (kierunek prosty pilnuje wtedy, że treść jest ta sama),
 //   (iii) ma wpis w SUPABASE_LANE_GAPS: `coveredBy` (SQL wszedł do dziennika
-//         w zestawieniu albo w pliku o innej treści) albo `pending` (ZNANY brak).
+//         w zestawieniu albo w pliku o innej treści) albo `appliedOutOfBand`
+//         (plik spoza dziennika, patrz niżej).
+// Plik bez pokrycia to `brak-kopii-drizzle` - i dokładnie te pliki generator
+// lustra dopisuje do dziennika.
 //
 // `coveredBy` JEST MIERZONE PRZY KAŻDYM PRZEBIEGU, nie deklarowane: każda
 // instrukcja pliku (poza `COMMENT ON`) musi stać w którymś ze wskazanych plików
@@ -37,8 +40,8 @@
 // wpis wymienia z początku w `uncovered` (do granicy słowa), a `reason` mówi,
 // czemu to nie zmienia stanu bazy. Inaczej wpis z dowolnym tagiem dziennika
 // zazieleniłby plik, którego treści w dzienniku nie ma. Zestawienie musi nieść
-// choć jedną instrukcję pliku, a `uncovered` - jak `pending` - przysługuje
-// wyłącznie plikom z GAP_EXCEPTIONS_AT_GATE_START.
+// choć jedną instrukcję pliku, a `uncovered` - jak `appliedOutOfBand` -
+// przysługuje wyłącznie plikom z GAP_EXCEPTIONS_AT_GATE_START.
 //
 // DLACZEGO (ii) TYLKO DLA TAGÓW Z DZIENNIKA. Dziesięć wpisów `twin` należy do
 // sierot spoza `_journal.json` (KNOWN_ORPHAN_LANE_ENTRIES, np.
@@ -46,15 +49,23 @@
 // dowodzą niczego. Tamte pliki supabase mają w rejestrze `coveredBy`
 // wskazujące kopię, która JEST w dzienniku (0094 itd.).
 //
-// DLACZEGO `pending` NIE CZERWIENI CI. W dniu włączenia 23 pliki nie mają
-// w dzienniku żadnego śladu, a repozytorium nie mówi, czy produkcja je ma
-// (dziennik woła nawet funkcje zdefiniowane wyłącznie w dwóch z nich - mogły
-// pójść narzędziem albo z panelu). Bramka czerwona od pierwszego dnia zostaje
-// wyłączona; bramka, która milczy, powtarza incydent. Stąd środek: lista jest
-// jawna i KAŻDY przebieg drukuje ją głośno z powodem. Lista jest ZAMKNIĘTA:
-// `pending` dla pliku spoza GAP_EXCEPTIONS_AT_GATE_START czerwieni CI (zbiór
-// nazw, nie próg wersji), więc nowy plik ma kopię w dzienniku albo zmierzone
-// `coveredBy`.
+// POZA DZIENNIKIEM (`appliedOutOfBand`). W dniu włączenia bramki (2026-10-18)
+// 23 pliki nie miały w dzienniku żadnego śladu. (Stan 2026-10-25: 22 -
+// `20261007140200` ma kopię `0309`.) Część z nich i tak jest na produkcji:
+// src/integrations/supabase/types.ts, generowany z produkcji, zna ich obiekty
+// (np. `_require_server_identity`, `admin_list_ad_slots`, `missing_schema_columns`),
+// a pliki dziennika wołają funkcje zdefiniowane wyłącznie w nich
+// (`_require_server_identity`, `_access_code_probe_guard`) - trafiły tam poza
+// migratorem (z panelu albo narzędziem bazodanowym), bez dowodu treści grantów
+// i ciał funkcji. Generator
+// tych plików NIE wysyła i nie wyśle: stary plik wykonany ponownie w jednej
+// transakcji migratora mógłby wywrócić całą dostawę albo cofnąć późniejsze
+// zmiany tych samych obiektów. Stan produkcji domyka osobna, idempotentna
+// migracja uzgadniająca (`reconciledBy` - późniejsza wersja, z kopią
+// w dzienniku jak każdy nowy plik). Lista jest jawna, drukowana przy każdym
+// przebiegu i ZAMKNIĘTA: `appliedOutOfBand` dla pliku spoza
+// GAP_EXCEPTIONS_AT_GATE_START czerwieni CI (zbiór nazw, nie próg wersji), więc
+// nowa migracja ma kopię z generatora albo zmierzone `coveredBy`.
 //
 // ZBIÓR SPRZED PASA JEST ZAMROŻONY (PRE_LANE_FREEZE). Bramka nie sprawdza
 // plików sprzed DRIZZLE_LANE_START, więc nowy plik z cofniętą albo literówkową
@@ -62,11 +73,10 @@
 // nazw plików spoza zakresu są wpisane na stałe - każdy nowy taki plik zmienia
 // odcisk i czerwieni CI.
 //
-// NIEAKTUALNY WPIS NIE CZERWIENI. Panel Lovable wdraża migrację, dopisując jej
-// kopię do dziennika prosto na `main`, bez zmiany tego pliku. Wpis rejestru
-// dla pliku, który właśnie zyskał kopię, jest wtedy zbędny - bramka drukuje
-// go jako „do usunięcia", ale nie czerwieni `main` za to, że produkcja dostała
-// brakującą migrację.
+// NIEAKTUALNY WPIS NIE CZERWIENI. Kopia może pojawić się na `main` bez zmiany
+// tego pliku (lustro z innego PR albo adopcja wpisu bota Lovable). Wpis
+// rejestru dla pliku, który właśnie zyskał kopię, jest wtedy zbędny - bramka
+// drukuje go jako „do usunięcia", ale nie czerwieni `main`.
 import { createHash } from "node:crypto";
 
 import {
@@ -87,7 +97,8 @@ export const DRIZZLE_LANE_START = "20260911160000";
 
 /**
  * Pliki, którym w dniu włączenia bramki (2026-10-18) wolno mieć wyjątek:
- * `pending` (23 znane braki) albo `uncovered` (7 zestawień z instrukcjami
+ * `appliedOutOfBand` (22 pliki spoza dziennika; 23. - 20261007140200 - zyskał
+ * od tamtej pory kopię 0309) albo `uncovered` (7 zestawień z instrukcjami
  * świadomie pominiętymi). Zbiór NAZW, nie próg wersji: port starszej migracji
  * pod dawną datą też nie dostanie cichego wyjątku. Zbiór tylko maleje - wyjątek
  * dla pliku spoza niego czerwieni CI (`zamkniety-rejestr`), więc nowa migracja
@@ -115,7 +126,6 @@ export const GAP_EXCEPTIONS_AT_GATE_START: ReadonlySet<string> = new Set([
   "20261007120600_event_codes_server_only.sql",
   "20261007140000_email_queue_service_only.sql",
   "20261007140100_definer_functions_without_client_path.sql",
-  "20261007140200_release_coupon_server_only.sql",
   "20261007140400_ticket_access_code_probe.sql",
   "20261007140500_crm_newsletter_writers_bound.sql",
   "20261007140600_event_functions_runtime_errors.sql",
@@ -155,17 +165,27 @@ export type SupabaseLaneGap =
     }
   | {
       readonly file: string;
-      /** Co robi migracja i czy jest krytyczna; CI drukuje to przy każdym przebiegu. */
-      readonly pending: string;
+      /**
+       * Plik bez kopii w dzienniku, którego SQL mógł trafić na produkcję tylko
+       * poza migratorem: co robi, czy jest krytyczny i czego o stanie produkcji
+       * NIE potwierdzono. CI drukuje to przy każdym przebiegu.
+       */
+      readonly appliedOutOfBand: string;
+      /**
+       * Późniejsza migracja supabase (z kopią w dzienniku), która idempotentnie
+       * domyka stan tego pliku na produkcji (granty, ciała funkcji).
+       */
+      readonly reconciledBy?: string;
     };
 
 /**
  * Rejestr luk kierunku odwrotnego. Kolejność po nazwie pliku.
  *
  * `coveredBy` bramka mierzy przy każdym przebiegu (patrz nagłówek); `reason`
- * mówi, czego w kopii brakuje i czemu to nie zmienia stanu bazy. `pending` to
- * plik, którego w dzienniku nie ma - zdanie mówi, co robi i czy dotyka
- * bezpieczeństwa albo izolacji najemców.
+ * mówi, czego w kopii brakuje i czemu to nie zmienia stanu bazy.
+ * `appliedOutOfBand` to plik, którego w dzienniku nie ma i którego generator nie
+ * wyśle - zdanie mówi, co robi, czy dotyka bezpieczeństwa albo izolacji
+ * najemców i czego o produkcji nie wiadomo.
  */
 export const SUPABASE_LANE_GAPS: readonly SupabaseLaneGap[] = [
   {
@@ -183,8 +203,8 @@ export const SUPABASE_LANE_GAPS: readonly SupabaseLaneGap[] = [
   },
   {
     file: "20260912102000_footer_youtube_profile.sql",
-    pending:
-      "Uzupełnia adresy YouTube, Instagram, LinkedIn i Spotify w widgecie stopki `ftr-social` (site_settings) - zmiana treści bez znaczenia dla bezpieczeństwa i izolacji najemców; 0002 tych czterech UPDATE nie zawiera, a żaden plik dziennika nie dotyka stopki.",
+    appliedOutOfBand:
+      "Uzupełnia adresy YouTube, Instagram, LinkedIn i Spotify w widgecie stopki `ftr-social` (site_settings) - zmiana treści bez znaczenia dla bezpieczeństwa i izolacji najemców; 0002 tych czterech UPDATE nie zawiera, a żaden plik dziennika nie dotyka stopki. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20260912103000_member_crm_grant_outbox.sql",
@@ -244,8 +264,8 @@ export const SUPABASE_LANE_GAPS: readonly SupabaseLaneGap[] = [
   },
   {
     file: "20260915090000_legal_document_versions_compliance_pack_keys.sql",
-    pending:
-      "Poszerza CHECK `legal_document_versions.doc_key` o dziesięć kluczy pakietu zgodności 2026-09 (bez tego zapis i publikacja wersji nowych dokumentów prawnych z panelu kończą się błędem 23514) - zgodność prawna i działanie panelu, nie bezpieczeństwo ani izolacja najemców; żaden plik dziennika nie dotyka legal_document_versions.",
+    appliedOutOfBand:
+      "Poszerza CHECK `legal_document_versions.doc_key` o dziesięć kluczy pakietu zgodności 2026-09 (bez tego zapis i publikacja wersji nowych dokumentów prawnych z panelu kończą się błędem 23514) - zgodność prawna i działanie panelu, nie bezpieczeństwo ani izolacja najemców; żaden plik dziennika nie dotyka legal_document_versions. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20260926090000_event_organizer_foundation.sql",
@@ -329,108 +349,103 @@ export const SUPABASE_LANE_GAPS: readonly SupabaseLaneGap[] = [
   },
   {
     file: "20261007100000_club_post_comments.sql",
-    pending:
-      "Komentarze wpisów ściany klubu (`club_post_comments`, RPC, moderacja, pseudonimy Chatham House, `club_user_can_read`) oraz `club_posts_list` filtrujące strumień całego klubu prawem odczytu działu wpisu - nowa funkcja z poprawką dostępu, krytyczna dla poufności działów klubu.",
+    appliedOutOfBand:
+      "Komentarze wpisów ściany klubu (`club_post_comments`, RPC, moderacja, pseudonimy Chatham House, `club_user_can_read`) oraz `club_posts_list` filtrujące strumień całego klubu prawem odczytu działu wpisu - nowa funkcja z poprawką dostępu, krytyczna dla poufności działów klubu. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007100100_club_post_mentions_and_link_validation.sql",
-    pending:
-      "Bramka odbiorców @wzmianek liczona prawem ODBIORCY, wzmianki we wpisach i komentarzach ściany, podpowiedzi członków, walidacja załączników-linków i zamknięcie gościowi działów klubu publicznego o widoczności members/private/secret - krytyczne dla poufności treści klubów (wyciek przez powiadomienia i przez odczyt gościa).",
+    appliedOutOfBand:
+      "Bramka odbiorców @wzmianek liczona prawem ODBIORCY, wzmianki we wpisach i komentarzach ściany, podpowiedzi członków, walidacja załączników-linków i zamknięcie gościowi działów klubu publicznego o widoczności members/private/secret - krytyczne dla poufności treści klubów (wyciek przez powiadomienia i przez odczyt gościa). Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120000_event_package_order_company_not_from_payload.sql",
-    pending:
-      "`event_package_purchase` przestaje brać `company_id` zamówienia z ładunku kupującego (`forbidden_field`) - krytyczne: dowolna firma z kartoteki CRM najemcy trafiała do zamówienia, a błąd 23503 był wyrocznią istnienia identyfikatorów firm; najnowsze ciało tej funkcji w dzienniku (0118/0119, czyli 20261001210000) jest sprzed poprawki.",
+    appliedOutOfBand:
+      "`event_package_purchase` przestaje brać `company_id` zamówienia z ładunku kupującego (`forbidden_field`) - krytyczne: dowolna firma z kartoteki CRM najemcy trafiała do zamówienia, a błąd 23503 był wyrocznią istnienia identyfikatorów firm; najnowsze ciało tej funkcji w dzienniku (0118/0119, czyli 20261001210000) jest sprzed poprawki. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120100_ad_slots_private_notes.sql",
-    pending:
-      "Odbiera `anon` i `authenticated` odczyt kolumny `ad_slots.notes` (SELECT kolumnowy zamiast tabelowego) i dodaje `admin_list_ad_slots()` dla panelu - krytyczne dla poufności: bez tego `GET /rest/v1/ad_slots?select=notes` z kluczem publicznym oddaje każdemu gościowi notatki operatora.",
+    appliedOutOfBand:
+      "Odbiera `anon` i `authenticated` odczyt kolumny `ad_slots.notes` (SELECT kolumnowy zamiast tabelowego) i dodaje `admin_list_ad_slots()` dla panelu - krytyczne dla poufności: bez tego `GET /rest/v1/ad_slots?select=notes` z kluczem publicznym oddaje każdemu gościowi notatki operatora. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120200_plan_coupon_server_only.sql",
-    pending:
-      "Walidacja i realizacja kodów planu (`validate_b2b_coupon`, `redeem_b2b_coupon`) tylko dla `service_role` z jawną tożsamością i kubełkiem pudeł po adresie, bez INSERT klienta na `b2b_coupon_redemptions` - krytyczne: zalogowany omijał limit prób po adresie i zużywał pulę kodu bez zamówienia.",
+    appliedOutOfBand:
+      "Walidacja i realizacja kodów planu (`validate_b2b_coupon`, `redeem_b2b_coupon`) tylko dla `service_role` z jawną tożsamością i kubełkiem pudeł po adresie, bez INSERT klienta na `b2b_coupon_redemptions` - krytyczne: zalogowany omijał limit prób po adresie i zużywał pulę kodu bez zamówienia. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120300_client_grants_follow_ts_callers.sql",
-    pending:
-      "Granty zgodne z wywołaniami z TS: DELETE na `conversations` dla `authenticated` (przycisk panelu czatu) oraz odebranie klientom EXECUTE `join_us_link_and_backfill` i `enforce_form_field_policy` - krytyczne dla izolacji: zalogowany przepinał dowolną subskrypcję newslettera na dowolne konto, a anon czytał politykę pól formularzy dowolnego najemcy.",
+    appliedOutOfBand:
+      "Granty zgodne z wywołaniami z TS: DELETE na `conversations` dla `authenticated` (przycisk panelu czatu) oraz odebranie klientom EXECUTE `join_us_link_and_backfill` i `enforce_form_field_policy` - krytyczne dla izolacji: zalogowany przepinał dowolną subskrypcję newslettera na dowolne konto, a anon czytał politykę pól formularzy dowolnego najemcy. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120400_content_password_explicit_tenant.sql",
-    pending:
-      "Odblokowanie treści hasłem tylko z serwera (`verify_content_password_for_tenant`, `service_role`) z jawnym najemcą i skrótem adresu - krytyczne: PostgREST wprost omijał limit prób po adresie, a pod rolą serwisową funkcja liczyła najemcę domyślnego.",
+    appliedOutOfBand:
+      "Odblokowanie treści hasłem tylko z serwera (`verify_content_password_for_tenant`, `service_role`) z jawnym najemcą i skrótem adresu - krytyczne: PostgREST wprost omijał limit prób po adresie, a pod rolą serwisową funkcja liczyła najemcę domyślnego. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120500_service_only_rpc_default_execute.sql",
-    pending:
-      "Zdejmuje domyślne EXECUTE `anon` i `authenticated` z `org_apply_subscription_seats(text, integer)` i 10-argumentowego `crm_upsert_from_form` - krytyczne dla izolacji najemców: anon ustawiał limit miejsc cudzej organizacji i zakładał leady CRM w dowolnym najemcy.",
+    appliedOutOfBand:
+      "Zdejmuje domyślne EXECUTE `anon` i `authenticated` z `org_apply_subscription_seats(text, integer)` i 10-argumentowego `crm_upsert_from_form` - krytyczne dla izolacji najemców: anon ustawiał limit miejsc cudzej organizacji i zakładał leady CRM w dowolnym najemcy. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120510_career_cv_gc_service_only.sql",
-    pending:
-      "Zostawia funkcje kolejki retencji CV (`career_cv_gc_scan/claim/done/fail`) wyłącznie `service_role` - obrona w głąb dla ścieżek plików CV kandydatów (ciało ma bramkę `is_super_admin`, więc to utwardzenie, nie otwarta dziura).",
+    appliedOutOfBand:
+      "Zostawia funkcje kolejki retencji CV (`career_cv_gc_scan/claim/done/fail`) wyłącznie `service_role` - obrona w głąb dla ścieżek plików CV kandydatów (ciało ma bramkę `is_super_admin`, więc to utwardzenie, nie otwarta dziura). Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007120600_event_codes_server_only.sql",
-    pending:
-      "Walidacja kodów wydarzeń, wycena wejścia i zakup pakietu tylko z serwera (`_require_server_identity`, funkcje `*_for_user`, kubełek pudeł po adresie) - krytyczne przeciw zgadywaniu kodów; pliki dziennika 0227, 0231, 0242, 0244 i 0288 już wołają `_require_server_identity`, zdefiniowaną wyłącznie tutaj.",
+    appliedOutOfBand:
+      "Walidacja kodów wydarzeń, wycena wejścia i zakup pakietu tylko z serwera (`_require_server_identity`, funkcje `*_for_user`, kubełek pudeł po adresie) - krytyczne przeciw zgadywaniu kodów; pliki dziennika 0227, 0231, 0242, 0244 i 0288 już wołają `_require_server_identity`, zdefiniowaną wyłącznie tutaj. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140000_email_queue_service_only.sql",
-    pending:
-      "Zostawia wrappery kolejek pgmq `enqueue_email`, `read_email_batch` i `delete_email` wyłącznie `service_role` (`move_to_dlq` zamyka już 0236) - KRYTYCZNE: z kluczem publikowalnym dało się czytać kolejkę maili autoryzacyjnych (linki resetu hasła, czyli przejęcie konta) i wysyłać pocztę z domeny platformy.",
+    appliedOutOfBand:
+      "Zostawia wrappery kolejek pgmq `enqueue_email`, `read_email_batch` i `delete_email` wyłącznie `service_role` (`move_to_dlq` zamyka już 0236) - KRYTYCZNE: z kluczem publikowalnym dało się czytać kolejkę maili autoryzacyjnych (linki resetu hasła, czyli przejęcie konta) i wysyłać pocztę z domeny platformy. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140100_definer_functions_without_client_path.sql",
-    pending:
-      "Odbiera klientom EXECUTE na 42 sygnaturach funkcji SECURITY DEFINER bez ścieżki klienta (28 bez bramki w ciele, 13 wykonywalnych nawet dla anon, np. `_are_connected`, `auto_connect_experts`) - krytyczne dla bezpieczeństwa i izolacji najemców.",
-  },
-  {
-    file: "20261007140200_release_coupon_server_only.sql",
-    pending:
-      "`release_b2b_coupon` tylko dla `service_role` i tylko dla nieopłaconego zamówienia tego konta w tym najemcy - krytyczne: zalogowany zerował licznik jednorazowego kodu po zapłacie i używał go bez ograniczeń.",
+    appliedOutOfBand:
+      "Odbiera klientom EXECUTE na 42 sygnaturach funkcji SECURITY DEFINER bez ścieżki klienta (28 bez bramki w ciele, 13 wykonywalnych nawet dla anon, np. `_are_connected`, `auto_connect_experts`) - krytyczne dla bezpieczeństwa i izolacji najemców. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140400_ticket_access_code_probe.sql",
-    pending:
-      "Limit prób kodów dostępu do biletów (`_access_code_probe_guard/_miss`, `event_ticket_checkout_quote` tylko dla `service_role`) - krytyczne przeciw zgadywaniu kodów prasy i partnerów; pliki dziennika 0190, 0230, 0232, 0241, 0246 i 0281 już wołają `_access_code_probe_guard/_miss`, zdefiniowane wyłącznie tutaj.",
+    appliedOutOfBand:
+      "Limit prób kodów dostępu do biletów (`_access_code_probe_guard/_miss`, `event_ticket_checkout_quote` tylko dla `service_role`) - krytyczne przeciw zgadywaniu kodów prasy i partnerów; pliki dziennika 0190, 0230, 0232, 0241, 0246 i 0281 już wołają `_access_code_probe_guard/_miss`, zdefiniowane wyłącznie tutaj. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140500_crm_newsletter_writers_bound.sql",
-    pending:
-      "Wiąże zapisy CRM i newslettera z wołającym (`crm_upsert_lead_from_profile/_from_subscriber` tylko `service_role`, `crm_backfill_all_leads` w najemcy wołającego, `join_us_link_and_backfill` tylko dla wierszy bez właściciela) - KRYTYCZNE dla izolacji najemców: administrator najemcy A zakładał leady w CRM-ie najemcy B.",
+    appliedOutOfBand:
+      "Wiąże zapisy CRM i newslettera z wołającym (`crm_upsert_lead_from_profile/_from_subscriber` tylko `service_role`, `crm_backfill_all_leads` w najemcy wołającego, `join_us_link_and_backfill` tylko dla wierszy bez właściciela) - KRYTYCZNE dla izolacji najemców: administrator najemcy A zakładał leady w CRM-ie najemcy B. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140600_event_functions_runtime_errors.sql",
-    pending:
-      "Naprawia cztery funkcje wydarzeń padające przy każdym wywołaniu (42703/42804: historia i lista uprawnień widowni, `event_my_package_orders`, kwalifikacja widowni akademickiej) - błąd działania, nie bezpieczeństwo.",
+    appliedOutOfBand:
+      "Naprawia cztery funkcje wydarzeń padające przy każdym wywołaniu (42703/42804: historia i lista uprawnień widowni, `event_my_package_orders`, kwalifikacja widowni akademickiej) - błąd działania, nie bezpieczeństwo. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140700_runtime_errors_seats_workflow_passwords.sql",
-    pending:
-      "Naprawia funkcje padające przy każdym wywołaniu (`org_apply_subscription_seats`, akcja `notify_followers` w `run_workflow_step`, hasła treści przez pgcrypto w `extensions`) i zawęża ustawianie hasła treści do wiersza najemcy wołającego - krytyczne dla izolacji: redaktor dowolnego najemcy nadpisywał hasło treści innego.",
+    appliedOutOfBand:
+      "Naprawia funkcje padające przy każdym wywołaniu (`org_apply_subscription_seats`, akcja `notify_followers` w `run_workflow_step`, hasła treści przez pgcrypto w `extensions`) i zawęża ustawianie hasła treści do wiersza najemcy wołającego - krytyczne dla izolacji: redaktor dowolnego najemcy nadpisywał hasło treści innego. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140710_club_application_crm_sync_overload.sql",
-    pending:
-      "`club_application_crm_sync` wskazuje jawnie 11-argumentowe przeciążenie `crm_upsert_from_form` (dotąd 42725 przy każdym zgłoszeniu do klubu i brak leada w CRM) - błąd działania, nie bezpieczeństwo.",
+    appliedOutOfBand:
+      "`club_application_crm_sync` wskazuje jawnie 11-argumentowe przeciążenie `crm_upsert_from_form` (dotąd 42725 przy każdym zgłoszeniu do klubu i brak leada w CRM) - błąd działania, nie bezpieczeństwo. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261007140800_rate_limits_retention.sql",
-    pending:
-      "Retencja `rate_limits` (`rate_limits_prune` tylko dla `service_role`, pg_cron co godzinę) - chroni przed nieograniczonym wzrostem tabeli i kosztu każdego limitera, czyli dostępność, nie izolacja najemców.",
+    appliedOutOfBand:
+      "Retencja `rate_limits` (`rate_limits_prune` tylko dla `service_role`, pg_cron co godzinę) - chroni przed nieograniczonym wzrostem tabeli i kosztu każdego limitera, czyli dostępność, nie izolacja najemców. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261009100000_podcast_apple_connect_metadata_reapply.sql",
-    pending:
-      "Ponawia kolumny metadanych Apple Podcasts z 20260725090500 (`podcasts.explicit`, `podcast_shows.itunes_author` i inne), których brak nagłówek dokumentuje jako awarię /podcasts zmierzoną 2026-10-09 - dostępność treści, nie bezpieczeństwo.",
+    appliedOutOfBand:
+      "Ponawia kolumny metadanych Apple Podcasts z 20260725090500 (`podcasts.explicit`, `podcast_shows.itunes_author` i inne), których brak nagłówek dokumentuje jako awarię /podcasts zmierzoną 2026-10-09 - dostępność treści, nie bezpieczeństwo. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261009110000_schema_column_contract_probe.sql",
-    pending:
-      "Sonda `missing_schema_columns(jsonb)` dla kontraktu kolumn po wdrożeniu (czyta wyłącznie katalog; EXECUTE dla `anon` i `service_role`) - narzędzie CI, nie bezpieczeństwo, ale bez niej `check:db-contract` nie widzi brakujących kolumn produkcji.",
+    appliedOutOfBand:
+      "Sonda `missing_schema_columns(jsonb)` dla kontraktu kolumn po wdrożeniu (czyta wyłącznie katalog; EXECUTE dla `anon` i `service_role`) - narzędzie CI, nie bezpieczeństwo, ale bez niej `check:db-contract` nie widzi brakujących kolumn produkcji. Na produkcję mógł trafić tylko poza migratorem (panel Lovable, narzędzie bazodanowe); granty, ciała funkcji i dane tam NIEPOTWIERDZONE.",
   },
   {
     file: "20261011090000_menu_items_follow_categories.sql",
@@ -469,7 +484,8 @@ export type SupabaseCoverageViolationKind =
   | "zamkniety-rejestr"
   | "wpis-bez-pliku-supabase"
   | "nieaktualny-wpis"
-  | "zmiana-sprzed-pasa";
+  | "zmiana-sprzed-pasa"
+  | "bledne-uzgodnienie";
 
 export interface SupabaseCoverageViolation {
   readonly kind: SupabaseCoverageViolationKind;
@@ -477,10 +493,11 @@ export interface SupabaseCoverageViolation {
   readonly detail: string;
 }
 
-/** Znany brak w dzienniku drizzle - nie czerwieni CI, ale jest drukowany. */
-export interface PendingSupabaseFile {
+/** Plik poza dziennikiem drizzle - nie czerwieni CI, ale jest drukowany. */
+export interface OutOfBandSupabaseFile {
   readonly file: string;
-  readonly pending: string;
+  readonly appliedOutOfBand: string;
+  readonly reconciledBy?: string;
 }
 
 /** Zbędna część rejestru - drukowana „do usunięcia", bez czerwieni. */
@@ -496,7 +513,8 @@ export interface SupabaseCoverageReport {
   readonly twins: number;
   /** Pokryte zmierzonym zestawieniem albo plikiem dziennika o innej treści (`coveredBy`). */
   readonly consolidated: number;
-  readonly pending: readonly PendingSupabaseFile[];
+  /** Pliki `appliedOutOfBand` bez kopii w dzienniku - generator ich nie wysyła. */
+  readonly outOfBand: readonly OutOfBandSupabaseFile[];
   readonly stale: readonly StaleSupabaseGap[];
   readonly violations: readonly SupabaseCoverageViolation[];
 }
@@ -508,7 +526,7 @@ export interface SupabaseCoverageOptions {
   readonly lanes?: readonly LaneEntry[];
   /** `null` wyłącza kontrolę zbioru sprzed pasa (testy na syntetycznych plikach). */
   readonly preLane?: PreLaneFreeze | null;
-  /** Pliki, którym wolno mieć `pending` albo `uncovered` (domyślnie zamrożony zbiór). */
+  /** Pliki, którym wolno mieć `appliedOutOfBand` albo `uncovered` (domyślnie zamrożony zbiór). */
   readonly exceptions?: ReadonlySet<string>;
 }
 
@@ -572,6 +590,24 @@ const inLaneScope = (file: string): boolean => {
 };
 
 /**
+ * Wada wskazania `reconciledBy` albo `null`. Uzgodnienie domyka stan produkcji PO
+ * pliku, więc musi być plikiem tego pasa o PÓŹNIEJSZEJ wersji - wtedy, jak każdy
+ * nowy plik, ma też kopię w dzienniku (pilnuje tego reszta bramki).
+ */
+function reconciliationError(
+  file: string,
+  reconciledBy: string | undefined,
+  listed: ReadonlySet<string>,
+): string | null {
+  if (reconciledBy === undefined) return null;
+  if (!listed.has(reconciledBy))
+    return `reconciledBy wskazuje ${reconciledBy}, którego nie ma w ${SUPABASE_DIR}/.`;
+  if ((supabaseMigrationVersion(reconciledBy) ?? "") <= (supabaseMigrationVersion(file) ?? ""))
+    return `reconciledBy (${reconciledBy}) musi być PÓŹNIEJSZĄ migracją - uzgodnienie domyka stan po pliku.`;
+  return null;
+}
+
+/**
  * Kierunek odwrotny: czy każdy plik `supabase/migrations/` od DRIZZLE_LANE_START
  * jest w dzienniku drizzle - kopią (i), bliźniakiem z MIGRATION_LANES o tagu
  * z dziennika (ii) albo wpisem SUPABASE_LANE_GAPS (iii).
@@ -626,10 +662,11 @@ export function analyzeSupabaseCoverage(
   );
   const gapByFile = new Map(gaps.map((g) => [g.file, g]));
   const all = listSupabase(SUPABASE_DIR);
+  const listed = new Set(all);
   const inScope = all.filter(inLaneScope).sort();
 
   const violations: SupabaseCoverageViolation[] = [];
-  const pending: PendingSupabaseFile[] = [];
+  const outOfBand: OutOfBandSupabaseFile[] = [];
   const stale: StaleSupabaseGap[] = [];
   let twins = 0;
   let consolidated = 0;
@@ -662,21 +699,27 @@ export function analyzeSupabaseCoverage(
       violations.push({
         kind: "brak-kopii-drizzle",
         file,
-        detail: `Żaden wpis ${DRIZZLE_DIR}/meta/_journal.json nie ma tego SQL-u wykonywalnego - produkcja wykonuje dziennik drizzle, więc ta migracja na nią NIE trafi.`,
+        detail: `Żaden wpis ${DRIZZLE_DIR}/meta/_journal.json nie ma tego SQL-u wykonywalnego - produkcja dostaje schemat wyłącznie migratorem Drizzle, więc ta migracja na nią NIE trafi. Uruchom \`bun run migrations:mirror\` - generator dopisze kopię do dziennika (nie pisz jej ręcznie).`,
       });
       continue;
     }
-    if ("pending" in gap) {
+    if ("appliedOutOfBand" in gap) {
       if (!exceptions.has(file)) {
         violations.push({
           kind: "zamkniety-rejestr",
           file,
           detail:
-            "Lista znanych braków jest zamknięta (GAP_EXCEPTIONS_AT_GATE_START): migracja spoza niej - także pod dawną datą - ma kopię w dzienniku drizzle albo zmierzone `coveredBy`, a nie wpis `pending`.",
+            "Lista plików zastosowanych poza dziennikiem jest zamknięta (GAP_EXCEPTIONS_AT_GATE_START): migracja spoza niej - także pod dawną datą - dostaje kopię z `bun run migrations:mirror` albo zmierzone `coveredBy`.",
         });
         continue;
       }
-      pending.push({ file, pending: gap.pending });
+      const wrong = reconciliationError(file, gap.reconciledBy, listed);
+      if (wrong !== null) violations.push({ kind: "bledne-uzgodnienie", file, detail: wrong });
+      outOfBand.push({
+        file,
+        appliedOutOfBand: gap.appliedOutOfBand,
+        ...(gap.reconciledBy === undefined ? {} : { reconciledBy: gap.reconciledBy }),
+      });
       continue;
     }
     const outside = gap.coveredBy.filter((tag) => !inJournal.has(tag));
@@ -744,7 +787,6 @@ export function analyzeSupabaseCoverage(
     consolidated += 1;
   }
 
-  const listed = new Set(all);
   for (const gap of gaps) {
     if (!listed.has(gap.file))
       violations.push({
@@ -760,35 +802,38 @@ export function analyzeSupabaseCoverage(
       });
   }
 
-  return { checked: inScope.length, twins, consolidated, pending, stale, violations };
+  return { checked: inScope.length, twins, consolidated, outOfBand, stale, violations };
 }
 
 export function supabaseCoverageFailed(report: SupabaseCoverageReport): boolean {
   return report.violations.length > 0;
 }
 
-/** Raport kierunku odwrotnego; znane braki drukuje ZAWSZE, także przy zielonym wyniku. */
+/** Raport kierunku odwrotnego; pliki poza dziennikiem drukuje ZAWSZE, także przy zielonym wyniku. */
 export function renderSupabaseCoverage(report: SupabaseCoverageReport): string {
-  const head = `Pokrycie pasa supabase w dzienniku drizzle: ${report.checked} plików od ${DRIZZLE_LANE_START} (${report.twins} z kopią w dzienniku, ${report.consolidated} w zmierzonych zestawieniach dziennika, ${report.pending.length} ZNANYCH BRAKÓW).`;
+  const head = `Pokrycie pasa supabase w dzienniku drizzle: ${report.checked} plików od ${DRIZZLE_LANE_START} (${report.twins} z kopią w dzienniku, ${report.consolidated} w zmierzonych zestawieniach dziennika, ${report.outOfBand.length} zastosowanych poza dziennikiem).`;
   const lines = [`${supabaseCoverageFailed(report) ? "✗" : "✓"} ${head}`];
   if (report.violations.length > 0) {
     lines.push(`NARUSZENIA POKRYCIA (${report.violations.length}):`);
     for (const v of report.violations) lines.push(`  [${v.kind}] ${v.file}: ${v.detail}`);
     lines.push(
-      `  Naprawa: dołóż bliźniaka do ${DRIZZLE_DIR} (ten sam SQL wykonywalny) z wpisem w _journal.json, którego \`when\` przekracza maksimum dziennika; zestawienie opisz w SUPABASE_LANE_GAPS (src/lib/ci/supabaseLaneCoverage.ts) - bramka je zmierzy.`,
+      "  Naprawa: brak kopii - `bun run migrations:mirror` (generator dopisze kopię do dziennika drizzle; nie pisz jej ręcznie); zestawienie dziennika opisz w SUPABASE_LANE_GAPS (src/lib/ci/supabaseLaneCoverage.ts) - bramka je zmierzy.",
     );
   }
   if (report.stale.length > 0) {
     lines.push(`DO USUNIĘCIA Z SUPABASE_LANE_GAPS (${report.stale.length}, bez czerwieni):`);
     for (const s of report.stale) lines.push(`  ${s.file}: ${s.detail}`);
   }
-  if (report.pending.length > 0) {
+  if (report.outOfBand.length > 0) {
     lines.push(
-      `UWAGA - ZNANE BRAKI W DZIENNIKU DRIZZLE (${report.pending.length}). Nic w repozytorium nie dowodzi, że te migracje są na produkcji, która wykonuje dziennik drizzle:`,
+      `POZA DZIENNIKIEM (${report.outOfBand.length}, zamrożone - generator ich NIE wysyła: ponowne wykonanie w jednej transakcji migratora mogłoby wycofać całą dostawę):`,
     );
-    for (const p of report.pending) lines.push(`  ${p.file}: ${p.pending}`);
+    for (const o of report.outOfBand)
+      lines.push(
+        `  ${o.file}: ${o.appliedOutOfBand} [${o.reconciledBy === undefined ? "BEZ UZGODNIENIA" : `uzgadnia: ${o.reconciledBy}`}]`,
+      );
     lines.push(
-      "  Port: bliźniak w drizzle/migrations + wpis w _journal.json; bramka wypisze wtedy wpis do usunięcia.",
+      "  Domknięcie: późniejsza, idempotentna migracja supabase (lustro dopisze generator) wpisana przy pliku jako `reconciledBy`.",
     );
   }
   return lines.join("\n");

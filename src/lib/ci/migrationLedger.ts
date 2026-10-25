@@ -10,7 +10,7 @@
  * Ten moduł zamyka lukę po stronie rejestru: porównuje wersje plików
  * `supabase/migrations/<version>_<nazwa>.sql` z odpowiedzią bazy.
  *
- * Dwa świadome ustępstwa wobec realiów tego repo:
+ * Trzy świadome ustępstwa wobec realiów tego repo:
  *
  *  1. BAZOWA LINIA (`baseline`). Rejestr bazy zaczął być kompletny dopiero od
  *     pewnego momentu; wcześniejsze migracje pilnuje bramka obiektowa. Bramka
@@ -20,6 +20,14 @@
  *     przez pipeline pod własną wersją, więc wersja pliku nigdy nie trafi do
  *     rejestru. Wpis uzgodnienia nie zwalnia z kontroli: wskazuje wersję, pod
  *     którą SQL faktycznie poszedł, i bramka sprawdza właśnie ją.
+ *  3. LUSTRO DRIZZLE (`drizzleProven`). Plik niesiony przez wpis dziennika
+ *     drizzle wygenerowany `bun run migrations:mirror` trafia na produkcję
+ *     migratorem Drizzle, który zapisuje go w `drizzle.__drizzle_migrations`,
+ *     a nie w tym rejestrze. Wierszy w `supabase_migrations.schema_migrations`
+ *     nikt już nie dopisuje ręcznie (taki wiersz nie dowodzi, że SQL się
+ *     wykonał), więc bramka rejestru tych plików nie egzekwuje. Wdrożenie
+ *     potwierdza zapytanie `bun run migrations:deploy-sql -- --verify`, a to,
+ *     że SQL lustra jest SQL-em pliku, pilnuje `check:migration-lanes`.
  *
  * Cała logika jest czysta i testowalna - IO (fetch, fs) siedzi w
  * `scripts/check-migration-ledger.ts`.
@@ -47,6 +55,12 @@ export interface LedgerConfig {
   readonly baseline: string;
   /** `nazwa pliku` → `wersja w rejestrze, pod którą SQL został wykonany`. */
   readonly reconciled: Readonly<Record<string, string>>;
+  /**
+   * Nazwy plików niesionych przez wpisy dziennika z nagłówkiem lustra
+   * (`-- migrations-mirror: supabase/migrations/<plik>`) - poza zakresem bramki,
+   * bo ich dowodem jest rejestr migratora Drizzle, nie `schema_migrations`.
+   */
+  readonly drizzleProven?: ReadonlySet<string>;
 }
 
 export interface LedgerReport {
@@ -54,6 +68,8 @@ export interface LedgerReport {
   readonly required: readonly LedgerRequirement[];
   /** Migracje sprzed baseline - pilnuje ich bramka obiektowa. */
   readonly baselined: number;
+  /** Migracje powyżej baseline z lustrem drizzle - dowodem rejestr migratora Drizzle. */
+  readonly drizzleProven: number;
   /** Wymagania, których baza nie potwierdza - wdrożenie jest niepełne. */
   readonly missing: readonly LedgerRequirement[];
   /** Uzgodnienia wskazujące pliki, których w gałęzi już nie ma (martwy wpis). */
@@ -88,13 +104,18 @@ export function parseMigrationFiles(files: readonly string[]): {
   return { parsed, malformed };
 }
 
-/** Zbiór wersji, o które trzeba zapytać bazę (już po odcięciu baseline). */
+/** Migracja w zakresie bramki rejestru: nowsza niż baseline (lustro drizzle jeszcze nie odjęte). */
+function aboveBaseline(m: MigrationFile, config: LedgerConfig): boolean {
+  return m.version > config.baseline;
+}
+
+/** Zbiór wersji, o które trzeba zapytać bazę (już po odcięciu baseline i plików z lustrem). */
 export function ledgerRequirements(
   parsed: readonly MigrationFile[],
   config: LedgerConfig,
 ): LedgerRequirement[] {
   return parsed
-    .filter((m) => m.version > config.baseline)
+    .filter((m) => aboveBaseline(m, config) && !config.drizzleProven?.has(m.file))
     .map((m) => {
       const reconciledVersion = config.reconciled[m.file];
       return {
@@ -117,11 +138,13 @@ export function buildLedgerReport(
   config: LedgerConfig,
 ): LedgerReport {
   const required = ledgerRequirements(parsed, config);
+  const inScope = parsed.filter((m) => aboveBaseline(m, config)).length;
   const missingSet = new Set(missingVersions);
   const branchFiles = new Set(parsed.map((m) => m.file));
   return {
     required,
-    baselined: parsed.length - required.length,
+    baselined: parsed.length - inScope,
+    drizzleProven: inScope - required.length,
     missing: required.filter((r) => missingSet.has(r.ledgerVersion)),
     staleReconciliations: Object.keys(config.reconciled)
       .filter((file) => !branchFiles.has(file))
@@ -142,6 +165,9 @@ export function renderLedgerReport(report: LedgerReport): string {
   const lines: string[] = ["## Rejestr migracji (gałąź ⇄ baza)", ""];
   lines.push(`- Egzekwowanych migracji: **${report.required.length}**`);
   lines.push(`- Poniżej bazowej linii (pilnuje bramka obiektowa): **${report.baselined}**`);
+  lines.push(
+    `- Z lustrem drizzle (dowód: rejestr migratora \`drizzle.__drizzle_migrations\`, zapytanie \`bun run migrations:deploy-sql -- --verify\`): **${report.drizzleProven}**`,
+  );
   lines.push(`- Niewykonanych w bazie: **${report.missing.length}**`);
   if (report.malformed.length > 0) {
     lines.push(`- Plików o złej nazwie: **${report.malformed.length}**`);

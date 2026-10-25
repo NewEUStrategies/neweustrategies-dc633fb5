@@ -14,6 +14,14 @@
  *
  * Zakres bramki (bazowa linia + uzgodnienia) opisuje `supabase/migration-ledger.json`.
  *
+ * Poza zakresem są pliki z lustrem drizzle: wpis dziennika wygenerowany
+ * `bun run migrations:mirror` niesie w pierwszej linii nagłówek
+ * `-- migrations-mirror: supabase/migrations/<plik>`, a migrator Drizzle zapisuje
+ * go w `drizzle.__drizzle_migrations`, nie w `schema_migrations`. Przełącznikiem
+ * jest sam nagłówek - wpisy sprzed generatora go nie mają, więc konfiguracja nie
+ * potrzebuje granicy idx. Brak pliku wpisu albo nagłówka zostawia plik w zakresie
+ * (bramka raczej zgłosi brak, niż przepuści niewykonaną migrację).
+ *
  * Usage:
  *   bun run check:migration-ledger
  * Env: SUPABASE_URL (lub VITE_SUPABASE_URL) + SUPABASE_PUBLISHABLE_KEY
@@ -21,6 +29,7 @@
  */
 import { probeMigrationVersions } from "../src/lib/ci/deploymentProbe";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { DRIZZLE_DIR, readFileOrNull, type JournalEntry } from "../src/lib/ci/migrationLaneParity";
 import {
   buildLedgerReport,
   ledgerFailed,
@@ -29,9 +38,13 @@ import {
   renderLedgerReport,
   type LedgerConfig,
 } from "../src/lib/ci/migrationLedger";
+// Nagłówek z modułu-liścia, nie z generatora: drizzleMirror sam zależy od migrationLedger
+// (przez migrationSplitPlan), a bramka rejestru od generatora nie zależy.
+import { mirrorSourceOf } from "../src/lib/migrations/mirrorHeader";
 import { MIGRATIONS_DIR } from "./lib/sqlMigrations";
 
 const CONFIG_PATH = "supabase/migration-ledger.json";
+const JOURNAL_PATH = `${DRIZZLE_DIR}/meta/_journal.json`;
 
 const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
 const key =
@@ -63,6 +76,30 @@ function loadConfig(): LedgerConfig {
   return { baseline: parsed.baseline, reconciled };
 }
 
+function isTagged(entry: unknown): entry is Pick<JournalEntry, "tag"> {
+  return (
+    typeof entry === "object" && entry !== null && "tag" in entry && typeof entry.tag === "string"
+  );
+}
+
+/** Pliki `supabase/migrations/` niesione przez wpisy dziennika z nagłówkiem lustra. */
+function loadDrizzleProven(): ReadonlySet<string> {
+  const journal: unknown = JSON.parse(readFileSync(JOURNAL_PATH, "utf8"));
+  const entries: unknown =
+    typeof journal === "object" && journal !== null && "entries" in journal
+      ? journal.entries
+      : null;
+  if (!Array.isArray(entries) || !entries.every(isTagged)) {
+    throw new Error(`${JOURNAL_PATH}: oczekiwano obiektu z listą 'entries' wpisów z 'tag'.`);
+  }
+  const proven = new Set<string>();
+  for (const { tag } of entries) {
+    const source = mirrorSourceOf(readFileOrNull(`${DRIZZLE_DIR}/${tag}.sql`));
+    if (source !== null) proven.add(source);
+  }
+  return proven;
+}
+
 async function main(): Promise<void> {
   if (!url || !key) {
     console.error(
@@ -71,7 +108,7 @@ async function main(): Promise<void> {
     throw new Error("Missing deployment database configuration");
   }
 
-  const config = loadConfig();
+  const config: LedgerConfig = { ...loadConfig(), drizzleProven: loadDrizzleProven() };
   const { parsed, malformed } = parseMigrationFiles(readdirSync(MIGRATIONS_DIR));
   const askedVersions = [
     ...new Set(ledgerRequirements(parsed, config).map((r) => r.ledgerVersion)),
@@ -91,6 +128,7 @@ async function main(): Promise<void> {
         baseline: config.baseline,
         required: report.required.length,
         baselined: report.baselined,
+        drizzleProven: report.drizzleProven,
         missing: report.missing.map((m) => ({
           file: m.file,
           version: m.version,
@@ -119,7 +157,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   console.log(
-    `✓ Rejestr migracji zgodny (${report.required.length} egzekwowanych, ${report.baselined} poniżej bazowej linii).`,
+    `✓ Rejestr migracji zgodny (${report.required.length} egzekwowanych, ${report.baselined} poniżej bazowej linii, ${report.drizzleProven} z lustrem drizzle).`,
   );
 }
 

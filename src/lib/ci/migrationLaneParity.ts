@@ -1,28 +1,50 @@
-// Bramka dwóch pasów migracji: każdy plik w `drizzle/migrations/` ma w rejestrze
-// DECYZJĘ - albo bliźniaka w `supabase/migrations/` o tym samym SQL-u, albo jawny
-// powód, dla którego bliźniaka nie ma.
+// Bramka pasów migracji: każdy wpis `drizzle/migrations/meta/_journal.json` jest
+// lustrem pliku `supabase/migrations/` (ten sam SQL wykonywalny), kanonicznym
+// wyzwalaczem wdrożenia albo ma w rejestrze DECYZJĘ z powodem.
 //
-// PRZYCZYNA ŹRÓDŁOWA. Repozytorium ma DWA pasy migracji i oba jadą na produkcję,
-// co `docs/MAIN_RECOVERY_2026-09-12.md` mówi wprost: „Drizzle i Supabase mają
-// odrębne rejestry; samo wykonanie `0002` w Drizzle nie dowodzi obecności wersji
-// w rejestrze Supabase". Cała warstwa dowodowa repozytorium patrzy jednak
-// WYŁĄCZNIE na pas supabase: `MIGRATIONS_DIR = "supabase/migrations"`
-// (scripts/lib/sqlMigrations.ts) zasila każdą bramkę `check:sql-*`, a bazę pgTAP
-// stawia `supabase db start` z tego samego katalogu. Plik dołożony tylko do
-// drizzle/ jest dla nich NIEWIDZIALNY.
+// PRZYCZYNA ŹRÓDŁOWA. Repozytorium ma dwa katalogi migracji i jedno źródło
+// prawdy (docs/RUNBOOK_MIGRACJE_LOVABLE.md): `supabase/migrations` zasila CI,
+// pgTAP i każdą bramkę `check:sql-*` (`MIGRATIONS_DIR`,
+// scripts/lib/sqlMigrations.ts), a `drizzle/` jest generowanym lustrem - jedynym
+// kanałem na produkcję (migrator Drizzle uruchamiany narzędziem Lovable).
+// „Drizzle i Supabase mają odrębne rejestry" (docs/MAIN_RECOVERY_2026-09-12.md).
+// Wpis dziennika bez źródła w supabase/ (np. napisany przez bota Lovable)
+// wykonuje się na produkcji, a dla bramek jest NIEWIDZIALNY.
 //
 // Tak przeszło `0001_profiles_discoverable_default_true`: przestawiło
 // `profiles.discoverable` na DEFAULT true i przepisało wszystkie wiersze, podczas
 // gdy pas supabase trzymał NOT NULL DEFAULT false, a późniejsza migracja opierała
 // na tym argument prawny listy uczestników. Żadna bramka nie miała jak tego zobaczyć.
 //
-// CO ZNACZY „TEN SAM SQL". Pliki obu pasów NIE są bajt w bajt i nie taka jest
-// konwencja - ZMIERZONE na wszystkich parach: pas supabase niesie długi nagłówek
-// po polsku, pas drizzle zaczyna się od pierwszej instrukcji, a polskie znaki
-// diakrytyczne w literałach `COMMENT ON` są w pasie drizzle złożone do ASCII
-// („ktorego" wobec „którego"). Porównujemy więc SQL WYKONYWALNY: bez komentarzy,
-// ze złożonymi diakrytykami, ze znormalizowaną spacją i z treścią literałów
-// `COMMENT ON ... IS '...'` zastąpioną znacznikiem.
+// REJESTR DO WPISU 398, TREŚĆ OD 399. Do 2026-10-25 wpisy dziennika powstawały
+// ręcznie albo narzędziem bota Lovable, a część historii to operacje jednorazowe
+// na produkcji (księgowe 0023/0149/0307, naprawy dryfu 0392/0393), które kopii mieć
+// nie powinny - reguła „każdy wpis jest kopią" zostałaby wyłączona pierwszego dnia.
+// Dla tej historii rejestr MIGRATION_LANES trzyma świadomą decyzję: bliźniaka
+// albo powód. Od wpisu JOURNAL_FREEZE_IDX + 1 wpisy generuje
+// `bun run migrations:mirror` (nagłówek z src/lib/migrations/mirrorHeader.ts),
+// więc rejestr jest ZAMROŻONY, a każdy nowy wpis bramka ocenia wyłącznie PO
+// TREŚCI, w tej kolejności:
+//   1. lustro generatora: jego źródło istnieje i ma ten sam SQL wykonywalny
+//      (forward-only - zmiana źródła wysłanej migracji to NOWA migracja);
+//   2. kopia pliku supabase/ (zapis wdrożenia, np. adopcja wpisu bota);
+//   3. kanoniczny wyzwalacz wdrożenia (DEPLOY_TRIGGER_TAG + DEPLOY_TRIGGER_SQL):
+//      no-op, którym narzędzie Lovable uruchamia migrator - przechodzi po cichu;
+//   4. inny wpis z samych `COMMENT ON` (znacznik wdrożenia, jak 0398): przechodzi
+//      z ostrzeżeniem, bo komentarz na produkcji różni się wtedy od pasa
+//      kanonicznego (schemat i uprawnienia bez zmian);
+//   5. cokolwiek innego to `wpis-spoza-zrodla`: SQL adoptuje się do
+//      supabase/migrations (runbook §5), rejestru nie rozszerzamy.
+// Wpis rejestru dla tagu po zamrożeniu to `rejestr-zamrozony`; przy wyzwalaczu
+// i znaczniku, które bot Lovable zwykł rejestrować, tylko zbędny wpis do usunięcia.
+//
+// CO ZNACZY „TEN SAM SQL". Pliki obu pasów NIE muszą być bajt w bajt - ZMIERZONE
+// na historycznych parach: pas supabase niesie długi nagłówek po polsku, pas
+// drizzle zaczynał się od pierwszej instrukcji, a polskie znaki diakrytyczne
+// w literałach `COMMENT ON` są w pasie drizzle złożone do ASCII („ktorego" wobec
+// „którego"); lustro generatora dokłada własny nagłówek. Porównujemy więc SQL
+// WYKONYWALNY: bez komentarzy, ze złożonymi diakrytykami, ze znormalizowaną
+// spacją i z treścią literałów `COMMENT ON ... IS '...'` zastąpioną znacznikiem.
 //
 // CZEGO TA BRAMKA ŚWIADOMIE NIE ŁAPIE, powiedziane wprost: rozjazdu PROZY
 // w literałach `COMMENT ON` (dziś realnie różni się tak para 0010). To
@@ -30,19 +52,71 @@
 // a traktowanie jej na równi z DDL-em zapaliłoby bramkę na każdej poprawce
 // literówki i skończyło się jej wyłączeniem.
 //
-// DLACZEGO REJESTR, A NIE REGUŁA „każdy plik musi mieć bliźniaka". Bo to
-// nieprawda: dwa pliki pasa drizzle powstały jako operacje jednorazowe na
-// produkcji i bliźniaka mieć nie powinny. Reguła, której stan faktyczny nie
-// spełnia, zostaje wyłączona pierwszego dnia. Rejestr wymusza coś słabszego, ale
-// wykonalnego: KAŻDY nowy plik w drizzle/ wymaga świadomego wpisu - wskazania
-// bliźniaka albo napisania, czemu go nie ma. Nie da się już dołożyć pliku po cichu.
-//
 // KIERUNEK ODWROTNY (supabase -> dziennik drizzle) pilnuje osobny moduł:
 // `src/lib/ci/supabaseLaneCoverage.ts` (rejestr SUPABASE_LANE_GAPS).
 import { readFileSync, readdirSync } from "node:fs";
 
+import { mirrorSourceOf } from "../migrations/mirrorHeader";
+
 export const DRIZZLE_DIR = "drizzle/migrations";
 export const SUPABASE_DIR = "supabase/migrations";
+
+/**
+ * Ostatni wpis dziennika sprzed generatora (`bun run migrations:mirror`, 2026-10-25).
+ * Od wpisu JOURNAL_FREEZE_IDX + 1 źródłem prawdy jest supabase/migrations: wpis jest
+ * lustrem albo kopią pliku supabase, kanonicznym wyzwalaczem wdrożenia albo znacznikiem
+ * z samych COMMENT ON (`analyzeMigrationLanes`), a rejestr MIGRATION_LANES nie przyjmuje
+ * wpisów o wyższym idx. Jedyna furtka dla wpisu, którego SQL-a nie da się przenieść do
+ * pasa supabase (jak 0393: 42710 na bazie z tego pasa): podniesienie tej stałej razem
+ * z decyzją `drizzleOnly` w przeglądanym PR - test przypina wartość, więc zmiana jest
+ * widoczna.
+ */
+export const JOURNAL_FREEZE_IDX = 398;
+
+/** Tag wyzwalacza wdrożenia (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.2; wiedza projektu Lovable). */
+export const DEPLOY_TRIGGER_TAG = /^\d{4,}_(?:pr\d+|lovable_\d{8})_deployment_completion$/;
+
+/** Jedyna dozwolona treść wyzwalacza: przywraca domyślny komentarz schematu public (no-op). */
+export const DEPLOY_TRIGGER_SQL = "COMMENT ON SCHEMA public IS 'standard public schema';";
+
+/**
+ * Biały znak jak w lekserze PostgreSQL (`space` w scan.l). `\s` z JS łapie też BOM
+ * i twardą spację, a baza czyta je jak znaki identyfikatora - plik z nimi padłby
+ * na produkcji błędem składni, więc za wyzwalacz uchodzić nie może.
+ */
+const PG_SPACE = String.raw`[ \t\n\r\f\v]`;
+/** Spacja i komentarze `--`; lookahead wymusza komentarz do końca linii, więc dopasowanie jest liniowe. */
+const PG_GAP = String.raw`(?:${PG_SPACE}|--[^\n\r]*(?![^\n\r]))*`;
+
+/**
+ * CAŁY plik wyzwalacza: DEPLOY_TRIGGER_SQL (słowa kluczowe rozdzielone dowolną spacją,
+ * literał co do znaku), a wokół wyłącznie spacja i komentarze `--`. Wzorzec opisuje
+ * plik od początku do końca, więc obok nie schowa się nic wykonywalnego. Wycięcie `--`
+ * przed porównaniem byłoby dziurą: zjadłoby też `--` z wnętrza literału i przepuściło
+ * instrukcję przemyconą między dwoma literałami.
+ */
+const DEPLOY_TRIGGER_FILE = new RegExp(
+  String.raw`^${PG_GAP}COMMENT${PG_SPACE}+ON${PG_SPACE}+SCHEMA${PG_SPACE}+public${PG_SPACE}+IS${PG_SPACE}+'standard public schema'${PG_SPACE}*;${PG_GAP}$`,
+);
+
+/** Kanoniczny wyzwalacz wdrożenia: nazwa wg DEPLOY_TRIGGER_TAG i treść DEPLOY_TRIGGER_SQL. */
+export function isDeployTrigger(tag: string, content: string | null): boolean {
+  return content !== null && DEPLOY_TRIGGER_TAG.test(tag) && DEPLOY_TRIGGER_FILE.test(content);
+}
+
+/**
+ * Wpis z samych `COMMENT ON` (znacznik wdrożenia panelu, jak 0329/0346/0391/0398): nie
+ * zmienia schematu ani uprawnień. Zachowawczo na wyjściu `executableSql`: proza komentarza
+ * jest tam zamaskowana, więc `;` w niej nie dzieli, a `;` w każdym innym literale dzieli -
+ * i wtedy kawałek bez `COMMENT ON` daje `false`.
+ */
+export function isCommentOnlySql(sql: string): boolean {
+  const parts = executableSql(sql)
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
+  return parts.length > 0 && parts.every((p) => /^COMMENT ON\b/i.test(p));
+}
 
 /** Wpis rejestru: pas drizzle ma bliźniaka albo ma powód, dla którego go nie ma. */
 export type LaneEntry =
@@ -58,11 +132,13 @@ export type LaneEntry =
     };
 
 /**
- * Rejestr pasów. Kolejność jak w `drizzle/migrations/meta/_journal.json`.
+ * Rejestr pasów - historia dziennika do JOURNAL_FREEZE_IDX. Kolejność jak
+ * w `drizzle/migrations/meta/_journal.json`.
  *
- * Dopisanie pliku do `drizzle/migrations/` BEZ wpisu tutaj zapala bramkę - i o to
- * chodzi. `drizzleOnly` nie jest wytrychem: to zdanie, które ktoś musi napisać
- * i podpisać w przeglądzie, a nie domyślne zachowanie.
+ * Rejestr ZAMROŻONY na JOURNAL_FREEZE_IDX: wpis dla tagu o wyższym idx czerwieni
+ * bramkę (`rejestr-zamrozony`), bo nowe wpisy dziennika ocenia się po treści.
+ * Dla historii `drizzleOnly` nie był wytrychem: to zdanie, które ktoś napisał
+ * i podpisał w przeglądzie, a nie domyślne zachowanie.
  */
 export const MIGRATION_LANES: readonly LaneEntry[] = [
   // I9d-Y2b: osobna zgoda na pomiar (wariant (b)) i pomiar tylko po
@@ -89,12 +165,12 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0393_membership_coupon_source_fk",
     drizzleOnly:
-      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23), druga część 0392: klucz obcy membership_grants_source_coupon_id_fkey -> b2b_coupons(id) ON DELETE SET NULL. Pas supabase ma go od 20260725090300_apply_coupon_effects_after_payment.sql (REFERENCES w ADD COLUMN daje ograniczenie o tej samej domyślnej nazwie), a ten plik dodaje go bez IF NOT EXISTS - bliźniak w pasie supabase wywróciłby każdą bazę stawianą z tego pasa (42710, ograniczenie już istnieje). Na produkcji kolumny, a więc i klucza, nie było.",
+      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23), druga część 0392: klucz obcy membership_grants_source_coupon_id_fkey -> b2b_coupons(id) ON DELETE SET NULL. Pas supabase ma go od 20260725090300_apply_coupon_effects_after_payment.sql (REFERENCES w ADD COLUMN daje ograniczenie o tej samej domyślnej nazwie), a ten plik dodaje go bez IF NOT EXISTS - bliźniak w pasie supabase wywróciłby każdą bazę stawianą z tego pasa (42710, ograniczenie już istnieje). Na produkcji kolumny, a więc i klucza, nie było. Stan końcowy klucza jest identyczny z pasem supabase (pg_get_constraintdef zmierzone 2026-10-24) - nie przenosić.",
   },
   {
     tag: "0392_membership_coupon_source",
     drizzleOnly:
-      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23): 20260725090300_apply_coupon_effects_after_payment.sql weszła na produkcję częściowo (effects_applied_at jest, kolumny membership_grants.source_coupon_id nie było - dawny wpis KNOWN_COLUMN_DRIFT w dbContract.ts), więc apply_b2b_coupon_effects kończył się 42703. Plik ponawia ADD COLUMN IF NOT EXISTS (bez REFERENCES - klucz dokłada 0393), nadpisuje polski komentarz kolumny angielskim i zakłada NOWY indeks membership_grants_tenant_coupon_idx (tenant_id, source_coupon_id), którego pas supabase nie ma; pas supabase ma za to idx_membership_grants_source_coupon (source_coupon_id), którego ten plik nie tworzy. Na bazie z pasa supabase kolumna już jest, więc bliźniak byłby tam tylko komentarzem i dodatkowym indeksem - świadomie poza pasem kanonicznym, zgodnie z zasadą forward-only.",
+      "Naprawa dryfu produkcji z panelu Lovable (2026-10-23): 20260725090300_apply_coupon_effects_after_payment.sql weszła na produkcję częściowo (effects_applied_at jest, kolumny membership_grants.source_coupon_id nie było - dawny wpis KNOWN_COLUMN_DRIFT w dbContract.ts), więc apply_b2b_coupon_effects kończył się 42703. Plik ponawia ADD COLUMN IF NOT EXISTS (bez REFERENCES - klucz dokłada 0393), nadpisuje polski komentarz kolumny angielskim i zakłada NOWY indeks membership_grants_tenant_coupon_idx (tenant_id, source_coupon_id), którego pas supabase nie ma; pas supabase ma za to idx_membership_grants_source_coupon (source_coupon_id), którego ten plik nie tworzy. ADOPTOWANE przez 20261025090010_adopt_membership_coupon_source_indexes.sql: indeks membership_grants_tenant_coupon_idx 1:1 (CREATE INDEX IF NOT EXISTS); ten sam plik zakłada na produkcji brakujące idx_membership_grants_source_coupon i przywraca kanoniczny komentarz kolumny. ADD COLUMN nie jest przenoszone - kolumna jest w pasie od 20260725090300.",
   },
   {
     tag: "0391_pr530_deployment_completion",
@@ -118,7 +194,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0001_profiles_discoverable_default_true",
     drizzleOnly:
-      "Regresja prywatności zastosowana wyłącznie na tym pasie - przestawiła profiles.discoverable na DEFAULT true i przepisała wszystkie wiersze. Pas supabase NIE dostaje bliźniaka: oba pasy jadą na produkcję, więc skopiowanie tego pliku uruchomiłoby jego hurtowy UPDATE DRUGI RAZ i ponownie przestawiło każdego, kto od tamtej pory się wypisał. Stan naprawia forward-only 0011 (DEFAULT false) obecne w OBU pasach. Pliku nie usuwamy - repozytorium jest forward-only, a usunięcie nie cofa tego, co już zastosowane.",
+      "Regresja prywatności zastosowana wyłącznie na tym pasie - przestawiła profiles.discoverable na DEFAULT true i przepisała wszystkie wiersze. Pas supabase NIE dostaje portu: każdy plik supabase/ dostaje lustro w dzienniku (`bun run migrations:mirror`), więc port wykonałby jego hurtowy UPDATE na produkcji DRUGI RAZ i ponownie przestawił każdego, kto od tamtej pory się wypisał. Stan naprawia forward-only 0011 (DEFAULT false) obecne w OBU pasach; skutki hurtowego UPDATE w danych koryguje forward-only 20261025090030_profiles_discoverable_0001_correction.sql, a decyzję właściciela profilu od tej pory stempluje 20261025090020_profiles_discoverable_decision_stamp.sql. Pliku nie usuwamy - repozytorium jest forward-only, a usunięcie nie cofa tego, co już zastosowane.",
   },
   {
     tag: "0002_pr350_member_crm_sync_and_chat_compat",
@@ -592,7 +668,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0148_event_speaker_panel_bio",
     drizzleOnly:
-      "Pola karty prelegenta w admin_event_speakers_list (bio_*, topics_*, languages, liczniki) wgrane przez narzędzie bazodanowe; brak bliźniaka supabase.",
+      "Pola karty prelegenta w admin_event_speakers_list (bio_*, topics_*, languages, liczniki) wgrane przez narzędzie bazodanowe. ADOPTOWANE w pasie kanonicznym przez 20261025090000_adopt_event_speaker_panel_bio.sql: to samo ciało, RETURNS TABLE, granty i komentarz, z warunkowym DROP + CREATE OR REPLACE zamiast bezwarunkowego DROP + CREATE (na produkcji bez zmiany OID), więc bliźniaka 1:1 nie ma; zgodność instrukcji przypina test adopcji w migrationLaneParity.test.ts.",
   },
   {
     tag: "0149_ledger_reconcile_pr493_pages",
@@ -842,7 +918,13 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
 ];
 
-export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
+export type LaneViolationKind =
+  | "brak-wpisu"
+  | "wpis-bez-pliku"
+  | "brak-blizniaka"
+  | "rozjazd-sql"
+  | "wpis-spoza-zrodla"
+  | "rejestr-zamrozony";
 
 export interface LaneViolation {
   readonly kind: LaneViolationKind;
@@ -865,6 +947,12 @@ export interface LaneReport {
   readonly drizzleOnly: number;
   /** Pliki bez wpisu, ktore sa kopia migracji z pasa supabase (patrz `analyzeMigrationLanes`). */
   readonly deployRecords: readonly DeployRecord[];
+  /** Wpisy po zamrożeniu: kanoniczne wyzwalacze wdrożenia (no-op) - przechodzą po cichu. */
+  readonly deployTriggers: readonly string[];
+  /** Wpisy po zamrożeniu z samych `COMMENT ON` spoza kanonu - przechodzą z ostrzeżeniem. */
+  readonly deployMarkers: readonly string[];
+  /** Wpisy MIGRATION_LANES dla wyzwalaczy i znaczników po zamrożeniu - zbędne, bez czerwieni. */
+  readonly redundantRegistry: readonly string[];
   readonly violations: readonly LaneViolation[];
 }
 
@@ -1226,37 +1314,114 @@ export function executableSql(sql: string): string {
   return scan(sql, { maskCommentProse: true, dollarIsCode: true }).trim();
 }
 
+/** Indeks wpisu z prefiksu tagu (`0399_x` -> 399); tag bez prefiksu liczy się jak wpis po zamrożeniu. */
+function journalIdx(tag: string): number {
+  return Number(/^(\d+)_/.exec(tag)?.[1] ?? Number.POSITIVE_INFINITY);
+}
+
+/** Ocena wpisu po zamrożeniu - wyłącznie PO TREŚCI; rejestr nie ma tu głosu. */
+type FrozenVerdict =
+  | { readonly kind: "brak-pliku" }
+  | { readonly kind: "zapis"; readonly twin: string }
+  | { readonly kind: "wyzwalacz" }
+  | { readonly kind: "znacznik" }
+  | { readonly kind: "naruszenie"; readonly violation: LaneViolation };
+
 /**
- * Porównuje pas drizzle z rejestrem i - dla wpisów z bliźniakiem - z pasem supabase.
+ * Klasyfikacja wpisu po zamrożeniu w kolejności z nagłówka modułu: lustro
+ * generatora, kopia pliku supabase, kanoniczny wyzwalacz, znacznik z samych
+ * `COMMENT ON`, a wszystko inne to `wpis-spoza-zrodla`. Nagłówek generatora
+ * rozstrzyga PIERWSZY: lustro rozjechane ze swoim źródłem nie przejdzie jako
+ * kopia innego pliku o starym SQL-u.
+ */
+function judgeAfterFreeze(
+  tag: string,
+  drizzleSql: string | null,
+  read: ReadFile,
+  supabaseTwinOf: (sql: string) => string | undefined,
+  freezeIdx: number,
+): FrozenVerdict {
+  if (drizzleSql === null) return { kind: "brak-pliku" }; // łapie evaluateLaneGate (missingFiles)
+  const source = mirrorSourceOf(drizzleSql);
+  if (source !== null) {
+    const sourceSql = read(`${SUPABASE_DIR}/${source}`);
+    if (sourceSql === null)
+      return {
+        kind: "naruszenie",
+        violation: {
+          kind: "brak-blizniaka",
+          tag,
+          detail: `Nagłówek generatora wskazuje ${SUPABASE_DIR}/${source}, a tego pliku nie ma - źródła wysłanej migracji nie usuwa się ani nie przemianowuje (forward-only).`,
+        },
+      };
+    if (executableSql(sourceSql) !== executableSql(drizzleSql))
+      return {
+        kind: "naruszenie",
+        violation: {
+          kind: "rozjazd-sql",
+          tag,
+          detail: `${SUPABASE_DIR}/${source} zmieniono po wygenerowaniu ${tag}. Wpis z main mógł już wykonać się na produkcji: cofnij zmianę źródła i dodaj NOWĄ migrację. Wpis lokalny gałęzi przepisze \`bun run migrations:mirror\`; poprawkę Lovable wpisu oczekującego przenieś do obu plików. Jedyny wyjątek (docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.3): wpis, którego produkcja nie wykonała (\`bun run migrations:deploy-sql -- --verify\` zwraca „brak w rejestrze"), przepisuje \`bun run migrations:mirror --rewrite ${tag}\`.`,
+        },
+      };
+    return { kind: "zapis", twin: source };
+  }
+  const twin = supabaseTwinOf(drizzleSql);
+  if (twin !== undefined) return { kind: "zapis", twin };
+  if (isDeployTrigger(tag, drizzleSql)) return { kind: "wyzwalacz" };
+  if (isCommentOnlySql(drizzleSql)) return { kind: "znacznik" };
+  return {
+    kind: "naruszenie",
+    violation: {
+      kind: "wpis-spoza-zrodla",
+      tag,
+      detail: `Wpis po zamrożeniu dziennika (${freezeIdx}) nie jest lustrem ani kopią żadnego pliku ${SUPABASE_DIR}/, a nie jest też znacznikiem wdrożenia z samych COMMENT ON - produkcja wykona SQL, którego pas kanoniczny (pgTAP, bramki check:sql-*) nie zna.`,
+    },
+  };
+}
+
+/**
+ * Porównuje dziennik drizzle z rejestrem (historia do `freezeIdx`) i z pasem
+ * supabase (wpisy z bliźniakiem, kopie, a po zamrożeniu każdy wpis).
  *
  * `tags` to nazwy plików `.sql` z `drizzle/migrations/` BEZ rozszerzenia, czyli
  * dokładnie `tag` z dziennika drizzle.
  *
- * ZAPIS WDROŻENIA BEZ WPISU. Panel Lovable wdraża migrację, dopisując do pasa
- * drizzle KOPIĘ pliku (`0071_event_scanner_offline` = 20260926150000) - przy
- * wdrożeniu plik po pliku to kilkadziesiąt kopii, a każda bez wpisu zapalała
- * bramkę na `main`, choć niczego nie ukrywa. Przed tym, co ta bramka łapie
+ * ZAPIS WDROŻENIA BEZ WPISU. Do 2026-10-18 (faza A) panel Lovable wdrażał
+ * migrację, przepisując ją na nowy wpis dziennika (`0071_event_scanner_offline`
+ * = 20260926150000) - kilkadziesiąt kopii, każda bez wpisu w rejestrze. Od
+ * przełączenia kopie powstają wyłącznie z `bun run migrations:mirror` albo
+ * z adopcji (docs/RUNBOOK_MIGRACJE_LOVABLE.md §5). Przed tym, co ta bramka łapie
  * (SQL widoczny tylko w pasie drizzle, niewidoczny dla bramek `check:sql-*`),
  * chroni sama treść: plik, którego SQL WYKONYWALNY jest identyczny z plikiem
  * `supabase/migrations/`, stoi w pasie kanonicznym. Taki plik przechodzi jako
- * `deployRecords` - raport wymienia go z nazwy i bliźniakiem, żeby wpis dało
- * się dopisać przy okazji. Różnica choćby o jedną instrukcję (np. kopia bez
- * `COMMENT ON`, jak 0066) nadal wymaga wpisu: to już jest decyzja człowieka.
+ * `deployRecords` - raport wymienia go z nazwy i bliźniakiem. W historii (do
+ * `freezeIdx`) różnica choćby o jedną instrukcję (np. kopia bez `COMMENT ON`,
+ * jak 0066) wymaga wpisu w rejestrze; po zamrożeniu - adopcji do pasa
+ * kanonicznego (`wpis-spoza-zrodla`).
+ *
+ * PO ZAMROŻENIU (idx > `freezeIdx`) rejestr niczego nie zwalnia: wpis ocenia
+ * `judgeAfterFreeze`, a wpis rejestru dla takiego tagu to `rejestr-zamrozony`
+ * - poza wyzwalaczem i znacznikiem, przy których jest tylko zbędny
+ * (`redundantRegistry`). Brak pliku łapie `evaluateLaneGate` (missingFiles).
  */
 export function analyzeMigrationLanes(
   tags: readonly string[],
   entries: readonly LaneEntry[] = MIGRATION_LANES,
   read: ReadFile = readFileOrNull,
   listSupabase: ListSql = listSqlOrEmpty,
+  freezeIdx: number = JOURNAL_FREEZE_IDX,
 ): LaneReport {
   const byTag = new Map(entries.map((e) => [e.tag, e]));
   const violations: LaneViolation[] = [];
   const deployRecords: DeployRecord[] = [];
+  const deployTriggers: string[] = [];
+  const deployMarkers: string[] = [];
+  const redundantRegistry: string[] = [];
   let twins = 0;
   let drizzleOnly = 0;
 
   // Odcisk SQL-u wykonywalnego -> pierwszy plik pasa supabase (w kolejności
-  // wersji). Liczony leniwie: tylko gdy jest plik bez wpisu.
+  // wersji). Liczony leniwie: tylko gdy jest plik bez wpisu albo po zamrożeniu.
   let supabaseBySql: Map<string, string> | null = null;
   const supabaseTwinOf = (sql: string): string | undefined => {
     if (supabaseBySql === null) {
@@ -1273,6 +1438,28 @@ export function analyzeMigrationLanes(
 
   for (const tag of tags) {
     const entry = byTag.get(tag);
+    if (journalIdx(tag) > freezeIdx) {
+      const verdict = judgeAfterFreeze(
+        tag,
+        read(`${DRIZZLE_DIR}/${tag}.sql`),
+        read,
+        supabaseTwinOf,
+        freezeIdx,
+      );
+      if (verdict.kind === "zapis") deployRecords.push({ tag, twin: verdict.twin });
+      else if (verdict.kind === "wyzwalacz") deployTriggers.push(tag);
+      else if (verdict.kind === "znacznik") deployMarkers.push(tag);
+      else if (verdict.kind === "naruszenie") violations.push(verdict.violation);
+      if (!entry) continue;
+      if (verdict.kind === "wyzwalacz" || verdict.kind === "znacznik") redundantRegistry.push(tag);
+      else
+        violations.push({
+          kind: "rejestr-zamrozony",
+          tag,
+          detail: `MIGRATION_LANES jest zamrożony na wpisie ${freezeIdx}: wpis po nim ocenia się po treści (lustro z \`bun run migrations:mirror\`, kopia pliku ${SUPABASE_DIR}/ albo znacznik wdrożenia), a nie decyzją w rejestrze.`,
+        });
+      continue;
+    }
     if (!entry) {
       const drizzleSql = read(`${DRIZZLE_DIR}/${tag}.sql`);
       const twin = drizzleSql === null ? undefined : supabaseTwinOf(drizzleSql);
@@ -1324,7 +1511,16 @@ export function analyzeMigrationLanes(
     }
   }
 
-  return { checked: tags.length, twins, drizzleOnly, deployRecords, violations };
+  return {
+    checked: tags.length,
+    twins,
+    drizzleOnly,
+    deployRecords,
+    deployTriggers,
+    deployMarkers,
+    redundantRegistry,
+    violations,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1538,12 +1734,20 @@ export function laneGateFailed(result: LaneGateResult): boolean {
   );
 }
 
+/** Rada dla kinda naruszenia, drukowana raz pod listą; `wpis-bez-pliku` niesie radę w wierszu. */
+const LANE_REMEDY: Partial<Record<LaneViolationKind, string>> = {
+  "brak-wpisu":
+    "dopisz wpis do MIGRATION_LANES w src/lib/ci/migrationLaneParity.ts - `twin` (plik supabase o tym samym SQL-u) albo `drizzleOnly` z powodem; dotyczy wyłącznie historii do JOURNAL_FREEZE_IDX.",
+  "wpis-spoza-zrodla": `adoptuj wpis wg docs/RUNBOOK_MIGRACJE_LOVABLE.md §5 (nowy plik ${SUPABASE_DIR} o tym samym SQL-u wykonywalnym); rejestru MIGRATION_LANES nie rozszerzamy. Gdy tego SQL-a nie da się wykonać na bazie z pasa supabase: idempotentny odpowiednik w ${SUPABASE_DIR} i podniesienie JOURNAL_FREEZE_IDX z decyzją \`drizzleOnly\` w przeglądanym PR.`,
+  "rejestr-zamrozony":
+    "usuń wpis z MIGRATION_LANES - po JOURNAL_FREEZE_IDX decyduje treść wpisu dziennika, a jedyną furtką jest podniesienie JOURNAL_FREEZE_IDX w przeglądanym PR.",
+};
+
 export function renderLaneGate(report: LaneReport, result: LaneGateResult): string {
   const records = report.deployRecords.length;
   const knownOrphans = report.violations.length - result.fresh.length;
-  const head = `Pasy migracji: ${report.checked} wpisów dziennika drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez, ${records} zapisów wdrożenia rozpoznanych po treści, ${knownOrphans} znanych sierot spoza dziennika).`;
-  if (!laneGateFailed(result)) return `✓ ${head}`;
-  const lines = [`✗ ${head}`];
+  const head = `Pasy migracji: ${report.checked} wpisów dziennika drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez, ${records} zapisów wdrożenia rozpoznanych po treści, ${report.deployTriggers.length} wyzwalaczy wdrożenia, ${report.deployMarkers.length} znaczników wdrożenia, ${knownOrphans} znanych sierot spoza dziennika; od wpisu ${JOURNAL_FREEZE_IDX + 1} decyduje treść, nie rejestr).`;
+  const lines = [`${laneGateFailed(result) ? "✗" : "✓"} ${head}`];
   if (result.fresh.length > 0) {
     lines.push(`NOWE NARUSZENIA REJESTRU (${result.fresh.length}):`);
     for (const v of result.fresh)
@@ -1552,9 +1756,10 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
           ? `  [${v.kind}] ${v.tag}: wpis MIGRATION_LANES dla tagu spoza _journal.json (migrator go nie wykona) - usuń wpis albo dopisz plik do dziennika.`
           : `  [${v.kind}] ${v.tag}: ${v.detail}`,
       );
-    lines.push(
-      "  Naprawa: dopisz wpis do MIGRATION_LANES w src/lib/ci/migrationLaneParity.ts - `twin` (plik supabase o tym samym SQL-u) albo `drizzleOnly` z powodem.",
-    );
+    for (const kind of new Set(result.fresh.map((v) => v.kind))) {
+      const remedy = LANE_REMEDY[kind];
+      if (remedy) lines.push(`  Naprawa: ${remedy}`);
+    }
   }
   if (result.missingFiles.length > 0) {
     lines.push(
@@ -1568,7 +1773,7 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
     );
     for (const t of result.missingCarriers) lines.push(`  ${SUPABASE_DIR}/${t}`);
     lines.push(
-      "  Naprawa: dopisz do dziennika drizzle plik o tym samym SQL-u wykonywalnym (snapshot, wpis `_journal.json` z `when` późniejszym od ostatniego, bliźniak w MIGRATION_LANES).",
+      "  Naprawa: bun run migrations:mirror - generator dopisze kopię do dziennika drizzle (nie pisz jej ręcznie).",
     );
   }
   if (result.journalFresh.length > 0) {
@@ -1578,18 +1783,29 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
         `  ${t}: \`when\` nie jest późniejsze od poprzedniego wpisu - migrator drizzle pominie go na bazie, która zastosowała już nowszy wpis.`,
       );
     lines.push(
-      "  Naprawa: przenumeruj wpis na koniec dziennika z `when` późniejszym od ostatniego wpisu main i od ostatniej migracji zastosowanej na produkcji.",
+      "  Naprawa: git checkout origin/main -- drizzle/migrations/meta && bun run migrations:mirror (generator usuwa osierocone wpisy gałęzi i dopisuje je za ostatnim wpisem main, z `when` większym od jego maksimum).",
     );
   }
-  for (const [label, list] of [
-    ["ZNANE SIEROTY, KTÓRE ZNIKNĘŁY - usuń je z KNOWN_ORPHAN_LANE_ENTRIES", result.stale],
+  for (const [heading, list] of [
     [
-      "ZNANE ODSTĘPSTWA KOLEJNOŚCI, KTÓRYCH JUŻ NIE MA - usuń je z KNOWN_NON_MONOTONIC_JOURNAL",
+      `ZNANE SIEROTY, KTÓRE ZNIKNĘŁY - usuń je z KNOWN_ORPHAN_LANE_ENTRIES (${result.stale.length}):`,
+      result.stale,
+    ],
+    [
+      `ZNANE ODSTĘPSTWA KOLEJNOŚCI, KTÓRYCH JUŻ NIE MA - usuń je z KNOWN_NON_MONOTONIC_JOURNAL (${result.journalStale.length}):`,
       result.journalStale,
+    ],
+    [
+      `UWAGA - ZNACZNIKI WDROŻENIA SPOZA KANONU (${report.deployMarkers.length}, bez czerwieni): same COMMENT ON, więc schemat i uprawnienia bez zmian, ale komentarz na produkcji różni się od ${SUPABASE_DIR}; kanoniczny wyzwalacz to ${DEPLOY_TRIGGER_SQL}`,
+      report.deployMarkers,
+    ],
+    [
+      `ZBĘDNE WPISY MIGRATION_LANES (${report.redundantRegistry.length}, bez czerwieni): rejestr jest zamrożony, a te wpisy bramka rozpoznaje po treści - usuń je`,
+      report.redundantRegistry,
     ],
   ] as const) {
     if (list.length === 0) continue;
-    lines.push(`${label} (${list.length}):`);
+    lines.push(heading);
     for (const t of list) lines.push(`  ${t}`);
   }
   return lines.join("\n");

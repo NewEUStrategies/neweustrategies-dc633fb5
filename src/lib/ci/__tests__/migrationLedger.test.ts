@@ -147,3 +147,125 @@ describe("migrationLedger", () => {
     expect(rendered).not.toContain("Martwych uzgodnień");
   });
 });
+
+// ── Lustro drizzle: plik supabase dostarczany wpisem z `bun run migrations:mirror` ──
+// Migrator Drizzle zapisuje taki wpis w `drizzle.__drizzle_migrations`, nie
+// w `schema_migrations`, a wierszy w tym rejestrze nikt już nie dopisuje ręcznie.
+// Gdyby bramka wymagała tych plików, każdy nowy plik paliłby ją na czerwono na
+// zawsze; gdyby zwalniała choć jeden plik za dużo, przepuściłaby migrację, która
+// nigdy się nie wykonała. Stąd przypadki po obu stronach granicy.
+
+describe("migrationLedger: pliki z lustrem drizzle", () => {
+  const MIRRORED = "20261025090000_adopt_a.sql";
+  const PLAIN = "20261025090010_plain_b.sql";
+  const WITH_MIRROR: LedgerConfig = { ...CONFIG, drizzleProven: new Set([MIRRORED]) };
+
+  it("plik z lustrem wypada z wymagań - bramka nie pyta o niego rejestru bazy", () => {
+    const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
+    expect(ledgerRequirements(parsed, WITH_MIRROR).map((r) => r.file)).toEqual([PLAIN]);
+
+    // Baza nie zna wersji pliku z lustrem (migrator nie pisze do schema_migrations) - to nie brak.
+    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], WITH_MIRROR);
+    expect(report.missing).toEqual([]);
+    expect(report.drizzleProven).toBe(1);
+    expect(report.baselined).toBe(0);
+    expect(ledgerFailed(report)).toBe(false);
+  });
+
+  it("plik bez lustra nadal jest wymagany, a jego brak w rejestrze wywala bramkę", () => {
+    const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
+    const report = buildLedgerReport(parsed, malformed, ["20261025090010"], WITH_MIRROR);
+    expect(report.missing.map((m) => m.file)).toEqual([PLAIN]);
+    expect(ledgerFailed(report)).toBe(true);
+  });
+
+  it("bez zbioru luster bramka wymaga wszystkiego powyżej bazowej linii, jak dotąd", () => {
+    const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
+    expect(ledgerRequirements(parsed, CONFIG).map((r) => r.file)).toEqual([MIRRORED, PLAIN]);
+
+    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], CONFIG);
+    expect(report.drizzleProven).toBe(0);
+    expect(report.missing.map((m) => m.file)).toEqual([MIRRORED]);
+    expect(ledgerFailed(report)).toBe(true);
+  });
+
+  it("bazowa linia nadal obowiązuje: plik sprzed niej liczy się do bazowej linii, także z lustrem", () => {
+    const OLD_MIRRORED = "20250101090000_old_mirrored.sql";
+    const OLD = "20250101100000_old.sql";
+    const { parsed, malformed } = parseMigrationFiles([OLD_MIRRORED, OLD, MIRRORED, PLAIN]);
+    const config: LedgerConfig = { ...CONFIG, drizzleProven: new Set([OLD_MIRRORED, MIRRORED]) };
+    const report = buildLedgerReport(parsed, malformed, [], config);
+
+    expect(report.required.map((r) => r.file)).toEqual([PLAIN]);
+    // Każdy plik gałęzi w dokładnie jednej kategorii: bazowa linia, lustro albo wymagany.
+    expect(report.baselined).toBe(2);
+    expect(report.drizzleProven).toBe(1);
+    expect(report.baselined + report.drizzleProven + report.required.length).toBe(parsed.length);
+  });
+
+  it("uzgodnienie pliku bez lustra nadal przenosi kontrolę na wersję, pod którą SQL poszedł", () => {
+    const RECONCILED = "20260825210000_pr.sql";
+    const { parsed, malformed } = parseMigrationFiles([RECONCILED, MIRRORED]);
+    const config: LedgerConfig = {
+      baseline: "20260101000000",
+      reconciled: { [RECONCILED]: "20260826101500" },
+      drizzleProven: new Set([MIRRORED]),
+    };
+    expect(ledgerRequirements(parsed, config)).toEqual([
+      {
+        file: RECONCILED,
+        version: "20260825210000",
+        ledgerVersion: "20260826101500",
+        reconciled: true,
+      },
+    ]);
+    expect(ledgerFailed(buildLedgerReport(parsed, malformed, ["20260825210000"], config))).toBe(
+      false,
+    );
+
+    const bad = buildLedgerReport(parsed, malformed, ["20260826101500"], config);
+    expect(bad.missing.map((m) => m.ledgerVersion)).toEqual(["20260826101500"]);
+    expect(ledgerFailed(bad)).toBe(true);
+  });
+
+  it("zwolnienie dotyczy nazwy pliku, nie wersji: lustro nie zwalnia sąsiada o tej samej wersji", () => {
+    const SAME_VERSION = "20261025090000_other.sql";
+    const { parsed, malformed } = parseMigrationFiles([MIRRORED, SAME_VERSION]);
+    expect(ledgerRequirements(parsed, WITH_MIRROR).map((r) => r.file)).toEqual([SAME_VERSION]);
+
+    const report = buildLedgerReport(parsed, malformed, ["20261025090000"], WITH_MIRROR);
+    expect(report.missing.map((m) => m.file)).toEqual([SAME_VERSION]);
+    expect(ledgerFailed(report)).toBe(true);
+  });
+
+  it("nagłówek wskazujący plik spoza gałęzi niczego nie zwalnia i nie zawyża licznika", () => {
+    const { parsed, malformed } = parseMigrationFiles([PLAIN]);
+    const config: LedgerConfig = {
+      ...CONFIG,
+      drizzleProven: new Set(["20261025090000_gone.sql"]),
+    };
+    const report = buildLedgerReport(parsed, malformed, ["20261025090010"], config);
+    expect(report.drizzleProven).toBe(0);
+    expect(report.missing.map((m) => m.file)).toEqual([PLAIN]);
+    expect(ledgerFailed(report)).toBe(true);
+  });
+
+  it("raport podaje liczbę plików z lustrem i wskazuje, gdzie szukać dowodu ich wdrożenia", () => {
+    const { parsed, malformed } = parseMigrationFiles([MIRRORED, PLAIN]);
+    const report = buildLedgerReport(parsed, malformed, [], WITH_MIRROR);
+    const rendered = renderLedgerReport(report);
+
+    expect(rendered).toContain("Egzekwowanych migracji: **1**");
+    expect(rendered).toMatch(/- Z lustrem drizzle [^\n]*: \*\*1\*\*/);
+    expect(rendered).toContain("`drizzle.__drizzle_migrations`");
+    expect(rendered).toContain("`bun run migrations:deploy-sql -- --verify`");
+    expect(rendered).not.toContain(MIRRORED);
+    expect(rendered).toContain("Wszystkie migracje z gałęzi są wykonane");
+  });
+
+  it("raport bez plików z lustrem nadal pokazuje tę kategorię (zero)", () => {
+    const { parsed, malformed } = parseMigrationFiles([PLAIN]);
+    const rendered = renderLedgerReport(buildLedgerReport(parsed, malformed, [], CONFIG));
+    expect(rendered).toMatch(/- Z lustrem drizzle [^\n]*: \*\*0\*\*/);
+  });
+});
