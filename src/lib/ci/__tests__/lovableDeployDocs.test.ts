@@ -328,7 +328,23 @@ describe("docs/RUNBOOK_MIGRACJE_LOVABLE.md - zgodność z kodem", () => {
 });
 
 describe("AGENTS.md", () => {
+  // AGENTS.md czyta każdy agent (także Lovable bez wklejonej wiedzy projektu), więc to jedyny
+  // pewny kanał zasady wdrożenia: przekazanie SQL-a migracji narzędziu Lovable (dawna faza A)
+  // wykonałoby go drugi raz w tej samej partii.
+  const agents = read("AGENTS.md");
+
   it("reguła migracji wskazuje generator lustra (migrations:mirror)", () => {
-    expect(read("AGENTS.md")).toContain("migrations:mirror");
+    expect(agents).toContain("migrations:mirror");
+  });
+
+  it("wdrożenie = jedno wywołanie narzędzia Lovable z kanonicznym wyzwalaczem, nigdy z SQL-em migracji", () => {
+    expect(agents).toContain(`\`${DEPLOY_TRIGGER_SQL}\``);
+    expect(agents).toContain("never the migration SQL itself");
+    expect(agents).toContain("migrations:deploy-sql --pending");
+  });
+
+  it("adopcja wpisów bota odsyła do runbooka §5 i wyklucza wpisy szkodliwe i wyzwalacze", () => {
+    expect(agents).toContain("RUNBOOK_MIGRACJE_LOVABLE.md` §5");
+    expect(agents).toContain("never 0001-like harmful entries");
   });
 });

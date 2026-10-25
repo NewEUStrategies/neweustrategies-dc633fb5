@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { DRIZZLE_DIR, JOURNAL_FREEZE_IDX, SUPABASE_DIR } from "../migrationLaneParity";
+import { analyzeSupabaseCoverage } from "../supabaseLaneCoverage";
+import { mirrorHeader } from "../../migrations/mirrorHeader";
 import {
   buildLedgerReport,
+  drizzleProvenFiles,
   ledgerFailed,
   ledgerRequirements,
   parseMigrationFile,
@@ -267,5 +271,61 @@ describe("migrationLedger: pliki z lustrem drizzle", () => {
     const { parsed, malformed } = parseMigrationFiles([PLAIN]);
     const rendered = renderLedgerReport(buildLedgerReport(parsed, malformed, [], CONFIG));
     expect(rendered).toMatch(/- Z lustrem drizzle [^\n]*: \*\*0\*\*/);
+  });
+});
+
+// ── Adopcja wpisu bota (runbook §5.4 pkt 1): plik supabase o SQL-u wpisu bota ──
+// Wpis bota nie ma nagłówka generatora, a migrator zapisał go w rejestrze
+// Drizzle - nie w `schema_migrations`, do którego nikt już nie pisze. Gdyby
+// bramka wymagała pliku adopcji, po pierwszej adopcji `check:migration-ledger`
+// byłby czerwony na zawsze, a jedyną „naprawą" byłby zakazany ręczny INSERT.
+
+describe("drizzleProvenFiles: przydział z bramki pasów, wpisy po zamrożeniu", () => {
+  const SQL = "ALTER TABLE public.t ADD COLUMN IF NOT EXISTS c int;";
+  const OLD = "20261001000000_old.sql";
+  const MIRRORED = "20261025090000_mirrored.sql";
+  const ADOPTED = "20261101120000_adopt_bot_column.sql";
+  const BOT = `${String(JOURNAL_FREEZE_IDX + 5).padStart(4, "0")}_lovable_add_column`;
+  const files: Record<string, string> = {
+    [`${SUPABASE_DIR}/${OLD}`]: "REVOKE ALL ON public.t FROM anon;",
+    [`${DRIZZLE_DIR}/0300_old.sql`]: "REVOKE ALL ON public.t FROM anon;",
+    [`${SUPABASE_DIR}/${MIRRORED}`]: "CREATE INDEX t_c ON public.t (c);",
+    [`${DRIZZLE_DIR}/0399_mirrored.sql`]: `${mirrorHeader(MIRRORED)}CREATE INDEX t_c ON public.t (c);`,
+    [`${DRIZZLE_DIR}/${BOT}.sql`]: SQL,
+    [`${SUPABASE_DIR}/${ADOPTED}`]: `-- ADOPCJA: drizzle/migrations/${BOT}.sql\n${SQL}`,
+  };
+  const coverage = analyzeSupabaseCoverage(["0300_old", "0399_mirrored", BOT], {
+    gaps: [],
+    read: (p) => files[p] ?? null,
+    listSupabase: () => [OLD, MIRRORED, ADOPTED],
+    lanes: [],
+    preLane: null,
+    exceptions: new Set(),
+  });
+
+  it("lustro i plik adopcji wpisu bota są poza bramką rejestru; historia (kopia 0300) nadal wymagana", () => {
+    expect(coverage.violations).toEqual([]);
+    const proven = drizzleProvenFiles(coverage.copies, JOURNAL_FREEZE_IDX);
+    expect([...proven].sort()).toEqual([MIRRORED, ADOPTED]);
+    const { parsed, malformed } = parseMigrationFiles([OLD, MIRRORED, ADOPTED]);
+    const config: LedgerConfig = { ...CONFIG, drizzleProven: proven };
+    expect(ledgerRequirements(parsed, config).map((r) => r.file)).toEqual([OLD]);
+    // Nikt nie pisze schema_migrations: baza nie zna ani lustra, ani adopcji - i to nie brak.
+    const report = buildLedgerReport(parsed, malformed, [], config);
+    expect(report.drizzleProven).toBe(2);
+    expect(ledgerFailed(report)).toBe(false);
+  });
+
+  it("granica to idx wpisu: tag o idx równym zamrożeniu to historia, tag bez numeru - po zamrożeniu", () => {
+    const at = String(JOURNAL_FREEZE_IDX).padStart(4, "0");
+    const copies = new Map([
+      ["20261001000000_a.sql", `${at}_history`],
+      ["20261001000100_b.sql", `${String(JOURNAL_FREEZE_IDX + 1).padStart(4, "0")}_mirror`],
+      ["20261001000200_c.sql", "lovable_untagged"],
+    ]);
+    expect([...drizzleProvenFiles(copies, JOURNAL_FREEZE_IDX)]).toEqual([
+      "20261001000100_b.sql",
+      "20261001000200_c.sql",
+    ]);
   });
 });

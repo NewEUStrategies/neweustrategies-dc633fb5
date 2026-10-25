@@ -35,7 +35,12 @@
 // LUSTRA LOKALNE GAŁĘZI. Lustra spoza dziennika bazy (`base`, domyślnie
 // origin/main) produkcja jeszcze nie widziała, więc generator przepisuje je przy
 // każdym przebiegu od nowa - po scaleniu main z nowymi wpisami (konflikt
-// dziennika) stają za nimi z kolejnym idx i `when`. Lustro z bazy jest
+// dziennika) stają za nimi z kolejnym idx i `when`. Gałąź, która scaliła bazę,
+// niesie KAŻDY jej wpis bez zmian - wpis bazy usunięty przy konflikcie („weź
+// nasze") to `wpis-bazy-zmieniony`, bo produkcja mogła go wykonać, a jego `when`
+// przesunąłby próg migratora ponad nasze lustra (pominięte po cichu). Gałąź,
+// która bazy NIE scaliła, dostaje ostrzeżenie `baza-niescalona` i plan bez linii
+// do opisu PR: numery luster zmienią się po scaleniu. Lustro z bazy jest
 // forward-only: zmiana SQL-a wykonywalnego jego źródła to `zrodlo-rozjechane`,
 // nigdy cicha ponowna dostawa. Jedyny wyjątek (runbook §6.3): `rewrite`
 // (`--rewrite <tag>`) dla lustra, którego rejestr produkcji nie zapisał - nowa
@@ -149,7 +154,8 @@ export type MirrorIssueKind =
   | "za-duzy"
   | "when-w-przyszlosci";
 
-export type MirrorWarningKind = "enum-nowa-wartosc" | "ustawienie-sesji" | "przepisanie-zbedne";
+export type MirrorWarningKind =
+  "enum-nowa-wartosc" | "ustawienie-sesji" | "przepisanie-zbedne" | "baza-niescalona";
 
 export interface MirrorIssue {
   readonly kind: MirrorIssueKind;
@@ -167,6 +173,16 @@ export interface MirrorBase {
   /** Ref gita, z którego pochodzi dziennik bazy (do komunikatów). */
   readonly ref: string;
   readonly entries: readonly Pick<JournalEntry, "idx" | "when" | "tag">[];
+  /**
+   * Czy commit bazy jest przodkiem HEAD. `false`: gałąź jeszcze nie scaliła
+   * bazy - brak jej wpisów nie jest błędem, ale numery luster nie są
+   * ostateczne. Brak pola = scalona (ostrzejsza kontrola).
+   */
+  readonly merged?: boolean;
+  /** Commit bazy do komunikatów (SHA i data commitu). */
+  readonly commit?: { readonly sha: string; readonly date: string };
+  /** Wynik `git fetch` bazy przed odczytem; brak = nie pobierano (jawne `--base`). */
+  readonly fetch?: "ok" | "failed";
 }
 
 export interface MirrorInput {
@@ -427,6 +443,13 @@ function journalShapeProblems(journal: unknown): string[] {
   return problems;
 }
 
+/** Wpisy bazy, których gałąź, choć scaliła bazę, nie ma (konflikt rozwiązany „weź nasze"). */
+function removedBaseEntries(entries: readonly JournalEntry[], base: MirrorBase): string[] {
+  if (base.merged === false) return [];
+  const tags = new Set(entries.map((e) => e.tag));
+  return base.entries.filter((b) => !tags.has(b.tag)).map((b) => b.tag);
+}
+
 /** Wpisy bazy, którym gałąź zmieniła idx albo `when` (przenumerowanie main po konflikcie). */
 function changedBaseEntries(entries: readonly JournalEntry[], base: MirrorBase): string[] {
   const byTag = new Map(entries.map((e) => [e.tag, e]));
@@ -561,13 +584,39 @@ function journalIssue(journal: DrizzleJournal, base: MirrorBase | null): MirrorI
       detail: `${shape.join("; ")}. Dziennik po złym rozwiązaniu konfliktu albo ręcznej przeróbce: ${JOURNAL_CONFLICT_FIX}.`,
     };
   }
-  const changed = base === null ? [] : changedBaseEntries(journal.entries, base);
-  if (base === null || changed.length === 0) return null;
+  if (base === null) return null;
+  const changed = changedBaseEntries(journal.entries, base);
+  const removed = removedBaseEntries(journal.entries, base);
+  if (changed.length === 0 && removed.length === 0) return null;
+  const problems = [
+    ...(changed.length > 0
+      ? [`wpisy ${base.ref} mają w tej gałęzi inny idx albo when: ${changed.join(", ")}`]
+      : []),
+    ...(removed.length > 0
+      ? [
+          `wpis bazy usunięty z dziennika gałęzi, która scaliła ${base.ref} (konflikt rozwiązany na korzyść gałęzi): ${removed.join(", ")}`,
+        ]
+      : []),
+  ];
   return {
     kind: "wpis-bazy-zmieniony",
     path: DRIZZLE_JOURNAL,
-    detail: `wpisy ${base.ref} mają w tej gałęzi inny idx albo when: ${changed.join(", ")}. Wpisów bazy nie przenumerowuje się (produkcja mogła je wykonać): ${JOURNAL_CONFLICT_FIX}.`,
+    detail: `${problems.join("; ")}. Wpisów bazy nie przenumerowuje się ani nie usuwa: produkcja mogła je wykonać, a usunięty wpis (już zapisany na produkcji, z późniejszym when) przesunąłby próg migratora ponad lustra gałęzi, które przepadłyby po cichu. ${JOURNAL_CONFLICT_FIX}.`,
   };
+}
+
+/** Gałąź bez scalonej bazy: numery luster nie są ostateczne (`baza-niescalona`). */
+function unmergedBaseWarning(base: MirrorBase | null): MirrorWarning[] {
+  if (base?.merged !== false) return [];
+  const at =
+    base.commit === undefined ? "" : ` (${base.commit.sha.slice(0, 12)} z ${base.commit.date})`;
+  return [
+    {
+      kind: "baza-niescalona",
+      path: DRIZZLE_JOURNAL,
+      detail: `gałąź nie scaliła ${base.ref}${at}: wpisy dopisane tam od rozgałęzienia staną przed lustrami gałęzi, więc ich idx i when zmienią się po scaleniu - plan nie podaje linii do opisu PR. Najpierw git merge ${base.ref}, potem bun run migrations:mirror.`,
+    },
+  ];
 }
 
 interface Generated {
@@ -943,7 +992,12 @@ export function planMirror(input: MirrorInput): MirrorPlan {
       read,
     ),
   ];
-  const warnings = [...requests.warnings, ...review.warnings, ...linted.warnings];
+  const warnings = [
+    ...unmergedBaseWarning(base),
+    ...requests.warnings,
+    ...review.warnings,
+    ...linted.warnings,
+  ];
 
   const files = [
     ...[...review.overlay].map(([path, content]) => ({ path, content })),
@@ -978,9 +1032,12 @@ export function planMirror(input: MirrorInput): MirrorPlan {
   }
   const baseTags = new Set(base?.entries.map((e) => e.tag));
   const deployed = base === null ? entries : finalEntries.filter((e) => !baseTags.has(e.tag));
-  const deploy = [...rewritten, ...deployed]
-    .map(({ idx, tag }) => ({ idx, tag }))
-    .sort((a, b) => a.idx - b.idx);
+  const deploy =
+    base?.merged === false
+      ? []
+      : [...rewritten, ...deployed]
+          .map(({ idx, tag }) => ({ idx, tag }))
+          .sort((a, b) => a.idx - b.idx);
   return { entries, rewritten, files, deletions, errors, warnings, lastCarried, deploy };
 }
 
@@ -998,7 +1055,7 @@ export const MIRROR_NEXT_STEPS: readonly string[] = [
   "bun run check:migration-lanes  (lustra jako zapisy wdrożenia, pokrycie pasa supabase, lustro aktualne; wpis-spoza-zrodla = wpis bota Lovable do adopcji wg docs/RUNBOOK_MIGRACJE_LOVABLE.md §5)",
   'linię „Wpisy dziennika do wdrożenia" wklej do sekcji „Wdrożenie bazy" opisu PR (docs/RUNBOOK_MIGRACJE_LOVABLE.md §3.1)',
   `po każdym git merge origin/main: bun run migrations:mirror ponownie (bot Lovable mógł dopisać wpis na main); konflikt dziennika: ${JOURNAL_CONFLICT_FIX}`,
-  "po scaleniu produkcję zmienia dopiero wdrożenie - jedno wywołanie narzędzia migracji Lovable z kanonicznym wyzwalaczem (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4); dowód: bun run migrations:deploy-sql -- --verify --from <idx>",
+  'scalenie uzbraja wpisy: od niego KAŻDE wywołanie narzędzia migracji Lovable je wykona, więc kontrole z sekcji „Wdrożenie bazy" (i eksport przy zmianie danych) robi się przed scaleniem; wdrożenie to jedno wywołanie z kanonicznym wyzwalaczem (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4); dowód: bun run migrations:deploy-sql -- --verify --from <idx>',
 ];
 
 /** Linia do sekcji „Wdrożenie bazy" opisu PR (runbook §3.1). */

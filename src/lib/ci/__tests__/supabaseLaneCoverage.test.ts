@@ -27,6 +27,7 @@ import {
   type SupabaseCoverageOptions,
   type SupabaseLaneGap,
 } from "@/lib/ci/supabaseLaneCoverage";
+import { mirrorHeader } from "@/lib/migrations/mirrorHeader";
 
 /**
  * Niezmienniki rejestru, które mają przetrwać kopię dopisaną przez panel
@@ -450,6 +451,104 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     ).toEqual(["CREATE POLICY p ON t USING(a = 1)"]);
     expect(supabaseMigrationVersion("20261018100000_x.sql")).toBe("20261018100000");
     expect(supabaseMigrationVersion("x.sql")).toBeNull();
+  });
+});
+
+describe("przydział kopii (i): lustro należy do pliku z nagłówka, wpis bota po zamrożeniu - do najstarszego pliku o tym SQL-u", () => {
+  const SQL = "REVOKE ALL ON FUNCTION public.f() FROM anon;";
+  const oob = "20261001000000_f_out_of_band.sql";
+  const first = "20261024000000_f.sql";
+  const rerun = "20261026000000_f_rerun.sql";
+  const adopted = "20261026000000_adopt_lovable_fix.sql";
+  const mirror = (tag: string, file: string): Record<string, string> => ({
+    [`${DRIZZLE_DIR}/${tag}.sql`]: `${mirrorHeader(file)}-- ${file}\n${SQL}\n`,
+  });
+  const coverage = (
+    files: Record<string, string>,
+    journal: readonly string[],
+    gaps: SupabaseLaneGap[] = [],
+  ) =>
+    analyzeSupabaseCoverage(journal, {
+      gaps,
+      read: (p) => files[p] ?? null,
+      listSupabase: () =>
+        Object.keys(files)
+          .filter((p) => p.startsWith(`${SUPABASE_DIR}/`))
+          .map((p) => p.slice(SUPABASE_DIR.length + 1))
+          .sort(),
+      lanes: [],
+      preLane: null,
+      exceptions: new Set([oob]),
+    });
+  const kindsOf = (r: ReturnType<typeof analyzeSupabaseCoverage>) =>
+    r.violations.map((v) => `${v.kind}:${v.file}`);
+
+  it("lustro ponownego przebiegu nie przechodzi na starszy plik appliedOutOfBand o tym samym SQL-u", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${oob}`]: `-- poza dziennikiem\n${SQL}`,
+      [`${SUPABASE_DIR}/${rerun}`]: `-- ponowny przebieg\n${SQL}`,
+      ...mirror("0399_f_rerun", rerun),
+    };
+    const r = coverage(
+      files,
+      ["0399_f_rerun"],
+      [{ file: oob, appliedOutOfBand: "poza dziennikiem" }],
+    );
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([[rerun, "0399_f_rerun"]]);
+    expect(r.outOfBand.map((o) => o.file)).toEqual([oob]);
+    expect(r.stale).toEqual([]);
+  });
+
+  it("lustro z nagłówkiem wskazującym inny SQL (rozjazd) nie pokrywa ani swojego źródła, ani innego pliku", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${SUPABASE_DIR}/${rerun}`]: "GRANT EXECUTE ON FUNCTION public.f() TO service_role;",
+      ...mirror("0399_f_rerun", rerun),
+    };
+    const r = coverage(files, ["0399_f_rerun"]);
+    expect(kindsOf(r)).toEqual([`brak-kopii-drizzle:${first}`, `brak-kopii-drizzle:${rerun}`]);
+    expect(r.copies.size).toBe(0);
+  });
+
+  it("zbędna kopia bota po zamrożeniu zostaje przy niesionym pliku; późniejszy ponowny przebieg dostaje własne lustro", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${SUPABASE_DIR}/${rerun}`]: `-- ponowny przebieg\n${SQL}`,
+      ...mirror("0399_f", first),
+      [`${DRIZZLE_DIR}/0400_lovable_copy.sql`]: SQL,
+    };
+    const r = coverage(files, ["0399_f", "0400_lovable_copy"]);
+    expect(kindsOf(r)).toEqual([`brak-kopii-drizzle:${rerun}`]);
+    expect([...r.copies]).toEqual([[first, "0399_f"]]);
+  });
+
+  it("adopcja: wpis bota po zamrożeniu niesie plik adopcji o tym samym SQL-u (najstarszy taki plik)", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${first}`]: "CREATE INDEX f_idx ON public.f (x);",
+      [`${DRIZZLE_DIR}/0399_f.sql`]: `${mirrorHeader(first)}CREATE INDEX f_idx ON public.f (x);`,
+      [`${DRIZZLE_DIR}/0400_lovable_fix.sql`]: SQL,
+      [`${SUPABASE_DIR}/${adopted}`]: `-- ADOPCJA: drizzle/migrations/0400_lovable_fix.sql\n${SQL}`,
+    };
+    const r = coverage(files, ["0399_f", "0400_lovable_fix"]);
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([
+      [first, "0399_f"],
+      [adopted, "0400_lovable_fix"],
+    ]);
+  });
+
+  it("historia (do zamrożenia) bez zmian: pliki spoza rejestru biorą kopie przed plikami z SUPABASE_LANE_GAPS", () => {
+    const files = {
+      [`${SUPABASE_DIR}/${oob}`]: `-- poza dziennikiem\n${SQL}`,
+      [`${SUPABASE_DIR}/${first}`]: SQL,
+      [`${DRIZZLE_DIR}/0300_copy.sql`]: SQL,
+    };
+    const gaps: SupabaseLaneGap[] = [{ file: oob, appliedOutOfBand: "poza dziennikiem" }];
+    const r = coverage(files, ["0300_copy"], gaps);
+    expect(r.violations).toEqual([]);
+    expect([...r.copies]).toEqual([[first, "0300_copy"]]);
+    expect(r.outOfBand.map((o) => o.file)).toEqual([oob]);
   });
 });
 

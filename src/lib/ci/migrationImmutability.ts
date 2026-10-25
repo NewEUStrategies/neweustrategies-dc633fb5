@@ -30,22 +30,29 @@
 // wpisy w miejscu (30ff38a1e: 0367 i jego źródło, 9f6173f2a: plik i `when`
 // 0312) i usuwał sieroty (08d183bd0: 0305/0306). Reguła bez wyjątków nie
 // przetrwałaby pierwszego takiego przypadku, więc każdy wyjątek to wpis
-// MIGRATION_EDIT_ALLOWLIST: ścieżka, rodzaj, powód i SHA bloba PO zmianie.
-// SHA wiąże wpis z jedną konkretną treścią: po scaleniu wpis jest martwy i nie
-// otwiera furtki dla następnej edycji tej samej ścieżki, więc nie trzeba go
-// sprzątać, a rejestr zostaje historią świadomych wyjątków.
+// MIGRATION_EDIT_ALLOWLIST: ścieżka, rodzaj, powód i SHA bloba PO zmianie
+// (przy usunięciu - SHA USUNIĘTEJ treści, `blobBefore`). SHA wiąże wpis z jedną
+// konkretną treścią: po scaleniu wpis jest martwy i nie otwiera furtki dla
+// następnej edycji ani następnego usunięcia tej samej ścieżki, więc nie trzeba
+// go sprzątać, a rejestr zostaje historią świadomych wyjątków.
 //
-// BAZA PORÓWNANIA. `MIGRATION_IMMUTABILITY_BASE` (CI: SHA bazy PR albo
-// `github.event.before` przy pushu na main), a bez niej `git merge-base HEAD
-// origin/main`. Pierwszy push gałęzi (SHA z samych zer) też idzie przez
-// merge-base. Gdy klon nie ma commitu jawnie podanej bazy, bramka drukuje
-// ostrzeżenie i przechodzi - nie udaje porównania z czymś innym niż ta baza.
+// BAZA PORÓWNANIA. `MIGRATION_IMMUTABILITY_BASE` (CI: SHA bazy PR, a na main
+// ostatni commit, na którym bramka przeszła - patrz niżej), a bez niej `git
+// merge-base HEAD origin/main`. Pierwszy push gałęzi (SHA z samych zer) też
+// idzie przez merge-base. Gdy klon nie ma commitu bazy, bramka lokalnie drukuje
+// ostrzeżenie i przechodzi - nie udaje porównania z czymś innym niż ta baza;
+// z `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: PR i main) to błąd, bo pominięte
+// porównanie wyglądałoby jak zielone.
 //
-// PUSH NA MAIN. Commit bota trafia na main bez PR-a, więc czerwień jest tam
-// alarmem jednego przebiegu: następny push porównuje się już z commitem bota.
-// Naprawa idzie PR-em: usunięty plik wraca jako nowy plik (dodanie zawsze
-// przechodzi), a przywrócony wpis dziennika stoi przed jego końcem, więc
-// potrzebuje wpisu rejestru z SHA dziennika.
+// PUSH NA MAIN. Commit bota trafia na main bez PR-a. Porównanie z
+// `github.event.before` byłoby alarmem jednego przebiegu (następny push
+// porównuje się już z commitem bota), a przebieg anulowany przez nowszy push
+// (concurrency) nie zgłosiłby niczego. Dlatego na main bazą jest ostatni commit,
+// na którym ta bramka PRZESZŁA (CI zapamiętuje go po zielonym przebiegu):
+// czerwień trwa przy każdym kolejnym pushu, aż naprawa trafi na main, a pominięty
+// albo anulowany przebieg niczego nie przesuwa. Naprawa idzie PR-em: usunięty
+// plik wraca z tą samą treścią (porównanie z bazą nie widzi wtedy zmiany),
+// a świadomy wyjątek dostaje wpis rejestru.
 //
 // Warstwa czysta (parser diffu, klasyfikacja, dziennik, rejestr, wybór bazy,
 // raport); git siedzi w `scripts/check-migration-immutability.ts`.
@@ -94,6 +101,12 @@ export interface MigrationEditAllowance {
    * drukuje gotowy wpis), `null` = zgoda na usunięcie.
    */
   readonly blobAfter: string | null;
+  /**
+   * Wyłącznie przy usunięciu (`blobAfter: null`): SHA bloba USUWANEJ treści
+   * (raport bramki drukuje gotowy wpis). Ta sama ścieżka dodana później z inną
+   * treścią i znowu usunięta nie przejdzie po starej zgodzie.
+   */
+  readonly blobBefore?: string;
 }
 
 /**
@@ -117,6 +130,14 @@ export function allowlistErrors(list: readonly MigrationEditAllowance[]): string
     if (entry.blobAfter !== null && !BLOB_SHA.test(entry.blobAfter)) {
       errors.push(`${where}: blobAfter musi być pełnym SHA bloba (git hash-object) albo null`);
     }
+    if (entry.blobAfter === null && !BLOB_SHA.test(entry.blobBefore ?? "")) {
+      errors.push(
+        `${where}: zgoda na usunięcie (blobAfter: null) wymaga blobBefore - pełnego SHA bloba usuwanej treści, inaczej otwierałaby każde przyszłe usunięcie tej ścieżki`,
+      );
+    }
+    if (entry.blobAfter !== null && entry.blobBefore !== undefined) {
+      errors.push(`${where}: blobBefore dotyczy wyłącznie usunięcia (blobAfter: null)`);
+    }
     if (
       entry.kind === "rewrite-unapplied" &&
       (entry.blobAfter === null || (guarded !== "supabase-sql" && guarded !== "drizzle-sql"))
@@ -125,15 +146,16 @@ export function allowlistErrors(list: readonly MigrationEditAllowance[]): string
         `${where}: rewrite-unapplied zmienia treść pliku .sql (migrations:mirror --rewrite) - nie usuwa plików i nie dotyka dziennika ani snapshotów`,
       );
     }
-    const key = allowanceKey(entry.path, entry.blobAfter);
+    const key = allowanceKey(entry.path, entry.blobAfter, entry.blobBefore);
     if (seen.has(key)) errors.push(`${where}: zdublowany wpis tej samej zmiany`);
     seen.add(key);
   }
   return errors;
 }
 
-function allowanceKey(path: string, blobAfter: string | null): string {
-  return `${path}\0${blobAfter ?? "usuniety"}`;
+/** Klucz zmiany: treść po zmianie, a przy usunięciu - usunięta treść. */
+function allowanceKey(path: string, blobAfter: string | null, blobBefore?: string | null): string {
+  return blobAfter === null ? `${path}\0usuniety\0${blobBefore ?? ""}` : `${path}\0${blobAfter}`;
 }
 
 /** Zmiana jednej ścieżki między bazą a HEAD; SHA to bloby gita. */
@@ -207,6 +229,8 @@ export interface ImmutabilityViolation {
   readonly path: string;
   /** SHA bloba w HEAD (`null` = plik usunięty) - wartość do wpisu rejestru. */
   readonly blobAfter: string | null;
+  /** Przy usunięciu: SHA bloba usuniętej treści (do wpisu rejestru); inaczej `null`. */
+  readonly blobBefore: string | null;
   readonly detail: string;
 }
 
@@ -353,7 +377,9 @@ export function analyzeMigrationImmutability(
   readBlob: (sha: string) => string,
   allowlist: readonly MigrationEditAllowance[] = MIGRATION_EDIT_ALLOWLIST,
 ): ImmutabilityReport {
-  const allowances = new Map(allowlist.map((a) => [allowanceKey(a.path, a.blobAfter), a]));
+  const allowances = new Map(
+    allowlist.map((a) => [allowanceKey(a.path, a.blobAfter, a.blobBefore), a]),
+  );
   const added: string[] = [];
   const appendedEntries: string[] = [];
   const violations: ImmutabilityViolation[] = [];
@@ -367,6 +393,7 @@ export function analyzeMigrationImmutability(
       continue;
     }
     const blobAfter = entry.change === "deleted" ? null : entry.blobAfter;
+    const blobBefore = entry.change === "deleted" ? entry.blobBefore : null;
     let problems: readonly JournalProblem[];
     if (entry.change === "deleted") {
       problems = [
@@ -382,12 +409,12 @@ export function analyzeMigrationImmutability(
       problems = [{ kind: "plik-zmieniony", detail: "treść zmieniona w miejscu" }];
     }
     if (problems.length === 0) continue;
-    const allowance = allowances.get(allowanceKey(entry.path, blobAfter));
+    const allowance = allowances.get(allowanceKey(entry.path, blobAfter, blobBefore));
     if (allowance !== undefined) {
       allowed.push(allowance);
       continue;
     }
-    for (const p of problems) violations.push({ ...p, path: entry.path, blobAfter });
+    for (const p of problems) violations.push({ ...p, path: entry.path, blobAfter, blobBefore });
   }
 
   return {
@@ -472,9 +499,12 @@ const VIOLATION_SECTIONS: readonly (readonly [
   ],
 ];
 
-function allowanceLiteral(path: string, blobAfter: string | null): string {
-  const blob = blobAfter === null ? "null" : JSON.stringify(blobAfter);
-  return `{ path: ${JSON.stringify(path)}, kind: "other", reason: "", blobAfter: ${blob} },`;
+function allowanceLiteral(v: ImmutabilityViolation): string {
+  const blob =
+    v.blobAfter === null
+      ? `null, blobBefore: ${JSON.stringify(v.blobBefore)}`
+      : JSON.stringify(v.blobAfter);
+  return `{ path: ${JSON.stringify(v.path)}, kind: "other", reason: "", blobAfter: ${blob} },`;
 }
 
 export function renderImmutabilityReport(
@@ -509,7 +539,9 @@ export function renderImmutabilityReport(
 
   const base = range.base.slice(0, 12);
   const files = report.violations.filter((v) => v.kind.startsWith("plik-")).map((v) => v.path);
-  const pasteable = new Map(report.violations.map((v) => [allowanceKey(v.path, v.blobAfter), v]));
+  const pasteable = new Map(
+    report.violations.map((v) => [allowanceKey(v.path, v.blobAfter, v.blobBefore), v]),
+  );
   lines.push("Naprawa:");
   if (files.length > 0) {
     lines.push(`  - przywróć pliki z bazy: git checkout ${base} -- ${files.join(" ")}`);
@@ -522,16 +554,30 @@ export function renderImmutabilityReport(
   lines.push(
     `  - zmiana schematu to NOWA migracja w ${SUPABASE_DIR}, potem bun run migrations:mirror; scalonych plików i wpisów się nie poprawia.`,
     "  - wyjątek tylko świadomie, w przeglądzie PR: wpis MIGRATION_EDIT_ALLOWLIST w src/lib/ci/migrationImmutability.ts (uzupełnij kind i reason):",
-    ...[...pasteable.values()].map((v) => `      ${allowanceLiteral(v.path, v.blobAfter)}`),
+    ...[...pasteable.values()].map((v) => `      ${allowanceLiteral(v)}`),
     "    rewrite-unapplied: wyłącznie wpis, dla którego `bun run migrations:deploy-sql -- --verify --from <idx> --to <idx>` daje „brak w rejestrze” (docs/RUNBOOK_MIGRACJE_LOVABLE.md §6.3, bun run migrations:mirror --rewrite <tag>);",
     "    bot-pending-fix: poprawka bota Lovable we wpisie jeszcze niewdrożonym; other: pełny powód w reason.",
   );
   return lines.join("\n");
 }
 
-export function renderImmutabilitySkipped(reason: string): string {
+/** `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI: PR i main): brak bazy to błąd, nie ostrzeżenie. */
+export const IMMUTABILITY_REQUIRE_BASE_ENV = "MIGRATION_IMMUTABILITY_REQUIRE_BASE";
+
+export function immutabilityBaseRequired(envValue: string | undefined): boolean {
+  return envValue?.trim() === "1";
+}
+
+export function renderImmutabilitySkipped(reason: string, required = false): string {
   return [
-    `⚠ Niezmienność migracji: POMINIĘTA - ${reason}.`,
-    `  Bramka niczego nie porównała. W CI ${IMMUTABILITY_BASE_ENV} = SHA bazy PR albo github.event.before, a commit bazy musi być w klonie (git fetch --no-tags --depth=1 origin <sha>).`,
+    required
+      ? `✗ Niezmienność migracji: BEZ PORÓWNANIA - ${reason}.`
+      : `⚠ Niezmienność migracji: POMINIĘTA - ${reason}.`,
+    `  Bramka niczego nie porównała. W CI ${IMMUTABILITY_BASE_ENV} = SHA bazy PR albo (na main) ostatni commit z zieloną bramką, a commit bazy musi być w klonie (git fetch --no-tags --depth=1 origin <sha>).`,
+    ...(required
+      ? [
+          `  ${IMMUTABILITY_REQUIRE_BASE_ENV}=1: pominięte porównanie wyglądałoby jak zielone, więc to błąd - pobierz commit bazy i uruchom ponownie.`,
+        ]
+      : []),
   ].join("\n");
 }

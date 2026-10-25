@@ -170,7 +170,13 @@ function resolveBase(
   if (args.base === false || (args.mode === "check" && args.base === null)) return { base: null };
   const base = deps.baseJournal(args.base);
   if (base !== null) {
-    deps.log(`Baza luster lokalnych: ${base.ref} (wpisy dziennika: ${base.entries.length}).`);
+    const at =
+      base.commit === undefined ? "" : ` @ ${base.commit.sha.slice(0, 12)} z ${base.commit.date}`;
+    deps.log(`Baza luster lokalnych: ${base.ref}${at} (wpisy dziennika: ${base.entries.length}).`);
+    if (base.fetch === "failed")
+      deps.log(
+        `UWAGA: nie udało się pobrać ${base.ref} (git fetch) - baza może być nieaktualna. Lustro innego PR-a, które jest już na main, a nie w tej bazie, generator uznałby za lokalne i przenumerował: przed zapisem pobierz main (git fetch origin main) i uruchom ponownie.`,
+      );
     return { base };
   }
   if (args.base !== null)

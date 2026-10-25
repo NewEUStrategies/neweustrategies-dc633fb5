@@ -605,7 +605,15 @@ export interface LaneSource {
   readonly header: (k: number, n: number) => string;
   /** Stopka czesci 1 z n: czysty komentarz SQL (pusty = brak stopki). */
   readonly trailer: (n: number) => string;
+  /**
+   * Bajty, ktore dostawa dokleja do czesci k POZA jej plikiem (naglowek lustra
+   * drizzle z `bun run migrations:mirror`): limit dotyczy pliku dostarczonego,
+   * wiec budzet czesci je odejmuje (brak = 0).
+   */
+  readonly envelope?: (k: number) => number;
 }
+
+const envelopeOf = (lane: LaneSource, k: number): number => lane.envelope?.(k) ?? 0;
 
 export interface SplitPart {
   /** Pelna tresc pliku czesci. */
@@ -667,7 +675,7 @@ export function splitAligned(
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const lexed = lanes.map((lane) => lexStatements(lane.sql));
   const base = lexed[0]!;
-  if (lanes.every((lane) => utf8Length(lane.sql) <= maxBytes)) {
+  if (lanes.every((lane) => utf8Length(lane.sql) + envelopeOf(lane, 1) <= maxBytes)) {
     return unchanged(lanes, base.length, []);
   }
 
@@ -707,8 +715,13 @@ export function splitAligned(
     return worst;
   });
   const trailerReserve = lanes.map((lane) => utf8Length(lane.trailer(nMax)) + 1);
+  const envelopeReserve = lanes.map((lane) => {
+    let worst = 0;
+    for (let k = 1; k <= nMax; k += 1) worst = Math.max(worst, envelopeOf(lane, k));
+    return worst;
+  });
   const budget = (partIndex: number, l: number): number =>
-    maxBytes - (partIndex === 0 ? trailerReserve[l]! : headerReserve[l]!);
+    maxBytes - envelopeReserve[l]! - (partIndex === 0 ? trailerReserve[l]! : headerReserve[l]!);
 
   const packs: { from: number; to: number; bytes: number[] }[] = [];
   const oversize: number[] = [];
@@ -764,6 +777,7 @@ export function splitAligned(
     lanes.map((lane) => lane.sql),
     result,
     maxBytes,
+    lanes.map((lane) => (k: number) => envelopeOf(lane, k)),
   );
   if (problems.length > 0) {
     throw new MigrationSplitError(
@@ -823,7 +837,8 @@ function structureProblem(l: number, source: string, parts: readonly SplitPart[]
  * Dowod podzialu - lista naruszen (pusta = dowod przeszedl):
  *   (1) SQL wykonywalny czesci sklejony spacja == SQL wykonywalny oryginalu;
  *   (2) czesci bez naglowka/stopki sklejone == oryginal bajt w bajt;
- *   (3) kazda czesc (poza jawnie odlozonymi w `oversize`) <= `maxBytes`;
+ *   (3) kazda czesc (poza jawnie odlozonymi w `oversize`) razem z bajtami
+ *       doklejanymi przy dostawie (`envelopes[l](k)`) <= `maxBytes`;
  *   (4) czesc k kazdego pasa ma ten sam SQL wykonywalny, co czesc k pasa 0;
  *   (5) kazda czesc leksuje sie samodzielnie na kolejne instrukcje oryginalu.
  */
@@ -831,6 +846,7 @@ export function verifySplit(
   sources: readonly string[],
   result: SplitResult,
   maxBytes: number,
+  envelopes: readonly ((k: number) => number)[] = [],
 ): string[] {
   const problems: string[] = [];
   const reference = result.lanes[0]!;
@@ -850,8 +866,9 @@ export function verifySplit(
     const structure = structureProblem(l, source, parts);
     if (structure !== null) problems.push(structure);
     parts.forEach((p, k) => {
-      if (!result.oversize.includes(k) && utf8Length(p.text) > maxBytes) {
-        problems.push(`pas ${l}, czesc ${k + 1}: ${utf8Length(p.text)} B > limit ${maxBytes} B`);
+      const delivered = utf8Length(p.text) + (envelopes[l]?.(k + 1) ?? 0);
+      if (!result.oversize.includes(k) && delivered > maxBytes) {
+        problems.push(`pas ${l}, czesc ${k + 1}: ${delivered} B > limit ${maxBytes} B`);
       }
       const twin = reference[k];
       if (twin !== undefined && executableSql(p.text) !== executableSql(twin.text)) {

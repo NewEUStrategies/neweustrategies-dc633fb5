@@ -70,10 +70,17 @@
 --   * w klastrze wiersz z false albo założony nie wcześniej niż T0001 (to nie
 --     jest podpis `SET discoverable = true` na istniejących kontach) ->
 --     `cluster_signature_mismatch`;
---   * dowolny błąd wykonania (np. 55P03 po `lock_timeout` 5 s) -> `error`;
---     podtransakcja bloku wycofuje rejestr i przestawienia razem.
---   Funkcja nie rzuca: działa w JEDNEJ transakcji migratora Lovable z całym
---   wsadem wpisów, więc wyjątek wycofałby także cudze wpisy.
+--   * trwały błąd wykonania (np. 42501, 23514) -> `error`; podtransakcja
+--     bloku wycofuje rejestr i przestawienia razem.
+--   Bezpieczniki i trwałe błędy NIE rzucają: funkcja działa w JEDNEJ
+--   transakcji migratora Lovable z całym wsadem wpisów, więc wyjątek wycofałby
+--   także cudze wpisy, a ponowienie nie zmieni danych, które go wywołały.
+--   Błędy PRZEJŚCIOWE (55P03 po `lock_timeout` 5 s, 40P01 zakleszczenie,
+--   57014 anulowanie albo statement_timeout) funkcja rzuca dalej: wsad wycofuje
+--   się w całości, wpis lustra zostaje oczekujący i runbook (§4.6) pozwala
+--   ponowić wdrożenie. Połknięty, zapisałby się w rejestrze migratora jako
+--   wykonany, choć korekta niczego nie zmieniła - i ponowienie nie byłoby już
+--   możliwe. Anulowanie też nie jest połykane: to decyzja operatora.
 --
 -- ZMIANA
 --   1. `profiles_discoverable_corrections` - rejestr korekty: profil, najemca,
@@ -88,9 +95,12 @@
 --      PRZED przestawieniem (ON CONFLICT DO NOTHING) i przestawia na false
 --      dokładnie zapisane wiersze; potem, jeśli
 --      `prune_profile_embeddings()` istnieje, usuwa embeddingi profili spoza
---      katalogu. Przestawienie przesuwa `updated_at` (to prawdziwa zmiana
---      wiersza) i zostawia `discoverable_decided_at` = NULL (to nie jest
---      decyzja właściciela).
+--      katalogu - we WŁASNYM bloku: błąd sprzątania (np. wiersz embeddingu
+--      zablokowany przez zadanie embeddingów, 55P03 albo 40P01) daje
+--      `embeddings_pruned` NULL i nie unieważnia korekty; to samo przycięcie
+--      robi co godzinę zadanie embeddingów. Przestawienie przesuwa
+--      `updated_at` (to prawdziwa zmiana wiersza) i zostawia
+--      `discoverable_decided_at` = NULL (to nie jest decyzja właściciela).
 --   3. Jedno wywołanie z p_apply = true i NOTICE z wynikiem.
 --
 -- CZEGO NIE ZMIENIA
@@ -286,8 +296,13 @@ BEGIN
           INTO v_a, v_b
           FROM flipped f;
 
+        -- Sprzątanie we własnym bloku: jego błąd nie wycofuje korekty.
         IF to_regprocedure('public.prune_profile_embeddings()') IS NOT NULL THEN
-          v_pruned := public.prune_profile_embeddings();
+          BEGIN
+            v_pruned := public.prune_profile_embeddings();
+          EXCEPTION WHEN others THEN
+            v_pruned := NULL;
+          END;
         END IF;
         v_status := 'applied';
         v_detail := format('Cofnięto do false: kubeł A %s, kubeł B %s.', v_a, v_b);
@@ -309,13 +324,17 @@ BEGIN
        AND NOT COALESCE(p.updated_at = p.created_at
                         AND p.created_at >= v_t0001
                         AND p.created_at < v_restore, false);
-  EXCEPTION WHEN query_canceled OR others THEN
-    v_status := 'error';
-    v_detail := format('%s: %s. Nic nie zmieniono.', SQLSTATE, SQLERRM);
-    v_a := 0;
-    v_b := 0;
-    v_c := NULL;
-    v_pruned := NULL;
+  EXCEPTION
+    -- Przejściowe: wsad ma się wycofać i dać ponowić (runbook §4.6).
+    WHEN lock_not_available OR deadlock_detected OR query_canceled THEN
+      RAISE;
+    WHEN others THEN
+      v_status := 'error';
+      v_detail := format('%s: %s. Nic nie zmieniono.', SQLSTATE, SQLERRM);
+      v_a := 0;
+      v_b := 0;
+      v_c := NULL;
+      v_pruned := NULL;
   END korekta;
 
   RETURN QUERY SELECT v_status, v_t0001, v_restore, v_cluster, v_next,
@@ -324,7 +343,7 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION public._profiles_discoverable_0001_correction(boolean) IS
-  'Korekta wpisu 0001 (profiles.discoverable): mierzy T0001 (klaster updated_at w oknie when(0001) ± 1 h) i T_RESTORE na tej bazie, cofa do false kubły A i B z zapisem w profiles_discoverable_corrections (p_apply = true) albo tylko liczy (false). Niespełniony bezpiecznik albo błąd = zero zmian i wiersz diagnostyczny; nie rzuca. Tylko service_role.';
+  'Korekta wpisu 0001 (profiles.discoverable): mierzy T0001 (klaster updated_at w oknie when(0001) ± 1 h) i T_RESTORE na tej bazie, cofa do false kubły A i B z zapisem w profiles_discoverable_corrections (p_apply = true) albo tylko liczy (false). Niespełniony bezpiecznik albo trwały błąd = zero zmian i wiersz diagnostyczny bez wyjątku; błąd przejściowy (55P03, 40P01, 57014) rzuca dalej, żeby wsad migratora wycofał się i dał ponowić. Błąd przycięcia embeddingów nie unieważnia korekty. Tylko service_role.';
 
 REVOKE ALL ON FUNCTION public._profiles_discoverable_0001_correction(boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public._profiles_discoverable_0001_correction(boolean) TO service_role;

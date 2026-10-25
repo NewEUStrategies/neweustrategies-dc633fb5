@@ -14,7 +14,16 @@
 // przez porównanie dziennika z repozytorium z rejestrem produkcji - i to robią
 // te zapytania:
 // - `pending` (PRZED wdrożeniem): status każdego wpisu zakresu wobec rejestru
-//   (PENDING_STATUS); jedyny sposób, żeby cichy pominięty wpis zobaczyć z góry;
+//   (PENDING_STATUS); jedyny sposób, żeby cichy pominięty wpis zobaczyć z góry.
+//   Migrator wykona KAŻDY oczekujący wpis, także sprzed zakresu (scalony,
+//   niewdrożony PR), więc pierwszy wiersz to KOTWICA - wpis tuż przed `--from`.
+//   `when` rośnie w dzienniku ściśle (bramka pasów; historyczne odstępstwa są
+//   mniejsze od poprzedników), więc kotwica „juz zastosowany" dowodzi, że nic
+//   sprzed zakresu się nie wykona; inny status kotwicy = zakres jest za wąski.
+//   Plik, którego hash rejestr ma już pod innym `when` (ponowna dostawa tych
+//   samych bajtów, np. lustro wygenerowane drugi raz po rewercie), dostaje
+//   osobny status zamiast „zostanie wykonany" - poza kanonicznym wyzwalaczem,
+//   który z założenia jest w każdym wdrożeniu ten sam;
 // - `verify` (PO wdrożeniu): PUSTY wynik = każdy wpis zakresu zapisany przez
 //   migrator z hashem pliku z repozytorium; inaczej VERIFY_PROBLEM.
 //
@@ -26,7 +35,12 @@
 // dane albo schemat. Rejestru migratora ani `supabase_migrations.schema_migrations`
 // nikt nie wypełnia ręcznie, więc trybu zapisu tu nie ma.
 import { createHash } from "node:crypto";
-import { DRIZZLE_DIR, type JournalEntry, type ReadFile } from "./migrationLaneParity";
+import {
+  DRIZZLE_DIR,
+  isDeployTrigger,
+  type JournalEntry,
+  type ReadFile,
+} from "./migrationLaneParity";
 
 const JOURNAL_PATH = `${DRIZZLE_DIR}/meta/_journal.json`;
 
@@ -47,9 +61,13 @@ const HEAD_RE = /^[0-9A-Za-z._-]{1,64}$/;
 export const PENDING_STATUS = {
   applied: "juz zastosowany",
   hashMismatch: "INNY HASH W REJESTRZE",
-  willRun: "zostanie wykonany",
   skipped: "POMINIETY: when nie wiekszy od ostatniego zapisu",
+  redelivered: "PONOWNA DOSTAWA: ten sam plik juz w rejestrze",
+  willRun: "zostanie wykonany",
 } as const;
+
+/** Kolumna `rola` trybu `pending`: wpis tuż przed `--from` albo wpis zakresu. */
+export const PENDING_ROLE = { anchor: "kotwica", range: "zakres" } as const;
 
 /** Problemy trybu `verify`; wpis bez problemu nie pojawia się w wyniku. */
 export const VERIFY_PROBLEM = {
@@ -67,6 +85,8 @@ export interface DeployJournalRow {
   readonly tag: string;
   readonly when: number;
   readonly hash: string;
+  /** Kanoniczny wyzwalacz wdrożenia: te same bajty w każdym wdrożeniu, więc bez statusu ponownej dostawy. */
+  readonly trigger: boolean;
 }
 
 export type DeploySqlMode = "pending" | "verify";
@@ -100,7 +120,21 @@ function checkRow(row: DeployJournalRow): DeployJournalRow {
     }
   }
   if (!HASH_RE.test(row.hash)) throw new Error(`${row.tag}: hash nie jest sha256 hex`);
+  if (typeof row.trigger !== "boolean") throw new Error(`${row.tag}: trigger nie jest boolean`);
   return row;
+}
+
+/** Wiersz wpisu z hashem pliku liczonym jak w migratorze; rzuca bez pliku. */
+function rowOf(entry: JournalEntry, read: ReadFile): DeployJournalRow {
+  const content = read(`${DRIZZLE_DIR}/${checkTag(entry.tag)}.sql`);
+  if (content === null) throw new Error(`brak pliku ${entry.tag}.sql`);
+  return checkRow({
+    idx: entry.idx,
+    tag: entry.tag,
+    when: entry.when,
+    hash: drizzleFileHash(content),
+    trigger: isDeployTrigger(entry.tag, content),
+  });
 }
 
 /**
@@ -128,11 +162,20 @@ export function journalRows(
       `zakres ${from}-${upper} ma ${entries.length} wpisów, a jedno zapytanie mieści najwyżej ${MAX_DEPLOY_ROWS}; zawęź go przez --from/--to`,
     );
   }
-  return entries.map((e) => {
-    const content = read(`${DRIZZLE_DIR}/${checkTag(e.tag)}.sql`);
-    if (content === null) throw new Error(`brak pliku ${e.tag}.sql`);
-    return checkRow({ idx: e.idx, tag: e.tag, when: e.when, hash: drizzleFileHash(content) });
-  });
+  return entries.map((e) => rowOf(e, read));
+}
+
+/**
+ * Kotwica `--pending`: wpis tuż przed `from` (`null` dla `from` = 0). Jej status
+ * mówi, czy migrator wykona coś SPRZED zakresu (nagłówek modułu).
+ */
+export function pendingAnchor(
+  journal: JournalLike,
+  read: ReadFile,
+  from: number,
+): DeployJournalRow | null {
+  const anchor = journal.entries.find((e) => e.idx === from - 1);
+  return anchor === undefined ? null : rowOf(anchor, read);
 }
 
 function valuesRow(row: DeployJournalRow): string {
@@ -140,37 +183,53 @@ function valuesRow(row: DeployJournalRow): string {
   return `(${idx}, '${tag}', ${when}::bigint, '${hash}')`;
 }
 
-/** SQL TYLKO DO ODCZYTU dla edytora SQL; `head` to krótki SHA HEAD do nagłówka. */
+function pendingValuesRow(row: DeployJournalRow, role: string): string {
+  const { idx, tag, when, hash, trigger } = checkRow(row);
+  return `(${idx}, '${tag}', ${when}::bigint, '${hash}', '${role}', ${trigger})`;
+}
+
+/**
+ * SQL TYLKO DO ODCZYTU dla edytora SQL; `head` to krótki SHA HEAD do nagłówka.
+ * `anchor` (tylko `pending`) to wpis tuż przed zakresem - `pendingAnchor`.
+ */
 export function renderDeploySql(
   mode: DeploySqlMode,
   rows: readonly DeployJournalRow[],
   head: string,
+  anchor: DeployJournalRow | null = null,
 ): string {
   if (rows.length === 0) throw new Error("brak wpisów do zapytania");
   if (!HEAD_RE.test(head)) {
     throw new Error(`HEAD ${JSON.stringify(head)} spoza wzorca [0-9A-Za-z._-]`);
   }
-  const values = rows.map(valuesRow).join(",\n  ");
+  if (mode === "verify" && anchor !== null) throw new Error("kotwica dotyczy wyłącznie --pending");
   const idxs = rows.map((r) => r.idx);
   const label = `HEAD ${head}, wpisy ${Math.min(...idxs)}-${Math.max(...idxs)}`;
-  return mode === "pending" ? pendingSql(values, label) : verifySql(values, label);
+  if (mode === "verify") return verifySql(rows.map(valuesRow).join(",\n  "), label);
+  const values = [
+    ...(anchor === null ? [] : [pendingValuesRow(anchor, PENDING_ROLE.anchor)]),
+    ...rows.map((r) => pendingValuesRow(r, PENDING_ROLE.range)),
+  ].join(",\n  ");
+  return pendingSql(values, anchor === null ? label : `${label}, kotwica ${anchor.idx}`);
 }
 
 function pendingSql(values: string, label: string): string {
   return [
     `-- migrations:deploy-sql --pending (${label})`,
     "-- TYLKO ODCZYT. Pokazuje, co zrobi najblizsze uruchomienie migratora Drizzle.",
-    "WITH j(idx, tag, created_at, hash) AS (VALUES",
+    `-- Wiersz '${PENDING_ROLE.anchor}' (wpis tuz przed zakresem) ma miec '${PENDING_STATUS.applied}' - inaczej migrator wykona tez wpisy sprzed zakresu.`,
+    "WITH j(idx, tag, created_at, hash, rola, wyzwalacz) AS (VALUES",
     `  ${values}`,
     "), r AS (",
     "  SELECT COALESCE(max(created_at), 0)::bigint AS last_applied FROM drizzle.__drizzle_migrations",
     ")",
-    "SELECT j.idx, j.tag,",
+    "SELECT j.idx, j.tag, j.rola,",
     "  CASE",
     `    WHEN EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.created_at = j.created_at AND d.hash = j.hash) THEN '${PENDING_STATUS.applied}'`,
     `    WHEN EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.created_at = j.created_at) THEN '${PENDING_STATUS.hashMismatch}'`,
-    `    WHEN j.created_at > r.last_applied THEN '${PENDING_STATUS.willRun}'`,
-    `    ELSE '${PENDING_STATUS.skipped}'`,
+    `    WHEN j.created_at <= r.last_applied THEN '${PENDING_STATUS.skipped}'`,
+    `    WHEN NOT j.wyzwalacz AND EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.hash = j.hash) THEN '${PENDING_STATUS.redelivered}'`,
+    `    ELSE '${PENDING_STATUS.willRun}'`,
     "  END AS status",
     "FROM j CROSS JOIN r",
     "ORDER BY j.idx;",
@@ -195,7 +254,7 @@ function verifySql(values: string, label: string): string {
 
 export const DEPLOY_SQL_USAGE = [
   "Uzycie: bun run migrations:deploy-sql -- (--pending|--verify) --from <idx> [--to <idx>]",
-  "  --pending     co zrobi najblizsze uruchomienie migratora (przed wdrozeniem)",
+  "  --pending     co zrobi najblizsze uruchomienie migratora (przed wdrozeniem); pierwszy wiersz to kotwica - wpis <idx>-1",
   "  --verify      wpisy zakresu bez zapisu w rejestrze z hashem z repozytorium (po wdrozeniu; pusty wynik = OK)",
   "  --from <idx>  pierwszy wpis dziennika drizzle",
   "  --to <idx>    ostatni wpis (domyslnie ostatni w dzienniku)",
@@ -274,8 +333,10 @@ export function runDeploySqlCli(argv: readonly string[], deps: DeploySqlCliDeps)
     return 2;
   }
   try {
-    const rows = journalRows(readJournal(deps.read), deps.read, args.from, args.to);
-    deps.out(renderDeploySql(args.mode, rows, deps.head()));
+    const journal = readJournal(deps.read);
+    const rows = journalRows(journal, deps.read, args.from, args.to);
+    const anchor = args.mode === "pending" ? pendingAnchor(journal, deps.read, args.from) : null;
+    deps.out(renderDeploySql(args.mode, rows, deps.head(), anchor));
     return 0;
   } catch (error) {
     deps.err(`migrations:deploy-sql: ${error instanceof Error ? error.message : String(error)}`);

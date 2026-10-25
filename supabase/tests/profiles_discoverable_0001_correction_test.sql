@@ -21,18 +21,27 @@
 --   8-9.   baza z tego pasa: rejestr pusty, wynik `no_cluster`;
 --   10-13. bezpieczniki bez zmian: klaster za mały, dwa podobne klastry,
 --          podpis niezgodny (false w klastrze), brak T_RESTORE pomija kubeł B;
---   14-21. podgląd, potem korekta jako service_role: kubeł A (przestawieni
+--   14.    podgląd: T0001, T_RESTORE i liczebności kubłów;
+--   15-18. błędy w trakcie korekty: przejściowy (55P03, 40P01) wychodzi
+--          z funkcji, więc wsad migratora wycofa się i da ponowić; trwały
+--          (P0001) to wiersz `error` bez wyjątku; błąd przycięcia embeddingów
+--          (55P03) NIE unieważnia korekty (przebieg próbny w wycofanej
+--          podtransakcji);
+--   19-25. potem korekta jako service_role: kubeł A (przestawieni
 --          i niezmieniani), kubeł B (rejestracja z okna DEFAULT true,
 --          niezmieniana), T_RESTORE przycięte do when(0013) + 1 h; opt-in
 --          sprzed 0001, późniejszy przełącznik, edycja i anomalia za sufitem
 --          NIETKNIĘTE; rejestr przed przestawieniem, bez stempla decyzji,
 --          embedding usunięty;
---   22-24. drugi przebieg: `already_applied`, zero zmian; potwierdzenie
+--   26-28. drugi przebieg: `already_applied`, zero zmian; potwierdzenie
 --          właściciela zdejmuje go z kubła C.
 --
+-- Awarię w trakcie przestawiania symuluje wyzwalacz testu na `profiles`
+-- (SQLSTATE z ustawienia `korekta_test.sqlstate`), a awarię przycięcia -
+-- podmieniona `prune_profile_embeddings()`; oba znikają przed korektą 19-25.
 -- WYZWALACZE UŻYTKOWNIKA NA auth.users WYŁĄCZONE - konwencja suity.
 BEGIN;
-SELECT plan(24);
+SELECT plan(28);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -236,7 +245,7 @@ INSERT INTO public.profiles (id, tenant_id, email, display_name, discoverable, c
   ('e8c00000-0000-4000-8000-000000000026', 'e8c00000-0000-4000-8000-000000000000',
    'k26@korekta.test', 'K26', false, '2026-09-13 21:00+00', '2026-09-13 21:00+00');
 
--- ── 14-21. Podgląd, potem korekta jako service_role ─────────────────────────
+-- ── 14. Podgląd ─────────────────────────────────────────────────────────────
 SELECT results_eq(
   $$ SELECT status, measured_t0001, measured_t_restore, cluster_rows, next_cluster_rows,
             bucket_a_rows, bucket_b_rows, bucket_c_rows
@@ -246,11 +255,85 @@ SELECT results_eq(
   'podgląd: T0001 z klastra, T_RESTORE (21:00) przycięte do when(0013) + 1 h, A 12, B 1, C 4'
 );
 
+-- ── 15-18. Błędy w trakcie korekty ──────────────────────────────────────────
+CREATE FUNCTION public.korekta_test_awaria() RETURNS trigger
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  RAISE EXCEPTION 'symulowana awaria przestawienia'
+    USING ERRCODE = current_setting('korekta_test.sqlstate');
+END;
+$fn$;
+CREATE TRIGGER korekta_test_awaria_trg
+  BEFORE UPDATE OF discoverable ON public.profiles
+  FOR EACH ROW WHEN (NOT NEW.discoverable)
+  EXECUTE FUNCTION public.korekta_test_awaria();
+
+SELECT set_config('korekta_test.sqlstate', '55P03', true);
+SELECT throws_ok(
+  $$ SELECT * FROM public._profiles_discoverable_0001_correction(true) $$,
+  '55P03', NULL,
+  'blokada ponad lock_timeout (55P03) wychodzi z funkcji: wsad migratora wycofa się i da ponowić'
+);
+
+SELECT set_config('korekta_test.sqlstate', '40P01', true);
+SELECT throws_ok(
+  $$ SELECT * FROM public._profiles_discoverable_0001_correction(true) $$,
+  '40P01', NULL,
+  'zakleszczenie (40P01) wychodzi z funkcji: wsad migratora wycofa się i da ponowić'
+);
+
+SELECT set_config('korekta_test.sqlstate', 'P0001', true);
+SELECT results_eq(
+  $$ SELECT status, left(detail, 6), bucket_a_rows, bucket_b_rows, bucket_c_rows IS NULL
+       FROM public._profiles_discoverable_0001_correction(true) $$,
+  $$ VALUES ('error'::text, 'P0001:'::text, 0, 0, true) $$,
+  'trwały błąd (P0001) to wiersz error bez wyjątku - rejestr i przestawienia wycofane razem'
+);
+
+DROP TRIGGER korekta_test_awaria_trg ON public.profiles;
+DROP FUNCTION public.korekta_test_awaria();
+
+-- Przebieg próbny w podtransakcji wycofanej na końcu: wynik zostaje w zmiennych.
+CREATE TEMP TABLE korekta_bez_przyciecia (status text, a integer, b integer, pruned integer, rejestr integer)
+  ON COMMIT DROP;
+DO $probe$
+DECLARE
+  r record;
+  n integer;
+BEGIN
+  BEGIN
+    CREATE OR REPLACE FUNCTION public.prune_profile_embeddings() RETURNS integer
+    LANGUAGE plpgsql AS $fn$
+    BEGIN
+      RAISE EXCEPTION 'wiersz embeddingu zablokowany' USING ERRCODE = 'lock_not_available';
+    END;
+    $fn$;
+    SELECT * INTO r FROM public._profiles_discoverable_0001_correction(true);
+    SELECT count(*)::integer INTO n FROM public.profiles_discoverable_corrections;
+    RAISE EXCEPTION 'przebieg próbny wycofany' USING ERRCODE = 'XT001';
+  EXCEPTION WHEN SQLSTATE 'XT001' THEN
+    NULL;
+  END;
+  INSERT INTO korekta_bez_przyciecia
+  VALUES (r.status, r.bucket_a_rows, r.bucket_b_rows, r.embeddings_pruned, n);
+END
+$probe$;
+
+SELECT results_eq(
+  $$ SELECT status, a, b, pruned IS NULL, rejestr FROM korekta_bez_przyciecia $$,
+  $$ VALUES ('applied'::text, 12, 1, true, 13) $$,
+  'błąd przycięcia embeddingów (55P03) nie unieważnia korekty: applied, A 12, B 1, rejestr 13, embeddings_pruned NULL'
+);
+
+-- ── 19-25. Korekta jako service_role ────────────────────────────────────────
 SELECT ok(
   (SELECT count(*) FROM public.profiles_discoverable_corrections) = 0
   AND (SELECT count(*) FROM public.profiles
-        WHERE tenant_id = 'e8c00000-0000-4000-8000-000000000000' AND discoverable) = 20,
-  'podgląd i bezpieczniki niczego nie zapisały ani nie przestawiły'
+        WHERE tenant_id = 'e8c00000-0000-4000-8000-000000000000' AND discoverable) = 20
+  AND to_regprocedure('public.korekta_test_awaria()') IS NULL
+  AND (SELECT p.prosecdef FROM pg_proc p
+        WHERE p.oid = 'public.prune_profile_embeddings()'::regprocedure),
+  'podgląd, bezpieczniki, błędy i przebieg próbny niczego nie zapisały ani nie przestawiły; prune_profile_embeddings z migracji'
 );
 
 SET LOCAL ROLE service_role;
@@ -320,7 +403,7 @@ SELECT is(
   'embedding profilu z kubła A usunięty (prune_profile_embeddings)'
 );
 
--- ── 22-24. Drugi przebieg i potwierdzenie właściciela ──────────────────────
+-- ── 26-28. Drugi przebieg i potwierdzenie właściciela ──────────────────────
 SELECT results_eq(
   $$ SELECT status, measured_t0001, measured_t_restore, cluster_rows,
             bucket_a_rows, bucket_b_rows, bucket_c_rows

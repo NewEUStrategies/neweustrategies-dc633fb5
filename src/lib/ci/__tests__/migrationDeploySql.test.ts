@@ -22,6 +22,8 @@ import {
   journalRows,
   MAX_DEPLOY_ROWS,
   parseDeploySqlArgs,
+  pendingAnchor,
+  PENDING_ROLE,
   PENDING_STATUS,
   renderDeploySql,
   runDeploySqlCli,
@@ -30,6 +32,7 @@ import {
   type JournalLike,
 } from "@/lib/ci/migrationDeploySql";
 import {
+  DEPLOY_TRIGGER_SQL,
   DRIZZLE_DIR,
   readFileOrNull,
   type JournalEntry,
@@ -61,11 +64,12 @@ const diskOf =
   (path) =>
     files[path] ?? null;
 
-const row = (idx: number, hash: string, tag = tagOf(idx)): DeployJournalRow => ({
+const row = (idx: number, hash: string, tag = tagOf(idx), trigger = false): DeployJournalRow => ({
   idx,
   tag,
   when: whenOf(idx),
   hash,
+  trigger,
 });
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
@@ -167,8 +171,33 @@ describe("journalRows - zakres wpisów", () => {
     const content = "SELECT 1;\n";
     const read = diskOf({ [`${DRIZZLE_DIR}/0400_m.sql`]: content });
     expect(journalRows(journalOf(entry(400)), read, 400)).toEqual([
-      { idx: 400, tag: "0400_m", when: whenOf(400), hash: drizzleFileHash(content) },
+      {
+        idx: 400,
+        tag: "0400_m",
+        when: whenOf(400),
+        hash: drizzleFileHash(content),
+        trigger: false,
+      },
     ]);
+  });
+
+  it("kanoniczny wyzwalacz wdrożenia jest oznaczony (te same bajty w każdym wdrożeniu)", () => {
+    const tag = "0400_pr540_deployment_completion";
+    const read = diskOf({
+      [`${DRIZZLE_DIR}/${tag}.sql`]: DEPLOY_TRIGGER_SQL,
+      [`${DRIZZLE_DIR}/0401_m.sql`]: DEPLOY_TRIGGER_SQL,
+    });
+    expect(
+      journalRows(journalOf(entry(400, tag), entry(401)), read, 400).map((r) => r.trigger),
+    ).toEqual([true, false]);
+  });
+
+  it("kotwica --pending to wpis tuż przed `from`; dla `from` = 0 jej nie ma", () => {
+    expect(pendingAnchor(journal, anyFile, 399)).toEqual(
+      journalRows(journal, anyFile, 398, 398)[0],
+    );
+    expect(pendingAnchor(journalOf(...range(0, 2)), anyFile, 0)).toBeNull();
+    expect(() => pendingAnchor(journal, diskOf({}), 399)).toThrow("brak pliku 0398_m.sql");
   });
 
   it.each([
@@ -236,26 +265,40 @@ describe("renderDeploySql - szablony", () => {
     "  (400, '0400_m', 1792790006300::bigint, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')",
   ];
 
-  it("pending: dokładny tekst zapytania", () => {
-    expect(renderDeploySql("pending", rows, "afbff7cd0")).toBe(
+  it("pending: dokładny tekst zapytania - kotwica (wpis przed zakresem), wyzwalacz bez statusu ponownej dostawy", () => {
+    const anchor = row(398, HASH_C, "0398_pr533_deployment_completion", true);
+    expect(renderDeploySql("pending", rows, "afbff7cd0", anchor)).toBe(
       [
-        "-- migrations:deploy-sql --pending (HEAD afbff7cd0, wpisy 399-400)",
+        "-- migrations:deploy-sql --pending (HEAD afbff7cd0, wpisy 399-400, kotwica 398)",
         "-- TYLKO ODCZYT. Pokazuje, co zrobi najblizsze uruchomienie migratora Drizzle.",
-        "WITH j(idx, tag, created_at, hash) AS (VALUES",
-        ...values,
+        "-- Wiersz 'kotwica' (wpis tuz przed zakresem) ma miec 'juz zastosowany' - inaczej migrator wykona tez wpisy sprzed zakresu.",
+        "WITH j(idx, tag, created_at, hash, rola, wyzwalacz) AS (VALUES",
+        "  (398, '0398_pr533_deployment_completion', 1792789886300::bigint, 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'kotwica', true),",
+        "  (399, '0399_m', 1792789946300::bigint, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'zakres', false),",
+        "  (400, '0400_m', 1792790006300::bigint, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'zakres', false)",
         "), r AS (",
         "  SELECT COALESCE(max(created_at), 0)::bigint AS last_applied FROM drizzle.__drizzle_migrations",
         ")",
-        "SELECT j.idx, j.tag,",
+        "SELECT j.idx, j.tag, j.rola,",
         "  CASE",
         "    WHEN EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.created_at = j.created_at AND d.hash = j.hash) THEN 'juz zastosowany'",
         "    WHEN EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.created_at = j.created_at) THEN 'INNY HASH W REJESTRZE'",
-        "    WHEN j.created_at > r.last_applied THEN 'zostanie wykonany'",
-        "    ELSE 'POMINIETY: when nie wiekszy od ostatniego zapisu'",
+        "    WHEN j.created_at <= r.last_applied THEN 'POMINIETY: when nie wiekszy od ostatniego zapisu'",
+        "    WHEN NOT j.wyzwalacz AND EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations d WHERE d.hash = j.hash) THEN 'PONOWNA DOSTAWA: ten sam plik juz w rejestrze'",
+        "    ELSE 'zostanie wykonany'",
         "  END AS status",
         "FROM j CROSS JOIN r",
         "ORDER BY j.idx;",
       ].join("\n"),
+    );
+  });
+
+  it("pending bez kotwicy (zakres od wpisu 0): same wiersze zakresu, nagłówek bez kotwicy", () => {
+    const sql = renderDeploySql("pending", rows, "x");
+    expect(sql.split("\n")[0]).toBe("-- migrations:deploy-sql --pending (HEAD x, wpisy 399-400)");
+    expect(sql).not.toContain("'kotwica', ");
+    expect(() => renderDeploySql("verify", rows, "x", row(398, HASH_C))).toThrow(
+      "kotwica dotyczy wyłącznie --pending",
     );
   });
 
@@ -281,9 +324,11 @@ describe("renderDeploySql - szablony", () => {
     expect(PENDING_STATUS).toEqual({
       applied: "juz zastosowany",
       hashMismatch: "INNY HASH W REJESTRZE",
-      willRun: "zostanie wykonany",
       skipped: "POMINIETY: when nie wiekszy od ostatniego zapisu",
+      redelivered: "PONOWNA DOSTAWA: ten sam plik juz w rejestrze",
+      willRun: "zostanie wykonany",
     });
+    expect(PENDING_ROLE).toEqual({ anchor: "kotwica", range: "zakres" });
     expect(VERIFY_PROBLEM).toEqual({ hashMismatch: "inny hash", missing: "brak w rejestrze" });
     for (const text of [...Object.values(PENDING_STATUS), ...Object.values(VERIFY_PROBLEM)]) {
       expect(text).toMatch(/^[\x20-\x7e]+$/);
@@ -339,11 +384,20 @@ describe("wypisany SQL jest TYLKO DO ODCZYTU", () => {
   for (const [label, rowsOf] of cases) {
     for (const mode of ["pending", "verify"] as const) {
       it(`${mode}, ${label}: bez instrukcji zapisu, jedno zapytanie zakończone średnikiem`, () => {
-        const sql = executable(renderDeploySql(mode, rowsOf(), "afbff7cd0"));
+        const [anchor, ...range] = rowsOf();
+        const sql = executable(
+          mode === "pending"
+            ? renderDeploySql(mode, range, "afbff7cd0", anchor!)
+            : renderDeploySql(mode, [anchor!, ...range], "afbff7cd0"),
+        );
         expect(sql).not.toMatch(WRITE_KEYWORDS);
         expect(sql.trimEnd().endsWith(";")).toBe(true);
         expect(sql.split(";")).toHaveLength(2);
-        expect(sql.trimStart()).toMatch(/^WITH j\(idx, tag, created_at, hash\) AS \(VALUES/);
+        expect(sql.trimStart()).toMatch(
+          mode === "pending"
+            ? /^WITH j\(idx, tag, created_at, hash, rola, wyzwalacz\) AS \(VALUES/
+            : /^WITH j\(idx, tag, created_at, hash\) AS \(VALUES/,
+        );
       });
     }
   }
@@ -429,6 +483,23 @@ describe("runDeploySqlCli - kody wyjścia", () => {
     const rows = journalRows(journalOf(entry(399), entry(400)), diskOf(files), 399);
     expect(pending.out).toEqual([renderDeploySql("pending", rows, "afbff7cd0")]);
     expect(verify.out).toEqual([renderDeploySql("verify", rows, "afbff7cd0")]);
+  });
+
+  it("0: --pending dokłada kotwicę (wpis --from - 1), --verify jej nie ma", () => {
+    const anchored = run(["--pending", "--from", "400"]);
+    expect(anchored.code).toBe(0);
+    const journal = journalOf(entry(399), entry(400));
+    expect(anchored.out).toEqual([
+      renderDeploySql(
+        "pending",
+        journalRows(journal, diskOf(files), 400),
+        "afbff7cd0",
+        pendingAnchor(journal, diskOf(files), 400),
+      ),
+    ]);
+    expect(anchored.out[0]).toContain("(399, '0399_m', ");
+    expect(anchored.out[0]).toContain("'kotwica', false)");
+    expect(run(["--verify", "--from", "400"]).out[0]).not.toContain("0399_m");
   });
 
   it("2: złe wywołanie drukuje powód i sposób użycia, bez SQL-a", () => {

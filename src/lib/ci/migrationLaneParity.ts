@@ -33,10 +33,15 @@
 //   4. inny wpis z samych `COMMENT ON` (znacznik wdrożenia, jak 0398): przechodzi
 //      z ostrzeżeniem, bo komentarz na produkcji różni się wtedy od pasa
 //      kanonicznego (schemat i uprawnienia bez zmian);
-//   5. cokolwiek innego to `wpis-spoza-zrodla`: SQL adoptuje się do
+//   5. wpis bez SQL-a wykonywalnego (same komentarze, np. szablon
+//      `drizzle-kit generate --custom`): migrator wykona pusty plik, więc to
+//      no-op - przechodzi z ostrzeżeniem (adoptować nie ma czego: pusty plik
+//      supabase odrzuca generator jako `pusty-sql`);
+//   6. cokolwiek innego to `wpis-spoza-zrodla`: SQL adoptuje się do
 //      supabase/migrations (runbook §5), rejestru nie rozszerzamy.
-// Wpis rejestru dla tagu po zamrożeniu to `rejestr-zamrozony`; przy wyzwalaczu
-// i znaczniku, które bot Lovable zwykł rejestrować, tylko zbędny wpis do usunięcia.
+// Wpis rejestru dla tagu po zamrożeniu to `rejestr-zamrozony`; przy wyzwalaczu,
+// znaczniku i pustym wpisie, które bot Lovable zwykł rejestrować, tylko zbędny
+// wpis do usunięcia.
 //
 // CO ZNACZY „TEN SAM SQL". Pliki obu pasów NIE muszą być bajt w bajt - ZMIERZONE
 // na historycznych parach: pas supabase niesie długi nagłówek po polsku, pas
@@ -951,7 +956,9 @@ export interface LaneReport {
   readonly deployTriggers: readonly string[];
   /** Wpisy po zamrożeniu z samych `COMMENT ON` spoza kanonu - przechodzą z ostrzeżeniem. */
   readonly deployMarkers: readonly string[];
-  /** Wpisy MIGRATION_LANES dla wyzwalaczy i znaczników po zamrożeniu - zbędne, bez czerwieni. */
+  /** Wpisy po zamrożeniu bez SQL-a wykonywalnego (same komentarze) - no-op z ostrzeżeniem. */
+  readonly emptyEntries: readonly string[];
+  /** Wpisy MIGRATION_LANES dla wyzwalaczy, znaczników i pustych wpisów po zamrożeniu - zbędne, bez czerwieni. */
   readonly redundantRegistry: readonly string[];
   readonly violations: readonly LaneViolation[];
 }
@@ -1325,12 +1332,14 @@ type FrozenVerdict =
   | { readonly kind: "zapis"; readonly twin: string }
   | { readonly kind: "wyzwalacz" }
   | { readonly kind: "znacznik" }
+  | { readonly kind: "pusty" }
   | { readonly kind: "naruszenie"; readonly violation: LaneViolation };
 
 /**
  * Klasyfikacja wpisu po zamrożeniu w kolejności z nagłówka modułu: lustro
  * generatora, kopia pliku supabase, kanoniczny wyzwalacz, znacznik z samych
- * `COMMENT ON`, a wszystko inne to `wpis-spoza-zrodla`. Nagłówek generatora
+ * `COMMENT ON`, wpis bez SQL-a wykonywalnego, a wszystko inne to
+ * `wpis-spoza-zrodla`. Nagłówek generatora
  * rozstrzyga PIERWSZY: lustro rozjechane ze swoim źródłem nie przejdzie jako
  * kopia innego pliku o starym SQL-u.
  */
@@ -1369,6 +1378,7 @@ function judgeAfterFreeze(
   if (twin !== undefined) return { kind: "zapis", twin };
   if (isDeployTrigger(tag, drizzleSql)) return { kind: "wyzwalacz" };
   if (isCommentOnlySql(drizzleSql)) return { kind: "znacznik" };
+  if (executableSql(drizzleSql) === "") return { kind: "pusty" };
   return {
     kind: "naruszenie",
     violation: {
@@ -1416,6 +1426,7 @@ export function analyzeMigrationLanes(
   const deployRecords: DeployRecord[] = [];
   const deployTriggers: string[] = [];
   const deployMarkers: string[] = [];
+  const emptyEntries: string[] = [];
   const redundantRegistry: string[] = [];
   let twins = 0;
   let drizzleOnly = 0;
@@ -1449,9 +1460,11 @@ export function analyzeMigrationLanes(
       if (verdict.kind === "zapis") deployRecords.push({ tag, twin: verdict.twin });
       else if (verdict.kind === "wyzwalacz") deployTriggers.push(tag);
       else if (verdict.kind === "znacznik") deployMarkers.push(tag);
+      else if (verdict.kind === "pusty") emptyEntries.push(tag);
       else if (verdict.kind === "naruszenie") violations.push(verdict.violation);
       if (!entry) continue;
-      if (verdict.kind === "wyzwalacz" || verdict.kind === "znacznik") redundantRegistry.push(tag);
+      if (verdict.kind === "wyzwalacz" || verdict.kind === "znacznik" || verdict.kind === "pusty")
+        redundantRegistry.push(tag);
       else
         violations.push({
           kind: "rejestr-zamrozony",
@@ -1518,6 +1531,7 @@ export function analyzeMigrationLanes(
     deployRecords,
     deployTriggers,
     deployMarkers,
+    emptyEntries,
     redundantRegistry,
     violations,
   };
@@ -1798,6 +1812,10 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
     [
       `UWAGA - ZNACZNIKI WDROŻENIA SPOZA KANONU (${report.deployMarkers.length}, bez czerwieni): same COMMENT ON, więc schemat i uprawnienia bez zmian, ale komentarz na produkcji różni się od ${SUPABASE_DIR}; kanoniczny wyzwalacz to ${DEPLOY_TRIGGER_SQL}`,
       report.deployMarkers,
+    ],
+    [
+      `UWAGA - WPISY BEZ SQL-A WYKONYWALNEGO (${report.emptyEntries.length}, bez czerwieni): same komentarze (np. szablon drizzle-kit generate --custom) - migrator wykona pusty plik, więc to no-op`,
+      report.emptyEntries,
     ],
     [
       `ZBĘDNE WPISY MIGRATION_LANES (${report.redundantRegistry.length}, bez czerwieni): rejestr jest zamrożony, a te wpisy bramka rozpoznaje po treści - usuń je`,

@@ -27,6 +27,16 @@
 --   zwykłym CREATE INDEX: blokada SHARE na `membership_grants` (mała tabela)
 --   trwa do końca wsadu i na ten czas wstrzymuje zapisy nadań.
 --
+-- BLOKADY
+--   Bez limitu CREATE INDEX czekałby na blokadę SHARE bez końca za każdą
+--   otwartą transakcją, która pisze do `membership_grants`, a czekając -
+--   blokowałby każdy nowy zapis nadań (kolejka blokad). `lock_timeout` 5 s:
+--   zamiast tego szybkie 55P03, wycofanie całego wsadu i ponowienie (runbook
+--   §4.6). Pierwszy wpis wsadu przełączenia, który może czekać na blokadę
+--   tabeli, to ten (0399 podmienia tylko funkcję). SET na najwyższym poziomie
+--   obowiązuje do końca wsadu (generator lustra zgłasza to ostrzeżeniem
+--   `ustawienie-sesji`) - świadomie: chroni też 20261025090020 i 090030.
+--
 -- CZEGO NIE ZMIENIA
 --   * Samej kolumny: ADD COLUMN z 0392 nie jest przenoszone - kolumna jest
 --     w tym pasie od 20260725090300.
@@ -48,6 +58,8 @@
 -- generatora + ten plik bajt w bajt); nikt nie pisze go ręcznie.
 -- Test: supabase/tests/drizzle_only_schema_adoption_test.sql (asercje 17-19).
 -- ============================================================================
+
+SET lock_timeout = '5s';
 
 -- ----------------------------------------------------------------------------
 -- 1) membership_grants_tenant_coupon_idx - stan z 0392

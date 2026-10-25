@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   IMMUTABILITY_BASE_ENV,
+  IMMUTABILITY_REQUIRE_BASE_ENV,
   MIGRATION_EDIT_ALLOWLIST,
   MIGRATION_JOURNAL_PATH,
   allowlistErrors,
   analyzeMigrationImmutability,
   guardedMigrationPath,
+  immutabilityBaseRequired,
   immutabilityFailed,
   parseRawDiff,
   renderImmutabilityReport,
@@ -262,7 +264,13 @@ describe("analyzeMigrationImmutability - pliki migracji", () => {
 
   it("zgoda na usunięcie (blobAfter: null) nie dopuszcza edycji, a zgoda na treść - usunięcia", () => {
     const allowlist: MigrationEditAllowance[] = [
-      { path: DRIZZLE_FILE, kind: "other", reason: "sierota spoza dziennika", blobAfter: null },
+      {
+        path: DRIZZLE_FILE,
+        kind: "other",
+        reason: "sierota spoza dziennika",
+        blobAfter: null,
+        blobBefore: blob(2),
+      },
       { path: SUPABASE_FILE, kind: "other", reason: "poprawka treści", blobAfter: blob(4) },
     ];
     const deletionAllowed = analyzeMigrationImmutability(
@@ -279,6 +287,30 @@ describe("analyzeMigrationImmutability - pliki migracji", () => {
       allowlist,
     );
     expect(kinds(report)).toEqual(["plik-zmieniony", "plik-usuniety"]);
+  });
+
+  it("zgoda na usunięcie wiąże usuniętą treść: ta sama ścieżka dodana z inną treścią i usunięta znowu czerwieni", () => {
+    const allowlist: MigrationEditAllowance[] = [
+      {
+        path: DRIZZLE_FILE,
+        kind: "other",
+        reason: "sierota spoza dziennika (08d183bd0)",
+        blobAfter: null,
+        blobBefore: blob(2),
+      },
+    ];
+    expect(
+      analyzeMigrationImmutability([deleted(DRIZZLE_FILE)], noBlobs, allowlist).violations,
+    ).toEqual([]);
+    // Później: plik wrócił z inną treścią (blob 9), scalony, i znów zniknął.
+    const again = analyzeMigrationImmutability(
+      [deleted(DRIZZLE_FILE, blob(9))],
+      noBlobs,
+      allowlist,
+    );
+    expect(kinds(again)).toEqual(["plik-usuniety"]);
+    expect(again.violations[0]).toMatchObject({ blobAfter: null, blobBefore: blob(9) });
+    expect(again.allowed).toEqual([]);
   });
 });
 
@@ -422,10 +454,24 @@ describe("MIGRATION_EDIT_ALLOWLIST", () => {
       { path: DRIZZLE_FILE, kind: "other", reason: "x", blobAfter: "abc" },
       { path: DRIZZLE_FILE, kind: "other", reason: "x", blobAfter: `${blob(5)}0` },
       { path: DRIZZLE_FILE, kind: "other", reason: "x", blobAfter: blob(6).toUpperCase() },
-      { path: DRIZZLE_FILE, kind: "rewrite-unapplied", reason: "x", blobAfter: null },
+      {
+        path: DRIZZLE_FILE,
+        kind: "rewrite-unapplied",
+        reason: "x",
+        blobAfter: null,
+        blobBefore: blob(7),
+      },
       { path: SNAPSHOT_FILE, kind: "rewrite-unapplied", reason: "x", blobAfter: blob(2) },
       { path: SUPABASE_FILE, kind: "bot-pending-fix", reason: "x", blobAfter: blob(3) },
       { path: SUPABASE_FILE, kind: "other", reason: "y", blobAfter: blob(3) },
+      { path: DRIZZLE_FILE, kind: "other", reason: "usunięcie bez treści", blobAfter: null },
+      {
+        path: SNAPSHOT_FILE,
+        kind: "other",
+        reason: "edycja z blobBefore",
+        blobAfter: blob(8),
+        blobBefore: blob(1),
+      },
     ]);
     expect(errors).toEqual([
       expect.stringContaining("drizzle/schema.ts"),
@@ -436,6 +482,8 @@ describe("MIGRATION_EDIT_ALLOWLIST", () => {
       expect.stringContaining("rewrite-unapplied zmienia treść"),
       expect.stringContaining("rewrite-unapplied zmienia treść"),
       expect.stringContaining("zdublowany"),
+      expect.stringContaining("wymaga blobBefore"),
+      expect.stringContaining("blobBefore dotyczy wyłącznie usunięcia"),
     ]);
   });
 
@@ -449,7 +497,7 @@ describe("MIGRATION_EDIT_ALLOWLIST", () => {
 
   it("błędny wpis rejestru czerwieni bramkę nawet przy czystym diffie", () => {
     const report = analyzeMigrationImmutability([], noBlobs, [
-      { path: SUPABASE_FILE, kind: "other", reason: "", blobAfter: null },
+      { path: SUPABASE_FILE, kind: "other", reason: "", blobAfter: null, blobBefore: blob(2) },
     ]);
     expect(report.registryErrors).toHaveLength(1);
     expect(immutabilityFailed(report)).toBe(true);
@@ -536,7 +584,7 @@ describe("renderImmutabilityReport", () => {
     const report = analyzeMigrationImmutability(
       [deleted(SUPABASE_FILE), modified(DRIZZLE_FILE, blob(3), blob(5)), ...diff],
       readBlob,
-      [{ path: SNAPSHOT_FILE, kind: "other", reason: "", blobAfter: null }],
+      [{ path: SNAPSHOT_FILE, kind: "other", reason: "", blobAfter: null, blobBefore: blob(2) }],
     );
     const text = renderImmutabilityReport(report, RANGE);
     expect(text.split("\n")[0]).toMatch(/^✗ Niezmienność migracji: /);
@@ -547,7 +595,7 @@ describe("renderImmutabilityReport", () => {
     expect(text).toContain("bun run migrations:mirror");
     expect(text).toContain("migrations:deploy-sql -- --verify");
     expect(text).toContain(
-      `{ path: "${SUPABASE_FILE}", kind: "other", reason: "", blobAfter: null },`,
+      `{ path: "${SUPABASE_FILE}", kind: "other", reason: "", blobAfter: null, blobBefore: "${blob(2)}" },`,
     );
     expect(text).toContain(
       `{ path: "${DRIZZLE_FILE}", kind: "other", reason: "", blobAfter: "${blob(5)}" },`,
@@ -562,6 +610,17 @@ describe("renderImmutabilityReport", () => {
     expect(text).toMatch(/^⚠ Niezmienność migracji: POMINIĘTA/);
     expect(text).toContain("commit bazowy niedostępny");
     expect(text).toContain(IMMUTABILITY_BASE_ENV);
+    expect(text).not.toContain(IMMUTABILITY_REQUIRE_BASE_ENV);
+  });
+
+  it("z MIGRATION_IMMUTABILITY_REQUIRE_BASE=1 (CI) brak bazy to błąd, nie ostrzeżenie", () => {
+    expect(immutabilityBaseRequired("1")).toBe(true);
+    expect(immutabilityBaseRequired(" 1\n")).toBe(true);
+    for (const off of [undefined, "", "0", "true"])
+      expect(immutabilityBaseRequired(off)).toBe(false);
+    const text = renderImmutabilitySkipped("commit bazowy niedostępny", true);
+    expect(text).toMatch(/^✗ Niezmienność migracji: BEZ PORÓWNANIA/);
+    expect(text).toContain(`${IMMUTABILITY_REQUIRE_BASE_ENV}=1`);
   });
 });
 

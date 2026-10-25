@@ -14,13 +14,15 @@
  *
  * Zakres bramki (bazowa linia + uzgodnienia) opisuje `supabase/migration-ledger.json`.
  *
- * Poza zakresem są pliki z lustrem drizzle: wpis dziennika wygenerowany
- * `bun run migrations:mirror` niesie w pierwszej linii nagłówek
- * `-- migrations-mirror: supabase/migrations/<plik>`, a migrator Drizzle zapisuje
- * go w `drizzle.__drizzle_migrations`, nie w `schema_migrations`. Przełącznikiem
- * jest sam nagłówek - wpisy sprzed generatora go nie mają, więc konfiguracja nie
- * potrzebuje granicy idx. Brak pliku wpisu albo nagłówka zostawia plik w zakresie
- * (bramka raczej zgłosi brak, niż przepuści niewykonaną migrację).
+ * Poza zakresem są pliki niesione przez wpis dziennika drizzle po zamrożeniu
+ * (JOURNAL_FREEZE_IDX): lustro z `bun run migrations:mirror` (nagłówek
+ * `-- migrations-mirror: supabase/migrations/<plik>`) albo wpis bota Lovable,
+ * którego SQL adoptował plik supabase (runbook §5.4 pkt 1). Migrator Drizzle
+ * zapisuje je w `drizzle.__drizzle_migrations`, nie w `schema_migrations`.
+ * Przydział wpisu do pliku liczy kierunek odwrotny bramki pasów
+ * (`analyzeSupabaseCoverage`) - ta sama definicja co w `check:migration-lanes`.
+ * Brak pliku wpisu albo rozjechany SQL zostawia plik w zakresie (bramka raczej
+ * zgłosi brak, niż przepuści niewykonaną migrację).
  *
  * Usage:
  *   bun run check:migration-ledger
@@ -29,18 +31,23 @@
  */
 import { probeMigrationVersions } from "../src/lib/ci/deploymentProbe";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { DRIZZLE_DIR, readFileOrNull, type JournalEntry } from "../src/lib/ci/migrationLaneParity";
+import {
+  DRIZZLE_DIR,
+  JOURNAL_FREEZE_IDX,
+  type JournalEntry,
+} from "../src/lib/ci/migrationLaneParity";
 import {
   buildLedgerReport,
+  drizzleProvenFiles,
   ledgerFailed,
   ledgerRequirements,
   parseMigrationFiles,
   renderLedgerReport,
   type LedgerConfig,
 } from "../src/lib/ci/migrationLedger";
-// Nagłówek z modułu-liścia, nie z generatora: drizzleMirror sam zależy od migrationLedger
+// Przydział z bramki pasów, nie z generatora: drizzleMirror sam zależy od migrationLedger
 // (przez migrationSplitPlan), a bramka rejestru od generatora nie zależy.
-import { mirrorSourceOf } from "../src/lib/migrations/mirrorHeader";
+import { analyzeSupabaseCoverage } from "../src/lib/ci/supabaseLaneCoverage";
 import { MIGRATIONS_DIR } from "./lib/sqlMigrations";
 
 const CONFIG_PATH = "supabase/migration-ledger.json";
@@ -82,7 +89,7 @@ function isTagged(entry: unknown): entry is Pick<JournalEntry, "tag"> {
   );
 }
 
-/** Pliki `supabase/migrations/` niesione przez wpisy dziennika z nagłówkiem lustra. */
+/** Pliki `supabase/migrations/` niesione przez wpisy dziennika po zamrożeniu. */
 function loadDrizzleProven(): ReadonlySet<string> {
   const journal: unknown = JSON.parse(readFileSync(JOURNAL_PATH, "utf8"));
   const entries: unknown =
@@ -92,12 +99,8 @@ function loadDrizzleProven(): ReadonlySet<string> {
   if (!Array.isArray(entries) || !entries.every(isTagged)) {
     throw new Error(`${JOURNAL_PATH}: oczekiwano obiektu z listą 'entries' wpisów z 'tag'.`);
   }
-  const proven = new Set<string>();
-  for (const { tag } of entries) {
-    const source = mirrorSourceOf(readFileOrNull(`${DRIZZLE_DIR}/${tag}.sql`));
-    if (source !== null) proven.add(source);
-  }
-  return proven;
+  const { copies } = analyzeSupabaseCoverage(entries.map((e) => e.tag));
+  return drizzleProvenFiles(copies, JOURNAL_FREEZE_IDX);
 }
 
 async function main(): Promise<void> {

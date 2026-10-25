@@ -51,6 +51,7 @@ const report = (violations: LaneReport["violations"] = []): LaneReport => ({
   deployRecords: [],
   deployTriggers: [],
   deployMarkers: [],
+  emptyEntries: [],
   redundantRegistry: [],
   violations,
 });
@@ -301,6 +302,29 @@ describe("zamrożenie dziennika: supabase/migrations źródłem prawdy", () => {
     expect(text).toMatch(/^✓/);
     expect(text).toContain("UWAGA - ZNACZNIKI WDROŻENIA");
     expect(text).toContain("  0399_pr600_deployment_completion");
+  });
+
+  it("wpis bez SQL-a wykonywalnego po zamrożeniu (szablon drizzle-kit generate --custom) to no-op z ostrzeżeniem, nie wpis-spoza-zrodla", () => {
+    // Dosłowna treść pliku, który tworzy `drizzle-kit generate --custom` (0.31.10).
+    const custom = "-- Custom SQL migration file, put your code below! --";
+    const r = lanes(
+      { "0399_lovable_custom": custom, "0400_lovable_custom_registered": `${custom}\n` },
+      [{ tag: "0400_lovable_custom_registered", drizzleOnly: "Pusty wpis panelu." }],
+    );
+    expect(r.violations).toEqual([]);
+    expect(r.emptyEntries).toEqual(["0399_lovable_custom", "0400_lovable_custom_registered"]);
+    expect(r.deployMarkers).toEqual([]);
+    expect(r.redundantRegistry).toEqual(["0400_lovable_custom_registered"]);
+    const g = gate(r);
+    expect(laneGateFailed(g)).toBe(false);
+    const text = renderLaneGate(r, g);
+    expect(text).toMatch(/^✓/);
+    expect(text).toContain("UWAGA - WPISY BEZ SQL-A WYKONYWALNEGO (2, bez czerwieni)");
+    expect(text).toContain("  0399_lovable_custom");
+    // Komentarz to nie instrukcja: obok niego wszystko inne nadal jest oceniane.
+    expect(kinds(lanes({ "0399_lovable_custom": `${custom}\n${BOT_SQL}` }))).toEqual([
+      "wpis-spoza-zrodla:0399_lovable_custom",
+    ]);
   });
 
   it("granica zamrożenia: wpis 398 to historia z rejestrem, wpis 399 już ocena po treści", () => {
@@ -602,15 +626,19 @@ describe("self-test na realnym dzienniku drizzle", () => {
     );
   });
 
-  it("zamrożenie na wpisie 398: rejestr i listy znanych przypadków to wyłącznie historia", () => {
+  it("zamrożenie na wpisie 398: listy znanych przypadków to wyłącznie historia, a rejestr po niej ma najwyżej zbędne wpisy bota", () => {
     expect(JOURNAL_FREEZE_IDX).toBe(398);
     const idx = (tag: string) => Number(/^(\d+)_/.exec(tag)?.[1]);
-    for (const tag of [
-      ...MIGRATION_LANES.map((l) => l.tag),
-      ...KNOWN_ORPHAN_LANE_ENTRIES,
-      ...KNOWN_NON_MONOTONIC_JOURNAL,
-    ])
+    for (const tag of [...KNOWN_ORPHAN_LANE_ENTRIES, ...KNOWN_NON_MONOTONIC_JOURNAL])
       expect(idx(tag), tag).toBeLessThanOrEqual(JOURNAL_FREEZE_IDX);
+    // Bot Lovable rejestrował swoje wyzwalacze (977ee2337, bd9b88f6f, dc00df68b,
+    // c30ad4a6e): taki wpis po zamrożeniu bramka zgłasza jako zbędny, bez
+    // czerwieni (runbook §4.3), więc ten test też go przepuszcza. Każdy inny wpis
+    // rejestru po zamrożeniu to `rejestr-zamrozony` w raporcie bramki.
+    const afterFreeze = MIGRATION_LANES.map((l) => l.tag).filter(
+      (tag) => idx(tag) > JOURNAL_FREEZE_IDX,
+    );
+    expect(afterFreeze.filter((tag) => !real.redundantRegistry.includes(tag))).toEqual([]);
   });
 
   it("historia dziennika: wpisy z samych COMMENT ON to 0137, 0329, 0346, 0391, 0398, a kanoniczny wyzwalacz - tylko 0391", () => {

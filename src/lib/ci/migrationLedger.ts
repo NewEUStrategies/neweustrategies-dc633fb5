@@ -21,13 +21,16 @@
  *     rejestru. Wpis uzgodnienia nie zwalnia z kontroli: wskazuje wersję, pod
  *     którą SQL faktycznie poszedł, i bramka sprawdza właśnie ją.
  *  3. LUSTRO DRIZZLE (`drizzleProven`). Plik niesiony przez wpis dziennika
- *     drizzle wygenerowany `bun run migrations:mirror` trafia na produkcję
- *     migratorem Drizzle, który zapisuje go w `drizzle.__drizzle_migrations`,
- *     a nie w tym rejestrze. Wierszy w `supabase_migrations.schema_migrations`
- *     nikt już nie dopisuje ręcznie (taki wiersz nie dowodzi, że SQL się
- *     wykonał), więc bramka rejestru tych plików nie egzekwuje. Wdrożenie
- *     potwierdza zapytanie `bun run migrations:deploy-sql -- --verify`, a to,
- *     że SQL lustra jest SQL-em pliku, pilnuje `check:migration-lanes`.
+ *     drizzle PO ZAMROŻENIU (lustro z `bun run migrations:mirror` albo wpis
+ *     bota Lovable, którego SQL adoptował plik supabase - runbook §5.4 pkt 1)
+ *     trafia na produkcję migratorem Drizzle, który zapisuje go
+ *     w `drizzle.__drizzle_migrations`, a nie w tym rejestrze. Wierszy
+ *     w `supabase_migrations.schema_migrations` nikt już nie dopisuje ręcznie
+ *     (taki wiersz nie dowodzi, że SQL się wykonał), więc bramka rejestru tych
+ *     plików nie egzekwuje. Który wpis niesie który plik, rozstrzyga kierunek
+ *     odwrotny bramki pasów (`analyzeSupabaseCoverage`, ta sama definicja co
+ *     w `check:migration-lanes`) - `drizzleProvenFiles`. Wdrożenie potwierdza
+ *     zapytanie `bun run migrations:deploy-sql -- --verify`.
  *
  * Cała logika jest czysta i testowalna - IO (fetch, fs) siedzi w
  * `scripts/check-migration-ledger.ts`.
@@ -56,11 +59,26 @@ export interface LedgerConfig {
   /** `nazwa pliku` → `wersja w rejestrze, pod którą SQL został wykonany`. */
   readonly reconciled: Readonly<Record<string, string>>;
   /**
-   * Nazwy plików niesionych przez wpisy dziennika z nagłówkiem lustra
-   * (`-- migrations-mirror: supabase/migrations/<plik>`) - poza zakresem bramki,
-   * bo ich dowodem jest rejestr migratora Drizzle, nie `schema_migrations`.
+   * Nazwy plików niesionych przez wpisy dziennika po zamrożeniu
+   * (`drizzleProvenFiles`) - poza zakresem bramki, bo ich dowodem jest rejestr
+   * migratora Drizzle, nie `schema_migrations`.
    */
   readonly drizzleProven?: ReadonlySet<string>;
+}
+
+/**
+ * Pliki, których dowodem wdrożenia jest rejestr migratora Drizzle: niesione
+ * (`copies`: plik -> tag z przydziału `analyzeSupabaseCoverage`) przez wpis
+ * dziennika o idx większym niż `freezeIdx` (JOURNAL_FREEZE_IDX). Historia do
+ * zamrożenia - bliźniaki i kopie panelu - zostaje w bramce rejestru jak dotąd.
+ */
+export function drizzleProvenFiles(
+  copies: ReadonlyMap<string, string>,
+  freezeIdx: number,
+): Set<string> {
+  const idxOf = (tag: string): number =>
+    Number(/^(\d+)_/.exec(tag)?.[1] ?? Number.POSITIVE_INFINITY);
+  return new Set([...copies].filter(([, tag]) => idxOf(tag) > freezeIdx).map(([file]) => file));
 }
 
 export interface LedgerReport {

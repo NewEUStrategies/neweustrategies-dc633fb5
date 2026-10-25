@@ -24,7 +24,8 @@
 //   (i)   plik któregoś WPISU DZIENNIKA ma ten sam SQL wykonywalny
 //         (`executableSql` - ta sama miara co w kierunku prostym); każdy wpis
 //         pokrywa JEDEN plik, więc ponowny przebieg albo przywrócenie z tym
-//         samym SQL-em co starszy plik potrzebuje własnej kopii,
+//         samym SQL-em co starszy plik potrzebuje własnej kopii
+//         (przydział: `journalCopies`),
 //   (ii)  wpis MIGRATION_LANES o tagu Z DZIENNIKA wskazuje go jako `twin`
 //         (kierunek prosty pilnuje wtedy, że treść jest ta sama),
 //   (iii) ma wpis w SUPABASE_LANE_GAPS: `coveredBy` (SQL wszedł do dziennika
@@ -73,14 +74,32 @@
 // nazw plików spoza zakresu są wpisane na stałe - każdy nowy taki plik zmienia
 // odcisk i czerwieni CI.
 //
+// KTÓRY WPIS POKRYWA KTÓRY PLIK (`journalCopies`). Sama treść nie wystarcza,
+// gdy dwa pliki mają ten sam SQL wykonywalny (ponowny przebieg starszego pliku):
+//   1. lustro generatora należy do pliku z SWOJEGO nagłówka (o ile SQL jest ten
+//      sam) i nie pokrywa żadnego innego - inaczej starszy plik o tym samym
+//      SQL-u (np. `appliedOutOfBand`) zabrałby lustro nowego, a generator
+//      z bazą i `--check` bez bazy nie zgodziłyby się, czy lustro jest aktualne;
+//   2. wpis bez nagłówka do JOURNAL_FREEZE_IDX (historia: kopie panelu, faza A)
+//      - pliki w kolejności wersji, każdy bierze pierwszą wolną kopię; pliki
+//      z SUPABASE_LANE_GAPS dopiero po pozostałych, z resztek (wtedy wpis rejestru
+//      jest zbędny);
+//   3. wpis bez nagłówka po zamrożeniu (adopcja wpisu bota albo jego ponowna
+//      kopia) należy do NAJSTARSZEGO pliku o tym SQL-u: plik adopcji jest takim
+//      plikiem z założenia, a ponowna kopia już niesionego pliku zostaje zbędna
+//      i nie przykrywa późniejszego, świadomego ponownego przebiegu - ten
+//      dostaje własne lustro.
+//
 // NIEAKTUALNY WPIS NIE CZERWIENI. Kopia może pojawić się na `main` bez zmiany
 // tego pliku (lustro z innego PR albo adopcja wpisu bota Lovable). Wpis
 // rejestru dla pliku, który właśnie zyskał kopię, jest wtedy zbędny - bramka
 // drukuje go jako „do usunięcia", ale nie czerwieni `main`.
 import { createHash } from "node:crypto";
 
+import { mirrorSourceOf } from "../migrations/mirrorHeader";
 import {
   DRIZZLE_DIR,
+  JOURNAL_FREEZE_IDX,
   MIGRATION_LANES,
   SUPABASE_DIR,
   executableSql,
@@ -517,6 +536,8 @@ export interface SupabaseCoverageReport {
   readonly outOfBand: readonly OutOfBandSupabaseFile[];
   readonly stale: readonly StaleSupabaseGap[];
   readonly violations: readonly SupabaseCoverageViolation[];
+  /** Pokrycie (i): plik supabase -> wpis dziennika, który go niesie (`journalCopies`). */
+  readonly copies: ReadonlyMap<string, string>;
 }
 
 export interface SupabaseCoverageOptions {
@@ -528,6 +549,8 @@ export interface SupabaseCoverageOptions {
   readonly preLane?: PreLaneFreeze | null;
   /** Pliki, którym wolno mieć `appliedOutOfBand` albo `uncovered` (domyślnie zamrożony zbiór). */
   readonly exceptions?: ReadonlySet<string>;
+  /** Ostatni wpis historii dziennika (domyślnie JOURNAL_FREEZE_IDX) - patrz `journalCopies`. */
+  readonly freezeIdx?: number;
 }
 
 /** Wersja migracji supabase (14 cyfr przed `_`); `null` dla nazwy spoza konwencji CLI. */
@@ -589,6 +612,84 @@ const inLaneScope = (file: string): boolean => {
   return version !== null && version >= DRIZZLE_LANE_START;
 };
 
+/** Indeks wpisu z prefiksu tagu; tag bez prefiksu liczy się jak wpis po zamrożeniu. */
+const tagIdx = (tag: string): number =>
+  Number(/^(\d+)_/.exec(tag)?.[1] ?? Number.POSITIVE_INFINITY);
+
+interface JournalCopy {
+  readonly tag: string;
+  /** SQL wykonywalny pliku wpisu (niepusty). */
+  readonly key: string;
+  /** Źródło z nagłówka generatora; `null` - wpis bez nagłówka. */
+  readonly source: string | null;
+}
+
+/** Wartości pogrupowane po kluczu, w kolejności wejścia. */
+function groupBy<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+}
+
+/** Wpisy dziennika, które mogą coś nieść: z plikiem i niepustym SQL-em wykonywalnym. */
+function readJournalCopies(journalTags: readonly string[], read: ReadFile): JournalCopy[] {
+  return journalTags.flatMap((tag) => {
+    const text = read(`${DRIZZLE_DIR}/${tag}.sql`);
+    if (text === null) return []; // wpis bez pliku łapie evaluateLaneGate
+    const key = executableSql(text);
+    return key === "" ? [] : [{ tag, key, source: mirrorSourceOf(text) }];
+  });
+}
+
+/**
+ * Pokrycie (i): który wpis dziennika niesie który plik `files` (w kolejności
+ * wersji) - reguły 1-3 z nagłówka modułu. Każdy wpis niesie najwyżej jeden plik.
+ */
+function journalCopies(
+  journalTags: readonly string[],
+  files: readonly string[],
+  sqlOf: (file: string) => string | null,
+  gapFiles: ReadonlySet<string>,
+  read: ReadFile,
+  freezeIdx: number,
+): Map<string, string> {
+  const entries = readJournalCopies(journalTags, read);
+  const copies = new Map<string, string>();
+  // 1. Lustro generatora: wyłącznie plik z nagłówka, o tym samym SQL-u.
+  for (const { tag, key, source } of entries) {
+    if (source !== null && !copies.has(source) && sqlOf(source) === key) copies.set(source, tag);
+  }
+  // 2. Historia: pierwsza wolna kopia dla pliku, pliki rejestru luk z resztek.
+  const history = groupBy(
+    entries.filter((e) => e.source === null && tagIdx(e.tag) <= freezeIdx),
+    (e) => e.key,
+  );
+  for (const file of [
+    ...files.filter((f) => !gapFiles.has(f)),
+    ...files.filter((f) => gapFiles.has(f)),
+  ]) {
+    const key = sqlOf(file);
+    const entry = copies.has(file) || key === null ? undefined : history.get(key)?.shift();
+    if (entry !== undefined) copies.set(file, entry.tag);
+  }
+  // 3. Po zamrożeniu: najstarszy plik o tym SQL-u (plik adopcji); zbędna kopia przepada.
+  const oldestBySql = groupBy(
+    files.filter((f) => (sqlOf(f) ?? "") !== ""),
+    (f) => sqlOf(f)!,
+  );
+  for (const { tag, key, source } of entries) {
+    if (source !== null || tagIdx(tag) <= freezeIdx) continue;
+    const oldest = oldestBySql.get(key)?.[0];
+    if (oldest !== undefined && !copies.has(oldest)) copies.set(oldest, tag);
+  }
+  return copies;
+}
+
 /**
  * Wada wskazania `reconciledBy` albo `null`. Uzgodnienie domyka stan produkcji PO
  * pliku, więc musi być plikiem tego pasa o PÓŹNIEJSZEJ wersji - wtedy, jak każdy
@@ -624,24 +725,10 @@ export function analyzeSupabaseCoverage(
     lanes = MIGRATION_LANES,
     preLane = PRE_LANE_FREEZE,
     exceptions = GAP_EXCEPTIONS_AT_GATE_START,
+    freezeIdx = JOURNAL_FREEZE_IDX,
   }: SupabaseCoverageOptions = {},
 ): SupabaseCoverageReport {
   const inJournal = new Set(journalTags);
-  // Odcisk SQL-u wykonywalnego -> wpisy dziennika o tej treści, w kolejności
-  // dziennika. Każdy wpis pokrywa JEDEN plik supabase (zużywany w kolejności
-  // wersji): ponowny przebieg albo przywrócenie z tym samym SQL-em co starszy
-  // plik potrzebuje WŁASNEJ kopii - migrator nie wykona starego wpisu drugi raz.
-  // Kopie panelu tego samego pliku (0297/0301) to po prostu nadmiar wpisów.
-  const journalBySql = new Map<string, string[]>();
-  for (const tag of journalTags) {
-    const text = read(`${DRIZZLE_DIR}/${tag}.sql`);
-    if (text === null) continue; // wpis bez pliku łapie evaluateLaneGate
-    const key = executableSql(text);
-    if (key === "") continue;
-    const tags = journalBySql.get(key);
-    if (tags) tags.push(tag);
-    else journalBySql.set(key, [tag]);
-  }
   const statementsOf = new Map<string, ReadonlySet<string>>();
   const journalStatements = (tag: string): ReadonlySet<string> => {
     let set = statementsOf.get(tag);
@@ -664,6 +751,26 @@ export function analyzeSupabaseCoverage(
   const all = listSupabase(SUPABASE_DIR);
   const listed = new Set(all);
   const inScope = all.filter(inLaneScope).sort();
+  const sqlByFile = new Map<string, string | null>();
+  const sqlOf = (file: string): string | null => {
+    if (!sqlByFile.has(file)) {
+      const text = listed.has(file) && inLaneScope(file) ? read(`${SUPABASE_DIR}/${file}`) : null;
+      sqlByFile.set(file, text === null ? null : executableSql(text));
+    }
+    return sqlByFile.get(file)!;
+  };
+  // Każdy wpis pokrywa JEDEN plik: ponowny przebieg albo przywrócenie z tym
+  // samym SQL-em co starszy plik potrzebuje WŁASNEJ kopii - migrator nie wykona
+  // starego wpisu drugi raz. Kopie panelu tego samego pliku (0297/0301) to po
+  // prostu nadmiar wpisów.
+  const copies = journalCopies(
+    journalTags,
+    inScope,
+    sqlOf,
+    new Set(gapByFile.keys()),
+    read,
+    freezeIdx,
+  );
 
   const violations: SupabaseCoverageViolation[] = [];
   const outOfBand: OutOfBandSupabaseFile[] = [];
@@ -684,7 +791,7 @@ export function analyzeSupabaseCoverage(
 
   for (const file of inScope) {
     const text = read(`${SUPABASE_DIR}/${file}`);
-    const copy = text === null ? undefined : journalBySql.get(executableSql(text))?.shift();
+    const copy = copies.get(file);
     const gap = gapByFile.get(file);
     if (copy !== undefined || declaredTwins.has(file)) {
       twins += 1;
@@ -802,7 +909,7 @@ export function analyzeSupabaseCoverage(
       });
   }
 
-  return { checked: inScope.length, twins, consolidated, outOfBand, stale, violations };
+  return { checked: inScope.length, twins, consolidated, outOfBand, stale, violations, copies };
 }
 
 export function supabaseCoverageFailed(report: SupabaseCoverageReport): boolean {

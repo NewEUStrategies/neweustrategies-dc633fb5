@@ -401,7 +401,8 @@ SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
   w §7.2.
 - **Baza: wyłącznie do przodu.** Bez `DROP` tabel i kolumn z danymi księgi,
   ścieżek i zgód. Zmiana zachowania = nowa migracja w bloku huba z ciałem
-  funkcji z wcześniejszej wersji (`-- CIALO-Z:`), bliźniak drizzle, wpis
+  funkcji z wcześniejszej wersji (`-- CIALO-Z:`), lustro z
+  `bun run migrations:mirror` (docs/RUNBOOK_MIGRACJE_LOVABLE.md §3), wpis
   w `hubDelivery.ts`.
 - **Najpierw przełącznik, potem migracja.** Silnik, pomiar, retencja,
   kategorie i ścieżki mają przełączniki w panelu (§3) - działają od razu,
@@ -430,8 +431,9 @@ SELECT s.tenant_id, count(*) AS deklaracja_bez_zgody
 Emitery huba łapią własne błędy (`EXCEPTION` → `domain_event_emit_errors`)
 i nie przerywają zapisu modułu, więc wyzwalacz zdejmuje się tylko wtedy, gdy
 sam zapis modułu jest zagrożony (np. blokady, wolumen). Szablon nowej
-migracji (wersja w bloku huba wyższa od ostatniej, bliźniak drizzle, wpis
-w `hubDelivery.ts`; poza oknem wysyłki, nocą dla gorących tabel):
+migracji (wersja w bloku huba wyższa od ostatniej, lustro z
+`bun run migrations:mirror`, wpis w `hubDelivery.ts`; poza oknem wysyłki,
+nocą dla gorących tabel):
 
 ```sql
 -- ============================================================================

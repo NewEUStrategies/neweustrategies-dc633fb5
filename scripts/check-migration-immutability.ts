@@ -7,11 +7,12 @@
  * forward-only: `bun run migrations:mirror --rewrite <tag>` dla wpisu, którego
  * `--verify` nie znajduje w rejestrze produkcji).
  *
- * Baza porównania: `MIGRATION_IMMUTABILITY_BASE` (CI: SHA bazy PR albo
- * `github.event.before` przy pushu na main), a bez niej
+ * Baza porównania: `MIGRATION_IMMUTABILITY_BASE` (CI: SHA bazy PR, a przy
+ * pushu na main ostatni commit main z zieloną bramką), a bez niej
  * `git merge-base HEAD origin/main`. Brak commitu bazy w klonie (płytki klon,
- * pierwszy push bez origin/main) = ostrzeżenie i kod 0. Liczą się commity -
- * zmiany niezatwierdzone bramka pomija.
+ * pierwszy push bez origin/main) = ostrzeżenie i kod 0, a z
+ * `MIGRATION_IMMUTABILITY_REQUIRE_BASE=1` (CI) - błąd i kod 1. Liczą się
+ * commity - zmiany niezatwierdzone bramka pomija.
  *
  * Cienki runner: parser diffu, reguły, rejestr, wybór bazy i raport żyją
  * w `src/lib/ci/migrationImmutability.ts` (test:
@@ -20,16 +21,18 @@
  * (`tsconfig.scripts.json`) - bez `Bun.*`.
  *
  * Usage: bun run check:migration-immutability
- *        MIGRATION_IMMUTABILITY_BASE=<sha|ref> bun run check:migration-immutability
+ *        MIGRATION_IMMUTABILITY_BASE=<sha|ref> [MIGRATION_IMMUTABILITY_REQUIRE_BASE=1] bun run check:migration-immutability
  * Kod wyjścia: 0 - zielono albo baza niedostępna (ostrzeżenie); 1 - usunięty
- * albo zmieniony plik migracji, wpis dziennika poza dopisaniem albo błędny
- * wpis rejestru; 2 - błąd gita.
+ * albo zmieniony plik migracji, wpis dziennika poza dopisaniem, błędny wpis
+ * rejestru albo (z REQUIRE_BASE) baza niedostępna; 2 - błąd gita.
  */
 import { execFileSync } from "node:child_process";
 import {
   IMMUTABILITY_BASE_ENV,
   IMMUTABILITY_FALLBACK_REF,
+  IMMUTABILITY_REQUIRE_BASE_ENV,
   analyzeMigrationImmutability,
+  immutabilityBaseRequired,
   immutabilityFailed,
   parseRawDiff,
   renderImmutabilityReport,
@@ -82,7 +85,13 @@ function main(): number {
       mergeBaseWithMain: () => gitOrNull(root, ["merge-base", "HEAD", IMMUTABILITY_FALLBACK_REF]),
     });
     if (base.kind === "unavailable") {
-      console.warn(renderImmutabilitySkipped(base.reason));
+      const required = immutabilityBaseRequired(process.env[IMMUTABILITY_REQUIRE_BASE_ENV]);
+      const text = renderImmutabilitySkipped(base.reason, required);
+      if (required) {
+        console.error(text);
+        return 1;
+      }
+      console.warn(text);
       annotateWarning(base.reason);
       return 0;
     }

@@ -16,8 +16,11 @@ do właściciela i IOD.
 - Profili, których historii nie da się rozstrzygnąć z danych (kubeł C), korekta nie zmienia -
   wymagają ponownego pytania w aplikacji.
 - Migracja **sama mierzy** bazę, nie zawiera żadnych wartości z produkcji, a przy każdym
-  niespełnionym bezpieczniku niczego nie zmienia i zostawia wiersz diagnostyczny. Nigdy nie
-  przerywa wsadu migratora Lovable.
+  niespełnionym bezpieczniku niczego nie zmienia i zostawia wiersz diagnostyczny. Wsad migratora
+  Lovable przerywa wyłącznie błędem przejściowym (blokada, zakleszczenie, anulowanie): wtedy cały
+  wsad się wycofuje i wdrożenie można ponowić.
+- **Scalenie PR-a uzbraja korektę**: każde późniejsze wywołanie narzędzia migracji Lovable wykona
+  ją razem z innymi oczekującymi wpisami (§3.4).
 
 ## 1. Co się stało
 
@@ -48,21 +51,29 @@ poprawną wartością jest `false`, więc korekta traktuje je tak samo.
 
 ## 2. Punkty do oceny prawnej (dla właściciela i IOD)
 
+Poniżej są pytania i wstępne oceny do rozstrzygnięcia przez właściciela i IOD, nie wnioski prawne.
+
 - **RODO art. 25 ust. 2** (domyślna ochrona danych): domyślnie dane osobowe nie mogą być
   udostępniane nieokreślonej liczbie osób bez działania osoby, której dotyczą. `DEFAULT true`
-  i hurtowe przestawienie są z tym sprzeczne.
+  i hurtowe przestawienie **mogą być** z tym sprzeczne - do oceny IOD.
 - **Art. 7 ust. 1**: administrator musi umieć wykazać zgodę. Znacznik
-  `discoverable_decided_at` daje ten dowód od chwili wdrożenia; dla okresu wcześniejszego dowodu
-  nie ma.
-- **TSUE C-673/17 (Planet49)**: wstępnie zaznaczona zgoda nie jest ważną zgodą - `DEFAULT true`
-  działa analogicznie.
+  `discoverable_decided_at` to **częściowy dowód** od chwili wdrożenia: chwila decyzji właściciela
+  profilu, bez treści i wersji informacji, którą wtedy widział. Ograniczenia w §6 (stempel z sesji
+  „Zaloguj jako", zmiana administratora zostawia dawny stempel obok wartości, której właściciel
+  nie ustawił). Dla okresu wcześniejszego dowodu nie ma.
+- **TSUE C-673/17 (Planet49)**: wstępnie zaznaczona zgoda nie jest ważną zgodą - do oceny, czy
+  `DEFAULT true` działa analogicznie.
 - **Art. 33 i 34**: czy ekspozycja od 2026-09-11 jest naruszeniem ochrony danych podlegającym
   zgłoszeniu do Prezesa UODO (72 godziny od stwierdzenia) lub zawiadomieniu osób - to decyzja
   właściciela i IOD. Nagłówek migracji `20260913150000` dokumentuje wiedzę o regresji
   z 2026-09-13; od kiedy liczyć termin, jest pytaniem prawnym.
-- **Art. 33 ust. 5 i art. 5 ust. 2**: niezależnie od zgłoszenia naruszenie dokumentuje się
-  wewnętrznie. Rejestr `profiles_discoverable_corrections` i ten dokument mogą być częścią tej
-  dokumentacji (kto, kiedy, z jakiego powodu został ukryty).
+- **Art. 33 ust. 5**: jeżeli właściciel i IOD uznają zdarzenie za naruszenie, dokumentuje się je
+  wewnętrznie niezależnie od zgłoszenia. Rejestr `profiles_discoverable_corrections` i ten
+  dokument mogą być częścią tej dokumentacji (kto, kiedy, z jakiego powodu został ukryty); służą
+  też rozliczalności z art. 5 ust. 2 bez względu na tę ocenę.
+- **Kubeł C zostaje widoczny**: profile z kubła C (liczba: `bucket_c_rows` z zapytania 2
+  w sekcji 4) pozostają widoczne bez wykazanej zgody, dopóki właściciel nie podejmie decyzji
+  z §5 pkt 1 (ponowne pytanie, termin i skutek braku odpowiedzi) - do oceny razem z art. 25 ust. 2.
 
 ## 3. Co robi ta zmiana
 
@@ -75,6 +86,10 @@ poprawną wartością jest `false`, więc korekta traktuje je tak samo.
   - UPDATE z `discoverable` w poleceniu pod sesją właściciela (`auth.uid() = id`) stempluje
     `now()` - także ponowne potwierdzenie bez zmiany wartości;
   - UPDATE administratora, `service_role` i migracji znacznika nie rusza.
+- Wyzwalacz `profiles_discoverable_decided_at_pin_trg` (BEFORE UPDATE, gdy znacznik się zmienia,
+  odpala przed stemplem) przywraca dawną wartość znacznika. Jedynym piszącym jest więc stempel
+  właściciela - także wobec `service_role`, administratora bazy i migracji, niezależnie od
+  grantów: nikt nie podrobi ani nie wymaże zapisu decyzji.
 - Klient nie ma grantu na kolumnę (odczyt i zapis kończą się 42501); kolumna nie trafia do
   `profiles_public` ani do publicznych stałych kolumn w TS.
 - Przełącznik w aplikacji (`useSetDiscoverable`) już wysyła wartość pod sesją właściciela, więc
@@ -101,21 +116,29 @@ Prawdziwe decyzje nie wpadają do A ani B: opt-in sprzed 0001 nie był przez 000
 
 Bezpieczniki - każdy niespełniony oznacza **zero zmian** i status w wierszu diagnostycznym:
 
-| Status                       | Znaczenie                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `already_applied`            | rejestr jest niepusty; drugi przebieg niczego nie mierzy ani nie zmienia                 |
-| `no_cluster`                 | brak klastra w oknie 0001 (np. baza CI zbudowana z migracji)                             |
-| `cluster_too_small`          | największy klaster ma mniej niż 10 wierszy                                               |
-| `cluster_not_dominant`       | klaster nie jest co najmniej 5 razy większy od następnego w oknie                        |
-| `cluster_signature_mismatch` | w klastrze jest wiersz z `false` albo założony nie wcześniej niż T0001                   |
-| `error`                      | błąd wykonania (np. 55P03 po `lock_timeout` 5 s); rejestr i przestawienia wycofane razem |
+| Status                       | Znaczenie                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `already_applied`            | rejestr jest niepusty; drugi przebieg niczego nie mierzy ani nie zmienia         |
+| `no_cluster`                 | brak klastra w oknie 0001 (np. baza CI zbudowana z migracji)                     |
+| `cluster_too_small`          | największy klaster ma mniej niż 10 wierszy                                       |
+| `cluster_not_dominant`       | klaster nie jest co najmniej 5 razy większy od następnego w oknie                |
+| `cluster_signature_mismatch` | w klastrze jest wiersz z `false` albo założony nie wcześniej niż T0001           |
+| `error`                      | trwały błąd wykonania (np. 42501, 23514); rejestr i przestawienia wycofane razem |
 
 Przy `p_apply = true` funkcja blokuje zmierzone wiersze i sprawdza, że od pomiaru nikt ich nie
 zmienił (decyzja zapisana w tej samej chwili wypada), zapisuje każdy w rejestrze **przed**
 przestawieniem i przestawia dokładnie zapisane wiersze. Potem wywołuje
 `prune_profile_embeddings()`, więc embeddingi ukrytych profili znikają od razu, a nie przy
-następnym zadaniu. Przy `p_apply = false` wykonuje same odczyty (działa także w transakcji tylko
-do odczytu).
+następnym zadaniu - we własnym bloku: gdy sprzątanie padnie (np. wiersz embeddingu zablokowany
+przez zadanie embeddingów), korekta zostaje, `embeddings_pruned` = NULL, a embeddingi przytnie
+najbliższe zadanie (co godzinę). Przy `p_apply = false` wykonuje same odczyty (działa także
+w transakcji tylko do odczytu).
+
+Błąd przejściowy (55P03 po `lock_timeout` 5 s, 40P01 zakleszczenie, 57014 anulowanie albo
+`statement_timeout`) nie daje statusu `error`: funkcja rzuca go dalej, cały wsad migratora się
+wycofuje, wpis zostaje oczekujący, a runbook (§4.6 w `docs/RUNBOOK_MIGRACJE_LOVABLE.md`) pozwala
+ponowić wdrożenie. Połknięty, zapisałby wpis w rejestrze migratora jako wykonany, choć korekta
+niczego nie zmieniła - i ponowienie nie byłoby już możliwe.
 
 Rejestr `profiles_discoverable_corrections`: `profile_id`, `tenant_id`, `bucket`, `t0001`,
 `t_restore`, `corrected_at`, `notified_at`. RLS bez polityk, klient bez grantów, `service_role`
@@ -123,8 +146,9 @@ czyta, dopisuje i zmienia wyłącznie `notified_at` (wiersz jest dowodem korekty
 razem z profilem (`ON DELETE CASCADE`).
 
 Migracja tworzy rejestr i funkcję, wywołuje ją raz z `p_apply = true` i wypisuje wynik jako
-`NOTICE`. Funkcja nigdy nie rzuca wyjątku: migrator Lovable wykonuje wszystkie oczekujące wpisy
-w jednej transakcji, więc wyjątek wycofałby też cudze wpisy.
+`NOTICE`. Bezpiecznik i trwały błąd nie rzucają wyjątku: migrator Lovable wykonuje wszystkie
+oczekujące wpisy w jednej transakcji, więc wyjątek wycofałby też cudze wpisy, a ponowienie nie
+zmieni danych, które go wywołały.
 
 Czego zmiana **nie** robi: nie zmienia `DEFAULT`-u (`false` od 0011/0013), nie dotyka kubła C ani
 nikogo z `true` sprzed 0001, nie kopiuje i nie powtarza wpisu 0001.
@@ -139,21 +163,34 @@ nikogo z `true` sprzed 0001, nie kopiuje i nie powtarza wpisu 0001.
 - Każdy bezpiecznik osobno (za mały klaster, dwa podobne klastry, `false` w klastrze, wiersz
   założony w chwili T0001, klaster poza oknem): zero zmian. Brak T_RESTORE: kubeł A przechodzi,
   B pominięty.
-- Wyścig: decyzja właściciela zatwierdzona w trakcie korekty wypada z korekty. Blokada dłuższa niż
-  5 s: status `error`, zero zmian.
+- Wyścig: decyzja właściciela zatwierdzona w trakcie korekty wypada z korekty. Wiersz profilu
+  zablokowany dłużej niż 5 s: wyjątek 55P03, cały wsad wycofany, zero zmian - do ponowienia.
 - Pełny wsad A+B+C+D w jednej transakcji na modelu produkcji (pliki supabase sprzed pasa + 399
-  wpisów dziennika): stosuje się czysto.
-- pgTAP: `profiles_discoverable_decision_stamp_test.sql` (18 asercji) i
-  `profiles_discoverable_0001_correction_test.sql` (24) - czerwone bez migracji, zielone z nimi;
-  pozostałe pliki suity bez zmian wyniku; `plpgsql_check` bez uwag.
+  wpisów dziennika) prawdziwym migratorem drizzle-orm: stosuje się czysto. Pisarz trzymający
+  `membership_grants` 12 s: wsad pada po 5 s (55P03 w 0400), rejestr migratora bez zmian,
+  ponowienie przechodzi. Wiersz embeddingu zablokowany przez zadanie embeddingów 9 s albo
+  zakleszczenie z jego upsertem: korekta `applied`, `embeddings_pruned` NULL, wsad zatwierdzony.
+- Znacznik decyzji: `service_role` i UPDATE bez sesji nie zapiszą ani nie wymażą znacznika (sam
+  albo razem z `discoverable`); stempel właściciela działa jak wcześniej.
+- pgTAP: `profiles_discoverable_decision_stamp_test.sql` (23 asercje) i
+  `profiles_discoverable_0001_correction_test.sql` (28) - czerwone bez migracji (i bez blokady
+  znacznika albo z połykanym błędem przejściowym), zielone z nimi; pozostałe pliki suity bez zmian
+  wyniku; `plpgsql_check` bez uwag.
 
 ### 3.4 Wdrożenie
 
 - Nośnik w dzienniku drizzle generuje `bun run migrations:mirror` (kolejne wpisy po plikach
-  adopcji; numery ustala generator). Migrator Lovable wykona je w najbliższym wsadzie.
+  adopcji; numery ustala generator).
+- **Scalenie PR-a uzbraja te wpisy.** Od scalenia KAŻDE wywołanie narzędzia migracji Lovable -
+  także niezwiązana zmiana bazy, o którą ktoś poprosi agenta - wykona je razem z innymi
+  oczekującymi wpisami: tę korektę danych i blokadę ACCESS EXCLUSIVE na `profiles`, bez eksportu,
+  bez lektury IOD i poza oknem. Dlatego lektura tego dokumentu przez właściciela i IOD, eksport
+  bazy, kontrole z runbooka (§9.1 w `docs/RUNBOOK_MIGRACJE_LOVABLE.md`, w tym pomiar okna 0001
+  z sekcji 4) i okno nocne są gotowe PRZED scaleniem, scalenie następuje na początku okna, a od
+  scalenia do wyzwolenia (runbook §9.2) nikt nie wywołuje narzędzia migracji.
 - `ADD COLUMN` na `profiles` zmienia tylko katalog, ale trzyma blokadę ACCESS EXCLUSIVE do końca
-  wsadu; `lock_timeout` 5 s zamienia długie czekanie na szybkie 55P03, po którym runbook pozwala
-  ponowić.
+  wsadu; `lock_timeout` 5 s (ustawiony już we wpisie z indeksami `membership_grants`) zamienia
+  długie czekanie na szybkie 55P03, po którym runbook pozwala ponowić.
 
 ## 4. Weryfikacja po wdrożeniu (tylko odczyt, SQL Editor)
 
@@ -173,11 +210,13 @@ SELECT column_default
   FROM information_schema.columns
  WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'discoverable';
 
--- 4. Wyzwalacz znacznika decyzji - oczekiwany jeden wiersz
+-- 4. Wyzwalacze znacznika decyzji - oczekiwane dwa wiersze (blokada i stempel)
 SELECT tgname
   FROM pg_trigger
  WHERE tgrelid = 'public.profiles'::regclass
-   AND tgname = 'profiles_discoverable_decision_stamp_trg';
+   AND tgname IN ('profiles_discoverable_decided_at_pin_trg',
+                  'profiles_discoverable_decision_stamp_trg')
+ ORDER BY tgname;
 ```
 
 Jak czytać zapytanie 2:
@@ -187,6 +226,8 @@ Jak czytać zapytanie 2:
 - dowolny inny status - korekta **niczego nie zmieniła** (rejestr pusty), a `detail` mówi
   dlaczego. Wtedy pomiar okna 0001 (poniżej) pokazuje rzeczywisty kształt danych; kolejny krok to
   nowa migracja przez generator lustra, nie ręczny SQL na produkcji.
+- błąd 42883 (funkcji nie ma) - wsad z korektą się nie wykonał (np. błąd przejściowy wycofał go
+  w całości): wdrożenie ponawia się według runbooka (§4.6).
 
 ```sql
 -- Pomiar okna 0001 (tylko odczyt): klastry identycznych updated_at w when(0001) ± 1 h
@@ -227,6 +268,10 @@ diagnostyczny.
   i okładek, 2026-09-14; 0121/0123 - puste slugi, 2026-10-02).
 - Sesja „Zaloguj jako" jest prawdziwą sesją konta docelowego, więc przełącznik użyty w niej
   stempluje jak decyzja właściciela; takie stemple da się odróżnić po `impersonation_sessions`.
+- Znacznik zapisuje chwilę decyzji, nie treść ani wersję informacji, którą właściciel widział.
+  Zmiana `discoverable` przez administratora najemcy albo `service_role` nie stempluje (to nie jest
+  decyzja właściciela), więc obok nowej wartości zostaje dawny stempel ostatniej decyzji
+  właściciela.
 - Jeżeli produkcyjne 0001 wykonało się poza oknem `± 1 h` albo inaczej, niż pokazuje dziennik,
   bezpiecznik zatrzyma korektę bez zmian - potrzebna będzie decyzja po pomiarze z sekcji 4.
 - Korekta przesuwa `updated_at` poprawionych profili - to prawdziwa zmiana wiersza; moment

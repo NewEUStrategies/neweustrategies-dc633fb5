@@ -22,6 +22,7 @@ import {
   DRIZZLE_JOURNAL,
   DRIZZLE_MIGRATIONS_DIR,
   SUPABASE_MIGRATIONS_DIR,
+  planMigrationSplit,
   type DrizzleJournal,
   type JournalEntry,
 } from "@/lib/ci/migrationSplitPlan";
@@ -379,6 +380,66 @@ describe("plan lustra drizzle", () => {
     ]);
   });
 
+  it("ponowny przebieg pliku appliedOutOfBand: lustro należy do NOWEGO pliku - zbieżne z bazą i bez niej", () => {
+    const oob = "20261001000500_f_out_of_band.sql";
+    const rerun = "20261002000000_f_rerun.sql";
+    const sql = "REVOKE ALL ON FUNCTION public.f() FROM anon;\n";
+    const extra: Partial<MirrorInput> = {
+      gaps: [{ file: oob, appliedOutOfBand: "poza dziennikiem" }],
+      exceptions: new Set([oob]),
+    };
+    const r = repo({ [S(oob)]: `-- poza dziennikiem\n${sql}`, [S(rerun)]: `-- ponownie\n${sql}` });
+    const first = plan(r, { ...extra, base: BASE });
+    expect(first.entries.map((e) => [e.tag, e.source])).toEqual([["0001_f_rerun", rerun]]);
+    const next = apply(r, first);
+    // Zapis z bazą, --check bez bazy (CI) i bramka pokrycia widzą to samo lustro.
+    expect(mirrorFresh(plan(next, { ...extra, base: BASE }))).toBe(true);
+    expect(mirrorFresh(plan(next, extra))).toBe(true);
+    const coverage = analyzeSupabaseCoverage(["0000_a", "0001_f_rerun"], {
+      gaps: extra.gaps,
+      read: (path) => next.get(path) ?? null,
+      listSupabase: () => [A, oob, rerun],
+      lanes: [],
+      preLane: null,
+      exceptions: extra.exceptions,
+    });
+    expect(coverage.violations).toEqual([]);
+    expect(coverage.stale).toEqual([]);
+    expect(coverage.outOfBand.map((o) => o.file)).toEqual([oob]);
+  });
+
+  it("zbędna kopia bota po zamrożeniu nie przykrywa późniejszego ponownego przebiegu - ten dostaje własne lustro", () => {
+    const first = "20261024000000_f.sql";
+    const rerun = "20261026000000_f_rerun.sql";
+    const sql = "REVOKE ALL ON FUNCTION public.f() FROM anon;\n";
+    const at = (k: number) => String(JOURNAL_FREEZE_IDX + k).padStart(4, "0");
+    const r = new Map(
+      Object.entries({
+        [S(first)]: sql,
+        [D(`${at(1)}_f`)]: mirrorHeader(first) + sql,
+        [D(`${at(2)}_lovable_copy`)]: sql,
+        [M(0)]: snap(SNAP0, DRY_SNAPSHOT_ID),
+        [DRIZZLE_JOURNAL]: journal(
+          ...Array.from({ length: JOURNAL_FREEZE_IDX + 1 }, (_, k) =>
+            entry(k, 1_000_000 + k, `${String(k).padStart(4, "0")}_h`),
+          ),
+          entry(JOURNAL_FREEZE_IDX + 1, 2_000_000, `${at(1)}_f`),
+          entry(JOURNAL_FREEZE_IDX + 2, 2_060_000, `${at(2)}_lovable_copy`),
+        ),
+        ...Object.fromEntries(
+          Array.from({ length: JOURNAL_FREEZE_IDX + 1 }, (_, k) => [
+            D(`${String(k).padStart(4, "0")}_h`),
+            `SELECT ${k};`,
+          ]),
+        ),
+        [S(rerun)]: `-- ponowny przebieg\n${sql}`,
+      }),
+    );
+    const p = plan(r);
+    expect(p.errors).toEqual([]);
+    expect(p.entries.map((e) => [e.tag, e.source])).toEqual([[`${at(3)}_f_rerun`, rerun]]);
+  });
+
   it("wersja nie nowsza niż ostatni niesiony plik: błąd z gotowym git mv, bez zapisu", () => {
     const r = apply(repo({ [S(C)]: C_SQL }), plan(repo({ [S(C)]: C_SQL })));
     const old = "20261002000000_d.sql";
@@ -407,6 +468,29 @@ describe("plan lustra drizzle", () => {
     expect(p.files).toEqual([]);
     expect(p.errors[0]!.detail).toContain(`bun run scripts/split-migration.ts ${S(B)}`);
     expect(utf8Length(sql)).toBeLessThan(limit - 1);
+  });
+
+  it("każda część z scripts/split-migration.ts mieści się w limicie lustra (nagłówek generatora + część)", () => {
+    // 55 KB - ponad limit: plan podziału tnie, a generator musi przyjąć każdą część bez za-duzy.
+    const big = "20261026000000_big_reload.sql";
+    const body = Array.from(
+      { length: 120 },
+      (_, k) => `COMMENT ON TABLE public.t${k} IS '${"opis ".repeat(88)}';\n`,
+    ).join("");
+    expect(utf8Length(body)).toBeGreaterThan(DEFAULT_MAX_BYTES + 9_000);
+    const split = planMigrationSplit({
+      supabaseFile: big,
+      supabaseSql: body,
+      supabaseFiles: [big],
+      deployed: { baseline: "20260101000000", oversize: {} },
+      newId: () => "00000000-0000-4000-8000-000000000009",
+    });
+    expect(split.parts).toBeGreaterThan(1);
+    for (const write of split.writes) {
+      const file = write.path.slice(SUPABASE_MIGRATIONS_DIR.length + 1);
+      expect(lintMirrorSource(file, write.content, DEFAULT_MAX_BYTES).errors, file).toEqual([]);
+      expect(utf8Length(mirrorHeader(file) + write.content)).toBeLessThanOrEqual(DEFAULT_MAX_BYTES);
+    }
   });
 
   it("pusty-sql: plik z samych komentarzy nigdy nie byłby rozpoznany jako skopiowany", () => {
@@ -505,6 +589,49 @@ describe("lustra z bazy: forward-only", () => {
     expect(snapshotOf(next, 2).prevId).toBe(mainSnap);
     expect(drizzleKitPrepare(next).collisions).toEqual([]);
     expect(mirrorFresh(plan(next, { base: main }))).toBe(true);
+  });
+
+  it("konflikt rozwiązany „weź nasze”: wpis bazy usunięty z dziennika gałęzi to błąd - z bazą i jako wpis-bazy-zmieniony", () => {
+    // main dopisał wyzwalacz 0001; gałąź scaliła main, ale przy konflikcie zostawiła swój dziennik.
+    const trigger = "0001_pr600_deployment_completion";
+    const main = {
+      ref: "origin/main",
+      entries: [...BASE.entries, { idx: 1, when: 9_000_000, tag: trigger }],
+      merged: true,
+    };
+    const branch = new Map(mirroredB({ base: BASE })).set(D(trigger), DEPLOY_TRIGGER_SQL);
+    const p = plan(branch, { base: main });
+    expect(kinds(p)).toEqual(["wpis-bazy-zmieniony"]);
+    expect(p.errors[0]!.detail).toContain(`wpis bazy usunięty z dziennika gałęzi`);
+    expect(p.errors[0]!.detail).toContain(trigger);
+    expect(p.errors[0]!.detail).toContain(JOURNAL_CONFLICT_FIX);
+    expect(p.deploy).toEqual([]);
+    expect(renderMirrorPlan(p, "write")).not.toContain("Wpisy dziennika do wdrożenia");
+  });
+
+  it("baza, której gałąź nie scaliła: brak jej wpisów to nie błąd, ale ostrzeżenie i plan bez linii do opisu PR", () => {
+    const main = {
+      ref: "origin/main",
+      entries: [
+        ...BASE.entries,
+        { idx: 1, when: 9_000_000, tag: "0001_pr600_deployment_completion" },
+      ],
+      merged: false,
+      commit: { sha: "f".repeat(40), date: "2026-10-25T05:00:00Z" },
+    };
+    const r = repo({ [S(B)]: B_SQL });
+    const p = plan(r, { base: main });
+    expect(p.errors).toEqual([]);
+    expect(p.warnings.map((w) => w.kind)).toEqual(["baza-niescalona"]);
+    expect(p.warnings[0]!.detail).toContain(
+      `origin/main (${"f".repeat(12)} z 2026-10-25T05:00:00Z)`,
+    );
+    expect(p.warnings[0]!.detail).toContain("git merge origin/main");
+    expect(p.entries.map((e) => e.tag)).toEqual(["0001_b_fix"]);
+    expect(p.deploy).toEqual([]);
+    const text = renderMirrorPlan(p, "write");
+    expect(text).toContain("UWAGA [baza-niescalona]");
+    expect(text).not.toContain("Wpisy dziennika do wdrożenia");
   });
 
   it("lustra lokalne muszą stać na końcu dziennika; wpisów bazy nie przenumerowuje się", () => {
@@ -853,6 +980,44 @@ describe("prawdziwe repozytorium", () => {
     expect(outOfBand.length).toBeGreaterThan(0);
     for (const file of [...outOfBand, "20261007140200_release_coupon_server_only.sql"])
       expect(sent).not.toContain(file);
+  });
+
+  it("od zamrożonego dziennika plan odtwarza bajt w bajt zatwierdzone lustra, snapshoty i dziennik; drugi przebieg pusty", () => {
+    const real = realInput();
+    const frozenEntries = real.journal.entries.slice(0, JOURNAL_FREEZE_IDX + 1);
+    const generated = real.journal.entries.slice(JOURNAL_FREEZE_IDX + 1);
+    expect(generated.length).toBeGreaterThan(0);
+    const generatedSql = new Set(generated.map((e) => `${e.tag}.sql`));
+    const generatedSnapshots = new Set(
+      generated.map((e) => `${String(e.idx).padStart(4, "0")}_snapshot.json`),
+    );
+    const frozen: MirrorInput = {
+      ...real,
+      journal: { ...real.journal, entries: frozenEntries },
+      drizzleSql: real.drizzleSql.filter((name) => !generatedSql.has(name)),
+      snapshots: real.snapshots.filter((name) => !generatedSnapshots.has(name)),
+      read: (path) =>
+        generatedSql.has(path.slice(DRIZZLE_MIGRATIONS_DIR.length + 1)) ||
+        generatedSnapshots.has(path.slice(DRIZZLE_META_DIR.length + 1)) ||
+        path === DRIZZLE_JOURNAL
+          ? path === DRIZZLE_JOURNAL
+            ? journalText({ ...real.journal, entries: frozenEntries })
+            : null
+          : real.read(path),
+    };
+    const p = planMirror(frozen);
+    expect(p.errors).toEqual([]);
+    expect(p.deletions).toEqual([]);
+    expect(p.entries.map((e) => e.tag)).toEqual(generated.map((e) => e.tag));
+    const expected = [
+      ...generated.map((e) => D(e.tag)),
+      ...generated.map((e) => M(e.idx)),
+      DRIZZLE_JOURNAL,
+    ];
+    expect(p.files.map((f) => f.path)).toEqual(expected);
+    // Zatwierdzone pliki = wynik generatora, co do bajtu (nie tylko SQL wykonywalny).
+    for (const file of p.files) expect(file.content, file.path).toBe(real.read(file.path));
+    expect(mirrorFresh(planMirror(real))).toBe(true);
   });
 
   it("plan bez błędów; po zastosowaniu drugi przebieg pusty, a bramki widzą każde lustro jako zapis wdrożenia swojego źródła", () => {

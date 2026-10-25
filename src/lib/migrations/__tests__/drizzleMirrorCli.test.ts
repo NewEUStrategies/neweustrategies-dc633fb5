@@ -241,6 +241,29 @@ describe("runMirrorCli", () => {
     expect(code).toBe(1);
   });
 
+  it("baza: log z SHA i datą commitu; nieudane pobranie main to ostrzeżenie o przenumerowaniu cudzych luster", () => {
+    const repo = memoryRepo({ [S(B)]: B_SQL });
+    const commit = { sha: "c".repeat(40), date: "2026-10-24T22:05:23+00:00" };
+    const fetched = run(["--dry-run"], repo, { ...BASE, commit, fetch: "ok" });
+    expect(fetched.out).toContain(
+      `Baza luster lokalnych: origin/main @ ${"c".repeat(12)} z 2026-10-24T22:05:23+00:00 (wpisy dziennika: 1).`,
+    );
+    expect(fetched.out).not.toContain("nie udało się pobrać");
+    const stale = run(["--dry-run"], repo, { ...BASE, commit, fetch: "failed" });
+    expect(stale.out).toContain("UWAGA: nie udało się pobrać origin/main (git fetch)");
+    expect(stale.out).toContain("git fetch origin main");
+    expect(stale.code).toBe(0);
+  });
+
+  it("baza niescalona z gałęzią: zapis przechodzi z ostrzeżeniem, bez linii do opisu PR", () => {
+    const repo = memoryRepo({ [S(B)]: B_SQL });
+    const { code, out } = run([], repo, { ...BASE, merged: false });
+    expect(code).toBe(0);
+    expect(out).toContain("UWAGA [baza-niescalona]");
+    expect(out).not.toContain("Wpisy dziennika do wdrożenia: idx");
+    expect(repo.files.has(D("0001_b_fix"))).toBe(true);
+  });
+
   it("--no-base nie pyta gita; nieczytelny jawny --base to błędne wywołanie", () => {
     const repo = memoryRepo({ [S(B)]: B_SQL });
     const noBase = run(["--no-base", "--dry-run"], repo);
