@@ -21612,6 +21612,13 @@ export type Database = {
             foreignKeyName: "profiles_discoverable_corrections_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "profiles_discoverable_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -34813,6 +34820,7 @@ export type Database = {
           current_company: string | null
           current_company_id: string | null
           discoverable: boolean
+          discoverable_decided_at: string | null
           discovery_search: string | null
           display_name: string | null
           email: string | null
