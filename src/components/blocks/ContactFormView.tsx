@@ -787,7 +787,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 )}
                 {/* Osobne pole zgody na pomiar (I9d-Y2b) - pod polem
                     newslettera, ta sama geometria; bez newslettera wyłączone. */}
-
               </div>
             ) : null;
 

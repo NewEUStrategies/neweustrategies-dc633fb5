@@ -108,8 +108,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  // Osobne pole zgody na pomiar (I9d-Y2b): DOMYŚLNIE NIEZAZNACZONE, stały
-  // wiersz formularza (nie widżet dokumentu) - `NlDocMeasurementConsent`.
   const subscribe = useServerFn(subscribeToNewsletter);
 
   const flatWidgets = useMemo(() => doc.sections.flatMap((s) => s.widgets), [doc]);

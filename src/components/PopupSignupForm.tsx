@@ -90,7 +90,6 @@ const empty: SignupFields = {
   // P08 (RODO): zgoda marketingowa nie może być domyślnie zaznaczona -
   // brak aktywnego kliknięcia oznacza brak zgody (tak samo jak w ClubAccessGate).
   newsletter: false,
-  // Osobne pole zgody na pomiar otwarć i kliknięć - DOMYŚLNIE NIEZAZNACZONE.
   terms: false,
   privacy: false,
 };
@@ -631,10 +630,6 @@ export function PopupSignupForm({
             </span>
           </label>
         )}
-
-        {/* Osobne pole zgody na pomiar (I9d-Y2b) - tylko pod widocznym polem
-            newslettera, ta sama geometria; bez newslettera wyłączone. */}
-
 
         {requirePrivacy && privacyHtml && (
           <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">

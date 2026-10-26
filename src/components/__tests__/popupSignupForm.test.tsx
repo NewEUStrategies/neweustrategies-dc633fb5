@@ -87,10 +87,6 @@ import {
   newsletterConsentHtml,
   privacyAcceptanceHtml,
 } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-} from "@/lib/newsletter/measurementConsentText";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
 import { axeViolations, summarize } from "@/test/axe";
 import { defaultPopupDesign } from "@/lib/newsletter/popupDesign";

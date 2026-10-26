@@ -38,11 +38,6 @@ import {
   newsletterConsentHtml,
   newsletterConsentPlain,
 } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

@@ -293,9 +293,6 @@ export function JoinUsForm({
   // lokalnie, a po udanym zapisie propagujemy do rejestru `user_consents`
   // (jedno źródło prawdy widoczne w profilu użytkownika).
   const [consentAccepted, setConsentAccepted] = useState(false);
-  // Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b, wariant (b)):
-  // opcjonalne, DOMYŚLNIE NIEZAZNACZONE; zaznaczenie dokłada deklarację do
-  // `consents` (zgodę zapisze dopiero decyzja właściciela skrzynki).
 
   const useSplitName = showFirstName || showLastName;
 
@@ -485,9 +482,7 @@ export function JoinUsForm({
           // Dowód = DOKŁADNIE tekst przy zaznaczonym polu (I9d-Y2). Dotąd
           // rejestr dostawał zaszyty tekst „Zapisuję się do newslettera…",
           // a osoba widziała inny (art. 7 ust. 1 RODO).
-          consents: [
-            newsletterConsentPayload(resolvedConsent, lang),
-          ],
+          consents: [newsletterConsentPayload(resolvedConsent, lang)],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
           requiredFields,
@@ -951,7 +946,7 @@ export function JoinUsForm({
               <span className="ml-1 text-destructive">*</span>
             </span>
           </label>
-</div>
+        </div>
 
         <SubscribeButton
           loading={state === "loading"}

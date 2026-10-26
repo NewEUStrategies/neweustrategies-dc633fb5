@@ -340,8 +340,6 @@ function GateSignupForm({ plan }: { plan: string }) {
   // P08 (RODO): zgoda marketingowa domyślnie ODZNACZONA - brak zaznaczenia
   // to brak zgody, a nie zgoda „z rozpędu".
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
-  // Osobne pole zgody na pomiar (I9d-Y2b) - DOMYŚLNIE NIEZAZNACZONE, aktywne
-  // tylko przy zaznaczonym newsletterze (odznaczenie newslettera je czyści).
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -584,9 +582,6 @@ function GateSignupForm({ plan }: { plan: string }) {
           </span>
         </label>
       ) : null}
-      {/* Osobne pole zgody na pomiar (I9d-Y2b) - pod polem newslettera, ta
-          sama geometria; bez newslettera wyłączone. */}
-
 
       <Button type="submit" className="w-full rounded-lg" disabled={busy}>
         {busy ? (

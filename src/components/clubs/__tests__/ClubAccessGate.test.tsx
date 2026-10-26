@@ -145,11 +145,6 @@ vi.mock("@/lib/auth/registrationFields", () => ({
 }));
 
 import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 import { clubViewRow } from "@/test/clubs/fixtures";
 import type { ClubViewRow } from "@/lib/clubs/types";

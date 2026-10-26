@@ -720,8 +720,6 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
   const [confirm, setConfirm] = useState("");
   const [consent, setConsent] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
-  // Osobne pole zgody na pomiar (I9d-Y2b) - DOMYŚLNIE NIEZAZNACZONE, aktywne
-  // tylko przy zaznaczonym newsletterze (odznaczenie newslettera je czyści).
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
@@ -992,7 +990,6 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             )}
           </CheckboxRow>
         )}
-        {/* Osobne pole zgody na pomiar (I9d-Y2b) - geometria `CheckboxRow`. */}
 
         {requireConsent && (
           <CheckboxRow checked={consent} onChange={setConsent} required className={layout.wide}>

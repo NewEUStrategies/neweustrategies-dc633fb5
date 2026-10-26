@@ -89,11 +89,6 @@ import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/content-model
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { WIDGETS } from "@/lib/builder/registry";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
 type Data = Record<string, unknown>;

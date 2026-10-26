@@ -115,9 +115,6 @@ export function NewsletterForm({
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [phone, setPhone] = useState("");
-  // Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b, wariant (b)):
-  // DOMYŚLNIE NIEZAZNACZONE; zaznaczenie dokłada deklarację do `consents`
-  // (zgodę zapisze dopiero decyzja właściciela skrzynki).
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
@@ -300,9 +297,7 @@ export function NewsletterForm({
           // Dowód = DOKŁADNIE treść pokazana pod formularzem (I9d-Y2b): treść
           // domyślna z wersją (b, bez pomiaru) albo tekst admina bez wersji;
           // deklaracja pola pomiaru WYŁĄCZNIE po jego zaznaczeniu.
-          consents: [
-            newsletterConsentPayload(consent, lang),
-          ],
+          consents: [newsletterConsentPayload(consent, lang)],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
           // Tematy zapisujemy kanonicznie: profil użytkownika + CRM.
@@ -528,12 +523,7 @@ export function NewsletterForm({
                   onClear={() => setPicked(new Set())}
                 />
               )}
-
-              {/* Osobne pole pomiaru W formularzu i PRZED przyciskiem (kolejność
-                  tabulacji: zgody przed wysłaniem); w stanie `ok` znika razem
-                  z formularzem. Geometria pola zgody widżetu
-                  (`ConsentCheckboxField`). */}
-<SubscribeButton
+              <SubscribeButton
                 type="submit"
                 loading={state === "loading"}
                 loadingLabel="…"
@@ -562,10 +552,7 @@ export function NewsletterForm({
                   maxLength={254}
                 />
               </FieldWrap>
-              {/* Układ zwarty: pole pomiaru PRZED przyciskiem w kolejności
-                  dokumentu (tabulacja), wizualnie pełny wiersz pod polami;
-                  przycisk zostaje w pierwszym wierszu obok e-maila. */}
-<SubscribeButton
+              <SubscribeButton
                 loading={state === "loading"}
                 aria-label={t("newsletterForm.subscribe")}
                 className="!min-h-0 !py-0 !px-6 self-stretch sm:col-start-3 sm:row-start-1"

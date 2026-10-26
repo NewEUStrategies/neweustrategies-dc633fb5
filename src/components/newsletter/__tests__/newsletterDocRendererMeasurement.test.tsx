@@ -67,11 +67,6 @@ import {
 } from "@/components/newsletter/nlDocMeasurement";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 import {
