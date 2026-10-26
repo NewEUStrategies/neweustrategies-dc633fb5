@@ -33,4 +33,4 @@
 // Drain React's shared queue on that transition; the later frame sees an empty queue.
 // Reuse one listener even if the head script is executed again during navigation.
 export const STREAM_REVEAL_SCRIPT =
-  'try{(function(t){Object.defineProperty(window,"$RT",{configurable:true,get:function(){return document.hidden?t:void 0},set:function(v){t=v}});if(!window.__nesRevealVisibility){window.__nesRevealVisibility=function(){if(document.hidden)setTimeout(function(){var q=window.$RB,f=window.$RV;if(document.hidden&&Array.isArray(q)&&q.length&&typeof f==="function")f(q)},0)};document.addEventListener("visibilitychange",window.__nesRevealVisibility)}})()}catch(e){}';
+  'try{((w,d,t)=>{Object.defineProperty(w,"$RT",{configurable:true,get:()=>d.hidden?t:void 0,set:v=>{t=v}});if(!w.__nesRevealVisibility){w.__nesRevealVisibility=()=>{if(d.hidden)setTimeout(()=>{var q=w.$RB,f=w.$RV;if(d.hidden&&Array.isArray(q)&&q.length&&typeof f==="function")f(q)},0)};d.addEventListener("visibilitychange",w.__nesRevealVisibility)}})(window,document)}catch(e){}';

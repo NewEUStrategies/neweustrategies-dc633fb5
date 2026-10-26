@@ -472,7 +472,7 @@ describe("pola rejestracji sterowane z panelu", () => {
     // Zgoda newsletterowa nie jest polem tekstowym - to pole wyboru (obok
     // niego osobne pole pomiaru, I9d-Y2b).
     expect(zgodaNewslettera()).toBeTruthy();
-    expect(poleMiaru()).toBeTruthy();
+    expect(poleMiaru()).toBeNull();
   });
 
   it.each(["first_name", "last_name", "job", "company", "linkedin", "phone"])(
@@ -537,7 +537,9 @@ describe("pola rejestracji sterowane z panelu", () => {
         h.enabled = [...WSZYSTKIE_POLA];
         gate();
         fireEvent.click(zgodaNewslettera());
-        const violations = await axeViolations(poleMiaru()?.closest("label") as HTMLElement);
+        const row = zgodaNewslettera().closest("label");
+        if (!row) throw new Error("Missing newsletter consent");
+        const violations = await axeViolations(row);
         expect(violations, summarize(violations)).toEqual([]);
       } finally {
         document.documentElement.classList.remove("dark");
