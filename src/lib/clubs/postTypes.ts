@@ -25,7 +25,8 @@ export const CLUB_POST_MEDIA_BUCKET = "club-media";
 export const CLUB_POST_MAX_BODY = 6000;
 export const CLUB_POST_MAX_ATTACHMENTS = 10;
 /** 50 MB - limit kubełka. Sprawdzamy po stronie klienta, żeby użytkownik
- *  dostał zdanie po polsku, a nie surowy błąd magazynu po wysłaniu 300 MB. */
+ *  dostał zdanie po polsku, a nie surowy błąd magazynu po wysłaniu 300 MB.
+ *  Ta sama granica `size` w `club_post_media_normalize` (baza). */
 export const CLUB_POST_MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 export const CLUB_POST_IMAGE_MIME = [
@@ -114,7 +115,9 @@ export function clubPostMediaKind(mime: string, name = ""): ClubPostMediaKind | 
 export interface ClubPostMediaAttachment {
   type: ClubPostMediaKind;
   /** Ścieżka w kubełku, NIE adres. Adresy podpisane wygasają, więc trzymanie
-   *  ich w bazie znaczyłoby, że wpis psuje się po godzinie. */
+   *  ich w bazie znaczyłoby, że wpis psuje się po godzinie. Zawsze
+   *  `<uid autora>/<plik>` - `club_post_create` odrzuca każdą inną, bo
+   *  ścieżka we wpisie otwiera plik członkom klubu. */
   path: string;
   name: string;
   mime: string;
@@ -565,9 +568,11 @@ export type ClubPostErrorKey = (typeof CLUB_POST_ERROR_KEYS)[number];
  *
  * Napisy RPC: `clubs: post burst limit` / `clubs: post rate limit` (limity
  * autora, 42901), `clubs: invalid link attachment` (karta linku nie przeszła
- * walidacji) oraz `club_post_create: …` dla braku sesji, braku prawa i treści
- * nie do przyjęcia. Kolejność jak w `clubCommentErrorKey`: „burst limit"
- * PRZED „rate limit", karta linku PRZED ogólnym „invalid".
+ * walidacji), `clubs: invalid media attachment` (plik spoza katalogu autora
+ * albo w złym kształcie - ogólne „invalid") oraz `club_post_create: …` dla
+ * braku sesji, braku prawa i treści nie do przyjęcia. Kolejność jak
+ * w `clubCommentErrorKey`: „burst limit" PRZED „rate limit", karta linku
+ * PRZED ogólnym „invalid".
  */
 export function clubPostErrorKey(error: unknown): ClubPostErrorKey {
   const message = errorMessage(error).toLowerCase();
