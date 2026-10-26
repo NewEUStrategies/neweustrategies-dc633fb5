@@ -92,11 +92,12 @@ i funkcjonalności oraz wskaźniki pokrycia pochodzą z pomiaru audytowego z 202
 
 ### Platforma i operacje
 
-| #   | Moduł                                                 | Zakres                                                                                                                                   |
-| --- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 17  | Analityka i BI                                        | zbieranie zdarzeń, warstwa semantyczna metryk, panele BI z wykresami, integracje GA4 i Search Console, Core Web Vitals, błędy klienta    |
-| 19  | Ustawienia / integracje / users / multi-tenant / RODO | ustawienia serwisu, użytkownicy i role, macierz uprawnień, izolacja najemcy, feature flags, zgody i banner cookie, integracje zewnętrzne |
-| 20  | Platforma / backend / infrastruktura / SSR            | routing i trasy publiczne, warstwa funkcji serwerowych, klient bazy danych, SSR i cache brzegowy, obsługa błędów, bramki CI              |
+| #   | Moduł                                                 | Zakres                                                                                                                                                                                                                                                                   |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 17  | Analityka i BI                                        | zbieranie zdarzeń, warstwa semantyczna metryk, panele BI z wykresami, integracje GA4 i Search Console, Core Web Vitals, błędy klienta                                                                                                                                    |
+| 19  | Ustawienia / integracje / users / multi-tenant / RODO | ustawienia serwisu, użytkownicy i role, macierz uprawnień, izolacja najemcy, feature flags, zgody i banner cookie, integracje zewnętrzne                                                                                                                                 |
+| 20  | Platforma: rdzeń (backend, infrastruktura, SSR)       | warstwa funkcji serwerowych, klient bazy danych, SSR i cache brzegowy, obsługa błędów, bramki CI; jądro współdzielone przez domeny (sesja `useAuth`, ustawienia serwisu, meta SEO, zakres najemcy, zgody CMP - lista `PLATFORM_CORE` w `scripts/taxonomy/moduleMap.mjs`) |
+| 23  | Warstwa aplikacji: trasy, router, start               | trasy publiczne i panelu spoza domen, router, wejścia klienta i serwera - kompozycja, której wolno znać domeny; nic jej nie importuje                                                                                                                                    |
 
 ### Powierzchnie przekrojowe
 

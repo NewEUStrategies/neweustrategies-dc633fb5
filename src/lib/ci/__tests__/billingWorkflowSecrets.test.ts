@@ -87,6 +87,28 @@ const stepNamed = (steps: readonly Block[], name: string): Block => {
 const text = (block: Block | readonly string[]): string =>
   ("lines" in block ? block.lines : block).join("\n");
 
+/**
+ * Sekrety, których WARTOŚĆ trafia do tekstu: każde odwołanie do kontekstu
+ * `secrets` w wyrażeniu `${{ }}`. Notacja kropkowa w dowolnej pisowni
+ * (`${{ secrets.X }}`, `${{secrets.x}}`, `${{ secrets.X || '' }}`) daje nazwę
+ * wielkimi literami - GitHub nie rozróżnia wielkości liter nazw sekretów.
+ * Dostęp bez nazwy po kropce (`secrets['X']`, `toJSON(secrets)`) daje `*`,
+ * czyli „dowolny sekret". Pomija wyłącznie kontrolę obecności
+ * `secrets.X != ''` - wyrażenie daje `true`/`false`, nie wartość. Napis
+ * `secrets.X` poza `${{ }}` (komentarz, komunikat skryptu) niczego nie
+ * podstawia.
+ */
+const secretValuesIn = (source: string): string[] =>
+  [...source.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].flatMap(([, expression]) =>
+    [...expression!.matchAll(/\bsecrets\b(?:\s*\.\s*([A-Z0-9_]+)\b(\s*!=\s*'')?)?/gi)]
+      .filter(([, , presence]) => presence === undefined)
+      .map(([, name]) => name?.toUpperCase() ?? "*"),
+  );
+
+/** Krok czyta wartość sekretu spełniającego `name` albo dowolnego (`*`). */
+const readsSecret = (block: Block, name: (secret: string) => boolean): boolean =>
+  secretValuesIn(text(block)).some((secret) => secret === "*" || name(secret));
+
 describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", () => {
   const lines = readFileSync(".github/workflows/billing-nightly.yml", "utf8").split("\n");
   const steps = stepsOf(lines);
@@ -103,9 +125,11 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
 
   it("klucze operatora widzą WYŁĄCZNIE trzy kroki sondy", () => {
     const withStripeKey = steps.filter((step) =>
-      text(step).includes("secrets.STRIPE_SANDBOX_API_KEY"),
+      readsSecret(step, (name) => name === "STRIPE_SANDBOX_API_KEY"),
     );
-    const withGatewayKey = steps.filter((step) => text(step).includes("secrets.LOVABLE_API_KEY"));
+    const withGatewayKey = steps.filter((step) =>
+      readsSecret(step, (name) => name === "LOVABLE_API_KEY"),
+    );
 
     for (const holders of [withStripeKey, withGatewayKey]) {
       expect(holders).toHaveLength(3);
@@ -116,10 +140,9 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
   });
 
   it("dostęp do naszej bazy (adres, klucz publikowalny, token sondy) widzi WYŁĄCZNIE krok weryfikacji", () => {
-    const holders = steps.filter(
-      (step) =>
-        text(step).includes("secrets.PROBE_SUPABASE_") ||
-        text(step).includes("secrets.BILLING_PROBE_TOKEN"),
+    // Wartość sekretu (także `secrets['X']`), nie kontrola obecności (`!= ''`).
+    const holders = steps.filter((step) =>
+      readsSecret(step, (name) => /^(PROBE_SUPABASE_[A-Z0-9_]+|BILLING_PROBE_TOKEN)$/.test(name)),
     );
 
     expect(holders).toHaveLength(1);
@@ -132,6 +155,21 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
     expect(verify).toContain("BILLING_PROBE_TOKEN: ${{ secrets.BILLING_PROBE_TOKEN }}");
     // Adres wdrożenia zawęża kontrolę punktu odbioru webhooków (przegląd 7.12).
     expect(verify).toContain("PROBE_APP_BASE_URL: ${{ vars.APP_BASE_URL }}");
+  });
+
+  // Audyt ED14: komplet konfiguracji jednym błędem, przed pierwszym krokiem
+  // z wartością sekretu.
+  it("kontrola konfiguracji sondy jest pierwsza, widzi tylko obecność i obejmuje KAŻDY sekret sondy", () => {
+    const preflight = stepNamed(steps, "Sprawdź konfigurację sondy");
+    const used = new Set(secretValuesIn(lines.join("\n")));
+
+    expect(steps.indexOf(preflight)).toBe(0);
+    expect(secretValuesIn(text(preflight))).toEqual([]);
+    expect(used.size).toBe(5);
+    for (const name of used) {
+      expect(text(preflight)).toContain(`HAS_${name}: \${{ secrets.${name} != '' }}`);
+      expect(text(preflight)).toMatch(new RegExp(`for name in [A-Z_ ]*\\b${name}\\b`));
+    }
   });
 
   // KRYTERIUM przeglądu 7.6.
@@ -264,6 +302,6 @@ describe("scheduler.yml - dobowy przebieg rozliczeń jedzie własnym sekretem (P
     expect(planIndex).toBeLessThan(steps.indexOf(cfg));
     expect(text(cfg)).toContain("HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}");
     expect(text(cfg)).toContain("HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}");
-    expect(text(cfg)).not.toMatch(/: \$\{\{ secrets\.[A-Z_]+ \}\}/);
+    expect(secretValuesIn(text(cfg))).toEqual([]);
   });
 });

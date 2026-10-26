@@ -16,18 +16,23 @@ tabel, a `.github/CODEOWNERS` generuje z niego `bun run generate:codeowners`.
 
 ## 1. Mapa plików
 
-| Plik                                     | Rola                                                                 |
-| ---------------------------------------- | -------------------------------------------------------------------- |
-| `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy. To tu się edytuje                |
-| `governance/README.md`                   | Ten plik. Jego brak przewraca bramkę                                 |
-| `src/lib/ci/ownership.ts`                | Inwariant: parsowanie, atrybucja, raport. Warstwa czysta, bez IO     |
-| `src/lib/ci/__tests__/ownership.test.ts` | 65 testów inwariantu                                                 |
-| `scripts/check-ownership.ts`             | Cienki runner - odczyt katalogów i kod wyjścia                       |
-| `scripts/generate-codeowners.ts`         | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt)        |
-| `.github/CODEOWNERS`                     | **Plik generowany.** Nie edytuj ręcznie                              |
-| `docs/UMOWA_UTRZYMANIOWA.md`             | Poziom usługi (SLA/OLA) dla zakresu z rejestru                       |
-| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md`     | Co zrobić, gdy wykonawca przestaje odpowiadać                        |
-| `.github/workflows/ci.yml`               | Kroki „Własnicielstwo…" i „CODEOWNERS zgodny…" w bloku tanich bramek |
+| Plik                                 | Rola                                                          |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `governance/ownership.json`          | **Rejestr** - jedyne źródło prawdy. To tu się edytuje         |
+| `governance/README.md`               | Ten plik                                                      |
+| `src/lib/ci/ownership.ts`            | Parser i walidator rejestru, atrybucja, generator CODEOWNERS  |
+| `scripts/generate-codeowners.ts`     | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt) |
+| `.github/CODEOWNERS`                 | **Plik generowany.** Nie edytuj ręcznie                       |
+| `docs/UMOWA_UTRZYMANIOWA.md`         | Poziom usługi (SLA/OLA) dla zakresu z rejestru                |
+| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md` | Co zrobić, gdy wykonawca przestaje odpowiadać                 |
+
+Bramkę pokrycia (runner `check:ownership`, jego 65 testów i kroki w `ci.yml`)
+usunięto 2026-10-05 w c3f0c0e72. Dziś nic nie sprawdza automatycznie, że rejestr
+pokrywa 100% tras i migracji: komunikaty „TRASY BEZ WŁAŚCICIELA" i „MARTWE
+REGUŁY" z §3 opisują warunki, które sprawdza przegląd PR-a. Maszynowo zostało
+`bun run scripts/generate-codeowners.ts --check` - rejestr musi się sparsować
+(walidator odrzuca m.in. pustą domenę, zdublowany slug i wpis przekrojowy bez
+domeny), a `.github/CODEOWNERS` musi być z nim zgodny bajt w bajt.
 
 ---
 
@@ -221,22 +226,33 @@ i sprawdź, do której domeny należą ich prefiksy.
 
 ---
 
-## 6. `.github/CODEOWNERS` - dlaczego wszystko jest zakomentowane
+## 6. `.github/CODEOWNERS` - kiedy reguły są zakomentowane i jaki jest stan dziś
 
-Bo zespoły `@NewEUStrategies/utrzymanie-*` **nie istnieją jeszcze w
-organizacji**, a aktywna reguła CODEOWNERS wskazująca nieistniejący zespół
-zablokowałaby **każdy** merge przy ochronie gałęzi z opcją „Require review from
-Code Owners". Bramka własnicielska nie ma prawa zatrzymać wydania.
+Generator (`renderCodeowners` w `src/lib/ci/ownership.ts`) wypisuje reguły tras
+domeny jako komentarz, dopóki jej właściciel nie ma `obsadzone: true`, i dodaje
+nad nimi ostrzeżenie. Powód zapisany w generatorze: aktywna reguła wskazująca
+zespół, którego nie ma w GitHubie, zablokowałaby **każdy** merge przy ochronie
+gałęzi z opcją „Require review from Code Owners". Bramka własnicielska nie ma
+prawa zatrzymać wydania.
 
-Kolejność aktywacji: załóż zespół → `obsadzone: true` w rejestrze →
-`bun run generate:codeowners` → obniż próg (§3.3).
+**Stan dziś: żadna reguła nie jest zakomentowana.** Od 12.09.2026 każda z 9 domen
+ma właściciela z `obsadzone: true` (§7), a `zespolGithub` każdej domeny to
+`@NewEUStrategies`, nie zespół `@NewEUStrategies/utrzymanie-*`. Plik ma 82 aktywne
+reguły - `* @NewEUStrategies`, 79 wzorców tras oraz `/governance/` i `/.github/`
+(dwie ostatnie i `*` z wpisu `osoby.organizacja-nes`) - i wszystkie wskazują to
+samo konto `@NewEUStrategies`. Przeglądu między domeny więc nie rozdzielają;
+zrobią to dopiero osobne uchwyty albo zespoły w `zespolGithub`.
+
+Kolejność aktywacji domeny bez właściciela: załóż zespół → `obsadzone: true`
+w rejestrze → `bun run generate:codeowners` → obniż próg (§3.3).
 
 **Domeny są w tym pliku wypisane w kolejności ODWROTNEJ niż w rejestrze i nie
 jest to pomyłka.** GitHub rozstrzyga nakładające się wzorce regułą OSTATNIEGO
 trafienia, a rejestr regułą PIERWSZEGO. Emisja „po kolei" dałaby plik kierujący
 przeglądy dokładnie odwrotnie, niż mówi rejestr. Nie sortuj CODEOWNERS.
 
-Plik pokrywa **wyłącznie trasy**. Migracji nie da się w nim wyrazić: nazwy to
+Reguły domenowe pokrywają **wyłącznie trasy** (poza nimi plik ma tylko `*`,
+`/governance/` i `/.github/`). Migracji nie da się w nim wyrazić: nazwy to
 znaczniki czasu i UUID-y, więc nie istnieje wzorzec ścieżki oddzielający domeny.
 Własnicielstwo migracji opisuje wyłącznie rejestr.
 

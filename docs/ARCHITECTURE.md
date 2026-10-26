@@ -203,23 +203,43 @@ draft/published/archived one.
 
 ---
 
-## 3. Quality gates - CI runs on every PR and push to main
+## 3. Quality gates - what CI blocks on a PR and what runs only on main
 
-The `.github/workflows` (CI / E2E / Lighthouse) run on `pull_request` and
-`push: { branches: [main] }` (plus manual `workflow_dispatch`). They use
-GitHub-hosted `ubuntu-latest` runners - no self-hosted fleet is required - and a
-`concurrency` group cancels superseded runs so a busy branch never spends Actions
-minutes on stale commits. CI repoints the private-registry pins in `bun.lock` to
-public npm at install time, so the exact pinned versions install in CI.
+Since 2026-10-05 the CI gate set is limited to what protects production
+(header of `.github/workflows/ci.yml`). Triggers differ per workflow:
 
-`CI` is the real gate between a merge and production. Because **`vite build` does
-NOT typecheck** (esbuild strips types), the pipeline runs an explicit
-`tsc --noEmit` step _before_ the build - that is the type gate, not the build.
-Order: **typecheck -> test + coverage gate -> build -> bundle budget -> lint**
-(all blocking; the Prettier backlog was cleared in a repo-wide format commit).
-A separate `pgtap` job starts a local Supabase database (migrations + seed) and
-runs the pgTAP suite (`supabase test db`): RLS tenant isolation, role
-management, full-text search - the policies Vitest can never exercise.
+| Workflow                                                          | Runs on                                         |
+| ----------------------------------------------------------------- | ----------------------------------------------- |
+| `ci.yml` (CI)                                                     | `pull_request`, push to `main`, manual          |
+| `e2e.yml` (E2E)                                                   | `pull_request`, push to `main`, manual          |
+| `lighthouse.yml`, `first-visit.yml`, `cms-widget-performance.yml` | push to `main` and manual only - **not on PRs** |
+
+All use GitHub-hosted `ubuntu-latest` runners and a `concurrency` group that
+cancels superseded runs.
+
+`CI` is the real gate between a merge and production. Its jobs, aggregated by
+the single required status `Required release checks` (job `release-gate`):
+
+- `verify` - Prettier, the cheap static SQL/migration/RPC/XSS gates,
+  typecheck and lint. Because **`vite build` does NOT typecheck** (esbuild
+  strips types), the explicit typecheck step (`tsgo --noEmit`) is the type gate,
+  not the build;
+- `test-shards` - the full Vitest suite in four shards **without coverage
+  instrumentation: coverage is NOT a CI gate** (`bun run test:coverage` measures
+  it locally against one global threshold in `vitest.config.ts`);
+- `build` - production build, chunk-graph acyclicity (`check:chunks`, blocking
+  on PRs) and the browser boot test of the production artifact. The
+  **performance budgets - `check:bundle`, `check:entry-purity`,
+  `check:server-entry-purity` - run only on `main` and on manual runs; they do
+  not block PRs**;
+- `pgtap` - a local Supabase database (migrations + seed) and the pgTAP suite
+  (`supabase test db`): RLS tenant isolation, role management, full-text
+  search - the policies Vitest can never exercise;
+- `pg-harness` - the PostgreSQL 16 harnesses (`check:pg-harness`,
+  `check:careers-harness`, `check:events-harness`, `check:tenant-isolation`).
+
+After a merge, `post-deploy` (push to `main`) probes the production database
+contract and migration ledger when repository variables give it credentials.
 
 The `E2E` workflow runs two jobs: the backend-agnostic Playwright smoke
 (placeholder Supabase creds) and `e2e-seeded`, which boots a full local
@@ -228,18 +248,40 @@ Supabase stack (migrations + `supabase/seed.sql`) and sets `E2E_SEEDED=1` so
 sign-in, crawler feeds, the 301 from `/post/<slug>` - actually executes instead
 of skipping.
 
-**Run the same gates locally before opening a PR for fast feedback:**
+**Run the PR gates locally before opening a PR for fast feedback** - each line
+names the CI job it mirrors:
 
 ```bash
-bunx tsc --noEmit        # types (the build will NOT catch these)
-bun run test:coverage    # tests + the coverage gate
-bun run build            # production build
-bun run check:bundle     # gzipped bundle budget
-bun run lint             # blocking - zero errors expected
-bun run db:test          # pgTAP (needs a running local Supabase)
+bun run verify:blocking  # jobs verify + test-shards: verify:static + typecheck + lint + test
+bun run build            # job build: production build
+bun run check:chunks     # job build: chunk-graph acyclicity (blocking on PRs)
+bun run build:smoke && bun run test:e2e:artifact  # job build: node-server artifact + browser boot test
+bun run generate:ts-sql-contract && bun run db:test  # job pgtap (needs a running local Supabase)
+bun run check:pg-harness && bun run check:careers-harness  # job pg-harness (needs PostgreSQL 16)
+bun run check:events-harness && bun run check:tenant-isolation  # job pg-harness, continued
+bun run test:e2e         # E2E job e2e: Playwright smoke (CI runs it on placeholder Supabase creds)
+bun run check:bundle     # gzipped bundle budget - main-only in CI, run it when touching deps or entries
+bun run test:coverage    # coverage report - informative, not a CI gate
 ```
 
-A change is "green" only when all of the above pass - the same bar CI enforces.
+`verify:static` is `format:check` plus every `check:*` script in `package.json`
+except the 12 listed in `EXCLUDED` in `scripts/verify-static.ts` - the gates
+that need a build or measurement artifact (`check:bundle`, `check:chunks`,
+`check:entry-purity`, `check:server-entry-purity`, `check:document-weight`,
+`check:first-visit-regression`), a live database (`check:db-contract`,
+`check:migration-ledger`) or their own PostgreSQL 16 cluster (the four harnesses
+above). The `e2e-seeded` job needs a full local Supabase stack and the env
+exports from its step in `.github/workflows/e2e.yml`.
+
+CI's verdict on a PR is `Required release checks` (jobs `verify`,
+`test-shards`, `build`, `pgtap`, `pg-harness`) plus the `E2E` jobs `e2e` and
+`e2e-seeded` - the three status contexts `governance/release/main-ruleset.json`
+lists as required (§13.2). The commands above map onto those jobs, but they run
+on your machine rather than on a clean runner with pinned tool versions, and
+`verify:static` is derived from `package.json`, not from the `verify` job's step
+list - so they give fast feedback, not the verdict. The performance budgets
+(`check:bundle`, `check:entry-purity`, `check:server-entry-purity`) run only on
+`main` and on manual runs, so they turn red only after merge.
 
 ### Bundle budget: public vs overall
 
@@ -505,8 +547,7 @@ Katalog cennika i cykl życia uprawnień emitują zdarzenia jak każdy inny modu
   `billing_document.issued/updated.v1` odświeża go na żywo.
 
 pgTAP: `supabase/tests/cohesion_layer_test.sql`; TS:
-`src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`,
-`src/lib/__tests__/i18nCohesion.test.ts`.
+`src/lib/realtime/__tests__/*`, `src/lib/http/__tests__/idempotency.test.ts`.
 
 ## 6. Podcast: sieć programów (nie płaska lista plików)
 
@@ -963,8 +1004,10 @@ NIEODRÓŻNIALNA od pustej kolejki. Migracja `20260731110000` (plus pojednanie
 
 - **Jeden dyspozytor, trzy wejścia.** `runJobsTick` (pg_cron → `/jobs-tick`, co
   minutę - ścieżka podstawowa), `/api/public/community-cron` (pg_cron co 5 min +
-  scheduler repo `.github/workflows/scheduler.yml`, co 5 min = 4 ticki po 60 s)
-  i przycisk „Uruchom tick teraz" w panelu. Claimy są atomowe
+  scheduler repo `.github/workflows/scheduler.yml` - wpis co 5 min = 4 ticki po
+  60 s, ale harmonogram GitHub jest best-effort: pomiar 2026-10-17 dał około 10
+  przebiegów na dobę, a bez sekretów ticki są pomijane i dobowy audyt jest
+  czerwony) i przycisk „Uruchom tick teraz" w panelu. Claimy są atomowe
   (`FOR UPDATE SKIP LOCKED`), więc ścieżki mogą biec równolegle bez duplikatów
   doręczeń.
 - **Siatka społeczności w bazie (`20260731210000`).** Audyt „Scheduler push +

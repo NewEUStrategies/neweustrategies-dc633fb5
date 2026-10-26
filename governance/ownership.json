@@ -2,7 +2,7 @@
   "meta": {
     "wersja": 1,
     "obowiazujeOd": "2026-09-12",
-    "opis": "Rejestr własnicielstwa technicznego: każda trasa administracyjna i każda migracja bazy ma wskazaną domenę, a każda domena ma właściciela, zastępcę i klasę SLA. Bramka `bun run check:ownership` egzekwuje, że rejestr pokrywa 100% obu powierzchni.",
+    "opis": "Rejestr własnicielstwa technicznego: każda trasa administracyjna i każda migracja bazy ma wskazaną domenę, a każda domena ma właściciela, zastępcę i klasę SLA. Pokrycia 100% obu powierzchni nie egzekwuje od 2026-10-05 żadna bramka (c3f0c0e72) - pilnuje go przegląd PR-a; `bun run scripts/generate-codeowners.ts --check` sprawdza składnię rejestru i zgodność `.github/CODEOWNERS`.",
     "jakEdytowac": "governance/README.md"
   },
   "kontraktUtrzymaniowy": {
