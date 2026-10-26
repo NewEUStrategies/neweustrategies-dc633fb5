@@ -226,22 +226,33 @@ i sprawdź, do której domeny należą ich prefiksy.
 
 ---
 
-## 6. `.github/CODEOWNERS` - dlaczego wszystko jest zakomentowane
+## 6. `.github/CODEOWNERS` - kiedy reguły są zakomentowane i jaki jest stan dziś
 
-Bo zespoły `@NewEUStrategies/utrzymanie-*` **nie istnieją jeszcze w
-organizacji**, a aktywna reguła CODEOWNERS wskazująca nieistniejący zespół
-zablokowałaby **każdy** merge przy ochronie gałęzi z opcją „Require review from
-Code Owners". Bramka własnicielska nie ma prawa zatrzymać wydania.
+Generator (`renderCodeowners` w `src/lib/ci/ownership.ts`) wypisuje reguły tras
+domeny jako komentarz, dopóki jej właściciel nie ma `obsadzone: true`, i dodaje
+nad nimi ostrzeżenie. Powód zapisany w generatorze: aktywna reguła wskazująca
+zespół, którego nie ma w GitHubie, zablokowałaby **każdy** merge przy ochronie
+gałęzi z opcją „Require review from Code Owners". Bramka własnicielska nie ma
+prawa zatrzymać wydania.
 
-Kolejność aktywacji: załóż zespół → `obsadzone: true` w rejestrze →
-`bun run generate:codeowners` → obniż próg (§3.3).
+**Stan dziś: żadna reguła nie jest zakomentowana.** Od 12.09.2026 każda z 9 domen
+ma właściciela z `obsadzone: true` (§7), a `zespolGithub` każdej domeny to
+`@NewEUStrategies`, nie zespół `@NewEUStrategies/utrzymanie-*`. Plik ma 82 aktywne
+reguły - `* @NewEUStrategies`, 79 wzorców tras oraz `/governance/` i `/.github/`
+(dwie ostatnie i `*` z wpisu `osoby.organizacja-nes`) - i wszystkie wskazują to
+samo konto `@NewEUStrategies`. Przeglądu między domeny więc nie rozdzielają;
+zrobią to dopiero osobne uchwyty albo zespoły w `zespolGithub`.
+
+Kolejność aktywacji domeny bez właściciela: załóż zespół → `obsadzone: true`
+w rejestrze → `bun run generate:codeowners` → obniż próg (§3.3).
 
 **Domeny są w tym pliku wypisane w kolejności ODWROTNEJ niż w rejestrze i nie
 jest to pomyłka.** GitHub rozstrzyga nakładające się wzorce regułą OSTATNIEGO
 trafienia, a rejestr regułą PIERWSZEGO. Emisja „po kolei" dałaby plik kierujący
 przeglądy dokładnie odwrotnie, niż mówi rejestr. Nie sortuj CODEOWNERS.
 
-Plik pokrywa **wyłącznie trasy**. Migracji nie da się w nim wyrazić: nazwy to
+Reguły domenowe pokrywają **wyłącznie trasy** (poza nimi plik ma tylko `*`,
+`/governance/` i `/.github/`). Migracji nie da się w nim wyrazić: nazwy to
 znaczniki czasu i UUID-y, więc nie istnieje wzorzec ścieżki oddzielający domeny.
 Własnicielstwo migracji opisuje wyłącznie rejestr.
 

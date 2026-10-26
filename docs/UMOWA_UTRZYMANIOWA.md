@@ -49,11 +49,11 @@ techniczną, nie podstawę prawną; odzyskania dostępów do kont zewnętrznych
 
 ### 2.1 Strony
 
-| Strona      | Podmiot                           | Kontakt zmierzony w repo                                                   |
-| ----------- | --------------------------------- | -------------------------------------------------------------------------- |
-| Zamawiający | New European Strategies           | `office@neweuropeanstrategies.com` (autor commitów, `git shortlog`)        |
-| Zamawiający | kontakt redakcyjny / marketingowy | `marketing@neweuropeanstrategies.com` (`.env.example:90`, `VAPID_SUBJECT`) |
-| Wykonawca   | **DO UZUPEŁNIENIA**               | **DO UZUPEŁNIENIA**                                                        |
+| Strona      | Podmiot                           | Kontakt zmierzony w repo                                                 |
+| ----------- | --------------------------------- | ------------------------------------------------------------------------ |
+| Zamawiający | New European Strategies           | `office@neweuropeanstrategies.com` (autor commitów, `git shortlog`)      |
+| Zamawiający | kontakt redakcyjny / marketingowy | `marketing@neweuropeanstrategies.com` (`VAPID_SUBJECT` w `.env.example`) |
+| Wykonawca   | **DO UZUPEŁNIENIA**               | **DO UZUPEŁNIENIA**                                                      |
 
 W repozytorium **NIE MA ANI JEDNEGO indywidualnego uchwytu GitHub ani osobowego
 adresu e-mail** - powyższe dwa adresy to jedyne, jakie da się wskazać z
@@ -67,7 +67,7 @@ materiału dowodowego. Wszystkie osoby fizyczne są tu **DO UZUPEŁNIENIA**
 | Właściciel techniczny domeny | `domeny[].wlasciciel`   | Przyjmuje zgłoszenia domeny, decyduje o obejściu i naprawie, zatwierdza PR-y domeny                                                                                                                                             |
 | Zastępca                     | `domeny[].zastepca`     | Przejmuje przy nieobecności właściciela. **Nie może być tą samą osobą** - `właściciel = zastępca` to zerowy bus factor (warunek `ownerEqualsDeputy` w `src/lib/ci/ownership.ts`; od 2026-10-05 pilnuje go przegląd, nie bramka) |
 | Eskalacja                    | `domeny[].eskalacja`    | `organizacja-nes` - Zamawiający; wchodzi przy przekroczeniu czasu naprawy albo sporze o priorytet                                                                                                                               |
-| Zespół GitHub                | `domeny[].zespolGithub` | `@NewEUStrategies/utrzymanie-<slug>` - adresat CODEOWNERS, dziś **nieistniejący**                                                                                                                                               |
+| Zespół GitHub                | `domeny[].zespolGithub` | Adresat reguł CODEOWNERS domeny. Dziś we wszystkich 9 domenach `@NewEUStrategies` - jedno konto, nie zespoły `@NewEUStrategies/utrzymanie-<slug>` - więc CODEOWNERS nie rozdziela przeglądu między domeny                       |
 
 ### 2.3 Stan obsadzenia ról
 
@@ -83,7 +83,10 @@ Próg `progi.domenyBezWlasciciela` jest **zapadką**: wolno go WYŁĄCZNIE
 obniżać, a spada przy każdym realnym obsadzeniu roli. Generator
 `bun run generate:codeowners` celowo wypisuje reguły **ZAKOMENTOWANE**, dopóki
 właściciele nie są obsadzeni - `CODEOWNERS` wskazujący na nieistniejący zespół
-GitHub jest gorszy niż jego brak, bo wygląda jak działający mechanizm.
+GitHub jest gorszy niż jego brak, bo wygląda jak działający mechanizm. Wszystkie
+9 domen jest obsadzonych, więc `.github/CODEOWNERS` ma dziś 82 aktywne reguły,
+wszystkie na jedno konto `@NewEUStrategies` - nie rozdzielają przeglądu między
+domeny (`governance/README.md`, §6).
 
 ## 3. Przedmiot utrzymania - 9 domen
 
@@ -114,12 +117,12 @@ pierwszego przeglądu kwartalnego (sekcja 9).
 
 ### 4.1 Definicje wpływu - przykłady Z TEGO systemu
 
-| Klasa  | Definicja wpływu                                                                                         | Przykłady zmierzone w tym repozytorium                                                                                                                                                                                                                                                                                                                                                                      |
-| ------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P1** | Utrata przychodu, utrata danych, niedostępność produkcji albo naruszenie granicy tenanta. Brak obejścia. | Checkout / płatności nie działają (`src/lib/stripe.server.ts:14` - gateway Stripe); panel `/admin` zwraca 5xx albo nie da się zalogować; wyciek danych między tenantami (klasa błędu, którą pilnuje `check:sql-tenant-scope` - krok „SQL tenant-scope invariant" joba `verify` w `.github/workflows/ci.yml`); baza produkcyjna niedostępna                                                                  |
-| **P2** | Kluczowa funkcja nie działa, obejście istnieje lub jest kosztowne.                                       | Newsletter nie wychodzi - `LOVABLE_API_KEY`/`RESEND_API_KEY` nieważne, cała poczta spada na dostawcę zapasowego bez identyfikatora wiadomości (`.env.example:45-51`); `GET /api/public/community-cron` zwraca **503** (zastój harmonogramu, `docs/RUNBOOK_COMMUNITY.md:40`); kolejka `notification_push_queue` rośnie w `pending`; nocna sonda rozliczeń czerwona (`.github/workflows/billing-nightly.yml`) |
-| **P3** | Funkcja działa błędnie na wąskiej powierzchni, obejście proste.                                          | Pojedynczy ekran admina rzuca błąd; wskaźnik otwarć newslettera > 100% przy dwóch źródłach zaangażowania naraz (`.env.example:67-79`, `NEWSLETTER_ENGAGEMENT_SOURCE`); brak `RESEND_WEBHOOK_SECRET` - lista wykluczeń nie rośnie (`.env.example:57-64`)                                                                                                                                                     |
-| **P4** | Kosmetyka, dług techniczny, pytanie, wniosek o dane.                                                     | Literówka w tłumaczeniu; przegląd 221 słabych atrybucji migracji; uzupełnienie `.env.example` o 14 nieudokumentowanych zmiennych produkcyjnych                                                                                                                                                                                                                                                              |
+| Klasa  | Definicja wpływu                                                                                         | Przykłady zmierzone w tym repozytorium                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **P1** | Utrata przychodu, utrata danych, niedostępność produkcji albo naruszenie granicy tenanta. Brak obejścia. | Checkout / płatności nie działają (`GATEWAY_STRIPE_BASE` w `src/lib/stripe.server.ts` - gateway Stripe); panel `/admin` zwraca 5xx albo nie da się zalogować; wyciek danych między tenantami (klasa błędu, którą pilnuje `check:sql-tenant-scope` - krok „SQL tenant-scope invariant" joba `verify` w `.github/workflows/ci.yml`); baza produkcyjna niedostępna                                                                                                                                                                                                                                                                                                                                  |
+| **P2** | Kluczowa funkcja nie działa, obejście istnieje lub jest kosztowne.                                       | Brak `RESEND_API_KEY` - kampanie newslettera i kolejka poczty (`src/lib/email/provider.server.ts`) spadają na dostawcę zapasowego bez identyfikatora wiadomości (komentarz przy kluczu w `.env.example`), a mail potwierdzający zapis do newslettera, formularz kontaktowy i zaproszenia do organizacji nie wychodzą wcale (`email_not_configured` w `src/lib/newsletter.functions.ts`, `src/lib/contact.functions.ts`, `src/lib/server/email.server.ts`); `GET /api/public/community-cron` zwraca **503** (zastój harmonogramu, `docs/RUNBOOK_COMMUNITY.md:40`); kolejka `notification_push_queue` rośnie w `pending`; nocna sonda rozliczeń czerwona (`.github/workflows/billing-nightly.yml`) |
+| **P3** | Funkcja działa błędnie na wąskiej powierzchni, obejście proste.                                          | Pojedynczy ekran admina rzuca błąd; wskaźnik otwarć newslettera > 100% przy dwóch źródłach zaangażowania naraz (`NEWSLETTER_ENGAGEMENT_SOURCE` w `.env.example`); brak `RESEND_WEBHOOK_SECRET` - lista wykluczeń nie rośnie (komentarz przy kluczu w `.env.example`)                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **P4** | Kosmetyka, dług techniczny, pytanie, wniosek o dane.                                                     | Literówka w tłumaczeniu; przegląd 221 słabych atrybucji migracji; uzupełnienie `.env.example` o 14 nieudokumentowanych zmiennych produkcyjnych                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ### 4.2 Klasy SLA z rejestru (`kontraktUtrzymaniowy.klasySla`)
 
@@ -163,9 +166,9 @@ w domenie `sla-3`.
 
 | Kanał                                                      | Stan                  | Dowód                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GitHub Issues w `NewEUStrategies/neweustrategies-dc633fb5` | działa                | repozytorium organizacji; **bez szablonu zgłoszenia** - `.github/` zawiera wyłącznie 5 plików workflow                                                                                                                                                                                                                                                                                                                   |
+| GitHub Issues w `NewEUStrategies/neweustrategies-dc633fb5` | działa                | repozytorium Zamawiającego; **bez szablonu zgłoszenia** - `.github/` zawiera `CODEOWNERS` i 9 plików workflow                                                                                                                                                                                                                                                                                                            |
 | `office@neweuropeanstrategies.com`                         | działa                | `git shortlog` - autor commitów                                                                                                                                                                                                                                                                                                                                                                                          |
-| `marketing@neweuropeanstrategies.com`                      | działa                | `.env.example:90` (`VAPID_SUBJECT`)                                                                                                                                                                                                                                                                                                                                                                                      |
+| `marketing@neweuropeanstrategies.com`                      | działa                | `VAPID_SUBJECT` w `.env.example`                                                                                                                                                                                                                                                                                                                                                                                         |
 | `GET /api/public/community-cron`                           | działa                | `docs/RUNBOOK_COMMUNITY.md:40` - `200` = OK, **`503` = zastój**; nagłówek `x-community-cron-secret`                                                                                                                                                                                                                                                                                                                      |
 | Panel `/admin/community/notifications`                     | działa                | RPC `job_scheduler_health()`, `docs/RUNBOOK_COMMUNITY.md:107-114` - świeżość, stan ścieżek, głębokość kolejki push, brakujące env                                                                                                                                                                                                                                                                                        |
 | `.github/workflows/billing-nightly.yml`                    | **nieskonfigurowana** | nocna sonda odnowienia/dunningu; czerwona codziennie co najmniej od 2026-09-17 - brak sekretów `STRIPE_SANDBOX_API_KEY` i `LOVABLE_API_KEY` (krok „Sprawdź konfigurację sondy" wypisuje komplet braków); wyłącznik jawny `vars.BILLING_PROBE_DISABLED`                                                                                                                                                                   |
@@ -178,7 +181,7 @@ w domenie `sla-3`.
 | Odbiorca sondy `GET /api/public/community-cron` | Sonda zwraca `503`, ale **nikt tego nie czyta** - zastój harmonogramu jest niewidoczny                     | Zamawiający + Wykonawca       |
 | Zewnętrzne raportowanie błędów                  | Zero trafień `@sentry` / `sentry.io`; raportowanie własne (`src/lib/observability/report.ts`) bez adresata | Wykonawca                     |
 | Dedykowany adres/kolejka zgłoszeń               | Zgłoszenia trafiają na adresy ogólne organizacji                                                           | Zamawiający                   |
-| Szablon zgłoszenia i `CODEOWNERS`               | Zgłoszenie nie ma pola „domena", PR nie ma automatycznego recenzenta                                       | Wykonawca (po obsadzeniu ról) |
+| Szablon zgłoszenia i `CODEOWNERS` per domena    | Zgłoszenie nie ma pola „domena"; `CODEOWNERS` kieruje każdą ścieżkę na jedno konto                         | Wykonawca (po wskazaniu osób) |
 | Zdefiniowany dyżur poza godzinami pracy         | Okno `24/7` klasy `sla-1` **nie jest dziś przez nikogo obsadzone**                                         | Zamawiający + Wykonawca       |
 
 **NIE USTALA SIĘ TU ŻADNEGO NUMERU TELEFONU ANI KANAŁU GŁOSOWEGO** - w repo nie
@@ -222,7 +225,7 @@ definicja wykonywalna, nie opisowa.
 
 | Komenda                                          | `package.json` | Co gwarantuje                                                                                                                                                                                                                       |
 | ------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run verify:static`                          | l. 23          | Wszystkie bramki `check:*` z `package.json` - lista wyprowadzana z manifestu, więc nie rozjeżdża się                                                                                                                                |
+| `bun run verify:static`                          | l. 23          | `format:check` i każda bramka `check:*` z `package.json` poza 12 z `EXCLUDED` w `scripts/verify-static.ts` (artefakt buildu, żywa baza, klaster PostgreSQL 16) - lista z manifestu, nie z ręki                                      |
 | `bun run verify:blocking`                        | l. 24          | `verify:static` + `typecheck` + `lint` + `test`; w `test` m.in. kontrakt env skryptów workflow (`src/lib/ci/__tests__/workflowOperationalConfig.test.ts`) i odwołania tego dokumentu (`src/lib/ci/__tests__/docReferences.test.ts`) |
 | `bun run check:sql-migration-replay`             | l. 55          | `supabase db start` na świeżej bazie dobiegnie do końca przez wszystkie migracje (krok „SQL migration replay safety" joba `verify`)                                                                                                 |
 | `bun run scripts/generate-codeowners.ts --check` | l. 62          | Rejestr `governance/ownership.json` się parsuje, a `.github/CODEOWNERS` jest z nim zgodny bajt w bajt. **Pokrycia tras i migracji NIE sprawdza** - patrz niżej                                                                      |
@@ -245,8 +248,8 @@ BRAMKA, KTÓREJ NIKT NIE URUCHAMIA, JEST DOKUMENTACJĄ INTENCJI, NIE BRAMKĄ.**
 `bunfig.toml:3` ustawia `minimumReleaseAge = 86400`: instalacja pomija wersje
 opublikowane mniej niż dobę temu. `bunfig.toml:6` zwalnia z tej blokady **dwa
 pakiety zewnętrznego dostawcy platformy** - `@lovable.dev/vite-tanstack-config`
-i `@lovable.dev/mcp-js` - a pierwszy z nich definiuje CAŁĄ konfigurację
-Vite/TanStack Start/Nitro (`vite.config.ts:10`).
+i `@lovable.dev/mcp-js` - a pierwszy z nich dostarcza bazową konfigurację
+Vite/TanStack Start/Nitro (`defineConfig` importowany w `vite.config.ts`).
 
 **Zobowiązanie Wykonawcy:** przy każdym przeglądzie kwartalnym (sekcja 9)
 przegląd listy `minimumReleaseAgeExcludes` i pisemne potwierdzenie, że wyjątek
@@ -256,20 +259,23 @@ Zamawiającego jest naruszeniem tego załącznika.**
 
 ### 7.2 BRAK DEPENDABOTA
 
-`.github/` zawiera wyłącznie 5 plików workflow. **NIE MA `dependabot.yml`, NIE
-MA `CODEOWNERS`, NIE MA szablonu PR** - nie działa żaden automatyczny mechanizm
-zgłaszania podatności ani aktualizacji zależności. Do czasu uruchomienia
-automatu obowiązuje przegląd ręczny raz na kwartał (`bun outdated` + zalecenia
+`.github/` zawiera 9 plików workflow i `CODEOWNERS`. **NIE MA `dependabot.yml`
+ani szablonu PR** - repo nie konfiguruje żadnego automatu aktualizacji zależności
+(alerty Dependabot to ustawienie repozytorium, niewidoczne w drzewie). Do czasu
+uruchomienia automatu obowiązuje przegląd ręczny raz na kwartał (`bun outdated` + zalecenia
 bezpieczeństwa GitHub, decyzja w raporcie). Uruchomienie `dependabot.yml` jest
 pozycją **DO UZUPEŁNIENIA** - Wykonawca, po obsadzeniu ról.
 
 ### 7.3 Reguła rotacji sekretów
 
-Do przejęcia i rotacji jest **7 unikalnych nazw sekretów** i **4 zmienne**
-GitHub Actions. Część sekretów produkcyjnych **nie jest ani w env, ani w
-GitHubie, tylko w Supabase Vault** (18 wywołań `vault.create_secret`) - utrata
-dostępu do projektu Supabase to utrata tych sekretów bez kopii gdziekolwiek
-indziej. Lista: `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md`.
+Workflowy GitHub Actions czytają **12 nazw sekretów** i **9 zmiennych**. Do
+przejęcia i rotacji jest **8 sekretów** (w tym opcjonalny `PSI_API_KEY`); 4 nazw
+Supabase (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` i ich odpowiedniki `VITE_`)
+NIE WOLNO ustawiać jako sekretów - wyłącznie jako zmienne. Część sekretów
+produkcyjnych **nie jest ani w env, ani w GitHubie, tylko w Supabase Vault**
+(18 wywołań `vault.create_secret`) - utrata dostępu do projektu Supabase to utrata
+tych sekretów bez kopii gdziekolwiek indziej. Lista:
+`docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md`, §3.1 i §3.2.
 
 ## 8. Ciągłość danych: RPO i RTO
 
@@ -407,7 +413,7 @@ czym przenosi je do `governance/ownership.json` (`osoby`) i obniża próg
 | 10  | Właściciel techniczny - `zgodnosc-i-prywatnosc` (2/8)      |         | Zamawiający   | Powierzchnia RODO bez właściciela                      |
 | 11  | Właściciel techniczny - `kariera-i-programy` (5/13)        |         | Zamawiający   | 5 tras bez właściciela                                 |
 | 12  | Zastępca dla każdej z 9 domen (9 pozycji)                  |         | Zamawiający   | Rejestr zakazuje `właściciel = zastępca`               |
-| 13  | Uchwyty GitHub właścicieli i zastępców                     |         | Zamawiający   | `CODEOWNERS` pozostaje zakomentowany                   |
+| 13  | Uchwyty GitHub właścicieli i zastępców                     |         | Zamawiający   | `CODEOWNERS` kieruje wszystko na jedno konto           |
 | 14  | Zespoły GitHub `@NewEUStrategies/utrzymanie-<slug>` (9)    |         | Zamawiający   | Zespoły dziś nie istnieją                              |
 | 15  | Kanał zgłoszeń podstawowy (adres / kolejka)                |         | Zamawiający   | Zgłoszenia trafiają na adresy ogólne                   |
 | 16  | Kanał alarmowy dla P1 (poza godzinami) + godziny dyżuru    |         | Zamawiający   | Okno `24/7` klasy `sla-1` nieobsadzone                 |

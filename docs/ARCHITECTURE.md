@@ -248,20 +248,40 @@ Supabase stack (migrations + `supabase/seed.sql`) and sets `E2E_SEEDED=1` so
 sign-in, crawler feeds, the 301 from `/post/<slug>` - actually executes instead
 of skipping.
 
-**Run the same gates locally before opening a PR for fast feedback:**
+**Run the PR gates locally before opening a PR for fast feedback** - each line
+names the CI job it mirrors:
 
 ```bash
-bun run verify:blocking  # verify:static (all check:* gates) + typecheck + lint + test
-bun run build            # production build
-bun run check:chunks     # chunk-graph acyclicity (blocking on PRs)
-bun run db:test          # pgTAP (needs a running local Supabase)
+bun run verify:blocking  # jobs verify + test-shards: verify:static + typecheck + lint + test
+bun run build            # job build: production build
+bun run check:chunks     # job build: chunk-graph acyclicity (blocking on PRs)
+bun run build:smoke && bun run test:e2e:artifact  # job build: node-server artifact + browser boot test
+bun run generate:ts-sql-contract && bun run db:test  # job pgtap (needs a running local Supabase)
+bun run check:pg-harness && bun run check:careers-harness  # job pg-harness (needs PostgreSQL 16)
+bun run check:events-harness && bun run check:tenant-isolation  # job pg-harness, continued
+bun run test:e2e         # E2E job e2e: Playwright smoke (CI runs it on placeholder Supabase creds)
 bun run check:bundle     # gzipped bundle budget - main-only in CI, run it when touching deps or entries
 bun run test:coverage    # coverage report - informative, not a CI gate
 ```
 
-A change is "green" for a PR when `verify:blocking`, the build, `check:chunks`
-and pgTAP pass - the same bar CI enforces on PRs; the bundle budget turns red
-only after merge, on `main`.
+`verify:static` is `format:check` plus every `check:*` script in `package.json`
+except the 12 listed in `EXCLUDED` in `scripts/verify-static.ts` - the gates
+that need a build or measurement artifact (`check:bundle`, `check:chunks`,
+`check:entry-purity`, `check:server-entry-purity`, `check:document-weight`,
+`check:first-visit-regression`), a live database (`check:db-contract`,
+`check:migration-ledger`) or their own PostgreSQL 16 cluster (the four harnesses
+above). The `e2e-seeded` job needs a full local Supabase stack and the env
+exports from its step in `.github/workflows/e2e.yml`.
+
+CI's verdict on a PR is `Required release checks` (jobs `verify`,
+`test-shards`, `build`, `pgtap`, `pg-harness`) plus the `E2E` jobs `e2e` and
+`e2e-seeded` - the three status contexts `governance/release/main-ruleset.json`
+lists as required (§13.2). The commands above map onto those jobs, but they run
+on your machine rather than on a clean runner with pinned tool versions, and
+`verify:static` is derived from `package.json`, not from the `verify` job's step
+list - so they give fast feedback, not the verdict. The performance budgets
+(`check:bundle`, `check:entry-purity`, `check:server-entry-purity`) run only on
+`main` and on manual runs, so they turn red only after merge.
 
 ### Bundle budget: public vs overall
 
