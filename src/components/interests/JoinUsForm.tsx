@@ -16,9 +16,7 @@ import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { useNewsletterInlineSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
-import { measurementConsentPayload } from "@/lib/newsletter/measurementConsentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
-import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
@@ -298,7 +296,6 @@ export function JoinUsForm({
   // Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b, wariant (b)):
   // opcjonalne, DOMYŚLNIE NIEZAZNACZONE; zaznaczenie dokłada deklarację do
   // `consents` (zgodę zapisze dopiero decyzja właściciela skrzynki).
-  const [measurement, setMeasurement] = useState(false);
 
   const useSplitName = showFirstName || showLastName;
 
@@ -490,7 +487,6 @@ export function JoinUsForm({
           // a osoba widziała inny (art. 7 ust. 1 RODO).
           consents: [
             newsletterConsentPayload(resolvedConsent, lang),
-            ...(measurement ? [measurementConsentPayload(lang)] : []),
           ],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
@@ -580,7 +576,6 @@ export function JoinUsForm({
     });
     setCustomValues({});
     setConsentAccepted(false);
-    setMeasurement(false);
   };
 
   // Resolved copy (props override → newsletter settings → i18n default)
@@ -956,16 +951,7 @@ export function JoinUsForm({
               <span className="ml-1 text-destructive">*</span>
             </span>
           </label>
-          <MeasurementConsentField
-            lang={lang}
-            checked={measurement}
-            onCheckedChange={setMeasurement}
-            className="flex items-center gap-2 font-sans leading-relaxed text-muted-foreground"
-            checkboxClassName="h-[16px] w-[16px] shrink-0"
-            style={consentStyle}
-            editTarget="consentSize"
-          />
-        </div>
+</div>
 
         <SubscribeButton
           loading={state === "loading"}

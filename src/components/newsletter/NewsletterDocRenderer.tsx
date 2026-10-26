@@ -28,15 +28,10 @@ import {
   resolveNewsletterConsent,
   upgradeLegacyConsentHtml,
 } from "@/lib/newsletter/consentText";
-import {
-  isReservedConsentKey,
-  measurementConsentPayload,
-} from "@/lib/newsletter/measurementConsentText";
-import { NlDocMeasurementConsent } from "@/components/newsletter/NlDocMeasurementConsent";
+import { isReservedConsentKey } from "@/lib/newsletter/measurementConsentText";
 import {
   NL_DOC_TOO_MANY_CONSENTS,
   nlDocConsentsWithinLimit,
-  nlDocMeasurementSectionIndex,
 } from "@/components/newsletter/nlDocMeasurement";
 import type { NlDoc, NlWidget, NlLang, NlSection } from "@/lib/newsletter-builder/types";
 import type { NewsletterDocSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
@@ -115,11 +110,9 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
   const [tick, setTick] = useState(0);
   // Osobne pole zgody na pomiar (I9d-Y2b): DOMYŚLNIE NIEZAZNACZONE, stały
   // wiersz formularza (nie widżet dokumentu) - `NlDocMeasurementConsent`.
-  const [measurement, setMeasurement] = useState(false);
   const subscribe = useServerFn(subscribeToNewsletter);
 
   const flatWidgets = useMemo(() => doc.sections.flatMap((s) => s.widgets), [doc]);
-  const measurementSection = nlDocMeasurementSectionIndex(doc.sections);
   const hasSocialProof = flatWidgets.some((w) => w.type === "social-proof");
   const hasCountdown = flatWidgets.some((w) => w.type === "countdown");
   const liveCount = useSubscriberCount(hasSocialProof);
@@ -230,7 +223,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
 
     // Limit ładunku wspólny z serwerem (R1.21): bez obcinania - dowód zgody
     // nie może zgubić pozycji, więc za dużo zaznaczonych zgód = komunikat.
-    if (!nlDocConsentsWithinLimit(consents.length, measurement)) {
+    if (!nlDocConsentsWithinLimit(consents.length, false)) {
       setErrMsg(NL_DOC_TOO_MANY_CONSENTS[lang]);
       setState("err");
       return;
@@ -249,7 +242,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         lang,
       ),
     );
-    if (measurement) consents.push(measurementConsentPayload(lang));
 
     try {
       const res = await subscribe({
@@ -271,7 +263,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         setState("err");
         return;
       }
-      setMeasurement(false);
       setState("ok");
     } catch (err) {
       setErrMsg(err instanceof Error ? err.message : String(err));
@@ -296,7 +287,7 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
 
   return (
     <form onSubmit={onSubmit} className="space-y-3" noValidate>
-      {doc.sections.map((section, index) => (
+      {doc.sections.map((section) => (
         <SectionRenderer
           key={section.id}
           section={section}
@@ -305,15 +296,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
           liveCount={liveCount}
           mailingLists={settings.popup_mailing_lists ?? []}
           tick={tick}
-          footer={
-            index === measurementSection ? (
-              <NlDocMeasurementConsent
-                lang={lang}
-                checked={measurement}
-                onCheckedChange={setMeasurement}
-              />
-            ) : null
-          }
         />
       ))}
       {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}

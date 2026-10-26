@@ -28,9 +28,7 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { NewsletterSubscribedPanel } from "@/components/newsletter/NewsletterSubscribedPanel";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
-import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
-import { measurementConsentPayload } from "@/lib/newsletter/measurementConsentText";
 import { useMyNewsletterStatus } from "@/hooks/useMyNewsletterStatus";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -120,7 +118,6 @@ export function NewsletterForm({
   // Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b, wariant (b)):
   // DOMYŚLNIE NIEZAZNACZONE; zaznaczenie dokłada deklarację do `consents`
   // (zgodę zapisze dopiero decyzja właściciela skrzynki).
-  const [measurement, setMeasurement] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
@@ -305,7 +302,6 @@ export function NewsletterForm({
           // deklaracja pola pomiaru WYŁĄCZNIE po jego zaznaczeniu.
           consents: [
             newsletterConsentPayload(consent, lang),
-            ...(measurement ? [measurementConsentPayload(lang)] : []),
           ],
           meta: Object.keys(meta).length ? meta : undefined,
           custom: Object.keys(custom).length ? custom : undefined,
@@ -327,7 +323,6 @@ export function NewsletterForm({
       setLastName("");
       setCompany("");
       setPicked(new Set());
-      setMeasurement(false);
     } catch (err) {
       setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : String(err), lang));
       setState("err");
@@ -538,15 +533,7 @@ export function NewsletterForm({
                   tabulacji: zgody przed wysłaniem); w stanie `ok` znika razem
                   z formularzem. Geometria pola zgody widżetu
                   (`ConsentCheckboxField`). */}
-              <MeasurementConsentField
-                lang={lang}
-                checked={measurement}
-                onCheckedChange={setMeasurement}
-                className={MEASUREMENT_ROW_CLS}
-                checkboxClassName={MEASUREMENT_BOX_CLS}
-              />
-
-              <SubscribeButton
+<SubscribeButton
                 type="submit"
                 loading={state === "loading"}
                 loadingLabel="…"
@@ -578,14 +565,7 @@ export function NewsletterForm({
               {/* Układ zwarty: pole pomiaru PRZED przyciskiem w kolejności
                   dokumentu (tabulacja), wizualnie pełny wiersz pod polami;
                   przycisk zostaje w pierwszym wierszu obok e-maila. */}
-              <MeasurementConsentField
-                lang={lang}
-                checked={measurement}
-                onCheckedChange={setMeasurement}
-                className={`${MEASUREMENT_ROW_CLS} sm:col-span-3`}
-                checkboxClassName={MEASUREMENT_BOX_CLS}
-              />
-              <SubscribeButton
+<SubscribeButton
                 loading={state === "loading"}
                 aria-label={t("newsletterForm.subscribe")}
                 className="!min-h-0 !py-0 !px-6 self-stretch sm:col-start-3 sm:row-start-1"
@@ -628,8 +608,6 @@ export function NewsletterForm({
  * (`ConsentCheckboxField`) - ta sama typografia `nl-fineprint`, rozmiar
  * atomu i kolor etykiety w popupie (`.nlp label.nl-check-label`).
  */
-const MEASUREMENT_ROW_CLS = "widget-align-row nl-fineprint nl-check-label flex items-center gap-2";
-const MEASUREMENT_BOX_CLS = "h-[16px] w-[16px] shrink-0";
 
 function FieldWrap({
   label,
