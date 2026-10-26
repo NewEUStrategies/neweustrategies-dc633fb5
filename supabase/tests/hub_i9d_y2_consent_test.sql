@@ -257,8 +257,12 @@ SELECT ok(
           AND form_id = 'measurement:email_footer' AND source_type = 'newsletter'
           AND consent_version = public._email_measurement_consent_version() AND ip = '203.0.113.7' AND lang = 'pl')
   AND (SELECT status = 'subscribed' FROM public.newsletter_subscribers WHERE email = 'pomiar@i9d-y2.test')
+  -- Wypis z kroku 4 sam zostawia wycofanie zgody marketingowej
+  -- (`newsletter:unsubscribe`, 20261026120000) - wycofanie pomiaru nie
+  -- dopisuje żadnego innego.
   AND NOT EXISTS (SELECT 1 FROM public.crm_consent_log WHERE email = 'pomiar@i9d-y2.test'
-                    AND consent_key IN ('newsletter', 'marketing') AND NOT given),
+                    AND consent_key IN ('newsletter', 'marketing') AND NOT given
+                    AND form_id IS DISTINCT FROM 'newsletter:unsubscribe'),
   'wycofanie SAMEGO pomiaru: jeden wpis „nie" (kanał, wersja treści pomiaru, IP); newsletter i status bez zmian');
 SELECT is(
   (SELECT v ->> 'consent' FROM (SELECT public.email_measurement_state(pg_temp.sub('pomiar@i9d-y2.test'), NULL) AS v) x),

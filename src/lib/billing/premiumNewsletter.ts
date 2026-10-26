@@ -8,7 +8,8 @@
 // `newsletter_subscribers` o statusie `subscribed` (filtr po statusie, języku
 // i źródle - bez osobnej treści dla klientów), wiersz `subscribed` zapala
 // w CRM `marketing_consent` (wyzwalacz `newsletter_to_lead`), a wypis jest
-// wycofaniem zgody marketingowej. To komunikacja marketingowa (art. 398 PKE),
+// wycofaniem zgody marketingowej (wyzwalacz `trg_newsletter_unsubscribed_
+// withdraw_crm`, 20261026120000). To komunikacja marketingowa (art. 398 PKE),
 // nie treść opłaconej usługi - podstawa „umowa" nie pasuje do tego modelu
 // i nie ma w potoku wysyłki żadnego rozróżnienia, które by ją obsłużyło.
 // Dlatego zakup SAM W SOBIE nie dotyka listy, a wpis powstaje tylko po jawnym,
