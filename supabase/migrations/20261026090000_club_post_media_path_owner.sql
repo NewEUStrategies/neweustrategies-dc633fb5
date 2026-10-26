@@ -38,13 +38,28 @@
 --    tylko wpisy `published` - wpis usunięty (`club_post_delete`) nie jest
 --    już nigdzie pokazywany, więc nie ma powodu trzymać otwartych jego plików.
 --
+--    KONTO AUTORA USUNIĘTE. `deleteUser` kasuje `auth.users`, a FK
+--    `club_posts.author_id ... ON DELETE SET NULL` zostawia wpis z treścią
+--    i załącznikami w strumieniu. Samo `author_id = właściciel` odcięłoby
+--    wtedy jego zdjęcia wszystkim członkom (przed tą migracją działały).
+--    Gdy właściciela katalogu NIE MA już w `auth.users`, predykat dopasowuje
+--    więc wpisy z `author_id IS NULL`: po FK tylko taki wpis mógł należeć do
+--    usuniętego konta. Ścieżki ŻYJĄCEGO użytkownika ta gałąź nie otwiera -
+--    wstrzyknięcie sprzed migracji, którego autor potem usunął konto, dalej
+--    nic nie daje. Zostaje jedno okno: wpis wstrzyknięty przed migracją,
+--    którego autor i właściciel ścieżki usunęli konta - plik osieroconego
+--    katalogu, bez żywego właściciela do ochrony; odróżnić go można by tylko
+--    trwałym identyfikatorem przesyłającego w wierszu (zmiana schematu
+--    nieproporcjonalna do tego przypadku).
+--
 -- OPTYMALIZACJA. Predykat jest liczony dla KAŻDEGO wiersza `storage.objects`,
 -- który ogląda polityka (podpisywanie galerii, listowanie). Dotąd szukał
 -- ścieżki zawieraniem jsonb w całym najemcy - bez indeksu na `attachments`,
 -- czyli skanem wszystkich wpisów najemcy na każdy plik. Teraz wiązanie
 -- autora trafia w `club_posts_author_recent_idx (author_id, created_at)`
--- z 20261007100100, więc koszt spada do wpisów jednego autora. Katalog,
--- który nie jest uuid-em, daje NULL i od razu `false` - bez wyjątku rzutowania
+-- z 20261007100100, więc koszt spada do wpisów jednego autora (gałąź konta
+-- usuniętego: do wpisów z `author_id IS NULL`, ten sam indeks). Katalog,
+-- który nie jest uuid-em, daje od razu `false` - bez wyjątku rzutowania
 -- w środku polityki, który wywróciłby całe zapytanie magazynu.
 --
 -- Bez zmian: kształt i granty RPC, semantyka członkostwa w predykacie
@@ -286,12 +301,44 @@ GRANT EXECUTE ON FUNCTION public.club_post_create(uuid, uuid, uuid, text, jsonb)
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.club_media_path_readable(_path text)
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-  SELECT EXISTS (
+DECLARE
+  v_folder text := split_part(COALESCE(_path, ''), '/', 1);
+  v_owner  uuid;
+BEGIN
+  -- Katalog nie-uuid: odmowa bez rzutowania - wyjątek w środku polityki
+  -- wywróciłby całe zapytanie magazynu.
+  IF v_folder !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    RETURN false;
+  END IF;
+  v_owner := v_folder::uuid;
+
+  -- Właściciel katalogu żyje: plik otwiera wyłącznie JEGO opublikowany wpis
+  -- (nagłówek, punkt 2).
+  IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = v_owner) THEN
+    RETURN EXISTS (
+      SELECT 1
+        FROM public.club_posts p
+        JOIN public.club_members m
+          ON m.club_id = p.club_id
+         AND m.tenant_id = p.tenant_id
+         AND m.user_id = auth.uid()
+         AND m.status = 'active'
+       WHERE p.author_id = v_owner
+         AND p.tenant_id = public.current_tenant_id()
+         AND p.status = 'published'
+         AND p.attachments @> jsonb_build_array(jsonb_build_object('path', _path))
+    );
+  END IF;
+
+  -- Konto właściciela usunięte: FK wyzerował `author_id` jego wpisów, więc
+  -- tylko wpis z `author_id IS NULL` mógł być jego. Wpis żyjącego autora
+  -- z tą ścieżką to wstrzyknięcie - tej gałęzi nie dotyczy.
+  RETURN EXISTS (
     SELECT 1
       FROM public.club_posts p
       JOIN public.club_members m
@@ -299,20 +346,16 @@ AS $$
        AND m.tenant_id = p.tenant_id
        AND m.user_id = auth.uid()
        AND m.status = 'active'
-     -- Katalog właściciela pliku = autor wpisu (patrz nagłówek, punkt 2).
-     -- Nie-uuid daje NULL, a `author_id = NULL` nie trafia w nic.
-     WHERE p.author_id = CASE
-             WHEN split_part(_path, '/', 1) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-             THEN split_part(_path, '/', 1)::uuid
-           END
+     WHERE p.author_id IS NULL
        AND p.tenant_id = public.current_tenant_id()
        AND p.status = 'published'
        AND p.attachments @> jsonb_build_array(jsonb_build_object('path', _path))
-  )
+  );
+END;
 $$;
 
 COMMENT ON FUNCTION public.club_media_path_readable(text) IS
-  'Predykat polityki odczytu kubełka club-media: wołający jest aktywnym członkiem klubu (w swoim najemcy), w którym OPUBLIKOWANY wpis AUTORA ścieżki (pierwszy segment = author_id) niesie ją jako załącznik. Ścieżka spoza katalogu autora wpisu nie otwiera niczego.';
+  'Predykat polityki odczytu kubełka club-media: wołający jest aktywnym członkiem klubu (w swoim najemcy), w którym OPUBLIKOWANY wpis AUTORA ścieżki (pierwszy segment = author_id) niesie ją jako załącznik; gdy konta właściciela katalogu nie ma już w auth.users - wpis z author_id NULL (ON DELETE SET NULL). Ścieżka żyjącego użytkownika we wpisie innego autora nie otwiera niczego.';
 
 REVOKE ALL ON FUNCTION public.club_media_path_readable(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.club_media_path_readable(text) TO authenticated, service_role;

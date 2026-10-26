@@ -24,7 +24,13 @@
 --      ścieżka w jsonb) nie otwiera pliku ani autorowi, ani członkom jego
 --      klubu; kontrole dodatnie (członek klubu wpisu czyta plik autora),
 --      osoba spoza klubu, były członek, wpis usunięty, katalog nie-uuid bez
---      wyjątku w środku polityki.
+--      wyjątku w środku polityki; konto autora usunięte (`author_id` NULL
+--      po ON DELETE SET NULL): jego pliki dalej otwarte dla klubu, a obca
+--      ścieżka ŻYJĄCEGO użytkownika we wpisie bez autora - nie.
+--
+-- Stan po usunięciu konta jest tu SYMULOWANY (identyfikator spoza
+-- `auth.users`, wpis z `author_id` NULL), bez `DELETE FROM auth.users`:
+-- przedmiotem jest predykat, a kaskadę FK na żywo sprawdza sekcja CM harnessu.
 --
 -- Wykonanie polityki `storage.objects` z roli `authenticated` (SELECT jak
 -- przy podpisywaniu adresu) żyje w `scripts/pg-harness/runtime_test.sql`
@@ -36,7 +42,7 @@
 -- wołającego z JWT.
 -- ============================================================================
 BEGIN;
-SELECT plan(29);
+SELECT plan(33);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -282,6 +288,31 @@ SELECT ok(NOT public.club_media_path_readable(current_setting('test.attacker_pat
 SELECT set_config('request.jwt.claims', '{"sub":"c7000000-0000-0000-0000-000000000006"}', true);
 SELECT ok(NOT public.club_media_path_readable(current_setting('test.attacker_path')),
   'byly czlonek (left) nie czyta plikow klubu');
+
+-- Konto autora usunięte: `deleteUser` kasuje `auth.users`, FK zeruje
+-- `author_id`, a wpis z treścią i zdjęciami zostaje w strumieniu klubu.
+-- `c7...dd` nigdy nie było w `auth.users` - dokładnie ten stan.
+INSERT INTO public.club_posts (tenant_id, club_id, author_id, body, attachments)
+VALUES ('c7d00000-0000-0000-0000-0000000000a0', current_setting('test.ka')::uuid, NULL,
+        'Wpis konta usunietego',
+        '[{"type":"image","path":"c7000000-0000-0000-0000-0000000000dd/lq0x3-zdjecie.jpg"}]'::jsonb),
+       ('c7d00000-0000-0000-0000-0000000000a0', current_setting('test.ka')::uuid, NULL,
+        'Stary wpis z cudzym plikiem, autor potem usunal konto',
+        jsonb_build_array(jsonb_build_object('type', 'file', 'path', current_setting('test.victim_path')))),
+       ('c7d00000-0000-0000-0000-0000000000a0', current_setting('test.ka')::uuid,
+        'c7000000-0000-0000-0000-000000000003', 'Stary wpis zyjacego z plikiem konta usunietego',
+        '[{"type":"file","path":"c7000000-0000-0000-0000-0000000000dd/lq0x4-inny.pdf"}]'::jsonb);
+
+SELECT set_config('request.jwt.claims', '{"sub":"c7000000-0000-0000-0000-000000000004"}', true);
+SELECT ok(public.club_media_path_readable('c7000000-0000-0000-0000-0000000000dd/lq0x3-zdjecie.jpg'),
+  'KONTO AUTORA USUNIETE: czlonek klubu dalej czyta zdjecie wpisu bez autora');
+SELECT ok(NOT public.club_media_path_readable(current_setting('test.victim_path')),
+  'wpis bez autora NIE otwiera sciezki zyjacego uzytkownika (wstrzykniecie, autor usunal konto)');
+SELECT ok(NOT public.club_media_path_readable('c7000000-0000-0000-0000-0000000000dd/lq0x4-inny.pdf'),
+  'plik konta usunietego we wpisie ZYJACEGO autora nie jest otwarty');
+SELECT set_config('request.jwt.claims', '{"sub":"c7000000-0000-0000-0000-000000000005"}', true);
+SELECT ok(NOT public.club_media_path_readable('c7000000-0000-0000-0000-0000000000dd/lq0x3-zdjecie.jpg'),
+  'plik konta usunietego nie jest otwarty dla osoby spoza klubu wpisu');
 
 -- Wpis usunięty nie jest nigdzie pokazywany, więc nie trzyma otwartego pliku.
 SELECT set_config('request.jwt.claims', '{"sub":"c7000000-0000-0000-0000-000000000002"}', true);

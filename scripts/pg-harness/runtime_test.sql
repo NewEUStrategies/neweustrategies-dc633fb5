@@ -3519,6 +3519,43 @@ SELECT pg_temp.assert(
 SELECT pg_temp.assert(
   (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_attacker_path') = 0,
   'CM: osoba spoza klubu napastnika nie widzi jego pliku');
+
+\echo '== CM.3 Konto autora usuniete: wpis zostaje, jego pliki dalej otwarte dla klubu =='
+-- `deleteUser` kasuje `auth.users`; FK `club_posts.author_id ... ON DELETE
+-- SET NULL` zostawia wpis z treścią i zdjęciami w strumieniu. Kasujemy
+-- NAPRAWDĘ dwa konta: autorkę z własnym zdjęciem i napastnika ze starym
+-- wpisem niosącym ścieżkę ofiary.
+RESET ROLE;
+INSERT INTO auth.users (id, email) VALUES ('e2000000-0000-0000-0000-000000000005','cm-autorka@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
+  ('e2000000-0000-0000-0000-000000000005','11111111-1111-1111-1111-111111111111','CM Autorka',true);
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_member_upsert(:'cm_ka'::uuid, 'e2000000-0000-0000-0000-000000000005', 'member', 'active', NULL) IS NOT NULL AS cm_autorka_member \gset
+\set cm_gone_path 'e2000000-0000-0000-0000-000000000005/lq3-e5f6-zdjecie.jpg'
+INSERT INTO storage.objects (bucket_id, name, owner) VALUES
+  ('club-media', :'cm_gone_path', 'e2000000-0000-0000-0000-000000000005');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000005';
+SELECT post_id AS cm_pg FROM public.club_post_create(:'cm_ka'::uuid, NULL, NULL, 'Zdjecie z posiedzenia',
+  jsonb_build_array(jsonb_build_object('type','image','path',:'cm_gone_path'))) \gset
+DELETE FROM auth.users
+ WHERE id IN ('e2000000-0000-0000-0000-000000000005', 'e2000000-0000-0000-0000-000000000002');
+SELECT pg_temp.assert(
+  (SELECT author_id IS NULL AND status = 'published' FROM public.club_posts WHERE id = :'cm_pg'::uuid)
+    AND (SELECT count(*) FROM public.club_posts WHERE club_id = :'cm_ka'::uuid AND author_id IS NULL) = 3,
+  'CM: usuniecie kont zeruje author_id, wpisy (autorki i oba napastnika) zostaja');
+SET ROLE authenticated;
+
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_gone_path') = 1,
+  'CM: czlonek klubu dalej widzi zdjecie wpisu autorki, ktora usunela konto');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_victim_path') = 0,
+  'CM: stary wpis napastnika po usunieciu JEGO konta dalej nie otwiera pliku zyjacej ofiary');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_gone_path') = 0,
+  'CM: osoba spoza klubu nie widzi pliku konta usunietego');
 RESET ROLE;
 ROLLBACK;
 RESET request.jwt.claim.sub;
