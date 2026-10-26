@@ -63,21 +63,14 @@ import {
   NL_DOC_TOO_MANY_CONSENTS,
   nlDocConsentEntryCount,
   nlDocConsentsWithinLimit,
-  nlDocMeasurementSectionIndex,
 } from "@/components/newsletter/nlDocMeasurement";
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { axeViolations, summarize } from "@/test/axe";
 import {
   makeCheckbox,
-  makeDoc,
-  makeEmailField,
   makeFormDoc,
-  makeParagraph,
-  makeSection,
   makeSettings,
-  makeSubmit,
   resetDocIds,
 } from "./docFixtures";
 
@@ -111,12 +104,6 @@ const form = (): HTMLFormElement => {
 /** Wiersz pola pomiaru (etykieta) i jego natywne pole wyboru. */
 const row = (): HTMLLabelElement | null =>
   document.querySelector<HTMLLabelElement>('label[data-consent="email_measurement"]');
-const box = (): HTMLInputElement => {
-  const el = row()?.querySelector("input[type='checkbox']");
-  if (!(el instanceof HTMLInputElement)) throw new Error("test: brak pola pomiaru");
-  return el;
-};
-
 function typeEmail(value = "jan@example.pl") {
   const el = document.querySelector<HTMLInputElement>('input[name="email"]');
   if (!el) throw new Error("test: brak pola e-mail");
@@ -128,9 +115,6 @@ async function submitAndSettle(): Promise<void> {
     fireEvent.submit(form());
   });
 }
-
-const follows = (a: Node, b: Node) =>
-  Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 interface ConsentEntry {
   key: string;
@@ -145,6 +129,7 @@ const consentsOf = (p: SubscribePayload | undefined) =>
 describe("NlDoc: ładunek zapisu", () => {
   it("bez zaznaczenia - wyłącznie zgoda na newsletter (b) z wersją", async () => {
     mount(makeFormDoc());
+    expect(row()).toBeNull();
     typeEmail();
     await submitAndSettle();
     expect(consentsOf(h.payloads.at(-1))).toEqual([

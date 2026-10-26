@@ -231,14 +231,6 @@ const consent = () => {
   expect(boxes).toHaveLength(1);
   return boxes[0];
 };
-/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
-const measurementBox = () => {
-  const box = document.querySelector<HTMLElement>(
-    '[data-consent="email_measurement"] [role="checkbox"]',
-  );
-  if (!box) throw new Error("test: brak pola pomiaru");
-  return box;
-};
 const submit = () => fireEvent.submit(form());
 
 /** Wypełnia minimum potrzebne do przejścia walidacji. */
