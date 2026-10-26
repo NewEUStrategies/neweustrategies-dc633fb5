@@ -2,9 +2,11 @@
 
 ## Formularze bez pola pomiaru i naprawa wydania (2026-10-26)
 
-- [ ] Usunąć pole/deklarację pomiaru z formularzy rejestracji i newslettera PL/EN; zachować informację o newsletterze, bez automatycznego opt-in pomiaru.
-- [ ] Pokazać wskazaną etykietę w opcjach użytkownika i sprawdzić testy oraz formularze.
-- [ ] Zoptymalizować rzeczywistą wagę aplikacji bez zmiany progów; migracja 0405 dopiero po zielonym Required release checks zgodnie z runbookiem.
+- [x] Usunięto pole i deklarację pomiaru z NewsletterForm, PopupSignupForm, JoinUsForm, ContactFormView, AuthFormBlocks, ClubAccessGate i NewsletterDocRenderer PL/EN. Newsletter i prywatność zachowane; brak automatycznego opt-in pomiaru, newsletter podczas tworzenia konta pozostaje opcjonalny i niezaznaczony.
+- [x] Wskazana etykieta PL/EN widoczna jako osobna informacja w ConsentsPanel. Testy: 484 przechodzi, 1 oczekiwany błąd; dodatkowo testy newsletter popup/widgets przechodzą, lint bez błędów, build OK. Przeglądarka: EN brak pola pomiaru i błędów JS; klik Sign up nie odsłonił formularza, więc pełnego przebiegu rejestracji w przeglądarce nie potwierdzono (formularze sprawdzone testami).
+- [x] Skrócono skrypt odsłaniania SSR przez lokalne aliasy i funkcje strzałkowe bez zmiany kolejki Reacta; dziewięć testów, w tym ukrycie karty i brak podwójnego odsłonięcia, przechodzi.
+- [ ] Potwierdzić usunięcie wszystkich przekroczeń budżetów i wdrożyć 0405: wymaga zielonego Required release checks na aktualnym commicie, przeglądanego PR zgodnie z runbookiem i wyników artefaktu z CI. Nie podnoszono progów, nie zmieniono bramek ani bazy; skrócenie jednego skryptu nie dowodzi naprawy wszystkich trzech ograniczeń (overall, headRawBytes, bootBurstCount).
+- [ ] Działający osobisty przełącznik pomiaru: brak istniejącej ścieżki self-service powiązanej z potwierdzonym adresem i tenantem; wymaga przeglądanej migracji i potwierdzenia skrzynki, nie wolno zastąpić go ogólną zgodą personalization ani RPC admina. Obecny panel pokazuje opis i sposób wycofania z wiadomości, bez pozornego przełącznika.
 
 ## Weryfikacja poprawki klubów / PR #538 (2026-10-26)
 
