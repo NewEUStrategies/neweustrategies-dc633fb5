@@ -31,22 +31,37 @@ name: Scheduler (push / digesty / przypomnienia)
 #                                     równą COMMUNITY_CRON_SECRET odrzuca jako
 #                                     błąd konfiguracji. Nigdy nie wpisuj tu
 #                                     sekretu społeczności ani runnera.
-# Bez sekretu właściwego dla zakresu przebieg kończy się zielono z ostrzeżeniem
-# - fork i świeży klon nie mogą hałasować, ale brak konfiguracji jest widoczny.
+#   variables.SCHEDULER_BACKUP      = off - JAWNA decyzja właściciela, że repo
+#                                     nie prowadzi drugiej linii doręczeń
+#                                     (zostaje pg_cron); ticki pominięte bez
+#                                     ostrzeżeń, audyt dobowy tylko odnotowuje.
+#
+# STAN KONFIGURACJI JEST JAWNY (audyt ED14). Do 2026-10 nieskonfigurowany
+# scheduler kończył każdy przebieg zielono z ostrzeżeniem, więc repo
+# deklarowało drugą linię doręczeń, której produkcja nie miała. Teraz:
+#   * przebieg 5-minutowy bez sekretu swojego zakresu - ostrzeżenie i pominięte
+#     ticki (fork i świeży klon nie hałasują, przebiegi nie zalewają skrzynki),
+#   * przebieg dobowy (25 5 * * *) - krok „Audyt drugiej linii doręczeń": brak
+#     APP_BASE_URL, COMMUNITY_CRON_SECRET albo BILLING_CRON_SECRET bez decyzji
+#     SCHEDULER_BACKUP=off to CZERWONY przebieg raz na dobę.
 #
 # AKCJE PRZYPIĘTE DO SHA COMMITA (PAY-17b, przegląd 3.6/7.10). Krok „Tick
 # rozliczeń" uruchamia skrypt z katalogu roboczego z BILLING_CRON_SECRET w env;
 # przesunięty tag `actions/checkout` podmieniłby ten skrypt bez śladu w repo.
 #
-# Uwaga operacyjna: GitHub wyłącza zaplanowane workflow po 60 dniach braku
-# aktywności w repo i potrafi spóźnić przebieg o kilka minut - dlatego to jest
-# siatka bezpieczeństwa, a nie ścieżka podstawowa (patrz docs/RUNBOOK_COMMUNITY.md).
+# Uwaga operacyjna: harmonogram GitHub Actions jest best-effort. Wpis
+# 5-minutowy (288 przebiegów na dobę) dał na repo właściciela około 10
+# przebiegów na dobę (pomiar audytu ED14, 2026-10-17) - to NIE jest drenaż co
+# 5 minut, tylko siatka bezpieczeństwa o rozdzielczości godzin. GitHub wyłącza
+# też zaplanowane workflow po 60 dniach braku aktywności w repo. Ścieżką
+# podstawową i siatką co 5 minut jest pg_cron (docs/RUNBOOK_COMMUNITY.md §2).
 
 on:
   schedule:
-    # Co 5 minut (minimalna granulacja Actions); jeden przebieg = 4 ticki po 60 s,
-    # żeby push wychodził w minutach, nie w kwadransach.
-    - cron: "*/5 * * * *"
+    # Co 5 minut (minimalna granulacja Actions), z pominięciem pełnej godziny -
+    # GitHub opóźnia i zrzuca przebiegi w szczycie na początku godziny. Jeden
+    # przebieg = 4 ticki po 60 s.
+    - cron: "3,8,13,18,23,28,33,38,43,48,53,58 * * * *"
     # Dobowe przypomnienia rozliczeniowe (godzinę po wpisie pg_cron; wysyłka jest
     # idempotentna per subskrypcja i data graniczna, więc dublowanie jest bezpieczne).
     - cron: "25 5 * * *"
@@ -138,11 +153,18 @@ jobs:
       - name: Sprawdź konfigurację
         id: cfg
         env:
+          BACKUP_MODE: ${{ vars.SCHEDULER_BACKUP }}
           BASE_URL: ${{ vars.APP_BASE_URL }}
           ENDPOINT: ${{ steps.plan.outputs.endpoint }}
           HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}
           HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}
         run: |
+          # Jawna decyzja właściciela: bez ticków i bez ostrzeżeń co przebieg.
+          if [ "$BACKUP_MODE" = "off" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Druga linia doręczeń wyłączona (vars.SCHEDULER_BACKUP=off) - ticki pominięte."
+            exit 0
+          fi
           if [ "$ENDPOINT" = "/api/public/billing-cron" ]; then
             has_secret="$HAS_BILLING_SECRET"
             secret_name="secrets.BILLING_CRON_SECRET"
@@ -154,7 +176,7 @@ jobs:
           fi
           if [ -z "$BASE_URL" ] || [ "$has_secret" != "true" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz $secret_name - $scope."
+            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz $secret_name - $scope. Brak drugiej linii jako decyzję zapisz w vars.SCHEDULER_BACKUP=off."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
@@ -215,6 +237,35 @@ jobs:
             *'"ok":false'*)
               echo "::warning title=Harmonogram zgłasza zastój::Sonda GET /api/public/community-cron zwróciła ok=false - sprawdź panel /admin/community/notifications." ;;
           esac
+
+      # Audyt drugiej linii doręczeń - raz na dobę, w przebiegu rozliczeń (także
+      # po czerwonym ticku). Repo deklaruje zapasową linię; bez konfiguracji
+      # i bez jawnej decyzji `vars.SCHEDULER_BACKUP=off` przebieg jest czerwony.
+      # Sprawdza KOMPLET (oba zakresy), widzi wyłącznie obecność sekretów.
+      - name: Audyt drugiej linii doręczeń
+        if: ${{ !cancelled() && github.event.schedule == '25 5 * * *' }}
+        env:
+          BACKUP_MODE: ${{ vars.SCHEDULER_BACKUP }}
+          BASE_URL: ${{ vars.APP_BASE_URL }}
+          HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}
+          HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}
+        run: |
+          summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          if [ "$BACKUP_MODE" = "off" ]; then
+            echo "::notice title=Druga linia doręczeń wyłączona::vars.SCHEDULER_BACKUP=off - decyzja właściciela; doręczenia zależą wyłącznie od pg_cron (jobs-tick co minutę, community-cron co 5 minut)."
+            echo "### Druga linia doręczeń: wyłączona decyzją (vars.SCHEDULER_BACKUP=off)" >> "$summary"
+            exit 0
+          fi
+          missing=""
+          [ -n "$BASE_URL" ] || missing="$missing variables.APP_BASE_URL"
+          [ "$HAS_COMMUNITY_SECRET" = "true" ] || missing="$missing secrets.COMMUNITY_CRON_SECRET"
+          [ "$HAS_BILLING_SECRET" = "true" ] || missing="$missing secrets.BILLING_CRON_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error title=Druga linia doręczeń nie istnieje::Brak:$missing. Ustaw je albo zapisz decyzję vars.SCHEDULER_BACKUP=off (docs/RUNBOOK_COMMUNITY.md §2)."
+            echo "### Druga linia doręczeń: NIESKONFIGUROWANA - brak:$missing" >> "$summary"
+            exit 1
+          fi
+          echo "### Druga linia doręczeń: skonfigurowana" >> "$summary"
 
       # Warmer NES Edge Cache: kluczowe dokumenty publiczne (/, /en, /blog,
       # /en/blog) są odpytywane w rytmie ticków, więc okno świeżości (180 s)

@@ -103,9 +103,11 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
 
   it("klucze operatora widzą WYŁĄCZNIE trzy kroki sondy", () => {
     const withStripeKey = steps.filter((step) =>
-      text(step).includes("secrets.STRIPE_SANDBOX_API_KEY"),
+      text(step).includes("${{ secrets.STRIPE_SANDBOX_API_KEY }}"),
     );
-    const withGatewayKey = steps.filter((step) => text(step).includes("secrets.LOVABLE_API_KEY"));
+    const withGatewayKey = steps.filter((step) =>
+      text(step).includes("${{ secrets.LOVABLE_API_KEY }}"),
+    );
 
     for (const holders of [withStripeKey, withGatewayKey]) {
       expect(holders).toHaveLength(3);
@@ -116,10 +118,9 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
   });
 
   it("dostęp do naszej bazy (adres, klucz publikowalny, token sondy) widzi WYŁĄCZNIE krok weryfikacji", () => {
-    const holders = steps.filter(
-      (step) =>
-        text(step).includes("secrets.PROBE_SUPABASE_") ||
-        text(step).includes("secrets.BILLING_PROBE_TOKEN"),
+    // Wartość sekretu (`${{ secrets.X }}`), nie kontrola obecności (`!= ''`).
+    const holders = steps.filter((step) =>
+      /\$\{\{ secrets\.(PROBE_SUPABASE_[A-Z_]+|BILLING_PROBE_TOKEN) \}\}/.test(text(step)),
     );
 
     expect(holders).toHaveLength(1);
@@ -132,6 +133,23 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
     expect(verify).toContain("BILLING_PROBE_TOKEN: ${{ secrets.BILLING_PROBE_TOKEN }}");
     // Adres wdrożenia zawęża kontrolę punktu odbioru webhooków (przegląd 7.12).
     expect(verify).toContain("PROBE_APP_BASE_URL: ${{ vars.APP_BASE_URL }}");
+  });
+
+  // Audyt ED14: komplet konfiguracji jednym błędem, przed pierwszym krokiem
+  // z wartością sekretu.
+  it("kontrola konfiguracji sondy jest pierwsza, widzi tylko obecność i obejmuje KAŻDY sekret sondy", () => {
+    const preflight = stepNamed(steps, "Sprawdź konfigurację sondy");
+    const used = new Set(
+      [...lines.join("\n").matchAll(/\$\{\{ secrets\.([A-Z_]+) \}\}/g)].map((match) => match[1]!),
+    );
+
+    expect(steps.indexOf(preflight)).toBe(0);
+    expect(text(preflight)).not.toMatch(/\$\{\{ secrets\.[A-Z_]+ \}\}/);
+    expect(used.size).toBe(5);
+    for (const name of used) {
+      expect(text(preflight)).toContain(`HAS_${name}: \${{ secrets.${name} != '' }}`);
+      expect(text(preflight)).toMatch(new RegExp(`for name in [A-Z_ ]*\\b${name}\\b`));
+    }
   });
 
   // KRYTERIUM przeglądu 7.6.

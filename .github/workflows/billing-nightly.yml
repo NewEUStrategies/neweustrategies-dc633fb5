@@ -38,6 +38,13 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 #                                               punktu odbioru webhooków do tego
 #                                               wdrożenia (bez niej: każdy punkt
 #                                               z naszą ścieżką)
+#   vars.BILLING_PROBE_DISABLED = 1           - JAWNA decyzja właściciela, że
+#                                               sonda nie biegnie (job pominięty);
+#                                               jedyna droga do zieleni bez
+#                                               kompletu sekretów
+#
+# Krok „Sprawdź konfigurację sondy" wypisuje KOMPLET brakujących sekretów
+# jednym błędem, zanim sonda cokolwiek zrobi.
 #
 # BEZ KLUCZA `service_role` (przegląd 7.6). Sonda czytała dwie tabele kluczem
 # `service_role` PRODUKCJI - kluczem, który omija RLS w całej bazie, a sekret
@@ -98,6 +105,36 @@ jobs:
       # Nocny przebieg to monitoring produkcyjny - brak sekretów ma być czerwony.
       PROBE_REQUIRE_CONFIG: ${{ github.event_name == 'schedule' }}
     steps:
+      # KOMPLET konfiguracji sprawdzany RAZ, przed checkoutem i Bunem (audyt
+      # ED14). Sonda była czerwona co dobę co najmniej od 2026-09-17 na braku
+      # dwóch pierwszych kluczy, a po ich dodaniu padłaby dopiero następnej
+      # nocy - na trzech sekretach kroku weryfikacji. Teraz jeden błąd z pełną
+      # listą. Krok widzi wyłącznie OBECNOŚĆ sekretów (`!= ''`), nie wartości.
+      - name: Sprawdź konfigurację sondy
+        env:
+          HAS_STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY != '' }}
+          HAS_LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY != '' }}
+          HAS_PROBE_SUPABASE_URL: ${{ secrets.PROBE_SUPABASE_URL != '' }}
+          HAS_PROBE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROBE_SUPABASE_PUBLISHABLE_KEY != '' }}
+          HAS_BILLING_PROBE_TOKEN: ${{ secrets.BILLING_PROBE_TOKEN != '' }}
+        run: |
+          summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          missing=""
+          for name in STRIPE_SANDBOX_API_KEY LOVABLE_API_KEY PROBE_SUPABASE_URL PROBE_SUPABASE_PUBLISHABLE_KEY BILLING_PROBE_TOKEN; do
+            has="HAS_$name"
+            [ "${!has}" = "true" ] || missing="$missing $name"
+          done
+          if [ -z "$missing" ]; then
+            echo "### Sonda rozliczeń: konfiguracja kompletna" >> "$summary"
+            exit 0
+          fi
+          echo "### Sonda rozliczeń: brak sekretów -$missing" >> "$summary"
+          if [ "$PROBE_REQUIRE_CONFIG" = "true" ]; then
+            echo "::error title=Sonda rozliczeń nieskonfigurowana::Brak sekretów repozytorium:$missing. Ustaw je (Settings -> Secrets and variables -> Actions) albo zapisz decyzję vars.BILLING_PROBE_DISABLED=1."
+            exit 1
+          fi
+          echo "::warning title=Sonda rozliczeń nieskonfigurowana::Brak sekretów repozytorium:$missing - przebieg ręczny tylko ostrzega."
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
