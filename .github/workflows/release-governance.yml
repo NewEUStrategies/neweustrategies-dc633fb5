@@ -1,0 +1,49 @@
+name: Release governance
+
+# Czy GitHub NAPRAWDĘ stosuje do main ruleset zadeklarowany w
+# governance/release/main-ruleset.json. Audyt wydania 2026-10: plik mówił
+# `enforcement: active`, a na main nie działała żadna reguła - i nic tego nie
+# zgłaszało. Ten workflow robi z rozjazdu czerwony przebieg: codziennie, po
+# zmianie pliku albo workflowów na main i na żądanie. Nie jest częścią
+# `Required release checks`, bo stan ustawień repozytorium nie zależy od
+# commita - czerwień ma wisieć tutaj, aż administrator nałoży plik
+# (`bun run governance:apply-ruleset`, governance/release/README.md).
+#
+# GITHUB_TOKEN wystarcza do odczytu reguł gałęzi (repozytorium publiczne); do
+# NAŁOŻENIA potrzeba uprawnienia „Administration: write", którego token Actions
+# nie ma - dlatego workflow tylko sprawdza.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "governance/release/**"
+      - ".github/workflows/**"
+      - ".github/CODEOWNERS"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-governance
+  cancel-in-progress: true
+
+jobs:
+  main-ruleset:
+    name: Ruleset main zastosowany na GitHubie
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      # Skrypt i moduł nie importują pakietów - bez `bun install`.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Ruleset main - plik zgodny z kanałem wdrożenia i zastosowany na GitHubie
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun run check:main-ruleset -- --live

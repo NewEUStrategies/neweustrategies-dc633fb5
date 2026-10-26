@@ -2713,7 +2713,27 @@ const FROZEN_BUDGET_KB = {
   // publicCss 83,8 / 85); chunk 259,2 / 286 (`app-initial` bez zmian),
   // boot 473,0 / 579, public 2796,7 / 2881 w zamrożonych progach.
   // Host 5379,0 -> 5379 -> +1.
-  overall: 5380,
+  //
+  // Ratchet 5380 -> 5386 (2026-10-26, naprawa czerwonego main), decyzją
+  // zamawiającego D-08 („Będziemy musieli podwyższyć budżet"). MAIN BYŁ
+  // CZERWONY od scalenia PR #535 (985dce27) - bramka jechała wtedy tylko na
+  // main, więc PR jej nie widział. Pomiar na jednym hoście, ten sam
+  // `node_modules`, trzy drzewa z `git archive`:
+  //   18daa1a6 (ostatni zielony main): 5378,4 / public 2796,4 / admin 2582,0
+  //   985dce27 (scalenie PR #535):     5383,1 / public 2800,7 / admin 2582,4
+  //   df640011 (main, ten wpis):        5384,3 / public 2801,4 / admin 2582,9
+  // PR #535 (kolumna tekstu wpisu, lead, shortcode'y) +4,7: `post-content`
+  // +2,8, `_` (trasa wpisu) +1,4, `BlocksRenderer` +0,5, `PostBlockEditor`
+  // +0,3 (admin), `app-initial` +0,2, przy -1,5 `animationRanges`. Commity
+  // po nim (Lovable: etykieta zgody w formularzach newslettera; PR #536 i
+  // #537) +1,2: nowy chunk `measurementConsentText` +1,1, reszta < 0,1 KB na
+  // chunk. Odzyskanie bez cofania funkcji niemożliwe - to kod i style widoku
+  // treści, bez martwego kodu i nowych zależności. Od tej zmiany bramka jedzie
+  // także na PR-ach (ci.yml, job `build`), więc następny przyrost zapali się
+  // przed scaleniem, nie na main. css 100,1 / 101, publicCss 84,1 / 85,
+  // chunk 259,6 / 286, boot 473,4 / 579, public 2801,4 / 2881 w progach.
+  // Host 5384,3 -> 5385 -> +1.
+  overall: 5386,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

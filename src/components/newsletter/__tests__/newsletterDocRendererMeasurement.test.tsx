@@ -67,12 +67,7 @@ import {
 import { CONSENT_ENTRIES_MAX } from "@/lib/newsletter/consentLimits";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import {
-  makeCheckbox,
-  makeFormDoc,
-  makeSettings,
-  resetDocIds,
-} from "./docFixtures";
+import { makeCheckbox, makeFormDoc, makeSettings, resetDocIds } from "./docFixtures";
 
 beforeEach(() => {
   resetDocIds();

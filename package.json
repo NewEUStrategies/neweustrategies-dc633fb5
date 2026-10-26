@@ -49,6 +49,8 @@
     "migrations:mirror": "bun run scripts/migrations-mirror.ts",
     "migrations:deploy-sql": "bun run scripts/migrations-deploy-sql.ts",
     "check:public-assets": "bun run scripts/check-public-asset-shadowing.ts",
+    "check:main-ruleset": "bun run scripts/check-main-ruleset.ts",
+    "governance:apply-ruleset": "bun run scripts/apply-main-ruleset.ts",
     "check:module-singletons": "bun run scripts/check-module-singletons.ts",
     "check:dangerous-html": "bun run scripts/check-dangerous-html.ts",
     "check:client-ip-source": "bun run scripts/check-client-ip-source.ts",
