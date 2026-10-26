@@ -27624,6 +27624,7 @@ export type Database = {
         Returns: number
       }
       _newsletter_track_opens: { Args: { p_tenant: string }; Returns: boolean }
+      _newsletter_unsubscribe_crm_reconcile: { Args: never; Returns: number }
       _pages_unpublish_test_content: { Args: never; Returns: number }
       _pricing_v62_owner_decisions: {
         Args: { p_tenant: string }
