@@ -46,15 +46,23 @@
 --   B. `_journey_marketing_consent` (CIALO-Z niżej): wycofanie z łańcucha
 --      `marketing` przestaje obowiązywać, gdy osoba PÓŹNIEJ udzieliła zgody na
 --      komunikację (wpis „tak" o kluczu `marketing*`/`newsletter*` - ta sama
---      definicja co w `_newsletter_sunset_delete`). „Przywróć" w panelu nie
---      pisze wpisu „tak", więc zgody ścieżek nie wskrzesza.
+--      definicja co w `_newsletter_sunset_delete`). Nie liczy się wpis
+--      zastępczy `newsletter_to_lead` (INSERT subskrybenta bez `consents`:
+--      import CSV, dodanie przez personel) - to nie dowód zgody osoby.
+--      „Przywróć" w panelu nie pisze wpisu „tak", więc zgody ścieżek nie
+--      wskrzesza.
 --   C. Uzgodnienie danych `_newsletter_unsubscribe_crm_reconcile()`
 --      (wewnętrzna, wołana raz na końcu pliku): kontakt z flagą zgody, którego
---      subskrybent jest dziś `unsubscribed`, a rejestr od chwili wypisu
---      (`unsubscribed_at`, bez niej `updated_at`) nie ma wpisu „tak"
---      marketing*/newsletter* - wycofanie tym samym pomocnikiem (formularz
+--      subskrybent jest dziś `unsubscribed`, a od KOŃCA subskrypcji nie ma
+--      dowodu późniejszej zgody - wycofanie tym samym pomocnikiem (formularz
 --      `newsletter:unsubscribe`, nazwa `newsletter_unsubscribe_reconcile`,
---      chwila naprawy).
+--      chwila naprawy). Koniec subskrypcji = później z: `unsubscribed_at`
+--      (bez niej `updated_at`) i `last_seen_at` aktywnego trwałego wpisu
+--      listy wyłączeń - ponowny zapis nie czyści `unsubscribed_at`, a odbicie
+--      albo skarga po nim zostawiają datę pierwszego wypisu. Dowód późniejszej
+--      zgody: wpis „tak" marketing*/newsletter* jak w B albo wniosek klubowy
+--      ze zgodą marketingową (`club_application_crm_sync` zapala flagę bez
+--      wpisu w rejestrze).
 --
 -- CZEGO TO NIE ZAMYKA
 --   * „Przywróć" w panelu i każdy UPDATE statusu na `subscribed` dalej
@@ -66,6 +74,10 @@
 --   * C cofa też ręczne zaznaczenie zgody przez personel PO wypisie, jeśli nie
 --     zostawiło wpisu „tak" w rejestrze (personel nie pisze dowodu,
 --     20261012180900) - kierunek bezpieczny, raport w opisie PR.
+--   * Potwierdzenie double opt-in subskrybenta bez `consents` (formularz bez
+--     pól zgody) pisze tylko wpis zastępczy, więc - jak przed tą zmianą -
+--     nie przywraca zgody ścieżek po wycofaniu. Wniosek klubowy (bez wpisu
+--     w rejestrze) też nie - B czyta wyłącznie rejestr.
 --
 -- KOLEJNOŚĆ WDROŻENIA: dowolna względem frontu (kształt RPC bez zmian);
 -- wymaga 20261020162700 (pomocnik), 20261020140200 (czytelnik ścieżek)
@@ -138,6 +150,9 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  -- ZMIANA (audyt ED14): treść wpisu zastępczego `newsletter_to_lead`
+  -- (20261023090000) - test pgTAP pilnuje zgodności z ciałem wyzwalacza.
+  c_fallback constant text := 'Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.';
   v_lead record;
   v_sub text;
   v_doi boolean;
@@ -162,10 +177,14 @@ BEGIN
   -- ZMIANA (audyt ED14): ... chyba że osoba PÓŹNIEJ znów udzieliła zgody na
   -- komunikację (ponowny zapis na newsletter, „Chcę dalej otrzymywać", most
   -- wydarzeń) - wpis „tak" marketing*/newsletter* nowszy niż wycofanie.
+  -- Bez wpisu zastępczego `newsletter_to_lead` (treść c_fallback): powstaje
+  -- przy INSERT bez `consents` (import CSV, dodanie przez personel), więc nie
+  -- jest dowodem zgody osoby.
   IF v_last IS FALSE AND NOT EXISTS (
        SELECT 1 FROM public.crm_consent_log c
         WHERE c.tenant_id = p_tenant AND lower(c.email) = v_lead.email_norm
           AND c.consent_key ~ '^(marketing|newsletter)' AND c.given
+          AND c.consent_text IS DISTINCT FROM c_fallback
           AND c.created_at > v_last_at) THEN
     RETURN 'no_consent';
   END IF;
@@ -192,38 +211,65 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
+  -- Treść wpisu zastępczego `newsletter_to_lead` - jak w czytelniku B.
+  c_fallback constant text := 'Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.';
   r record;
   v_n integer := 0;
 BEGIN
   FOR r IN
-    SELECT s.id, s.tenant_id, CASE WHEN s.language = 'en' THEN 'en' ELSE 'pl' END AS lang,
-           COALESCE(s.unsubscribed_at, s.updated_at) AS unsubscribed_at,
-           array_agg(l.id ORDER BY l.id) AS lead_ids
-      FROM public.newsletter_subscribers s
+    WITH unsubscribed AS (
+      -- Chwila KOŃCA subskrypcji: `unsubscribed_at` zostaje z pierwszego
+      -- wypisu (ponowny zapis go nie czyści, a wyzwalacz listy wyłączeń
+      -- robi COALESCE), więc wypis przez odbicie/skargę po ponownym zapisie
+      -- widać wyłącznie po aktywnym wpisie listy wyłączeń (`last_seen_at`).
+      SELECT s.id, s.tenant_id, lower(btrim(s.email)) AS email_norm,
+             CASE WHEN s.language = 'en' THEN 'en' ELSE 'pl' END AS lang,
+             GREATEST(COALESCE(s.unsubscribed_at, s.updated_at),
+                      (SELECT max(e.last_seen_at) FROM public.email_suppressions e
+                        WHERE e.tenant_id = s.tenant_id
+                          AND e.email_norm = lower(btrim(s.email))
+                          AND e.released_at IS NULL
+                          AND e.scope = 'permanent'
+                          AND e.reason IN ('hard_bounce', 'complaint', 'invalid', 'blocked', 'unsubscribe'))
+             ) AS ended_at
+        FROM public.newsletter_subscribers s
+       WHERE s.status = 'unsubscribed'
+    )
+    SELECT u.id, u.tenant_id, u.lang, u.ended_at, array_agg(l.id ORDER BY l.id) AS lead_ids
+      FROM unsubscribed u
       JOIN public.crm_leads l
-        ON l.tenant_id = s.tenant_id
-       AND l.email_norm = lower(btrim(s.email))
+        ON l.tenant_id = u.tenant_id
+       AND l.email_norm = u.email_norm
        AND l.anonymized_at IS NULL
        AND l.marketing_consent
-     WHERE s.status = 'unsubscribed'
-       AND NOT EXISTS (
+     WHERE NOT EXISTS (
+         -- Późniejszy dowód zgody osoby w rejestrze (bez wpisu zastępczego).
          SELECT 1 FROM public.crm_consent_log c
-          WHERE c.tenant_id = s.tenant_id
-            AND lower(c.email) = lower(btrim(s.email))
+          WHERE c.tenant_id = u.tenant_id
+            AND lower(c.email) = u.email_norm
             AND c.consent_key ~ '^(marketing|newsletter)'
             AND c.given
-            AND c.created_at > COALESCE(s.unsubscribed_at, s.updated_at))
-     GROUP BY s.id, s.tenant_id, s.language, s.unsubscribed_at, s.updated_at
-     ORDER BY s.tenant_id, s.id
+            AND c.consent_text IS DISTINCT FROM c_fallback
+            AND c.created_at > u.ended_at)
+       AND NOT EXISTS (
+         -- Zgoda z wniosku klubowego po końcu subskrypcji: `club_application_crm_sync`
+         -- zapala flagę bez wpisu w rejestrze, więc dowodem jest sam wniosek.
+         SELECT 1 FROM public.club_applications a
+          WHERE a.tenant_id = u.tenant_id
+            AND lower(btrim(a.email)) = u.email_norm
+            AND a.marketing_consent
+            AND a.created_at > u.ended_at)
+     GROUP BY u.id, u.tenant_id, u.lang, u.ended_at
+     ORDER BY u.tenant_id, u.id
   LOOP
     v_n := v_n + public._crm_marketing_consent_withdraw(
       r.tenant_id, r.lead_ids, 'newsletter'::public.crm_source_type, r.id,
       'newsletter:unsubscribe', 'newsletter_unsubscribe_reconcile',
       CASE WHEN r.lang = 'en'
-        THEN format('Marketing consent withdrawn on reconciliation - the newsletter unsubscribe of %s did not withdraw it in the CRM.',
-                    to_char(r.unsubscribed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))
-        ELSE format('Wycofanie zgody marketingowej przy uzgodnieniu - wypis z newslettera z %s nie wycofał jej w CRM.',
-                    to_char(r.unsubscribed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))
+        THEN format('Marketing consent withdrawn on reconciliation - the end of the newsletter subscription on %s (unsubscribe, bounce or complaint) did not withdraw it in the CRM.',
+                    to_char(r.ended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))
+        ELSE format('Wycofanie zgody marketingowej przy uzgodnieniu - koniec subskrypcji newslettera z %s (wypis, odbicie albo skarga) nie wycofał jej w CRM.',
+                    to_char(r.ended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'))
       END,
       r.lang);
   END LOOP;
@@ -234,6 +280,6 @@ $$;
 REVOKE ALL ON FUNCTION public._newsletter_unsubscribe_crm_reconcile() FROM PUBLIC, anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public._newsletter_unsubscribe_crm_reconcile() IS
-  'Audyt ED14 (jednorazowe uzgodnienie, powtórka = 0): kontakty CRM z marketing_consent, których subskrybent jest unsubscribed, a rejestr od chwili wypisu (unsubscribed_at, bez niej updated_at) nie ma wpisu „tak" marketing*/newsletter* -> _crm_marketing_consent_withdraw (źródło newsletter, id subskrybenta, form_id newsletter:unsubscribe, form_name newsletter_unsubscribe_reconcile). Zwraca liczbę wpisów rejestru. Wewnętrzna.';
+  'Audyt ED14 (jednorazowe uzgodnienie, powtórka = 0): kontakty CRM z marketing_consent, których subskrybent jest unsubscribed, a od końca subskrypcji (GREATEST: unsubscribed_at, bez niej updated_at; last_seen_at aktywnego trwałego wpisu listy wyłączeń) rejestr nie ma wpisu „tak" marketing*/newsletter* innego niż zastępczy newsletter_to_lead i nie ma wniosku klubowego ze zgodą marketingową -> _crm_marketing_consent_withdraw (źródło newsletter, id subskrybenta, form_id newsletter:unsubscribe, form_name newsletter_unsubscribe_reconcile). Zwraca liczbę wpisów rejestru. Wewnętrzna.';
 
 SELECT public._newsletter_unsubscribe_crm_reconcile();

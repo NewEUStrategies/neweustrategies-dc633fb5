@@ -12,13 +12,16 @@
 --   * ponowny UPDATE już wypisanego wiersza nie pisze nic; obcy najemca
 --     z tym samym adresem nietknięty;
 --   * czytelnik zgody ścieżek: ponowny zapis z nowym wpisem „tak" przywraca
---     zgodę, „Przywróć" w panelu (sam status) - nie;
+--     zgodę, „Przywróć" w panelu (sam status) - nie; import przez personel
+--     (wpis zastępczy `newsletter_to_lead`) po wycofaniu - też nie;
 --   * uzgodnienie danych: kontakt wypisany przed wyzwalaczem traci flagę,
---     kontakt z późniejszą zgodą zostaje, powtórka = 0.
+--     kontakt z późniejszą zgodą (rejestr albo wniosek klubowy) zostaje,
+--     odbicie/skarga po ponownym zapisie liczy się od listy wyłączeń, nie od
+--     daty pierwszego wypisu; powtórka = 0.
 --
 -- Uruchamianie: PGTAP_DIR=... bash scripts/pgtap-local/run.sh test newsletter_unsubscribe_crm_consent
 BEGIN;
-SELECT plan(16);
+SELECT plan(20);
 
 -- ── Fikstura ─────────────────────────────────────────────────────────────────
 INSERT INTO public.tenants (id, slug, name) VALUES
@@ -36,7 +39,9 @@ INSERT INTO public.newsletter_subscribers (id, tenant_id, email, status, languag
   ('ed140000-0000-4000-8000-0000000001a7', 'ed140000-0000-4000-8000-0000000000a0', 'shared@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-shared-a'),
   ('ed140000-0000-4000-8000-0000000001b7', 'ed140000-0000-4000-8000-0000000000b0', 'shared@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-shared-b'),
   ('ed140000-0000-4000-8000-0000000001a8', 'ed140000-0000-4000-8000-0000000000a0', 'legacy@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-legacy'),
-  ('ed140000-0000-4000-8000-0000000001a9', 'ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-later');
+  ('ed140000-0000-4000-8000-0000000001a9', 'ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-later'),
+  ('ed140000-0000-4000-8000-0000000001aa', 'ed140000-0000-4000-8000-0000000000a0', 'club@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-club'),
+  ('ed140000-0000-4000-8000-0000000001ab', 'ed140000-0000-4000-8000-0000000000a0', 'rebounce@nuc.test', 'subscribed', 'pl', 'ed14-nuc-tok-rebounce');
 
 CREATE TEMP TABLE r (k text PRIMARY KEY, v jsonb) ON COMMIT DROP;
 
@@ -164,22 +169,76 @@ UPDATE public.newsletter_subscribers SET status = 'subscribed', unsubscribed_at 
 SELECT is(public._journey_marketing_consent('ed140000-0000-4000-8000-0000000000a0', pg_temp.lead('restore@nuc.test')),
   'no_consent', 'ścieżki: „Przywróć" w panelu (bez wpisu „tak") nie wskrzesza zgody');
 
--- ── 13-16. Uzgodnienie danych sprzed wyzwalacza ─────────────────────────────
+-- ── 13-14. Wpis zastępczy importu nie jest zgodą osoby ──────────────────────
+-- Czytelnik B i uzgodnienie C wykluczają wpis po treści; zmiana treści
+-- w `newsletter_to_lead` bez ich poprawki oblewa ten test.
+SELECT ok(
+  pg_get_functiondef('public.newsletter_to_lead()'::regprocedure)
+    LIKE '%''Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.''%'
+  AND pg_get_functiondef('public._journey_marketing_consent(uuid,uuid)'::regprocedure)
+    LIKE '%''Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.''%'
+  AND pg_get_functiondef('public._newsletter_unsubscribe_crm_reconcile()'::regprocedure)
+    LIKE '%''Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.''%',
+  'wpis zastępczy: ta sama treść w newsletter_to_lead, czytelniku ścieżek i uzgodnieniu');
+-- Kontakt bez subskrybenta: zgoda, wycofanie przez personel (te same argumenty
+-- co `crm_leads_marketing_consent_withdraw`), potem import CSV adresu.
+SELECT public.crm_upsert_lead('ed140000-0000-4000-8000-0000000000a0', 'import@nuc.test', 'Imp', 'Ort',
+                              NULL, NULL, true, true);
+SELECT public._crm_marketing_consent_withdraw(
+  'ed140000-0000-4000-8000-0000000000a0', ARRAY[pg_temp.lead('import@nuc.test')], 'other'::public.crm_source_type, NULL,
+  'crm_staff:withdraw', 'staff', 'Wycofanie zgody przez personel.', NULL);
+UPDATE public.crm_consent_log SET created_at = now() - interval '3 days'
+ WHERE tenant_id = 'ed140000-0000-4000-8000-0000000000a0' AND lower(email) = 'import@nuc.test';
+INSERT INTO public.newsletter_subscribers (tenant_id, email, language, status, source, confirmed_at, unsubscribe_token)
+VALUES ('ed140000-0000-4000-8000-0000000000a0', 'import@nuc.test', 'pl', 'subscribed', 'csv-import', now(), 'ed14-nuc-tok-import');
+SELECT ok(
+  EXISTS (SELECT 1 FROM public.crm_consent_log c
+           WHERE c.tenant_id = 'ed140000-0000-4000-8000-0000000000a0' AND lower(c.email) = 'import@nuc.test'
+             AND c.consent_key = 'newsletter' AND c.given AND c.created_at = now())
+  AND public._journey_marketing_consent('ed140000-0000-4000-8000-0000000000a0', pg_temp.lead('import@nuc.test')) = 'no_consent',
+  'ścieżki: import przez personel po wycofaniu (wpis zastępczy) nie wskrzesza zgody');
+
+-- ── 15-20. Uzgodnienie danych sprzed wyzwalacza ─────────────────────────────
 -- Stan sprzed poprawki: wypis bez wyzwalacza A (flaga zostaje przez OR).
 ALTER TABLE public.newsletter_subscribers DISABLE TRIGGER trg_newsletter_unsubscribed_withdraw_crm;
 UPDATE public.newsletter_subscribers SET status = 'unsubscribed', unsubscribed_at = now() - interval '10 days'
- WHERE id IN ('ed140000-0000-4000-8000-0000000001a8', 'ed140000-0000-4000-8000-0000000001a9');
-ALTER TABLE public.newsletter_subscribers ENABLE TRIGGER trg_newsletter_unsubscribed_withdraw_crm;
+ WHERE id IN ('ed140000-0000-4000-8000-0000000001a8', 'ed140000-0000-4000-8000-0000000001a9',
+              'ed140000-0000-4000-8000-0000000001aa', 'ed140000-0000-4000-8000-0000000001ab');
 UPDATE public.crm_consent_log SET created_at = now() - interval '30 days'
- WHERE tenant_id = 'ed140000-0000-4000-8000-0000000000a0' AND lower(email) IN ('legacy@nuc.test', 'later@nuc.test');
+ WHERE tenant_id = 'ed140000-0000-4000-8000-0000000000a0'
+   AND lower(email) IN ('legacy@nuc.test', 'later@nuc.test', 'club@nuc.test', 'rebounce@nuc.test');
+-- `rebounce`: ponowny zapis formularzem (nowe `consents`, `unsubscribed_at`
+-- zostaje - kod aplikacji go nie czyści), potem skarga przez listę wyłączeń.
+UPDATE public.newsletter_subscribers
+   SET status = 'subscribed',
+       consents = jsonb_build_array(jsonb_build_object(
+         'key', 'newsletter', 'text', 'Zapisuję się do newslettera.', 'given', true,
+         'received_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')))
+ WHERE id = 'ed140000-0000-4000-8000-0000000001ab';
+UPDATE public.crm_consent_log SET created_at = now() - interval '5 days'
+ WHERE tenant_id = 'ed140000-0000-4000-8000-0000000000a0' AND lower(email) = 'rebounce@nuc.test'
+   AND created_at = now();
+SELECT public.email_record_suppression(
+  p_tenant => 'ed140000-0000-4000-8000-0000000000a0', p_email => 'rebounce@nuc.test',
+  p_reason => 'complaint', p_source => 'manual', p_provider => 'test');
+ALTER TABLE public.newsletter_subscribers ENABLE TRIGGER trg_newsletter_unsubscribed_withdraw_crm;
 -- `later` po wypisie udzielił zgody innym kanałem (np. most wydarzeń).
 INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at) VALUES
   ('ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test', 'event', 'marketing', 'Zgoda z wydarzenia.', true,
    now() - interval '2 days');
+-- `club` po wypisie złożył wniosek klubowy ze zgodą marketingową (bez wpisu
+-- w rejestrze - tak pisze `club_application_crm_sync`).
+INSERT INTO public.club_applications (tenant_id, user_id, specialization_slug, first_name, email, marketing_consent, created_at)
+VALUES ('ed140000-0000-4000-8000-0000000000a0', 'ed140000-0000-4000-8000-00000000c1ab', 'energy', 'Klub',
+        'Club@nuc.test', true, now() - interval '2 days');
 SELECT ok(
   pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'legacy@nuc.test')
-  AND pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test'),
-  'stan sprzed poprawki: wypisani mają w CRM flagę zgody');
+  AND pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test')
+  AND pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'club@nuc.test')
+  AND pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'rebounce@nuc.test')
+  AND (SELECT s.status = 'unsubscribed' AND s.unsubscribed_at = now() - interval '10 days'
+         FROM public.newsletter_subscribers s WHERE s.id = 'ed140000-0000-4000-8000-0000000001ab'),
+  'stan sprzed poprawki: wypisani mają w CRM flagę zgody; skarga po ponownym zapisie zostawia datę pierwszego wypisu');
 
 INSERT INTO r VALUES ('reconcile', to_jsonb(public._newsletter_unsubscribe_crm_reconcile()));
 SELECT ok(
@@ -200,6 +259,18 @@ SELECT ok(
       (SELECT count(*) FROM public.crm_consent_log
         WHERE form_name = 'newsletter_unsubscribe_reconcile' AND created_at = now()),
   'uzgodnienie: późniejsza zgoda zostaje; wynik = liczba wpisów rejestru');
+SELECT ok(
+  pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'club@nuc.test')
+  AND pg_temp.withdrawals('ed140000-0000-4000-8000-0000000000a0', 'club@nuc.test') = 0,
+  'uzgodnienie: zgoda z wniosku klubowego po wypisie (bez wpisu w rejestrze) zostaje');
+SELECT ok(
+  NOT pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'rebounce@nuc.test')
+  AND EXISTS (SELECT 1 FROM public.crm_consent_log c
+               WHERE c.tenant_id = 'ed140000-0000-4000-8000-0000000000a0' AND c.email = 'rebounce@nuc.test'
+                 AND c.consent_key = 'marketing' AND NOT c.given
+                 AND c.form_name = 'newsletter_unsubscribe_reconcile'
+                 AND c.consent_text LIKE '%' || to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD') || '%'),
+  'uzgodnienie: skarga po ponownym zapisie - koniec subskrypcji z listy wyłączeń, zapis sprzed skargi nie chroni flagi');
 SELECT is(public._newsletter_unsubscribe_crm_reconcile(), 0, 'uzgodnienie: powtórka = 0');
 
 SELECT * FROM finish();
