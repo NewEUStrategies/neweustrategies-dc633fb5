@@ -8,15 +8,19 @@ name: CI
 #   test-shards - pełna suita vitest w czterech shardach, BEZ instrumentacji
 #                 coverage (pokrycie nie jest bramką; `bun run test:coverage`
 #                 liczy je lokalnie z jednym progiem globalnym),
-#   build       - build produkcyjny, acykliczność grafu chunków i test startu
+#   build       - build produkcyjny, acykliczność grafu chunków, budżety
+#                 bundla i czystość ścieżki startowej oraz test startu
 #                 artefaktu w przeglądarce,
 #   pgtap, pg-harness - polityki RLS, role i migracje na żywym PostgreSQL.
 # `Required release checks` agreguje te joby w jeden wymagany status.
 #
-# Budżety wydajności (rozmiar bundla, czystość ścieżki startowej) jadą tylko
-# na main i na żądanie (workflow_dispatch) - nie blokują PR-ów. Pomiary A/B
-# (first-visit, Lighthouse, widgety CMS) mają własne workflowy, uruchamiane
-# po scaleniu do main albo ręcznie.
+# Budżety bundla i czystość ścieżki startowej jadą także na PR-ach (od
+# 2026-10-26): na main są częścią `Required release checks`, więc gałąź, której
+# nie sprawdzały, czerwieniła main dopiero po scaleniu (PR #535: overall
+# +4,7 KB, próg przekroczony dopiero na commicie scalenia). Sprawdzenie trwa
+# sekundy na buildzie, który job i tak robi. Pomiary A/B (first-visit, Lighthouse,
+# widgety CMS) mają własne workflowy, uruchamiane po scaleniu do main albo
+# ręcznie.
 on:
   push:
     branches: [main]
@@ -28,10 +32,17 @@ on:
 env:
   TZ: UTC
 
-# Cancel superseded runs on the same ref.
+# PR i inne gałęzie: nowszy push anuluje starszy przebieg tej samej gałęzi.
+# main: KAŻDY commit dostaje własny, dokończony przebieg (grupa = SHA, bez
+# anulowania). Lovable pushuje na main seriami i publikuje produkcję niezależnie
+# od CI; przy wspólnej grupie anulowane przebiegi zostawiały opublikowane
+# commity (np. ed8d4bddf, a56f17b96, c20775901) bez żadnego werdyktu, a dowód
+# wdrożenia (`post-deploy` na commicie bota z wyzwalaczem) mógł zginąć pod
+# następnym pushem. Repozytorium jest publiczne - minuty standardowych
+# runnerów nic nie kosztują, rośnie tylko kolejka przy serii pushy.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
@@ -102,12 +113,15 @@ jobs:
       # w pamięci podręcznej Actions krokami niżej), a bez niego
       # `github.event.before`. Commit bota (rewert, edycja wpisu) trafia na main
       # bez PR-a: porównanie z `github.event.before` byłoby alarmem jednego
-      # przebiegu, a przebieg anulowany przez nowszy push (concurrency wyżej)
-      # nie zgłosiłby niczego. Z bazą „ostatni zielony" czerwień trwa przy
-      # każdym kolejnym pushu, aż naprawa trafi na main, a anulowany przebieg
-      # niczego nie zapamiętuje - dlatego concurrency może dalej anulować
-      # starsze przebiegi main. Checkout zostaje płytki (depth 1): diff dwóch
-      # drzew nie potrzebuje historii, wystarczy dociągnąć jeden commit bazy.
+      # przebiegu, a przebieg anulowany (ręcznie albo przez ponowne
+      # uruchomienie) nie zgłosiłby niczego. Z bazą „ostatni zielony" czerwień
+      # trwa przy każdym kolejnym pushu, aż naprawa trafi na main, a anulowany
+      # przebieg niczego nie zapamiętuje. Przebiegi main jadą równolegle (grupa
+      # concurrency = SHA) i mogą skończyć się w innej kolejności niż pushe:
+      # zapamiętana baza bywa wtedy starsza, co tylko poszerza porównanie, a
+      # HEAD starszy od bazy obsługuje gałąź „przodek" niżej. Checkout zostaje
+      # płytki (depth 1): diff dwóch drzew nie potrzebuje historii, wystarczy
+      # dociągnąć jeden commit bazy.
       # MIGRATION_IMMUTABILITY_REQUIRE_BASE=1 (pull_request i push): niedostępna
       # baza to błąd, nie ostrzeżenie - pominięte porównanie nie może wyglądać
       # jak zielone. workflow_dispatch nie ma bazy zdarzenia: bez zapamiętanej
@@ -225,6 +239,13 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:public-assets
 
+      # Statycznie: ruleset main da się nałożyć bez zatrzymania pushy Lovable,
+      # a wymagane statusy to checki raportowane na PR-ach. Czy GitHub go
+      # stosuje, sprawdza workflow release-governance.yml.
+      - name: Ruleset main zgodny z kanałem wdrożenia
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:main-ruleset
+
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run typecheck
@@ -293,17 +314,17 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:chunks
 
-      # Budżety wydajności: tylko main i uruchomienie ręczne.
+      # Budżety i czystość ścieżki startowej: każdy przebieg, także PR (nagłówek).
       - name: Bundle size budget
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:bundle
 
       - name: Client boot path free of payment SDKs
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:entry-purity
 
       - name: Server request graph free of eager server-only SDKs
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:server-entry-purity
 
       - name: Install Playwright Chromium
@@ -461,14 +482,21 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run check:tenant-isolation
 
-  # Po scaleniu do main: czy produkcyjna baza ma wszystkie tabele, widoki, RPC i kolumny
-  # oraz czy migracje z repo zostały na niej faktycznie zastosowane. Bez
-  # adresu i klucza Supabase job kończy się ostrzeżeniem zamiast czerwonego
-  # statusu, bo nie ma czego sondować. Dane dostępowe to ZMIENNE repozytorium
-  # (vars.*): sekret o tej nazwie czytają też build i e2e, które bez niego
-  # jadą na zaślepce (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8).
+  # Po wdrożeniu na main: czy produkcyjna baza ma wszystkie tabele, widoki, RPC
+  # i kolumny oraz czy migracje z repo zostały na niej faktycznie zastosowane.
+  #
+  # Job jedzie WYŁĄCZNIE po zielonym `Required release checks` - `if` bez
+  # funkcji statusu oznacza domyślne success(). Commit z czerwoną bramką nie
+  # jest wydaniem: job jest wtedy pominięty (szary), a nie zielony obok
+  # czerwonej bramki.
+  #
+  # Brak adresu albo klucza Supabase to CZERWONY job, nie ostrzeżenie z zielonym
+  # statusem: kontrola, która niczego nie sprawdziła, nie może wyglądać jak
+  # dowód wdrożenia. Dane dostępowe to ZMIENNE repozytorium (vars.*): sekret
+  # o tej nazwie czytają też build i e2e, które bez niego jadą na zaślepce
+  # (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8).
   post-deploy:
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [release-gate]
     permissions:
       contents: read
@@ -479,40 +507,35 @@ jobs:
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - name: Require Supabase credentials
-        id: creds
         run: |
-          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Brak SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY - kontrola produkcyjnej bazy pominięta. Ustaw ZMIENNE repozytorium (vars), nie sekrety: sekret o tej nazwie przełącza build i e2e z zaślepki na produkcję (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8)."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error title=post-deploy::Brak SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY - produkcyjnej bazy NIE sprawdzono, więc ten commit nie ma dowodu wdrożenia. Ustaw ZMIENNE repozytorium (Settings → Secrets and variables → Actions → Variables), nie sekrety: sekret o tej nazwie przełącza build i e2e z zaślepki na produkcję (docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.8)."
+            exit 1
           fi
 
       - uses: actions/checkout@v7
-        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           fetch-depth: 0
 
       - uses: actions/setup-node@v7
-        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
-        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           bun-version-file: .bun-version
 
       - name: Install dependencies
-        if: ${{ steps.creds.outputs.ready == 'true' }}
+        id: install
         run: bun install --frozen-lockfile
 
       - name: Database contract (tables / views / RPC / columns)
-        if: ${{ steps.creds.outputs.ready == 'true' }}
         run: bun run check:db-contract
 
+      # Rejestr migracji jedzie także po czerwonym kontrakcie: jeden przebieg
+      # pokazuje oba werdykty.
       - name: Migration ledger (branch migrations actually applied)
-        if: ${{ !cancelled() && steps.creds.outputs.ready == 'true' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:migration-ledger
 
   release-gate:

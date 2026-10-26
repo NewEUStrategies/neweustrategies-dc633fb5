@@ -19,9 +19,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { submitContactMessage } from "@/lib/contact.functions";
 import { newsletterConsentPayload, resolveNewsletterConsent } from "@/lib/newsletter/consentText";
-import { measurementConsentPayload } from "@/lib/newsletter/measurementConsentText";
 import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
-import { MeasurementConsentField } from "@/components/newsletter/MeasurementConsentField";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -143,7 +141,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   // i czyszczone przy jego odznaczeniu (deklaracja pomiaru bez zgody na
   // newsletter nie ma sensu - serwer i tak by ją usunął).
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
-  const [measurement, setMeasurement] = useState(false);
 
   const variant = s(data, "variant", "card");
   const title = s(data, `title_${lang}`);
@@ -314,7 +311,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (showNewsletter && newsletterGiven) {
       consents.push(newsletterConsentPayload(newsletterConsent, lang));
       // Deklaracja osobnego pola pomiaru - WYŁĄCZNIE po jego zaznaczeniu.
-      if (measurement) consents.push(measurementConsentPayload(lang));
     }
     const requiredMap: Record<string, boolean> = {
       firstName: showFirstName && requireFirstName,
@@ -381,7 +377,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       trackFormConversion({ formId, formName: title || undefined, lang });
       (e.target as HTMLFormElement).reset();
       setNewsletterOptIn(false);
-      setMeasurement(false);
     } catch {
       setStatus("err");
     }
@@ -779,7 +774,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                       checked={newsletterOptIn}
                       onCheckedChange={(next) => {
                         setNewsletterOptIn(next === true);
-                        if (next !== true) setMeasurement(false);
                       }}
                     />
                     <span>
@@ -793,16 +787,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 )}
                 {/* Osobne pole zgody na pomiar (I9d-Y2b) - pod polem
                     newslettera, ta sama geometria; bez newslettera wyłączone. */}
-                {showNewsletter && (
-                  <MeasurementConsentField
-                    lang={lang}
-                    checked={measurement}
-                    onCheckedChange={setMeasurement}
-                    disabled={!newsletterOptIn}
-                    className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80"
-                    checkboxClassName="shrink-0"
-                  />
-                )}
               </div>
             ) : null;
 

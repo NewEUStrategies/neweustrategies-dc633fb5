@@ -38,11 +38,6 @@ import {
   newsletterConsentHtml,
   newsletterConsentPlain,
 } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -235,14 +230,6 @@ const consent = () => {
     .filter((el) => !el.closest('[data-consent="email_measurement"]'));
   expect(boxes).toHaveLength(1);
   return boxes[0];
-};
-/** Osobne pole zgody na pomiar otwarć i kliknięć (I9d-Y2b). */
-const measurementBox = () => {
-  const box = document.querySelector<HTMLElement>(
-    '[data-consent="email_measurement"] [role="checkbox"]',
-  );
-  if (!box) throw new Error("test: brak pola pomiaru");
-  return box;
 };
 const submit = () => fireEvent.submit(form());
 
@@ -1143,50 +1130,12 @@ describe("pola własne z surowej treści widgetu (P3.9)", () => {
 });
 
 describe("osobne pole zgody na pomiar (I9d-Y2b)", () => {
-  it("pole jest pod wymaganą zgodą, domyślnie niezaznaczone, aktywne i z treścią pomiaru", () => {
-    mount();
-    const box = measurementBox();
-    expect(box).toHaveAttribute("aria-checked", "false");
-    expect(box).not.toBeDisabled();
-    expect(box.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
-    expect(consent().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Ten sam rozmiar z widżetu (`consentSize`) co wymagana zgoda.
-    expect(box.closest("label")?.getAttribute("data-edit-target")).toBe("consentSize");
-    expect(box.closest("label")?.getAttribute("style")).toBe(
-      consent().closest("label")?.getAttribute("style"),
-    );
-  });
-
   it("bez zaznaczenia pola ładunek ma wyłącznie zgodę na newsletter", async () => {
     mount();
     fillMinimum();
     submit();
     await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
     expect(lastPayload()?.consents.map((entry) => entry.key)).toEqual(["newsletter"]);
-  });
-
-  it("zaznaczone pole dokłada deklarację z treścią i wersją z rejestru", async () => {
-    mount();
-    fillMinimum();
-    fireEvent.click(measurementBox());
-    submit();
-    await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
-    expect(lastPayload()?.consents).toEqual([
-      {
-        key: "newsletter",
-        text: newsletterConsentHtml("pl"),
-        given: true,
-        lang: "pl",
-        version: NEWSLETTER_CONSENT_VERSION,
-      },
-      {
-        key: "email_measurement_declared",
-        text: measurementConsentHtml("pl"),
-        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
-        given: true,
-        lang: "pl",
-      },
-    ]);
   });
 
   it.each(["light", "dark"] as const)(

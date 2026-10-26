@@ -274,14 +274,14 @@ cofa (§5).
 
 ### 4.4 Weryfikacja (każde wdrożenie)
 
-| #   | Kto        | Co                                                                              | Oczekiwane                                                                       |
-| --- | ---------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 1   | Lovable    | `bun run migrations:deploy-sql -- --verify --from <OD>`, wynik tylko do odczytu | 0 wierszy                                                                        |
-| 2   | Lovable    | `check:migration-lanes`, `check:db-contract`, `check:migration-ledger`          | zielone                                                                          |
-| 3   | właściciel | edytor SQL (More → Database → Manage → SQL editor), zapytanie z §4.5            | górny wiersz = wyzwalacz tego wdrożenia                                          |
-| 4   | właściciel | GitHub Actions → przebieg CI commita bota → job `post-deploy`                   | zielony; ostrzeżenie o braku `SUPABASE_URL` = brak zmiennych repozytorium (§4.8) |
-| 5   | recenzent  | diff `src/integrations/supabase/types.ts` w commicie bota                       | tylko obiekty z PR; inne zmiany = dryf produkcji do wyjaśnienia                  |
-| 6   | właściciel | funkcja z PR na produkcji po publikacji                                         | działa                                                                           |
+| #   | Kto        | Co                                                                              | Oczekiwane                                                                                                                                             |
+| --- | ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Lovable    | `bun run migrations:deploy-sql -- --verify --from <OD>`, wynik tylko do odczytu | 0 wierszy                                                                                                                                              |
+| 2   | Lovable    | `check:migration-lanes`, `check:db-contract`, `check:migration-ledger`          | zielone                                                                                                                                                |
+| 3   | właściciel | edytor SQL (More → Database → Manage → SQL editor), zapytanie z §4.5            | górny wiersz = wyzwalacz tego wdrożenia                                                                                                                |
+| 4   | właściciel | GitHub Actions → przebieg CI commita bota → job `post-deploy`                   | zielony; czerwony z błędem o braku `SUPABASE_URL` = brak zmiennych repozytorium (§4.8); pominięty = czerwone `Required release checks` na tym commicie |
+| 5   | recenzent  | diff `src/integrations/supabase/types.ts` w commicie bota                       | tylko obiekty z PR; inne zmiany = dryf produkcji do wyjaśnienia                                                                                        |
+| 6   | właściciel | funkcja z PR na produkcji po publikacji                                         | działa                                                                                                                                                 |
 
 Zielony PR potwierdza kod, nie stan bazy. Wdrożenie potwierdzają dopiero wiersze 1-4, a dowodem
 jest rejestr migratora: ręcznie wiersz 1 (każdy wpis zakresu zapisany przez migrator z hashem
@@ -405,8 +405,9 @@ pytania (`missing_schema_objects`, `missing_schema_columns`, `missing_migration_
 `missing_drizzle_migration_hashes`) i mają EXECUTE dla `anon`. Adres czyta w kolejności
 `secrets.SUPABASE_URL`, `secrets.VITE_SUPABASE_URL`, `vars.SUPABASE_URL`, `vars.VITE_SUPABASE_URL`,
 a klucz tak samo
-(`SUPABASE_PUBLISHABLE_KEY`, potem `VITE_SUPABASE_PUBLISHABLE_KEY`). Bez nich kończy się
-ostrzeżeniem i niczego nie sprawdza.
+(`SUPABASE_PUBLISHABLE_KEY`, potem `VITE_SUPABASE_PUBLISHABLE_KEY`). Bez nich job jest
+CZERWONY (`::error`): kontrola, która niczego nie sprawdziła, nie jest dowodem wdrożenia. Job jedzie
+tylko po zielonym `Required release checks` - na commicie z czerwoną bramką jest pominięty.
 
 Ustaw ZMIENNE repozytorium (GitHub → Settings → Secrets and variables → Actions → zakładka
 Variables): `SUPABASE_URL` i `SUPABASE_PUBLISHABLE_KEY` - adres projektu i klucz publikowalny, ten
@@ -426,8 +427,9 @@ o tych nazwach, a gdy sekretu nie ma - zaślepkę `https://placeholder.supabase.
 Sekret o tej nazwie przełączyłby je z zaślepki na produkcyjny backend: build wbudowałby adres
 produkcji w artefakt CI, a testy e2e i pomiary chodziłyby po prawdziwej bazie, zależne od jej
 danych i z ruchem na produkcji. Zmiennych (`vars.*`) te kroki nie czytają, więc zmienna nie zmienia
-niczego poza `post-deploy`. Dopóki Lovable pushuje na `main` bezpośrednio, ani `post-deploy`, ani
-`Required release checks` nie są wymaganymi statusami `main`.
+niczego poza `post-deploy`. Ruleset `main` (governance/release/README.md) wymaga
+`Required release checks` od scaleń PR-ów, ale aplikacja Lovable go omija, więc push bota na `main`
+nie czeka na żaden status, a `post-deploy` nie jest wymaganym statusem w ogóle.
 
 ## 5. Bot Lovable zmienił schemat sam - adopcja
 

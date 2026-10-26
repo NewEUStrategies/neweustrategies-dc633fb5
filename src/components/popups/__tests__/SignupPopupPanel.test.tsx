@@ -109,12 +109,7 @@ describe("SignupPopupPanel", () => {
     // bez pomiaru) zamiast samej etykiety (I9d-Y2, I9d-Y2b), a pod nim stoi
     // osobne, domyślnie niezaznaczone pole zgody na pomiar.
     expect(screen.getByText(/Zasady przetwarzania danych opisuje/)).toBeTruthy();
-    const measurement = document.querySelector('[data-consent="email_measurement"]');
-    expect(measurement?.textContent).toMatch(/^Zgoda na pomiar interakcji na naszej platformie/);
-    expect(measurement?.querySelector('[role="checkbox"]')).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(document.querySelector('[data-consent="email_measurement"]')).toBeNull();
   });
 
   it("bierze teksty z ustawień w wybranym języku", () => {
