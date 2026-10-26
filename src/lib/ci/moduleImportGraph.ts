@@ -48,9 +48,19 @@ function isTypeOnlyExport(node: ts.ExportDeclaration): boolean {
   );
 }
 
+/** Moduły JavaScript w `src/` (np. `lib/icons/iconChunkIndex.js`) też są w grafie. */
+const SCRIPT_KINDS: Readonly<Record<string, ts.ScriptKind>> = {
+  ".ts": ts.ScriptKind.TS,
+  ".tsx": ts.ScriptKind.TSX,
+  ".js": ts.ScriptKind.JS,
+  ".jsx": ts.ScriptKind.JSX,
+  ".mjs": ts.ScriptKind.JS,
+  ".cjs": ts.ScriptKind.JS,
+};
+
 /** Importy WARTOŚCI pliku: statyczne (`import`, `export … from`) i `import(...)`. */
 export function valueImports(path: string, source: string): RawImport[] {
-  const kind = path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const kind = SCRIPT_KINDS[path.slice(path.lastIndexOf("."))] ?? ts.ScriptKind.TS;
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false, kind);
   const found: RawImport[] = [];
   const visit = (node: ts.Node): void => {
@@ -78,7 +88,19 @@ export function valueImports(path: string, source: string): RawImport[] {
   return found;
 }
 
-const EXTENSIONS = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"] as const;
+const EXTENSIONS = [
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
+] as const;
+
+/** Specyfikator ESM `./x.js` wskazuje w TypeScripcie także `x.ts` / `x.tsx`. */
+const JS_SPECIFIER = /\.(m?js|jsx)$/;
 
 /** Plik repo, na który wskazuje specyfikator (`@/…` albo względny), albo `null` (pakiet). */
 export function resolveImport(
@@ -101,6 +123,12 @@ export function resolveImport(
   }
   for (const extension of EXTENSIONS) {
     if (exists(base + extension)) return base + extension;
+  }
+  if (JS_SPECIFIER.test(base)) {
+    const stem = base.replace(JS_SPECIFIER, "");
+    for (const extension of [".ts", ".tsx"]) {
+      if (exists(stem + extension)) return stem + extension;
+    }
   }
   return null;
 }

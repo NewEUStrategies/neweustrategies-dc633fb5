@@ -32,7 +32,9 @@ import { type ImportEdge, buildImportGraph } from "../moduleImportGraph";
  */
 const CORE_TO_DOMAIN_CEILING = 114;
 
-const PRODUCTION_SOURCE = /\.(ts|tsx)$/;
+// Także moduły JavaScript (`lib/icons/iconChunkIndex.js`) - inaczej ich krawędzie
+// znikają z grafu po cichu.
+const PRODUCTION_SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 const NOT_PRODUCTION = /(^|\/)(__tests__|test)\/|\.(test|spec|stories)\.|\.d\.ts$/;
 
 function productionFiles(): string[] {

@@ -37,6 +37,12 @@ describe("valueImports", () => {
     ]);
   });
 
+  it("moduł JavaScript parsuje się tak samo jak TypeScript", () => {
+    expect(
+      specs(`import { x } from "./x.js"; export * from "@/lib/y";`, "src/lib/icons/a.js"),
+    ).toEqual(["./x.js", "@/lib/y"]);
+  });
+
   it("import() jest leniwy, a import w komentarzu i w literale nie istnieje", () => {
     expect(
       specs(
@@ -58,6 +64,15 @@ describe("resolveImport", () => {
     expect(resolveImport("src/lib/deep/x.ts", "../b", exists)).toBe("src/lib/b/index.ts");
     expect(resolveImport("src/components/D.tsx", "./C", exists)).toBe("src/components/C.tsx");
     expect(resolveImport("src/x.ts", "react", exists)).toBeNull();
+    // Moduł JavaScript i specyfikator ESM `./x.js` wskazujący plik TypeScriptu.
+    expect(
+      resolveImport(
+        "src/lib/icons/lazy.ts",
+        "./chunks.js",
+        (path) => path === "src/lib/icons/chunks.js",
+      ),
+    ).toBe("src/lib/icons/chunks.js");
+    expect(resolveImport("src/x.ts", "./lib/a.js", exists)).toBe("src/lib/a.ts");
     expect(resolveImport("src/x.ts", "@/lib/missing", exists)).toBeNull();
   });
 });

@@ -93,6 +93,16 @@ describe("findDocReferenceProblems", () => {
     ]);
   });
 
+  it("lista zakresów: sprawdzany jest KAŻDY zakres, nie tylko pierwszy", () => {
+    expect(kinds("`src/lib/stripe.server.ts:1-3,10,38-40`")).toEqual([]);
+    expect(kinds("`src/lib/stripe.server.ts:1-3,10,66-76`")).toEqual([
+      "line-range:src/lib/stripe.server.ts:1-3,10,66-76",
+    ]);
+    expect(kinds("`src/lib/stripe.server.ts:14,41`")).toEqual([
+      "line-range:src/lib/stripe.server.ts:14,41",
+    ]);
+  });
+
   it("numer linii workflow jest zakazany - także w zakresie pliku i pod gołą nazwą", () => {
     expect(kinds("`ci.yml:131` oraz `.github/workflows/scheduler.yml:94`")).toEqual([
       "workflow-line:ci.yml:131",

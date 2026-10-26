@@ -60,7 +60,8 @@ const ROOTED_PATH = new RegExp(
 const BARE_FILE = /^[A-Za-z0-9_.-]+\.(?:ya?ml|ts|tsx|mjs|js|json|toml|md|sql)$/;
 const PATTERN_CHARS = /[*{}<>…$]|\.\.\.|\s/;
 const WORKFLOW_FILE = /\.ya?ml$/;
-const REF_WITH_LINES = /^(.+?)(?::(\d+)(?:-(\d+))?(?:,\d+(?:-\d+)?)*)?$/;
+/** `plik`, `plik:N`, `plik:N-M` i listy zakresów `plik:1-3,10,66-76` (sprawdzany KAŻDY zakres). */
+const REF_WITH_LINES = /^(.+?)(?::(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*))?$/;
 const BUN_RUN = /\bbun run ([^\s`'";|&)]+)/g;
 
 function checkBunRun(
@@ -98,13 +99,13 @@ function checkInlineRef(
 ): { kind: DocReferenceKind; detail: string } | null {
   const parsed = REF_WITH_LINES.exec(raw.trim());
   if (!parsed) return null;
-  const [, path, from, to] = parsed;
+  const [, path, ranges] = parsed;
   const resolved = resolvePath(path!, ctx);
   if (!resolved) return null;
   if (!resolved.file) {
     return { kind: "path", detail: `brak ścieżki ${path} w repozytorium` };
   }
-  if (from === undefined) return null;
+  if (ranges === undefined) return null;
   if (WORKFLOW_FILE.test(resolved.file) && resolved.file.startsWith(".github/workflows/")) {
     return {
       kind: "workflow-line",
@@ -112,7 +113,7 @@ function checkInlineRef(
     };
   }
   const lines = ctx.lineCount(resolved.file);
-  const last = Number(to ?? from);
+  const last = Math.max(...ranges.split(/[,-]/).map(Number));
   if (lines !== null && last > lines) {
     return { kind: "line-range", detail: `${raw}: plik ${resolved.file} ma ${lines} linii` };
   }
