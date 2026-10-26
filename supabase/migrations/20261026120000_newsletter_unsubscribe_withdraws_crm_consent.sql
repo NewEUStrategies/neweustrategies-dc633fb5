@@ -1,6 +1,13 @@
 -- ============================================================================
 -- WYPIS Z NEWSLETTERA WYCOFUJE ZGODĘ MARKETINGOWĄ KONTAKTU CRM (AUDYT ED14,
 -- „DANE MIĘDZY MODUŁAMI", WAGA WYSOKA).
+-- pg-harness: exclude
+--
+-- Znacznik wyżej jest DYREKTYWĄ dla scripts/pg-harness/run.sh: uzgodnienie C
+-- czyta `public.club_applications` (ODCZYT zgody z wniosku klubowego, nie
+-- udział w module), więc selektor po treści wciąga plik, a atrapa harnessu
+-- klubów nie ma newslettera ani CRM. Dowód zmiany: pgTAP
+-- supabase/tests/newsletter_unsubscribe_crm_consent_test.sql.
 --
 -- DEFEKT
 --   1. Przejście subskrybenta na `unsubscribed` (link wypisu, token globalny,
