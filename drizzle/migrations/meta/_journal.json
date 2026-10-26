@@ -2850,6 +2850,20 @@
       "when": 1793029770313,
       "tag": "0406_pr538_deployment_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 407,
+      "version": "7",
+      "when": 1793029830313,
+      "tag": "0407_newsletter_unsubscribe_withdraws_crm_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 408,
+      "version": "7",
+      "when": 1793031771740,
+      "tag": "0408_pr540_deployment_completion",
+      "breakpoints": true
     }
   ]
 }
