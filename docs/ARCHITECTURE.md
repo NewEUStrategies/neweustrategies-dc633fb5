@@ -208,38 +208,49 @@ draft/published/archived one.
 Since 2026-10-05 the CI gate set is limited to what protects production
 (header of `.github/workflows/ci.yml`). Triggers differ per workflow:
 
-| Workflow                                                          | Runs on                                         |
-| ----------------------------------------------------------------- | ----------------------------------------------- |
-| `ci.yml` (CI)                                                     | `pull_request`, push to `main`, manual          |
-| `e2e.yml` (E2E)                                                   | `pull_request`, push to `main`, manual          |
-| `lighthouse.yml`, `first-visit.yml`, `cms-widget-performance.yml` | push to `main` and manual only - **not on PRs** |
+| Workflow                                                          | Runs on                                                                                                                         |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml` (CI)                                                     | `pull_request`, push to `main`, manual                                                                                          |
+| `e2e.yml` (E2E)                                                   | `pull_request`, push to `main`, manual                                                                                          |
+| `lighthouse.yml`, `first-visit.yml`, `cms-widget-performance.yml` | push to `main` and manual only - **not on PRs**                                                                                 |
+| `release-governance.yml`                                          | daily, push to `main` touching `governance/release/**`, `.github/workflows/**` or `.github/CODEOWNERS`, manual - **not on PRs** |
 
 All use GitHub-hosted `ubuntu-latest` runners and a `concurrency` group that
-cancels superseded runs.
+cancels superseded runs - except `ci.yml` on `main`, where the group is the
+commit SHA: every `main` commit gets its own run, never cancelled by the next
+push.
 
 `CI` is the real gate between a merge and production. Its jobs, aggregated by
 the single required status `Required release checks` (job `release-gate`):
 
-- `verify` - Prettier, the cheap static SQL/migration/RPC/XSS gates,
-  typecheck and lint. Because **`vite build` does NOT typecheck** (esbuild
+- `verify` - Prettier, the cheap static SQL/migration/RPC/XSS gates, the
+  static `main` ruleset check (`check:main-ruleset`; whether GitHub actually
+  applies the ruleset is checked by `release-governance.yml`), typecheck and
+  lint. Because **`vite build` does NOT typecheck** (esbuild
   strips types), the explicit typecheck step (`tsgo --noEmit`) is the type gate,
   not the build;
 - `test-shards` - the full Vitest suite in four shards **without coverage
   instrumentation: coverage is NOT a CI gate** (`bun run test:coverage` measures
   it locally against one global threshold in `vitest.config.ts`);
-- `build` - production build, chunk-graph acyclicity (`check:chunks`, blocking
-  on PRs) and the browser boot test of the production artifact. The
-  **performance budgets - `check:bundle`, `check:entry-purity`,
-  `check:server-entry-purity` - run only on `main` and on manual runs; they do
-  not block PRs**;
+- `build` - production build, chunk-graph acyclicity (`check:chunks`), the
+  performance budgets (`check:bundle`, `check:entry-purity`,
+  `check:server-entry-purity`) and the browser boot test of the production
+  artifact - all of them on PRs too, so a branch over budget is red before the
+  merge, not on `main` after it;
 - `pgtap` - a local Supabase database (migrations + seed) and the pgTAP suite
   (`supabase test db`): RLS tenant isolation, role management, full-text
   search - the policies Vitest can never exercise;
 - `pg-harness` - the PostgreSQL 16 harnesses (`check:pg-harness`,
   `check:careers-harness`, `check:events-harness`, `check:tenant-isolation`).
 
-After a merge, `post-deploy` (push to `main`) probes the production database
-contract and migration ledger when repository variables give it credentials.
+After a merge, `post-deploy` (push to `main` or a manual run on `main`, only
+after a green `Required release checks`) probes the production database
+contract and migration ledger. It reads `SUPABASE_URL` /
+`SUPABASE_PUBLISHABLE_KEY` from same-named secrets first, then from repository
+variables (with `VITE_*` fallbacks); they belong in variables
+(`docs/RUNBOOK_MIGRACJE_LOVABLE.md` §4.8). With none of them set the job is
+red, not a green warning - a check that probed nothing is no evidence of a
+deployment.
 
 The `E2E` workflow runs two jobs: the backend-agnostic Playwright smoke
 (placeholder Supabase creds) and `e2e-seeded`, which boots a full local
@@ -260,7 +271,8 @@ bun run generate:ts-sql-contract && bun run db:test  # job pgtap (needs a runnin
 bun run check:pg-harness && bun run check:careers-harness  # job pg-harness (needs PostgreSQL 16)
 bun run check:events-harness && bun run check:tenant-isolation  # job pg-harness, continued
 bun run test:e2e         # E2E job e2e: Playwright smoke (CI runs it on placeholder Supabase creds)
-bun run check:bundle     # gzipped bundle budget - main-only in CI, run it when touching deps or entries
+bun run check:bundle     # job build: gzipped bundle budget (after `bun run build`)
+bun run check:entry-purity && bun run check:server-entry-purity  # job build: boot paths free of eager SDKs
 bun run test:coverage    # coverage report - informative, not a CI gate
 ```
 
@@ -279,26 +291,31 @@ CI's verdict on a PR is `Required release checks` (jobs `verify`,
 lists as required (§13.2). The commands above map onto those jobs, but they run
 on your machine rather than on a clean runner with pinned tool versions, and
 `verify:static` is derived from `package.json`, not from the `verify` job's step
-list - so they give fast feedback, not the verdict. The performance budgets
-(`check:bundle`, `check:entry-purity`, `check:server-entry-purity`) run only on
-`main` and on manual runs, so they turn red only after merge.
+list - so they give fast feedback, not the verdict.
 
 ### Bundle budget: public vs overall
 
-`check:bundle` (`scripts/check-bundle-size.ts`) splits the gzipped client JS into
-three budgets rather than one blunt total, because "total app JS" conflates two
-different costs:
+`check:bundle` (`scripts/check-bundle-size.ts`) gzips every client JS and CSS
+asset and checks six budgets rather than one blunt total, because "total app JS"
+conflates costs paid by different people at different moments. The thresholds
+are frozen in `FROZEN_BUDGET_KB` (CI ignores environment overrides, so raising
+one takes a reviewed commit with its cause in the script's log):
 
-- **PUBLIC** (≤ 1000 KB; ~930 KB today) - every chunk a public visitor can ever
-  download (first load + in-session navigation). This is the perf-meaningful
-  budget: what real readers pay for.
-- **OVERALL** (≤ 1300 KB; ~1200 KB today) - every chunk, _including_ admin/editor
-  -only code (visual builder, block editor, theme panes, `/admin` routes, builder
+- **PUBLIC** (≤ 2881 KB) - every chunk a public visitor can ever download (first
+  load + in-session navigation). This is the perf-meaningful budget: what real
+  readers pay for.
+- **OVERALL** (≤ 5386 KB) - every chunk, _including_ admin/editor-only code
+  (visual builder, block editor, theme panes, `/admin` routes, builder
   drag-and-drop). A coarser backstop so the CMS surface can't balloon unnoticed,
   even though it is code-split behind the auth-gated `/admin` routes and is never
   reachable from a public URL.
-- **CHUNK** (≤ 250 KB; ~181 KB today, the client entry) - largest single chunk,
-  to catch a lost code-split or a giant dependency in one file.
+- **CHUNK** (≤ 286 KB) - largest single chunk, to catch a lost code-split or a
+  giant dependency in one file.
+- **CSS** (≤ 101 KB) and **public CSS** (≤ 85 KB) - the stylesheets; the root
+  sheet is render-blocking on every URL.
+- **BOOT** (≤ 579 KB) - the static closure of the boot path (the module scripts
+  SSR injects plus everything statically reachable from them): what a reader
+  pays in full before hydration starts.
 
 Admin-only chunks are identified by emitted basename (`admin.*`, `Builder-`,
 `PostBlockEditor`, `ThemeOptionsPane`, `AdminShell`, `sidebar`, `vendor-dnd`) and
@@ -1149,13 +1166,19 @@ Czyszczenie po terminie: `purge_expired_accounting_evidence()` w pg_cron
 (statyczna, parametryzowana po obu tabelach) +
 `supabase/tests/accounting_retention_test.sql`.
 
-### 13.2 Ochrona gałęzi `main` (rekomendacja operacyjna)
+### 13.2 Ochrona gałęzi `main`
 
-Bramki CI (w tym `check:sql-anon-insert`) blokują PR-y, ale commit pchnięty
-**prosto na main** weryfikują dopiero post-hoc - czerwony main zamiast
-odrzuconego pusha. Domknięcie wymaga ustawienia po stronie GitHuba (nie da się
-tego zwersjonować w repo): Settings -> Branches -> Branch protection rule dla
-`main` z "Require a pull request before merging" oraz "Require status checks
-to pass" (checki `Required release checks`, `e2e` i `e2e-seeded`; gotowy payload
-rulesetu: `governance/release/main-ruleset.json`). Do czasu włączenia reguły
-gwarancją pozostaje dyscyplina PR-owa + post-hoc run CI na push do main.
+Bramki CI (w tym `check:sql-anon-insert`) blokują scalenie PR-a dopiero wtedy,
+gdy ruleset niżej jest nałożony, a commit pchnięty **prosto na main** weryfikuje
+tylko przebieg CI po fakcie - czerwony main zamiast odrzuconego pusha. Ruleset `main-release-quality`
+(`governance/release/main-ruleset.json`: PR oraz wymagane checki
+`Required release checks`, `e2e` i `e2e-seeded`) nakłada
+`bun run governance:apply-ruleset` z tokenem administratora - nie import
+w ustawieniach. `check:main-ruleset` (job `verify`) pilnuje, że plik da się
+nałożyć bez zatrzymania kanału Lovable, a `release-governance.yml` codziennie
+sprawdza, czy GitHub go stosuje. Obejście dla aplikacji Lovable znaczy, że push
+bota na `main` nadal nie przechodzi przez wymagane statusy - tę granicę i jej
+domknięcie opisuje `governance/release/README.md`. Dopóki administrator nie
+nałoży pliku (czerwony `release-governance.yml`), GitHub niczego na `main` nie
+wymaga: PR z czerwonym CI da się scalić, a gwarancją pozostaje dyscyplina
+PR-owa i przebieg CI każdego commita `main`.
