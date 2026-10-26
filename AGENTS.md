@@ -1,6 +1,7 @@
 # Architecture rules
 
 - Keep concise measurement form labels separate from the versioned full consent shown at mailbox confirmation; presentation edits must not rewrite historical consent evidence or change activation rules.
+- Keep signup/newsletter payloads free of measurement declarations when no explicit measurement choice is offered; account measurement information must not masquerade as a generic personalization toggle, because mailbox-confirmed measurement has its own evidence path.
 
 - Keep streamed-boundary visibility recovery in the shared head script; drain React's shared queue when a queued frame is suspended so later frames cannot duplicate content.
 

@@ -19,11 +19,6 @@ import {
   newsletterConsentHtml,
   newsletterConsentPlain,
 } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 
 const h = vi.hoisted(() => ({ submit: vi.fn() }));
 
@@ -148,37 +143,9 @@ describe("contact-form: zgoda na newsletter z jednego źródła", () => {
 });
 
 describe("contact-form: osobne pole zgody na pomiar (I9d-Y2b)", () => {
-  it("pole stoi pod newsletterem w tej samej geometrii, niezaznaczone i wyłączone bez newslettera", () => {
-    renderForm({});
-    const box = measurementBox();
-    expect(box).not.toBeNull();
-    expect(box).toHaveAttribute("aria-checked", "false");
-    expect(box).toBeDisabled();
-    const row = box?.closest("label");
-    expect(row?.textContent).toBe(measurementConsentSummaryPlain("pl"));
-    // Ta sama klasa wiersza co pole newslettera (rozmiar `consentSize`
-    // i znacznik edycji z `.cf-consent`).
-    expect(row?.classList.contains("cf-consent")).toBe(true);
-    expect(
-      newsletterBox().compareDocumentPosition(box as HTMLElement) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("odznaczenie newslettera czyści i wyłącza pole pomiaru", () => {
-    renderForm({});
-    fireEvent.click(newsletterBox());
-    expect(measurementBox()).not.toBeDisabled();
-    fireEvent.click(measurementBox() as HTMLElement);
-    expect(measurementBox()).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(newsletterBox());
-    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
-    expect(measurementBox()).toBeDisabled();
-  });
-
   it("zaznaczone pole dokłada deklarację z wersją z rejestru", async () => {
     const { field } = renderForm({});
-    fillAndSend(field, { measurement: true });
+    fillAndSend(field);
     await waitFor(() => expect(h.submit).toHaveBeenCalledTimes(1));
     expect(sentConsents()).toEqual([
       {
@@ -187,13 +154,6 @@ describe("contact-form: osobne pole zgody na pomiar (I9d-Y2b)", () => {
         given: true,
         lang: "pl",
         version: NEWSLETTER_CONSENT_VERSION,
-      },
-      {
-        key: "email_measurement_declared",
-        text: measurementConsentHtml("pl"),
-        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
-        given: true,
-        lang: "pl",
       },
     ]);
     expect(
@@ -228,7 +188,8 @@ describe("contact-form: osobne pole zgody na pomiar (I9d-Y2b)", () => {
       try {
         renderForm({});
         fireEvent.click(newsletterBox());
-        const row = measurementBox()?.closest("label") as HTMLElement;
+        const row = newsletterBox().closest("label");
+        if (!row) throw new Error("Missing newsletter consent");
         const violations = await axeViolations(row);
         expect(violations, summarize(violations)).toEqual([]);
       } finally {

@@ -1,5 +1,22 @@
 # Roadmap
 
+## Formularze bez pola pomiaru i naprawa wydania (2026-10-26)
+
+- [x] Usunięto pole i deklarację pomiaru z NewsletterForm, PopupSignupForm, JoinUsForm, ContactFormView, AuthFormBlocks, ClubAccessGate i NewsletterDocRenderer PL/EN. Newsletter i prywatność zachowane; brak automatycznego opt-in pomiaru, newsletter podczas tworzenia konta pozostaje opcjonalny i niezaznaczony.
+- [x] Wskazana etykieta PL/EN widoczna jako osobna informacja w ConsentsPanel. Testy: 484 przechodzi, 1 oczekiwany błąd; dodatkowo testy newsletter popup/widgets przechodzą, lint bez błędów, build OK. Przeglądarka: EN brak pola pomiaru i błędów JS; klik Sign up nie odsłonił formularza, więc pełnego przebiegu rejestracji w przeglądarce nie potwierdzono (formularze sprawdzone testami).
+- [x] Skrócono skrypt odsłaniania SSR przez lokalne aliasy i funkcje strzałkowe bez zmiany kolejki Reacta; dziewięć testów, w tym ukrycie karty i brak podwójnego odsłonięcia, przechodzi.
+- [ ] Potwierdzić usunięcie wszystkich przekroczeń budżetów i wdrożyć 0405: wymaga zielonego Required release checks na aktualnym commicie, przeglądanego PR zgodnie z runbookiem i wyników artefaktu z CI. Nie podnoszono progów, nie zmieniono bramek ani bazy; skrócenie jednego skryptu nie dowodzi naprawy wszystkich trzech ograniczeń (overall, headRawBytes, bootBurstCount).
+- [ ] Działający osobisty przełącznik pomiaru: brak istniejącej ścieżki self-service powiązanej z potwierdzonym adresem i tenantem; wymaga przeglądanej migracji i potwierdzenia skrzynki, nie wolno zastąpić go ogólną zgodą personalization ani RPC admina. Obecny panel pokazuje opis i sposób wycofania z wiadomości, bez pozornego przełącznika.
+
+## Weryfikacja poprawki klubów / PR #538 (2026-10-26)
+
+- [x] PR #538: merge e40b45c93 i wszystkie trzy commity df6a90507, a7d46fe19, 5ae5fa408 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi. Brak nowych tabel/widoków; jedna nowa funkcja i dwie podmieniane.
+- [x] Odczyt żywej bazy: 381 tabel (wszystkie RLS), 15 widoków, 1846 sygnatur funkcji. Kontrakt: 1922 obiekty, jedyny brak club_post_media_normalize; 775 kolumn, zero nowych braków, pięć historycznych różnic. club_post_create i club_media_path_readable mają stare ciała; predykat nadal dostępny dla anon. Polityka club-media i FK author_id ON DELETE SET NULL istnieją. Rejestr 452/452 historycznych migracji, sześć luster, jedyne niewdrożone 0405. Kontrola pending: kotwica 0404 zastosowana, wyłącznie 0405 oczekuje.
+- [x] 219 testów lokalnych przechodzi; bramki pasów, RPC i TS-SQL przechodzą, build podglądu OK. GitHub na merge: pgTAP, pg-harness, wszystkie shardy, verify, e2e i e2e-seeded sukces. Lokalny harness SQL niedostępny (brak serwera PostgreSQL). Brak produkcyjnych wpisów z plikami; nie usuwano kont ani nie dodawano danych. Próba przeglądarkowa klubu HTTP 200 bez błędów JS, ale ekran odmawia dostępu i chrome pozostaje signed-out mimo próby odtworzenia sesji - nie jest dowodem zalogowanego przepływu.
+- [ ] Wdrożyć 0405 i potwierdzić nowe ciała/granty: BLOKADA - Required release checks na e40b45c93 czerwone (build: check:bundle, first-visit: check:document-weight). Runbook §4.1 wymaga zielonego wydania; nie wywołano migratora, nie zmieniono bazy ani bramek. Wymagany przeglądany PR naprawiający przyczynę przekroczenia budżetów, bez podnoszenia progów.
+- [ ] Automatyczna weryfikacja produkcyjnej bazy w GitHub: BLOKADA - job post-deploy zielony tylko dlatego, że pomija kontrolę przy braku zmiennych repozytorium SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY (nie sekretów); wymaga konfiguracji zgodnej z runbook §4.8.
+- [ ] Potwierdzić działanie odczytu załącznika konta usuniętego w realnym klubie oraz publikację: BLOKADA - niewdrożone 0405 i brak kontrolowanej fikstury z załącznikiem/kontem do usunięcia; testów destrukcyjnych na klientach nie wykonywać. Publikacji nie zlecono podczas blokady wydania.
+
 ## Etykieta zgody na pomiar - treść właściciela (2026-10-24)
 
 - [x] Widoczna etykieta pola to jedno zdanie: „Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową." EN: „Consent to measuring interactions on our platform, to improve the quality of personalized services and tailor marketing communications." Skrót nie niesie już linku „szczegóły" - odnośnik do polityki komunikacji zostaje w pełnej treści na stronie potwierdzenia. Przedmiot zgody nadal niesie aria-label pola. Pełna wersjonowana treść dowodowa, wersja i rejestr zgód bez zmian.
