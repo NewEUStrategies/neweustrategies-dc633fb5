@@ -131,8 +131,8 @@ sitemap routes would fail closed for this host (a robots.txt pointing a crawler
 at a 404 is a ready-made Search Console error).
 
 **Deployment invariant.** The Cloudflare deploy binds `.output/public/` as
-`assets`, and the Asset Worker answers _before_ our worker. A committed
-`public/robots.txt` therefore disabled this whole route in production while
+`assets`, and the Asset Worker answers _before_ our worker. A `robots.txt`
+committed to `public/` therefore disabled this whole route in production while
 every test stayed green (the dev server has no asset layer in front of the
 router) - the audit of 2026-08-06 found production serving static `Allow: /` to
 every host, hosting aliases included. Two barriers now prevent a recurrence:

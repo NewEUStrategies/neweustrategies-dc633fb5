@@ -16,18 +16,23 @@ tabel, a `.github/CODEOWNERS` generuje z niego `bun run generate:codeowners`.
 
 ## 1. Mapa plików
 
-| Plik                                     | Rola                                                                 |
-| ---------------------------------------- | -------------------------------------------------------------------- |
-| `governance/ownership.json`              | **Rejestr** - jedyne źródło prawdy. To tu się edytuje                |
-| `governance/README.md`                   | Ten plik. Jego brak przewraca bramkę                                 |
-| `src/lib/ci/ownership.ts`                | Inwariant: parsowanie, atrybucja, raport. Warstwa czysta, bez IO     |
-| `src/lib/ci/__tests__/ownership.test.ts` | 65 testów inwariantu                                                 |
-| `scripts/check-ownership.ts`             | Cienki runner - odczyt katalogów i kod wyjścia                       |
-| `scripts/generate-codeowners.ts`         | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt)        |
-| `.github/CODEOWNERS`                     | **Plik generowany.** Nie edytuj ręcznie                              |
-| `docs/UMOWA_UTRZYMANIOWA.md`             | Poziom usługi (SLA/OLA) dla zakresu z rejestru                       |
-| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md`     | Co zrobić, gdy wykonawca przestaje odpowiadać                        |
-| `.github/workflows/ci.yml`               | Kroki „Własnicielstwo…" i „CODEOWNERS zgodny…" w bloku tanich bramek |
+| Plik                                 | Rola                                                          |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `governance/ownership.json`          | **Rejestr** - jedyne źródło prawdy. To tu się edytuje         |
+| `governance/README.md`               | Ten plik                                                      |
+| `src/lib/ci/ownership.ts`            | Parser i walidator rejestru, atrybucja, generator CODEOWNERS  |
+| `scripts/generate-codeowners.ts`     | Generator `.github/CODEOWNERS` (+ tryb `--check` bajt w bajt) |
+| `.github/CODEOWNERS`                 | **Plik generowany.** Nie edytuj ręcznie                       |
+| `docs/UMOWA_UTRZYMANIOWA.md`         | Poziom usługi (SLA/OLA) dla zakresu z rejestru                |
+| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md` | Co zrobić, gdy wykonawca przestaje odpowiadać                 |
+
+Bramkę pokrycia (runner `check:ownership`, jego 65 testów i kroki w `ci.yml`)
+usunięto 2026-10-05 w c3f0c0e72. Dziś nic nie sprawdza automatycznie, że rejestr
+pokrywa 100% tras i migracji: komunikaty „TRASY BEZ WŁAŚCICIELA" i „MARTWE
+REGUŁY" z §3 opisują warunki, które sprawdza przegląd PR-a. Maszynowo zostało
+`bun run scripts/generate-codeowners.ts --check` - rejestr musi się sparsować
+(walidator odrzuca m.in. pustą domenę, zdublowany slug i wpis przekrojowy bez
+domeny), a `.github/CODEOWNERS` musi być z nim zgodny bajt w bajt.
 
 ---
 

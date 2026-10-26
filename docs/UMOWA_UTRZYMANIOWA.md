@@ -21,19 +21,21 @@ zakresu i specyfikację poziomu usługi. To jest ta druga część.
 
 ### 1.1 Podział ról między dokumentami
 
-| Artefakt                             | Odpowiada na pytanie                        | Egzekwowany przez             |
-| ------------------------------------ | ------------------------------------------- | ----------------------------- |
-| `governance/ownership.json`          | CO jest utrzymywane i KTO jest właścicielem | `bun run check:ownership`     |
-| `governance/README.md`               | JAK edytować rejestr                        | `check:ownership` (istnienie) |
-| `docs/UMOWA_UTRZYMANIOWA.md` (ten)   | NA JAKIM POZIOMIE jest utrzymywane          | `check:ownership` (istnienie) |
-| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md` | CO ZROBIĆ, gdy wykonawca zniknie            | `check:ownership` (istnienie) |
-| `docs/RUNBOOK_COMMUNITY.md`          | JAK diagnozować doręczenia i harmonogram    | -                             |
+| Artefakt                             | Odpowiada na pytanie                        | Egzekwowany przez                                                                                |
+| ------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `governance/ownership.json`          | CO jest utrzymywane i KTO jest właścicielem | przegląd PR-a; składnię i zgodność CODEOWNERS - `bun run scripts/generate-codeowners.ts --check` |
+| `governance/README.md`               | JAK edytować rejestr                        | -                                                                                                |
+| `docs/UMOWA_UTRZYMANIOWA.md` (ten)   | NA JAKIM POZIOMIE jest utrzymywane          | odwołania do poleceń i plików - `src/lib/ci/__tests__/docReferences.test.ts`                     |
+| `docs/RUNBOOK_CIAGLOSC_WYKONAWCY.md` | CO ZROBIĆ, gdy wykonawca zniknie            | jw.                                                                                              |
+| `docs/RUNBOOK_COMMUNITY.md`          | JAK diagnozować doręczenia i harmonogram    | -                                                                                                |
 
 **Rejestr `governance/ownership.json` jest JEDYNYM źródłem prawdy o zakresie.**
 Ten dokument nie powiela listy tras ani migracji - powielona lista
 zdezaktualizowałaby się przy pierwszej nowej trasie
-(`src/lib/ci/ownership.ts:20-24`). Liczby w sekcji 3 to zrzut z
-`bun run check:ownership` z 2026-08-29; wiążący jest przebieg bramki.
+(`src/lib/ci/ownership.ts:20-24`). Liczby w sekcji 3 to zrzut z bramki pokrycia
+`check:ownership` z 2026-08-29. Bramkę usunięto 2026-10-05 (c3f0c0e72) - od tej
+daty pokrycia rejestru nie mierzy żadne narzędzie, więc zrzut starzeje się z każdą
+nową trasą i migracją; aktualność rejestru pilnuje przegląd PR-a.
 
 ### 1.2 Czego ten dokument NIE obejmuje
 
@@ -60,23 +62,24 @@ materiału dowodowego. Wszystkie osoby fizyczne są tu **DO UZUPEŁNIENIA**
 
 ### 2.2 Role techniczne
 
-| Rola                         | Klucz w rejestrze       | Zakres odpowiedzialności                                                                                                                                            |
-| ---------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Właściciel techniczny domeny | `domeny[].wlasciciel`   | Przyjmuje zgłoszenia domeny, decyduje o obejściu i naprawie, zatwierdza PR-y domeny                                                                                 |
-| Zastępca                     | `domeny[].zastepca`     | Przejmuje przy nieobecności właściciela. **Nie może być tą samą osobą** - bramka odrzuca `właściciel = zastępca` jako zerowy bus factor (`src/lib/ci/ownership.ts`) |
-| Eskalacja                    | `domeny[].eskalacja`    | `organizacja-nes` - Zamawiający; wchodzi przy przekroczeniu czasu naprawy albo sporze o priorytet                                                                   |
-| Zespół GitHub                | `domeny[].zespolGithub` | `@NewEUStrategies/utrzymanie-<slug>` - adresat CODEOWNERS, dziś **nieistniejący**                                                                                   |
+| Rola                         | Klucz w rejestrze       | Zakres odpowiedzialności                                                                                                                                                                                                        |
+| ---------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Właściciel techniczny domeny | `domeny[].wlasciciel`   | Przyjmuje zgłoszenia domeny, decyduje o obejściu i naprawie, zatwierdza PR-y domeny                                                                                                                                             |
+| Zastępca                     | `domeny[].zastepca`     | Przejmuje przy nieobecności właściciela. **Nie może być tą samą osobą** - `właściciel = zastępca` to zerowy bus factor (warunek `ownerEqualsDeputy` w `src/lib/ci/ownership.ts`; od 2026-10-05 pilnuje go przegląd, nie bramka) |
+| Eskalacja                    | `domeny[].eskalacja`    | `organizacja-nes` - Zamawiający; wchodzi przy przekroczeniu czasu naprawy albo sporze o priorytet                                                                                                                               |
+| Zespół GitHub                | `domeny[].zespolGithub` | `@NewEUStrategies/utrzymanie-<slug>` - adresat CODEOWNERS, dziś **nieistniejący**                                                                                                                                               |
 
-### 2.3 STAN NA DZIŚ: 9 Z 9 DOMEN BEZ WŁAŚCICIELA
+### 2.3 Stan obsadzenia ról
 
-`bun run check:ownership` (2026-08-29) ostrzega: „9 z 9 domen nadal bez
-obsadzonego właściciela technicznego (w progu, więc bramka przechodzi)". Każda
-wskazuje na `wt-nieobsadzony` / `zastepca-nieobsadzony` (`obsadzone: false`,
-`kontakt: null`). **TO JEST PIERWSZY PUNKT DO ZAMKNIĘCIA i warunek, żeby czasy
-z sekcji 4 znaczyły cokolwiek** - dziś ten dokument opisuje poziom usługi,
-którego nikt nie jest zobowiązany świadczyć.
+2026-08-29 bramka `check:ownership` ostrzegała: „9 z 9 domen nadal bez
+obsadzonego właściciela technicznego". Od 2026-09-12 (`meta.obowiazujeOd`
+w rejestrze) każda z 9 domen wskazuje właściciela `fundacja-utrzymanie`
+i zastępcę `fundacja-zastepstwo` (`obsadzone: true`), a próg
+`progi.domenyBezWlasciciela` spadł do **0**. To dwie role instytucjonalne
+Fundacji kierowane na jedno konto organizacji - **nie dwie niezależne osoby**
+(`governance/README.md`, §7); bus factor osobowy pozostaje otwarty (sekcja 9).
 
-Próg `progi.domenyBezWlasciciela = 9` jest **zapadką**: wolno go WYŁĄCZNIE
+Próg `progi.domenyBezWlasciciela` jest **zapadką**: wolno go WYŁĄCZNIE
 obniżać, a spada przy każdym realnym obsadzeniu roli. Generator
 `bun run generate:codeowners` celowo wypisuje reguły **ZAKOMENTOWANE**, dopóki
 właściciele nie są obsadzeni - `CODEOWNERS` wskazujący na nieistniejący zespół
@@ -84,7 +87,8 @@ GitHub jest gorszy niż jego brak, bo wygląda jak działający mechanizm.
 
 ## 3. Przedmiot utrzymania - 9 domen
 
-Zrzut z `bun run check:ownership`, 2026-08-29: **193** trasy, **918** migracji.
+Zrzut z bramki `check:ownership` (usuniętej 2026-10-05), 2026-08-29: **193** trasy,
+**918** migracji.
 Nakładki rozstrzyga pierwsza pasująca domena w rejestrze (dziś 2 takie trasy).
 
 | #   | Domena                    | Zakres (skrót z rejestru)                                                                                | Trasy | Migracje | SLA     |
@@ -112,7 +116,7 @@ pierwszego przeglądu kwartalnego (sekcja 9).
 
 | Klasa  | Definicja wpływu                                                                                         | Przykłady zmierzone w tym repozytorium                                                                                                                                                                                                                                                                                                                                                                      |
 | ------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P1** | Utrata przychodu, utrata danych, niedostępność produkcji albo naruszenie granicy tenanta. Brak obejścia. | Checkout / płatności nie działają (`src/lib/stripe.server.ts:14` - gateway Stripe); panel `/admin` zwraca 5xx albo nie da się zalogować; wyciek danych między tenantami (klasa błędu, którą pilnuje `check:sql-tenant-scope`, `ci.yml:131`); baza produkcyjna niedostępna                                                                                                                                   |
+| **P1** | Utrata przychodu, utrata danych, niedostępność produkcji albo naruszenie granicy tenanta. Brak obejścia. | Checkout / płatności nie działają (`src/lib/stripe.server.ts:14` - gateway Stripe); panel `/admin` zwraca 5xx albo nie da się zalogować; wyciek danych między tenantami (klasa błędu, którą pilnuje `check:sql-tenant-scope` - krok „SQL tenant-scope invariant" joba `verify` w `.github/workflows/ci.yml`); baza produkcyjna niedostępna                                                                  |
 | **P2** | Kluczowa funkcja nie działa, obejście istnieje lub jest kosztowne.                                       | Newsletter nie wychodzi - `LOVABLE_API_KEY`/`RESEND_API_KEY` nieważne, cała poczta spada na dostawcę zapasowego bez identyfikatora wiadomości (`.env.example:45-51`); `GET /api/public/community-cron` zwraca **503** (zastój harmonogramu, `docs/RUNBOOK_COMMUNITY.md:40`); kolejka `notification_push_queue` rośnie w `pending`; nocna sonda rozliczeń czerwona (`.github/workflows/billing-nightly.yml`) |
 | **P3** | Funkcja działa błędnie na wąskiej powierzchni, obejście proste.                                          | Pojedynczy ekran admina rzuca błąd; wskaźnik otwarć newslettera > 100% przy dwóch źródłach zaangażowania naraz (`.env.example:67-79`, `NEWSLETTER_ENGAGEMENT_SOURCE`); brak `RESEND_WEBHOOK_SECRET` - lista wykluczeń nie rośnie (`.env.example:57-64`)                                                                                                                                                     |
 | **P4** | Kosmetyka, dług techniczny, pytanie, wniosek o dane.                                                     | Literówka w tłumaczeniu; przegląd 221 słabych atrybucji migracji; uzupełnienie `.env.example` o 14 nieudokumentowanych zmiennych produkcyjnych                                                                                                                                                                                                                                                              |
@@ -157,15 +161,15 @@ w domenie `sla-3`.
 
 ### 5.1 Co realnie istnieje DZIŚ
 
-| Kanał                                                      | Stan             | Dowód                                                                                                                                                                            |
-| ---------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub Issues w `NewEUStrategies/neweustrategies-dc633fb5` | działa           | repozytorium organizacji; **bez szablonu zgłoszenia** - `.github/` zawiera wyłącznie 5 plików workflow                                                                           |
-| `office@neweuropeanstrategies.com`                         | działa           | `git shortlog` - autor commitów                                                                                                                                                  |
-| `marketing@neweuropeanstrategies.com`                      | działa           | `.env.example:90` (`VAPID_SUBJECT`)                                                                                                                                              |
-| `GET /api/public/community-cron`                           | działa           | `docs/RUNBOOK_COMMUNITY.md:40` - `200` = OK, **`503` = zastój**; nagłówek `x-community-cron-secret`                                                                              |
-| Panel `/admin/community/notifications`                     | działa           | RPC `job_scheduler_health()`, `docs/RUNBOOK_COMMUNITY.md:107-114` - świeżość, stan ścieżek, głębokość kolejki push, brakujące env                                                |
-| `.github/workflows/billing-nightly.yml`                    | działa           | nocna sonda odnowienia/dunningu; wyłącznik jawny `vars.BILLING_PROBE_DISABLED`                                                                                                   |
-| `.github/workflows/scheduler.yml`                          | działa warunkowo | siatka bezpieczeństwa co 5 min; **GitHub wyłącza zaplanowane workflow po 60 dniach bez aktywności w repo** (`scheduler.yml:25-27`) - dokładnie w scenariuszu przestoju wykonawcy |
+| Kanał                                                      | Stan                  | Dowód                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GitHub Issues w `NewEUStrategies/neweustrategies-dc633fb5` | działa                | repozytorium organizacji; **bez szablonu zgłoszenia** - `.github/` zawiera wyłącznie 5 plików workflow                                                                                                                                                                                                                                                                                                                   |
+| `office@neweuropeanstrategies.com`                         | działa                | `git shortlog` - autor commitów                                                                                                                                                                                                                                                                                                                                                                                          |
+| `marketing@neweuropeanstrategies.com`                      | działa                | `.env.example:90` (`VAPID_SUBJECT`)                                                                                                                                                                                                                                                                                                                                                                                      |
+| `GET /api/public/community-cron`                           | działa                | `docs/RUNBOOK_COMMUNITY.md:40` - `200` = OK, **`503` = zastój**; nagłówek `x-community-cron-secret`                                                                                                                                                                                                                                                                                                                      |
+| Panel `/admin/community/notifications`                     | działa                | RPC `job_scheduler_health()`, `docs/RUNBOOK_COMMUNITY.md:107-114` - świeżość, stan ścieżek, głębokość kolejki push, brakujące env                                                                                                                                                                                                                                                                                        |
+| `.github/workflows/billing-nightly.yml`                    | **nieskonfigurowana** | nocna sonda odnowienia/dunningu; czerwona codziennie co najmniej od 2026-09-17 - brak sekretów `STRIPE_SANDBOX_API_KEY` i `LOVABLE_API_KEY` (krok „Sprawdź konfigurację sondy" wypisuje komplet braków); wyłącznik jawny `vars.BILLING_PROBE_DISABLED`                                                                                                                                                                   |
+| `.github/workflows/scheduler.yml`                          | **nieskonfigurowany** | siatka bezpieczeństwa best-effort: wpis co 5 min, a GitHub wykonuje około 10 przebiegów na dobę (pomiar 2026-10-17); bez `APP_BASE_URL` i sekretów ticki są pomijane, a krok „Audyt drugiej linii doręczeń" jest czerwony raz na dobę do konfiguracji albo decyzji `vars.SCHEDULER_BACKUP=off`; **GitHub wyłącza zaplanowane workflow po 60 dniach bez aktywności w repo** - dokładnie w scenariuszu przestoju wykonawcy |
 
 ### 5.2 Czego NIE MA i co trzeba uruchomić
 
@@ -216,22 +220,23 @@ wdrożenia - w repo jest **0 kroków wdrożenia**); zmiana projektu Supabase (re
 Sprawne = **wszystkie poniższe komendy kończą się kodem 0 na gałęzi `main`** -
 definicja wykonywalna, nie opisowa.
 
-| Komenda                               | `package.json` | Co gwarantuje                                                                                        |
-| ------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------- |
-| `bun run verify:static`               | l. 21          | Wszystkie bramki `check:*` z `package.json` - lista wyprowadzana z manifestu, więc nie rozjeżdża się |
-| `bun run verify:blocking`             | l. 22          | `verify:static` + `typecheck` + `lint` + `test`                                                      |
-| `bun run check:gate-coverage`         | l. 53          | Każda bramka `check:*` JEST wpięta w workflow i nie jedzie dwa razy (`ci.yml:106`)                   |
-| `bun run check:sql-migration-replay`  | l. 48          | `supabase db start` na świeżej bazie dobiegnie do końca przez wszystkie 918 migracji (`ci.yml:123`)  |
-| `bun run check:ownership`             | l. 54          | 100% pokrycia tras i migracji rejestrem; dokumenty utrzymaniowe istnieją; umowa nie wygasła          |
-| `bun run check:workflow-env-contract` | l. 47          | Każda zmienna eksportowana w `env:` workflow ma odbiorcę w kodzie                                    |
+| Komenda                                          | `package.json` | Co gwarantuje                                                                                                                                                                                                                       |
+| ------------------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run verify:static`                          | l. 23          | Wszystkie bramki `check:*` z `package.json` - lista wyprowadzana z manifestu, więc nie rozjeżdża się                                                                                                                                |
+| `bun run verify:blocking`                        | l. 24          | `verify:static` + `typecheck` + `lint` + `test`; w `test` m.in. kontrakt env skryptów workflow (`src/lib/ci/__tests__/workflowOperationalConfig.test.ts`) i odwołania tego dokumentu (`src/lib/ci/__tests__/docReferences.test.ts`) |
+| `bun run check:sql-migration-replay`             | l. 55          | `supabase db start` na świeżej bazie dobiegnie do końca przez wszystkie migracje (krok „SQL migration replay safety" joba `verify`)                                                                                                 |
+| `bun run scripts/generate-codeowners.ts --check` | l. 62          | Rejestr `governance/ownership.json` się parsuje, a `.github/CODEOWNERS` jest z nim zgodny bajt w bajt. **Pokrycia tras i migracji NIE sprawdza** - patrz niżej                                                                      |
 
-`check:gate-coverage` jest **bramką meta**: gdy `check:ownership` nie jest
-wpięty w `.github/workflows/ci.yml`, świeci na czerwono i wypisuje jego nazwę.
-Repo ma udokumentowaną historię bramek istniejących i nieuruchamianych
-(`ci.yml:95-104`) oraz zielonych przebiegów bez ani jednego żądania - nocna
-sonda rozliczeń eksportowała inną nazwę sekretu, niż czytała, i spała 40 minut
-na zielono (`billing-nightly.yml:9-29`). **ZIELONA BRAMKA, KTÓREJ NIKT NIE
-URUCHAMIA, JEST DOKUMENTACJĄ INTENCJI, NIE BRAMKĄ.**
+2026-10-05 (c3f0c0e72) z `package.json` i CI usunięto bramki `check:gate-coverage`
+(każda `check:*` wpięta w workflow), `check:ownership` (100% pokrycia rejestrem,
+istnienie dokumentów, ważność umowy) i `check:workflow-env-contract` (każda
+zmienna `env:` workflow ma odbiorcę). Ich zakres nie ma dziś narzędzia poza
+kontraktem env skryptów nocnej sondy i schedulera (test wyżej) - przywrócenie
+to decyzja Zamawiającego. Repo ma udokumentowaną historię zielonych przebiegów
+bez ani jednego żądania - nocna sonda rozliczeń eksportowała inną nazwę
+sekretu, niż czytała, i spała 40 minut na zielono (nagłówek
+`.github/workflows/billing-nightly.yml`, „HISTORIA TEGO PLIKU"). **ZIELONA
+BRAMKA, KTÓREJ NIKT NIE URUCHAMIA, JEST DOKUMENTACJĄ INTENCJI, NIE BRAMKĄ.**
 
 ## 7. Utrzymanie zależności i bezpieczeństwo
 
@@ -284,13 +289,13 @@ w ogóle włączony.
 
 ### 8.2 Co repozytorium odtwarza, a czego nie
 
-| Odtwarza                                                                              | NIE odtwarza                                                                                                                 |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **SCHEMAT** - `supabase db start` przez wszystkie **918 migracji** (`ci.yml:526-527`) | Dane produkcyjne: treści, użytkownicy, zamówienia, CRM, darowizny                                                            |
-| Dane deweloperskie z `supabase/seed.sql` (440 linii)                                  | Zawartość 7 bucketów Storage (`media`, `cv`, `career-cv`, `chat-attachments`, `club-media`, `member-resources`, `tts-cache`) |
-| 99 plików testów pgTAP (`supabase test db`)                                           | Sekrety z Supabase Vault (18 × `vault.create_secret`)                                                                        |
+| Odtwarza                                                                                              | NIE odtwarza                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **SCHEMAT** - `supabase db start` przez wszystkie migracje (job `pgtap` w `.github/workflows/ci.yml`) | Dane produkcyjne: treści, użytkownicy, zamówienia, CRM, darowizny                                                            |
+| Dane deweloperskie z `supabase/seed.sql` (440 linii)                                                  | Zawartość 7 bucketów Storage (`media`, `cv`, `career-cv`, `chat-attachments`, `club-media`, `member-resources`, `tts-cache`) |
+| 99 plików testów pgTAP (`supabase test db`)                                                           | Sekrety z Supabase Vault (18 × `vault.create_secret`)                                                                        |
 
-`ci.yml:120` dodaje: przy spłaszczonej historii commitów (275 commitów w 3 dniach
+Przy spłaszczonej historii commitów (pomiar 2026-08-29: 275 commitów w 3 dniach
 kalendarzowych) rejestr migracji jest **jedynym narzędziem datowania regresji**.
 
 ### 8.3 Zobowiązanie do ustanowienia - PROPOZYCJA DO ZATWIERDZENIA
@@ -321,22 +326,24 @@ ryzykiem po stronie Zamawiającego.
 Przegląd **raz na kwartał**: prowadzi Wykonawca, uczestniczy eskalacja
 (`organizacja-nes`), raport pisemny na 5 dni roboczych przed spotkaniem.
 
-| Pozycja raportu                                                                          | Źródło liczby                                      |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Liczba zgłoszeń w kwartale w podziale na P1-P4 i domeny                                  | rejestr zgłoszeń Wykonawcy                         |
-| Dotrzymanie czasów: reakcja / obejście / naprawa, % i przekroczenia                      | rejestr zgłoszeń + tabela 4.4                      |
-| Liczba tras i migracji objętych rejestrem                                                | `bun run check:ownership` (dziś 193 / 918)         |
-| Rozkład tras i migracji per domena                                                       | `bun run check:ownership`                          |
-| **Liczba domen bez obsadzonego właściciela**                                             | `bun run check:ownership` (dziś **9 z 9**)         |
-| Stan progów: `domenyBezWlasciciela`, `migracjeBezAtrybucjiDozwolone`, `martweWzorceTras` | `bun run check:ownership` (dziś 9 / 5 pozycji / 0) |
-| Jakość atrybucji: migracje bez trafienia, atrybucje słabe                                | `bun run check:ownership` (dziś 5 / 221)           |
-| Wynik kwartalnego testu odtworzenia backupu                                              | sekcja 8.3 - **obowiązkowy**                       |
-| Przegląd `minimumReleaseAgeExcludes`                                                     | `bunfig.toml:6`                                    |
-| Liczba dni do wygaśnięcia umowy                                                          | `bun run check:ownership` (sekcja 10)              |
+| Pozycja raportu                                                                          | Źródło liczby                                                                        |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Liczba zgłoszeń w kwartale w podziale na P1-P4 i domeny                                  | rejestr zgłoszeń Wykonawcy                                                           |
+| Dotrzymanie czasów: reakcja / obejście / naprawa, % i przekroczenia                      | rejestr zgłoszeń + tabela 4.4                                                        |
+| Liczba tras i migracji objętych rejestrem                                                | przegląd ręczny - bez narzędzia od 2026-10-05 (ostatni pomiar 2026-08-29: 193 / 918) |
+| Rozkład tras i migracji per domena                                                       | jw.                                                                                  |
+| **Liczba domen bez obsadzonego właściciela**                                             | `governance/ownership.json`, `osoby.*.obsadzone` (od 2026-09-12: **0 z 9**)          |
+| Stan progów: `domenyBezWlasciciela`, `migracjeBezAtrybucjiDozwolone`, `martweWzorceTras` | `governance/ownership.json`, `progi` (2026-10-26: 0 / 6 pozycji / 0)                 |
+| Jakość atrybucji: migracje bez trafienia, atrybucje słabe                                | bez narzędzia od 2026-10-05 (ostatni pomiar 2026-08-29: 5 / 221)                     |
+| Wynik kwartalnego testu odtworzenia backupu                                              | sekcja 8.3 - **obowiązkowy**                                                         |
+| Przegląd `minimumReleaseAgeExcludes`                                                     | `bunfig.toml:6`                                                                      |
+| Liczba dni do wygaśnięcia umowy                                                          | `governance/ownership.json`, `kontraktUtrzymaniowy.obowiazujeDo` (sekcja 10)         |
 
-**Wydruk `bun run check:ownership` drukuje większość tych liczb i jest
-obowiązkowym ZAŁĄCZNIKIEM raportu** - załącznikiem, nie przepisaniem: liczba
-przepisana ręcznie przestaje być pomiarem. Progi wolno WYŁĄCZNIE obniżać;
+Do 2026-10-05 obowiązkowym ZAŁĄCZNIKIEM raportu był wydruk bramki
+`check:ownership` - załącznik, nie przepisanie: liczba przepisana ręcznie
+przestaje być pomiarem. Od usunięcia bramki (c3f0c0e72) liczby z rejestru
+podaje się z `governance/ownership.json` wskazanego hashem commita, a pokrycia
+nie mierzy nic - raport mówi to wprost zamiast podawać liczbę. Progi wolno WYŁĄCZNIE obniżać;
 podniesienie wymaga pisemnej decyzji Zamawiającego, przywołanej w raporcie.
 
 ## 10. Zmiana i wygaśnięcie
@@ -399,7 +406,7 @@ czym przenosi je do `governance/ownership.json` (`osoby`) i obniża próg
 | 9   | Właściciel techniczny - `platforma-i-baza` (4/69)          |         | Zamawiający   | Harmonogram i kolejki bez właściciela                  |
 | 10  | Właściciel techniczny - `zgodnosc-i-prywatnosc` (2/8)      |         | Zamawiający   | Powierzchnia RODO bez właściciela                      |
 | 11  | Właściciel techniczny - `kariera-i-programy` (5/13)        |         | Zamawiający   | 5 tras bez właściciela                                 |
-| 12  | Zastępca dla każdej z 9 domen (9 pozycji)                  |         | Zamawiający   | Bramka odrzuca `właściciel = zastępca`                 |
+| 12  | Zastępca dla każdej z 9 domen (9 pozycji)                  |         | Zamawiający   | Rejestr zakazuje `właściciel = zastępca`               |
 | 13  | Uchwyty GitHub właścicieli i zastępców                     |         | Zamawiający   | `CODEOWNERS` pozostaje zakomentowany                   |
 | 14  | Zespoły GitHub `@NewEUStrategies/utrzymanie-<slug>` (9)    |         | Zamawiający   | Zespoły dziś nie istnieją                              |
 | 15  | Kanał zgłoszeń podstawowy (adres / kolejka)                |         | Zamawiający   | Zgłoszenia trafiają na adresy ogólne                   |
@@ -408,5 +415,6 @@ czym przenosi je do `governance/ownership.json` (`osoby`) i obniża próg
 | 18  | Magazyn backupu po stronie Zamawiającego (sekcja 8.3)      |         | Zamawiający   | **RPO/RTO pozostają NIEZNANE**                         |
 | 19  | Zatwierdzone wartości RPO i RTO + data pierwszego testu    |         | Zamawiający   | Backup nigdy nieodtworzony                             |
 
-Po każdym uzupełnieniu uruchom `bun run check:ownership` i dołącz wydruk do
-najbliższego raportu kwartalnego - liczba domen bez właściciela POWINNA SPAŚĆ.
+Po każdym uzupełnieniu zaktualizuj `governance/ownership.json`, uruchom
+`bun run generate:codeowners` i dołącz diff rejestru do najbliższego raportu
+kwartalnego.
