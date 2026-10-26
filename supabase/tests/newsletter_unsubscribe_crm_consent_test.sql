@@ -194,8 +194,11 @@ SELECT ok(
 SELECT ok(
   pg_temp.flag('ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test')
   AND pg_temp.withdrawals('ed140000-0000-4000-8000-0000000000a0', 'later@nuc.test') = 0
+  -- Tylko wpisy tej transakcji (`created_at` = now()): uzgodnienie z samej
+  -- migracji mogło zostawić wcześniejsze.
   AND (SELECT (v #>> '{}')::bigint FROM r WHERE k = 'reconcile') =
-      (SELECT count(*) FROM public.crm_consent_log WHERE form_name = 'newsletter_unsubscribe_reconcile'),
+      (SELECT count(*) FROM public.crm_consent_log
+        WHERE form_name = 'newsletter_unsubscribe_reconcile' AND created_at = now()),
   'uzgodnienie: późniejsza zgoda zostaje; wynik = liczba wpisów rejestru');
 SELECT is(public._newsletter_unsubscribe_crm_reconcile(), 0, 'uzgodnienie: powtórka = 0');
 
