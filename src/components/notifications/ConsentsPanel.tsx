@@ -42,6 +42,7 @@ import {
 } from "@/lib/consent/registryBridge";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { measurementConsentSummaryPlain } from "@/lib/newsletter/measurementConsentText";
 
 type Lang = "pl" | "en";
 
@@ -279,6 +280,20 @@ export function ConsentsPanel({
           </ul>
         </section>
       ))}
+
+      <section aria-labelledby="measurement-summary">
+        <h3 id="measurement-summary" className="text-sm font-semibold">
+          {lang === "en" ? "Interaction measurement" : "Pomiar interakcji"}
+        </h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {measurementConsentSummaryPlain(lang)}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {lang === "en"
+            ? "Email measurement requires a separate confirmation by email. You can withdraw it using the link in each message, without unsubscribing."
+            : "Pomiar e-maili wymaga osobnego potwierdzenia z wiadomości. Wycofasz go linkiem w każdej wiadomości, bez rezygnacji z newslettera."}
+        </p>
+      </section>
 
       <section aria-labelledby="consent-history">
         <h3

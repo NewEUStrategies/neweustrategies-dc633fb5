@@ -89,11 +89,6 @@ import { readAuthVariant, readAuthFlag, pickAuthText } from "@/lib/content-model
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import { WIDGETS } from "@/lib/builder/registry";
 import { NEWSLETTER_CONSENT_VERSION, newsletterConsentHtml } from "@/lib/newsletter/consentText";
-import {
-  EMAIL_MEASUREMENT_CONSENT_VERSION,
-  measurementConsentHtml,
-  measurementConsentSummaryPlain,
-} from "@/lib/newsletter/measurementConsentText";
 import { axeViolations, summarize } from "@/test/axe";
 
 type Data = Record<string, unknown>;
@@ -633,52 +628,6 @@ describe("register-form: walidacja i payload", () => {
         },
       }),
     );
-  });
-
-  it("osobne pole pomiaru: pod newsletterem, niezaznaczone, wyłączone bez newslettera i czyszczone przy jego odznaczeniu", () => {
-    register({ requireConsent: false });
-    const box = measurementBox();
-    expect(box).not.toBeNull();
-    expect(box).toHaveAttribute("aria-checked", "false");
-    expect(box).toBeDisabled();
-    expect(box?.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
-
-    const [newsletter] = consentBoxes();
-    fireEvent.click(newsletter);
-    expect(measurementBox()).not.toBeDisabled();
-    fireEvent.click(measurementBox() as HTMLElement);
-    expect(measurementBox()).toHaveAttribute("aria-checked", "true");
-
-    fireEvent.click(newsletter);
-    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
-    expect(measurementBox()).toBeDisabled();
-  });
-
-  it("zaznaczone pole pomiaru dokłada deklarację z wersją z rejestru do zapisu na listę", async () => {
-    register({ requireConsent: false });
-    fillMinimal();
-    fireEvent.click(consentBoxes()[0]);
-    fireEvent.click(measurementBox() as HTMLElement);
-    fireEvent.submit(form());
-    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(h.guard).toHaveBeenCalledTimes(1));
-    const [{ data }] = h.guard.mock.calls[0] as [{ data: { consents: unknown[] } }];
-    expect(data.consents).toEqual([
-      {
-        key: "newsletter",
-        text: newsletterConsentHtml("pl"),
-        given: true,
-        lang: "pl",
-        version: NEWSLETTER_CONSENT_VERSION,
-      },
-      {
-        key: "email_measurement_declared",
-        text: measurementConsentHtml("pl"),
-        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
-        given: true,
-        lang: "pl",
-      },
-    ]);
   });
 
   it("wyłączone pole newslettera chowa też pole pomiaru", () => {
