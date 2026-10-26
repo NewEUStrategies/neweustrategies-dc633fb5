@@ -369,6 +369,7 @@ describe("clubPostErrorKey - odmowa publikacji wpisu na komunikat", () => {
     ["clubs: post rate limit", "club.post.error.rateLimit"],
     ["clubs: post burst limit", "club.post.error.burstLimit"],
     ["clubs: invalid link attachment", "club.post.error.invalidLink"],
+    ["clubs: invalid media attachment", "club.post.error.invalid"],
     ["club_post_create: unauthenticated", "club.post.error.forbidden"],
     ["club_post_create: forbidden", "club.post.error.forbidden"],
     ["clubs: authentication required", "club.post.error.forbidden"],

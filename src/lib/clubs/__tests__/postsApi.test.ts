@@ -313,6 +313,23 @@ describe("uploadClubPostMedia - ścieżka w magazynie", () => {
     const attachment = await uploadClubPostMedia(mediaFile(long, "image/png"));
     expect(attachment.name).toHaveLength(120);
   });
+
+  it("załącznik mieści się w granicach `club_post_media_normalize` - baza odrzuca resztę", async () => {
+    // Ścieżka spoza katalogu autora otwierałaby cudzy plik członkom klubu,
+    // więc `club_post_create` odrzuca ją w całości. Rozjazd z tym kształtem
+    // to wpis, którego nie da się opublikować z poprawnie wgranym plikiem.
+    const name = `${"ż".repeat(400)}.pdf`;
+    const attachment = await uploadClubPostMedia(
+      mediaFile(name, "application/pdf", CLUB_POST_MAX_FILE_BYTES),
+    );
+    const [owner, file, ...rest] = attachment.path.split("/");
+    expect(owner).toBe("user-1");
+    expect(rest).toEqual([]);
+    expect([".", ".."]).not.toContain(file);
+    expect(Array.from(attachment.path).length).toBeLessThanOrEqual(1024);
+    expect(Array.from(attachment.name).length).toBeLessThanOrEqual(255);
+    expect(attachment.size).toBeLessThanOrEqual(CLUB_POST_MAX_FILE_BYTES);
+  });
 });
 
 describe("uploadClubPostMedia - sanityzacja nazwy pliku (dane od użytkownika)", () => {

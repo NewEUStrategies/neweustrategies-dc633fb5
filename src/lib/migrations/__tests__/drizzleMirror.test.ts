@@ -998,60 +998,75 @@ describe("prawdziwe repozytorium", () => {
       expect(sent).not.toContain(file);
   });
 
-  it("od zamrożonego dziennika plan odtwarza bajt w bajt zatwierdzone lustra, snapshoty i dziennik; drugi przebieg pusty", () => {
+  it("od zamrożonego dziennika plan odtwarza bajt w bajt zatwierdzone lustra, snapshoty i dziennik - odcinkami między wpisami bota; drugi przebieg pusty", () => {
     const real = realInput();
-    const entries = real.journal.entries;
-    // Po zamrożeniu dziennik niesie ciągi luster przedzielone wpisami bota:
-    // każde wdrożenie dopisuje wyzwalacz `NNNN_pr<NR>_deployment_completion`
-    // (runbook §4.3), którego generator nie tworzy. Plan odtwarza więc każdy
-    // ciąg osobno - od dziennika sprzed ciągu, ze źródłami supabase do
-    // ostatniego pliku ciągu - tak jak generator gałęzi PR, która go dodała.
-    const runs: JournalEntry[][] = [];
-    let open = false;
-    for (const entry of entries.slice(JOURNAL_FREEZE_IDX + 1)) {
-      const mirrored = mirrorSourceOf(real.read(D(entry.tag))) !== null;
-      if (mirrored && open) runs.at(-1)!.push(entry);
-      else if (mirrored) runs.push([entry]);
-      open = mirrored;
+    const all = real.journal.entries;
+    // Po zamrożeniu `main` dostaje także wpisy, których generator NIE produkuje:
+    // kanoniczny wyzwalacz wdrożenia zapisany przez bota Lovable po każdym
+    // wdrożeniu (runbook §4.3, np. `0404_pr537_deployment_completion`). Taki wpis
+    // jest częścią bazy, więc lustra odtwarzamy ODCINKAMI: każdy odcinek na
+    // dzienniku ze wszystkimi wpisami sprzed niego (także bota), bez źródeł
+    // luster z odcinków późniejszych. Odtworzenie całości naraz z samego
+    // zamrożonego dziennika przenumerowywało lustra za wpisem bota.
+    const sourceOf = (tag: string): string | null => mirrorSourceOf(real.read(D(tag)));
+    const segments: JournalEntry[][] = [[]];
+    for (const entry of all.slice(JOURNAL_FREEZE_IDX + 1)) {
+      if (sourceOf(entry.tag) !== null) segments.at(-1)!.push(entry);
+      else if (segments.at(-1)!.length > 0) segments.push([]);
     }
-    expect(runs.flat().length).toBeGreaterThan(0);
-    for (const run of runs) {
-      const start = entries.indexOf(run[0]!);
-      const prefix = entries.slice(0, start);
-      const later = entries.slice(start);
-      const laterSql = new Set(later.map((e) => `${e.tag}.sql`));
-      const laterSnapshots = new Set(
-        later.map((e) => `${String(e.idx).padStart(4, "0")}_snapshot.json`),
+    const mirrored = segments.filter((segment) => segment.length > 0);
+    expect(mirrored.length).toBeGreaterThan(0);
+    for (const [k, segment] of mirrored.entries()) {
+      // Pliki wszystkich wpisów od początku odcinka (lustra i wpisy bota) -
+      // inaczej snapshot późniejszego wpisu bota wyglądałby na osierocony.
+      const pending = all.slice(segment[0]!.idx);
+      const pendingSql = new Set(pending.map((e) => `${e.tag}.sql`));
+      const pendingSnapshots = new Set(
+        pending.map((e) => `${String(e.idx).padStart(4, "0")}_snapshot.json`),
       );
-      const lastSource = mirrorSourceOf(real.read(D(run.at(-1)!.tag)))!;
-      const before: MirrorInput = {
+      const laterSources = new Set(
+        mirrored
+          .slice(k + 1)
+          .flat()
+          .map((e) => sourceOf(e.tag)),
+      );
+      const before = all.slice(0, segment[0]!.idx);
+      const frozen: MirrorInput = {
         ...real,
-        journal: { ...real.journal, entries: prefix },
-        supabaseSql: real.supabaseSql.filter((name) => name <= lastSource),
-        drizzleSql: real.drizzleSql.filter((name) => !laterSql.has(name)),
-        snapshots: real.snapshots.filter((name) => !laterSnapshots.has(name)),
-        read: (path) => {
-          if (path === DRIZZLE_JOURNAL) return journalText({ ...real.journal, entries: prefix });
-          if (laterSql.has(path.slice(DRIZZLE_MIGRATIONS_DIR.length + 1))) return null;
-          if (laterSnapshots.has(path.slice(DRIZZLE_META_DIR.length + 1))) return null;
-          return real.read(path);
-        },
+        journal: { ...real.journal, entries: before },
+        drizzleSql: real.drizzleSql.filter((name) => !pendingSql.has(name)),
+        snapshots: real.snapshots.filter((name) => !pendingSnapshots.has(name)),
+        supabaseSql: real.supabaseSql.filter((name) => !laterSources.has(name)),
+        read: (path) =>
+          path === DRIZZLE_JOURNAL
+            ? journalText({ ...real.journal, entries: before })
+            : pendingSql.has(path.slice(DRIZZLE_MIGRATIONS_DIR.length + 1)) ||
+                pendingSnapshots.has(path.slice(DRIZZLE_META_DIR.length + 1))
+              ? null
+              : real.read(path),
       };
-      const p = planMirror(before);
+      const p = planMirror(frozen);
       expect(p.errors).toEqual([]);
       expect(p.deletions).toEqual([]);
-      expect(p.entries.map((e) => e.tag)).toEqual(run.map((e) => e.tag));
-      const expected = [...run.map((e) => D(e.tag)), ...run.map((e) => M(e.idx)), DRIZZLE_JOURNAL];
-      expect(p.files.map((f) => f.path)).toEqual(expected);
-      // Zatwierdzone pliki = wynik generatora, co do bajtu (nie tylko SQL wykonywalny).
-      const journalAfterRun = journalText({ ...real.journal, entries: [...prefix, ...run] });
-      for (const file of p.files)
+      expect(p.entries.map((e) => e.tag)).toEqual(segment.map((e) => e.tag));
+      expect(p.files.map((f) => f.path)).toEqual([
+        ...segment.map((e) => D(e.tag)),
+        ...segment.map((e) => M(e.idx)),
+        DRIZZLE_JOURNAL,
+      ]);
+      // Zatwierdzone pliki = wynik generatora, co do bajtu (nie tylko SQL
+      // wykonywalny); dziennik - do końca odcinka.
+      const through = journalText({
+        ...real.journal,
+        entries: all.slice(0, segment.at(-1)!.idx + 1),
+      });
+      for (const file of p.files) {
         expect(file.content, file.path).toBe(
-          file.path === DRIZZLE_JOURNAL ? journalAfterRun : real.read(file.path),
+          file.path === DRIZZLE_JOURNAL ? through : real.read(file.path),
         );
+      }
     }
-    // Dziennik w repo, z wpisami bota, to serializacja generatora co do bajtu.
-    expect(real.read(DRIZZLE_JOURNAL)).toBe(journalText(real.journal));
+    expect(journalText(real.journal)).toBe(real.read(DRIZZLE_JOURNAL));
     expect(mirrorFresh(planMirror(real))).toBe(true);
   });
 

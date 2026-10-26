@@ -949,15 +949,17 @@ SELECT throws_ok(
 
 SELECT set_config('test.p5', (SELECT post_id::text FROM public.club_post_create(
   current_setting('test.k1')::uuid, NULL, NULL, 'Link poprawny',
-  '[{"type":"link","url":"https://example.org/x","title":"T","tracker":"x"},{"type":"file","path":"u/x.pdf","name":"x.pdf"}]'::jsonb)), true);
+  '[{"type":"link","url":"https://example.org/x","title":"T","tracker":"x"},{"type":"file","path":"c9000000-0000-0000-0000-000000000002/x.pdf","name":"x.pdf"}]'::jsonb)), true);
 SELECT is(
   (SELECT attachments->0 FROM public.club_posts WHERE id = current_setting('test.p5')::uuid),
   '{"type":"link","url":"https://example.org/x","title":"T","description":null,"image":null,"siteName":null}'::jsonb,
   'zalacznik-link zapisany w postaci kanonicznej (obcy klucz pominiety)');
+-- Plik tylko z katalogu autora (20261026090000) - obca ścieżka i pełny
+-- kontrakt normalizacji: `club_post_media_paths_test.sql`.
 SELECT is(
   (SELECT attachments->1 FROM public.club_posts WHERE id = current_setting('test.p5')::uuid),
-  '{"type":"file","path":"u/x.pdf","name":"x.pdf"}'::jsonb,
-  'zalaczniki innych typow bez zmian');
+  '{"type":"file","path":"c9000000-0000-0000-0000-000000000002/x.pdf","name":"x.pdf","mime":null,"size":null,"width":null,"height":null}'::jsonb,
+  'zalacznik-plik z katalogu autora zapisany w postaci kanonicznej');
 
 -- ----------------------------------------------------------------------------
 -- 12. Klub publiczny: gosc i osoba spoza klubu a dzial zamkniety
