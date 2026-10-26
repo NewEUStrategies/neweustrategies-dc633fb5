@@ -131,7 +131,16 @@ export interface MigrationEditAllowance {
  * ktoś musi napisać i obronić w przeglądzie PR - nie domyślne zachowanie.
  * Wpisy zostają po scaleniu jako historia (SHA wygasza je same).
  */
-export const MIGRATION_EDIT_ALLOWLIST: readonly MigrationEditAllowance[] = [];
+export const MIGRATION_EDIT_ALLOWLIST: readonly MigrationEditAllowance[] = [
+  {
+    path: "drizzle/migrations/0406_newsletter_unsubscribe_withdraws_crm_consent.sql",
+    kind: "other",
+    reason:
+      "Osierocony plik generatora, nigdy w dzienniku: scalenie main w gałęzi PR #540 (e837cc33) wzięło `_journal.json` z main z wpisem bota 0406_pr538_deployment_completion i wypchnęło wpis tego lustra, więc PR #540 (9be7861e) wniósł plik bez wpisu - migrator Drizzle go nie widział i nigdy nie wykonał. Commit bota bbfb3206 (wynik identyczny z `bun run migrations:mirror`) usunął sierotę i dopisał tę samą treść (blob 4d93d638) jako wpis 0407_newsletter_unsubscribe_withdraws_crm_consent, wdrożony wyzwalaczem 0408_pr540_deployment_completion (481cc4e2). Przywrócenie pliku wróciłoby jako sierota oblewająca check:migration-lanes; treść nie ginie.",
+    blobAfter: null,
+    blobBefore: "4d93d638d01e28eea43f773d788588e41a269b8d",
+  },
+];
 
 /** Błędy wpisu z `journalChange` (wyjątek jednej zmiany wpisu dziennika). */
 function journalChangeErrors(entry: MigrationEditAllowance, where: string): string[] {
