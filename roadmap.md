@@ -1,5 +1,11 @@
 # Roadmap
 
+## Formularze bez pola pomiaru i naprawa wydania (2026-10-26)
+
+- [ ] Usunąć pole/deklarację pomiaru z formularzy rejestracji i newslettera PL/EN; zachować informację o newsletterze, bez automatycznego opt-in pomiaru.
+- [ ] Pokazać wskazaną etykietę w opcjach użytkownika i sprawdzić testy oraz formularze.
+- [ ] Zoptymalizować rzeczywistą wagę aplikacji bez zmiany progów; migracja 0405 dopiero po zielonym Required release checks zgodnie z runbookiem.
+
 ## Weryfikacja poprawki klubów / PR #538 (2026-10-26)
 
 - [x] PR #538: merge e40b45c93 i wszystkie trzy commity df6a90507, a7d46fe19, 5ae5fa408 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi. Brak nowych tabel/widoków; jedna nowa funkcja i dwie podmieniane.
