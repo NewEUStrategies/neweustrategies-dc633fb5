@@ -2,9 +2,12 @@
 
 ## Weryfikacja poprawki klubów / PR #538 (2026-10-26)
 
-- [ ] Potwierdzić integrację wszystkich commitów i zakres zmian dostępu do plików po usunięciu konta.
-- [ ] Zweryfikować oczekujące migracje, wdrożyć dozwolony zakres i potwierdzić obiekty, ciała RPC oraz uprawnienia w żywej bazie.
-- [ ] Uruchomić testy zakresowe i bramki, sprawdzić rzeczywisty klub oraz publikację; jawnie wskazać ograniczenia weryfikacji.
+- [x] PR #538: merge e40b45c93 i wszystkie trzy commity df6a90507, a7d46fe19, 5ae5fa408 są przodkami HEAD; drzewo merge identyczne z końcem gałęzi. Brak nowych tabel/widoków; jedna nowa funkcja i dwie podmieniane.
+- [x] Odczyt żywej bazy: 381 tabel (wszystkie RLS), 15 widoków, 1846 sygnatur funkcji. Kontrakt: 1922 obiekty, jedyny brak club_post_media_normalize; 775 kolumn, zero nowych braków, pięć historycznych różnic. club_post_create i club_media_path_readable mają stare ciała; predykat nadal dostępny dla anon. Polityka club-media i FK author_id ON DELETE SET NULL istnieją. Rejestr 452/452 historycznych migracji, sześć luster, jedyne niewdrożone 0405. Kontrola pending: kotwica 0404 zastosowana, wyłącznie 0405 oczekuje.
+- [x] 219 testów lokalnych przechodzi; bramki pasów, RPC i TS-SQL przechodzą, build podglądu OK. GitHub na merge: pgTAP, pg-harness, wszystkie shardy, verify, e2e i e2e-seeded sukces. Lokalny harness SQL niedostępny (brak serwera PostgreSQL). Brak produkcyjnych wpisów z plikami; nie usuwano kont ani nie dodawano danych. Próba przeglądarkowa klubu HTTP 200 bez błędów JS, ale ekran odmawia dostępu i chrome pozostaje signed-out mimo próby odtworzenia sesji - nie jest dowodem zalogowanego przepływu.
+- [ ] Wdrożyć 0405 i potwierdzić nowe ciała/granty: BLOKADA - Required release checks na e40b45c93 czerwone (build: check:bundle, first-visit: check:document-weight). Runbook §4.1 wymaga zielonego wydania; nie wywołano migratora, nie zmieniono bazy ani bramek. Wymagany przeglądany PR naprawiający przyczynę przekroczenia budżetów, bez podnoszenia progów.
+- [ ] Automatyczna weryfikacja produkcyjnej bazy w GitHub: BLOKADA - job post-deploy zielony tylko dlatego, że pomija kontrolę przy braku zmiennych repozytorium SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY (nie sekretów); wymaga konfiguracji zgodnej z runbook §4.8.
+- [ ] Potwierdzić działanie odczytu załącznika konta usuniętego w realnym klubie oraz publikację: BLOKADA - niewdrożone 0405 i brak kontrolowanej fikstury z załącznikiem/kontem do usunięcia; testów destrukcyjnych na klientach nie wykonywać. Publikacji nie zlecono podczas blokady wydania.
 
 ## Etykieta zgody na pomiar - treść właściciela (2026-10-24)
 
