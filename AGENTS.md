@@ -13,6 +13,7 @@
 - Share `EventModuleHero` across tabs, participant profile and studio preview; keep overview separate.
 - Share contact limits across client/server validation and counters; preserve full CRM messages and reject oversized custom values, never slice, so displayed limits match storage.
 
+- Keep `governance/release/main-ruleset.json` applicable to the Lovable direct-push channel (Lovable app bypass `always`, no approval a sole code owner cannot give, status checks pinned to GitHub Actions) and apply it only via `governance:apply-ruleset`; give every `main` commit its own uncancelled CI run and run `post-deploy` only after a green `Required release checks`, failing without credentials, so no green status claims an unchecked release.
 - Use `tsgo --noEmit` for the preview timeout.
 - Share date/time/select atoms and sizing tokens; preserve local dates and native form values to prevent date shifts and corrupt submissions.
 - Use section-specific `adminPageHead` metadata on private admin screens to avoid generic titles.
