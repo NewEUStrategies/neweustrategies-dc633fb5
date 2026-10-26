@@ -5,11 +5,13 @@
 // w dokumencie. Tabela nie da się uruchomić, więc nikt nie mógł sprawdzić,
 // czy reguła, którą opisuje, robi to, co obiecuje - a robiła coś innego
 // (patrz CARVE_OUTS niżej). Od tej zmiany mapa jest kodem: `features.mjs`
-// liczy z niej tabele, a `npm run check:feature-taxonomy` pilnuje, żeby
-// żaden plik nie wisiał poza taksonomią i żeby żadna reguła nie była martwa.
+// liczy z niej tabele. Bramkę `check:feature-taxonomy` usunięto 2026-10-05
+// (c3f0c0e72); granicę jądra platformy i warstwy kompozycji (PLATFORM_CORE,
+// moduły 20 i 23 niżej) pilnuje src/lib/ci/__tests__/platformCoreBoundary.gate.test.ts.
 //
-// KOLEJNOŚĆ MA ZNACZENIE: pierwsze trafienie wygrywa, moduły są sprawdzane
-// rosnąco po numerze - dokładnie tak, jak opisuje rozdział 9.1.
+// KOLEJNOŚĆ MA ZNACZENIE: pierwsze trafienie wygrywa, moduły domenowe są
+// sprawdzane rosnąco po numerze - dokładnie tak, jak opisuje rozdział 9.1;
+// warstwy platformy (20, 23) i kubełki przekrojowe - po nich (classifyPath).
 
 /**
  * WYJĄTKI O WYŻSZYM PIERWSZEŃSTWIE NIŻ REGUŁY KATALOGOWE.
@@ -80,6 +82,43 @@ export const CARVE_OUTS = [
   // >>> PF-C carve-outs (begin)
   // <<< PF-C carve-outs (end)
 ];
+
+/**
+ * JĄDRO PLATFORMY ROZPROSZONE PO DOMENACH (audyt ED14, graf zależności).
+ *
+ * Pliki leżące w katalogach domen, które w praktyce są platformą: każdy jest
+ * statycznie importowany (wartości) z co najmniej PLATFORM_CORE_MIN_IMPORTING_AREAS
+ * innych obszarów, a jego odwrotne domknięcie sięga wszystkich obszarów repo
+ * (pomiar 2026-10-26: `useAuth.tsx` z 22 obszarów, `useSiteSetting.ts` 15,
+ * `seo/meta.ts` 13, `seo/head.ts` i `seo/request.ts` 12, `billing/tiers.ts`
+ * i `media/publicUrl.ts` 11, `tenant.ts` i `ads/consent.ts` 10; audyt:
+ * domknięcie `useSiteSetting.ts` = 1 003 pliki, 23,1%). Taksonomia
+ * przypisywała je modułom 15, 19, 8, 13, 14 i 4, więc
+ * „właściciel modułu" zmieniał plik, od którego zależy cały system.
+ *
+ * Tu należą do modułu 20 (rdzeń). Fizyczne przeniesienie plików (z reeksportem
+ * przejściowym) to osobna praca - lista jest najpierw jawna i sprawdzana:
+ * test bramkowy oblewa plik domenowy, który przekroczy próg, a nie jest na
+ * liście, i wzorzec listy, który nie trafia w istniejący plik.
+ */
+export const PLATFORM_CORE = [
+  /^src\/hooks\/useAuth\.tsx$/,
+  /^src\/lib\/useSiteSetting\.ts$/,
+  /^src\/lib\/seo\/(meta|head|request)\.ts$/,
+  /^src\/lib\/billing\/tiers\.ts$/,
+  /^src\/lib\/media\/publicUrl\.ts$/,
+  // Po wydzieleniu warstwy kompozycji (23) trasy liczą się jako osobny obszar
+  // i próg przekroczyły dwa kolejne: zakres najemcy po stronie klienta (10)
+  // i magazyn zgód CMP z klamrą GPC (10).
+  /^src\/lib\/tenant\.ts$/,
+  /^src\/lib\/ads\/consent\.ts$/,
+];
+
+/** Plik domenowy importowany statycznie z tylu innych obszarów to jądro platformy. */
+export const PLATFORM_CORE_MIN_IMPORTING_AREAS = 10;
+
+/** Warstwy platformy: rdzeń (20C) i kompozycja aplikacji (20R). */
+export const PLATFORM_LAYERS = { core: 20, composition: 23 };
 
 /** Moduły w kolejności rozstrzygania (rosnąco po numerze). */
 export const MODULES = [
@@ -487,7 +526,8 @@ export const MODULES = [
   },
   {
     id: 20,
-    name: "Platforma / backend / infrastruktura / SSR",
+    key: "20C",
+    name: "Platforma: rdzeń - backend, infrastruktura, SSR",
     patterns: [
       /^src\/lib\/ssr/,
       /^src\/lib\/server\//,
@@ -522,11 +562,22 @@ export const MODULES = [
       /^src\/lib\/toastError/,
       /^src\/lib\/countries/,
       /^src\/components\/error\//,
-      /^src\/(router|server|start)\./,
       /^src\/utils\//,
-      /^src\/routes\//,
       /^src\/lib\//,
     ],
+  },
+  // WARSTWA KOMPOZYCJI (audyt ED14). Do 2026-10 trasy były łapaczem modułu 20,
+  // więc „platforma" miała 77% swoich importów do domen z `src/routes/**` -
+  // z warstwy, która z definicji zna domeny (składa je w strony). Rozdzielenie
+  // mówi prawdę o kierunku: trasom wolno importować domeny, rdzeniowi (20) nie
+  // powinno, a warstwy kompozycji nie importuje nic poza drzewem tras.
+  // Trasy domenowe (`^src/routes/.*newsletter` itd.) dalej należą do domen -
+  // tu trafia reszta, jak wcześniej do łapacza modułu 20.
+  {
+    id: 23,
+    key: "20R",
+    name: "Warstwa aplikacji: trasy, router, start (kompozycja)",
+    patterns: [/^src\/(router|server|start)\./, /^src\/routeTree\.gen\.ts$/, /^src\/routes\//],
   },
 ];
 
@@ -570,26 +621,34 @@ export const CROSS_CUTTING = [
 ];
 
 /** Łapacz modułu 20 - świadomie OSTATNI (patrz komentarz przy CROSS_CUTTING). */
-const MODULE_20_CATCH_ALL = [/^src\/routes\//, /^src\/lib\//];
+const MODULE_20_CATCH_ALL = [/^src\/lib\//];
+
+const PLATFORM_LAYER_IDS = new Set(Object.values(PLATFORM_LAYERS));
 
 /**
  * Rozstrzygnięcie ścieżki: `{ module: number|null, crossCutting: string|null }`.
- * Kolejność: wyjątki -> moduły 1-19, 21, 22 -> kubełki przekrojowe -> łapacz 20.
+ * Kolejność: wyjątki -> jądro platformy -> moduły domenowe 1-19, 21, 22 ->
+ * rdzeń 20 (bez łapacza) i warstwa kompozycji 23 -> kubełki przekrojowe ->
+ * łapacz 20.
  */
 export function classifyPath(path) {
   for (const carve of CARVE_OUTS) {
     if (carve.pattern.test(path)) return { module: carve.module, crossCutting: null };
   }
+  if (PLATFORM_CORE.some((pattern) => pattern.test(path))) {
+    return { module: PLATFORM_LAYERS.core, crossCutting: null };
+  }
   for (const mod of MODULES) {
-    if (mod.id === 20) continue;
+    if (PLATFORM_LAYER_IDS.has(mod.id)) continue;
     for (const pattern of mod.patterns) {
       if (pattern.test(path)) return { module: mod.id, crossCutting: null };
     }
   }
-  const mod20 = MODULES.find((m) => m.id === 20);
-  for (const pattern of mod20.patterns) {
-    if (MODULE_20_CATCH_ALL.some((c) => c.source === pattern.source)) continue;
-    if (pattern.test(path)) return { module: 20, crossCutting: null };
+  for (const mod of MODULES.filter((m) => PLATFORM_LAYER_IDS.has(m.id))) {
+    for (const pattern of mod.patterns) {
+      if (MODULE_20_CATCH_ALL.some((c) => c.source === pattern.source)) continue;
+      if (pattern.test(path)) return { module: mod.id, crossCutting: null };
+    }
   }
   for (const bucket of CROSS_CUTTING) {
     for (const pattern of bucket.patterns) {
