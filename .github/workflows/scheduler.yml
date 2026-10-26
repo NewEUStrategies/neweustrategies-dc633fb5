@@ -33,8 +33,13 @@ name: Scheduler (push / digesty / przypomnienia)
 #                                     sekretu społeczności ani runnera.
 #   variables.SCHEDULER_BACKUP      = off - JAWNA decyzja właściciela, że repo
 #                                     nie prowadzi drugiej linii doręczeń
-#                                     (zostaje pg_cron); ticki pominięte bez
+#                                     z harmonogramu (zostaje pg_cron):
+#                                     przebiegi `schedule` pomijają ticki bez
 #                                     ostrzeżeń, audyt dobowy tylko odnotowuje.
+#                                     Ręczne uruchomienie (workflow_dispatch)
+#                                     to jawne polecenie operatora i biegnie
+#                                     jak bez wyłącznika: ticki, a bez
+#                                     konfiguracji zwykłe ostrzeżenie.
 #
 # STAN KONFIGURACJI JEST JAWNY (audyt ED14). Do 2026-10 nieskonfigurowany
 # scheduler kończył każdy przebieg zielono z ostrzeżeniem, więc repo
@@ -153,14 +158,18 @@ jobs:
       - name: Sprawdź konfigurację
         id: cfg
         env:
+          EVENT: ${{ github.event_name }}
           BACKUP_MODE: ${{ vars.SCHEDULER_BACKUP }}
           BASE_URL: ${{ vars.APP_BASE_URL }}
           ENDPOINT: ${{ steps.plan.outputs.endpoint }}
           HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}
           HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}
         run: |
-          # Jawna decyzja właściciela: bez ticków i bez ostrzeżeń co przebieg.
-          if [ "$BACKUP_MODE" = "off" ]; then
+          # Jawna decyzja właściciela wyłącza WYŁĄCZNIE przebiegi z harmonogramu:
+          # bez ticków i bez ostrzeżeń co przebieg. Ręczny workflow_dispatch
+          # (ręczne wypchnięcie z runbooków) to jawne polecenie operatora -
+          # biegnie jak bez wyłącznika: ticki albo zwykłe ostrzeżenie niżej.
+          if [ "$BACKUP_MODE" = "off" ] && [ "$EVENT" = "schedule" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "Druga linia doręczeń wyłączona (vars.SCHEDULER_BACKUP=off) - ticki pominięte."
             exit 0
@@ -176,7 +185,10 @@ jobs:
           fi
           if [ -z "$BASE_URL" ] || [ "$has_secret" != "true" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz $secret_name - $scope. Brak drugiej linii jako decyzję zapisz w vars.SCHEDULER_BACKUP=off."
+            # Ręczny przebieg przy włączonym wyłączniku: decyzja już zapisana.
+            hint=" Brak drugiej linii jako decyzję zapisz w vars.SCHEDULER_BACKUP=off."
+            if [ "$BACKUP_MODE" = "off" ]; then hint=""; fi
+            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz $secret_name - $scope.$hint"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi

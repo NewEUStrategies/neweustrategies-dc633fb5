@@ -88,6 +88,7 @@ describe("scheduler.yml - druga linia doręczeń jawnie skonfigurowana albo jawn
   const configCheck = runScript(workflow, "Sprawdź konfigurację");
   const audit = runScript(workflow, "Audyt drugiej linii doręczeń");
   const community = {
+    EVENT: "schedule",
     ENDPOINT: "/api/public/community-cron",
     BASE_URL: "https://example.test",
     HAS_COMMUNITY_SECRET: "true",
@@ -131,7 +132,11 @@ describe("scheduler.yml - druga linia doręczeń jawnie skonfigurowana albo jawn
     expect(run.stdout).toContain("vars.SCHEDULER_BACKUP=off");
   });
 
-  it("wyłącznik `off`: ticki pominięte bez ostrzeżenia", () => {
+  it("wyłącznik `off` + przebieg z harmonogramu: ticki pominięte bez ostrzeżenia", () => {
+    // Krok dostaje wyzwalacz tą samą zmienną co „Ustal zakres ticku".
+    expect(stepLines(workflow, "Sprawdź konfigurację").join("\n")).toContain(
+      "EVENT: ${{ github.event_name }}",
+    );
     const run = execute(configCheck, {
       ...community,
       HAS_COMMUNITY_SECRET: "false",
@@ -140,6 +145,35 @@ describe("scheduler.yml - druga linia doręczeń jawnie skonfigurowana albo jawn
     expect(run.status).toBe(0);
     expect(run.output).toContain("configured=false");
     expect(run.stdout).not.toContain("::warning");
+  });
+
+  // Ręczne wypchnięcie (RUNBOOK_HUB_PRZYCHOD_LEJEK, WDROZENIE_PLATNOSCI_AUDYT_PAY)
+  // to jawne polecenie operatora - wyłącznik go nie wycisza.
+  it("wyłącznik `off` + workflow_dispatch z kompletem: ticki biegną", () => {
+    const run = execute(configCheck, {
+      ...community,
+      EVENT: "workflow_dispatch",
+      ENDPOINT: "/api/public/billing-cron",
+      BACKUP_MODE: "off",
+    });
+    expect(run.status).toBe(0);
+    expect(run.output).toContain("configured=true");
+  });
+
+  it("wyłącznik `off` + workflow_dispatch bez sekretu: pominięte ticki i zwykłe ostrzeżenie", () => {
+    const run = execute(configCheck, {
+      ...community,
+      EVENT: "workflow_dispatch",
+      HAS_COMMUNITY_SECRET: "false",
+      BACKUP_MODE: "off",
+    });
+    expect(run.status).toBe(0);
+    expect(run.output).toContain("configured=false");
+    expect(run.stdout).toMatch(
+      /::warning title=Scheduler nieskonfigurowany::.*COMMUNITY_CRON_SECRET/,
+    );
+    // Decyzja jest już zapisana - ostrzeżenie nie każe jej zapisać ponownie.
+    expect(run.stdout).not.toContain("vars.SCHEDULER_BACKUP=off");
   });
 
   it("komplet dla zakresu: ticki biegną", () => {
@@ -191,7 +225,14 @@ describe("scheduler.yml - druga linia doręczeń jawnie skonfigurowana albo jawn
 
   it("audyt widzi wyłącznie obecność sekretów, nie ich wartości", () => {
     const step = stepLines(workflow, "Audyt drugiej linii doręczeń").join("\n");
-    expect(step).not.toMatch(/\$\{\{ secrets\.[A-Z_]+ \}\}/);
+    // Każde odwołanie do `secrets` w `${{ }}` (kropka w dowolnej pisowni,
+    // `secrets['X']`, `toJSON(secrets)`) poza kontrolą obecności `!= ''`.
+    const values = [...step.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].filter(([, expression]) =>
+      [...expression!.matchAll(/\bsecrets\b(?:\s*\.\s*[A-Z0-9_]+\b(\s*!=\s*'')?)?/gi)].some(
+        ([, presence]) => presence === undefined,
+      ),
+    );
+    expect(values).toEqual([]);
     expect(step).toContain("HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}");
     expect(step).toContain("HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}");
   });
