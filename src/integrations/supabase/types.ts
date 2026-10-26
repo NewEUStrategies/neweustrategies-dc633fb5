@@ -32476,6 +32476,10 @@ export type Database = {
         }[]
       }
       club_post_delete: { Args: { p_post_id: string }; Returns: boolean }
+      club_post_media_normalize: {
+        Args: { p_media: Json; p_owner: string }
+        Returns: Json
+      }
       club_post_seam_context: {
         Args: { p_post_id: string }
         Returns: {
