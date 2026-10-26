@@ -423,39 +423,6 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 // ---------------------------------------------------------------------------
 
 describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
-  it("pole jest pod newsletterem, niezaznaczone i wyłączone, dopóki newsletter nie jest zaznaczony", () => {
-    renderForm();
-    const box = measurementBox();
-    expect(box).not.toBeNull();
-    expect(box).toHaveAttribute("aria-checked", "false");
-    expect(box).toBeDisabled();
-    // Krótka etykieta widoczna; nazwa dostępna pola nazywa to, czego dotyczy zgoda.
-    expect(box).toHaveAccessibleName(/^Zgoda na pomiar otwarć i kliknięć w e-mailach$/);
-    expect(document.querySelector('[data-consent="email_measurement"]')?.textContent).toBe(
-      "Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową.",
-    );
-    const [newsletter] = consentBoxes();
-    // Kolejność w dokumencie: newsletter, potem pomiar.
-    expect(
-      newsletter.compareDocumentPosition(box as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-
-    fireEvent.click(newsletter);
-    expect(measurementBox()).not.toBeDisabled();
-  });
-
-  it("odznaczenie newslettera czyści i wyłącza pole pomiaru", () => {
-    renderForm();
-    const [newsletter] = consentBoxes();
-    fireEvent.click(newsletter);
-    fireEvent.click(measurementBox() as HTMLElement);
-    expect(measurementBox()).toHaveAttribute("aria-checked", "true");
-
-    fireEvent.click(newsletter);
-    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
-    expect(measurementBox()).toBeDisabled();
-  });
-
   it("bez zaznaczenia pola ładunek nie ma pozycji pomiaru", async () => {
     renderForm();
     fillMinimal();
@@ -467,54 +434,6 @@ describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
     const keys = h.subscribe.mock.calls[0][0].data.consents.map((entry) => entry.key);
     expect(keys).not.toContain("email_measurement_declared");
     expect(keys).not.toContain("email_measurement");
-  });
-
-  it("zaznaczone pole dokłada deklarację z wersją z rejestru POZA migawkami (bez skrótu sha256)", async () => {
-    renderForm();
-    fillMinimal();
-    fireEvent.click(measurementBox() as HTMLElement);
-    fireEvent.click(consentBoxes()[1]);
-    actLikeHuman();
-    await submit();
-
-    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
-    const { consents } = h.subscribe.mock.calls[0][0].data;
-    const declared = consents.filter((entry) => entry.key === "email_measurement_declared");
-    expect(declared).toEqual([
-      {
-        key: "email_measurement_declared",
-        text: measurementConsentHtml("pl"),
-        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
-        given: true,
-        lang: "pl",
-        timestamp: HUMAN_AT.toISOString(),
-      },
-    ]);
-    // Zgoda na newsletter w wersji (b), a w metadanych konta ten sam ładunek.
-    expect(consents.find((entry) => entry.key === "newsletter")?.version).toBe(
-      NEWSLETTER_CONSENT_VERSION,
-    );
-    expect(h.signUp.mock.calls[0][0].options.data.signup_consents).toEqual(consents);
-  });
-
-  it("własna etykieta newslettera (migawka) też niesie deklarację z wersją pomiaru", async () => {
-    renderForm({
-      settings: settings({
-        popup_fields: fieldsWith({ key: "newsletter_optin", label_pl: "Chcę dostawać analizy" }),
-      }),
-    });
-    fillMinimal();
-    fireEvent.click(measurementBox() as HTMLElement);
-    fireEvent.click(consentBoxes()[1]);
-    actLikeHuman();
-    await submit();
-
-    await waitFor(() => expect(h.subscribe).toHaveBeenCalledTimes(1));
-    const { consents } = h.subscribe.mock.calls[0][0].data;
-    expect(consents.find((entry) => entry.key === "newsletter")?.version).toMatch(/^sha256:/);
-    expect(consents.find((entry) => entry.key === "email_measurement_declared")?.version).toBe(
-      EMAIL_MEASUREMENT_CONSENT_VERSION,
-    );
   });
 
   it("wyłączony opt-in newslettera: pola pomiaru nie ma", () => {

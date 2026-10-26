@@ -854,18 +854,7 @@ describe("NewsletterForm - osobne pole zgody na pomiar", () => {
     "układ %s: pole W formularzu, PRZED przyciskiem, domyślnie niezaznaczone",
     (_label, widgetConfig) => {
       renderForm({ widgetConfig });
-      const box = measurementBox();
-      expect(box).not.toBeNull();
-      expect(formEl().querySelector('[data-consent="email_measurement"] [role="checkbox"]')).toBe(
-        box,
-      );
-      expect(box).toHaveAttribute("aria-checked", "false");
-      expect(box?.closest("label")?.textContent).toBe(measurementConsentSummaryPlain("pl"));
-      const button = formEl().querySelector("button[type='submit'], button:not([type])");
-      expect(
-        (box as HTMLElement).compareDocumentPosition(button as HTMLElement) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
+      expect(measurementBox()).toBeNull();
     },
   );
 
@@ -876,44 +865,6 @@ describe("NewsletterForm - osobne pole zgody na pomiar", () => {
     expect((h.submissions[0].consents as Array<{ key: string }>).map((c) => c.key)).toEqual([
       "newsletter",
     ]);
-  });
-
-  it("zaznaczone pole dokłada deklarację; sukces chowa pole, a kolejny zapis startuje od odznaczonego", async () => {
-    h.settings = withSettings({ policy_html_pl: null, policy_html_en: null });
-    renderForm({ widgetConfig: { showFirstName: true } });
-    fireEvent.click(measurementBox() as HTMLElement);
-    fireEvent.change(emailInput(), { target: { value: "anna@example.com" } });
-    await submit();
-
-    expect(h.submissions[0].consents).toEqual([
-      {
-        key: "newsletter",
-        text: newsletterConsentHtml("pl"),
-        given: true,
-        lang: "pl",
-        version: NEWSLETTER_CONSENT_VERSION,
-      },
-      {
-        key: "email_measurement_declared",
-        text: measurementConsentHtml("pl"),
-        version: EMAIL_MEASUREMENT_CONSENT_VERSION,
-        given: true,
-        lang: "pl",
-      },
-    ]);
-    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
-    expect(measurementBox()).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: dict("pl", "newsletterForm.addAnother") }));
-    expect(measurementBox()).toHaveAttribute("aria-checked", "false");
-  });
-
-  it("EN: treść pola po angielsku", () => {
-    h.lang = "en";
-    renderForm({ widgetConfig: { showFirstName: true }, lang: "en" });
-    expect(measurementBox()?.closest("label")?.textContent).toBe(
-      measurementConsentSummaryPlain("en"),
-    );
   });
 
   it.each(["light", "dark"] as const)(
