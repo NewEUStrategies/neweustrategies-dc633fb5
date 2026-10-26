@@ -3425,6 +3425,141 @@ SELECT pg_temp.assert(
      FROM pg_proc p WHERE p.oid = 'public.is_nes_staff(uuid)'::regprocedure),
   'NESR: is_nes_staff STABLE SECURITY DEFINER z search_path public, pg_temp');
 
+-- ===========================================================================
+-- CM: ZALACZNIK-PLIK WPISU TYLKO Z KATALOGU AUTORA (20261026090000)
+--
+-- `club_post_create` przepuszczal `image`/`video`/`file` z DOWOLNYM `path`,
+-- a polityka odczytu kubelka `club-media` wpuszcza aktywnego czlonka klubu,
+-- w ktorego wpisie sciezka wystepuje. Wpis we wlasnym klubie ze sciezka
+-- `<uid ofiary>/<plik>` otwieral wiec cudzy plik autorowi i calemu jego
+-- klubowi. Pelny kontrakt RPC i predykatu: `supabase/tests/
+-- club_post_media_paths_test.sql`. Tu polityka jest WYKONANA: SELECT na
+-- `storage.objects` z roli `authenticated` - tak, jak widzi ja podpisywanie
+-- adresu i listowanie kubelka. Kazda odmowa ma kontrole dodatnia, bo
+-- "0 wierszy" przechodziloby tez z niewlasciwego powodu (brak grantu).
+-- ===========================================================================
+\echo '== CM.1 club_post_create: obca sciezka odrzucona, wlasna zapisana =='
+RESET ROLE;
+BEGIN;
+INSERT INTO auth.users (id, email) VALUES
+  ('e2000000-0000-0000-0000-000000000001','cm-ofiara@t'),
+  ('e2000000-0000-0000-0000-000000000002','cm-napastnik@t'),
+  ('e2000000-0000-0000-0000-000000000003','cm-wspolnik@t'),
+  ('e2000000-0000-0000-0000-000000000004','cm-kolezanka@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
+  ('e2000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','CM Ofiara',true),
+  ('e2000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','CM Napastnik',true),
+  ('e2000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','CM Wspolnik',true),
+  ('e2000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','CM Kolezanka',true);
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert('{"slug":"cm-ofiara","name_pl":"CM ofiara","visibility":"private","status":"active"}'::jsonb) AS cm_kv \gset
+SELECT public.admin_club_upsert('{"slug":"cm-napastnik","name_pl":"CM napastnik","visibility":"private","status":"active"}'::jsonb) AS cm_ka \gset
+SELECT public.admin_club_member_upsert(:'cm_kv'::uuid, m.uid, 'member', 'active', NULL)
+  FROM (VALUES ('e2000000-0000-0000-0000-000000000001'::uuid),
+               ('e2000000-0000-0000-0000-000000000004'::uuid)) AS m(uid);
+SELECT public.admin_club_member_upsert(:'cm_ka'::uuid, m.uid, 'member', 'active', NULL)
+  FROM (VALUES ('e2000000-0000-0000-0000-000000000002'::uuid),
+               ('e2000000-0000-0000-0000-000000000003'::uuid)) AS m(uid);
+\set cm_victim_path 'e2000000-0000-0000-0000-000000000001/lq1-a1b2-raport.pdf'
+\set cm_attacker_path 'e2000000-0000-0000-0000-000000000002/lq2-c3d4-notatka.pdf'
+INSERT INTO storage.objects (bucket_id, name, owner) VALUES
+  ('club-media', :'cm_victim_path', 'e2000000-0000-0000-0000-000000000001'),
+  ('club-media', :'cm_attacker_path', 'e2000000-0000-0000-0000-000000000002');
+
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000001';
+SELECT post_id AS cm_pv FROM public.club_post_create(:'cm_kv'::uuid, NULL, NULL, 'Raport',
+  jsonb_build_array(jsonb_build_object('type','file','path',:'cm_victim_path','name','raport.pdf'))) \gset
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT * FROM public.club_post_create(%L, NULL, NULL, '', %L::jsonb) $q$,
+         :'cm_ka', jsonb_build_array(jsonb_build_object('type','file','path',:'cm_victim_path'))),
+  'CM: wpis we wlasnym klubie ze sciezka pliku ofiary odrzucony (zgloszony scenariusz)');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT * FROM public.club_post_create(%L, NULL, NULL, '', %L::jsonb) $q$,
+         :'cm_ka', jsonb_build_array(jsonb_build_object('type','image',
+           'path','e2000000-0000-0000-0000-000000000002/../' || :'cm_victim_path'))),
+  'CM: przejscie ../ z wlasnego katalogu odrzucone');
+SELECT post_id AS cm_pa FROM public.club_post_create(:'cm_ka'::uuid, NULL, NULL, 'Notatka',
+  jsonb_build_array(jsonb_build_object('type','file','path',:'cm_attacker_path','name','notatka.pdf','x','y'))) \gset
+SELECT pg_temp.assert(
+  (SELECT attachments->0 FROM public.club_posts WHERE id = :'cm_pa'::uuid)
+  = jsonb_build_object('type','file','path',:'cm_attacker_path','name','notatka.pdf',
+                       'mime',NULL,'size',NULL,'width',NULL,'height',NULL),
+  'CM: plik z wlasnego katalogu zapisany w postaci kanonicznej');
+
+\echo '== CM.2 Polityka odczytu club-media WYKONANA z roli authenticated =='
+-- Wpis wstrzykniety PRZED migracja: wiersz wprost w tabeli, jak zapisal go
+-- stary `club_post_create`.
+RESET ROLE;
+INSERT INTO public.club_posts (tenant_id, club_id, author_id, body, attachments) VALUES
+  ('11111111-1111-1111-1111-111111111111', :'cm_ka'::uuid, 'e2000000-0000-0000-0000-000000000002',
+   'Stary wpis', jsonb_build_array(jsonb_build_object('type','file','path',:'cm_victim_path')));
+GRANT USAGE ON SCHEMA storage, auth TO authenticated;
+GRANT SELECT ON storage.objects TO authenticated;
+SET ROLE authenticated;
+
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_victim_path') = 0,
+  'CM: autor starego wpisu z obca sciezka NIE widzi pliku ofiary');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_attacker_path') = 1,
+  'CM: kontrola dodatnia - autor widzi plik z wlasnego katalogu');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_victim_path') = 0,
+  'CM: czlonek klubu napastnika NIE widzi pliku ofiary');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_attacker_path') = 1,
+  'CM: kontrola dodatnia - czlonek klubu widzi plik autora wpisu w tym klubie');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_victim_path') = 1,
+  'CM: kontrola dodatnia - kolezanka z klubu ofiary widzi jej plik');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_attacker_path') = 0,
+  'CM: osoba spoza klubu napastnika nie widzi jego pliku');
+
+\echo '== CM.3 Konto autora usuniete: wpis zostaje, jego pliki dalej otwarte dla klubu =='
+-- `deleteUser` kasuje `auth.users`; FK `club_posts.author_id ... ON DELETE
+-- SET NULL` zostawia wpis z treścią i zdjęciami w strumieniu. Kasujemy
+-- NAPRAWDĘ dwa konta: autorkę z własnym zdjęciem i napastnika ze starym
+-- wpisem niosącym ścieżkę ofiary.
+RESET ROLE;
+INSERT INTO auth.users (id, email) VALUES ('e2000000-0000-0000-0000-000000000005','cm-autorka@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
+  ('e2000000-0000-0000-0000-000000000005','11111111-1111-1111-1111-111111111111','CM Autorka',true);
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_member_upsert(:'cm_ka'::uuid, 'e2000000-0000-0000-0000-000000000005', 'member', 'active', NULL) IS NOT NULL AS cm_autorka_member \gset
+\set cm_gone_path 'e2000000-0000-0000-0000-000000000005/lq3-e5f6-zdjecie.jpg'
+INSERT INTO storage.objects (bucket_id, name, owner) VALUES
+  ('club-media', :'cm_gone_path', 'e2000000-0000-0000-0000-000000000005');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000005';
+SELECT post_id AS cm_pg FROM public.club_post_create(:'cm_ka'::uuid, NULL, NULL, 'Zdjecie z posiedzenia',
+  jsonb_build_array(jsonb_build_object('type','image','path',:'cm_gone_path'))) \gset
+DELETE FROM auth.users
+ WHERE id IN ('e2000000-0000-0000-0000-000000000005', 'e2000000-0000-0000-0000-000000000002');
+SELECT pg_temp.assert(
+  (SELECT author_id IS NULL AND status = 'published' FROM public.club_posts WHERE id = :'cm_pg'::uuid)
+    AND (SELECT count(*) FROM public.club_posts WHERE club_id = :'cm_ka'::uuid AND author_id IS NULL) = 3,
+  'CM: usuniecie kont zeruje author_id, wpisy (autorki i oba napastnika) zostaja');
+SET ROLE authenticated;
+
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_gone_path') = 1,
+  'CM: czlonek klubu dalej widzi zdjecie wpisu autorki, ktora usunela konto');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_victim_path') = 0,
+  'CM: stary wpis napastnika po usunieciu JEGO konta dalej nie otwiera pliku zyjacej ofiary');
+SET request.jwt.claim.sub = 'e2000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'club-media' AND name = :'cm_gone_path') = 0,
+  'CM: osoba spoza klubu nie widzi pliku konta usunietego');
+RESET ROLE;
+ROLLBACK;
+RESET request.jwt.claim.sub;
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'
