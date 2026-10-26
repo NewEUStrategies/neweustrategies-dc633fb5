@@ -135,13 +135,9 @@ test.describe("popup registration (local account and mailbox)", () => {
       await passwords.nth(0).fill("Popup-test-1234!");
       await passwords.nth(1).fill("Popup-test-1234!");
       await dialog.getByRole("checkbox").nth(0).setChecked(scenario.newsletter);
-      // Osobne pole zgody na pomiar (I9d-Y2b) stoi między newsletterem a
-      // prywatnością: domyślnie niezaznaczone, bez newslettera wyłączone.
-      const measurement = dialog.locator(
-        'label[data-consent="email_measurement"] [role="checkbox"]',
-      );
-      await expect(measurement).not.toBeChecked();
-      if (!scenario.newsletter) await expect(measurement).toBeDisabled();
+      // Formularz zapisu nie oferuje pola pomiaru (AGENTS.md): pomiar e-maili
+      // ma własną ścieżkę dowodową - potwierdzenie ze skrzynki.
+      await expect(dialog.locator('label[data-consent="email_measurement"]')).toHaveCount(0);
       await dialog.getByRole("checkbox", { name: /Akceptuję politykę prywatności/ }).check();
 
       if (scenario.viewport.width < 500) {
@@ -186,6 +182,10 @@ test.describe("popup registration (local account and mailbox)", () => {
             timestamp: expect.any(String),
           }),
         ]),
+      );
+      // Bez jawnego wyboru pomiaru ładunek zapisu nie niesie deklaracji pomiaru.
+      expect(before.user_metadata.signup_consents).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "email_measurement" })]),
       );
       const rows: { status: string; consents: { received_at: string }[] }[] = await (
         await adminGet(
