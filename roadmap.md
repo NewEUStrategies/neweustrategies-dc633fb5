@@ -1,5 +1,11 @@
 # Roadmap
 
+## Weryfikacja poprawki klubów / PR #538 (2026-10-26)
+
+- [ ] Potwierdzić integrację wszystkich commitów i zakres zmian dostępu do plików po usunięciu konta.
+- [ ] Zweryfikować oczekujące migracje, wdrożyć dozwolony zakres i potwierdzić obiekty, ciała RPC oraz uprawnienia w żywej bazie.
+- [ ] Uruchomić testy zakresowe i bramki, sprawdzić rzeczywisty klub oraz publikację; jawnie wskazać ograniczenia weryfikacji.
+
 ## Etykieta zgody na pomiar - treść właściciela (2026-10-24)
 
 - [x] Widoczna etykieta pola to jedno zdanie: „Zgoda na pomiar interakcji na naszej platformie, aby poprawiać jakość spersonalizowanych usług i dopasowywać komunikację marketingową." EN: „Consent to measuring interactions on our platform, to improve the quality of personalized services and tailor marketing communications." Skrót nie niesie już linku „szczegóły" - odnośnik do polityki komunikacji zostaje w pełnej treści na stronie potwierdzenia. Przedmiot zgody nadal niesie aria-label pola. Pełna wersjonowana treść dowodowa, wersja i rejestr zgód bez zmian.
