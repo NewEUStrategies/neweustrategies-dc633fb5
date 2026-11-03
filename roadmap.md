@@ -1,5 +1,10 @@
 # Roadmap
 
+## Komfort czytania (2026-11-03)
+
+- [x] Ograniczyć sam tekst artykułów do 700 px; zachować media, sidebar, lewą krawędź i obecną typografię PL/EN oraz light/dark.
+- [ ] Zweryfikować rzeczywisty artykuł na komputerze i telefonie oraz testy układu.
+
 ## Formularze bez pola pomiaru i naprawa wydania (2026-10-26)
 
 - [x] Usunięto pole i deklarację pomiaru z NewsletterForm, PopupSignupForm, JoinUsForm, ContactFormView, AuthFormBlocks, ClubAccessGate i NewsletterDocRenderer PL/EN. Newsletter i prywatność zachowane; brak automatycznego opt-in pomiaru, newsletter podczas tworzenia konta pozostaje opcjonalny i niezaznaczony.
