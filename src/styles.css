@@ -5013,9 +5013,8 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
  *
  * - Tokeny: 16 px / 1,6 na telefonie, 17 px / 1,65 od `lg` (nadpisanie
  *   w regule rozmiaru korzenia `@media (min-width: 1024px)` niżej).
- * - Miara ok. 850 px = 50em przy 17 px. Liczona z `--fs-article`, nie
- *   w `em`/`ch`: `em` nagłówka dawałby inną miarę dla każdego elementu, a cyfra
- *   0 w Red Hat Display jest szeroka, więc `ch` rozjeżdża się z liczbą znaków.
+ * - Miara maksymalnie 700 px, wspólna dla tekstu i nagłówków; nie w `em`/`ch`,
+ *   żeby wielkość nagłówka nie zmieniała długości wiersza.
  * - Tekst (akapit, nagłówek, lista, cytat, przypisy, blok `html` bez
  *   tabeli/obrazu/osadzenia - `data-block-wide`) stoi w mierze, wyśrodkowany
  *   w kolumnie treści; obraz, embed, tabela, kolumny, galeria i `alignwide`/
@@ -5038,7 +5037,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
 :root {
   --fs-article: 16px;
   --lh-article: 1.6;
-  --article-measure: calc(var(--fs-article) * 50);
+  --article-measure: 700px;
   --article-page-width: 86%;
 }
 /* Delikatnie węższa wspólna ramka wpisu; strony CMS i wydruk bez zmian. */
@@ -5078,16 +5077,21 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   /* Sekcja „Z tego materiału dowiesz się, że” (punkty), spis treści w treści
      (i nawigacja serii - też `nav`) oraz przypisy trasy - w kolumnie tekstu. */
   [data-reading="article"] > :is(.key-takeaways, nav, section) {
-    margin-inline: max(0px, 50% - var(--article-measure) / 2);
+    margin-inline-start: var(--article-reading-inset-start, max(0px, 50% - var(--article-measure) / 2));
+    margin-inline-end: var(--article-reading-inset-end, max(0px, 50% - var(--article-measure) / 2));
+  }
+  /* Legacy HTML can mix wide media and nested text in the same block. */
+  [data-reading="article"] [data-block-type="html"][data-block-wide]
+    :is(p, h2, h3, h4, h5, h6, ul, ol, blockquote):not(table *):not(.w-full) {
+    max-width: min(100%, var(--article-measure));
   }
 }
-/* Wpis z sidebarem obok tekstu (od `lg`): tekst wypełnia całą kolumnę
-   artykułu - od lewej krawędzi nagłówka do sidebara - zamiast stać w mierze
-   pośrodku (szerokie, puste marginesy po obu stronach). Miara 100% zeruje
-   marginesy kolumny tekstu i zrównuje nagłówek z kolumną. */
+/* Wpis z sidebarem: zachowaj lewą krawędź nagłówka, ograniczając wyłącznie
+   tekst. Media nadal wykorzystują całą szerokość kolumny. */
 @media (min-width: 1024px) {
   [data-layout-sidebar="true"] {
-    --article-measure: 100%;
+    --article-reading-inset-start: 0px;
+    --article-reading-inset-end: max(0px, 100% - var(--article-measure));
   }
 }
 

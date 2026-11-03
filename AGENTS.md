@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep article reading width in shared CSS tokens across all content engines; cap text independently of media/sidebar and preserve sidebar-layout leading alignment, so wide screens do not lengthen reading lines.
+
 - Keep concise measurement form labels separate from the versioned full consent shown at mailbox confirmation; presentation edits must not rewrite historical consent evidence or change activation rules.
 - Keep signup/newsletter payloads free of measurement declarations when no explicit measurement choice is offered; account measurement information must not masquerade as a generic personalization toggle, because mailbox-confirmed measurement has its own evidence path.
 
