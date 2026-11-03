@@ -5080,6 +5080,11 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
     margin-inline-start: var(--article-reading-inset-start, max(0px, 50% - var(--article-measure) / 2));
     margin-inline-end: var(--article-reading-inset-end, max(0px, 50% - var(--article-measure) / 2));
   }
+  /* Legacy HTML can mix wide media and nested text in the same block. */
+  [data-reading="article"] [data-block-type="html"][data-block-wide]
+    :is(p, h2, h3, h4, h5, h6, ul, ol, blockquote):not(table *):not(.w-full) {
+    max-width: min(100%, var(--article-measure));
+  }
 }
 /* Wpis z sidebarem: zachowaj lewą krawędź nagłówka, ograniczając wyłącznie
    tekst. Media nadal wykorzystują całą szerokość kolumny. */
