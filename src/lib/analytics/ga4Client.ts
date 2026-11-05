@@ -423,15 +423,20 @@ function isConfigCommand(entry: unknown, id: string): boolean {
  * ustawia wtedy `ad_*` na `denied`, a ponowna zgoda nie dokłada drugiego `config`.
  *
  * Gdy gtag.js już działa, `config` dociąga kontener Ads w tej chwili; gdy
- * jeszcze nie, polecenie czeka w warstwie danych za aktualizacją zgody.
+ * jeszcze nie, ładujemy go bezpośrednio identyfikatorem Ads po zgodzie.
+ * Zaplanowany bootstrap GA4 przejmie ten sam skrypt bez drugiej instalacji.
  */
 export function ga4ConfigureAds(adsId: string): void {
   const w = win();
   const ads = adsId.trim();
   if (!w || !ads || !analyticsAllowedHere() || configuredAds.has(ads)) return;
   configuredAds.add(ads);
-  if (layerOf(w).some((entry) => isConfigCommand(entry, ads))) return;
-  gtag("config", ads);
+  if (!layerOf(w).some((entry) => isConfigCommand(entry, ads))) {
+    gtag("config", ads);
+  }
+  // Jawna zgoda nie powinna czekać na kolejkę bezczynności GA4 ani na GTM.
+  // Istniejący gtag.js jest współdzielony, więc nie dokładamy kopii snippetu.
+  void injectGtagScript(ads);
 }
 
 /** Wyłącznie dla testów - zeruje pamięć bootstrapu i Ads, globalną `gtag` i pieczątkę SSR. */
