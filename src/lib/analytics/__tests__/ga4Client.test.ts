@@ -535,6 +535,22 @@ describe("Google Ads dopiero po zgodzie marketingowej - ga4ConfigureAds (P1.1, T
     document.head.querySelectorAll(`script[src^="${GTAG_SRC}"]`).forEach((el) => el.remove());
   });
 
+  it("po zgodzie ładuje AW-17612160320 bez oczekiwania na GA4 i nie duplikuje późnego bootstrapu", () => {
+    const loads: Array<() => Promise<void>> = [];
+    bootstrapGa4("G-TEST123", { scheduleScript: (load) => loads.push(load) });
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_SRC}"]`)).toHaveLength(0);
+    ga4ConsentUpdate(zgodaMarketingowa);
+    ga4ConfigureAds("AW-17612160320");
+    const script = document.head.querySelector<HTMLScriptElement>(`script[src^="${GTAG_SRC}"]`);
+    expect(script?.src).toBe(`${GTAG_SRC}?id=AW-17612160320`);
+    expect(script?.async).toBe(true);
+    expect(policz("config", "AW-17612160320")).toBe(1);
+    void loads[0]?.();
+    ga4ConfigureAds("AW-17612160320");
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_SRC}"]`)).toHaveLength(1);
+    expect(policz("config", "AW-17612160320")).toBe(1);
+  });
+
   it("wypycha DOKŁADNIE jedno `config AW` jako obiekt `arguments`, za aktualizacją zgody", () => {
     uruchomSnippetSsr();
     bootstrapGa4("G-TEST123");
