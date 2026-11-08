@@ -58,8 +58,13 @@ test.describe("SEO surfaces", () => {
       expect(body, path).not.toContain("<?xml-stylesheet");
       expect(body.split("\n")[1], path).toContain("/sitemap");
     }
+    // Pod dawnym adresem arkusza nie ma juz XSLT. Kodu odpowiedzi celowo nie
+    // sprawdzamy: adres trafia do uniwersalnej trasy CMS, ktora przy martwym
+    // backendzie oddaje dokument zdegradowany z 200 (e2e/ssr-degradation.spec.ts),
+    // a z baza - 404. W obu przypadkach to nie jest arkusz.
     const xsl = await request.get("/sitemap.xsl");
-    expect(xsl.status()).toBeGreaterThanOrEqual(400);
+    expect(xsl.headers()["content-type"] ?? "").not.toContain("xsl");
+    expect(await xsl.text()).not.toContain("<xsl:stylesheet");
   });
 
   test("news-sitemap.xml is never an empty urlset", async ({ request }) => {
