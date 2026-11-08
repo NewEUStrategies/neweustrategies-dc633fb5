@@ -81,7 +81,7 @@ const registrationEn = {
         meetings: "Chatham House meetings",
       },
       newsletter: {
-        title: "Newsletter",
+        title: "Our newsletter",
         body: "Key analyses and event invitations delivered to your inbox.",
         newsletter: "Subscribe to the newsletter",
       },
