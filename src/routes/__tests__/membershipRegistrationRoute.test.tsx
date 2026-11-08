@@ -120,7 +120,7 @@ describe("trasa /membership-registration - head: język brany z adresu", () => {
     expect(head.meta).toContainEqual({
       name: "description",
       content:
-        "Register a New European Strategies account: strategy, knowledge and impact in one ecosystem.",
+        "Create a free New European Strategies account - the independent think tank on European security: open analyses, event registration, the newsletter and membership plans.",
     });
     expect(head.meta).toContainEqual({ httpEquiv: "content-language", content: "en" });
   });
@@ -133,7 +133,7 @@ describe("trasa /membership-registration - head: język brany z adresu", () => {
     expect(head.meta).toContainEqual({
       name: "description",
       content:
-        "Załóż konto w New European Strategies: strategia, wiedza i wpływ - jeden ekosystem.",
+        "Załóż bezpłatne konto w New European Strategies - niezależnym think tanku o bezpieczeństwie Europy: analizy otwarte, zapisy na wydarzenia, newsletter i plany członkostwa.",
     });
     expect(head.meta).toContainEqual({ httpEquiv: "content-language", content: "pl" });
   });
@@ -188,5 +188,45 @@ describe("trasa /membership-registration - portal startuje w rejestracji", () =>
 
     expect(h.initialModes).toEqual(["signup"]);
     expect(screen.getByTestId("auth-portal-stub")).toHaveTextContent("signup");
+  });
+});
+
+describe("trasa /membership-registration - treść i linki pod formularzem", () => {
+  // 2026-11-08: trasa miała `ssr: false`, a jej HTML serwera był pusty - strona
+  // pozyskania członka nie miała dla wyszukiwarki ani nagłówka, ani linku.
+  it("ma jeden H1 z sekcji treści (AuthPortal własnego H1 nie ma)", async () => {
+    await mount();
+
+    const h1 = screen.getAllByRole("heading", { level: 1 });
+    expect(h1).toHaveLength(1);
+    expect(h1[0]).toHaveTextContent("Konto w New European Strategies");
+  });
+
+  it("linkuje analizy, wydarzenia, newsletter, członkostwo, logowanie i dokumenty", async () => {
+    await mount();
+
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    for (const href of [
+      "/analizy",
+      "/wydarzenia",
+      "/konferencje",
+      "/spotkania-chatham-house",
+      "/dolacz-do-newslettera",
+      "/membership-join",
+      "/pricing",
+      "/login",
+      "/o-nas",
+      "/kontakt",
+      "/regulamin",
+      "/polityka-prywatnosci",
+      "/regulamin-subskrypcji-i-zakupow",
+      "/rodo",
+    ]) {
+      expect(hrefs, href).toContain(href);
+    }
+  });
+
+  it("trasa renderuje się na serwerze - bez `ssr: false`", () => {
+    expect((MembershipRegistrationRoute.options as { ssr?: unknown }).ssr).toBeUndefined();
   });
 });

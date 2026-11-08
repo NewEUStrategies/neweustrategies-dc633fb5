@@ -14,7 +14,6 @@ describe("isUtilityPageSlug", () => {
       "password-reset",
       "register",
       "membership-login",
-      "membership-registration",
     ]) {
       expect(isUtilityPageSlug(slug), slug).toBe(true);
     }
@@ -27,6 +26,8 @@ describe("isUtilityPageSlug", () => {
       "konferencje",
       "spotkania-chatham-house",
       "membership-join",
+      // Trasa kodowa: indeksowalna strona rejestracji z treścią (2026-11-08).
+      "membership-registration",
       "pricing",
       "dolacz-do-newslettera",
       "zamowienie-publikacji",

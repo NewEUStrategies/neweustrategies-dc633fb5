@@ -43,6 +43,12 @@ export const CAREER_SENIORITIES = ["junior", "mid", "senior", "lead"] as const;
  * Otwarte role. Kolejność = kolejność prezentacji: najpierw zespół badawczy,
  * potem role wspierające. Dodanie roli wymaga wyłącznie kluczy i18n
  * `careers.roles.<id>.*` - bramka `roles.test.ts` pilnuje spójności.
+ *
+ * Decyzja redakcji 2026-11-08: zostaje sześć ról (po dwie w analizach,
+ * polityce/doradztwie i marketingu/redakcji). Analityk danych, specjalista
+ * ds. polityki UE, specjalista ds. treści i koordynator wydarzeń wypadli
+ * z katalogu razem z tekstami w `i18n-careers.ts`. Katalog jest zapasem na
+ * pustą tabelę `career_roles`; oferty z panelu (/admin/hiring) go zastępują.
  */
 export const CAREER_ROLES: readonly CareerRole[] = [
   {
@@ -64,24 +70,6 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     requirements: 3,
   },
   {
-    id: "data_analyst",
-    department: "analysis",
-    engagement: "contract",
-    seniority: "mid",
-    location: "remote",
-    bullets: 3,
-    requirements: 3,
-  },
-  {
-    id: "eu_policy_officer",
-    department: "policy",
-    engagement: "full_time",
-    seniority: "mid",
-    location: "brussels",
-    bullets: 4,
-    requirements: 4,
-  },
-  {
     id: "policy_intern",
     department: "policy",
     engagement: "internship",
@@ -100,15 +88,6 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     requirements: 4,
   },
   {
-    id: "content_marketing_specialist",
-    department: "marketing",
-    engagement: "part_time",
-    seniority: "mid",
-    location: "remote",
-    bullets: 3,
-    requirements: 3,
-  },
-  {
     id: "strategic_advisor",
     department: "advisory",
     engagement: "contract",
@@ -125,15 +104,6 @@ export const CAREER_ROLES: readonly CareerRole[] = [
     location: "warsaw",
     bullets: 4,
     requirements: 4,
-  },
-  {
-    id: "events_coordinator",
-    department: "operations",
-    engagement: "full_time",
-    seniority: "mid",
-    location: "warsaw",
-    bullets: 3,
-    requirements: 3,
   },
 ] as const;
 

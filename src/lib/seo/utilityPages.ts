@@ -42,7 +42,9 @@ export const UTILITY_PAGE_SLUGS: ReadonlySet<string> = new Set([
   "reset-hasla",
   "lost-password",
   "membership-login",
-  "membership-registration",
+  // `membership-registration` CELOWO poza listą: pod tym adresem renderuje się
+  // trasa kodowa - indeksowalna strona pozyskania członka z treścią i linkami
+  // (`routes/membership-registration.tsx`), a nie martwy formularz wtyczki.
   "membership-account",
   "membership-billing",
   "membership-cancel",

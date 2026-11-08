@@ -16,7 +16,10 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useCareerOffers } from "@/lib/careers/useCareerContent";
 import { CareerStat } from "../atoms/CareerStat";
 
-const STAT_KEYS = ["people", "countries", "remote", "growth"] as const;
+// Decyzja redakcji 2026-11-08: zostaje jedna liczba dowodowa (praca zdalna
+// lub hybrydowa). Pozostałe („osób w zespole", „krajów", „wzrost zespołu")
+// były wartościami szablonu, a nie danymi organizacji.
+const STAT_KEYS = ["remote"] as const;
 const ROTATING_KEYS = ["research", "policy", "marketing", "advisory", "editorial"] as const;
 
 // Ten sam kształt ustawienia, którym Header rysuje logo serwisu.
@@ -142,7 +145,7 @@ export function CareersHero({
         <p className="mt-3 text-xs text-muted-foreground">{t("careers.trust")}</p>
       </div>
 
-      <dl className="mt-10 grid grid-cols-2 gap-5 border-t border-border/60 pt-6 sm:grid-cols-4">
+      <dl className="mt-10 grid grid-cols-1 gap-5 border-t border-border/60 pt-6 sm:max-w-xs">
         {STAT_KEYS.map((key) => (
           <CareerStat
             key={key}
