@@ -18,14 +18,13 @@ describe("primarySiteSections", () => {
     expect(primarySiteSections()).toHaveLength(PRIMARY_SECTION_HREFS.length);
   });
 
-  it("zachowuje zaplanowaną kolejność: analizy, wywiady, wydarzenia, ...", () => {
-    expect(primarySiteSections().map((link) => link.label.pl)).toEqual([
-      "Analizy",
-      "Wywiady",
-      "Wydarzenia",
-      "Policy papers",
-      "Podcast",
-      "O nas",
+  it("zachowuje kolejność redakcji 2026-11-08: analizy, o nas, konferencje, spotkania, wywiady", () => {
+    expect(primarySiteSections().map((link) => link.label.en)).toEqual([
+      "Analyses",
+      "About us",
+      "Conferences",
+      "Chatham House meetings",
+      "Interviews",
     ]);
   });
 
@@ -35,13 +34,9 @@ describe("primarySiteSections", () => {
     expect(primarySiteSections().some((link) => link.group === "legal")).toBe(false);
   });
 
-  it("/podcasts wraca między policy papers a „O nas” - katalog renderuje listę, nie kartę błędu", () => {
-    // Pomiar 2026-10-09: 3/3 odpowiedzi /podcasts zdegradowane (42703 na
-    // `podcasts.explicit`), więc sekcja wypadła z listy. Lista odcinków czyta
-    // już tylko kolumny karty (`podcastsIndexRoute.test.tsx`).
+  it("nie deklaruje stron technicznych (sitelink „Customize Interests”, SERP 2026-11)", () => {
     const hrefs = primarySiteSections().map((link) => link.href);
-    expect(hrefs.indexOf("/podcasts")).toBe(hrefs.indexOf("/category/policy-papers") + 1);
-    expect(hrefs.indexOf("/o-nas")).toBe(hrefs.indexOf("/podcasts") + 1);
+    expect(hrefs).not.toContain("/customize-interests");
   });
 
   it("nie ma duplikatów adresów", () => {

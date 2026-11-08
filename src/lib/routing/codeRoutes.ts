@@ -64,7 +64,6 @@ export const CODE_ROUTE_PATHS: ReadonlySet<string> = new Set([
   "/sitemap",
   "/sitemap-index.xml",
   "/sitemap.xml",
-  "/sitemap.xsl",
   "/statut",
   "/support",
   "/tracker",

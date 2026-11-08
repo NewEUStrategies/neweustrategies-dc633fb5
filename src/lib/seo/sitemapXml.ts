@@ -10,7 +10,7 @@ import {
 } from "@/lib/i18n/localePath";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 import { sitemapLanguageUrls } from "@/lib/seo/sitemapUrls";
-import { sitemapProlog, type SitemapRenderOptions } from "@/lib/seo/sitemapStylesheet";
+import { sitemapProlog, type SitemapRenderOptions } from "@/lib/seo/sitemapProlog";
 
 // Jeden escaper dla wszystkich powierzchni XML (RSS i sitemapy) - dwie kopie
 // tej samej funkcji rozjeżdżały się przy każdej zmianie.

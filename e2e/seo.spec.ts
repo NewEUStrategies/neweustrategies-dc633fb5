@@ -46,25 +46,20 @@ test.describe("SEO surfaces", () => {
     }
   });
 
-  test("sitemap files render in the browser as a page with clickable links", async ({ page }) => {
-    // Arkusz XSL (/sitemap.xsl): bez niego przegladarka pokazuje surowe drzewo
-    // XML ("This XML file does not appear to have any style information"),
-    // w ktorym adresy nie sa linkami. Robot czyta ten sam plik jako XML.
-    await page.goto("/sitemap.xml");
-    await expect(page.locator("h1")).toHaveText("Indeks map strony");
-    await expect(page.locator('table#rows a[href$="/sitemaps/core.xml"]')).toBeVisible();
-
-    await page.goto("/sitemaps/core.xml");
-    await expect(page.locator("h1")).toHaveText("Mapa adresów");
-    expect(await page.locator("table#rows tbody tr a").count()).toBeGreaterThan(0);
-    await expect(page.locator('nav a[href="/sitemap.xml"]')).toBeVisible();
-  });
-
-  test("sitemap.xsl is served as an XSL stylesheet", async ({ request }) => {
-    const res = await request.get("/sitemap.xsl");
-    expect(res.status()).toBe(200);
-    expect(res.headers()["content-type"] ?? "").toContain("text/xsl");
-    expect(await res.text()).toContain("<xsl:stylesheet");
+  test("sitemap files do not depend on XSLT", async ({ request }) => {
+    // Chrome wycofuje XSLT: plik z instrukcja <?xml-stylesheet?> otwieral sie
+    // z ostrzezeniem o usuwanej funkcji, a po wylaczeniu silnika nie zadziala
+    // wcale. Mapy sa czystym XML-em z komentarzem wskazujacym mape HTML
+    // (lib/seo/sitemapProlog.ts); arkusz /sitemap.xsl nie istnieje.
+    for (const path of ["/sitemap.xml", "/sitemaps/core.xml"]) {
+      const res = await request.get(path);
+      expect(res.status(), path).toBe(200);
+      const body = await res.text();
+      expect(body, path).not.toContain("<?xml-stylesheet");
+      expect(body.split("\n")[1], path).toContain("/sitemap");
+    }
+    const xsl = await request.get("/sitemap.xsl");
+    expect(xsl.status()).toBeGreaterThanOrEqual(400);
   });
 
   test("news-sitemap.xml is never an empty urlset", async ({ request }) => {

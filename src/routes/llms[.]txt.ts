@@ -18,6 +18,7 @@ import {
 } from "@/lib/seo/llms";
 import { llmsTxtResourceLines, type MachineSurfaceFilter } from "@/lib/seo/machineSurfaces";
 import { primarySiteSections } from "@/lib/seo/primaryNavigation";
+import { NES_ORGANIZATION_IDENTITY } from "@/lib/seo/organizationIdentity";
 import {
   parseSeoSettings,
   robotsUsagePolicy,
@@ -225,6 +226,9 @@ export const Route = createFileRoute("/llms.txt")({
         // bezwarunkowo - przy wyłączonych crawlerach AI llms.txt udzielał zgody,
         // której robots.txt tego samego hosta odmawiał.
         const usage = robotsUsagePolicy(settings);
+        // Host marki z rozpoznanym tenantem - jedyny, który może mówić w imieniu
+        // marki: ogłaszać jej sekcje główne i fakty rejestrowe fundacji.
+        const speaksForBrand = Boolean(tenantId) && classifyCrawlHost({ host }) === "brand";
         const body = buildLlmsTxt({
           siteName: usage.siteName,
           origin,
@@ -240,20 +244,18 @@ export const Route = createFileRoute("/llms.txt")({
           // podcastów bez odcinka wypada (na produkcji „Wywiady", „Policy
           // papers" i „Podcast" - patrz `resolvePrimarySectionHref`),
           // a duplikaty z listą kategorii usuwa builder.
-          primarySections:
-            tenantId && classifyCrawlHost({ host }) === "brand"
-              ? primarySiteSections().flatMap((l) => {
-                  const href = resolvePrimarySectionHref(l.href, categories, emptyTargets);
-                  if (!href) return [];
-                  return [
-                    {
-                      name:
-                        l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
-                      url: `${origin}${href}`,
-                    },
-                  ];
-                })
-              : [],
+          primarySections: speaksForBrand
+            ? primarySiteSections().flatMap((l) => {
+                const href = resolvePrimarySectionHref(l.href, categories, emptyTargets);
+                if (!href) return [];
+                return [
+                  {
+                    name: l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
+                    url: `${origin}${href}`,
+                  },
+                ];
+              })
+            : [],
           // Archiwa tylko z wpisami, organizacje pod `/organization/<slug>` -
           // ta sama reguła co sekcja `taxonomy` mapy strony.
           sections: taxonomy.sections,
@@ -268,6 +270,9 @@ export const Route = createFileRoute("/llms.txt")({
           // decyzja redakcji. Awaria bazy nie jest zgodą: przewodnik
           // zdegradowany nie udziela żadnej i odsyła do robots.txt.
           usage: tenantId ? usage : null,
+          // Blok „O organizacji" i oficjalne profile - fakty fundacji NES, więc
+          // ta sama bramka co sekcje główne (`lib/seo/organizationIdentity.ts`).
+          organization: speaksForBrand ? NES_ORGANIZATION_IDENTITY : null,
         });
 
         // Przewodnik BEZ artykułów albo BEZ sekcji jest odpowiedzią

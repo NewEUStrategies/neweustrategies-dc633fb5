@@ -8,6 +8,7 @@ import {
   type LlmsTxtInput,
 } from "@/lib/seo/llms";
 import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
+import { NES_ORGANIZATION_IDENTITY } from "@/lib/seo/organizationIdentity";
 import { localizedPath } from "@/lib/i18n/localePath";
 
 describe("buildLlmsTxt", () => {
@@ -411,6 +412,36 @@ describe("buildLlmsTxt - gramatyka llmstxt.org", () => {
     expect(info).toContain('MUST name "New European Strategies" as the source');
     expect(info).toContain("Kontakt / Contact: office@nes.example");
     expect(txt.match(/^> /gm)).toHaveLength(1);
+  });
+
+  it("z tożsamością wydawcy: blok „O organizacji” przed `##`, profile jako lista odnośników", () => {
+    const txt = buildLlmsTxt({
+      ...trudneWejscie({ aiInputAllowed: true, trainingAllowed: true }),
+      organization: NES_ORGANIZATION_IDENTITY,
+    });
+    const sections = h2Sections(txt);
+    expect(sections.map((s) => s.heading)).toContain("Oficjalne profile / Official profiles");
+    for (const { heading, lines } of sections) {
+      for (const line of lines) expect(line, `sekcja „${heading}"`).toMatch(LINK_LINE);
+    }
+    const head = txt.split(/^##/m)[0] ?? "";
+    expect(head).toContain("**O organizacji / About the organization**");
+    // Zdanie ujednoznaczniające: czym marka jest i czym NIE jest (SERP 2026-11-08).
+    expect(head).toContain("niezależny think tank z siedzibą w Warszawie");
+    expect(head).toContain("not an institution of the European Union nor an EU strategy document");
+    expect(head).toContain("KRS 0001195512, REGON 542769005, NIP 7011278375");
+    expect(txt).toContain(
+      "- [LinkedIn](https://www.linkedin.com/company/new-european-strategies/)",
+    );
+    expect(txt).toContain("- [X](https://x.com/NewEUStrategies)");
+    // Blok tożsamości stoi PRZED warunkami wykorzystania - model czyta go pierwszy.
+    expect(head.indexOf("O organizacji")).toBeLessThan(head.indexOf(LLMS_TXT_USAGE_TERMS_LABEL));
+  });
+
+  it("bez tożsamości wydawcy (inny tenant, degradacja) nie ma bloku ani profili", () => {
+    const txt = buildLlmsTxt(trudneWejscie(null));
+    expect(txt).not.toContain("O organizacji");
+    expect(txt).not.toContain("## Oficjalne profile");
   });
 
   it("streszczenie EN identyczne z PL (albo puste) nie jest powtarzane", () => {

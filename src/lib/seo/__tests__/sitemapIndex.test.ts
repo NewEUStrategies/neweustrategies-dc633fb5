@@ -229,12 +229,12 @@ describe("buildSitemapIndexXml - wejścia niepełne", () => {
     // Generator nie może wyemitować uciętego dokumentu nawet bez wpisów. Trasa
     // indeksu i tak zawsze ogłasza statyczny shard `core` - pusty
     // `<sitemapindex>` (niepoprawny wobec schematu, GSC: „Brak tagu XML:
-    // sitemap") nie wychodzi do crawlera. Drugi wiersz to arkusz wyglądu
-    // dla przeglądarki (`lib/seo/sitemapStylesheet.ts`).
+    // sitemap") nie wychodzi do crawlera. Drugi wiersz to wskazówka mapy HTML
+    // dla człowieka - bez arkusza XSLT (`lib/seo/sitemapProlog.ts`).
     const xml = buildSitemapIndexXml([]);
     expect(xml).toBe(
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
-        '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>\n' +
+        "<!-- Mapa strony dla ludzi / Human-readable site map: /sitemap -->\n" +
         '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
         "</sitemapindex>",
     );

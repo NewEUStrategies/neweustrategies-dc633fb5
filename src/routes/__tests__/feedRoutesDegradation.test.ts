@@ -1211,18 +1211,18 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
     "[Analizy / Analyses](https://neweuropeanstrategies.com/category/analizy)",
   );
   expect(body).toContain("Komentarze ekspertów.");
-  // Sekcje główne (zgłoszenie 2026-10-09): ta sama kolejność co JSON-LD strony
-  // głównej, PRZED kategoriami, bez „Kontaktu".
+  // Sekcje główne (kolejność redakcji 2026-11-08): ta sama kolejność co JSON-LD
+  // strony głównej, PRZED kategoriami, bez „Kontaktu".
   const key = body.indexOf("## Najważniejsze sekcje / Key sections");
   const categoriesAt = body.indexOf("## Sekcje / Sections");
   expect(key).toBeGreaterThan(-1);
   expect(key).toBeLessThan(categoriesAt);
   const order = [
     "- [Analizy / Analyses](https://neweuropeanstrategies.com/analizy)",
-    "- [Wywiady / Interviews](https://neweuropeanstrategies.com/category/wywiady)",
-    "- [Wydarzenia / Events](https://neweuropeanstrategies.com/wydarzenia)",
-    "- [Podcast](https://neweuropeanstrategies.com/podcasts)",
     "- [O nas / About us](https://neweuropeanstrategies.com/o-nas)",
+    "- [Konferencje / Conferences](https://neweuropeanstrategies.com/konferencje)",
+    "- [Spotkania Chatham House / Chatham House meetings](https://neweuropeanstrategies.com/spotkania-chatham-house)",
+    "- [Wywiady / Interviews](https://neweuropeanstrategies.com/category/wywiady)",
   ].map((line) => body.indexOf(line, key));
   expect(order.every((at) => at > key && at < categoriesAt)).toBe(true);
   expect(order).toEqual([...order].sort((a, b) => a - b));
@@ -1244,8 +1244,11 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
 // Przegląd 2026-10: produkcyjne /podcasts renderuje „Brak opublikowanych
 // odcinków.", a pierwsza wersja poprawki zdejmowała tylko puste archiwa
 // `/category/`. Decyzja nie może zależeć od `rss_enabled` - sekcja główna to
-// strona, nie kanał.
-describe("/llms.txt - sekcja główna „Podcast” tylko z opublikowanym odcinkiem", () => {
+// strona, nie kanał. Od 2026-11-08 Podcast nie jest sekcją główną w ogóle
+// (`primaryNavigation.ts`), więc nie wraca do tego bloku także z odcinkiem;
+// reguła pustego celu (`resolvePrimarySectionHref`) zostaje na wypadek jego
+// powrotu i ma własne testy jednostkowe (`llms.test.ts`).
+describe("/llms.txt - „Podcast” poza sekcjami głównymi", () => {
   const PODCASTS_LINE = "- [Podcast](https://neweuropeanstrategies.com/podcasts)";
 
   it.each([true, false])("bez odcinka sekcja wypada (rss_enabled=%s)", async (rssEnabled) => {
@@ -1260,7 +1263,7 @@ describe("/llms.txt - sekcja główna „Podcast” tylko z opublikowanym odcink
   });
 
   it.each([true, false])(
-    "kontrola dodatnia: z odcinkiem sekcja zostaje (rss_enabled=%s)",
+    "z odcinkiem też nie jest sekcją główną - decyzja redakcji 2026-11-08 (rss_enabled=%s)",
     async (rssEnabled) => {
       state.settings = { llms_txt_enabled: true, rss_enabled: rssEnabled };
       state.posts = [feedPost()];
@@ -1268,7 +1271,8 @@ describe("/llms.txt - sekcja główna „Podcast” tylko z opublikowanym odcink
       state.podcasts = [podcastRow({ audio_url: "" })];
       const { Route } = await import("../llms[.]txt");
       const body = await (await routeServerHandlers(Route).GET!({})).text();
-      expect(body).toContain(PODCASTS_LINE);
+      expect(body).toContain("## Najważniejsze sekcje / Key sections");
+      expect(body).not.toContain(PODCASTS_LINE);
       expect(body).not.toContain("/podcast/rss.xml");
     },
   );
@@ -2477,9 +2481,6 @@ const HOST_SURFACE_EXEMPT: Readonly<Record<string, string>> = {
   "/sitemap-index.xml":
     "alias 301 na /sitemap.xml - nie czyta tenanta ani danych (blok „alias indeksu” wyżej)",
   "/sitemap": "strona HTML renderowana przez SSR komponentu, nie handler powierzchni crawlera",
-  "/sitemap.xsl":
-    "statyczny arkusz wyglądu map (XSLT) - nie czyta tenanta ani danych, nie ma czego degradować " +
-    "(kontrakt: `routes/__tests__/sitemapStylesheetRoute.test.ts`)",
   "/robots.txt":
     "własny kontrakt: fail-closed to `Disallow: /`, nie 404, a niepewność katalogu to " +
     "`volatile` bez cache - `lib/server/__tests__/robotsRequest.test.ts`; tutaj tylko " +

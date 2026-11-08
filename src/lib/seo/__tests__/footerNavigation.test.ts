@@ -56,7 +56,7 @@ import {
 const EXPECTED_GROUP_SIZES: Record<FooterLinkGroup, number> = {
   editorial: 4,
   topics: 4,
-  community: 4,
+  community: 5,
   institute: 5,
   legal: 8,
 };
@@ -94,6 +94,7 @@ const EXPECTED_LABELS: Record<string, { pl: string; en: string }> = {
   "/category/gospodarka": { pl: "Gospodarka", en: "Economy" },
   "/category/nato": { pl: "NATO", en: "NATO" },
   "/wydarzenia": { pl: "Wydarzenia", en: "Events" },
+  "/konferencje": { pl: "Konferencje", en: "Conferences" },
   "/spotkania-chatham-house": { pl: "Spotkania Chatham House", en: "Chatham House meetings" },
   "/dolacz-do-newslettera": { pl: "Newsletter", en: "Newsletter" },
   "/pricing": { pl: "Subskrypcje", en: "Subscriptions" },

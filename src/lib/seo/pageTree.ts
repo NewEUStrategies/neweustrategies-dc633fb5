@@ -3,6 +3,7 @@
 // mirroring the URL rule used everywhere else (path = parent path + slug).
 // Framework-free and unit-tested; the route only feeds it query rows.
 import { isTestContentSlug } from "./testContent";
+import { isUtilityPagePath } from "./utilityPages";
 
 export interface PageTreeRow {
   id: string;
@@ -182,7 +183,9 @@ export interface SiteMapPlan {
  *   4. adres trasy kodowej z bezwarunkowym `noindex` (`/login`, `/club`,
  *      `/people`) znika z mapy: z linków tras i z drzewa (strona CMS pod nim
  *      znika, dzieci zostają) - mapa nie może linkować adresu, który każe
- *      wyszukiwarce go pominąć.
+ *      wyszukiwarce go pominąć;
+ *   5. ta sama zasada dla strony TECHNICZNEJ CMS-a (`/customize-interests`,
+ *      `/koszyk`, `/moje-konto`) - `lib/seo/utilityPages.ts`.
  */
 export function planSiteMap(rows: readonly PageTreeRow[], input: SiteMapPlanInput): SiteMapPlan {
   const full = buildPageTree(rows);
@@ -208,7 +211,8 @@ export function planSiteMap(rows: readonly PageTreeRow[], input: SiteMapPlanInpu
       node.id === input.homepageId ||
       staticHrefs.has(node.path) ||
       redirected.has(node.path) ||
-      (input.noindexPaths?.has(node.path) ?? false),
+      (input.noindexPaths?.has(node.path) ?? false) ||
+      isUtilityPagePath(node.path),
   );
   return { tree, paths, staticHrefs };
 }

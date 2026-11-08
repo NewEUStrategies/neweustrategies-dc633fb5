@@ -27,7 +27,7 @@
 //   * `empty`  - tenant nie ma ŻADNEGO opublikowanego artykułu: pliku nie ma
 //                (trasa oddaje 404), a indeks sitemapy go nie ogłasza.
 import { xmlEscape } from "@/lib/seo/rss";
-import { sitemapProlog, type SitemapRenderOptions } from "@/lib/seo/sitemapStylesheet";
+import { sitemapProlog, type SitemapRenderOptions } from "@/lib/seo/sitemapProlog";
 
 export const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1000;
 const NEWS_SITEMAP_MAX_ENTRIES = 1000;

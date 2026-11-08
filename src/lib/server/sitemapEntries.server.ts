@@ -18,6 +18,8 @@ import type { SitemapEntry } from "@/lib/seo/sitemapXml";
 import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import { configuredHomepagePageId, type HomepageReadingSettings } from "@/lib/seo/homepagePage";
 import { isNoindexCodeRoutePath } from "@/lib/seo/noindexCodeRoutes";
+import { isTestContentSlug } from "@/lib/seo/testContent";
+import { isUtilityPagePath } from "@/lib/seo/utilityPages";
 import { readPublishedPagePaths as buildPagePaths } from "./publishedPagePaths.server";
 import { readPagedRows } from "./pagedRows.server";
 
@@ -196,6 +198,9 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       // (`/login`, `/club`): pod jej adresem renderuje się trasa, nie strona,
       // a GSC raportował ją jako „Przesłany URL oznaczony tagiem noindex".
       if (isNoindexCodeRoutePath(path)) continue;
+      // Strona TECHNICZNA (konto, koszyk, personalizacja) ma `noindex` z kodu,
+      // nawet bez flagi w bazie - `lib/seo/utilityPages.ts`.
+      if (isUtilityPagePath(path)) continue;
       // `lastmod` stron: bez niego plik sekcji `pages` i jego pozycja
       // w indeksie nie miały ŻADNEJ daty, więc crawler nie odróżniał strony
       // zmienionej wczoraj od nietkniętej od roku.
@@ -471,15 +476,21 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return data.map((row) => {
+    const out: SitemapEntry[] = [];
+    for (const row of data) {
       const ev = row as { slug: string; updated_at: string | null; created_at: string | null };
-      return {
+      // Wydarzenie TESTOWE (`test-*`/`e2e-*`, zakładane przez testy e2e jako
+      // `published`) nie jest treścią - jego strona ma `noindex` (2026-11:
+      // `/events/test-e2e-zakup` w `sitemaps/events.xml`) - `lib/seo/testContent.ts`.
+      if (isTestContentSlug(ev.slug)) continue;
+      out.push({
         loc: `${origin}/events/${ev.slug}`,
         lastmod: day(ev.updated_at, ev.created_at),
-        changefreq: "weekly" as const,
+        changefreq: "weekly",
         priority: "0.6",
-      };
-    });
+      });
+    }
+    return out;
   },
 
   /** Publiczne sesje Q&A (poza szkicami) - strony z markupem QAPage. */

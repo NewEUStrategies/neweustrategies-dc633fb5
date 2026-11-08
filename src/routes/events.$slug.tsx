@@ -69,6 +69,7 @@ import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/res
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { withSsrBudget } from "@/lib/asyncBudget";
+import { isTestContentSlug } from "@/lib/seo/testContent";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
@@ -310,6 +311,10 @@ export const Route = createFileRoute("/events/$slug")({
       description,
       ...(ev?.cover ? { image: ev.cover } : {}),
       ...(ev?.publishedAt ? { publishedAt: ev.publishedAt } : {}),
+      // Wydarzenie TESTOWE (`test-*`/`e2e-*`, zakładane przez testy e2e jako
+      // opublikowane) nigdy nie jest indeksowalne - ta sama reguła co strony
+      // CMS i sekcja `events` mapy XML (`lib/seo/testContent.ts`).
+      ...(isTestContentSlug(params.slug) ? { robots: "noindex, nofollow" } : {}),
     });
     // Preload okładki NIE idzie przez `head()`: `<link>` w dokumencie wstawia
     // React 19 z `<img fetchPriority="high">` w `EventVideoHeader` (ten sam

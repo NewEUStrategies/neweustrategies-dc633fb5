@@ -18,6 +18,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { homeLabel } from "@/lib/i18n/commonLabels";
 import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
+import type { OrganizationIdentity } from "@/lib/seo/organizationIdentity";
 
 /**
  * Serialize a JSON-LD graph for embedding inside a <script> element. Plain
@@ -55,6 +56,45 @@ export interface OrganizationJsonLdInput {
   description?: string | null;
   /** Optional customer/editorial contact point rendered in the footer. */
   contactPoint?: ContactPointInput | null;
+  /**
+   * Fakty rejestrowe wydawcy (adres, NIP, KRS/REGON, obszary eksperckie,
+   * zdanie ujednoznaczniające) - `lib/seo/organizationIdentity.ts`. Podawane
+   * wyłącznie na hoście kanonicznym marki; `null` = węzeł bez tych pól.
+   */
+  identity?: OrganizationIdentity | null;
+}
+
+/** Pola tożsamości rejestrowej węzła Organization (puste, gdy brak faktów). */
+function organizationIdentityFields(
+  identity: OrganizationIdentity | null | undefined,
+  lang: Lang,
+): Record<string, unknown> {
+  if (!identity) return {};
+  return {
+    disambiguatingDescription: identity.disambiguation[lang],
+    email: identity.email,
+    telephone: identity.telephone,
+    address: { "@type": "PostalAddress", ...identity.address },
+    taxID: identity.taxId,
+    identifier: identity.registryIds.map((id) => ({
+      "@type": "PropertyValue",
+      propertyID: id.propertyID,
+      value: id.value,
+    })),
+    knowsAbout: [...identity.knowsAbout[lang]],
+  };
+}
+
+/** Nazwy alternatywne: skrót serwisu i nazwy podmiotu - bez pustych i duplikatów. */
+function organizationAlternateNames(
+  origin: string,
+  identity: OrganizationIdentity | null | undefined,
+): string | string[] | null {
+  const names = [siteAlternateName(origin), ...(identity?.alternateNames ?? [])]
+    .map((name) => name.trim())
+    .filter((name, index, all) => name && all.indexOf(name) === index);
+  if (names.length === 0) return null;
+  return names.length === 1 ? names[0] : names;
 }
 
 /**
@@ -63,7 +103,12 @@ export interface OrganizationJsonLdInput {
  * reference target.
  */
 export function organizationJsonLd(input: OrganizationJsonLdInput): Record<string, unknown> {
-  const sameAs = (input.sameAs ?? []).filter(Boolean);
+  // `sameAs` z panelu SEO wygrywa; bez niego - oficjalne profile z tożsamości
+  // wydawcy (na produkcji pole panelu było puste, więc encja nie miała żadnego
+  // `sameAs`, a to podstawowy sygnał łączenia marki z jej profilami).
+  const fromSettings = (input.sameAs ?? []).filter(Boolean);
+  const sameAs = fromSettings.length ? fromSettings : [...(input.identity?.profiles ?? [])];
+  const alternateName = organizationAlternateNames(input.origin, input.identity);
   const cp = input.contactPoint;
   const contactPoint =
     cp && (cp.email || cp.telephone)
@@ -83,9 +128,10 @@ export function organizationJsonLd(input: OrganizationJsonLdInput): Record<strin
     // Encja marki i sygnał nazwy serwisu MUSZĄ podawać tę samą nazwę: dwie
     // różne nazwy w jednym grafie to dla knowledge graphu dwie encje.
     name: siteName(input.origin),
-    ...(siteAlternateName(input.origin) ? { alternateName: siteAlternateName(input.origin) } : {}),
+    ...(alternateName ? { alternateName } : {}),
     url: input.origin,
     description: input.description?.trim() || SITE_DEFAULT_DESCRIPTION[input.lang],
+    ...organizationIdentityFields(input.identity, input.lang),
     ...(input.logoUrl ? { logo: { "@type": "ImageObject", url: input.logoUrl } } : {}),
     ...(sameAs.length ? { sameAs } : {}),
     ...(contactPoint ? { contactPoint: [contactPoint] } : {}),

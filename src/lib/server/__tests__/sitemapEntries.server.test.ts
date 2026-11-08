@@ -373,6 +373,23 @@ describe("sekcja pages - adresy stron z drzewa", () => {
     expect(locs(wpisy).sort()).toEqual([`${ORIGIN}/kontakt`, `${ORIGIN}/kontakt/login`]);
   });
 
+  it("strona TECHNICZNA (konto, koszyk, personalizacja) nie trafia do mapy (SERP 2026-11)", async () => {
+    // Produkcja: Google pokazywał „Customize Interests" jako sitelink marki -
+    // strony wtyczek z importu WordPressa szły do pages.xml bez seo_noindex.
+    const db = atrapaAdmina(
+      planStron({
+        "p-ci": { sciezka: "customize-interests" },
+        "p-koszyk": { sciezka: "koszyk" },
+        "p-konto": { sciezka: "moje-konto" },
+        "p-login": { sciezka: "membership-login" },
+        "p-analizy": { sciezka: "analizy" },
+        "p-spotkania": { sciezka: "spotkania-chatham-house" },
+      }),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy).sort()).toEqual([`${ORIGIN}/analizy`, `${ORIGIN}/spotkania-chatham-house`]);
+  });
+
   it("czyta wyłącznie strony opublikowane i nieusunięte", async () => {
     const db = atrapaAdmina(planStron({ "p-1": { sciezka: "analizy" } }));
     await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
@@ -1021,6 +1038,21 @@ describe("pozostałe sekcje treści - kompletność, prefiks, lastmod", () => {
         priority: "0.6",
       },
     ]);
+  });
+
+  it("wydarzenie TESTOWE (test-*/e2e-*) nie trafia do mapy (2026-11: /events/test-e2e-zakup)", async () => {
+    const db = atrapaAdmina({
+      events: {
+        wiersze: [
+          { slug: "test-e2e-zakup", updated_at: null, created_at: null },
+          { slug: "e2e-rejestracja", updated_at: null, created_at: null },
+          { slug: "testy-nato-2026", updated_at: null, created_at: null },
+        ],
+      },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "events");
+    // `testy-nato-2026` to treść - wzorzec łapie wyłącznie CAŁY pierwszy człon.
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/events/testy-nato-2026`]);
   });
 
   it("sesje Q&A trafiają do mapy WSZYSTKIE poza szkicami", async () => {
