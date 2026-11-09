@@ -54,8 +54,8 @@ export const Route = createFileRoute("/zatrudniamy")({
         ? "Careers - join the New European Strategies team"
         : "Kariera - dołącz do zespołu New European Strategies",
       description: isEn
-        ? "Open roles at New European Strategies: research, public policy, marketing, advisory, editorial and operations. Apply online in 3 minutes."
-        : "Otwarte role w New European Strategies: analizy, polityka publiczna, marketing, doradztwo, redakcja i operacje. Aplikuj online w 3 minuty.",
+        ? "Open roles at New European Strategies: research, public policy, advisory, marketing and editorial. Apply online in 3 minutes."
+        : "Otwarte role w New European Strategies: analizy, polityka publiczna, doradztwo, marketing i redakcja. Aplikuj online w 3 minuty.",
     });
     const meta: Array<Record<string, string>> = [
       { title: seo.title },

@@ -40,6 +40,9 @@ export const FOOTER_LINKS: readonly FooterLink[] = [
   { group: "topics", href: "/category/nato", label: { pl: "NATO", en: "NATO" } },
   // Community
   { group: "community", href: "/wydarzenia", label: { pl: "Wydarzenia", en: "Events" } },
+  // Konferencje - sekcja główna (`primaryNavigation.ts`), którą redakcja chce
+  // widzieć w sitelinkach marki obok „Spotkań Chatham House".
+  { group: "community", href: "/konferencje", label: { pl: "Konferencje", en: "Conferences" } },
   {
     group: "community",
     href: "/spotkania-chatham-house",

@@ -640,6 +640,30 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(types).toEqual(["NewsMediaOrganization", "WebSite", "ItemList"]);
   });
 
+  /** Graf wydawcy (`NewsMediaOrganization`) z JSON-LD strony głównej. */
+  function orgGraph(view: { headScripts: () => Record<string, unknown>[] }) {
+    return view
+      .headScripts()
+      .map((s) => JSON.parse(String(s.children)) as Record<string, unknown>)
+      .find((g) => g["@type"] === "NewsMediaOrganization") as Record<string, unknown>;
+  }
+
+  it("encja wydawcy na hoście marki niesie fakty rejestrowe i profile (SERP 2026-11-08)", async () => {
+    // Pod wynikiem marki „Przegląd od AI" streszczał strategię bezpieczeństwa
+    // UE - encja miała tylko nazwę, opis i logo (`lib/seo/organizationIdentity.ts`).
+    const org = orgGraph(await mountHome());
+    expect(org.taxID).toBe("7011278375");
+    expect(org.disambiguatingDescription).toEqual(expect.stringContaining("think tank"));
+    expect(org.sameAs).toEqual(expect.arrayContaining(["https://x.com/NewEUStrategies"]));
+  });
+
+  it("encja wydawcy na hoście podglądu nie publikuje faktów fundacji", async () => {
+    h.requestUrl = "https://id-preview--abc.lovable.app/";
+    const org = orgGraph(await mountHome());
+    expect(org.taxID).toBeUndefined();
+    expect(org.address).toBeUndefined();
+  });
+
   /** Graf nawigacji (`ItemList`) z JSON-LD strony głównej. */
   function navGraph(view: { headScripts: () => Record<string, unknown>[] }) {
     const graphs = view
@@ -656,13 +680,13 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     // prawnymi zastąpiła lista sekcji głównych (`lib/seo/primaryNavigation.ts`).
     const nav = navGraph(await mountHome());
     expect(nav["@id"]).toBe("https://neweuropeanstrategies.com/#primary-navigation");
+    // Kolejność redakcji 2026-11-08: Analizy, O nas, Konferencje, Spotkania, Wywiady.
     expect(nav.itemListElement.map((i) => i.url)).toEqual([
       "https://neweuropeanstrategies.com/analizy",
-      "https://neweuropeanstrategies.com/category/wywiady",
-      "https://neweuropeanstrategies.com/wydarzenia",
-      "https://neweuropeanstrategies.com/category/policy-papers",
-      "https://neweuropeanstrategies.com/podcasts",
       "https://neweuropeanstrategies.com/o-nas",
+      "https://neweuropeanstrategies.com/konferencje",
+      "https://neweuropeanstrategies.com/spotkania-chatham-house",
+      "https://neweuropeanstrategies.com/category/wywiady",
     ]);
   });
 
@@ -672,13 +696,12 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     const nav = navGraph(await mountHome());
     expect(nav.itemListElement.map((i) => i.name)).toEqual([
       "Analyses",
-      "Interviews",
-      "Events",
-      "Policy papers",
-      "Podcast",
       "About us",
+      "Conferences",
+      "Chatham House meetings",
+      "Interviews",
     ]);
-    expect(nav.itemListElement[2]?.url).toBe("https://neweuropeanstrategies.com/en/wydarzenia");
+    expect(nav.itemListElement[2]?.url).toBe("https://neweuropeanstrategies.com/en/konferencje");
   });
 
   // DIETA ŁADUNKU ROUTERA (P3.7b, T5 + T6). Dane loadera jadą w `$tsr` każdego

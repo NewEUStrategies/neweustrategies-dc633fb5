@@ -59,7 +59,6 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SitemapIndexDotxmlRouteImport } from './routes/sitemap-index[.]xml'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as SitemapDotxslRouteImport } from './routes/sitemap[.]xsl'
 import { Route as StatutRouteImport } from './routes/statut'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
@@ -693,11 +692,6 @@ const SitemapIndexDotxmlRoute = SitemapIndexDotxmlRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxslRoute = SitemapDotxslRouteImport.update({
-  id: '/sitemap.xsl',
-  path: '/sitemap.xsl',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatutRoute = StatutRouteImport.update({
@@ -2749,7 +2743,6 @@ export interface FileRoutesByFullPath {
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/sitemap.xsl': typeof SitemapDotxslRoute
   '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -3177,7 +3170,6 @@ export interface FileRoutesByTo {
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/sitemap.xsl': typeof SitemapDotxslRoute
   '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -3596,7 +3588,6 @@ export interface FileRoutesById {
   '/sitemap': typeof SitemapRoute
   '/sitemap-index.xml': typeof SitemapIndexDotxmlRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/sitemap.xsl': typeof SitemapDotxslRoute
   '/statut': typeof StatutRoute
   '/support': typeof SupportRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -4031,7 +4022,6 @@ export interface FileRouteTypes {
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
-    | '/sitemap.xsl'
     | '/statut'
     | '/support'
     | '/unsubscribe'
@@ -4459,7 +4449,6 @@ export interface FileRouteTypes {
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
-    | '/sitemap.xsl'
     | '/statut'
     | '/support'
     | '/unsubscribe'
@@ -4877,7 +4866,6 @@ export interface FileRouteTypes {
     | '/sitemap'
     | '/sitemap-index.xml'
     | '/sitemap.xml'
-    | '/sitemap.xsl'
     | '/statut'
     | '/support'
     | '/unsubscribe'
@@ -5311,7 +5299,6 @@ export interface RootRouteChildren {
   SitemapRoute: typeof SitemapRoute
   SitemapIndexDotxmlRoute: typeof SitemapIndexDotxmlRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  SitemapDotxslRoute: typeof SitemapDotxslRoute
   StatutRoute: typeof StatutRoute
   SupportRoute: typeof SupportRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
@@ -5755,13 +5742,6 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xsl': {
-      id: '/sitemap.xsl'
-      path: '/sitemap.xsl'
-      fullPath: '/sitemap.xsl'
-      preLoaderRoute: typeof SitemapDotxslRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/statut': {
@@ -9381,7 +9361,6 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapRoute: SitemapRoute,
   SitemapIndexDotxmlRoute: SitemapIndexDotxmlRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  SitemapDotxslRoute: SitemapDotxslRoute,
   StatutRoute: StatutRoute,
   SupportRoute: SupportRoute,
   UnsubscribeRoute: UnsubscribeRoute,

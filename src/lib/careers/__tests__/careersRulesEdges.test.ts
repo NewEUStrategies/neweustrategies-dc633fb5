@@ -357,7 +357,7 @@ import {
 // luka siedzi w `recruitmentShared.ts`, czyli w module, który jedzie do chunku
 // rozliczanego do PUBLIC, i to jego warunek jest tu przedmiotem dowodu.
 import { normalizeCvUrl } from "../recruitmentShared";
-import { CAREER_ROLES } from "../roles";
+import { CAREER_ROLES, type CareerEngagement, type CareerRole } from "../roles";
 
 const ROLES_RELATION = "career_roles";
 const SECTIONS_VIEW = "career_page_sections_public";
@@ -640,12 +640,30 @@ describe("etykiety wymiaru współpracy i miejsca pracy", () => {
   it("każdy wymiar i każde miejsce z katalogu ról ma etykietę w obu językach", () => {
     // Bramka zamkniętego zbioru. Dodanie roli z nowym slugiem (albo wartości do
     // enuma) bez wpisu w słowniku oblewa ten warunek, zamiast pokazać operatorowi
-    // goły slug w kolumnie. Kontrola liczności pilnuje, żeby katalog naprawdę
-    // ćwiczył wszystkie cztery wartości każdej fasety.
-    const wymiary = new Set(CAREER_ROLES.map((role) => role.engagement));
-    const miejsca = new Set(CAREER_ROLES.map((role) => role.location));
-    expect(wymiary.size).toBe(4);
-    expect(miejsca.size).toBe(4);
+    // goły slug w kolumnie. Wszystkie cztery wartości każdej fasety są tu
+    // wymienione WPROST: od 2026-11-08 katalog wbudowany ma sześć ról i nie
+    // ćwiczy już każdej wartości (brak `part_time` i `brussels`), a oferty
+    // z panelu mogą użyć dowolnej z nich.
+    const WYMIARY = [
+      "full_time",
+      "part_time",
+      "contract",
+      "internship",
+    ] as const satisfies readonly CareerEngagement[];
+    const MIEJSCA = [
+      "remote",
+      "hybrid",
+      "warsaw",
+      "brussels",
+    ] as const satisfies readonly CareerRole["location"][];
+    for (const value of WYMIARY) {
+      expect(engagementLabel(value, "pl"), value).not.toBe(value);
+      expect(engagementLabel(value, "en"), value).not.toBe(value);
+    }
+    for (const value of MIEJSCA) {
+      expect(locationLabel(value, "pl"), value).not.toBe(value);
+      expect(locationLabel(value, "en"), value).not.toBe(value);
+    }
 
     for (const role of CAREER_ROLES) {
       expect(engagementLabel(role.engagement, "pl"), role.id).not.toBe(role.engagement);

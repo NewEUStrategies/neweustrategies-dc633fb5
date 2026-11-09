@@ -55,6 +55,7 @@ import {
 } from "@/lib/seo/jsonld";
 import { labelFor } from "@/lib/seo/footerNavigation";
 import { primarySiteSections } from "@/lib/seo/primaryNavigation";
+import { organizationIdentityFor } from "@/lib/seo/organizationIdentity";
 import { resolveRobotsMeta, resolveSocialImage, seoCanonicalOverride } from "@/lib/seo/fields";
 import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
 import { parseSeoSettings } from "@/lib/seo/settings";
@@ -439,6 +440,11 @@ export const Route = createFileRoute("/")({
       lang,
       sameAs: seoSettings.organization_same_as,
       logoUrl: seoSettings.publisher_logo_url.trim() || `${origin}/og-default.jpg`,
+      // Fakty rejestrowe fundacji (adres, NIP, KRS/REGON, profile, zdanie
+      // ujednoznaczniające) - wyłącznie na hoście kanonicznym marki. Bez nich
+      // Google streszczał pod wynikiem marki strategię bezpieczeństwa UE
+      // (SERP 2026-11-08) - `lib/seo/organizationIdentity.ts`.
+      identity: organizationIdentityFor(origin),
     });
     // Nawigacja deklarowana na stronie głównej to WYBRANE sekcje główne
     // w zaplanowanej kolejności (Analizy, Wywiady, Wydarzenia, ...), a nie

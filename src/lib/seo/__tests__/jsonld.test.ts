@@ -16,6 +16,7 @@ import {
 } from "@/lib/seo/jsonld";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { FOOTER_LINKS, labelFor } from "@/lib/seo/footerNavigation";
+import { NES_ORGANIZATION_IDENTITY } from "@/lib/seo/organizationIdentity";
 
 describe("safeJsonLd", () => {
   it("neutralizes </script> breakout attempts (stored XSS guard)", () => {
@@ -62,6 +63,62 @@ describe("organizationJsonLd", () => {
     const org = organizationJsonLd({ origin: ORIGIN, lang: "en" });
     expect(org.sameAs).toBeUndefined();
     expect(org.logo).toBeUndefined();
+    // Bez tożsamości wydawcy węzeł nie zmyśla adresu ani identyfikatorów.
+    expect(org.taxID).toBeUndefined();
+    expect(org.address).toBeUndefined();
+    expect(org.disambiguatingDescription).toBeUndefined();
+  });
+
+  it("z tożsamością wydawcy niesie fakty rejestrowe i zdanie ujednoznaczniające", () => {
+    const org = organizationJsonLd({
+      origin: ORIGIN,
+      lang: "pl",
+      identity: NES_ORGANIZATION_IDENTITY,
+    });
+    expect(org["@type"]).toBe("NewsMediaOrganization");
+    expect(org.taxID).toBe("7011278375");
+    expect(org.address).toEqual({
+      "@type": "PostalAddress",
+      streetAddress: "ul. Tytusa Chałubińskiego 8",
+      postalCode: "00-613",
+      addressLocality: "Warszawa",
+      addressCountry: "PL",
+    });
+    expect(org.identifier).toEqual([
+      { "@type": "PropertyValue", propertyID: "KRS", value: "0001195512" },
+      { "@type": "PropertyValue", propertyID: "REGON", value: "542769005" },
+    ]);
+    expect(org.email).toBe("office@neweuropeanstrategies.com");
+    expect(org.disambiguatingDescription).toContain("think tank");
+    expect(org.disambiguatingDescription).toContain("nie jest instytucją Unii Europejskiej");
+    expect(org.knowsAbout).toContain("Bezpieczeństwo europejskie");
+    expect(org.alternateName).toEqual([
+      "Fundacja New European Strategies",
+      "New European Strategies Foundation",
+    ]);
+    // Panel SEO bez `sameAs` (stan produkcji): profile z tożsamości wydawcy.
+    expect(org.sameAs).toEqual(NES_ORGANIZATION_IDENTITY.profiles);
+    expect(org.sameAs).toContain("https://x.com/NewEUStrategies");
+  });
+
+  it("wersja EN: zdanie i obszary po angielsku", () => {
+    const org = organizationJsonLd({
+      origin: ORIGIN,
+      lang: "en",
+      identity: NES_ORGANIZATION_IDENTITY,
+    });
+    expect(org.disambiguatingDescription).toContain("not an institution of the European Union");
+    expect(org.knowsAbout).toContain("European security");
+  });
+
+  it("`sameAs` z panelu SEO wygrywa z profilami tożsamości", () => {
+    const org = organizationJsonLd({
+      origin: ORIGIN,
+      lang: "pl",
+      sameAs: ["https://www.wikidata.org/wiki/Q1"],
+      identity: NES_ORGANIZATION_IDENTITY,
+    });
+    expect(org.sameAs).toEqual(["https://www.wikidata.org/wiki/Q1"]);
   });
 });
 

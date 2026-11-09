@@ -19,6 +19,7 @@
 //     przykłada wyrażenie specyfikacji do każdej linii pod każdym `##`.
 import { plainText } from "@/lib/seo/rss";
 import type { RobotsUsagePolicy } from "@/lib/seo/robots";
+import type { OrganizationIdentity } from "@/lib/seo/organizationIdentity";
 
 export interface LlmsTxtSection {
   name: string;
@@ -94,6 +95,14 @@ export interface LlmsTxtInput {
    */
   usage: LlmsTxtUsageGrant | null;
   contactEmail?: string | null;
+  /**
+   * Tożsamość wydawcy (`lib/seo/organizationIdentity.ts`) - blok „O organizacji"
+   * w części swobodnej i lista oficjalnych profili. Model, który dostaje sam
+   * opis, nie odróżni marki „New European Strategies" od strategii UE o podobnej
+   * nazwie (SERP 2026-11-08: „Przegląd od AI" o strategii bezpieczeństwa UE pod
+   * wynikiem marki). `null` = przewodnik bez tych bloków (inny tenant, degradacja).
+   */
+  organization?: OrganizationIdentity | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +255,46 @@ function sectionLine(section: LlmsTxtSection): string {
   return linkLine(section.name, section.url, plainText(section.description));
 }
 
+/** Nazwy platform dla odnośników profili (host bez `www.`). */
+const PROFILE_PLATFORM_NAMES: Readonly<Record<string, string>> = {
+  "facebook.com": "Facebook",
+  "x.com": "X",
+  "twitter.com": "X",
+  "youtube.com": "YouTube",
+  "instagram.com": "Instagram",
+  "linkedin.com": "LinkedIn",
+  "open.spotify.com": "Spotify",
+};
+
+function profileName(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return PROFILE_PLATFORM_NAMES[host] ?? host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Blok „O organizacji" - zdania w części swobodnej (nad pierwszym `##`), więc
+ * model czyta je przed jakąkolwiek listą. Mówi wprost, CZYM marka jest
+ * (fundacja, think tank, siedziba, rejestr) i czym NIE jest - zdanie
+ * ujednoznaczniające to ten sam tekst co `disambiguatingDescription` w JSON-LD.
+ */
+function organizationLines(identity: OrganizationIdentity): string[] {
+  const registry = identity.registryIds.map((id) => `${id.propertyID} ${id.value}`).join(", ");
+  const address = `${identity.address.streetAddress}, ${identity.address.postalCode} ${identity.address.addressLocality}`;
+  return [
+    "**O organizacji / About the organization**",
+    "",
+    `- ${oneLine(identity.disambiguation.pl)}`,
+    `- ${oneLine(identity.disambiguation.en)}`,
+    `- Dane rejestrowe / Registry data: ${registry}, NIP ${identity.taxId}; ${address}; ${identity.email}; ${identity.telephone}.`,
+    `- Obszary eksperckie: ${identity.knowsAbout.pl.join(", ")}. / Areas of expertise: ${identity.knowsAbout.en.join(", ")}.`,
+    "",
+  ];
+}
+
 /**
  * Blok warunków wykorzystania - lustro polityki robots.txt (`renderUsagePolicy`
  * + `Content-Signal` w `lib/seo/robots.ts`), zdanie po zdaniu:
@@ -313,6 +362,7 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
   lines.push(
     "Języki / Languages: polski (domyślny, bez prefiksu URL), English (prefiks /en).",
     "",
+    ...(input.organization ? organizationLines(input.organization) : []),
     // Warunki stoją w bloku swobodnym, PRZED listami - patrz nagłówek pliku.
     LLMS_TXT_USAGE_TERMS_LABEL,
     "",
@@ -345,6 +395,12 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
   );
   pushSection("## Sekcje / Sections", once(input.sections).map(sectionLine));
   pushSection("## Organizacje / Organizations", once(input.organizations).map(sectionLine));
+  pushSection(
+    "## Oficjalne profile / Official profiles",
+    once((input.organization?.profiles ?? []).map((url) => ({ url }))).map((profile) =>
+      linkLine(profileName(profile.url), profile.url),
+    ),
+  );
   pushSection("## Najnowsze artykuły (PL)", input.latestPl.map(articleLine));
   pushSection("## Latest articles (EN)", input.latestEn.map(articleLine));
 

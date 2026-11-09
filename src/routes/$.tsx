@@ -109,6 +109,7 @@ import {
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
 import { isTestContentTrail } from "@/lib/seo/testContent";
+import { isUtilityPageSlug } from "@/lib/seo/utilityPages";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -933,7 +934,12 @@ export const Route = createFileRoute("/$")({
       // `/test-e2e-zakup` w indeksie) - `lib/seo/testContent.ts`.
       robots: isTestContentTrail(isPost ? "post" : "page", it.slug, loaderData.crumbs ?? [])
         ? "noindex, nofollow"
-        : resolveRobotsMeta(seoRow),
+        : // Strona TECHNICZNA (konto, koszyk, personalizacja zainteresowań) -
+          // `noindex, follow` bez względu na flagę w bazie: Google pokazywał
+          // „Customize Interests" jako sitelink marki - `lib/seo/utilityPages.ts`.
+          !isPost && isUtilityPageSlug(it.slug)
+          ? "noindex, follow"
+          : resolveRobotsMeta(seoRow),
       canonicalOverride: seoCanonicalOverride(seoRow),
       imageWidth: imageIsCard ? 1200 : undefined,
       imageHeight: imageIsCard ? 630 : undefined,

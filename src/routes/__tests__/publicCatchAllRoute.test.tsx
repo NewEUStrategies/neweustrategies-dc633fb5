@@ -741,6 +741,24 @@ describe("head() trasy `/$` - wpis", () => {
     const wpis = { ...resolvedPost(), item: postItem({ slug: "test-rakietowy" }) };
     expect(robots(head(wpis))).toMatch(/^index, follow/);
   });
+  it("strona TECHNICZNA (`customize-interests`, koszyk, konto) dostaje noindex, follow bez flagi", () => {
+    // SERP 2026-11: Google pokazywał „Customize Interests" jako sitelink marki.
+    const robots = (result: RouteHeadResult) =>
+      result.meta?.find((m) => m.name === "robots")?.content;
+    const {
+      excerpt_pl: _pl,
+      excerpt_en: _en,
+      ...strona
+    } = postItem({
+      slug: "customize-interests",
+    });
+    expect(robots(head({ kind: "page", item: strona, crumbs: [] }))).toBe("noindex, follow");
+    const konto = { ...strona, slug: "moje-konto" };
+    expect(robots(head({ kind: "page", item: konto, crumbs: [] }))).toBe("noindex, follow");
+    // Reguła dotyczy STRON - wpis o tym samym slugu jest treścią redakcji.
+    const wpis = { ...resolvedPost(), item: postItem({ slug: "koszyk" }) };
+    expect(robots(head(wpis))).toMatch(/^index, follow/);
+  });
   /**
    * Ładunek loadera dla wpisu z okładką, tak jak go oddaje loader - BEZ
    * deskryptora preloadu (ten idzie wyłącznie nagłówkiem HTTP `Link`).

@@ -17,7 +17,7 @@
 // Ten moduł jest CZYSTY (bez I/O, bez frameworka), więc kontrakt limitów i
 // nazewnictwa shardów da się przetestować jednostkowo.
 
-import { sitemapProlog, type SitemapRenderOptions } from "./sitemapStylesheet";
+import { sitemapProlog, type SitemapRenderOptions } from "./sitemapProlog";
 
 /**
  * Adresów na jeden shard. Połowa twardego limitu protokołu (50 000): jeden wpis

@@ -17,7 +17,7 @@ import type { SitemapEntry } from "@/lib/seo/sitemapXml";
 
 import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import { configuredHomepagePageId, type HomepageReadingSettings } from "@/lib/seo/homepagePage";
-import { isNoindexCodeRoutePath } from "@/lib/seo/noindexCodeRoutes";
+import { eventSlugExcludedFromIndex, pagePathExcludedFromIndex } from "@/lib/seo/indexability";
 import { readPublishedPagePaths as buildPagePaths } from "./publishedPagePaths.server";
 import { readPagedRows } from "./pagedRows.server";
 
@@ -192,10 +192,11 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       // Strony oznaczone noindex są wykluczone - sitemapa nie może reklamować
       // adresów, które meta robots każe crawlerowi pominąć.
       if (noindex.has(id)) continue;
-      // Ta sama zasada dla strony PRZESŁONIĘTEJ trasą kodową z `noindex`
-      // (`/login`, `/club`): pod jej adresem renderuje się trasa, nie strona,
-      // a GSC raportował ją jako „Przesłany URL oznaczony tagiem noindex".
-      if (isNoindexCodeRoutePath(path)) continue;
+      // Ta sama zasada dla strony z `noindex` nadanym przez KOD
+      // (`lib/seo/indexability.ts`): strony PRZESŁONIĘTEJ trasą kodową
+      // (`/login`, `/club` - GSC: „Przesłany URL oznaczony tagiem noindex")
+      // i strony TECHNICZNEJ (konto, koszyk, personalizacja zainteresowań).
+      if (pagePathExcludedFromIndex(path)) continue;
       // `lastmod` stron: bez niego plik sekcji `pages` i jego pozycja
       // w indeksie nie miały ŻADNEJ daty, więc crawler nie odróżniał strony
       // zmienionej wczoraj od nietkniętej od roku.
@@ -471,15 +472,21 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         .order("id", { ascending: true })
         .range(from, to),
     );
-    return data.map((row) => {
+    const out: SitemapEntry[] = [];
+    for (const row of data) {
       const ev = row as { slug: string; updated_at: string | null; created_at: string | null };
-      return {
+      // Wydarzenie TESTOWE (`test-*`/`e2e-*`, zakładane przez testy e2e jako
+      // `published`) nie jest treścią - jego strona ma `noindex` (2026-11:
+      // `/events/test-e2e-zakup` w `sitemaps/events.xml`) - `lib/seo/testContent.ts`.
+      if (eventSlugExcludedFromIndex(ev.slug)) continue;
+      out.push({
         loc: `${origin}/events/${ev.slug}`,
         lastmod: day(ev.updated_at, ev.created_at),
-        changefreq: "weekly" as const,
+        changefreq: "weekly",
         priority: "0.6",
-      };
-    });
+      });
+    }
+    return out;
   },
 
   /** Publiczne sesje Q&A (poza szkicami) - strony z markupem QAPage. */

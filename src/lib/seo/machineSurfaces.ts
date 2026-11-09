@@ -58,14 +58,6 @@ export const MACHINE_SURFACES: readonly MachineSurface[] = [
     setting: "news_sitemap_enabled",
   },
   {
-    // Arkusz wyglądu map w przeglądarce (XSL) - nie jest treścią dla
-    // asystentów AI, więc llms.txt go nie wymienia.
-    path: "/sitemap.xsl",
-    label: "Arkusz wyglądu map strony / Sitemap stylesheet (XSL)",
-    routeFile: "sitemap[.]xsl.ts",
-    inLlmsTxt: false,
-  },
-  {
     path: "/rss.xml",
     label: "RSS - wszystkie analizy / all analyses",
     routeFile: "rss[.]xml.ts",

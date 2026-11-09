@@ -854,12 +854,21 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
   });
 
   it("odstęp wejścia rośnie z pozycją i PRZESTAJE rosnąć na ósmej karcie", () => {
-    // Pusta tabela ofert -> katalog wbudowany (10 ról), czyli jedyny stan,
-    // w którym widać zatrzymanie kaskady.
-    renderRoles({ offers: [] });
+    // Dziesięć ofert z panelu - katalog wbudowany ma od 2026-11-08 sześć ról,
+    // więc zatrzymanie kaskady widać wyłącznie na dłuższej liście z bazy.
+    const tenRows = Array.from({ length: 10 }, (_, i) =>
+      roleRow({
+        id: `00000000-0000-4000-8000-0000000001${String(i).padStart(2, "0")}`,
+        slug: `oferta-${i}`,
+        sort_order: i,
+        title_pl: `Oferta ${i}`,
+        title_en: `Offer ${i}`,
+      }),
+    );
+    renderRoles({ offers: tenRows });
     const delays = cards().map((card) => (card.parentElement as HTMLElement).style.animationDelay);
 
-    expect(delays).toHaveLength(CAREER_ROLES.length);
+    expect(delays).toHaveLength(10);
     expect(delays.slice(0, 3)).toEqual(["0ms", "55ms", "110ms"]);
     expect(delays[7]).toBe("385ms");
     expect(delays[8]).toBe("385ms");

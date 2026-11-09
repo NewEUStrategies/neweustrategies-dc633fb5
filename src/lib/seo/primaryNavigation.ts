@@ -19,24 +19,28 @@
 // w llms.txt i w panelu SEO nie może się rozjechać. Test kontraktu pilnuje,
 // że każdy adres stąd istnieje w mapie stopki.
 //
-// Kolejność odpowiada temu, po co czytelnik wyszukuje markę: najpierw
-// formaty redakcyjne (analizy, wywiady), potem wydarzenia i materiały
-// eksperckie, na końcu tożsamość wydawcy. „Kontakt" świadomie NIE należy do
-// tej listy - zostaje w stopce i na stronie „O nas". Podcast wypadł stąd na
-// czas, gdy /podcasts zwracała wyłącznie kartę „Nie udało się załadować
-// podcastów" (pomiar 2026-10-09: 3/3 odpowiedzi zdegradowane, 42703 na
-// `podcasts.explicit`) - sekcja główna nie może prowadzić crawlera ani
-// asystenta AI na stronę błędu. Wrócił, gdy lista odcinków przestała zależeć
-// od kolumn metadanych Apple (`PODCAST_LIST_FIELDS`, migracja 20261009100000).
+// KOLEJNOŚĆ (decyzja redakcji 2026-11-08). Pięć sekcji, które redakcja chce
+// widzieć pod wynikiem na nazwę marki - i w tej kolejności: Analizy, O nas,
+// Konferencje, Spotkania (Chatham House), Wywiady. Wcześniejsza lista (analizy,
+// wywiady, wydarzenia, policy papers, podcast, o nas) nie obejmowała
+// konferencji ani spotkań, a Google dobierał na sitelink stronę techniczną
+// „Customize Interests" (teraz `noindex` - `lib/seo/utilityPages.ts`).
+// „Kontakt" świadomie NIE należy do tej listy - zostaje w stopce i na stronie
+// „O nas". Wydarzenia, policy papers i podcast zostają w stopce i w mapie
+// strony; nie są już deklarowane jako sekcje główne.
+//
+// Lista nie gwarantuje sitelinków (patrz wyżej), ale archiwum bez treści nie
+// zostanie wybrane nigdy: `/category/wywiady` jest dla Google sitelinkiem
+// dopiero wtedy, gdy wpisy-wywiady mają przypisaną kategorię „Wywiady" -
+// llms.txt pomija puste archiwum (`resolvePrimarySectionHref`).
 import { FOOTER_LINKS, type FooterLink } from "@/lib/seo/footerNavigation";
 
 export const PRIMARY_SECTION_HREFS = [
   "/analizy",
-  "/category/wywiady",
-  "/wydarzenia",
-  "/category/policy-papers",
-  "/podcasts",
   "/o-nas",
+  "/konferencje",
+  "/spotkania-chatham-house",
+  "/category/wywiady",
 ] as const;
 
 /** Sekcje główne w zaplanowanej kolejności, z etykietami z mapy stopki. */

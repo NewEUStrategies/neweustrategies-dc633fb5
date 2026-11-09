@@ -17,17 +17,14 @@ const careersPl = {
       rotatePrefix: "Szukamy teraz:",
       rotating: {
         research: "analityków bezpieczeństwa i gospodarki",
-        policy: "specjalistów od legislacji UE",
-        marketing: "marketerów wzrostu i treści",
+        policy: "stażystów w obszarze polityki publicznej",
+        marketing: "liderów marketingu i wzrostu",
         advisory: "doradców strategicznych zarządów",
         editorial: "redaktorów pracujących w PL i EN",
       },
     },
     stats: {
-      people: { value: "45", label: "osób w zespole" },
-      countries: { value: "9", label: "krajów, z których pracujemy" },
       remote: { value: "100%", label: "ról z pracą zdalną lub hybrydową" },
-      growth: { value: "3x", label: "wzrost zespołu w 2 lata" },
     },
     values: {
       title: "Jak pracujemy",
@@ -141,38 +138,6 @@ const careersPl = {
           q3: "Umiejętność pisania zwięzłych rekomendacji dla decydentów.",
         },
       },
-      data_analyst: {
-        title: "Analityk danych (współpraca projektowa)",
-        summary:
-          "Budujesz warstwę danych pod nasze raporty: modele, zestawy wskaźników i powtarzalne pipeline'y.",
-        bullets: {
-          b1: "Przygotowanie i kontrola jakości zbiorów danych do raportów.",
-          b2: "Automatyzacja aktualizacji wskaźników i wykresów.",
-          b3: "Dokumentacja metodologii dla czytelników i recenzentów.",
-        },
-        requirements: {
-          q1: "Praktyczna znajomość Pythona lub R oraz SQL.",
-          q2: "Doświadczenie w budowie powtarzalnych pipeline'ów i kontroli jakości danych.",
-          q3: "Dbałość o dokumentację metodologii i powtarzalność wyników.",
-        },
-      },
-      eu_policy_officer: {
-        title: "Specjalista ds. polityki UE",
-        summary:
-          "Monitorujesz proces legislacyjny w Brukseli i przekładasz go na stanowiska oraz konsultacje.",
-        bullets: {
-          b1: "Śledzenie prac Komisji, Rady i Parlamentu w wyznaczonych dossier.",
-          b2: "Przygotowanie stanowisk konsultacyjnych i notatek decyzyjnych.",
-          b3: "Kontakty z instytucjami, stowarzyszeniami i partnerami.",
-          b4: "Wsparcie zespołu analitycznego w interpretacji przepisów.",
-        },
-        requirements: {
-          q1: "Doświadczenie w pracy z procesem legislacyjnym UE (instytucje, izby, kancelarie).",
-          q2: "Umiejętność szybkiego streszczania dokumentów prawnych w język decyzji.",
-          q3: "Angielski na poziomie roboczym C1, mile widziany francuski.",
-          q4: "Gotowość do pracy w Brukseli i udziału w spotkaniach instytucjonalnych.",
-        },
-      },
       policy_intern: {
         title: "Staż - polityka publiczna",
         summary:
@@ -205,21 +170,6 @@ const careersPl = {
           q4: "Umiejętność zarządzania budżetem i podwykonawcami.",
         },
       },
-      content_marketing_specialist: {
-        title: "Specjalista ds. treści (część etatu)",
-        summary:
-          "Przekładasz analizy na formaty społecznościowe, newsletterowe i wideo - bez utraty precyzji.",
-        bullets: {
-          b1: "Prowadzenie kanałów LinkedIn i X w PL/EN.",
-          b2: "Redakcja newslettera i zapowiedzi raportów.",
-          b3: "Współpraca z autorami przy dystrybucji publikacji.",
-        },
-        requirements: {
-          q1: "2+ lata w prowadzeniu kanałów społecznościowych marki eksperckiej.",
-          q2: "Lekkie pióro w PL i EN oraz wyczucie tematów publicznych.",
-          q3: "Podstawy pracy z grafiką i wideo w formatach społecznościowych.",
-        },
-      },
       strategic_advisor: {
         title: "Doradca strategiczny (współpraca ekspercka)",
         summary:
@@ -250,21 +200,6 @@ const careersPl = {
           q2: "Wzorowa polszczyzna i angielski na poziomie redakcyjnym.",
           q3: "Znajomość standardów cytowania, przypisów i weryfikacji faktów.",
           q4: "Umiejętność egzekwowania kalendarza wydawniczego bez konfliktów.",
-        },
-      },
-      events_coordinator: {
-        title: "Koordynator wydarzeń i klubów",
-        summary:
-          "Prowadzisz kalendarz debat, klubów dyskusyjnych i konferencji - od zaproszeń po podsumowania.",
-        bullets: {
-          b1: "Organizacja spotkań offline i online (do 300 osób).",
-          b2: "Kontakt z prelegentami, partnerami i lokalizacjami.",
-          b3: "Podsumowania i raportowanie efektów wydarzeń.",
-        },
-        requirements: {
-          q1: "2+ lata w organizacji wydarzeń (konferencje, debaty, spotkania zamknięte).",
-          q2: "Sprawna koordynacja prelegentów, partnerów i dostawców.",
-          q3: "Angielski w kontakcie z gośćmi zagranicznymi.",
         },
       },
     },
@@ -422,7 +357,7 @@ const careersPl = {
     seo: {
       title: "Kariera - dołącz do zespołu New European Strategies",
       description:
-        "Otwarte role w New European Strategies: analizy, polityka publiczna, marketing, doradztwo, redakcja i operacje. Aplikuj online w 3 minuty.",
+        "Otwarte role w New European Strategies: analizy, polityka publiczna, doradztwo, marketing i redakcja. Aplikuj online w 3 minuty.",
     },
   },
 };
@@ -441,17 +376,14 @@ const careersEn = {
       rotatePrefix: "Right now we are hiring:",
       rotating: {
         research: "security and economy analysts",
-        policy: "EU legislation specialists",
-        marketing: "growth and content marketers",
+        policy: "public policy interns",
+        marketing: "marketing and growth leads",
         advisory: "board-level strategic advisors",
         editorial: "editors working in Polish and English",
       },
     },
     stats: {
-      people: { value: "45", label: "people on the team" },
-      countries: { value: "9", label: "countries we work from" },
       remote: { value: "100%", label: "roles remote or hybrid" },
-      growth: { value: "3x", label: "team growth in 2 years" },
     },
     values: {
       title: "How we work",
@@ -565,38 +497,6 @@ const careersEn = {
           q3: "Ability to write concise recommendations for decision-makers.",
         },
       },
-      data_analyst: {
-        title: "Data analyst (project engagement)",
-        summary:
-          "You build the data layer behind our reports: models, indicator sets and repeatable pipelines.",
-        bullets: {
-          b1: "Preparing and quality-checking datasets for reports.",
-          b2: "Automating indicator and chart updates.",
-          b3: "Documenting methodology for readers and reviewers.",
-        },
-        requirements: {
-          q1: "Working knowledge of Python or R plus SQL.",
-          q2: "Experience building repeatable pipelines and running data quality checks.",
-          q3: "Discipline around methodology documentation and reproducibility.",
-        },
-      },
-      eu_policy_officer: {
-        title: "EU policy officer",
-        summary:
-          "You monitor the Brussels legislative process and turn it into positions and consultations.",
-        bullets: {
-          b1: "Following Commission, Council and Parliament work on assigned dossiers.",
-          b2: "Preparing consultation responses and decision memos.",
-          b3: "Maintaining contact with institutions, associations and partners.",
-          b4: "Supporting the research team with legal interpretation.",
-        },
-        requirements: {
-          q1: "Experience with the EU legislative process (institutions, chambers, law firms).",
-          q2: "Ability to summarise legal documents into decision-ready language.",
-          q3: "English at C1 working level; French is a plus.",
-          q4: "Readiness to work in Brussels and attend institutional meetings.",
-        },
-      },
       policy_intern: {
         title: "Internship - public policy",
         summary:
@@ -629,21 +529,6 @@ const careersEn = {
           q4: "Ability to manage budget and external contractors.",
         },
       },
-      content_marketing_specialist: {
-        title: "Content specialist (part-time)",
-        summary:
-          "You turn analyses into social, newsletter and video formats without losing precision.",
-        bullets: {
-          b1: "Running LinkedIn and X channels in Polish and English.",
-          b2: "Editing the newsletter and report announcements.",
-          b3: "Working with authors on publication distribution.",
-        },
-        requirements: {
-          q1: "2+ years running social channels for an expert brand.",
-          q2: "A light touch in Polish and English plus a feel for public affairs.",
-          q3: "Basic graphic and video skills for social formats.",
-        },
-      },
       strategic_advisor: {
         title: "Strategic advisor (expert engagement)",
         summary:
@@ -674,21 +559,6 @@ const careersEn = {
           q2: "Impeccable Polish and editorial-level English.",
           q3: "Knowledge of citation, footnote and fact-checking standards.",
           q4: "Ability to enforce the publishing calendar without friction.",
-        },
-      },
-      events_coordinator: {
-        title: "Events and clubs coordinator",
-        summary:
-          "You run the calendar of debates, discussion clubs and conferences, from invitations to wrap-ups.",
-        bullets: {
-          b1: "Organising offline and online events for up to 300 people.",
-          b2: "Managing speakers, partners and venues.",
-          b3: "Reporting on event outcomes.",
-        },
-        requirements: {
-          q1: "2+ years organising events (conferences, debates, closed-door meetings).",
-          q2: "Smooth coordination of speakers, partners and vendors.",
-          q3: "English for working with international guests.",
         },
       },
     },
@@ -846,7 +716,7 @@ const careersEn = {
     seo: {
       title: "Careers - join the New European Strategies team",
       description:
-        "Open roles at New European Strategies: research, public policy, marketing, advisory, editorial and operations. Apply online in 3 minutes.",
+        "Open roles at New European Strategies: research, public policy, advisory, marketing and editorial. Apply online in 3 minutes.",
     },
   },
 };

@@ -253,6 +253,24 @@ describe("planSiteMap - jeden adres, jeden wpis mapy", () => {
     expect(plan.staticHrefs.has("/blog")).toBe(true);
   });
 
+  it("strona TECHNICZNA (personalizacja, koszyk, konto) wypada z mapy HTML", () => {
+    // `lib/seo/utilityPages.ts`: Google wybrał „Customize Interests" na
+    // sitelink marki - mapa HTML linkowała ją jak każdą inną stronę.
+    const plan = planSiteMap(
+      [
+        ...rows,
+        row({ id: "ci", slug: "customize-interests" }),
+        row({ id: "konto", slug: "moje-konto" }),
+        row({ id: "spotkania", slug: "spotkania-chatham-house" }),
+      ],
+      { homepageId: "main", staticHrefs: STATIC, legacyRedirects: LEGACY },
+    );
+    const every = allPaths(plan.tree);
+    expect(every).not.toContain("/customize-interests");
+    expect(every).not.toContain("/moje-konto");
+    expect(every).toContain("/spotkania-chatham-house");
+  });
+
   it("tryb najnowszych wpisów (homepageId = null): strona `main` jest zwykłą stroną", () => {
     const plan = planSiteMap(rows, { homepageId: null, staticHrefs: STATIC });
     expect(allPaths(plan.tree)).toContain("/main");
