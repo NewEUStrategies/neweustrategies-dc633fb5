@@ -205,6 +205,20 @@ describe("SearchButtonWidget - dyktowanie i model kubełków na intencję (P2.3)
     expect(mic.getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("lupa i mikrofon mają pole dotyku 24 px bez zmiany miejsca w układzie", () => {
+    // Ikona 18 px + dopełnienie 3 px z każdej strony = 24 px (WCAG 2.5.8);
+    // równy ujemny margines zostawia w układzie dawne 18 px.
+    const { container } = render(widget());
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
+      (button) => button.querySelector("svg.w-\\[18px\\]"),
+    );
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(button.className).toContain("p-[3px]");
+      expect(button.className).toContain("-m-[3px]");
+    }
+  });
+
   it("samo nagrywanie bez Web Speech: mikrofon tylko z zapisaną sesją", () => {
     installRecordingOnly();
     const guest = render(widget());
