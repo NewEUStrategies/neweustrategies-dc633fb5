@@ -561,8 +561,10 @@ body {
   --voice-stop-border: color-mix(in oklab, var(--primary) 72%, #000);
   /* Szary ton akcji "wiecej" w etykiecie sekcji (Kinetic Signal Notch). To
      neutralna szarosc bez ocieplenia brandem - na jasnej plycie odrobinie
-     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). */
-  --nes-kinetic-action: oklch(0.56 0.004 250);
+     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). Liczone na
+     tle strony #f8f7f3, nie na bieli: 0.56 dawalo tam 4,34:1 (audyt axe
+     2026-11-14), 0.54 daje 4,72:1. */
+  --nes-kinetic-action: oklch(0.54 0.004 250);
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
