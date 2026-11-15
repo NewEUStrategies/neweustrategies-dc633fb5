@@ -87,13 +87,14 @@ const stubs = vi.hoisted(() => ({
   measureGate: null as Promise<void> | null,
 }));
 
-// Pomiar naturalnego rozmiaru pliku: bez tej atrapy `Image` środowiska testowego
-// nie odpala ani `load`, ani `error`, więc KAŻDY zapis czekałby 5 s na limit.
+// Pomiar naturalnego rozmiaru pliku: bez tej atrapy sondy `<img>` w środowisku
+// testowym nie odpalają ani `load`, ani `error`, więc KAŻDY zapis czekałby 5 s
+// na limit.
 vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: async (url: string) => {
     stubs.measureCalls.push(url);
     if (stubs.measureGate) await stubs.measureGate;
-    return stubs.measured[url] ?? "";
+    return { size: stubs.measured[url] ?? "", noRatio: false };
   },
 }));
 

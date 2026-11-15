@@ -4,9 +4,10 @@
 // CO TU MA DOWÓD
 //  1. Obietnica NIGDY nie jest odrzucana i ZAWSZE się rozstrzyga: błąd pobrania,
 //     brak odpowiedzi (limit 5 s), wyjątek przy stawianiu sond i wyjątek odczytu
-//     układu dają `""`. Od tego zależy "Zapisz" w Opcjach motywu - czeka na
-//     pomiar, więc pomiar bez rozstrzygnięcia zawiesiłby zapis.
-//  2. Wynik przechodzi przez wspólną walidację: plik bez własnego rozmiaru
+//     układu dają pomiar NIEUDANY (`size: ""`). Od tego zależy "Zapisz" w
+//     Opcjach motywu - czeka na pomiar, więc pomiar bez rozstrzygnięcia
+//     zawiesiłby zapis.
+//  2. Rozmiar przechodzi przez wspólną walidację: plik bez własnego rozmiaru
 //     (0 × 0) to `""`, a nie `"0x0"`.
 //  3. Mierzony jest plik pod adresem, którym panel pokazuje podglądy: kanoniczny
 //     `/media/...` jako ścieżka względna (działa na hoście podglądu), adres
@@ -22,6 +23,11 @@
 //     trafia do kanału błędów jako fałszywy alarm.
 //  6. Wynik nie zależy od rozszerzenia adresu.
 //  7. Sondy znikają z dokumentu na każdej ścieżce.
+//  8. WERDYKT JEST ODRÓŻNIALNY. "Plik się załadował i nie ma własnej proporcji"
+//     (`noRatio: true`) to co innego niż pomiar nieudany (`noRatio: false`):
+//     pierwszy kasuje rozmiar zapisany wcześniej (lista logo, edytor obrazu),
+//     drugi go zostawia. Dlatego "brak proporcji" wymaga dowodu z układu - obu
+//     sond tej samej, NIEZEROWEJ szerokości - a brak układu to pomiar nieudany.
 //
 // happy-dom nie ładuje obrazów i nie liczy układu: zdarzenia `load`/`error`
 // odpala test, a szerokość sondy podaje wstrzyknięty odczyt (drugi argument
@@ -35,6 +41,13 @@ import { measureIntrinsicSize, type ProbeWidthReader } from "@/lib/media/measure
 import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 const LOGO = "https://cdn.example.com/logo.svg";
+
+/** Plik z własną proporcją i poprawnym rozmiarem. */
+const measured = (size: string) => ({ size, noRatio: false });
+/** Pomiar nieudany albo rozmiar nieznany - zapisana wartość zostaje. */
+const FAILED = { size: "", noRatio: false };
+/** Plik załadowany, bez własnej proporcji - zapisana wartość ma zniknąć. */
+const NO_RATIO = { size: "", noRatio: true };
 
 /** Sonda niska (10 px) stoi w pojemniku pierwsza, wysoka (1000 px) druga. */
 const isLowProbe = (probe: HTMLImageElement) => probe.parentElement?.firstElementChild === probe;
@@ -111,22 +124,25 @@ describe("measureIntrinsicSize", () => {
     const measure = startMeasure(LOGO);
     measure.load(350, 150);
 
-    await expect(measure.pending).resolves.toBe("350x150");
+    await expect(measure.pending).resolves.toEqual(measured("350x150"));
   });
 
-  it('plik z proporcją, ale bez własnego rozmiaru (0 × 0) -> ""', async () => {
+  it('plik z proporcją, ale bez własnego rozmiaru (0 × 0) -> "", i to NIE jest "brak proporcji"', async () => {
     const measure = startMeasure("https://cdn.example.com/bez-rozmiaru.svg");
     measure.load(0, 0);
 
-    await expect(measure.pending).resolves.toBe("");
+    await expect(measure.pending).resolves.toEqual(FAILED);
   });
 
-  it.each([0, 1])('błąd pobrania w sondzie %i -> "" (bez odrzucenia obietnicy)', async (index) => {
-    const measure = startMeasure("https://cdn.example.com/404.png");
-    measure.fail(index);
+  it.each([0, 1])(
+    "błąd pobrania w sondzie %i -> pomiar nieudany (bez odrzucenia obietnicy)",
+    async (index) => {
+      const measure = startMeasure("https://cdn.example.com/404.png");
+      measure.fail(index);
 
-    await expect(measure.pending).resolves.toBe("");
-  });
+      await expect(measure.pending).resolves.toEqual(FAILED);
+    },
+  );
 
   it('brak zdarzenia przez 5000 ms -> "", ani chwili wcześniej; sondy znikają', async () => {
     vi.useFakeTimers();
@@ -138,7 +154,7 @@ describe("measureIntrinsicSize", () => {
     expect(settled).not.toHaveBeenCalled();
     expect(measure.host?.isConnected).toBe(true);
     await vi.advanceTimersByTimeAsync(1);
-    expect(settled).toHaveBeenCalledWith("");
+    expect(settled).toHaveBeenCalledWith(FAILED);
     expect(measure.host?.isConnected).toBe(false);
   });
 
@@ -154,7 +170,7 @@ describe("measureIntrinsicSize", () => {
 
     measure.loadOne(0, 350, 150);
     await vi.advanceTimersByTimeAsync(0);
-    expect(settled).toHaveBeenCalledWith("350x150");
+    expect(settled).toHaveBeenCalledWith(measured("350x150"));
   });
 
   it("po rozstrzygnięciu zdejmuje uchwyty, zegar i sondy - spóźnione zdarzenie niczego nie zmienia", async () => {
@@ -163,7 +179,7 @@ describe("measureIntrinsicSize", () => {
     const measure = startMeasure(LOGO, readWidth);
     measure.load(350, 150);
 
-    await expect(measure.pending).resolves.toBe("350x150");
+    await expect(measure.pending).resolves.toEqual(measured("350x150"));
     for (const probe of measure.probes) {
       expect(probe.onload).toBeNull();
       expect(probe.onerror).toBeNull();
@@ -180,7 +196,7 @@ describe("measureIntrinsicSize", () => {
   it('pusty adres -> "" bez stawiania sond', async () => {
     const createElement = vi.spyOn(document, "createElement");
 
-    await expect(measureIntrinsicSize("", SCALES)).resolves.toBe("");
+    await expect(measureIntrinsicSize("", SCALES)).resolves.toEqual(FAILED);
     expect(createElement).not.toHaveBeenCalled();
   });
 
@@ -188,7 +204,7 @@ describe("measureIntrinsicSize", () => {
     const page = document;
     vi.stubGlobal("document", undefined);
     try {
-      await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toBe("");
+      await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toEqual(FAILED);
     } finally {
       vi.stubGlobal("document", page);
     }
@@ -201,7 +217,7 @@ describe("measureIntrinsicSize", () => {
       return createElement(tag);
     }) as typeof document.createElement);
 
-    await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toBe("");
+    await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toEqual(FAILED);
   });
 
   it('wyjątek przy dopinaniu sond do dokumentu -> "", bez wiszącego zegara', async () => {
@@ -210,7 +226,7 @@ describe("measureIntrinsicSize", () => {
       throw new Error("dokument zamknięty");
     });
 
-    await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toBe("");
+    await expect(measureIntrinsicSize(LOGO, SCALES)).resolves.toEqual(FAILED);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -277,12 +293,12 @@ describe("measureIntrinsicSize - sondy układu", () => {
     ['SVG z `viewBox` i `preserveAspectRatio="none"`', 300, 300, 300, 150],
     ["SVG z `viewBox` o zerowym polu", 300, 300, 300, 150],
   ])(
-    '%s: obie sondy tej samej szerokości -> "" (znacznik zostaje bez atrybutów)',
+    '%s: obie sondy tej samej szerokości -> "", werdykt "brak własnej proporcji"',
     async (_name, low, high, width, height) => {
       const measure = startMeasure(LOGO, widths(low, high));
       measure.load(width, height);
 
-      await expect(measure.pending).resolves.toBe("");
+      await expect(measure.pending).resolves.toEqual(NO_RATIO);
     },
   );
 
@@ -309,7 +325,7 @@ describe("measureIntrinsicSize - sondy układu", () => {
       const measure = startMeasure(LOGO, widths(low, high));
       measure.load(width, height);
 
-      await expect(measure.pending).resolves.toBe(size);
+      await expect(measure.pending).resolves.toEqual(measured(size));
     },
   );
 
@@ -317,21 +333,27 @@ describe("measureIntrinsicSize - sondy układu", () => {
     ["zero w obu sondach (brak układu)", 0, 0],
     ["NaN", Number.NaN, Number.NaN],
     ["wyższa sonda węższa", 300, 200],
-  ])('odczyt układu bez odpowiedzi (%s) -> ""', async (_name, low, high) => {
-    const measure = startMeasure(LOGO, widths(low, high));
-    measure.load(350, 150);
+  ])(
+    "odczyt układu bez odpowiedzi (%s) -> pomiar nieudany, NIE brak proporcji",
+    async (_name, low, high) => {
+      // Brak układu niczego o pliku nie mówi: werdykt "brak proporcji" skasowałby
+      // rozmiar zapisany wcześniej, więc wymaga obu sond tej samej, niezerowej
+      // szerokości.
+      const measure = startMeasure(LOGO, widths(low, high));
+      measure.load(350, 150);
 
-    await expect(measure.pending).resolves.toBe("");
-  });
+      await expect(measure.pending).resolves.toEqual(FAILED);
+    },
+  );
 
-  it('wyjątek odczytu układu -> "" od razu, bez czekania na limit', async () => {
+  it("wyjątek odczytu układu -> pomiar nieudany od razu, bez czekania na limit", async () => {
     vi.useFakeTimers();
     const measure = startMeasure(LOGO, () => {
       throw new Error("układ niedostępny");
     });
     measure.load(350, 150);
 
-    await expect(measure.pending).resolves.toBe("");
+    await expect(measure.pending).resolves.toEqual(FAILED);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -344,7 +366,7 @@ describe("measureIntrinsicSize - sondy układu", () => {
     ]) {
       const measure = startMeasure(url, FIXED);
       measure.load(300, 150);
-      await expect(measure.pending).resolves.toBe("");
+      await expect(measure.pending).resolves.toEqual(NO_RATIO);
     }
     // ...i plik z proporcją pod adresem `.svg`, `.svgz`, bez rozszerzenia i `data:`.
     for (const url of [
@@ -355,7 +377,7 @@ describe("measureIntrinsicSize - sondy układu", () => {
     ]) {
       const measure = startMeasure(url, widths(40, 4000));
       measure.load(300, 75);
-      await expect(measure.pending).resolves.toBe("300x75");
+      await expect(measure.pending).resolves.toEqual(measured("300x75"));
     }
   });
 
@@ -371,17 +393,64 @@ describe("measureIntrinsicSize - sondy układu", () => {
       probe.dispatchEvent(new Event("load"));
     }
 
-    await expect(pending).resolves.toBe("350x150");
+    await expect(pending).resolves.toEqual(measured("350x150"));
     expect(rect).toHaveBeenCalledTimes(2);
 
-    // Ten sam plik bez proporcji w układzie: rozmiaru nie ma.
+    // Ten sam plik bez proporcji w układzie: rozmiaru nie ma, werdykt jest jawny.
     rect.mockImplementation(() => ({ width: 300 }) as DOMRect);
     const fixed = measureIntrinsicSize(LOGO);
     for (const probe of probesInDocument()) {
       setNaturalSize(probe, 300, 150);
       probe.dispatchEvent(new Event("load"));
     }
-    await expect(fixed).resolves.toBe("");
+    await expect(fixed).resolves.toEqual(NO_RATIO);
+  });
+});
+
+describe("measureIntrinsicSize - werdykt odróżnia brak proporcji od nieudanego pomiaru", () => {
+  it("plik załadowany bez własnej proporcji: `noRatio: true` i pusty rozmiar", async () => {
+    const measure = startMeasure(LOGO, FIXED);
+    measure.load(300, 150);
+
+    const result = await measure.pending;
+
+    expect(result.noRatio).toBe(true);
+    expect(result.size).toBe("");
+  });
+
+  it("plik z własną proporcją: rozmiar i `noRatio: false`", async () => {
+    const measure = startMeasure(LOGO, SCALES);
+    measure.load(350, 150);
+
+    expect(await measure.pending).toEqual({ size: "350x150", noRatio: false });
+  });
+
+  it("każda porażka pomiaru to `noRatio: false` - zapisany rozmiar ma zostać", async () => {
+    vi.useFakeTimers();
+    const failures: Array<Promise<{ size: string; noRatio: boolean }>> = [];
+
+    // Pusty adres.
+    failures.push(measureIntrinsicSize("", FIXED));
+    // Błąd pobrania - także wtedy, gdy druga sonda zdążyła się załadować.
+    const broken = startMeasure(LOGO, FIXED);
+    broken.loadOne(1, 300, 150);
+    broken.fail(0);
+    failures.push(broken.pending);
+    // Brak układu: obie sondy o szerokości zero.
+    const noLayout = startMeasure(LOGO, widths(0, 0));
+    noLayout.load(300, 150);
+    failures.push(noLayout.pending);
+    // Wyjątek odczytu układu.
+    const throwing = startMeasure(LOGO, () => {
+      throw new Error("układ niedostępny");
+    });
+    throwing.load(300, 150);
+    failures.push(throwing.pending);
+    // Brak odpowiedzi do limitu czasu.
+    failures.push(startMeasure(LOGO, FIXED).pending);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(await Promise.all(failures)).toEqual([FAILED, FAILED, FAILED, FAILED, FAILED]);
   });
 });
 

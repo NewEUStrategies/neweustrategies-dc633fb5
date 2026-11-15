@@ -73,7 +73,8 @@ export async function measureLogoIntrinsic(
     const previous =
       findIntrinsicSize(storedEntries, url) ?? findIntrinsicSize(logo?.intrinsic, url);
     const size =
-      measured[index] || (previous ? formatIntrinsicSize(previous.width, previous.height) : "");
+      measured[index].size ||
+      (previous ? formatIntrinsicSize(previous.width, previous.height) : "");
     if (size) entries.push([url, size]);
   });
   return entries;

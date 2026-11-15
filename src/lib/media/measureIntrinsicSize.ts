@@ -67,35 +67,68 @@ export type ProbeWidthReader = (probe: HTMLImageElement) => number;
 
 const layoutWidth: ProbeWidthReader = (probe) => probe.getBoundingClientRect().width;
 
+/** Wynik pomiaru pliku. */
+export interface IntrinsicMeasurement {
+  /** `"WxH"`, gdy plik ma własną proporcję i poprawny rozmiar; inaczej `""`. */
+  size: string;
+  /**
+   * `true` WYŁĄCZNIE wtedy, gdy plik się załadował, a układ pokazał, że nie ma
+   * własnej proporcji: rozmiar zapisany dla niego wcześniej jest błędny i ma
+   * zniknąć. Nieudany pomiar (błąd pobrania, limit czasu, brak układu) to
+   * `false` - wtedy o pliku nic nie wiadomo i zapisana wartość zostaje.
+   */
+  noRatio: boolean;
+}
+
+const FAILED: IntrinsicMeasurement = { size: "", noRatio: false };
+const NO_RATIO: IntrinsicMeasurement = { size: "", noRatio: true };
+
 /**
- * Rozmiar pliku załadowanego w obu sondach albo `""`, gdy plik nie ma własnej
- * proporcji (wyższa sonda nie jest szersza) albo układu nie da się odczytać.
+ * Werdykt dla pliku załadowanego w obu sondach:
+ *  - wyższa sonda szersza: plik ma własną proporcję - jego rozmiar (albo `""`,
+ *    gdy przeglądarka rozmiaru nie podaje, np. 0 × 0);
+ *  - obie sondy tej samej, niezerowej szerokości: plik BEZ własnej proporcji;
+ *  - cokolwiek innego (zero, NaN, wyjątek odczytu): układu nie ma, czyli
+ *    pomiar nieudany. "Brak proporcji" kasuje zapisane rozmiary, więc wymaga
+ *    dowodu, a nie braku odpowiedzi.
  */
-function sizeWithOwnRatio(probes: readonly HTMLImageElement[], readWidth: ProbeWidthReader) {
+function verdict(
+  probes: readonly HTMLImageElement[],
+  readWidth: ProbeWidthReader,
+): IntrinsicMeasurement {
   try {
-    const [low, high] = probes;
-    return readWidth(high) > readWidth(low)
-      ? formatIntrinsicSize(low.naturalWidth, low.naturalHeight)
-      : "";
+    const [lowProbe, highProbe] = probes;
+    const low = readWidth(lowProbe);
+    const high = readWidth(highProbe);
+    if (high > low) {
+      return {
+        size: formatIntrinsicSize(lowProbe.naturalWidth, lowProbe.naturalHeight),
+        noRatio: false,
+      };
+    }
+    return low > 0 && high === low ? NO_RATIO : FAILED;
   } catch {
-    return "";
+    return FAILED;
   }
 }
 
 /** Stawia sondy, czeka na oba obrazy i sprząta po sobie na każdej ścieżce. Nie odrzuca. */
-function probeIntrinsicSize(url: string, readWidth: ProbeWidthReader): Promise<string> {
-  return new Promise<string>((resolve) => {
+function probeIntrinsicSize(
+  url: string,
+  readWidth: ProbeWidthReader,
+): Promise<IntrinsicMeasurement> {
+  return new Promise<IntrinsicMeasurement>((resolve) => {
     let host: HTMLElement | undefined;
     let probes: HTMLImageElement[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const settle = (size: string) => {
+    const settle = (result: IntrinsicMeasurement) => {
       clearTimeout(timer);
       for (const probe of probes) {
         probe.onload = null;
         probe.onerror = null;
       }
       host?.remove();
-      resolve(size);
+      resolve(result);
     };
     try {
       const box = document.createElement("div");
@@ -109,28 +142,29 @@ function probeIntrinsicSize(url: string, readWidth: ProbeWidthReader): Promise<s
         probe.style.cssText = probeStyle(height);
         probe.onload = () => {
           loading -= 1;
-          if (loading === 0) settle(sizeWithOwnRatio(probes, readWidth));
+          if (loading === 0) settle(verdict(probes, readWidth));
         };
-        probe.onerror = () => settle("");
+        probe.onerror = () => settle(FAILED);
         box.appendChild(probe);
         return probe;
       });
-      timer = setTimeout(() => settle(""), PROBE_TIMEOUT_MS);
+      timer = setTimeout(() => settle(FAILED), PROBE_TIMEOUT_MS);
       document.body.appendChild(box);
       const src = mediaRenderUrl(url);
       for (const probe of probes) probe.src = src;
     } catch {
-      settle("");
+      settle(FAILED);
     }
   });
 }
 
 /**
- * Naturalny rozmiar pliku jako `"WxH"` albo `""`, gdy nie da się go ustalić
- * (pusty adres, błąd pobrania, brak odpowiedzi w 5 s, plik bez własnego
+ * Naturalny rozmiar pliku: `size` to `"WxH"` albo `""`, gdy nie da się go
+ * ustalić (pusty adres, błąd pobrania, brak odpowiedzi w 5 s, plik bez własnego
  * rozmiaru - np. SVG z samym `viewBox` w Firefoksie daje 0 × 0 - oraz plik bez
- * własnej proporcji). Obietnica NIGDY nie jest odrzucana: brak pomiaru to dla
- * wołającego "rozmiar nieznany".
+ * własnej proporcji). Ten ostatni przypadek wyróżnia `noRatio` - patrz
+ * `IntrinsicMeasurement`. Obietnica NIGDY nie jest odrzucana: brak pomiaru to
+ * dla wołającego "rozmiar nieznany".
  *
  * Mierzymy ORYGINAŁ własnymi sondami `<img>` bez `srcset` - nigdy
  * `naturalWidth` obrazu wyrenderowanego przez stronę, bo ten przy `srcset`
@@ -144,7 +178,7 @@ function probeIntrinsicSize(url: string, readWidth: ProbeWidthReader): Promise<s
 export function measureIntrinsicSize(
   url: string,
   readWidth: ProbeWidthReader = layoutWidth,
-): Promise<string> {
-  if (!url || typeof document === "undefined") return Promise.resolve("");
+): Promise<IntrinsicMeasurement> {
+  if (!url || typeof document === "undefined") return Promise.resolve(FAILED);
   return probeIntrinsicSize(url, readWidth);
 }

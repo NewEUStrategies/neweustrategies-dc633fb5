@@ -20,7 +20,7 @@ const probe = vi.hoisted(() => ({
 vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: async (url: string) => {
     probe.calls.push(url);
-    return probe.sizes[url] ?? "";
+    return { size: probe.sizes[url] ?? "", noRatio: false };
   },
 }));
 

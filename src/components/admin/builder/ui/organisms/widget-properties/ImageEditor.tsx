@@ -192,7 +192,7 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
    */
   const capture = useCallback((slot: FileSlot, url: string, onlyIfUsed = false) => {
     if (!url) return;
-    void measureIntrinsicSize(url).then((size) => {
+    void measureIntrinsicSize(url).then(({ size }) => {
       const now = latest.current;
       const key = INTRINSIC_KEY[slot];
       if (!alive.current || !size || readText(now, slot) !== url || readText(now, key) === size) {

@@ -57,9 +57,10 @@ const probe = vi.hoisted(() => ({
 vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: (url: string) => {
     probe.calls.push(url);
-    if (!probe.manual) return Promise.resolve(probe.sizes[url] ?? "");
-    return new Promise<string>((resolve) => {
-      probe.pending.push({ url, resolve });
+    const result = (size: string) => ({ size, noRatio: false });
+    if (!probe.manual) return Promise.resolve(result(probe.sizes[url] ?? ""));
+    return new Promise<ReturnType<typeof result>>((resolve) => {
+      probe.pending.push({ url, resolve: (size) => resolve(result(size)) });
     });
   },
 }));
