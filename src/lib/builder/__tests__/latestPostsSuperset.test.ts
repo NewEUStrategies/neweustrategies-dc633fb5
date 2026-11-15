@@ -14,6 +14,11 @@
 //    i HTML serwera mają być równe stronie po hydratacji).
 // 3. GRANICE. Filtr, inne sortowanie, okno poza pojemnością, błąd nadzbioru
 //    i przeglądarka = dotychczasowe zapytanie widgetu.
+// 4. ADRES KANONICZNY BEZ ROUND-TRIPU. Strona-rodzic wpisu jedzie osadzeniem
+//    w TYM SAMYM odczycie (`parent_page`), więc `postHref` liczy adres
+//    `/<rodzic>/<slug>` z wiersza - liczba odczytów z pkt. 1 się nie zmienia.
+//    Gdy odczyt z osadzeniem zawiedzie, leci ten sam odczyt bez osadzenia:
+//    widgety mają wpisy z adresem zapasowym `/post/<slug>`, nie pustkę.
 //
 // ŚRODOWISKO: `node` (bez `window`), bo `edgeTtlCache` pod happy-dom jest
 // przezroczysty, a ścieżka nadzbioru ma bramkę „tylko serwer". `SSR` stubowany.
@@ -52,20 +57,25 @@ import { clearEdgeTtlCache } from "@/lib/ssrCache";
 import {
   LATEST_POSTS_SUPERSET_COLUMNS,
   LATEST_POSTS_SUPERSET_LIMIT,
+  LATEST_POSTS_SUPERSET_PLAIN_COLUMNS,
   selectColumnNames,
   warmLatestPostsSuperset,
 } from "@/lib/builder/latestPostsSuperset";
 import {
   POST_LIST_COLUMNS,
+  POST_LIST_PLAIN_COLUMNS,
   postListQueryOptions,
   type Lang,
   type PostRow,
 } from "@/lib/builder/postListQuery";
 import {
   SLIDER_POST_COLUMNS,
+  SLIDER_POST_PLAIN_COLUMNS,
   sliderPostsQueryOptions,
   type SliderPostRow,
 } from "@/lib/builder/sliderPostsQuery";
+import { POST_PARENT_PAGE_EMBED, postHref } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 import { prefetchSectionQueries } from "@/lib/builder/prefetch";
@@ -110,15 +120,63 @@ function emulate(table: readonly Row[], chain: RecordedChain): SupabaseResult {
   if (range) rows = rows.slice(range[0], range[1] + 1);
   const limit = chain.argsOf("limit") as [number] | undefined;
   if (limit) rows = rows.slice(0, limit[0]);
-  const columns = selectColumnNames(String(chain.argsOf("select")?.[0] ?? "")).filter(
-    (c) => !c.includes("("),
-  );
-  return ok(rows.map((r) => Object.fromEntries(columns.map((c) => [c, r[c] ?? null]))));
+  const items = selectItems(String(chain.argsOf("select")?.[0] ?? ""));
+  return ok(rows.map((r) => Object.fromEntries(items.flatMap((item) => selectItemEntry(item, r)))));
+}
+
+/** Pozycje `select` po przecinkach najwyższego poziomu - własny parser atrapy, nie kod produkcyjny. */
+function selectItems(select: string): string[] {
+  return (select.match(/[^,(]+(?:\([^)]*\))?/g) ?? []).map((s) => s.trim()).filter(Boolean);
+}
+
+/** Co PostgREST oddaje w wierszu dla jednej pozycji `select`. */
+function selectItemEntry(item: string, row: Row): Array<[string, unknown]> {
+  if (!item.includes("(")) return [[item, row[item] ?? null]];
+  // Puste osadzenie (`alias:tabela!inner()`) tylko filtruje - nie trafia do odpowiedzi.
+  if (item.endsWith("()")) return [];
+  if (item === PARENT_PAGE_EMBED) return [["parent_page", anonParentPage(row)]];
+  throw new Error(`test: atrapa nie zna osadzenia "${item}"`);
 }
 
 /** RLS anona na `posts` (20260625160054): opublikowane i nieusunięte. */
 function anonVisible(rows: readonly Row[]): Row[] {
   return rows.filter((r) => r.status === "published" && r.deleted_at === null);
+}
+
+/** Osadzenie rodzica DOSŁOWNIE - literówka w nazwie klucza obcego nie jest błędem kompilacji. */
+const PARENT_PAGE_EMBED = "parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+/**
+ * Strony-rodzice. Osadzenie czyta `pages` rolą anona, więc przechodzi przez
+ * politykę „Public reads published pages" (20260625160054): szkic i strona
+ * w koszu są dla niego niewidoczne i osadzenie oddaje `null`.
+ */
+const PAGES: Row[] = [
+  { id: "pg-blog", slug: "blog", parent_id: null, status: "published", deleted_at: null },
+  { id: "pg-analizy", slug: "analizy", parent_id: null, status: "published", deleted_at: null },
+  {
+    id: "pg-energetyka",
+    slug: "energetyka",
+    parent_id: "pg-analizy",
+    status: "published",
+    deleted_at: null,
+  },
+  { id: "pg-szkic", slug: "szkic", parent_id: null, status: "draft", deleted_at: null },
+];
+
+/** Wiersz osadzenia `parent_page` taki, jaki zobaczy anon (kolumny `slug, parent_id`). */
+function anonParentPage(post: Row): { slug: unknown; parent_id: unknown } | null {
+  const page = PAGES.find(
+    (p) => p.id === post.parent_page_id && p.status === "published" && p.deleted_at === null,
+  );
+  return page ? { slug: page.slug, parent_id: page.parent_id } : null;
+}
+
+/** Rodzic wpisu `n`: większość pod `/blog`, co 6. pod stroną zagnieżdżoną, 4. pod szkicem. */
+function parentPageIdOf(n: number): string {
+  if (n === 4) return "pg-szkic";
+  if (n % 6 === 0) return "pg-energetyka";
+  return "pg-blog";
 }
 
 function post(n: number, patch: Row = {}): Row {
@@ -139,7 +197,9 @@ function post(n: number, patch: Row = {}): Row {
     sponsored_affiliate: false,
     status: "published",
     deleted_at: null,
-    // Kolumna spoza obu literałów - nie może wyciec do żadnego wiersza widgetu.
+    // Kolumny spoza obu literałów - nie mogą wyciec do żadnego wiersza widgetu
+    // (`parent_page_id` zasila wyłącznie osadzenie `parent_page`).
+    parent_page_id: parentPageIdOf(n),
     body_html: `<p>${n}</p>`,
     ...patch,
   };
@@ -217,6 +277,8 @@ beforeEach(() => {
   afterResponse.work.length = 0;
   db().reset();
   clearEdgeTtlCache();
+  // Porażka osadzenia w jednym przypadku nie może wyłączyć go w następnym.
+  resetPostParentPageRead();
   vi.stubEnv("SSR", true);
   seedDefault();
 });
@@ -236,10 +298,31 @@ describe("kolumny nadzbioru", () => {
     expect(LATEST_POSTS_SUPERSET_COLUMN_NAMES).toHaveLength(union.size);
   });
 
+  it("osadzenie rodzica jest JEDNYM kluczem wiersza (`parent_page`), nie dwiema kolumnami", () => {
+    // Przecinek wewnątrz nawiasów osadzenia nie rozcina pozycji `select`.
+    expect(LATEST_POSTS_SUPERSET_COLUMN_NAMES.at(-1)).toBe("parent_page");
+    expect(selectColumnNames(POST_LIST_COLUMNS).at(-1)).toBe("parent_page");
+    expect(selectColumnNames(SLIDER_POST_COLUMNS).at(-1)).toBe("parent_page");
+    expect(LATEST_POSTS_SUPERSET_COLUMN_NAMES).not.toContain("parent_id)");
+  });
+
+  it.each<[string, string, string]>([
+    ["nadzbiór", LATEST_POSTS_SUPERSET_COLUMNS, LATEST_POSTS_SUPERSET_PLAIN_COLUMNS],
+    ["post-lista", POST_LIST_COLUMNS, POST_LIST_PLAIN_COLUMNS],
+    ["slider", SLIDER_POST_COLUMNS, SLIDER_POST_PLAIN_COLUMNS],
+  ])("%s: literał zapasowy różni się WYŁĄCZNIE osadzeniem rodzica", (_label, columns, plain) => {
+    expect(POST_PARENT_PAGE_EMBED).toBe(PARENT_PAGE_EMBED);
+    expect(columns).toBe(`${plain}, ${PARENT_PAGE_EMBED}`);
+    expect(plain).not.toContain("(");
+  });
+
   it("jedno zapytanie: opublikowane, nieusunięte, published_at malejąco, limit pojemności", async () => {
     await postList({ variant: "card", limit: 1 });
     const [chain] = supersetChains();
-    expect(chain?.argsOf("select")?.[0]).toBe(LATEST_POSTS_SUPERSET_COLUMN_NAMES.join(", "));
+    expect(chain?.argsOf("select")?.[0]).toBe(LATEST_POSTS_SUPERSET_COLUMNS);
+    expect(chain?.argsOf("select")?.[0]).toBe(
+      `${LATEST_POSTS_SUPERSET_COLUMN_NAMES.slice(0, -1).join(", ")}, ${PARENT_PAGE_EMBED}`,
+    );
     expect(chain?.argsOf("eq")).toEqual(["status", "published"]);
     expect(chain?.argsOf("is")).toEqual(["deleted_at", null]);
     expect(chain?.argsOf("order")).toEqual(["published_at", { ascending: false }]);
@@ -565,7 +648,9 @@ describe("świeżość: nieświeżość nie sumuje się z dwóch warstw cache", 
   async function afterBackgroundRefresh(expectedSupersetReads: number): Promise<void> {
     await vi.waitFor(() => expect(supersetChains()).toHaveLength(expectedSupersetReads));
     // Zapis odświeżonego wpisu widgetu biegnie mikrozadaniami po odczycie.
-    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    // Pełny obrót pętli zdarzeń opróżnia je WSZYSTKIE - bez liczenia, ile
+    // przeskoków ma dziś ścieżka odczytu (odczyt z zapasem dołożył kilka).
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   it("post-lista: odświeżenie w tle po TTL czyta bazę, nie nieświeży nadzbiór", async () => {
@@ -685,5 +770,160 @@ describe("przeglądarka: zapytania jak dotąd", () => {
 
     expect(supersetChains()).toHaveLength(0);
     expect(db().chainsFor("posts")).toHaveLength(2);
+  });
+});
+
+// ADRES KANONICZNY Z WIERSZA. Karty i slajdy linkowały na `/post/<slug>`,
+// który odpowiada 301 (dodatkowy dokument i dwa odczyty bazy na kliknięcie).
+// Strona-rodzic jedzie teraz osadzeniem w tym samym odczycie, więc adres
+// `/<rodzic>/<slug>` liczy się z wiersza w stanie odwodnionym - bez `pages`,
+// bez RPC ścieżek (atrapa klienta nie ma `rpc`: wywołanie rzuciłoby błędem).
+describe("adres kanoniczny wpisu jedzie w tym samym odczycie", () => {
+  it("SSR: post-lista i slider liczą adres z wiersza, nadal jednym odczytem wpisów", async () => {
+    const rows = await postList({ variant: "numbered", limit: 6 });
+    const slides = await slider({ source: "posts", limit: 6 });
+
+    expect(rows.map(postHref)).toEqual([
+      "/blog/wpis-1",
+      "/blog/wpis-2",
+      "/blog/wpis-3",
+      // Rodzic jest szkicem - gość go nie widzi, adresu kanonicznego nie ma.
+      "/post/wpis-4",
+      "/blog/wpis-5",
+      // Rodzic zagnieżdżony (`analizy/energetyka`) - ścieżkę policzy 301.
+      "/post/wpis-6",
+    ]);
+    expect(slides.map(postHref)).toEqual(rows.map(postHref));
+    expect(db().chainsFor("posts")).toHaveLength(1);
+    expect(db().chainsFor("pages")).toHaveLength(0);
+  });
+
+  it("wiersz niesie rodzica w kształcie osadzenia; `parent_page_id` nie trafia do stanu", async () => {
+    const byId = new Map((await postList({ variant: "numbered", limit: 6 })).map((r) => [r.id, r]));
+
+    expect(byId.get("p1")?.parent_page).toEqual({ slug: "blog", parent_id: null });
+    expect(byId.get("p4")?.parent_page).toBeNull();
+    expect(byId.get("p6")?.parent_page).toEqual({ slug: "energetyka", parent_id: "pg-analizy" });
+    expect(byId.get("p1")).not.toHaveProperty("parent_page_id");
+  });
+
+  it("przeglądarka (własne zapytanie widgetu) liczy te same adresy co serwer", async () => {
+    const browserList = await legacy(() => postList({ variant: "card", limit: 8 }));
+    const browserSlides = await legacy(() => slider({ source: "posts", limit: 8 }));
+    db().reset();
+    seedDefault();
+
+    const serverList = await postList({ variant: "card", limit: 8 });
+    const serverSlides = await slider({ source: "posts", limit: 8 });
+
+    expect(serverList.map(postHref)).toEqual(browserList.map(postHref));
+    expect(serverSlides.map(postHref)).toEqual(browserSlides.map(postHref));
+    expect(serverList.map(postHref)).toContain("/blog/wpis-1");
+  });
+
+  it("wiersz widgetu nie dzieli obiektu rodzica z wpisem nadzbioru w L1", async () => {
+    const [first] = await postList({ variant: "numbered", limit: 1 });
+    if (first?.parent_page) first.parent_page.slug = "zmieniony";
+
+    const [slide] = await slider({ source: "posts", limit: 1 });
+
+    expect(slide?.parent_page).toEqual({ slug: "blog", parent_id: null });
+  });
+});
+
+// ZAPAS. Osadzenie to nowa zależność zapytania o wpisy (klucz obcy w cache
+// schematu PostgREST, uprawnienia gościa do `pages`). Jej awaria nie może
+// opróżnić strony głównej: ten sam odczyt leci bez osadzenia, a wiersze bez
+// `parent_page` dają adres `/post/<slug>` - stan sprzed zmiany.
+describe("odczyt z osadzeniem zawodzi: te same wpisy z adresem zapasowym", () => {
+  function breakParentEmbed(): void {
+    db().setResponse("posts", (chain) =>
+      String(chain.argsOf("select")?.[0]).includes("parent_page:")
+        ? fail(
+            "Could not find a relationship between 'posts' and 'pages' in the schema cache",
+            "PGRST200",
+          )
+        : emulate(anonVisible(postsTable), chain),
+    );
+  }
+
+  /** Ogniwa łańcucha po `select` - filtry, sortowanie i okno. */
+  function afterSelect(chain: RecordedChain | undefined): unknown {
+    return chain?.calls.filter((call) => call.method !== "select");
+  }
+
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    breakParentEmbed();
+  });
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  it("nadzbiór: drugi odczyt różni się wyłącznie `select`, widgety mają wpisy", async () => {
+    const rows = await postList({ variant: "numbered", limit: 3 });
+    const slides = await slider({ source: "posts", limit: 3 });
+
+    expect(rows.map((r) => r.id)).toEqual(["p1", "p2", "p3"]);
+    expect(rows[0]).not.toHaveProperty("parent_page");
+    expect(rows.map(postHref)).toEqual(["/post/wpis-1", "/post/wpis-2", "/post/wpis-3"]);
+    expect(slides.map(postHref)).toEqual(rows.map(postHref));
+
+    const [embedded, plain, ...rest] = db().chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(embedded?.argsOf("select")?.[0]).toBe(LATEST_POSTS_SUPERSET_COLUMNS);
+    expect(plain?.argsOf("select")?.[0]).toBe(LATEST_POSTS_SUPERSET_PLAIN_COLUMNS);
+    expect(afterSelect(plain)).toEqual(afterSelect(embedded));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("post-lista z filtrem (własne zapytanie): ten sam łańcuch bez osadzenia", async () => {
+    const rows = await postList({ variant: "numbered", limit: 3, postFormat: "video" });
+
+    expect(rows.map((r) => r.id)).toEqual(["p5", "p10", "p15"]);
+    expect(rows.map(postHref)).toEqual(["/post/wpis-5", "/post/wpis-10", "/post/wpis-15"]);
+    const [embedded, plain, ...rest] = db().chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(embedded?.argsOf("select")?.[0]).toBe(POST_LIST_COLUMNS);
+    expect(plain?.argsOf("select")?.[0]).toBe(POST_LIST_PLAIN_COLUMNS);
+    expect(afterSelect(plain)).toEqual(afterSelect(embedded));
+  });
+
+  it("slider z filtrem (własne zapytanie): slajdy zamiast pustego slidera", async () => {
+    const slides = await slider({ source: "posts", limit: 3, excludeIds: "p1" });
+
+    expect(slides.map((r) => r.id)).toEqual(["p2", "p3", "p4"]);
+    const [embedded, plain, ...rest] = db().chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(embedded?.argsOf("select")?.[0]).toBe(SLIDER_POST_COLUMNS);
+    expect(plain?.argsOf("select")?.[0]).toBe(SLIDER_POST_PLAIN_COLUMNS);
+    expect(afterSelect(plain)).toEqual(afterSelect(embedded));
+  });
+
+  it("po pierwszej porażce kolejne zapytania nie próbują osadzenia (jeden dodatkowy odczyt)", async () => {
+    await postList({ variant: "numbered", limit: 3, postFormat: "video" });
+    await slider({ source: "posts", limit: 3, excludeIds: "p1" });
+    await postList({ variant: "numbered", limit: 2 });
+
+    const selects = db()
+      .chainsFor("posts")
+      .map((chain) => String(chain.argsOf("select")?.[0]));
+    expect(selects).toHaveLength(4);
+    expect(selects.filter((select) => select.includes("parent_page:"))).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("wiersze zapasowe: nadzbiór oddaje DOKŁADNIE to, co własne zapytanie widgetu", async () => {
+    const before = await legacy(() => postList({ variant: "card", limit: 4 }));
+    db().reset();
+    seedDefault();
+    breakParentEmbed();
+
+    const after = await postList({ variant: "card", limit: 4 });
+
+    expect(supersetChains()).toHaveLength(1);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    expect(after[0]).not.toHaveProperty("parent_page");
   });
 });

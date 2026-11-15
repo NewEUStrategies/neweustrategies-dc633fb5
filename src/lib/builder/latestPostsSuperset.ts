@@ -38,6 +38,8 @@
 // nadzbioru też (awaria wygląda wtedy dokładnie tak, jak przed tą zmianą).
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTtlCache, peekEdgeTtlCache } from "@/lib/ssrCache";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
 
 /**
  * Pojemność nadzbioru. 20 = sufit `limit` slidera (`sliderPostsLimit`), więc
@@ -56,8 +58,20 @@ const LATEST_POSTS_SUPERSET_KEY = "builder:latest-posts:v1";
  * (sliderPostsQuery.ts) - kolumny slidera są podzbiorem kolumn post-listy
  * (test `latestPostsSuperset.test.ts` pilnuje równości zbiorów). Literał, nie
  * złożenie: bramka kontraktu TS <-> SQL czyta `select` wprost.
+ *
+ * Ostatnia pozycja to osadzenie strony-rodzica (`POST_PARENT_PAGE_EMBED`,
+ * `lib/routing/postHref.ts`): adres kanoniczny wpisu jedzie w TYM SAMYM
+ * odczycie, bez osobnego round-tripu po ścieżki.
  */
 export const LATEST_POSTS_SUPERSET_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+/**
+ * Te same kolumny BEZ osadzenia - odczyt zapasowy, gdy odczyt z osadzeniem
+ * odda błąd (`readWithPostParentPage`). Test pilnuje, że oba literały różnią
+ * się wyłącznie osadzeniem.
+ */
+export const LATEST_POSTS_SUPERSET_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
 /** Suma kolumn `profiles_public`, które czytają `attachAuthorNames` i `fetchSliderAuthors`. */
@@ -78,6 +92,11 @@ export type LatestPostRow = {
   is_sponsored: boolean | null;
   sponsored_kind: string | null;
   sponsored_affiliate: boolean | null;
+  /**
+   * Strona-rodzic z osadzenia: `null`, gdy gość jej nie widzi; pola NIE MA,
+   * gdy nadzbiór przyszedł z odczytu zapasowego bez osadzenia.
+   */
+  parent_page?: PostParentPage | null;
 };
 
 /** Profil autora nadzbioru (suma kolumn obu bylinów). */
@@ -90,25 +109,66 @@ export type LatestSupersetAuthorRow = {
   slug: string | null;
 };
 
-/** Nazwy kolumn z literału `select` ("a, b, c" -> ["a", "b", "c"]), w kolejności literału. */
+/** Pozycje listy `select` rozcięte po przecinkach NAJWYŻSZEGO poziomu (nie tych w nawiasach osadzenia). */
+function splitSelectItems(columns: string): string[] {
+  const items: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of columns) {
+    if (ch === "(") depth += 1;
+    if (ch === ")") depth -= 1;
+    if (ch === "," && depth === 0) {
+      items.push(current);
+      current = "";
+    } else current += ch;
+  }
+  items.push(current);
+  return items.map((item) => item.trim()).filter(Boolean);
+}
+
+/**
+ * Klucz, pod którym PostgREST oddaje pozycję `select`: nazwa kolumny, a dla
+ * osadzenia (`alias:tabela!klucz(...)`) - jego alias, bez aliasu nazwa tabeli.
+ */
+function selectItemKey(item: string): string {
+  const open = item.indexOf("(");
+  if (open === -1) return item;
+  const head = item.slice(0, open);
+  const alias = head.indexOf(":");
+  return (alias === -1 ? head.split("!")[0] : head.slice(0, alias)).trim();
+}
+
+/**
+ * Klucze wiersza z literału `select` ("a, b, rel:t!fk(x, y)" -> ["a", "b",
+ * "rel"]), w kolejności literału.
+ */
 export function selectColumnNames(columns: string): string[] {
-  return columns
-    .split(",")
-    .map((c) => c.trim())
-    .filter(Boolean);
+  return splitSelectItems(columns).map(selectItemKey);
 }
 
 /**
  * Wiersze nadzbioru zrzutowane na kolumny widgetu, w kolejności jego literału
  * `select` - DOKŁADNIE kształt, który PostgREST oddałby na zapytanie widgetu
  * (bez pól spoza listy, nowe obiekty: wpis nadzbioru w L1 nie jest
- * współdzielony przez referencję z wpisami widgetów).
+ * współdzielony przez referencję z wpisami widgetów - także zagnieżdżony
+ * obiekt osadzenia).
+ *
+ * Klucza, którego wiersz nadzbioru NIE MA, rzut nie dokłada: nadzbiór z odczytu
+ * zapasowego (bez osadzenia rodzica) daje wiersze bez `parent_page`, czyli to,
+ * co oddałby zapasowy odczyt samego widgetu.
  */
 export function projectLatestPostRows<T>(rows: readonly LatestPostRow[], columns: string): T[] {
   const names = selectColumnNames(columns);
   return rows.map((row) => {
     const source: Readonly<Record<string, unknown>> = row;
-    return Object.fromEntries(names.map((name) => [name, source[name]])) as T;
+    return Object.fromEntries(
+      names
+        .filter((name) => name in source)
+        .map((name) => {
+          const value = source[name];
+          return [name, typeof value === "object" && value !== null ? { ...value } : value];
+        }),
+    ) as T;
   });
 }
 
@@ -140,13 +200,27 @@ export function fetchLatestPostsSuperset(): Promise<LatestPostRow[]> {
     LATEST_POSTS_SUPERSET_KEY,
     LATEST_POSTS_SUPERSET_TTL_MS,
     async () => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(LATEST_POSTS_SUPERSET_COLUMNS)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(LATEST_POSTS_SUPERSET_LIMIT);
+      // Dwa łańcuchy różnią się WYŁĄCZNIE literałem `select` (test to
+      // przypina): drugi leci tylko wtedy, gdy odczyt z osadzeniem rodzica
+      // odda błąd - widgety dostają wtedy te same wpisy z adresem zapasowym.
+      const { data, error } = await readWithPostParentPage(
+        () =>
+          supabase
+            .from("posts")
+            .select(LATEST_POSTS_SUPERSET_COLUMNS)
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .order("published_at", { ascending: false })
+            .limit(LATEST_POSTS_SUPERSET_LIMIT),
+        () =>
+          supabase
+            .from("posts")
+            .select(LATEST_POSTS_SUPERSET_PLAIN_COLUMNS)
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .order("published_at", { ascending: false })
+            .limit(LATEST_POSTS_SUPERSET_LIMIT),
+      );
       if (error) throw error;
       return (data ?? []) as LatestPostRow[];
     },

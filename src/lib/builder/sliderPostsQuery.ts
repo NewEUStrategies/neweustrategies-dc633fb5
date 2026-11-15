@@ -21,6 +21,8 @@ import {
   latestPostsSupersetCovers,
   projectLatestPostRows,
 } from "@/lib/builder/latestPostsSuperset";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
 
 /**
  * Wiersz slidera w cache. Pola językowe są OPCJONALNE, bo zapytanie oddaje
@@ -36,6 +38,11 @@ export interface SliderPostRow {
   cover_image_url: string | null;
   published_at: string | null;
   author_id: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` - źródło adresu kanonicznego
+   * slajdu (`postHref`). Brak pola albo `null` = adres zapasowy `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 
 function getStr(c: WidgetContent, key: string): string {
@@ -134,8 +141,16 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
   return !hasBoundItems;
 }
 
-/** Kolumny wiersza slidera - jeden literał dla zapytania i typu wiersza. */
+/**
+ * Kolumny wiersza slidera - jeden literał dla zapytania i typu wiersza.
+ * Ostatnia pozycja to osadzenie strony-rodzica (`POST_PARENT_PAGE_EMBED`,
+ * `lib/routing/postHref.ts`): slajd linkuje wprost na adres kanoniczny wpisu.
+ */
 export const SLIDER_POST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+/** `SLIDER_POST_COLUMNS` bez osadzenia - odczyt zapasowy (`readWithPostParentPage`). */
+export const SLIDER_POST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
 
 /**
@@ -184,13 +199,22 @@ async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPos
     includeTags: tagSlugs,
   }).catch((): null => null);
   if (constraints === null) return [];
-  let q = postsConstrainedByTaxonomy(SLIDER_POST_COLUMNS, constraints).eq("status", "published");
-  if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
   const ascending = orderBy === "oldest";
-  q = q.order(sliderPostsOrderColumn(orderBy, lang), { ascending });
-  q = q.limit(limit);
-  const { data } = await q;
-  return (data ?? []) as SliderPostRow[];
+  // Dwa warianty kolumn jednego zapytania: z osadzeniem strony-rodzica i -
+  // tylko gdy tamto odda błąd - bez niego (slajdy z adresem zapasowym zamiast
+  // pustego slidera po rozjeździe schematu `pages`). `columns: string` - powód
+  // przy tym samym miejscu w `postListQuery.ts` (parser typów `select`).
+  const read = (columns: string) => {
+    let q = postsConstrainedByTaxonomy(columns, constraints).eq("status", "published");
+    if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
+    q = q.order(sliderPostsOrderColumn(orderBy, lang), { ascending });
+    return q.limit(limit);
+  };
+  const { data } = await readWithPostParentPage(
+    () => read(SLIDER_POST_COLUMNS),
+    () => read(SLIDER_POST_PLAIN_COLUMNS),
+  );
+  return (data ?? []) as unknown as SliderPostRow[];
 }
 
 /**

@@ -204,9 +204,12 @@ describe("składnia PostgREST w adresie żądania o wpisy", () => {
     await WIDGETS[1].run();
     const params = postsRequest().searchParams;
 
+    // `parent_page:...` to osadzenie strony-rodzica (adres kanoniczny wpisu
+    // w tym samym żądaniu, `lib/routing/postHref.ts`) - stała długość, bez id.
     expect(params.get("select")).toBe(
       "id,slug,title_pl,title_en,excerpt_pl,excerpt_en,cover_image_url,published_at," +
         "post_format,author_id,is_sponsored,sponsored_kind,sponsored_affiliate," +
+        "parent_page:pages!posts_parent_page_id_fkey(slug,parent_id)," +
         "tx_inc_category_0:post_categories!inner(),tx_inc_tag_1:post_tags!inner()," +
         "tx_exc_category_2:post_categories(),tx_exc_tag_3:post_tags()",
     );
@@ -246,6 +249,7 @@ describe("składnia PostgREST w adresie żądania o wpisy", () => {
 
     expect(params.get("select")).toBe(
       "id,slug,title_pl,title_en,excerpt_pl,excerpt_en,cover_image_url,published_at,author_id," +
+        "parent_page:pages!posts_parent_page_id_fkey(slug,parent_id)," +
         "tx_inc_category_0:post_categories!inner(),tx_inc_tag_1:post_tags!inner()",
     );
     expect(params.get("tx_inc_category_0.category_id")).toBe(`in.(${CAT_IN})`);

@@ -26,6 +26,7 @@ import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { SliderRender } from "./lazySliderRender";
 import { sliderPostsQueryOptions, sliderShowsExcerpt } from "@/lib/builder/sliderPostsQuery";
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
+import { postHref } from "@/lib/routing/postHref";
 
 /** Czy redakcja w ogóle ustawiła to pole. Puste/`null` traktujemy jak brak,
  *  żeby "nie ustawiono" (globalny default) nie zlało się z "ustawiono na 0". */
@@ -156,7 +157,7 @@ export function PostsSliderWidget({
         title_en: p.title_en ?? p.title_pl ?? "",
         subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
         subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
-        href: `/post/${p.slug}`,
+        href: postHref(p),
         cta_pl: ctaLabel,
         cta_en: ctaLabel,
         author: author?.name ?? "",
