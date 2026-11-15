@@ -355,6 +355,34 @@ w katalogu leżą kopie robocze agentów) i pełny zestaw testów (3 949 plików
    w źródle strony: logo `width="350" height="150"`, obraz
    `width="1200" height="675"`.
 
+### A4: stan po przeglądzie (15.11.2026, 18:40)
+
+Pełny typecheck gałęzi z A4 (`tsgo --noEmit --singleThreaded`) i testy modułów
+dotkniętych przez A4 (20 plików, 409 testów) przeszły na `e35f3e6f`. Build
+i `check:bundle` z A4 nie były jeszcze uruchamiane.
+
+Przegląd w dwóch z trzech perspektyw (trzecia, sens testów i narzędzia i18n, nie
+ruszyła) nie znalazł usterek w publicznym renderze. Cztery znaleziska dotyczą
+panelowej części zmiany; żadne nie było niezależnie zweryfikowane:
+
+1. **SVG bez własnych proporcji** (niska): przeglądarka podaje dla takiego pliku
+   rozmiar zastępczy (300 × 150), a zapisany jako atrybuty zmienia on wymiary
+   obrazu na stałe. Trzy logotypy produkcyjne mają `viewBox` i nie są dotknięte.
+   Kierunek: pomiar w panelu oddaje pusty wynik dla SVG bez zadeklarowanych
+   proporcji.
+2. **Zaznaczenie widgetu obrazu zapisuje dokument** (średnia): także dla obrazów
+   w kadrze i logo motywu, gdzie renderer tej wartości nie użyje. Samo kliknięcie
+   czyści wtedy stos ponawiania i uruchamia autozapis. Kierunek: zapis tylko wtedy,
+   gdy renderer wartość skonsumuje, plus pomiar przy powrocie proporcji na „auto".
+3. **Pomiar nowego pliku przepada**, gdy edytor zostanie zamknięty przed końcem
+   pomiaru (niska): obraz zostaje bez wymiarów do ponownego zaznaczenia.
+4. **Przywrócenie wersji z historii** mierzy tylko logotypy tej wersji, a zapis
+   scala ją z bieżącym wierszem (niska): wariant spoza wersji traci atrybuty do
+   następnego zapisu. Kierunek: mierzyć zestaw, który faktycznie zostanie zapisany.
+
+Poprawki i jeden niezależny przegląd poprawek biegną jako przepływ
+`a4-review-fixes` (run `wf_2d2779d6-777`); ich wyniku nie ma jeszcze na gałęzi.
+
 ### Po wdrożeniu całości: do sprawdzenia na produkcji
 
 - `server-timing` wpisu i 404: `db;desc="n=…"` wobec liczb z §0.
