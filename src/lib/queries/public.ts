@@ -131,9 +131,20 @@ async function fetchAccessRule(
  * so an identity-dependent strip would serve one visitor's nodes to the next.
  * In the browser the same fetcher runs with the visitor's real session, so the
  * body is left intact and the renderer gates it against the real context.
+ *
+ * BUNDEL PRZEGLĄDARKI: sam test `typeof window` rozstrzyga się dopiero w czasie
+ * działania, więc `stripInaccessibleNodes` i `accessRuleOf` jechały w chunku
+ * startowym klienta, choć nigdy się tam nie wykonują. Stała niżej jest
+ * w PRODUKCYJNYM bundlu klienta literałem `true`, więc wszystko za wyjściem
+ * znika. Ten sam zapis i to samo uzasadnienie co `IN_BROWSER_BUNDLE`
+ * w `lib/ssrCache.ts`: pod vitestem i w dev kliencie stała jest fałszem
+ * i o gałęzi decyduje jak dotąd `typeof window`; na serwerze produkcyjnym
+ * `SSR` jest prawdą, więc stała też jest fałszem.
  */
+const IN_BROWSER_BUNDLE = import.meta.env.PROD && !import.meta.env.SSR;
+
 function stripBuilderAccessForAnonymousRender(builderData: unknown): unknown {
-  if (typeof window !== "undefined") return builderData;
+  if (IN_BROWSER_BUNDLE || typeof window !== "undefined") return builderData;
   return stripInaccessibleNodes(builderData, GUEST_ACCESS_CONTEXT);
 }
 

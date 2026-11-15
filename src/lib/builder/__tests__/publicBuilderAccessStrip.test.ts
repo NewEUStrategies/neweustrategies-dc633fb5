@@ -173,3 +173,44 @@ describe("publiczny loader - strip bramek buildera na serwerze", () => {
     expect(JSON.stringify(body.builder_data)).toContain(SECRET);
   });
 });
+
+// Stała `IN_BROWSER_BUNDLE` w `lib/queries/public.ts` liczy się raz, przy
+// ładowaniu modułu, z `import.meta.env.PROD` i `SSR`. Testy wyżej biegną z
+// PROD = fałsz (vitest), więc nie mówią nic o BUILDZIE PRODUKCYJNYM - a tylko
+// tam stała może być prawdą. Błąd w jej znaku byłby wyciekiem: produkcyjny
+// serwer przestałby stripować i zabramkowane węzły wróciłyby do źródła strony
+// oraz do współdzielonego cache'u. Dlatego obie kombinacje produkcyjne są tu
+// sprawdzone na świeżo załadowanym module.
+describe("publiczny loader - stała bundla przeglądarki w buildzie produkcyjnym", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  async function freshFetchGatedBody() {
+    vi.resetModules();
+    const mod = await import("@/lib/queries/public");
+    return mod.fetchGatedBody;
+  }
+
+  it("serwer produkcyjny (PROD i SSR) nadal stripuje zabramkowane węzły", async () => {
+    vi.stubEnv("PROD", true);
+    vi.stubEnv("SSR", true);
+    const body = await (await freshFetchGatedBody())("page", "page-1");
+    const serialized = JSON.stringify(body.builder_data);
+    expect(serialized).not.toContain(SECRET);
+    expect(serialized).not.toContain("s-members");
+    expect(serialized).toContain("tresc publiczna");
+  });
+
+  it("bundel przeglądarki (PROD bez SSR) zostawia body nietknięte bez pytania o window", async () => {
+    vi.stubEnv("PROD", true);
+    vi.stubEnv("SSR", false);
+    // `window` celowo NIE jest tu podstawione: o wyjściu ma zdecydować sama
+    // stała, bo w bundlu klienta reszta funkcji jest wycięta.
+    expect(typeof window).toBe("undefined");
+    const body = await (await freshFetchGatedBody())("page", "page-1");
+    expect(body.builder_data).toBe(state.builderData);
+    expect(JSON.stringify(body.builder_data)).toContain(SECRET);
+  });
+});
