@@ -13,6 +13,7 @@ import { altMarksLogo } from "@/lib/builder/logoAlt";
 import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { findIntrinsicSize, type IntrinsicSize } from "@/lib/media/intrinsicSize";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
 
@@ -25,6 +26,8 @@ type SiteLogoCfg = {
     mobile_dark?: string;
     transparent?: string;
     transparent_dark?: string;
+    /** Naturalne rozmiary plików logo, pary `[adres, "WxH"]` (surowy JSON). */
+    intrinsic?: unknown;
   };
 };
 type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
@@ -34,7 +37,11 @@ type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 /** Zachowawczy limit szerokości logo, gdy panel nie ustawił żadnego rozmiaru. */
 const LOGO_FALLBACK_MAX_PX = 200;
 
-function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
+function useSiteLogo(variant: SiteLogoVariant = "main"): {
+  light: string;
+  dark: string;
+  intrinsic: unknown;
+} {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
   const l = cfg.logo ?? {};
@@ -46,6 +53,7 @@ function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: 
   return {
     light: safeImageUrl(logoMap[lightKey] ?? "") || main,
     dark: safeImageUrl(logoMap[darkKey] ?? "") || mainDark || main,
+    intrinsic: l.intrinsic,
   };
 }
 
@@ -170,6 +178,13 @@ export function ImageWidget({
     align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
   const showResize = editable && !!onContentChange;
   const isFramed = !!ratioCss;
+  // Atrybuty `width`/`height` obrazu BEZ ramki: przeglądarka zna proporcję
+  // przed pobraniem pliku (Lighthouse `unsized-images`), a rozmiar na ekranie
+  // dalej wyznacza `imgStyle`. Rozmiar idzie za adresem, który realnie trafia
+  // do `src` - wpis logo z Opcji motywu. Brak wpisu = znacznik bez atrybutów,
+  // jak dotąd. Obraz w ramce ma pole z `aspect-ratio`.
+  const sizeOf = (url: string): IntrinsicSize | undefined =>
+    isFramed ? undefined : findIntrinsicSize(siteLogo.intrinsic, url);
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
     : `block ${variantCls}${isLogo ? " site-logo-img" : ""}${heightPx > 0 ? " h-[var(--img-h)]" : ""}`;
@@ -182,11 +197,13 @@ export function ImageWidget({
     if (fallback && img.src !== fallback) img.src = fallback;
   };
   const fgImgStyle: WidgetImageStyle = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
+  const shownSrc = theme === "dark" ? darkSrc : lightSrc;
   const imgEl = hasBoth ? (
     <>
       <OptimizedImage
         src={lightSrc}
         alt={alt}
+        intrinsicSize={sizeOf(lightSrc)}
         responsive
         sizes={sizes}
         autoSizes={isFramed}
@@ -199,6 +216,7 @@ export function ImageWidget({
       <OptimizedImage
         src={darkSrc}
         alt={alt}
+        intrinsicSize={sizeOf(darkSrc)}
         responsive
         sizes={sizes}
         autoSizes={isFramed}
@@ -213,8 +231,9 @@ export function ImageWidget({
     // Jedna gałąź pojedynczego obrazu (kadr i bez kadru różnią się tylko klasą i
     // stylem) - mniej bajtów w chunku wejściowym, znacznik 1:1 jak dawne dwie.
     <OptimizedImage
-      src={theme === "dark" ? darkSrc : lightSrc}
+      src={shownSrc}
       alt={alt}
+      intrinsicSize={sizeOf(shownSrc)}
       responsive
       sizes={sizes}
       autoSizes={isFramed}
