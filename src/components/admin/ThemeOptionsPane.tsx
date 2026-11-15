@@ -48,7 +48,7 @@ import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
 import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
-import { measureLogoIntrinsic } from "@/lib/admin/logoIntrinsic";
+import { measureSavedLogoIntrinsic } from "@/lib/admin/logoIntrinsic";
 import type { IntrinsicSizeEntry } from "@/lib/media/intrinsicSize";
 
 // ---------- Defaults ----------
@@ -103,7 +103,7 @@ type ThemeOptions = {
     add_to_home_screen: boolean;
     /**
      * Naturalne rozmiary plików logo (`[adres, "WxH"]`), mierzone przy każdym
-     * "Zapisz" - patrz `measureLogoIntrinsic`. Strona dokłada z nich atrybuty
+     * "Zapisz" - patrz `measureSavedLogoIntrinsic`. Strona dokłada z nich atrybuty
      * `width`/`height` znacznikom logo. Poza `DEFAULTS`: brak listy to
      * poprawny stan (znaczniki bez atrybutów).
      */
@@ -375,10 +375,18 @@ export function ThemeOptionsPane() {
   // tle: "Zapisz" kliknięte zaraz po otwarciu panelu nie może wyprzedzić
   // pomiaru i zapisać dokumentu bez rozmiarów. Pomiar nigdy nie odrzuca
   // obietnicy (limit 5 s na plik), więc zapis zawsze dochodzi do skutku.
+  //
+  // Mierzony jest zestaw, który po zapisie ZOSTANIE w wierszu: zapis scala
+  // `next` z bieżącym wierszem i żadnego klucza nie usuwa, więc wariant logo,
+  // którego `next` nie niesie (rewizja sprzed jego dodania, szkic po jej
+  // przywróceniu), nadal jest rysowany na stronie - a lista rozmiarów zastępuje
+  // poprzednią w całości. `query.data` to wiersz, jaki zna panel: wczytany albo
+  // po własnym ostatnim zapisie.
   const withLogoIntrinsic = async (next: ThemeOptions): Promise<ThemeOptions> => {
     setMeasuring(true);
     try {
-      return { ...next, logo: { ...next.logo, intrinsic: await measureLogoIntrinsic(next.logo) } };
+      const intrinsic = await measureSavedLogoIntrinsic(next.logo, query.data?.logo);
+      return { ...next, logo: { ...next.logo, intrinsic } };
     } finally {
       setMeasuring(false);
     }
@@ -1519,8 +1527,9 @@ export function ThemeOptionsPane() {
         settingsKey="theme_options"
         currentValue={draft}
         onRestore={async (value) => {
-          // Rewizja niesie rozmiary z chwili jej zapisu - mierzymy pliki, które
-          // PRZYWRACA, żeby lista opisywała logo po przywróceniu.
+          // Rewizja niesie rozmiary z chwili jej zapisu - mierzymy logo, które
+          // BĘDZIE w wierszu po przywróceniu: pliki rewizji plus warianty,
+          // których rewizja nie zna, a zapis je zostawia (`withLogoIntrinsic`).
           const restored = await withLogoIntrinsic(value as ThemeOptions);
           setDraft(restored);
           await save.mutateAsync(restored);

@@ -1295,4 +1295,93 @@ describe("ThemeOptionsPane - naturalne rozmiary logo przy zapisie", () => {
     expect(logoOf(saved.value).intrinsic).toEqual([[B, "700x300"]]);
     expect(screen.getByLabelText("themeOptions.slots.main")).toHaveValue(B);
   });
+
+  /**
+   * Rewizja sprzed dodania logo mobilnego: jej gałąź `logo` nie ma klucza
+   * `mobile` (ani własnej listy rozmiarów), a główne logo to plik `B`.
+   */
+  const revisionWithoutMobile = (current: { logo: Record<string, unknown> }) => {
+    const logo: Record<string, unknown> = { ...current.logo, main: B };
+    delete logo.mobile;
+    delete logo.intrinsic;
+    return { ...current, logo };
+  };
+
+  it("przywrócenie rewizji BEZ wariantu, który ma bieżący wiersz: mierzony jest zestaw, który zostanie w wierszu", async () => {
+    // Zapis SCALA rewizję z wierszem i żadnego klucza nie usuwa, więc logo
+    // mobilne zostaje na stronie. Lista rozmiarów zastępuje poprzednią w
+    // całości - liczona z samej rewizji, zabierała temu logo atrybuty.
+    stubs.measured = { [A]: "350x150", [B]: "700x300", [C]: "512x128" };
+    await mountPane({
+      logo: {
+        main: A,
+        mobile: C,
+        intrinsic: [
+          [A, "350x150"],
+          [C, "512x128"],
+        ],
+      },
+    });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+
+    stubs.restoreValue = revisionWithoutMobile(current);
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const saved = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(saved.value).main).toBe(B);
+    expect(logoOf(saved.value).mobile).toBe(C);
+    expect(stubs.measureCalls).toEqual([B, C]);
+    expect(logoOf(saved.value).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("kolejne Zapisz po takim przywróceniu (szkic bez wariantu) nadal mierzy logo, które jest w wierszu", async () => {
+    stubs.measured = { [A]: "350x150", [B]: "700x300", [C]: "512x128" };
+    await mountPane({ logo: { main: A, mobile: C } });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+    stubs.restoreValue = revisionWithoutMobile(current);
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    stubs.measureCalls = [];
+
+    const doc = await saveAndRead();
+
+    expect(logoOf(doc).mobile).toBe(C);
+    expect(stubs.measureCalls).toEqual([B, C]);
+    expect(logoOf(doc).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("nieudany pomiar wariantu spoza rewizji zostawia jego wpis z bieżącego wiersza", async () => {
+    // Plik `C` chwilowo niedostępny; rewizja niesie własną, starszą listę.
+    stubs.measured = { [B]: "700x300" };
+    await mountPane({
+      logo: {
+        main: A,
+        mobile: C,
+        intrinsic: [
+          [A, "350x150"],
+          [C, "512x128"],
+        ],
+      },
+    });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+    const revision = revisionWithoutMobile(current);
+    revision.logo.intrinsic = [["https://cdn.example.test/dawne.svg", "1x1"]];
+
+    stubs.restoreValue = revision;
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const saved = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(saved.value).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
 });

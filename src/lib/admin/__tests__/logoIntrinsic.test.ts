@@ -24,7 +24,11 @@ vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   },
 }));
 
-import { measureLogoIntrinsic, PUBLIC_LOGO_KEYS } from "@/lib/admin/logoIntrinsic";
+import {
+  measureLogoIntrinsic,
+  measureSavedLogoIntrinsic,
+  PUBLIC_LOGO_KEYS,
+} from "@/lib/admin/logoIntrinsic";
 
 const A = "https://neweuropeanstrategies.com/media/theme/logo/a.svg";
 const B = "https://neweuropeanstrategies.com/media/theme/logo/b.svg";
@@ -166,5 +170,124 @@ describe("measureLogoIntrinsic", () => {
   ])("brak logo (%s) -> pusta lista, bez pomiarów", async (_label, logo) => {
     expect(await measureLogoIntrinsic(logo)).toEqual([]);
     expect(probe.calls).toEqual([]);
+  });
+});
+
+// Zapis ustawień scala wysyłany dokument z bieżącym wierszem (`deepMerge` w
+// `useSettings`) i nie usuwa kluczy, ale tablicę `intrinsic` zastępuje w
+// całości. Lista ma więc opisywać logo PO scaleniu - inaczej wariant, którego
+// dokument nie niesie (rewizja sprzed jego dodania), zostaje na stronie bez
+// atrybutów.
+describe("measureSavedLogoIntrinsic", () => {
+  it("wariant obecny tylko w wierszu jest mierzony razem z wariantami dokumentu", async () => {
+    probe.sizes = { [B]: "700x300", [C]: "512x128" };
+
+    const entries = await measureSavedLogoIntrinsic({ main: B }, { main: A, mobile: C });
+
+    // `main` nadpisany przez dokument: plik `A` znika ze strony i z listy.
+    expect(probe.calls).toEqual([B, C]);
+    expect(entries).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("wariant wyczyszczony w dokumencie (pusty napis) nie wraca z wiersza", async () => {
+    probe.sizes = { [A]: "350x150", [C]: "512x128" };
+
+    const entries = await measureSavedLogoIntrinsic(
+      { main: A, mobile: "" },
+      { main: A, mobile: C },
+    );
+
+    expect(probe.calls).toEqual([A]);
+    expect(entries).toEqual([[A, "350x150"]]);
+  });
+
+  it("klucz z wartością `undefined` nie niesie adresu - zapis do JSON-u usuwa go z wiersza", async () => {
+    probe.sizes = { [A]: "350x150", [C]: "512x128" };
+
+    const entries = await measureSavedLogoIntrinsic(
+      { main: A, mobile: undefined },
+      { main: A, mobile: C },
+    );
+
+    expect(probe.calls).toEqual([A]);
+    expect(entries).toEqual([[A, "350x150"]]);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+  ])("dokument bez gałęzi logo (%s): mierzone jest logo z wiersza", async (_label, next) => {
+    probe.sizes = { [A]: "350x150", [C]: "512x128" };
+
+    const entries = await measureSavedLogoIntrinsic(next, { main: A, mobile: C });
+
+    expect(entries).toEqual([
+      [A, "350x150"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+  ])("brak wiersza (%s): mierzone jest samo logo dokumentu", async (_label, stored) => {
+    probe.sizes = { [A]: "350x150" };
+
+    expect(await measureSavedLogoIntrinsic({ main: A }, stored)).toEqual([[A, "350x150"]]);
+    expect(await measureSavedLogoIntrinsic(undefined, stored)).toEqual([]);
+  });
+
+  it("nieudany pomiar: wpis z wiersza ma pierwszeństwo przed wpisem z listy dokumentu", async () => {
+    // Żaden pomiar się nie udaje. `A`: oba źródła mają wpis; `C`: tylko wiersz;
+    // `B`: tylko lista dokumentu (np. przywracanej rewizji).
+    const entries = await measureSavedLogoIntrinsic(
+      {
+        main: A,
+        main_dark: B,
+        intrinsic: [
+          [A, "1x1"],
+          [B, "700x300"],
+        ],
+      },
+      {
+        mobile: C,
+        intrinsic: [
+          [A, "350x150"],
+          [C, "512x128"],
+        ],
+      },
+    );
+
+    expect(entries).toEqual([
+      [A, "350x150"],
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("udany pomiar wygrywa z oboma zapisanymi wpisami", async () => {
+    probe.sizes = { [A]: "400x200" };
+
+    const entries = await measureSavedLogoIntrinsic(
+      { main: A, intrinsic: [[A, "1x1"]] },
+      { main: A, intrinsic: [[A, "350x150"]] },
+    );
+
+    expect(entries).toEqual([[A, "400x200"]]);
+  });
+
+  it("warianty spoza sześciu publicznych nie są mierzone także po scaleniu", async () => {
+    probe.sizes = { [A]: "350x150" };
+
+    const entries = await measureSavedLogoIntrinsic({ main: A }, {
+      organization: "https://x.example/organization.svg",
+      sidebar_icon: B,
+    } as Record<string, unknown>);
+
+    expect(probe.calls).toEqual([A]);
+    expect(entries).toEqual([[A, "350x150"]]);
   });
 });
