@@ -74,6 +74,14 @@
 // każdy `import()` komponentu trasy `/admin/…` w artefakcie wskazuje plik nie większy niż
 // zaślepka; zero sprawdzonych tras to defekt skanu.
 //
+// Od 2026-11-15 ta sama zaślepka obejmuje trasy z `ssr: false` (router owija ich dopasowanie
+// w `ClientOnly`, więc serwer nie renderuje `component`, `errorComponent` ani
+// `notFoundComponent`; `pendingComponent` renderuje i ten zostaje). Listę takich tras bramka
+// bierze ZE ŹRÓDEŁ (`ssrFalseRoutePaths`) i wymaga dla każdej sprawdzonego importera
+// komponentu - trasa, której skan artefaktu nie rozpozna, oblewa zamiast wypaść po cichu.
+// Do tego kontrola ZWROTNA: zaślepka pod trasą spoza obu klas (czyli taką, którą serwer
+// renderuje) to pusty HTML w miejscu treści, więc też oblewa.
+//
 // Warstwa wykonawcza (odczyt `.output/server` i `src/`, kod wyjścia) żyje
 // w `scripts/check-server-entry-purity.ts`; ten moduł jest czysty.
 
@@ -248,11 +256,18 @@ const ROUTE_DEFINITION_RE = /\(\s*[`"'](\/[^`"']*)[`"']\s*\)\s*\(\s*\{/g;
 /** Węzły-komponenty trasy (`SPLIT_NODES_CONFIG` router-pluginu) poza `loader`. */
 const COMPONENT_NODE = "component|pendingComponent|errorComponent|notFoundComponent";
 
+/**
+ * To samo bez `pendingComponent`: dla trasy z `ssr: false` serwer renderuje go jako `fallback`
+ * granicy `ClientOnly`, więc wtyczka go nie podmienia, a bramka nie żąda tam zaślepki.
+ */
+const SSR_FALSE_NODE = "component|errorComponent|notFoundComponent";
+
 /** `lazyRouteComponent(() => import(X), "component")` - importer wpisany w definicję trasy. */
-const LAZY_ROUTE_COMPONENT_RE = new RegExp(
-  `import\\s*\\(\\s*[\`"'](\\.{1,2}\\/[^\`"']+\\.mjs)[\`"']\\s*\\)\\s*,\\s*[\`"'](?:${COMPONENT_NODE})[\`"']`,
-  "g",
-);
+const lazyRouteComponentRe = (nodes: string): RegExp =>
+  new RegExp(
+    `import\\s*\\(\\s*[\`"'](\\.{1,2}\\/[^\`"']+\\.mjs)[\`"']\\s*\\)\\s*,\\s*[\`"'](?:${nodes})[\`"']`,
+    "g",
+  );
 
 /** `lazyFn(() => import(X), "loader")` - grupy podziału z loaderem wtyczka zostawia w spokoju. */
 const LAZY_ROUTE_LOADER_RE =
@@ -266,14 +281,58 @@ const HOISTED_IMPORTER_RE =
   /(?:^|[^\w$.])([A-Za-z_$][\w$]*)\s*=\s*\(\s*\)\s*=>\s*import\s*\(\s*[`"'](\.{1,2}\/[^`"']+\.mjs)[`"']\s*\)/g;
 
 /** Odwołanie do importera ze zmiennej: `T(am, "component")` / `C(am, "loader")`. */
-const HOISTED_COMPONENT_REF_RE = new RegExp(
-  `\\(\\s*([A-Za-z_$][\\w$]*)\\s*,\\s*[\`"'](?:${COMPONENT_NODE})[\`"']\\s*\\)`,
-  "g",
-);
+const hoistedComponentRefRe = (nodes: string): RegExp =>
+  new RegExp(`\\(\\s*([A-Za-z_$][\\w$]*)\\s*,\\s*[\`"'](?:${nodes})[\`"']\\s*\\)`, "g");
 const HOISTED_LOADER_REF_RE = /\(\s*([A-Za-z_$][\w$]*)\s*,\s*[`"']loader[`"']\s*\)/g;
+
+/** Wzorce importerów komponentów dla obu klas tras (nagłówek pliku, czwarta klasa). */
+const COMPONENT_IMPORTERS = {
+  /** Potomek layoutu bez serwerowego `<Outlet/>` i kontrola zwrotna: każdy węzeł-komponent. */
+  all: {
+    lazy: lazyRouteComponentRe(COMPONENT_NODE),
+    hoisted: hoistedComponentRefRe(COMPONENT_NODE),
+  },
+  /** Trasa z `ssr: false`: bez `pendingComponent`. */
+  ssrFalse: {
+    lazy: lazyRouteComponentRe(SSR_FALSE_NODE),
+    hoisted: hoistedComponentRefRe(SSR_FALSE_NODE),
+  },
+} as const;
 
 /** Klucz `component` w obiekcie opcji trasy (bez `pendingComponent` itd.). */
 const COMPONENT_KEY_RE = /[{,]\s*component\s*:/;
+
+/**
+ * Zaślepka wtyczki po minifikacji, co do znaku: `function e(){return null}export{e as component};`
+ * (kilka nazw eksportu dla grupy błędu i 404). Rozmiar nie wystarcza do kontroli zwrotnej -
+ * prawdziwy komponent-przelotka z samym `<Outlet/>` też mieści się w 256 B.
+ */
+const STUB_SOURCE_RE = /^function ([\w$]+)\(\)\{return null\}export\{(?:\1 as [\w$]+,?)+\};?\s*$/;
+
+/** Opcja trasy `ssr: false` w źródle - ten sam wzorzec, co w `clientOnlyRouteStubPlugin.ts`. */
+const SOURCE_SSR_FALSE_RE = /^ {2}ssr: false,?[ \t]*$/m;
+
+/** Ścieżka trasy w źródle: `createFileRoute("/ścieżka")({`. */
+const SOURCE_ROUTE_PATH_RE = /createFileRoute\(\s*["'`]([^"'`]+)["'`]\s*\)\s*\(\s*\{/;
+
+/** Pliki pod `src/routes`, które nie są trasami (`routeFileIgnorePattern` w configu Vite). */
+const NOT_A_ROUTE_FILE_RE = /(__tests__|__snapshots__)|\.(test|spec)\.[jt]sx?$/;
+
+/**
+ * Ścieżki tras, które w źródłach deklarują `ssr: false` - lista, której bramka WYMAGA
+ * w artefakcie pod zaślepką. Bierze ją ze źródeł, nie z artefaktu: trasa, której definicji
+ * skan artefaktu nie rozpozna, ma oblać bramkę, a nie wypaść ze sprawdzenia.
+ */
+export function ssrFalseRoutePaths(sources: readonly SourceFile[]): string[] {
+  const out: string[] = [];
+  for (const file of sources) {
+    if (!file.path.startsWith("src/routes/") || NOT_A_ROUTE_FILE_RE.test(file.path)) continue;
+    if (!SOURCE_SSR_FALSE_RE.test(file.source)) continue;
+    const match = SOURCE_ROUTE_PATH_RE.exec(file.source);
+    if (match) out.push(match[1]);
+  }
+  return out.sort();
+}
 
 /** Komponent trasy „tylko po hydratacji", który w artefakcie serwera nie jest zaślepką. */
 export interface HeavyClientOnlyComponent {
@@ -281,6 +340,12 @@ export interface HeavyClientOnlyComponent {
   readonly chunk: string;
   /** Rozmiar pliku; -1 = cel `import()` nie istnieje w artefakcie. */
   readonly bytes: number;
+}
+
+/** Zaślepka pod trasą, którą serwer renderuje - jej komponent zniknąłby z HTML-a serwera. */
+export interface UnexpectedRouteStub {
+  readonly route: string;
+  readonly chunk: string;
 }
 
 export interface ClientOnlyComponentsReport {
@@ -292,21 +357,40 @@ export interface ClientOnlyComponentsReport {
    * minifikacji; bez tej listy taka trasa wypadałaby ze sprawdzenia po cichu.
    */
   readonly unresolved: readonly string[];
+  /**
+   * Trasy z `ssr: false` w źródłach, dla których skan artefaktu nie sprawdził ani jednego
+   * importera komponentu (brak definicji trasy albo komponent poza oknem skanu).
+   */
+  readonly missing: readonly string[];
+  /** Zaślepki pod trasami spoza obu klas - kontrola zwrotna wtyczki. */
+  readonly unexpected: readonly UnexpectedRouteStub[];
 }
 
-/** Komponenty tras spod `prefixes` w artefakcie serwera i te z nich, które nie są zaślepką. */
+/**
+ * Komponenty tras, których serwer nie renderuje: potomków layoutów spod `prefixes` i tras
+ * z `ssr: false` (`ssrFalseRoutes`, razem z potomkami po prefiksie ścieżki). Zgłasza te, które
+ * nie są zaślepką, oraz - zwrotnie - zaślepki pod każdą inną trasą.
+ */
 export function clientOnlyRouteComponents(
   chunks: readonly ServerChunk[],
   prefixes: readonly string[] = CLIENT_ONLY_ROUTE_PREFIXES,
+  ssrFalseRoutes: readonly string[] = [],
 ): ClientOnlyComponentsReport {
-  const sizes = new Map(chunks.map((chunk) => [chunk.path, chunk.source.length]));
+  const sources = new Map(chunks.map((chunk) => [chunk.path, chunk.source]));
+  const classOf = (route: string): keyof typeof COMPONENT_IMPORTERS | null => {
+    if (prefixes.some((prefix) => route.startsWith(prefix))) return "all";
+    if (ssrFalseRoutes.some((path) => route === path || route.startsWith(`${path}/`)))
+      return "ssrFalse";
+    return null;
+  };
   let checked = 0;
   const heavy: HeavyClientOnlyComponent[] = [];
   const unresolved: string[] = [];
+  const unexpected: UnexpectedRouteStub[] = [];
+  const verified = new Set<string>();
   for (const chunk of chunks) {
     const definitions = [...chunk.source.matchAll(ROUTE_DEFINITION_RE)];
-    if (!definitions.some((definition) => prefixes.some((p) => definition[1].startsWith(p))))
-      continue;
+    if (definitions.length === 0) continue;
     const hoisted = new Map<string, string>();
     for (const match of chunk.source.matchAll(HOISTED_IMPORTER_RE)) hoisted.set(match[1], match[2]);
     const viaHoisted = (body: string, re: RegExp): string[] =>
@@ -316,7 +400,8 @@ export function clientOnlyRouteComponents(
       });
     definitions.forEach((definition, index) => {
       const route = definition[1];
-      if (!prefixes.some((prefix) => route.startsWith(prefix))) return;
+      const routeClass = classOf(route);
+      const importers = COMPONENT_IMPORTERS[routeClass ?? "all"];
       const start = definition.index ?? 0;
       const next = definitions[index + 1]?.index ?? chunk.source.length;
       const body = chunk.source.slice(start, Math.min(next, start + 4_000));
@@ -327,18 +412,28 @@ export function clientOnlyRouteComponents(
         ...viaHoisted(body, HOISTED_LOADER_REF_RE),
       ]);
       const components = [
-        ...[...body.matchAll(LAZY_ROUTE_COMPONENT_RE)].map((match) => match[1]),
-        ...viaHoisted(body, HOISTED_COMPONENT_REF_RE),
+        ...[...body.matchAll(importers.lazy)].map((match) => match[1]),
+        ...viaHoisted(body, importers.hoisted),
       ];
+      if (routeClass === null) {
+        // Kontrola zwrotna: trasa, którą serwer renderuje, nie może dostać zaślepki.
+        for (const specifier of components) {
+          const target = resolveChunkPath(chunk.path, specifier);
+          if (STUB_SOURCE_RE.test(sources.get(target) ?? ""))
+            unexpected.push({ route, chunk: target });
+        }
+        return;
+      }
       if (components.length === 0) {
         if (COMPONENT_KEY_RE.test(body)) unresolved.push(route);
         return;
       }
+      verified.add(route);
       for (const specifier of components) {
         if (loaders.has(specifier)) continue;
         checked += 1;
         const target = resolveChunkPath(chunk.path, specifier);
-        const bytes = sizes.get(target) ?? -1;
+        const bytes = sources.get(target)?.length ?? -1;
         if (bytes < 0 || bytes > CLIENT_ONLY_STUB_MAX_BYTES)
           heavy.push({ route, chunk: target, bytes });
       }
@@ -346,7 +441,11 @@ export function clientOnlyRouteComponents(
   }
   heavy.sort((a, b) => a.route.localeCompare(b.route) || a.chunk.localeCompare(b.chunk));
   unresolved.sort();
-  return { checked, heavy, unresolved };
+  unexpected.sort((a, b) => a.route.localeCompare(b.route) || a.chunk.localeCompare(b.chunk));
+  const missing = ssrFalseRoutes
+    .filter((path) => !verified.has(path) && !unresolved.includes(path))
+    .sort();
+  return { checked, heavy, unresolved, missing, unexpected };
 }
 
 /** Czy chunk paczki w ogóle jest w artefakcie (inaczej reguła nic nie mierzy). */
@@ -446,7 +545,11 @@ export function analyzeServerEntryPurity(input: {
     frozen,
     startEntryLoaders: startEntryLoaders(input.chunks),
     documentBaselineChunks: firstDocument.size,
-    clientOnlyComponents: clientOnlyRouteComponents(input.chunks),
+    clientOnlyComponents: clientOnlyRouteComponents(
+      input.chunks,
+      CLIENT_ONLY_ROUTE_PREFIXES,
+      ssrFalseRoutePaths(input.sources),
+    ),
   };
 }
 
@@ -459,7 +562,9 @@ export function serverEntryPurityFailed(report: ServerEntryPurityReport): boolea
     report.startEntryLoaders.length !== 1 ||
     report.clientOnlyComponents.checked === 0 ||
     report.clientOnlyComponents.heavy.length > 0 ||
-    report.clientOnlyComponents.unresolved.length > 0
+    report.clientOnlyComponents.unresolved.length > 0 ||
+    report.clientOnlyComponents.missing.length > 0 ||
+    report.clientOnlyComponents.unexpected.length > 0
   );
 }
 
@@ -548,7 +653,7 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
     lines.push(
       `✗ [server-entry-purity] nie znaleziono komponentów tras ${CLIENT_ONLY_ROUTE_PREFIXES.join(", ")} w artefakcie serwera.`,
       "  Reguła zaślepek niczego nie mierzy: zmienił się kształt definicji tras po minifikacji -",
-      "  zaktualizuj `ROUTE_DEFINITION_RE`/`LAZY_ROUTE_COMPONENT_RE` w `src/lib/ci/serverEntryPurity.ts`.",
+      "  zaktualizuj `ROUTE_DEFINITION_RE`/`lazyRouteComponentRe` w `src/lib/ci/serverEntryPurity.ts`.",
       "",
     );
   } else if (clientOnly.heavy.length > 0) {
@@ -577,7 +682,40 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
         : []),
       "",
       "Taka trasa wypadłaby ze sprawdzenia zaślepek po cichu: zmienił się kształt definicji tras",
-      "po minifikacji - rozszerz `LAZY_ROUTE_COMPONENT_RE`/`HOISTED_*_RE` w `src/lib/ci/serverEntryPurity.ts`.",
+      "po minifikacji - rozszerz `lazyRouteComponentRe`/`HOISTED_*_RE` w `src/lib/ci/serverEntryPurity.ts`.",
+      "",
+    );
+  }
+
+  if (clientOnly.missing.length > 0) {
+    lines.push(
+      `✗ [server-entry-purity] ${clientOnly.missing.length} tras z \`ssr: false\` w źródłach nie ma w artefakcie serwera sprawdzonego komponentu:`,
+      ...clientOnly.missing.slice(0, 10).map((route) => `    ${route}`),
+      ...(clientOnly.missing.length > 10
+        ? [`    … i ${clientOnly.missing.length - 10} więcej`]
+        : []),
+      "",
+      "Skan nie znalazł definicji trasy albo jej importera komponentu, więc nie wiadomo, czy",
+      "komponent jest zaślepką. Sprawdź `ROUTE_DEFINITION_RE` i okno skanu definicji",
+      "w `src/lib/ci/serverEntryPurity.ts`; trasa bez komponentu nie potrzebuje `ssr: false`.",
+      "",
+    );
+  }
+
+  if (clientOnly.unexpected.length > 0) {
+    lines.push(
+      `✗ [server-entry-purity] ${clientOnly.unexpected.length} komponentów tras, które serwer RENDERUJE, jest w artefakcie zaślepką:`,
+      ...clientOnly.unexpected.slice(0, 10).map(({ route, chunk }) => `    ${route}: ${chunk}`),
+      ...(clientOnly.unexpected.length > 10
+        ? [`    … i ${clientOnly.unexpected.length - 10} więcej`]
+        : []),
+      "",
+      "Zaślepka wolno podstawić wyłącznie potomkom layoutu bez serwerowego `<Outlet/>`",
+      `(${CLIENT_ONLY_ROUTE_PREFIXES.join(", ")}) i trasom z \`ssr: false\`. Tu serwer oddałby pusty HTML w miejscu`,
+      "treści, a hydratacja zaczęłaby od rozjazdu.",
+      "  naprawa: sprawdź `CLIENT_ONLY_LAYOUTS` i `declaresSsrFalse` w",
+      "  `scripts/lib/clientOnlyRouteStubPlugin.ts`; jeśli trasa naprawdę nie renderuje się na",
+      "  serwerze, dopisz jej klasę tutaj (`CLIENT_ONLY_ROUTE_PREFIXES`) razem z dowodem.",
       "",
     );
   }

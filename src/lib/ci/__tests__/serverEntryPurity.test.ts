@@ -10,6 +10,7 @@ import {
   renderServerEntryPurityReport,
   resolveChunkPath,
   serverEntryPurityFailed,
+  ssrFalseRoutePaths,
   startEntryLoaders,
   startupChunks,
   staticImportersOfChunk,
@@ -402,17 +403,19 @@ describe("serverEntryPurity - domknięcie pierwszego dokumentu", () => {
 });
 
 describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydratacji", () => {
-  const surowa = (chunks: ServerChunk[]) =>
+  const surowa = (chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) =>
     analyzeServerEntryPurity({
       chunks: [...CZYSTE, LOADER, ...chunks],
-      sources: ZRODLA,
+      sources,
       lazyOnlyPackages: STRIPE_RULES,
       frozenRules: FROZEN_STATIC_IMPORTERS,
     });
+  /** Raport reguły zaślepek dla jednej trasy panelu z zaślepką i niczym więcej. */
+  const JEDNA_ZASLEPKA = { checked: 1, heavy: [], unresolved: [], missing: [], unexpected: [] };
 
   it("zaślepka komponentu trasy panelu przechodzi", () => {
     const report = surowa([TRASA_PANELU, ZASLEPKA]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
     expect(serverEntryPurityFailed(report)).toBe(false);
   });
 
@@ -448,7 +451,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
   });
 
   it("węzły błędu i 404 trasy panelu też muszą być zaślepką; loader nie jest sprawdzany", () => {
@@ -479,7 +482,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
   });
 
   it("importer wyciągnięty przez Oxc do zmiennej też jest sprawdzany (przegląd PR #534)", () => {
@@ -490,7 +493,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
         "var x=1,am=()=>import(`./admin.coupons-H.mjs`),lm=()=>import(`./admin.kokpit-K.mjs`);var Q=C(`/admin/coupons`)({validateSearch:e=>e,component:T(am,`component`)}),R=C(`/admin/kokpit`)({loader:L(lm,`loader`),component:T(lm,`component`)});",
     };
     const zaslepka = surowa([trasa, { path: "_ssr/admin.coupons-H.mjs", source: ZASLEPKA.source }]);
-    expect(zaslepka.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(zaslepka.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
     const pelny = surowa([
       trasa,
       { path: "_ssr/admin.coupons-H.mjs", source: "w".repeat(53_228) },
@@ -527,6 +530,173 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
   it("prefiks reguły to `/admin/` - layout `/admin` renderuje szkielet na serwerze", () => {
     expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/"]);
     expect(clientOnlyRouteComponents([TRASA_PANELU, ZASLEPKA]).checked).toBe(1);
+  });
+});
+
+describe("serverEntryPurity - trasy z `ssr: false` i kontrola zwrotna zaślepek", () => {
+  /** Źródło trasy skanera: `ssr: false` jako opcja trasy (komentarze już wymaskowane). */
+  const ZRODLO_SKANERA: SourceFile = {
+    path: "src/routes/scanner.tsx",
+    source:
+      'export const Route = createFileRoute("/scanner")({\n  ssr: false,\n  component: ScannerRoute,\n});',
+  };
+  const ZRODLA_SSR = [...ZRODLA, ZRODLO_SKANERA];
+  /** Trasa po Oxc: `ssr:!1`, komponent i wspólna grupa błędu i 404. */
+  const TRASA_SKANERA: ServerChunk = {
+    path: "_ssr/routes-SCN.mjs",
+    source:
+      "var Sc=S(`/scanner`)({ssr:!1,component:w(()=>import(`./scanner-C.mjs`),`component`),errorComponent:w(()=>import(`./scanner-E.mjs`),`errorComponent`),notFoundComponent:w(()=>import(`./scanner-E.mjs`),`notFoundComponent`)});export{Sc};",
+  };
+  const ZASLEPKA_BLEDU =
+    "function e(){return null}export{e as errorComponent,e as notFoundComponent};";
+  const analiza = (chunks: ServerChunk[], sources: SourceFile[] = ZRODLA_SSR) =>
+    analyzeServerEntryPurity({
+      chunks: [...CZYSTE, LOADER, TRASA_PANELU, ZASLEPKA, ...chunks],
+      sources,
+      lazyOnlyPackages: STRIPE_RULES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("listę tras bierze ze źródeł: opcja trasy tak, komentarz, test i plik spoza tras nie", () => {
+    expect(
+      ssrFalseRoutePaths([
+        ZRODLO_SKANERA,
+        {
+          path: "src/routes/events.$slug_.ticket.tsx",
+          source:
+            'export const Route = createFileRoute("/events/$slug_/ticket")({\n  head: () => ({}),\n  ssr: false,\n});',
+        },
+        {
+          // `bezKomentarzy` zamienia komentarz na spacje - linia nie zaczyna się od `  ssr`.
+          path: "src/routes/admin.tsx",
+          source:
+            'export const Route = createFileRoute("/admin")({\n                        \n  component: A,\n});',
+        },
+        {
+          path: "src/routes/__tests__/scannerRoute.test.tsx",
+          source: 'createFileRoute("/atrapa")({\n  ssr: false,\n});',
+        },
+        { path: "src/lib/x.ts", source: 'createFileRoute("/nie-trasa")({\n  ssr: false,\n});' },
+      ]),
+    ).toEqual(["/events/$slug_/ticket", "/scanner"]);
+  });
+
+  it("komponent oraz grupa błędu i 404 trasy z `ssr: false` pod zaślepką przechodzą", () => {
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+    ]);
+    // 1 importer trasy panelu + 3 importery skanera (błąd i 404 wskazują ten sam plik).
+    expect(report.clientOnlyComponents).toEqual({
+      checked: 4,
+      heavy: [],
+      unresolved: [],
+      missing: [],
+      unexpected: [],
+    });
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("pełny komponent trasy z `ssr: false` oblewa z trasą, plikiem i rozmiarem", () => {
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: "s".repeat(100_427) },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+    ]);
+    expect(report.clientOnlyComponents.heavy).toEqual([
+      { route: "/scanner", chunk: "_ssr/scanner-C.mjs", bytes: 100_427 },
+    ]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+  });
+
+  it("`pendingComponent` trasy z `ssr: false` nie jest sprawdzany - serwer go renderuje", () => {
+    const trasa: ServerChunk = {
+      path: "_ssr/routes-PND.mjs",
+      source:
+        "var Sc=S(`/scanner`)({ssr:!1,pendingComponent:w(()=>import(`./scanner-P.mjs`),`pendingComponent`),component:w(()=>import(`./scanner-C.mjs`),`component`)});",
+    };
+    const report = analiza([
+      trasa,
+      { path: "_ssr/scanner-P.mjs", source: "p".repeat(4_000) },
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(2);
+    expect(report.clientOnlyComponents.heavy).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("trasa ze źródeł, której skan artefaktu nie sprawdził, oblewa zamiast wypaść po cichu", () => {
+    const report = analiza([]);
+    expect(report.clientOnlyComponents.missing).toEqual(["/scanner"]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("1 tras z `ssr: false` w źródłach nie ma w artefakcie serwera");
+    expect(text).toContain("    /scanner");
+  });
+
+  it("potomek trasy z `ssr: false` dziedziczy klasę po prefiksie ścieżki", () => {
+    const dziecko: ServerChunk = {
+      path: "_ssr/routes-CHD.mjs",
+      source:
+        "var Sd=S(`/scanner/desk`)({component:w(()=>import(`./scanner.desk-C.mjs`),`component`)});",
+    };
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+      dziecko,
+      { path: "_ssr/scanner.desk-C.mjs", source: ZASLEPKA.source },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(5);
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
+  });
+
+  it("zaślepka pod trasą, którą serwer renderuje, oblewa - kontrola zwrotna wtyczki", () => {
+    const publiczna: ServerChunk = {
+      path: "_ssr/routes-PUB.mjs",
+      source:
+        "var B=S(`/blog`)({component:w(()=>import(`./blog-B.mjs`),`component`),errorComponent:w(()=>import(`./blog-E.mjs`),`errorComponent`)});",
+    };
+    const report = analiza(
+      [
+        publiczna,
+        { path: "_ssr/blog-B.mjs", source: ZASLEPKA.source },
+        { path: "_ssr/blog-E.mjs", source: "e".repeat(900) },
+      ],
+      ZRODLA,
+    );
+    expect(report.clientOnlyComponents.unexpected).toEqual([
+      { route: "/blog", chunk: "_ssr/blog-B.mjs" },
+    ]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain(
+      "1 komponentów tras, które serwer RENDERUJE, jest w artefakcie zaślepką",
+    );
+    expect(text).toContain("    /blog: _ssr/blog-B.mjs");
+  });
+
+  it("mały prawdziwy komponent (przelotka z `<Outlet/>`) to nie zaślepka", () => {
+    // 218 B na artefakcie z 2026-11-14 (`club.$clubSlug`, `events`, `people`) - poniżej progu
+    // rozmiaru zaślepki, dlatego kontrola zwrotna patrzy na treść pliku, nie na bajty.
+    const layout: ServerChunk = {
+      path: "_ssr/routes-LAY.mjs",
+      source: "var E=S(`/events`)({component:w(()=>import(`./events-O.mjs`),`component`)});",
+    };
+    const report = analiza(
+      [
+        layout,
+        {
+          path: "_ssr/events-O.mjs",
+          source:
+            'import{Outlet as t}from"../_libs/r.mjs";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as component};',
+        },
+      ],
+      ZRODLA,
+    );
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
   });
 });
 

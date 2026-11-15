@@ -7,16 +7,28 @@
 // z `loader` nigdy nie jest podmieniana, i tego, że zaślepka eksportuje dokładnie nazwy, po
 // które sięga `lazyRouteComponent`. Wynik na artefakcie pilnuje `check:server-entry-purity`.
 //
+// Druga klasa (2026-11-15): trasy z `ssr: false`. Tu zaślepkę dostają `component`,
+// `errorComponent` i `notFoundComponent`, ale NIGDY `pendingComponent` - to on jest serwerowym
+// `fallback` granicy `ClientOnly`. Wykrycie opcji jest wzorcem na linii źródła, więc test
+// porównuje je z drzewem składni (parser TypeScriptu) dla KAŻDEGO pliku trasy w repozytorium.
+//
 // i18n: brak treści dla użytkownika - narzędzie CI.
-import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { relative, resolve, sep } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
+
+import { ssrFalseRoutePaths, type SourceFile } from "@/lib/ci/serverEntryPurity";
+import { bezKomentarzy } from "@/lib/ci/sourceScan";
 
 import {
   CLIENT_ONLY_LAYOUTS,
   clientOnlyRouteStub,
   clientOnlyRouteStubPlugin,
+  declaresSsrFalse,
   routeDescendants,
+  routeTreeFiles,
+  ssrFalseRouteFiles,
 } from "../../../../scripts/lib/clientOnlyRouteStubPlugin";
 
 const DRZEWO = [
@@ -144,6 +156,155 @@ describe("clientOnlyRouteStub - zaślepka modułu podziału trasy", () => {
     for (const name of ["component", "errorComponent", "notFoundComponent", "pendingComponent"]) {
       expect(mod[name](), name).toBeNull();
     }
+  });
+});
+
+/** `ssr: false` jako własność obiektu opcji `createFileRoute(…)({…})` - z drzewa składni. */
+function ssrFalseWedlugSkladni(file: string, source: string): boolean {
+  const tree = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isCallExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "createFileRoute"
+    ) {
+      const options = node.arguments[0];
+      if (options !== undefined && ts.isObjectLiteralExpression(options)) {
+        for (const property of options.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            ts.isIdentifier(property.name) &&
+            property.name.text === "ssr" &&
+            property.initializer.kind === ts.SyntaxKind.FalseKeyword
+          ) {
+            found = true;
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return found;
+}
+
+describe("declaresSsrFalse - opcja trasy `ssr: false`", () => {
+  const trasa = (linie: string[]) =>
+    ['export const Route = createFileRoute("/x")({', ...linie, "  component: X,", "});"].join("\n");
+
+  it("własność najwyższego poziomu obiektu opcji, z przecinkiem i bez", () => {
+    expect(declaresSsrFalse(trasa(["  ssr: false,"]))).toBe(true);
+    expect(declaresSsrFalse(trasa(["  head: () => ({}),", "  ssr: false"]))).toBe(true);
+  });
+
+  it("komentarz, inna wartość i opcja zagnieżdżona głębiej to nie `ssr: false` trasy", () => {
+    expect(declaresSsrFalse(trasa(["  // ssr: false,"]))).toBe(false);
+    expect(declaresSsrFalse(trasa(["  // Stało tu `ssr: false` z jednym uzasadnieniem."]))).toBe(
+      false,
+    );
+    expect(declaresSsrFalse(trasa(['  ssr: "data-only",']))).toBe(false);
+    expect(declaresSsrFalse(trasa(["  ssr: true,"]))).toBe(false);
+    expect(declaresSsrFalse(trasa(["  ssr: () => false,"]))).toBe(false);
+    expect(declaresSsrFalse(trasa(["  staticData: {", "    ssr: false,", "  },"]))).toBe(false);
+  });
+
+  it("na PRAWDZIWYCH plikach tras wzorzec zgadza się z drzewem składni każdego pliku", () => {
+    const tree = readFileSync(resolve(process.cwd(), "src/routeTree.gen.ts"), "utf8");
+    const routes = routeTreeFiles(tree);
+    expect(routes.length).toBeGreaterThan(300);
+    const wykryte: string[] = [];
+    const zrodlaBramki: SourceFile[] = [];
+    for (const route of routes) {
+      const file = [".tsx", ".ts"]
+        .map((ext) => resolve(process.cwd(), "src/routes", `${route}${ext}`))
+        .find((candidate) => existsSync(candidate));
+      expect(file, route).toBeDefined();
+      const source = readFileSync(file!, "utf8");
+      expect(declaresSsrFalse(source), route).toBe(ssrFalseWedlugSkladni(file!, source));
+      if (declaresSsrFalse(source)) wykryte.push(route);
+      zrodlaBramki.push({
+        path: relative(process.cwd(), file!).split(sep).join("/"),
+        source: bezKomentarzy(source),
+      });
+    }
+    // Bramka artefaktu czyta te same pliki po wymaskowaniu komentarzy i własnym wzorcem
+    // (`ssrFalseRoutePaths`): ma wymagać zaślepki dla dokładnie tych tras, które podmienia wtyczka.
+    expect(ssrFalseRoutePaths(zrodlaBramki)).toHaveLength(wykryte.length);
+    // Liczba kontrolna i znane przypadki: trasy z poświadczeniem w adresie i z sesją
+    // z `localStorage`; `admin` i `membership-registration` wspominają opcję tylko w komentarzu.
+    expect(wykryte.length).toBeGreaterThanOrEqual(15);
+    expect(wykryte).toEqual(
+      expect.arrayContaining(["scanner", "messages", "events.$slug_.ticket", "events.saved"]),
+    );
+    expect(wykryte).not.toContain("admin");
+    expect(wykryte).not.toContain("membership-registration");
+  });
+});
+
+describe("ssrFalseRouteFiles - trasy z `ssr: false` i ich potomkowie", () => {
+  const zrodla: Record<string, string> = {
+    admin: 'export const Route = createFileRoute("/admin")({\n  component: A,\n});',
+    "admin.posts":
+      'export const Route = createFileRoute("/admin/posts")({\n  ssr: false,\n  component: P,\n});',
+    "admin.posts.$slug":
+      'export const Route = createFileRoute("/admin/posts/$slug")({\n  component: S,\n});',
+    blog: 'export const Route = createFileRoute("/blog")({\n  component: B,\n});',
+  };
+
+  it("bierze trasę z opcją i jej potomków; rodzeństwo i rodzic zostają", () => {
+    const set = ssrFalseRouteFiles(DRZEWO, (route) => zrodla[route] ?? null);
+    expect([...set].sort()).toEqual(["admin.posts", "admin.posts.$slug"]);
+  });
+
+  it("plik, którego nie ma, nie wywraca skanu", () => {
+    expect(ssrFalseRouteFiles(DRZEWO, () => null).size).toBe(0);
+  });
+});
+
+describe("clientOnlyRouteStub - trasa z `ssr: false`", () => {
+  const FILE = "/repo/src/routes/scanner.tsx";
+  const brak = new Set<string>();
+  const ssrFalse = new Set([FILE]);
+
+  it("`component` oraz grupa błędu i 404 dostają zaślepkę", () => {
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=component`, brak, ssrFalse)).toContain(
+      "export { SsrClientOnlyRouteStub as component };",
+    );
+    expect(
+      clientOnlyRouteStub(`${FILE}?tsr-split=errorComponent---notFoundComponent`, brak, ssrFalse),
+    ).toContain(
+      "export { SsrClientOnlyRouteStub as errorComponent, SsrClientOnlyRouteStub as notFoundComponent };",
+    );
+  });
+
+  it("`pendingComponent` zostaje - serwer renderuje go jako `fallback` granicy `ClientOnly`", () => {
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=pendingComponent`, brak, ssrFalse)).toBeNull();
+    expect(
+      clientOnlyRouteStub(`${FILE}?tsr-split=component---pendingComponent`, brak, ssrFalse),
+    ).toBeNull();
+  });
+
+  it("grupa z loaderem i trasa spoza zbioru zostają nietknięte", () => {
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=loader`, brak, ssrFalse)).toBeNull();
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=loader---component`, brak, ssrFalse)).toBeNull();
+    expect(
+      clientOnlyRouteStub("/repo/src/routes/blog.tsx?tsr-split=component", brak, ssrFalse),
+    ).toBeNull();
+    // Bez drugiego zbioru (wywołanie sprzed 2026-11-15) trasa `ssr: false` nie jest podmieniana.
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=component`, brak)).toBeNull();
+  });
+
+  it("potomek layoutu bez serwerowego `<Outlet/>` ma pierwszeństwo: także `pendingComponent`", () => {
+    const oba = new Set([FILE]);
+    expect(clientOnlyRouteStub(`${FILE}?tsr-split=pendingComponent`, oba, oba)).not.toBeNull();
   });
 });
 
