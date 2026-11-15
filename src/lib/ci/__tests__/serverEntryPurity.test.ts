@@ -6,6 +6,7 @@ import {
   analyzeServerEntryPurity,
   clientOnlyRouteComponents,
   CLIENT_ONLY_ROUTE_PREFIXES,
+  documentBaselineChunks,
   renderServerEntryPurityReport,
   resolveChunkPath,
   serverEntryPurityFailed,
@@ -20,6 +21,13 @@ import {
 } from "@/lib/ci/serverEntryPurity";
 
 const STRIPE_RULE = LAZY_ONLY_PACKAGES[0];
+/**
+ * Testy reguł Stripe, jednej kopii aplikacji i zaślepek biorą samą regułę Stripe - ich
+ * artefakty-atrapy nie niosą chunku SDK MCP, którego pilnuje druga reguła listy (własny
+ * blok „domknięcie pierwszego dokumentu").
+ */
+const STRIPE_RULES = [STRIPE_RULE];
+const MCP_RULE = LAZY_ONLY_PACKAGES[1];
 
 /** Artefakt, w którym SDK jedzie wyłącznie przez `import()`. */
 const CZYSTE: ServerChunk[] = [
@@ -88,7 +96,7 @@ function analiza(chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) {
   return analyzeServerEntryPurity({
     chunks: chunks.length > 0 ? [...chunks, LOADER, TRASA_PANELU, ZASLEPKA] : chunks,
     sources,
-    lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+    lazyOnlyPackages: STRIPE_RULES,
     frozenRules: FROZEN_STATIC_IMPORTERS,
   });
 }
@@ -251,7 +259,7 @@ describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
     analyzeServerEntryPurity({
       chunks,
       sources: ZRODLA,
-      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      lazyOnlyPackages: STRIPE_RULES,
       frozenRules: FROZEN_STATIC_IMPORTERS,
     });
 
@@ -299,12 +307,106 @@ describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
   });
 });
 
+describe("serverEntryPurity - domknięcie pierwszego dokumentu", () => {
+  // Kształt artefaktu z 2026-11-15: wejście Workera dociąga wrapper SSR przez `import()`,
+  // loader wejść Start ładuje router i start, a router importuje `zod` statycznie i SDK MCP
+  // przez fasadę `import()`.
+  const WEJSCIE: ServerChunk = {
+    path: "index.mjs",
+    source: "const r=()=>import(`./_ssr/server-LLL.mjs`);export{r as default};",
+  };
+  const ROUTER: ServerChunk = {
+    path: "_ssr/router-RRR.mjs",
+    source: 'import{z}from"../_libs/zod.mjs";const h=()=>import(`../_libs/_5.mjs`);export{h,z};',
+  };
+  const START: ServerChunk = { path: "_ssr/start-SSS.mjs", source: "export{};" };
+  const ADAPTERY: ServerChunk = { path: "_ssr/empty-plugin-adapters-PPP.mjs", source: "export{};" };
+  const ZOD: ServerChunk = { path: "_libs/zod.mjs", source: "const z=1;export{z};" };
+  const FASADA: ServerChunk = {
+    path: "_libs/_5.mjs",
+    source: 'export*from"./@lovable.dev/mcp-js+[...].mjs";',
+  };
+  const SDK: ServerChunk = {
+    path: "_libs/@lovable.dev/mcp-js+[...].mjs",
+    source: 'import{z}from"../zod.mjs";const m=z;export{m};',
+  };
+  const CZYSTY_UKLAD = [WEJSCIE, LOADER, ROUTER, START, ADAPTERY, ZOD, FASADA, SDK];
+  /** Układ sprzed naprawy: `zod` w chunku SDK, więc router importuje chunk SDK statycznie. */
+  const ZOD_W_SDK = [
+    WEJSCIE,
+    LOADER,
+    {
+      path: ROUTER.path,
+      source:
+        'import{z}from"../_libs/@lovable.dev/mcp-js+[...].mjs";const h=()=>import(`../_libs/_5.mjs`);export{h,z};',
+    },
+    START,
+    ADAPTERY,
+    FASADA,
+    { path: SDK.path, source: "const z=1,m=z;export{m,z};" },
+  ];
+  const mcp = (chunks: ServerChunk[]) =>
+    analyzeServerEntryPurity({
+      chunks: [...chunks, TRASA_PANELU, ZASLEPKA],
+      sources: ZRODLA,
+      lazyOnlyPackages: [MCP_RULE],
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("to loader wejść, chunk routera i chunk startu z ich statycznymi zależnościami", () => {
+    expect([...documentBaselineChunks(CZYSTY_UKLAD)].sort()).toEqual([
+      "_libs/zod.mjs",
+      "_ssr/router-RRR.mjs",
+      "_ssr/server-LLL.mjs",
+      "_ssr/start-SSS.mjs",
+    ]);
+    // Trzeci `import()` loadera (adaptery wtyczek) i fasada SDK są leniwe - poza domknięciem.
+    expect(documentBaselineChunks(CZYSTY_UKLAD).has(FASADA.path)).toBe(false);
+    expect(documentBaselineChunks(CZYSTY_UKLAD).has(SDK.path)).toBe(false);
+  });
+
+  it("bez loadera wejść domknięcie jest puste - skan zgłasza to regułą jednej kopii", () => {
+    expect(documentBaselineChunks([WEJSCIE, ROUTER, START, ZOD]).size).toBe(0);
+    expect(mcp([WEJSCIE, ROUTER, START, ZOD, FASADA, SDK]).startEntryLoaders).toEqual([]);
+  });
+
+  it("SDK MCP za fasadą `import()` przechodzi i podaje liczbę plików domknięcia", () => {
+    const report = mcp(CZYSTY_UKLAD);
+    expect(report.documentBaselineChunks).toBe(4);
+    expect(report.lazyOnly).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("paczka współdzielona w chunku SDK oblewa, choć korzenie startu jej nie widzą", () => {
+    // Router wchodzi do grafu przez `import()`, więc nie jest korzeniem bez importerów -
+    // reguła licząca wyłącznie start (stan do 2026-11-15) przepuszczała ten artefakt.
+    expect(startupChunks(ZOD_W_SDK).has(ROUTER.path)).toBe(false);
+    const report = mcp(ZOD_W_SDK);
+    expect(report.lazyOnly.map((violation) => violation.importers)).toEqual([[ROUTER.path]]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("ładowanych przy starcie albo z pierwszym dokumentem");
+    expect(text).toContain("    _ssr/router-RRR.mjs");
+    expect(text).toContain("scripts/lib/serverVendorChunks.ts");
+  });
+
+  it("lista reguł pilnuje chunku SDK MCP pod nazwą, którą nadaje mu Nitro", () => {
+    expect(LAZY_ONLY_PACKAGES.map((pkg) => pkg.chunk)).toEqual([
+      "_libs/stripe.mjs",
+      "_libs/@lovable.dev/mcp-js+[...].mjs",
+    ]);
+    const brak = mcp([WEJSCIE, LOADER, ROUTER, START, ADAPTERY, ZOD]);
+    expect(brak.missingChunks.map((pkg) => pkg.chunk)).toEqual([MCP_RULE.chunk]);
+    expect(serverEntryPurityFailed(brak)).toBe(true);
+  });
+});
+
 describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydratacji", () => {
   const surowa = (chunks: ServerChunk[]) =>
     analyzeServerEntryPurity({
       chunks: [...CZYSTE, LOADER, ...chunks],
       sources: ZRODLA,
-      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      lazyOnlyPackages: STRIPE_RULES,
       frozenRules: FROZEN_STATIC_IMPORTERS,
     });
 

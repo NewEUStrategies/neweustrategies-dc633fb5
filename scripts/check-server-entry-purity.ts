@@ -92,6 +92,7 @@ function main(): void {
   console.log(rendered);
   console.log(
     `  leniwe wyłącznie: ${LAZY_ONLY_PACKAGES.map((p) => p.chunk).join(", ")}\n` +
+      `  pierwszy dokument: ${report.documentBaselineChunks} plików w statycznym domknięciu loadera wejść\n` +
       `  zamrożony dług:   ${FROZEN_STATIC_IMPORTERS.map((r) => `${r.pkg} (${r.allowed.length})`).join(", ")}`,
   );
 }

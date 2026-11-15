@@ -31,6 +31,7 @@ import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
 import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
+import { serverVendorChunking } from "./scripts/lib/serverVendorChunks.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -52,7 +53,13 @@ const NES_BUILD_ID = (process.env.LOVABLE_BUILD_ID || `t${Date.now().toString(36
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
 // cloudflare-module, żeby dało się go odpalić lokalnie). Zmienna pośrednia:
 // typy pakietu deklarują podzbiór opcji nitro - patrz komentarz w vite.config.ts.
-const nitroOptions = { preset: "node-server", minify: true };
+// `rolldownConfig`: parytet z vite.config.ts - `zod` i `unenv` poza chunkiem SDK MCP
+// (scripts/lib/serverVendorChunks.ts).
+const nitroOptions = {
+  preset: "node-server",
+  minify: true,
+  rolldownConfig: serverVendorChunking(),
+};
 
 // Parytet z vite.config.ts: reguły list preloadu `import()` i wtyczka z CSS celów - jeden obiekt.
 const clientPreload = clientModulePreload();

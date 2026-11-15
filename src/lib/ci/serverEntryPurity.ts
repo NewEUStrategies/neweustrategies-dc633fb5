@@ -29,6 +29,19 @@
 // artefakt ma moduł aplikacji `_chunks/stripe.mjs` (1 KB), którego importery
 // (`from"./stripe.mjs"` w `_chunks/`) bramka po nazwie brała za importery SDK.
 //
+// ── „PRZY STARCIE" TO TAKŻE DOMKNIĘCIE PIERWSZEGO DOKUMENTU (2026-11-15) ────
+// Wejście Workera importuje statycznie trzy pliki; resztę aplikacji dociąga `import()`
+// wrappera SSR, a handler TanStack Start ładuje chunk routera i chunk startu jednym
+// `Promise.all` (`getEntries`). Ich statyczne domknięcie (377 plików, 3,8 MB na artefakcie
+// z 2026-11-14) ewaluuje się przy PIERWSZYM dokumencie każdego zimnego izolatu, czyli na
+// produkcji przy niemal każdym żądaniu - a reguła licząca tylko korzenie bez importerów go
+// nie widziała. Tak przeszedł chunk `_libs/@lovable.dev/mcp-js+[...].mjs`: Rolldown dołożył
+// do grupy SDK MCP jego zależność `zod`, której potrzebuje każda trasa, więc 554 kB SDK
+// ewaluowało się z każdym zimnym startem, choć `routes/mcp.ts` ładuje je przez `import()`.
+// Reguła „wyłącznie przez `import()`" liczy więc importerów z obu zbiorów: startu
+// i domknięcia dokumentu (`documentBaselineChunks`). Naprawa układu chunków i pomiar:
+// `scripts/lib/serverVendorChunks.ts`, docs/performance/2026-11-15-zimny-start-c2.md.
+//
 // ── DRUGA KLASA REGUŁ: DŁUG, KTÓREGO NIE DA SIĘ DZIŚ SPŁACIĆ ────────────────
 // `node-html-parser` trzymają na ścieżce żądania DWA synchroniczne API, których
 // nie da się przepiąć na `import()` bez przepisania konsumentów:
@@ -145,24 +158,18 @@ export function staticImportersOfChunk(
     .sort();
 }
 
-/**
- * Pliki ładowane przy starcie: statycznie osiągalne z korzeni, czyli plików, których nikt
- * nie importuje ani statycznie, ani przez `import()` (nagłówek pliku).
- */
-export function startupChunks(chunks: readonly ServerChunk[]): Set<string> {
+/** Statyczne domknięcie `roots` w grafie krawędzi `import`/`export ... from` artefaktu. */
+function staticClosure(chunks: readonly ServerChunk[], roots: readonly string[]): Set<string> {
   const known = new Set(chunks.map((chunk) => chunk.path));
-  const imported = new Set<string>();
   const edges = new Map<string, string[]>();
   for (const chunk of chunks) {
-    const targets = staticTargets(chunk).filter((target) => known.has(target));
-    edges.set(chunk.path, targets);
-    for (const target of targets) imported.add(target);
-    for (const match of chunk.source.matchAll(DYNAMIC_EDGE_RE)) {
-      imported.add(resolveChunkPath(chunk.path, match[1]));
-    }
+    edges.set(
+      chunk.path,
+      staticTargets(chunk).filter((target) => known.has(target)),
+    );
   }
   const out = new Set<string>();
-  const stack = chunks.map((chunk) => chunk.path).filter((path) => !imported.has(path));
+  const stack = roots.filter((path) => known.has(path));
   while (stack.length > 0) {
     const path = stack.pop()!;
     if (out.has(path)) continue;
@@ -173,13 +180,33 @@ export function startupChunks(chunks: readonly ServerChunk[]): Set<string> {
 }
 
 /**
+ * Pliki ładowane przy starcie: statycznie osiągalne z korzeni, czyli plików, których nikt
+ * nie importuje ani statycznie, ani przez `import()` (nagłówek pliku).
+ */
+export function startupChunks(chunks: readonly ServerChunk[]): Set<string> {
+  const known = new Set(chunks.map((chunk) => chunk.path));
+  const imported = new Set<string>();
+  for (const chunk of chunks) {
+    for (const target of staticTargets(chunk)) if (known.has(target)) imported.add(target);
+    for (const match of chunk.source.matchAll(DYNAMIC_EDGE_RE)) {
+      imported.add(resolveChunkPath(chunk.path, match[1]));
+    }
+  }
+  return staticClosure(
+    chunks,
+    chunks.map((chunk) => chunk.path).filter((path) => !imported.has(path)),
+  );
+}
+
+/**
  * Loader wejść TanStack Start: `import()` chunku routera, a zaraz po nim `import()` chunku
  * startu (`Promise.all([import(router), import(start), …])`). Nazwy chunków to `router.mjs`
  * albo `router-<hash>.mjs` i `start…` - zależnie od tego, czy chunk zbudował Vite (`_ssr/`),
- * czy Nitro (`_chunks/`). Cudzysłów albo backticki Oxc, jak w `DYNAMIC_EDGE_RE`.
+ * czy Nitro (`_chunks/`). Cudzysłów albo backticki Oxc, jak w `DYNAMIC_EDGE_RE`. Grupy
+ * przechwytują oba specyfikatory - korzenie domknięcia pierwszego dokumentu.
  */
 const START_ENTRY_LOADER_RE =
-  /import\s*\(\s*["'`][^"'`]*\/router(?:-[\w-]+)?\.mjs["'`]\s*\)\s*,\s*import\s*\(\s*["'`][^"'`]*\/start(?:-[\w-]+)?\.mjs["'`]\s*\)/;
+  /import\s*\(\s*["'`]([^"'`]*\/router(?:-[\w-]+)?\.mjs)["'`]\s*\)\s*,\s*import\s*\(\s*["'`]([^"'`]*\/start(?:-[\w-]+)?\.mjs)["'`]\s*\)/;
 
 /** Pliki artefaktu z loaderem wejść TanStack Start - każdy to osobna kopia aplikacji. */
 export function startEntryLoaders(chunks: readonly ServerChunk[]): string[] {
@@ -187,6 +214,26 @@ export function startEntryLoaders(chunks: readonly ServerChunk[]): string[] {
     .filter((chunk) => START_ENTRY_LOADER_RE.test(chunk.source))
     .map((chunk) => chunk.path)
     .sort();
+}
+
+/**
+ * Domknięcie pierwszego dokumentu: pliki statycznie osiągalne z loadera wejść TanStack Start
+ * oraz z chunków routera i startu, które ten loader importuje. Ewaluują się przy pierwszym
+ * dokumencie każdego zimnego izolatu, choć do grafu wchodzą przez `import()` (nagłówek pliku).
+ * Pusty zbiór = brak loadera, czyli defekt skanu zgłaszany regułą jednej kopii aplikacji.
+ */
+export function documentBaselineChunks(chunks: readonly ServerChunk[]): Set<string> {
+  const roots: string[] = [];
+  for (const chunk of chunks) {
+    const match = START_ENTRY_LOADER_RE.exec(chunk.source);
+    if (!match) continue;
+    roots.push(
+      chunk.path,
+      resolveChunkPath(chunk.path, match[1]),
+      resolveChunkPath(chunk.path, match[2]),
+    );
+  }
+  return staticClosure(chunks, roots);
 }
 
 /** Prefiksy tras, których komponenty serwer zastępuje zaślepką (nagłówek pliku, czwarta klasa). */
@@ -355,6 +402,8 @@ export interface ServerEntryPurityReport {
   readonly frozen: readonly FrozenViolation[];
   /** Pliki z loaderem wejść TanStack Start; poprawnie dokładnie jeden (nagłówek pliku). */
   readonly startEntryLoaders: readonly string[];
+  /** Liczba plików domknięcia pierwszego dokumentu - liczba kontrolna reguły `import()`. */
+  readonly documentBaselineChunks: number;
   /** Komponenty tras renderowanych wyłącznie po hydratacji (czwarta klasa). */
   readonly clientOnlyComponents: ClientOnlyComponentsReport;
 }
@@ -368,14 +417,15 @@ export function analyzeServerEntryPurity(input: {
   const missingChunks: LazyOnlyPackage[] = [];
   const lazyOnly: LazyOnlyViolation[] = [];
   const startup = startupChunks(input.chunks);
+  const firstDocument = documentBaselineChunks(input.chunks);
 
   for (const pkg of input.lazyOnlyPackages) {
     if (!hasChunk(input.chunks, pkg.chunk)) {
       missingChunks.push(pkg);
       continue;
     }
-    const importers = staticImportersOfChunk(input.chunks, pkg.chunk).filter((path) =>
-      startup.has(path),
+    const importers = staticImportersOfChunk(input.chunks, pkg.chunk).filter(
+      (path) => startup.has(path) || firstDocument.has(path),
     );
     if (importers.length > 0) lazyOnly.push({ pkg, importers });
   }
@@ -395,6 +445,7 @@ export function analyzeServerEntryPurity(input: {
     lazyOnly,
     frozen,
     startEntryLoaders: startEntryLoaders(input.chunks),
+    documentBaselineChunks: firstDocument.size,
     clientOnlyComponents: clientOnlyRouteComponents(input.chunks),
   };
 }
@@ -433,14 +484,14 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
 
   for (const violation of report.lazyOnly) {
     lines.push(
-      `✗ [server-entry-purity] ${violation.pkg.label} ma ${violation.importers.length} statycznych importerów ładowanych przy starcie artefaktu serwera:`,
+      `✗ [server-entry-purity] ${violation.pkg.label} ma ${violation.importers.length} statycznych importerów ładowanych przy starcie albo z pierwszym dokumentem artefaktu serwera:`,
       ...violation.importers.slice(0, 10).map((path) => `    ${path}`),
       ...(violation.importers.length > 10
         ? [`    … i ${violation.importers.length - 10} więcej`]
         : []),
       "",
-      "Statyczna krawędź znaczy EWALUACJĘ przy starcie izolatu - na każdym zimnym",
-      "żądaniu, także tym, które nigdy nie dotknie tej ścieżki.",
+      "Statyczna krawędź znaczy EWALUACJĘ przy starcie izolatu albo przy jego pierwszym",
+      "dokumencie - na każdym zimnym żądaniu, także tym, które nigdy nie dotknie tej ścieżki.",
       `  naprawa: ${violation.pkg.remedy}`,
       "",
     );
@@ -555,6 +606,17 @@ export const LAZY_ONLY_PACKAGES: readonly LazyOnlyPackage[] = [
       'SDK ładuj przez `await import("stripe")` w `lib/stripe.server.ts` ' +
       "(`getStripeClient`, leniwy singleton per środowisko); w modułach płatności " +
       'trzymaj wyłącznie `import type Stripe from "stripe"`',
+  },
+  {
+    label:
+      "SDK Model Context Protocol (@lovable.dev/mcp-js, @modelcontextprotocol/sdk, ajv, jose, " +
+      "zod v4; 436 kB chunku serwera)",
+    chunk: "_libs/@lovable.dev/mcp-js+[...].mjs",
+    remedy:
+      "paczkę współdzieloną z SDK (dotąd `zod` i `unenv`) dopisz do " +
+      "`SERVER_BASELINE_VENDOR_GROUPS` w `scripts/lib/serverVendorChunks.ts`, żeby Rolldown " +
+      "nie dokładał jej do chunku SDK; samo SDK importuj wyłącznie przez `import()` w handlerze " +
+      "(`routes/mcp.ts`, `routes/[.mcp]/*`)",
   },
 ];
 

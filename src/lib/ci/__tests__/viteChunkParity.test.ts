@@ -144,6 +144,21 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety dzielą vendory artefaktu serwera TĄ SAMĄ funkcją (opcja `rolldownConfig` Nitro)", () => {
+    // Smoke bez `serverVendorChunking` budowałby `_libs/` z `zod` w chunku SDK MCP, czyli pomiar
+    // zimnego startu i bramka `check:server-entry-purity` badałyby inny artefakt niż produkcja.
+    const helperImport =
+      'import { serverVendorChunking } from "./scripts/lib/serverVendorChunks.ts";';
+    for (const [file, source] of presets) {
+      const code = bezKomentarzy(source);
+      expect(source, file).toContain(helperImport);
+      expect(code, file).toMatch(
+        /const nitroOptions = \{[^}]*rolldownConfig: serverVendorChunking\(\)/,
+      );
+      expect(code.match(/serverVendorChunking\(\)/g), file).toHaveLength(1);
+    }
+  });
+
   it("oba presety minifikują statyczne literały CSS TĄ SAMĄ wtyczką (P3.7a)", () => {
     // Smoke bez `staticCssPlugin` niósłby literały z komentarzami i wcięciami, czyli bramka
     // wagi dokumentu (`inlineCssCommentBytes`) i boot-test mierzyłyby inny dokument i inny
