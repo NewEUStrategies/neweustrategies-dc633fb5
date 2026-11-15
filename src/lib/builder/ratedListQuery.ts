@@ -51,6 +51,8 @@ import {
   postsConstrainedByTaxonomy,
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
 
 export type Lang = "pl" | "en";
 
@@ -69,6 +71,14 @@ export const RATED_LIST_STALE_MS = 2 * 60_000;
  * czyta ten wpis bez żadnej walidacji.
  */
 export const RATED_LIST_POST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+/**
+ * `RATED_LIST_POST_COLUMNS` bez osadzenia strony-rodzica - odczyt zapasowy
+ * (`readWithPostParentPage`): gdy odczyt z osadzeniem odda błąd, lista ma te
+ * same wpisy z adresem `/post/<slug>` zamiast pustki.
+ */
+export const RATED_LIST_POST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id";
 
 /** Kolumny publicznej projekcji profilu (`profiles_public`). */
@@ -107,6 +117,8 @@ interface PostRow {
   published_at: string | null;
   post_format: string | null;
   author_id: string | null;
+  /** Strona-rodzic z osadzenia (źródło adresu kanonicznego); bez pola w odczycie zapasowym. */
+  parent_page?: PostParentPage | null;
 }
 
 /** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
@@ -266,18 +278,6 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
     if (authorIdFilter.length === 0) return [];
   }
 
-  let q = postsConstrainedByTaxonomy(RATED_LIST_POST_COLUMNS, constraints).eq(
-    "status",
-    "published",
-  );
-
-  if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
-  if (postIds.length) q = q.in("id", postIds);
-  if (authorIdFilter) q = q.in("author_id", authorIdFilter);
-  if (excludePostIds.length) {
-    q = q.not("id", "in", `(${Array.from(new Set(excludePostIds)).join(",")})`);
-  }
-
   // KOLUMNA SORTOWANIA SKLEJANA Z SZABLONU, nie wybierana ternarym po języku.
   // Zachowanie jest identyczne (`lang` to `"pl" | "en"`, więc typ wyrażenia to
   // `"title_pl" | "title_en"` - ten sam union, który przyjmuje `order`), ale
@@ -289,16 +289,34 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
   // baseline'u, a przy okazji zapisuje kolumnę tak, jak od dawna opisywał ją
   // komentarz w widoku (`sortuje po title_${lang}`).
   const titleColumn = `title_${lang}` as const;
-  if (orderBy === "title_asc") q = q.order(titleColumn, { ascending: true });
-  else if (orderBy === "title_desc") q = q.order(titleColumn, { ascending: false });
-  else q = q.order("published_at", { ascending: false });
-
   const from = offset;
   const to = from + limit - 1;
-  q = q.range(from, to);
 
-  const { data } = await q;
-  let rows = (data ?? []) as PostRow[];
+  // Jedno zapytanie w dwóch wariantach kolumn: z osadzeniem strony-rodzica
+  // (adres kanoniczny w tym samym odczycie) i - tylko gdy tamto odda błąd -
+  // bez osadzenia. `columns: string` - powód w `postListQuery.ts`.
+  const read = (columns: string) => {
+    let q = postsConstrainedByTaxonomy(columns, constraints).eq("status", "published");
+
+    if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
+    if (postIds.length) q = q.in("id", postIds);
+    if (authorIdFilter) q = q.in("author_id", authorIdFilter);
+    if (excludePostIds.length) {
+      q = q.not("id", "in", `(${Array.from(new Set(excludePostIds)).join(",")})`);
+    }
+
+    if (orderBy === "title_asc") q = q.order(titleColumn, { ascending: true });
+    else if (orderBy === "title_desc") q = q.order(titleColumn, { ascending: false });
+    else q = q.order("published_at", { ascending: false });
+
+    return q.range(from, to);
+  };
+
+  const { data } = await readWithPostParentPage(
+    () => read(RATED_LIST_POST_COLUMNS),
+    () => read(RATED_LIST_POST_PLAIN_COLUMNS),
+  );
+  let rows = (data ?? []) as unknown as PostRow[];
 
   const missingAuthorIds = Array.from(
     new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
@@ -316,15 +334,19 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
 
   return rows.map((r) => {
     const profile = r.author_id ? authorById.get(r.author_id) : undefined;
+    // Adres kanoniczny z rodzica osadzonego w wierszu; bez niego `/post/<slug>`.
+    // Policzony TU, w zapytaniu: jedzie w stanie odwodnionym, więc HTML serwera
+    // i strona po hydratacji mają ten sam odnośnik.
+    const href = postHref(r);
     return {
       title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
       excerpt: (lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "",
       author: profile?.display_name || "",
       authorAvatar: profile?.avatar_url || undefined,
-      authorHref: `/post/${r.slug}`,
+      authorHref: href,
       // Wpisy nie maja oceny w bazie - patrz `showRating` w widoku.
       rating: 0,
-      href: `/post/${r.slug}`,
+      href,
       date: r.published_at || "",
       format: r.post_format || "standard",
     };
