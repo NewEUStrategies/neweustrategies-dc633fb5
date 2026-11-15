@@ -60,6 +60,12 @@ const h = vi.hoisted(() => ({
   /** Gdy `true`, KAŻDE wywołanie RPC WISI - baza przyjęła zapytanie i milczy. */
   rpcHang: false,
   /**
+   * Odpowiedzi RPC PO NAZWIE (wynik albo obietnica). Domyślnie puste: treść
+   * wchodzi do cache'u wprost. Przypadki, które muszą przejść PRAWDZIWĄ
+   * rezolucję adresu (start rozgrzewek z trafienia ścieżki), planują ją tutaj.
+   */
+  rpcOdpowiedzi: {} as Record<string, unknown>,
+  /**
    * Czy loader biegnie na SERWERZE. Wstrzykiwane, a nie dziedziczone po
    * środowisku testowym: od tej jednej wartości zależy, czy trasa zakłada
    * wspólny termin żądania, czy czeka na dane bez ograniczenia (nawigacja SPA).
@@ -151,6 +157,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     rpc: (name: string) => {
       h.zapytania.push(`rpc:${name}`);
       if (h.rpcHang) return new Promise(() => {});
+      if (name in h.rpcOdpowiedzi) return Promise.resolve(h.rpcOdpowiedzi[name]);
       return Promise.resolve(
         h.rpcError ? { data: null, error: h.rpcError } : { data: null, error: null },
       );
@@ -484,6 +491,7 @@ beforeEach(() => {
   h.blocksPrefetchCtx = [];
   h.rpcError = null;
   h.rpcHang = false;
+  h.rpcOdpowiedzi = {};
   h.isServer = true;
   h.zapytania = [];
   h.widgetPreloads = [];
@@ -1726,6 +1734,87 @@ describe("loader trasy `/$` - rozgrzewka slotów reklamowych", () => {
     expect(
       queryClient.getQueryData(adPlacementsQueryOptions("header_banner", "page").queryKey),
     ).toBeUndefined();
+  });
+
+  /** `resolve_path` trafia we wpis `post-1` pod stroną `page-1`. */
+  const TRAFIENIE_WPISU = { data: [{ page_id: "page-1", post_id: "post-1" }], error: null };
+
+  it("NA SERWERZE rozgrzewka rusza z TRAFIENIA ŚCIEŻKI, nie czeka na treść", async () => {
+    // Zapytanie o sloty potrzebuje wyłącznie rodzaju i id treści - a oba zna
+    // już `resolve_path`. Dowód jest mocny, bo treść NIGDY się tu nie
+    // rozstrzyga (wiersz wpisu nie ma zaplanowanej odpowiedzi, więc rezolucja
+    // pada): przed zmianą rozgrzewka startowała dopiero PO treści, czyli w tym
+    // przebiegu nie ruszyłaby ani razu.
+    h.rpcOdpowiedzi = { resolve_path: TRAFIENIE_WPISU };
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+
+    const { wynik } = await runLoader("analizy/atom");
+
+    expect(jakoWynik(wynik).kind).toBe("degraded");
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+    // PO odnogach treści: dekoracja staje w kolejce połączeń za zapytaniami,
+    // od których zależy pierwszy bajt.
+    expect(h.zapytania.indexOf("ad_placements")).toBeGreaterThan(
+      h.zapytania.indexOf("rpc:get_entity_content"),
+    );
+    expect(h.zapytania.indexOf("ad_placements")).toBeGreaterThan(
+      h.zapytania.indexOf("content_access_public"),
+    );
+  });
+
+  it("pełna rezolucja wpisu: JEDNO zapytanie o sloty, faza wtórna nie pyta drugi raz", async () => {
+    h.rpcOdpowiedzi = {
+      resolve_path: TRAFIENIE_WPISU,
+      get_entity_content: {
+        data: [{ content_pl: "treść", content_en: null, builder_data: null, blocks_data: null }],
+        error: null,
+      },
+      page_breadcrumbs: { data: CRUMBS_ODWROTNIE, error: null },
+    };
+    stub.setResponse(
+      "posts",
+      ok([
+        {
+          ...postItem({ author_id: null }),
+          post_tags: [],
+          post_categories: [],
+          post_authors: [],
+        },
+      ]),
+    );
+    stub.setResponse("content_access_public", ok(null));
+    stub.setResponse("post_layout_settings", ok(null));
+    stub.setResponse("ad_placements", ok([BANER, NAD_TRESCIA]));
+
+    const { wynik, queryClient } = await runLoader("analizy/atom");
+
+    expect(jakoWynik(wynik).kind).toBe("post");
+    // Rozgrzewka z trafienia ścieżki zasiała klucze widoków, więc droga
+    // zapasowa w fazie wtórnej nie ma czego dopytywać.
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey),
+    ).toEqual([BANER]);
+    expect(
+      queryClient.getQueryData(adPlacementsQueryOptions("top_of_post", "post", "post-1").queryKey),
+    ).toEqual([NAD_TRESCIA]);
+    expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(false);
+  });
+
+  it("W PRZEGLĄDARCE rozgrzewka nie startuje z trafienia ścieżki", async () => {
+    // Nawigacja SPA nie ma pierwszego bajtu do obrony, a rozgrzewka po treści
+    // sprawdza świeżość kluczy widoków (żeby nie powtarzać round-tripu, który
+    // react-query ma jeszcze w cache'u) - tego start z trafienia nie umie.
+    // Ten sam przebieg co wyżej, tylko poza serwerem: treść pada, więc sloty
+    // nie są pytane WCALE.
+    h.isServer = false;
+    h.rpcOdpowiedzi = { resolve_path: TRAFIENIE_WPISU };
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+
+    const { wynik } = await runLoader("analizy/atom");
+
+    expect(jakoWynik(wynik).kind).toBe("degraded");
+    expect(h.zapytania).not.toContain("ad_placements");
   });
 
   it("padnięta rozgrzewka reklam NIE zdejmuje cache'u wspólnego - reklama to dekoracja", async () => {

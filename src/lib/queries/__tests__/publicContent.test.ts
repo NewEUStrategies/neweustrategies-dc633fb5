@@ -151,11 +151,13 @@ import {
   blogListQueryOptions,
   fetchGatedBody,
   homePageQueryOptions,
+  onResolvedPathHit,
   publicCategoriesQueryOptions,
   publicPagesTreeQueryOptions,
   resolvePostsPerPage,
   resolvedContentQueryOptions,
   type ResolvedContent,
+  type ResolvedPathHit,
 } from "@/lib/queries/public";
 
 // ---------- strażniki zawężające (zamiast rzutowań) ------------------------
@@ -1479,4 +1481,106 @@ it("resolves the configured homepage slug without falling back to home", async (
   planuj({ strony: { poSlug: ok({ id: "configured-start", slug: "start" }) } });
   expect((await klient().fetchQuery(homePageQueryOptions()))?.id).toBe("configured-start");
   expect(baza().chainsFor("pages")).toHaveLength(1);
+});
+
+// ==========================================================================
+// ZGŁOSZENIE TRAFIENIA ŚCIEŻKI - rodzaj i id treści falę przed samą treścią
+// ==========================================================================
+
+describe("zgłoszenie trafienia ścieżki: rodzaj i id treści, zanim treść się rozstrzygnie", () => {
+  it("WPIS: słuchacz dostaje rodzaj i id PO starcie odnóg treści, a PRZED ich końcem", async () => {
+    // Loader trasy treści startuje z tego zgłoszenia rozgrzewkę slotów
+    // reklamowych (potrzebuje tylko rodzaju i id). Dwie rzeczy są tu kontraktem:
+    // zgłoszenie przychodzi, gdy ciało wpisu jeszcze WISI (inaczej praca
+    // słuchacza stałaby szeregowo za treścią, jak przed zmianą), oraz DOPIERO
+    // po wystartowaniu odnóg treści (inaczej dekoracja zajęłaby połączenie
+    // przed zapytaniami, od których zależy pierwszy bajt).
+    let puscCialo: (wynik: SupabaseResult) => void = () => {};
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    funkcje().setResponse(
+      "get_entity_content",
+      () =>
+        new Promise<SupabaseResult>((resolve) => {
+          puscCialo = resolve;
+        }),
+    );
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    let odnogiPrzyZgloszeniu: string[] = [];
+    onResolvedPathHit(client, (hit) => {
+      trafienia.push(hit);
+      odnogiPrzyZgloszeniu = [...funkcje().names(), ...baza().chains.map((c) => c.table)];
+    });
+
+    const bieg = client.fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
+    await vi.waitFor(() => expect(trafienia).toHaveLength(1));
+
+    expect(trafienia).toEqual([{ kind: "post", id: ID_WPISU }]);
+    expect(odnogiPrzyZgloszeniu).toEqual([
+      "resolve_path",
+      "get_entity_content",
+      "page_breadcrumbs",
+      "posts",
+      "content_access_public",
+    ]);
+    puscCialo(ok(cialo()));
+    expect(jakoWpis(await bieg).item.id).toBe(ID_WPISU);
+    // Najwyżej raz na rezolucję.
+    expect(trafienia).toHaveLength(1);
+  });
+
+  it("STRONA: rodzaj `page` i id strony", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: null }]),
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    onResolvedPathHit(client, (hit) => trafienia.push(hit));
+    await client.fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([{ kind: "page", id: ID_STRONY }]);
+  });
+
+  it("adres BEZ treści nie budzi słuchacza - 404 nie płaci za jego pracę", async () => {
+    planuj({ resolve: ok([]) });
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    onResolvedPathHit(client, (hit) => trafienia.push(hit));
+    await expect(client.fetchQuery(resolvedContentQueryOptions(["nie", "ma"]))).resolves.toBeNull();
+    expect(trafienia).toEqual([]);
+  });
+
+  it("wyjątek słuchacza NIE przerywa rezolucji treści", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    const client = klient();
+    onResolvedPathHit(client, () => {
+      throw new Error("słuchacz padł");
+    });
+    const wpis = jakoWpis(
+      await client.fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+  });
+
+  it("słuchacz jest per klient zapytań i da się go wyrejestrować", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: null }]),
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    const zeSluchaczem = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    const wyrejestruj = onResolvedPathHit(zeSluchaczem, (hit) => trafienia.push(hit));
+    // Inne żądanie (inny klient) nie budzi cudzego słuchacza.
+    await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([]);
+    wyrejestruj();
+    await zeSluchaczem.fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([]);
+  });
 });

@@ -166,6 +166,7 @@ import {
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 import {
+  onResolvedPathHit,
   resolvedContentQueryOptions,
   type PostData,
   type PageData,
@@ -322,6 +323,25 @@ function buildCoverPreload(item: PostData, settings: PostLayoutSettings): ImageP
 }
 
 /**
+ * Sloty reklamowe rozgrzewane w SSR dla treści danego rodzaju - JEDNA lista
+ * dla obu miejsc, które ją liczą (start po trafieniu ścieżki i faza wtórna
+ * loadera), bo rozjazd oznaczałby rozgrzany klucz, którego nikt nie czyta.
+ * Uzasadnienie doboru pozycji: komentarz przy fazie wtórnej loadera.
+ */
+function adWarmTargetsFor(url: string, kind: "post" | "page", entityId: string): AdWarmTarget[] {
+  const targets: AdWarmTarget[] = [{ position: "top_of_post", pageId: entityId }];
+  // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
+  // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
+  // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
+  // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
+  // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
+  if (adPageTypeForLocation(splitUrl(url).path, kind) === kind) {
+    targets.push({ position: "header_banner" });
+  }
+  return targets;
+}
+
+/**
  * Deskryptor decyzji -> `redirect()` routera.
  *
  * Jawny `if` na taksonomii, a nie `TAXONOMY_ROUTE[taxonomy]`: `redirect({ to })`
@@ -461,6 +481,29 @@ export const Route = createFileRoute("/$")({
     // sufit równoległych podżądań runtime Workers to 6).
     const layoutWarm = context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions());
     const relatedConfigWarm = context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions());
+    // SLOTY REKLAMOWE RUSZAJĄ PO TRAFIENIU ŚCIEŻKI, NIE PO TREŚCI (roadmapa
+    // ładowania 2026-11-14, B2). Ich zapytanie potrzebuje wyłącznie rodzaju
+    // i id treści, a oba zna już `resolve_path` - falę wcześniej, niż kończy
+    // się rezolucja. Dotąd round-trip reklam stał SZEREGOWO za ostatnią falą
+    // treści i na typowym wpisie był jedyną pracą fazy wtórnej, czyli pełnym
+    // round-tripem doliczonym do pierwszego bajtu. Tylko serwer: w przeglądarce
+    // nie ma pierwszego bajtu do obrony. Adres bez treści (404, przekierowanie)
+    // słuchacza nie budzi; po terminie żądania też nie startujemy niczego.
+    // Faza wtórna niżej zbiera tę obietnicę i ma drogę zapasową (wynik
+    // z cache'u izolatu nie woła słuchacza). Bramka ze stałą Vite PRZED
+    // `isServer` (ten sam zapis co przy preloadach hero niżej): tylko ona
+    // wycina tę gałąź z bundla przeglądarki.
+    const earlyAds: { warm: Promise<void> | null } = { warm: null };
+    if ((import.meta.env.SSR || import.meta.env.DEV) && isServer) {
+      onResolvedPathHit(context.queryClient, ({ kind, id }) => {
+        if (deadlineAt !== undefined && Date.now() >= deadlineAt) return;
+        earlyAds.warm = prefetchAdPlacementQueries(
+          context.queryClient,
+          adWarmTargetsFor(getRequestUrl() || `/${splat}`, kind, id),
+          kind,
+        );
+      });
+    }
     const contentWarm = context.queryClient.ensureQueryData(contentOptions).catch(() => undefined);
     if (deadlineAt === undefined) await contentWarm;
     else await withBudget(contentWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
@@ -644,15 +687,7 @@ export const Route = createFileRoute("/$")({
     // więc fala wtórna ma 6 odnóg przy sufcie 6 (`check:ssr-budgets`, twardy
     // limit 6 równoległych podżądań runtime Workers), a nie 7.
     const adPageType: AdPageType = data.kind;
-    // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
-    // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
-    // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
-    // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
-    // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
-    const adWarmTargets: AdWarmTarget[] = [{ position: "top_of_post", pageId: data.item.id }];
-    if (adPageTypeForLocation(splitUrl(url).path, data.kind) === adPageType) {
-      adWarmTargets.push({ position: "header_banner" });
-    }
+    const adWarmTargets = adWarmTargetsFor(url, data.kind, data.item.id);
     const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
     await withBudget(
       Promise.allSettled([
@@ -712,7 +747,14 @@ export const Route = createFileRoute("/$")({
         // NIE wchodzi do `directArmCold` ani do sygnału degradacji: reklama to
         // dekoracja, więc jej brak nie ma prawa zdjąć wspólnego cache'u CAŁEGO
         // dokumentu (ta sama doktryna, co przy `chromeQueryKeys` w korzeniu).
-        prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
+        //
+        // Na serwerze zapytanie zwykle JUŻ BIEGNIE od trafienia ścieżki
+        // (`earlyAds` wyżej) - tu czekamy na jego stan. Wywołanie po nim jest
+        // drogą zapasową i kosztuje zero round-tripów, gdy tamto się udało:
+        // rozgrzewka pyta wyłącznie o cele, których w cache'u nie ma świeżych.
+        (earlyAds.warm ?? Promise.resolve()).then(() =>
+          prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
+        ),
       ]).then((results) => {
         secondary.results = results;
       }),

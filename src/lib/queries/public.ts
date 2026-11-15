@@ -1,6 +1,6 @@
 // Public-content query options. Centralized so loaders + components share
 // identical keys/fetchers (single source of truth for cache invalidation).
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import type { PageTreeRow } from "@/lib/seo/pageTree";
@@ -831,6 +831,56 @@ async function fetchPostAuthorship(
   });
 }
 
+/** Co `resolve_path` rozstrzygnął o adresie: rodzaj treści i jej id. */
+export interface ResolvedPathHit {
+  kind: "post" | "page";
+  /** Id wpisu albo strony - to samo, które niesie `item.id` rozstrzygniętej treści. */
+  id: string;
+}
+
+type ResolvedPathHitListener = (hit: ResolvedPathHit) => void;
+
+/**
+ * Słuchacze trafienia ścieżki, po jednym na `QueryClient` - czyli na żądanie
+ * SSR (klient zapytań jest tam tworzony per żądanie). `WeakMap`, więc wpis
+ * znika razem z klientem żądania i nie wymaga sprzątania.
+ */
+const pathHitListeners = new WeakMap<QueryClient, ResolvedPathHitListener>();
+
+/**
+ * Zgłoszenie „adres jest treścią" ZARAZ PO `resolve_path`, zanim treść się
+ * rozstrzygnie (roadmapa ładowania 2026-11-14, B2).
+ *
+ * PO CO. Loader trasy treści ma pracę, która potrzebuje wyłącznie RODZAJU
+ * i ID treści (rozgrzewka slotów reklamowych), a nie samej treści. Dopóki
+ * czekała na cały wynik rezolucji, jej round-trip stał SZEREGOWO za ostatnią
+ * falą treści. Słuchacz dostaje te dwie wartości falę wcześniej.
+ *
+ * KONTRAKT. Słuchacz jest wołany najwyżej raz na rezolucję, PO wystartowaniu
+ * odnóg treści (więc jego praca staje w kolejce połączeń ZA nimi), i nigdy,
+ * gdy adres nie jest treścią. Nie jest wołany, gdy wynik przyszedł z cache'u
+ * izolatu albo z lotu innego żądania - wołający MUSI mieć drogę zapasową.
+ * Wyjątek słuchacza nie przerywa rezolucji. Zwraca funkcję wyrejestrowującą.
+ */
+export function onResolvedPathHit(
+  client: QueryClient,
+  listener: ResolvedPathHitListener,
+): () => void {
+  pathHitListeners.set(client, listener);
+  return () => {
+    if (pathHitListeners.get(client) === listener) pathHitListeners.delete(client);
+  };
+}
+
+function notifyPathHit(onPathHit: ResolvedPathHitListener | undefined, hit: ResolvedPathHit): void {
+  if (!onPathHit) return;
+  try {
+    onPathHit(hit);
+  } catch {
+    /* praca słuchacza jest dodatkiem - nigdy nie przerywa rezolucji treści */
+  }
+}
+
 /**
  * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
  * objąć go edgeTtlCache bez zmiany logiki).
@@ -841,7 +891,10 @@ async function fetchPostAuthorship(
  * idzie po id w fali drugiej, a profile autorów w trzeciej - jak przed zmianą.
  * STRONA - bez zmian: resolve_path -> [wiersz + body + okruszki + access].
  */
-async function resolveContentForSegments(segments: string[]): Promise<ResolvedContent | null> {
+async function resolveContentForSegments(
+  segments: string[],
+  onPathHit?: ResolvedPathHitListener,
+): Promise<ResolvedContent | null> {
   const speculativeRows =
     segments.length >= 2 ? speculativePostRows(segments[segments.length - 1]) : null;
   const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
@@ -897,12 +950,15 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     // okruszki, access i - przy trafionej spekulacji - profile z nakładką
     // albo, bez niej, sam wiersz po id), więc mieści się w limicie 6
     // równoległych połączeń Workers.
-    const [resolvedRow, body, crumbs, access] = await Promise.all([
+    const wave = Promise.all([
       rowAndAuthors,
       fetchGatedBody("post", postId),
       fetchPageBreadcrumbs(hit.page_id),
       fetchAccessRule("post", postId),
     ]);
+    // PO wystartowaniu odnóg treści - patrz kontrakt `onResolvedPathHit`.
+    notifyPathHit(onPathHit, { kind: "post", id: postId });
+    const [resolvedRow, body, crumbs, access] = await wave;
     if (!resolvedRow) return null;
     return {
       kind: "post",
@@ -917,12 +973,14 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     };
   }
 
-  const [{ data, error }, body, crumbs, access] = await Promise.all([
+  const pageWave = Promise.all([
     supabase.from("pages").select(ENTITY_SELECT_COLS.page).eq("id", hit.page_id).maybeSingle(),
     fetchGatedBody("page", hit.page_id),
     fetchPageBreadcrumbs(hit.page_id),
     fetchAccessRule("page", hit.page_id),
   ]);
+  notifyPathHit(onPathHit, { kind: "page", id: hit.page_id });
+  const [{ data, error }, body, crumbs, access] = await pageWave;
   if (error) throw error;
   if (!data) return null;
   // Microsites (C4): header_override DZIEDZICZY w dół poddrzewa stron -
@@ -963,7 +1021,7 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
 export const resolvedContentQueryOptions = (segments: string[]) =>
   queryOptions({
     queryKey: ["public", "resolved", segments] as const,
-    queryFn: async (): Promise<ResolvedContent | null> => {
+    queryFn: async ({ client }): Promise<ResolvedContent | null> => {
       if (segments.length === 0) return null;
       // Per-isolate TTL (per tenant host): każdy MISS cache dokumentów płacił
       // dotąd pełne ~10 round-tripów rezolucji wpisu. Krótkie 60 s pokrywa
@@ -972,7 +1030,9 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
       // ANONIMOWA projekcja (body gated = null z get_entity_content), więc
       // współdzielenie między żądaniami jest bezpieczne z konstrukcji.
       return edgeTtlCache(`public:resolved:${segments.join("/")}`, 60_000, () =>
-        resolveContentForSegments(segments),
+        // Słuchacz czytany W CHWILI trafienia, nie przy starcie zapytania -
+        // loader rejestruje go tuż przed `ensureQueryData`.
+        resolveContentForSegments(segments, (hit) => pathHitListeners.get(client)?.(hit)),
       );
     },
     staleTime: PAGE_PATH_TTL,
