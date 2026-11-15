@@ -310,17 +310,21 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
       case "pages":
         rows = homeFixture.pages;
         break;
-      case "posts":
-        // Wiersz wpisu czytany po id (`.maybeSingle()`) w specu kolumny tekstu niesie
-        // pola artykułu (silnik bloków, zajawka WordPressa, punkty); listy - bez zmian.
+      case "posts": {
+        // Wiersz wpisu w specu kolumny tekstu niesie pola artykułu (silnik bloków,
+        // zajawka WordPressa, punkty); listy - bez zmian. Rezolucja adresu czyta ten
+        // wiersz PO SLUGU (odczyt spekulacyjny równoległy z `resolve_path`,
+        // `lib/queries/public.ts`), a po id tylko w zapasie - oba filtry muszą oddać
+        // TEN SAM wiersz, inaczej spec mierzyłby wpis bez treści.
+        const readsPost = (id: unknown, slug: unknown) =>
+          url.searchParams.get("id") === `eq.${String(id)}` ||
+          url.searchParams.get("slug") === `eq.${String(slug)}`;
         rows =
-          isArticleReadingCase() &&
-          url.searchParams.get("id") === `eq.${String(documentWeightPost.id)}`
+          isArticleReadingCase() && readsPost(documentWeightPost.id, documentWeightPost.slug)
             ? homeFixture.posts.map((post) =>
                 post.id === documentWeightPost.id ? { ...post, ...articleReading.post } : post,
               )
-            : isArticleReadingCase() &&
-                url.searchParams.get("id") === `eq.${ARTICLE_SIDEBAR_POST_ID}`
+            : isArticleReadingCase() && readsPost(ARTICLE_SIDEBAR_POST_ID, ARTICLE_SIDEBAR_SLUG)
               ? [
                   {
                     ...documentWeightPost,
@@ -332,6 +336,7 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
                 ]
               : homeFixture.posts;
         break;
+      }
       case "post_layout_settings":
         rows = isArticleReadingCase() ? [articleReading.post_layout_settings] : [];
         break;

@@ -356,6 +356,13 @@ function odpowiedzStron(plan: PlanStron): TableResponder {
 interface PlanRezolucji {
   resolve?: SupabaseResult;
   wpis?: SupabaseResult;
+  /**
+   * Odpowiedź odczytu SPEKULACYJNEGO (`posts` po slugu, LISTA wierszy), który
+   * od 2026-11-14 startuje równolegle z `resolve_path`. Domyślnie wyprowadzona
+   * z `wpis`: ten sam wiersz w liście (spekulacja trafia - stan produkcyjny),
+   * pusta lista dla `null`, ten sam błąd dla odmowy.
+   */
+  wpisPoSlugu?: SupabaseResult;
   cialo?: SupabaseResult;
   okruszki?: SupabaseResult;
   dostep?: SupabaseResult;
@@ -371,7 +378,13 @@ function planuj(plan: PlanRezolucji = {}): void {
   );
   funkcje().setResponse("get_entity_content", plan.cialo ?? ok(cialo()));
   funkcje().setResponse("page_breadcrumbs", plan.okruszki ?? ok([okruszek(ID_STRONY, 0)]));
-  baza().setResponse("posts", plan.wpis ?? ok(wierszWpisuListy(ID_WPISU)));
+  const wpis = plan.wpis ?? ok(wierszWpisuListy(ID_WPISU));
+  baza().setResponse("posts", (chain) => {
+    if (filtrEq(chain, "slug") === undefined) return wpis;
+    if (plan.wpisPoSlugu) return plan.wpisPoSlugu;
+    if (wpis.error) return wpis;
+    return ok(wpis.data == null ? [] : [wpis.data]);
+  });
   baza().setResponse("content_access_public", plan.dostep ?? ok(null));
   baza().setResponse("profiles_public", plan.profile ?? ok([]));
   baza().setResponse("author_profiles_public", plan.nakladka ?? ok(null));
@@ -860,19 +873,26 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     });
     await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
 
-    // FALA GŁÓWNA MA CZTERY ODNOGI, NIE SIEDEM (audyt CWV 2026-09-20, F06;
-    // roadmapa ładowania 2026-11-14, B2): dwa łańcuchy tabelowe i dwie funkcje
-    // SQL. Zimny render wpisu stoi w kolejce do 6 równoległych połączeń runtime
+    // WPIS BEZ AUTORÓW TO CZTERY ZAPYTANIA W DWÓCH FALACH (audyt CWV
+    // 2026-09-20, F06; roadmapa ładowania 2026-11-14, B2): dwa łańcuchy tabelowe
+    // i trzy funkcje SQL, z czego wiersz wpisu leci RAZEM z `resolve_path`.
+    // Zimny render wpisu stoi w kolejce do 6 równoległych połączeń runtime
     // Workers razem z odczytami korzenia, więc liczba odnóg jest tu KONTRAKTEM
     // WYDAJNOŚCI, nie ozdobą asercji.
     expect(baza().chains.map((c) => c.table)).toEqual(["posts", "content_access_public"]);
     expect(funkcje().names()).toEqual(["resolve_path", "get_entity_content", "page_breadcrumbs"]);
 
-    // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała.
+    // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała. JEDEN odczyt
+    // `posts` - spekulacyjny, po OSTATNIM segmencie adresu (to ten sam slug,
+    // po którym wpisu szuka `resolve_path`); odczytu po id nie ma wcale.
+    expect(baza().chainsFor("posts")).toHaveLength(1);
     const cWpis = lancuch("posts");
     expect(cWpis.argsOf("select")?.[0]).toBe(POST_RESOLVE_SELECT);
-    expect(filtrEq(cWpis, "id")).toEqual(["id", ID_WPISU]);
-    expect(cWpis.has("maybeSingle")).toBe(true);
+    expect(filtrEq(cWpis, "slug")).toEqual(["slug", "wpis"]);
+    expect(filtrEq(cWpis, "id")).toBeUndefined();
+    // LISTA, nie `.maybeSingle()`: dwa wiersze o tym slugu (staff widzący
+    // dwóch najemców) nie mogą zamienić spekulacji w błąd zapytania.
+    expect(cWpis.has("maybeSingle")).toBe(false);
 
     // Taksonomie: zagnieżdżony select przez tabelę pivot - ale OSADZONY
     // w wierszu wpisu, a nie w osobnym round-tripie. Gwarancja „pytamy
@@ -909,6 +929,94 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     const kolumnyDostepu = String(cDostep.argsOf("select")?.[0]);
     expect(kolumnyDostepu).toContain("teaser_pl");
     expect(kolumnyDostepu).not.toContain("password");
+  });
+
+  it("SPEKULACJA TRAFIONA: profile autorów ruszają w fali z treścią, nie falę po niej", async () => {
+    // Dowód KOLEJNOŚCI FAL, nie samego wyniku: ciało wpisu WISI, a profile
+    // autorów i nakładka mają już swoje łańcuchy. Przed zmianą profile
+    // startowały dopiero po całej fali z wierszem wpisu (trzecia fala
+    // round-tripów na ścieżce pierwszego bajtu).
+    let puscCialo: (wynik: SupabaseResult) => void = () => {};
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1") },
+          { author_id: ID_AUTORA },
+        ),
+      ),
+      profile: ok([wierszProfilu(ID_AUTORA), wierszProfilu("wsp-1")]),
+      nakladka: ok({ job_title: "Analityk", custom_socials: [] }),
+    });
+    funkcje().setResponse(
+      "get_entity_content",
+      () =>
+        new Promise<SupabaseResult>((resolve) => {
+          puscCialo = resolve;
+        }),
+    );
+    const bieg = klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
+    await vi.waitFor(() => expect(baza().chainsFor("author_profiles_public")).toHaveLength(1));
+    expect(baza().chainsFor("profiles_public")).toHaveLength(1);
+    // Wiersz wpisu przyszedł ze spekulacji - odczytu po id nie było.
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    puscCialo(ok(cialo()));
+    const wpis = jakoWpis(await bieg);
+    expect(wpis.authors.map((a) => a.id)).toEqual([ID_AUTORA, "wsp-1"]);
+    expect(wpis.item.content_pl).toBe("treść pl");
+  });
+
+  it("SPEKULACJA CHYBIONA: wiersz idzie po id, wynik jest TEN SAM", async () => {
+    // Inny wpis o tym samym slugu (np. widoczny staffowi z drugiego najemcy)
+    // nie ma prawa wejść do wyniku: liczy się WYŁĄCZNIE `post_id` z
+    // `resolve_path`. Kod schodzi wtedy na dotychczasowy odczyt po id.
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null, read_minutes: 7 })),
+      wpisPoSlugu: ok([wierszWpisuListy("obcy-wpis", { author_id: null, read_minutes: 99 })]),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(wpis.item.read_minutes).toBe(7);
+    const lancuchy = baza().chainsFor("posts");
+    expect(lancuchy).toHaveLength(2);
+    expect(filtrEq(lancuchy[1], "id")).toEqual(["id", ID_WPISU]);
+    expect(lancuchy[1].has("maybeSingle")).toBe(true);
+    // Kolejność współautorów obowiązuje na OBU odczytach wiersza.
+    for (const lancuchWpisu of lancuchy) {
+      expect(ogniwa(lancuchWpisu, "order")).toEqual([
+        ["sort_order", { referencedTable: "post_authors", ascending: true }],
+      ]);
+    }
+  });
+
+  it("AWARIA spekulacji to brak podpowiedzi, nie awaria wpisu", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+      wpisPoSlugu: fail("statement timeout", "57014"),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(baza().chainsFor("posts")).toHaveLength(2);
+  });
+
+  it("odpowiedź spekulacji w kształcie INNYM niż lista też schodzi na odczyt po id", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+      wpisPoSlugu: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(baza().chainsFor("posts")).toHaveLength(2);
   });
 
   it("wpis, który zniknął między rezolucją a pobraniem, daje `null` (nie pusty wpis)", async () => {
@@ -1221,6 +1329,35 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     });
     const strona = jakoStrona(await klient().fetchQuery(resolvedContentQueryOptions(["a", "b"])));
     expect(strona.item.header_override).toBeNull();
+  });
+
+  it("adres JEDNOSEGMENTOWY nie spekuluje - nie może być wpisem", async () => {
+    // `resolve_path` szuka wpisu wyłącznie pod stroną-rodzicem (co najmniej
+    // dwa segmenty), więc odczyt `posts` po slugu byłby tu round-tripem za nic
+    // na każdej stronie najwyższego poziomu.
+    planuj({
+      resolve: TRAFIENIE_STRONY,
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(baza().chainsFor("posts")).toHaveLength(0);
+  });
+
+  it("strona ZAGNIEŻDŻONA płaci jeden odczyt spekulacyjny i go ignoruje", async () => {
+    planuj({
+      resolve: TRAFIENIE_STRONY,
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+      // Wpis o slugu równym ostatniemu segmentowi istnieje gdzie indziej -
+      // adres i tak jest STRONĄ, bo tak rozstrzygnął `resolve_path`.
+      wpisPoSlugu: ok([wierszWpisuListy(ID_WPISU)]),
+    });
+    const strona = jakoStrona(
+      await klient().fetchQuery(resolvedContentQueryOptions(["dzial", "o-nas"])),
+    );
+    expect(strona.kind).toBe("page");
+    expect(strona.item.id).toBe(ID_STRONY);
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(filtrEq(baza().chainsFor("posts")[0], "slug")).toEqual(["slug", "o-nas"]);
   });
 
   it("strona, która zniknęła między rezolucją a pobraniem, daje `null`", async () => {
