@@ -8,6 +8,8 @@ import { queryOptions, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
+import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export type MegaMenuLang = "pl" | "en";
 
@@ -22,6 +24,14 @@ interface MegaMenuPostCard {
 export interface MegaMenuCategoryData {
   posts: MegaMenuPostCard[];
   catName: string;
+}
+
+/** Wiersz odczytu: kolumny karty plus rodzic z osadzenia (gdy odczyt go niesie). */
+interface MegaMenuPostRow extends PostHrefSource {
+  id: string;
+  title_pl: string | null;
+  title_en: string | null;
+  cover_image_url: string | null;
 }
 
 export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: MegaMenuLang) {
@@ -57,22 +67,35 @@ export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: 
       // i wyłączonym odświeżaniu próbka zastygała na całe okno pracy.
       // Nadpróbkowanie `limit * 4` jest teraz zbędne: filtr publikacji i limit
       // stoją w tym samym zapytaniu, co zawężenie.
-      const { data: posts, error: postsError } = await postsNarrowedToTaxonomy(
+      //
+      // Strona-rodzic jedzie osadzeniem w TYM SAMYM odczycie, więc karta linkuje
+      // adresem kanonicznym `/<rodzic>/<slug>` zamiast `/post/<slug>`, który
+      // odpowiada 301 i dwoma odczytami bazy - a `AppLink` płaci je już przy
+      // najechaniu kursorem (preload). Gdy odczyt z osadzeniem odda błąd, leci
+      // ten sam odczyt bez osadzenia i karty mają adres zapasowy; błąd TEGO
+      // odczytu rzuca jak dotąd. `columns: string` - powód w `postListQuery.ts`.
+      const read = (columns: string) =>
+        postsNarrowedToTaxonomy(columns, { kind: "category", termIds: [cat.id as string] })
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(limit);
+      // Typ wiersza jawnie: zawężenie ma dwie gałęzie (kategoria / tag), a przy
+      // `columns: string` parser `select` daje każdej inny typ błędu.
+      const { data: posts, error: postsError } = await readPostsWithParentPage<unknown>(
+        read,
         "id, slug, title_pl, title_en, cover_image_url, published_at",
-        { kind: "category", termIds: [cat.id as string] },
-      )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(limit);
+      );
       if (postsError) throw postsError;
       return {
-        posts: (posts ?? []).map((p) => ({
-          id: p.id as string,
-          slug: p.slug as string,
-          title: pickLocalized(p as Record<string, unknown>, "title", lang),
-          cover: (p.cover_image_url as string | null) ?? "",
-          href: `/post/${p.slug as string}`,
+        // Adres liczony TUTAJ: karta w cache niesie gotowy `href`, a nie
+        // `parent_page` (wpis cache sprzed zmiany i po niej ma ten sam kształt).
+        posts: ((posts ?? []) as MegaMenuPostRow[]).map((p) => ({
+          id: p.id,
+          slug: p.slug,
+          title: pickLocalized(p, "title", lang),
+          cover: p.cover_image_url ?? "",
+          href: postHref(p),
         })),
         catName,
       };
