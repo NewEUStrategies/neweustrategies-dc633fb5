@@ -67,7 +67,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/lib/routing/legacyPostPath", () => ({
-  resolveLegacyPostPath: vi.fn(async () => harness.legacyPath),
+  fetchLegacyPostPath: vi.fn(async () => harness.legacyPath),
 }));
 
 vi.mock("@/lib/http/responseHeaders", () => ({
@@ -79,7 +79,7 @@ vi.mock("@/lib/seo/request", () => ({
   getRequestUrl: () => harness.requestUrl,
 }));
 
-import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+import { fetchLegacyPostPath } from "@/lib/routing/legacyPostPath";
 import { Route } from "@/routes/$";
 
 /** Loader trasy jako funkcja - framework wywoła dokładnie ten kod. */
@@ -131,7 +131,7 @@ beforeEach(() => {
   harness.cacheControl = [];
   harness.requestUrl = "";
   harness.taxonomyGate = null;
-  vi.mocked(resolveLegacyPostPath).mockClear();
+  vi.mocked(fetchLegacyPostPath).mockClear();
   // Brak treści dla wszystkich zapytań - domyślny stan „adres nie rozwiązany".
   stub.setResponse("categories", ok(null));
   stub.setResponse("tags", ok(null));
@@ -143,7 +143,7 @@ describe("loader trasy `/$` - decyzje", () => {
     expect(isNotFound(thrown)).toBe(true);
     // Pusty adres nie może kosztować round-tripu: rozstrzyga sam kształt adresu.
     expect(stub.chains).toEqual([]);
-    expect(vi.mocked(resolveLegacyPostPath)).not.toHaveBeenCalled();
+    expect(vi.mocked(fetchLegacyPostPath)).not.toHaveBeenCalled();
   });
 
   it("stary hierarchiczny adres kategorii daje redirect na formę płaską", async () => {
@@ -182,7 +182,7 @@ describe("loader trasy `/$` - decyzje", () => {
     // Cena jednej fali, zapisana wprost: trafione archiwum płaci jedno
     // RÓWNOLEGŁE zapytanie o wpis (rzadki przypadek), za to każde 404 i każde
     // 301 ze starego adresu ma o jedną szeregową falę mniej.
-    expect(vi.mocked(resolveLegacyPostPath)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchLegacyPostPath)).toHaveBeenCalledTimes(1);
   });
 
   it("odczyty zapasowe idą JEDNĄ falą: stary adres wpisu jest pytany, zanim taksonomia odpowie", async () => {
@@ -194,7 +194,7 @@ describe("loader trasy `/$` - decyzje", () => {
     // Taksonomia WISI. Przy dwóch szeregowych falach zapytanie o wpis nie
     // wystartowałoby, dopóki nie odpowie - i ten warunek nigdy by nie zaszedł.
     await vi.waitFor(() => {
-      expect(vi.mocked(resolveLegacyPostPath)).toHaveBeenCalledWith("nie-ma-takiej-strony");
+      expect(vi.mocked(fetchLegacyPostPath)).toHaveBeenCalledWith("nie-ma-takiej-strony");
     });
     expect(stub.chainsFor("categories")).toHaveLength(1);
     expect(stub.chainsFor("tags")).toHaveLength(1);
@@ -227,7 +227,7 @@ describe("loader trasy `/$` - decyzje", () => {
     expect(stub.chainsFor("categories")).toEqual([]);
     expect(stub.chainsFor("tags")).toEqual([]);
     // Slug wpisu jest globalnie unikalny - pytamy o OSTATNI segment.
-    expect(vi.mocked(resolveLegacyPostPath)).toHaveBeenCalledWith("atom");
+    expect(vi.mocked(fetchLegacyPostPath)).toHaveBeenCalledWith("atom");
   });
 
   it("ścieżka kanoniczna równa żądanej daje notFound, nie pętlę przekierowań", async () => {
@@ -243,7 +243,7 @@ describe("loader trasy `/$` - decyzje", () => {
     // Goły slug: oba archiwa i stary adres wpisu - jedną falą.
     expect(stub.chainsFor("categories")).toHaveLength(1);
     expect(stub.chainsFor("tags")).toHaveLength(1);
-    expect(vi.mocked(resolveLegacyPostPath)).toHaveBeenCalledWith("nie-ma-takiej-strony");
+    expect(vi.mocked(fetchLegacyPostPath)).toHaveBeenCalledWith("nie-ma-takiej-strony");
   });
 
   it("zapytanie o taksonomię filtruje po slugu i bierze co najwyżej jeden wiersz", async () => {

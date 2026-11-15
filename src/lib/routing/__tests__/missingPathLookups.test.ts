@@ -7,7 +7,9 @@
 // kształtu adresu i jak ich wyniki składają się w wejście gramatyki.
 //
 // Zero sieci: Supabase to atrapa łańcucha z `@/test/supabaseChain`, a stary
-// adres wpisu (`resolveLegacyPostPath`) ma własne testy obok.
+// adres wpisu (`fetchLegacyPostPath`) ma własne testy obok. Pamięć izolatu
+// (`edgeTtlCache`) jest w tym środowisku przezroczysta - co do niej trafia,
+// dowodzi `missingPathLookupsCache.test.ts` na prawdziwym magazynie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
@@ -16,6 +18,7 @@ const stub = supabaseFromStub();
 
 const harness = vi.hoisted(() => ({
   legacyPath: null as string | null,
+  legacyError: null as Error | null,
   legacySlugs: [] as string[],
 }));
 
@@ -24,8 +27,9 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("../legacyPostPath", () => ({
-  resolveLegacyPostPath: async (slug: string) => {
+  fetchLegacyPostPath: async (slug: string) => {
     harness.legacySlugs.push(slug);
+    if (harness.legacyError) throw harness.legacyError;
     return harness.legacyPath;
   },
 }));
@@ -35,6 +39,7 @@ import { lookupMissingPath } from "../missingPathLookups";
 beforeEach(() => {
   stub.reset();
   harness.legacyPath = null;
+  harness.legacyError = null;
   harness.legacySlugs = [];
   stub.setResponse("categories", ok(null));
   stub.setResponse("tags", ok(null));
@@ -93,5 +98,26 @@ describe("lookupMissingPath - które odczyty dla jakiego adresu", () => {
       tagSlug: "atom",
       legacyPostPath: "analizy/atom",
     });
+  });
+
+  it("błąd odczytu starego adresu wpisu nie zabiera trafionego archiwum i nie rzuca", async () => {
+    // Wyjątek stąd leciałby z loadera trasy `/$` i wywalał stronę zamiast 404.
+    stub.setResponse("categories", ok({ slug: "atom" }));
+    harness.legacyError = new Error("statement timeout");
+    await expect(lookupMissingPath(["atom"])).resolves.toEqual({
+      categorySlug: "atom",
+      tagSlug: null,
+      legacyPostPath: null,
+    });
+  });
+
+  it("pusty adres nie kosztuje ani jednego zapytania", async () => {
+    await expect(lookupMissingPath([])).resolves.toEqual({
+      categorySlug: null,
+      tagSlug: null,
+      legacyPostPath: null,
+    });
+    expect(stub.chains).toEqual([]);
+    expect(harness.legacySlugs).toEqual([]);
   });
 });

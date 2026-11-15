@@ -222,7 +222,7 @@ vi.mock("@/lib/builder/prefetch", async (o) => ({
 // `publicResolverRoute.test.tsx`), a prawdziwa funkcja dokładałaby round-trip
 // do atrapy Supabase w każdym przypadku „treści nie ma".
 vi.mock("@/lib/routing/legacyPostPath", () => ({
-  resolveLegacyPostPath: async () => null,
+  fetchLegacyPostPath: async () => null,
 }));
 
 import { errorCopy } from "@/lib/errorCopy";
