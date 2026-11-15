@@ -34,8 +34,10 @@ const PUBLIC_RENDERERS = [
   IMAGE_WIDGET,
 ];
 
+// `imageIntrinsicUse` to lustro renderera dla edytora obrazu (kiedy rozmiar z
+// treści jest w ogóle używany) - w chunku wejściowym byłoby martwym kodem.
 const ADMIN_ONLY_IMPORT =
-  /from\s+["']@\/lib\/(media\/measureIntrinsicSize|admin\/logoIntrinsic)["']/;
+  /from\s+["']@\/lib\/(media\/measureIntrinsicSize|admin\/logoIntrinsic|admin\/imageIntrinsicUse)["']/;
 
 describe("naturalny rozmiar obrazu - granice modułów", () => {
   it.each(PUBLIC_RENDERERS)("%s nie importuje pomiaru ani listy logo z panelu", (path) => {

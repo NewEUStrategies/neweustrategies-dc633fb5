@@ -13,13 +13,24 @@
 //  3. Zmiana TREŚCI przy tym samym widgecie (cofnij/ponów) nie mierzy i nie
 //     zapisuje: każdy zapis czyści stos "ponów".
 //  4. Wynik spóźniony (slot wskazuje już inny plik, edytor odmontowany) przepada.
+//  5. ZAZNACZENIE NIE PISZE DO DOKUMENTU, GDY RENDERER WARTOŚCI NIE UŻYJE: obraz
+//     w ramce ("Proporcje" inne niż auto) i widget, którego własny plik zastępuje
+//     logo motywu, nie są ani mierzone, ani zapisywane - samo kliknięcie
+//     dokładało tam krok "cofnij" bez widocznego skutku i uruchamiało autozapis.
+//     Warunek to `intrinsicSlotUse` (lustro renderera, przypięte testem
+//     parytetu). Ustawienia motywu przychodzą z tego samego cache'u co podgląd
+//     na kanwie.
+//  6. Przełączenie "Proporcji" na auto albo wyłączenie "Użyj logo witryny"
+//     mierzy plik od razu - efekt z pkt 1 nie uruchomi się drugi raz dla tego
+//     samego widgetu.
 //
 // `measureIntrinsicSize` jest atrapą (środowisko testowe nie ładuje obrazów);
 // `ImageSlot` jest PRAWDZIWY - atrapa tylko podsłuchuje jego propsy, żeby test
 // mógł wywołać `onChange` dokładnie tak, jak robi to pole adresu, upload i
-// biblioteka mediów.
+// biblioteka mediów. Selecty schematu ("Proporcje", "Użyj logo witryny") też są
+// prawdziwe i klikane jak przez redaktora.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactElement } from "react";
 import type { Json, WidgetContent } from "@/lib/builder/types";
@@ -80,6 +91,7 @@ vi.mock("../ImageSlot", async (importOriginal) => {
 
 import { ImageEditor, IMAGE_EDITOR_HANDLED_KEYS } from "../ImageEditor";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const LIGHT_SLOT = "builder.imageEditor.slotLight";
 const DARK_SLOT = "builder.imageEditor.slotDark";
@@ -89,6 +101,7 @@ const PHOTO = "https://cdn.example.test/panel.jpg";
 const PHOTO_DARK = "https://cdn.example.test/panel-dark.jpg";
 const NEW_PHOTO = "https://cdn.example.test/nowy.jpg";
 const NEWER_PHOTO = "https://cdn.example.test/jeszcze-nowszy.jpg";
+const SITE_LOGO = "https://cdn.example.test/logo-witryny.svg";
 
 type Recorded = Array<[string, Json]>;
 interface EditorProps {
@@ -96,13 +109,24 @@ interface EditorProps {
   isGlobal?: boolean;
 }
 
-/** Edytor z rodzicem, który NIE stosuje zapisów - widać dokładnie, co edytor wysłał. */
-function renderEditor(content: WidgetContent, props: EditorProps = { widgetId: "w1" }) {
+/**
+ * Edytor z rodzicem, który NIE stosuje zapisów - widać dokładnie, co edytor wysłał.
+ * `siteLogo` to `theme_options.logo` zasiane we wspólnym cache'u ustawień, tak jak
+ * ma je podgląd na kanwie; bez niego cache jest pusty (witryna bez logo).
+ */
+function renderEditor(
+  content: WidgetContent,
+  props: EditorProps = { widgetId: "w1" },
+  siteLogo?: Record<string, unknown>,
+) {
   const calls: Recorded = [];
   const setContent = (key: string, value: Json) => {
     calls.push([key, value]);
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (siteLogo) {
+    client.setQueryData(siteSettingsQueryOptions.queryKey, { theme_options: { logo: siteLogo } });
+  }
   const ui = (c: WidgetContent, extra: EditorProps): ReactElement => (
     <QueryClientProvider client={client}>
       <ImageEditor c={c} lang="pl" setContent={setContent} {...extra} />
@@ -152,6 +176,23 @@ const changeSlot = (label: string, value: string) =>
   act(async () => {
     probe.slots[label].onChange(value);
   });
+
+/** PropField nie wiąże etykiety z kontrolką przez htmlFor - szukamy po wrapperze. */
+function selectFor(label: string): HTMLElement {
+  const control = screen
+    .getByText(label)
+    .closest("div")
+    ?.querySelector<HTMLElement>("[role='combobox']");
+  if (!control) throw new Error(`Brak selecta dla pola "${label}"`);
+  return control;
+}
+
+/** Otwiera selecta Radiksa i klika opcję - jak redaktor w panelu. */
+const pickOption = async (label: string, optionLabel: string) => {
+  fireEvent.keyDown(selectFor(label), { key: "ArrowDown" });
+  fireEvent.click(within(screen.getByRole("listbox")).getByText(optionLabel));
+  await flush();
+};
 
 /** Rozstrzyga wstrzymany pomiar adresu (tryb ręczny). */
 const settle = (url: string, size: string) =>
@@ -269,6 +310,215 @@ describe("ImageEditor - pomiar po zaznaczeniu widgetu", () => {
 
     expect(probe.calls).toEqual([NEW_PHOTO]);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("ImageEditor - zaznaczenie mierzy tylko to, czego użyje renderer", () => {
+  it.each(["16/9", "1/1", "4/3"])(
+    'obraz w ramce ("Proporcje" %s): zaznaczenie nie mierzy i nie zapisuje',
+    async (ratio) => {
+      probe.sizes = { [PHOTO]: "1200x675", [PHOTO_DARK]: "800x600" };
+      const { calls } = renderEditor({ src: PHOTO, srcDark: PHOTO_DARK, ratio });
+      await flush();
+
+      expect(probe.calls).toEqual([]);
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it.each([["auto"], [""]])(
+    '"Proporcje" %j to obraz bez ramki: plik jest mierzony',
+    async (ratio) => {
+      probe.sizes = { [PHOTO]: "1200x675" };
+      const { calls } = renderEditor({ src: PHOTO, ratio });
+      await flush();
+
+      expect(calls).toEqual([["srcIntrinsic", "1200x675"]]);
+    },
+  );
+
+  it('"Użyj logo witryny" przy skonfigurowanym logo: własny plik nie jest rysowany, więc ani mierzony', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, useSiteLogo: "main" }, undefined, {
+      main: SITE_LOGO,
+    });
+    await flush();
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('alt ze słowem "logo" przy skonfigurowanym logo: jak wyżej', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, alt_pl: "Logo", alt_en: "Logo" }, undefined, {
+      main: SITE_LOGO,
+    });
+    await flush();
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('"Użyj logo witryny", ale witryna nie ma logo: renderer rysuje własny plik, więc jest mierzony', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, useSiteLogo: "main" }, undefined, {});
+    await flush();
+
+    expect(calls).toEqual([["srcIntrinsic", "1200x675"]]);
+  });
+
+  it("plik widgetu ma wpis na liście rozmiarów motywu: renderer bierze tamten, więc nic nie mierzymy", async () => {
+    probe.sizes = { [SITE_LOGO]: "350x150" };
+    const { calls } = renderEditor({ src: SITE_LOGO }, undefined, {
+      main: SITE_LOGO,
+      intrinsic: [[SITE_LOGO, "350x150"]],
+    });
+    await flush();
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it("ten sam adres w obu slotach: renderer czyta tylko `srcIntrinsic`, więc mierzony jest jeden slot", async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, srcDark: PHOTO });
+    await flush();
+
+    expect(probe.calls).toEqual([PHOTO]);
+    expect(calls).toEqual([["srcIntrinsic", "1200x675"]]);
+  });
+
+  it("wynik, który wraca, gdy obraz dostał już ramkę, przepada", async () => {
+    probe.manual = true;
+    const { calls, rerender } = renderEditor({ src: PHOTO });
+    expect(probe.calls).toEqual([PHOTO]);
+
+    // Rodzic oddaje treść z ramką (np. "ponów"), zanim pomiar wróci.
+    rerender({ src: PHOTO, ratio: "16/9" });
+    await flush();
+    await settle(PHOTO, "1200x675");
+
+    expect(calls).toEqual([]);
+  });
+
+  it("zmiana pliku w obrazie w ramce nadal mierzy nowy plik (to edycja, nie zaznaczenie)", async () => {
+    probe.sizes = { [NEW_PHOTO]: "640x480" };
+    const { calls } = renderEditor({ src: PHOTO, ratio: "16/9" });
+    await flush();
+    expect(probe.calls).toEqual([]);
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+
+    expect(calls).toEqual([
+      ["src", NEW_PHOTO],
+      ["srcIntrinsic", "640x480"],
+    ]);
+  });
+});
+
+describe("ImageEditor - ustawienie, które włącza użycie rozmiaru, mierzy plik od razu", () => {
+  it('"Proporcje" z 16:9 na auto: zapis proporcji, potem rozmiary obu plików', async () => {
+    probe.sizes = { [PHOTO]: "1200x675", [PHOTO_DARK]: "800x600" };
+    const { calls } = renderEditor({ src: PHOTO, srcDark: PHOTO_DARK, ratio: "16/9" });
+    await flush();
+    expect(calls).toEqual([]);
+
+    await pickOption("Proporcje", "auto");
+
+    expect(probe.calls).toEqual([PHOTO, PHOTO_DARK]);
+    expect(calls).toEqual([
+      ["ratio", "auto"],
+      ["srcIntrinsic", "1200x675"],
+      ["srcDarkIntrinsic", "800x600"],
+    ]);
+  });
+
+  it('"Proporcje" na auto przy zapisanym, zgodnym rozmiarze: sam zapis proporcji', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, srcIntrinsic: "1200x675", ratio: "16/9" });
+    await flush();
+
+    await pickOption("Proporcje", "auto");
+
+    expect(probe.calls).toEqual([PHOTO]);
+    expect(calls).toEqual([["ratio", "auto"]]);
+  });
+
+  it('"Proporcje" z ramki na inną ramkę i z auto na ramkę: bez pomiaru', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const framed = renderEditor({ src: PHOTO, ratio: "16/9" });
+    await flush();
+    await pickOption("Proporcje", "1:1");
+    expect(probe.calls).toEqual([]);
+    expect(framed.calls).toEqual([["ratio", "1/1"]]);
+    cleanup();
+
+    const unframed = renderEditor({ src: PHOTO, srcIntrinsic: "1200x675" });
+    await flush();
+    probe.calls = [];
+    await pickOption("Proporcje", "16:9");
+    expect(probe.calls).toEqual([]);
+    expect(unframed.calls).toEqual([["ratio", "16/9"]]);
+  });
+
+  it('wyłączenie "Użyj logo witryny": własny plik wraca do renderu i jest mierzony', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, useSiteLogo: "main" }, undefined, {
+      main: SITE_LOGO,
+    });
+    await flush();
+    expect(probe.calls).toEqual([]);
+
+    await pickOption("Użyj logo witryny", "nie - własna grafika poniżej");
+
+    expect(probe.calls).toEqual([PHOTO]);
+    expect(calls).toEqual([
+      ["useSiteLogo", ""],
+      ["srcIntrinsic", "1200x675"],
+    ]);
+  });
+
+  it('włączenie "Użyj logo witryny" niczego nie mierzy', async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({ src: PHOTO, srcIntrinsic: "1200x675" }, undefined, {
+      main: SITE_LOGO,
+    });
+    await flush();
+    probe.calls = [];
+
+    await pickOption("Użyj logo witryny", "logo główne");
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([["useSiteLogo", "main"]]);
+  });
+
+  it("instancja widgetu globalnego: zdjęcie ramki to edycja redaktora, więc plik JEST mierzony", async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor(
+      { src: PHOTO, ratio: "16/9" },
+      { widgetId: "w1", isGlobal: true },
+    );
+    await flush();
+    expect(probe.calls).toEqual([]);
+
+    await pickOption("Proporcje", "auto");
+
+    expect(calls).toEqual([
+      ["ratio", "auto"],
+      ["srcIntrinsic", "1200x675"],
+    ]);
+  });
+
+  it("rodzic stosujący zapisy: po zdjęciu ramki treść kończy z proporcją auto i rozmiarem pliku", async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls, state } = renderLiveEditor({ src: PHOTO, ratio: "16/9" });
+    await flush();
+    expect(calls).toEqual([]);
+
+    await pickOption("Proporcje", "auto");
+
+    expect(state.content).toEqual({ src: PHOTO, ratio: "auto", srcIntrinsic: "1200x675" });
+    expect(probe.calls).toEqual([PHOTO]);
   });
 });
 
