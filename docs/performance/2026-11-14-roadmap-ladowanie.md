@@ -78,10 +78,10 @@ każdy zimny izolat renderuje od zera.
 
 ### Partia C. Start zimnego izolatu (wysokie ryzyko, osobny PR)
 
-| #   | Pozycja                                                                                                                              | Weryfikacja                                                                    | Stan       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ---------- |
-| C1  | „Front door": podanie dokumentu z cache w `src/server.ts` przed importem routera. Zysk dopiero przy działającym cache współdzielonym | lokalny workerd: TTFB pierwszego żądania przy HIT; `check:server-entry-purity` | niezaczęte |
-| C2  | Dalszy podział kodu serwera (`/login` płaci >2 s bez bazy): trasy profilu, checkoutu, wydarzeń-studio leniwie także na serwerze      | rozmiar artefaktu i liczba modułów; równoważność HTML 11 adresów               | niezaczęte |
+| #   | Pozycja                                                                                                                              | Weryfikacja                                                                    | Stan                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | „Front door": podanie dokumentu z cache w `src/server.ts` przed importem routera. Zysk dopiero przy działającym cache współdzielonym | lokalny workerd: TTFB pierwszego żądania przy HIT; `check:server-entry-purity` | oceniony projekt, bez implementacji (`2026-11-15-zimny-start-c2.md` §7): nie omija kompilacji skryptu, na obecnym hostingu wymaga magazynu w bazie; czeka na W1                                                                               |
+| C2  | Dalszy podział kodu serwera (`/login` płaci >2 s bez bazy): trasy profilu, checkoutu, wydarzeń-studio leniwie także na serwerze      | rozmiar artefaktu i liczba modułów; równoważność HTML 11 adresów               | wykonane w części (`2026-11-15-zimny-start-c2.md`): SDK MCP poza domknięciem dokumentu, zaślepki tras `ssr: false` i `/profile/*`; 1 893 → 1 796 modułów, 14,11 → 13,23 MB, lokalnie −3 % (`/login`) i −7 % (`/`) zimnego startu; reszta w §8 |
 
 ### Partia D. Klient (średnie ryzyko)
 
