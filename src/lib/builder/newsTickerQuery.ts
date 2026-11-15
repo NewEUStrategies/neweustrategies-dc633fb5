@@ -15,6 +15,8 @@ import {
   postsConstrainedByTaxonomy,
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
 
 export interface TickerPost {
   id: string;
@@ -24,7 +26,24 @@ export interface TickerPost {
   author_id: string | null;
   author_display_name: string | null;
   author_avatar_url: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` - z niej `postHref` liczy
+   * adres kanoniczny pozycji paska. Brak pola albo `null` = `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
+
+/**
+ * Kolumny wiersza paska. Ostatnia pozycja to osadzenie strony-rodzica
+ * (`POST_PARENT_PAGE_EMBED`, `lib/routing/postHref.ts`): pasek stoi w chrome
+ * każdej trasy, więc adres kanoniczny jedzie w tym samym odczycie, bez
+ * osobnego round-tripu po ścieżki.
+ */
+export const TICKER_POST_COLUMNS =
+  "id, slug, title_pl, title_en, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+/** `TICKER_POST_COLUMNS` bez osadzenia - odczyt zapasowy (`readWithPostParentPage`). */
+export const TICKER_POST_PLAIN_COLUMNS = "id, slug, title_pl, title_en, author_id";
 
 /** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
 type ProfileAuthor = { id: string | null; display_name: string | null; avatar_url: string | null };
@@ -79,12 +98,20 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
     includeCategories: input.categorySlugs,
   }).catch((): null => null);
   if (constraints === null) return [];
-  const q = postsConstrainedByTaxonomy("id, slug, title_pl, title_en, author_id", constraints)
-    .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(input.limit);
-  const { data } = await q;
-  const posts = (data ?? []) as TickerPost[];
+  // Dwa warianty kolumn jednego zapytania: z osadzeniem strony-rodzica i -
+  // tylko gdy tamto odda błąd - bez niego (pasek z adresami zapasowymi zamiast
+  // pustego paska po rozjeździe schematu `pages`). `columns: string` - powód
+  // w `postListQuery.ts` (parser typów `select`).
+  const read = (columns: string) =>
+    postsConstrainedByTaxonomy(columns, constraints)
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(input.limit);
+  const { data } = await readWithPostParentPage(
+    () => read(TICKER_POST_COLUMNS),
+    () => read(TICKER_POST_PLAIN_COLUMNS),
+  );
+  const posts = (data ?? []) as unknown as TickerPost[];
 
   const authorIds = Array.from(
     new Set(posts.map((p) => p.author_id).filter((id): id is string => !!id)),
