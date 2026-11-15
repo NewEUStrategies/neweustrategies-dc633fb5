@@ -246,6 +246,18 @@ describe("loader trasy `/$` - decyzje", () => {
     expect(vi.mocked(fetchLegacyPostPath)).toHaveBeenCalledWith("nie-ma-takiej-strony");
   });
 
+  it("adres skanera daje notFound bez pytania o taksonomię i o stary adres wpisu", async () => {
+    // `wp-login.php` nie może być slugiem archiwum ani wpisu, więc 404
+    // rozstrzyga sama rezolucja treści - bez drugiej fali round-tripów.
+    for (const splat of ["wp-login.php", ".env", "vendor/phpunit/eval-stdin.php"]) {
+      const thrown = await runLoader(splat);
+      expect(isNotFound(thrown)).toBe(true);
+    }
+    expect(stub.chainsFor("categories")).toEqual([]);
+    expect(stub.chainsFor("tags")).toEqual([]);
+    expect(vi.mocked(fetchLegacyPostPath)).not.toHaveBeenCalled();
+  });
+
   it("zapytanie o taksonomię filtruje po slugu i bierze co najwyżej jeden wiersz", async () => {
     await runLoader("afryka");
     const chain = stub.lastChain("categories");

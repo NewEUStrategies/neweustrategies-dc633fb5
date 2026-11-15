@@ -111,6 +111,39 @@ describe("lookupMissingPath - które odczyty dla jakiego adresu", () => {
     });
   });
 
+  it.each([
+    { nazwa: "plik skanera", segments: ["wp-login.php"] },
+    { nazwa: "plik konfiguracji", segments: [".env"] },
+    { nazwa: "wielkie litery", segments: ["HNAP1"] },
+    {
+      nazwa: "ostatni segment adresu wielosegmentowego",
+      segments: ["vendor", "phpunit", "eval-stdin.php"],
+    },
+  ])(
+    "segment, który nie może być slugiem ($nazwa), nie kosztuje zapytania",
+    async ({ segments }) => {
+      // Nawet gdyby baza coś „znalazła", reguła nie pyta - wynik jest negatywny
+      // z samego kształtu adresu.
+      stub.setResponse("categories", ok({ slug: "nie-do-znalezienia" }));
+      harness.legacyPath = "analizy/nie-do-znalezienia";
+      await expect(lookupMissingPath(segments)).resolves.toEqual({
+        categorySlug: null,
+        tagSlug: null,
+        legacyPostPath: null,
+      });
+      expect(stub.chains).toEqual([]);
+      expect(harness.legacySlugs).toEqual([]);
+    },
+  );
+
+  it("o tym, czy pytać, decyduje OSTATNI segment - nietypowy rodzic nie blokuje starego adresu wpisu", async () => {
+    harness.legacyPath = "analizy/atom";
+    await expect(lookupMissingPath(["Stara_Sekcja", "atom"])).resolves.toMatchObject({
+      legacyPostPath: "analizy/atom",
+    });
+    expect(harness.legacySlugs).toEqual(["atom"]);
+  });
+
   it("pusty adres nie kosztuje ani jednego zapytania", async () => {
     await expect(lookupMissingPath([])).resolves.toEqual({
       categorySlug: null,

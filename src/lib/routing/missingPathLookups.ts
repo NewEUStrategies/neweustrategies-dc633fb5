@@ -41,6 +41,7 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 
 import { fetchLegacyPostPath } from "./legacyPostPath";
 import {
+  canBeStoredSlug,
   legacyLookupSlug,
   needsTaxonomyLookup,
   type MissingContentInput,
@@ -125,10 +126,14 @@ const NOTHING_FOUND: MissingPathLookups = Object.freeze({
  * Klucz pamięci to slug i RODZAJ fali, nie pełna ścieżka: adres wielosegmentowy
  * pyta wyłącznie o wpis po ostatnim segmencie, więc `/a/<slug>` i `/b/<slug>`
  * dzielą jeden wpis, a goły `/<slug>` (z taksonomią) ma osobny.
+ *
+ * Segment, który nie może być slugiem (`canBeStoredSlug`: `/wp-login.php`,
+ * `/.env`), nie kosztuje ani zapytania, ani wpisu w pamięci izolatu - przelot
+ * skanera nie wypiera więc z niej ustawień i menu.
  */
 export async function lookupMissingPath(segments: readonly string[]): Promise<MissingPathLookups> {
   const slug = legacyLookupSlug(segments);
-  if (!slug) return NOTHING_FOUND;
+  if (!canBeStoredSlug(slug)) return NOTHING_FOUND;
   const withTaxonomy = needsTaxonomyLookup(segments);
   try {
     return await edgeTtlCache(

@@ -328,6 +328,37 @@ export function legacyLookupSlug(segments: readonly string[]): string {
   return segments.length === 0 ? "" : segments[segments.length - 1];
 }
 
+/**
+ * Alfabet slugów zapisywanych przez aplikację: małe litery ASCII, cyfry
+ * i dywiz. Wszystkie drogi zapisu go wymuszają - `SLUG_RE` wpisów, stron
+ * i kategorii (`lib/content.functions.ts`), `slugify` importu WordPressa
+ * (`lib/wp-import/slug.ts`) i `slugifyTaxonomy` (`lib/content/taxonomySlug.ts`).
+ * Celowo LUŹNIEJSZY niż `SLUG_RE`: bez długości i z dywizem na brzegu, bo
+ * przycięcie do limitu potrafi zostawić slug zakończony dywizem.
+ */
+const STORED_SLUG_ALPHABET = /^[a-z0-9-]+$/;
+
+/**
+ * Czy segment adresu MOŻE być slugiem kategorii, tagu albo wpisu - czyli czy
+ * odczyty zapasowe gałęzi „treści nie ma" mają w ogóle czego szukać.
+ *
+ * PO CO. Większość nietrafionych adresów to skanery: `/wp-login.php`,
+ * `/.env`, `/xmlrpc.php`, `/HNAP1`. Żaden z nich nie może trafić
+ * w archiwum ani w stary adres wpisu (porównanie w bazie jest dokładne,
+ * a takiego sluga aplikacja nie zapisze), a każdy płacił trzy zapytania
+ * i drugą falę round-tripów przed pierwszym bajtem strony 404.
+ *
+ * CZEGO TA REGUŁA NIE DOTYKA. Rezolucji samej treści: o to, czy pod adresem
+ * stoi strona albo wpis, nadal pyta `resolve_path` - dla KAŻDEGO adresu.
+ * Reguła wycina wyłącznie przekierowania RATUNKOWE (goły slug -> archiwum,
+ * stary adres -> adres kanoniczny), więc slug spoza alfabetu wpisany ręcznie
+ * do bazy najwyżej nie dostanie takiego przekierowania; jego własny adres
+ * działa jak dotąd.
+ */
+export function canBeStoredSlug(segment: string): boolean {
+  return STORED_SLUG_ALPHABET.test(segment);
+}
+
 /** Ścieżka kanoniczna zapisana z segmentów - forma porównywalna z wynikiem bazy. */
 export function segmentsToPath(segments: readonly string[]): string {
   return segments.join("/");

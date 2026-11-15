@@ -41,7 +41,7 @@ vi.mock("../legacyPostPath", () => ({
   },
 }));
 
-import { clearEdgeTtlCache } from "@/lib/ssrCache";
+import { clearEdgeTtlCache, peekEdgeTtlCache } from "@/lib/ssrCache";
 
 import { lookupMissingPath, MISSING_PATH_TTL_MS } from "../missingPathLookups";
 
@@ -100,6 +100,21 @@ describe("lookupMissingPath - pamięć izolatu", () => {
       tagSlug: null,
       legacyPostPath: null,
     });
+  });
+
+  it("segment, który nie może być slugiem, nie zajmuje wpisu w pamięci izolatu", async () => {
+    // Magazyn ma sufit wpisów i wypiera najstarsze (ustawienia, menu), więc
+    // przelot skanera po `*.php` nie może dokładać klucza na każdy adres.
+    await expect(lookupMissingPath(["wp-login.php"])).resolves.toEqual(NIC);
+    expect(roundTrips()).toBe(0);
+    await expect(
+      peekEdgeTtlCache("public:missing-path:slug:wp-login.php", MISSING_PATH_TTL_MS),
+    ).resolves.toBeUndefined();
+    // Kontrola dodatnia tego samego przyrządu: zwykły slug wpis zostawia.
+    await lookupMissingPath(["nie-ma"]);
+    await expect(
+      peekEdgeTtlCache("public:missing-path:slug:nie-ma", MISSING_PATH_TTL_MS),
+    ).resolves.toEqual(NIC);
   });
 
   it("błędu bazy NIE zapamiętuje: następne żądanie pyta ponownie i dostaje prawdziwy wynik", async () => {

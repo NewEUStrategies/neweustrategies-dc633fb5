@@ -24,9 +24,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { slugifyTaxonomy } from "@/lib/content/taxonomySlug";
 import { configuredHomepagePageId, type HomepageCandidatePage } from "@/lib/seo/homepagePage";
+import { legacySlugify, slugify } from "@/lib/wp-import/slug";
 
 import {
+  canBeStoredSlug,
   FEED_ROUTE,
   homepageCandidate,
   legacyLookupSlug,
@@ -404,6 +407,58 @@ describe("needsTaxonomyLookup - kiedy warto zapłacić dwa zapytania", () => {
     // Adres wielosegmentowy nie jest gołym slugiem archiwum, więc pytanie
     // o kategorię i tag byłoby kosztem bez zysku na KAŻDYM nietrafionym adresie.
     expect(needsTaxonomyLookup(segments)).toBe(oczekiwane);
+  });
+});
+
+describe("canBeStoredSlug - czy odczyty zapasowe mają czego szukać", () => {
+  it.each([
+    // ── MOŻE BYĆ SLUGIEM: pytamy o archiwum i o stary adres wpisu ────────
+    { segment: "afryka", oczekiwane: true },
+    { segment: "minister-radoslaw-sikorski-w-sejmie", oczekiwane: true },
+    { segment: "2026", oczekiwane: true },
+    { segment: "a", oczekiwane: true },
+    // Przycięcie do limitu długości potrafi zostawić dywiz na końcu sluga.
+    { segment: "bardzo-dlugi-tytul-", oczekiwane: true },
+    // ── NIE MOŻE: ruch skanerów i adresy, których aplikacja nie zapisze ──
+    { segment: "wp-login.php", oczekiwane: false },
+    { segment: "xmlrpc.php", oczekiwane: false },
+    { segment: ".env", oczekiwane: false },
+    { segment: "index.html", oczekiwane: false },
+    { segment: "HNAP1", oczekiwane: false },
+    { segment: "Afryka", oczekiwane: false },
+    { segment: "o_nas", oczekiwane: false },
+    { segment: "zażółć", oczekiwane: false },
+    { segment: "za%C5%BC%C3%B3%C5%82%C4%87", oczekiwane: false },
+    { segment: "a b", oczekiwane: false },
+    { segment: ";stok=", oczekiwane: false },
+    // Pusty segment (pusty adres) - nie ma czego szukać.
+    { segment: "", oczekiwane: false },
+  ])("„$segment” -> $oczekiwane", ({ segment, oczekiwane }) => {
+    expect(canBeStoredSlug(segment)).toBe(oczekiwane);
+  });
+
+  it("przyjmuje KAŻDY slug, jaki potrafią nadać generatory aplikacji", () => {
+    // Sedno bezpieczeństwa reguły: gdyby którykolwiek generator umiał nadać
+    // slug spoza alfabetu, goły adres takiego archiwum albo stary adres takiego
+    // wpisu przestałby dostawać przekierowanie. Wejścia celowo „brudne".
+    const tytuly = [
+      "Tytuł: podtytuł",
+      "Łódź, Żółw & Gęś",
+      "Straße – Ærø (œuvre)",
+      "  Spacje   na   brzegach  ",
+      "UPPER lower 123",
+      "kropka.w.środku i_podkreślenie",
+      "emoji 🚀 i 中文",
+      "a".repeat(300),
+      `${"wyraz-".repeat(40)}koniec`,
+    ];
+    for (const tytul of tytuly) {
+      for (const slug of [slugify(tytul), legacySlugify(tytul), slugifyTaxonomy(tytul)]) {
+        // Pusty wynik to „brak sluga" - aplikacja go nie zapisze, więc nie
+        // musi przechodzić reguły.
+        if (slug !== "") expect(canBeStoredSlug(slug), slug).toBe(true);
+      }
+    }
   });
 });
 
