@@ -23,6 +23,11 @@
 //  6. Przełączenie "Proporcji" na auto albo wyłączenie "Użyj logo witryny"
 //     mierzy plik od razu - efekt z pkt 1 nie uruchomi się drugi raz dla tego
 //     samego widgetu.
+//  7. PLIK BEZ WŁASNEJ PROPORCJI (werdykt `noRatio` pomiaru) ZERUJE rozmiar
+//     zapisany dla slotu - w odróżnieniu od pomiaru nieudanego, który zapisaną
+//     wartość zostawia. Zerowanie idzie wyłącznie ścieżkami z pkt 1, 2 i 6 i
+//     pod warunkiem z pkt 5: zaznaczenie nie pisze do slotu, którego renderer
+//     nie użyje.
 //
 // `measureIntrinsicSize` jest atrapą (środowisko testowe nie ładuje obrazów);
 // `ImageSlot` jest PRAWDZIWY - atrapa tylko podsłuchuje jego propsy, żeby test
@@ -45,6 +50,8 @@ interface SlotProbeProps {
 const probe = vi.hoisted(() => ({
   /** Wynik pomiaru per adres; brak wpisu = pomiar nieudany (`""`). */
   sizes: {} as Record<string, string>,
+  /** Adresy plików, które się ładują, ale nie mają własnej proporcji. */
+  noRatio: [] as string[],
   /** Adresy, o których pomiar poproszono, w kolejności. */
   calls: [] as string[],
   /** Tryb ręczny: pomiar czeka, aż test rozstrzygnie go przez `settle`. */
@@ -57,8 +64,15 @@ const probe = vi.hoisted(() => ({
 vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: (url: string) => {
     probe.calls.push(url);
-    const result = (size: string) => ({ size, noRatio: false });
-    if (!probe.manual) return Promise.resolve(result(probe.sizes[url] ?? ""));
+    // Tryb ręczny: `settle(url, NO_RATIO)` rozstrzyga pomiar werdyktem "plik bez
+    // własnej proporcji", każdy inny napis to rozmiar (albo `""` = porażka).
+    const result = (size: string) =>
+      size === "no-ratio" ? { size: "", noRatio: true } : { size, noRatio: false };
+    if (!probe.manual) {
+      return Promise.resolve(
+        result(probe.noRatio.includes(url) ? "no-ratio" : (probe.sizes[url] ?? "")),
+      );
+    }
     return new Promise<ReturnType<typeof result>>((resolve) => {
       probe.pending.push({ url, resolve: (size) => resolve(result(size)) });
     });
@@ -98,12 +112,16 @@ const LIGHT_SLOT = "builder.imageEditor.slotLight";
 const DARK_SLOT = "builder.imageEditor.slotDark";
 const DARK_HINT = "builder.imageEditor.slotDarkHint";
 const NOT_STORED = "builder.imageEditor.sizeNotStored";
+/** Werdykt atrapy pomiaru w trybie ręcznym: plik bez własnej proporcji. */
+const NO_RATIO = "no-ratio";
 
 const PHOTO = "https://cdn.example.test/panel.jpg";
 const PHOTO_DARK = "https://cdn.example.test/panel-dark.jpg";
 const NEW_PHOTO = "https://cdn.example.test/nowy.jpg";
 const NEWER_PHOTO = "https://cdn.example.test/jeszcze-nowszy.jpg";
 const SITE_LOGO = "https://cdn.example.test/logo-witryny.svg";
+/** SVG bez `viewBox` i bez `width`/`height`: ładuje się, ale nie ma proporcji. */
+const SHAPELESS = "https://cdn.example.test/bez-proporcji.svg";
 
 type Recorded = Array<[string, Json]>;
 interface EditorProps {
@@ -254,6 +272,7 @@ const settle = (url: string, size: string) =>
 
 beforeEach(() => {
   probe.sizes = {};
+  probe.noRatio = [];
   probe.calls = [];
   probe.manual = false;
   probe.pending = [];
@@ -568,6 +587,151 @@ describe("ImageEditor - ustawienie, które włącza użycie rozmiaru, mierzy pli
 
     expect(state.content).toEqual({ src: PHOTO, ratio: "auto", srcIntrinsic: "1200x675" });
     expect(probe.calls).toEqual([PHOTO]);
+  });
+});
+
+describe("ImageEditor - plik bez własnej proporcji zeruje zapisany rozmiar", () => {
+  it("zaznaczenie: zapisany rozmiar zastępczy znika jednym zapisem pustej wartości", async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+    await flush();
+
+    expect(probe.calls).toEqual([SHAPELESS]);
+    expect(calls).toEqual([["srcIntrinsic", ""]]);
+  });
+
+  it("zaznaczenie: slot bez zapisanego rozmiaru nie dostaje żadnego zapisu", async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor({ src: SHAPELESS });
+    await flush();
+
+    expect(probe.calls).toEqual([SHAPELESS]);
+    expect(calls).toEqual([]);
+  });
+
+  it("slot ciemny: zerowany jest tylko `srcDarkIntrinsic`", async () => {
+    probe.noRatio = [SHAPELESS];
+    probe.sizes = { [PHOTO]: "1200x675" };
+    const { calls } = renderEditor({
+      src: PHOTO,
+      srcDark: SHAPELESS,
+      srcIntrinsic: "1200x675",
+      srcDarkIntrinsic: "300x150",
+    });
+    await flush();
+
+    expect(calls).toEqual([["srcDarkIntrinsic", ""]]);
+  });
+
+  it("pomiar NIEUDANY zapisanego rozmiaru nie rusza - zeruje tylko werdykt o braku proporcji", async () => {
+    // Ten sam stan, dwa różne wyniki pomiaru.
+    const failed = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+    await flush();
+    expect(failed.calls).toEqual([]);
+    cleanup();
+
+    probe.noRatio = [SHAPELESS];
+    const shapeless = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+    await flush();
+    expect(shapeless.calls).toEqual([["srcIntrinsic", ""]]);
+  });
+
+  it("zaznaczenie nie pisze do slotu, którego renderer nie użyje: obraz w ramce zostaje nietknięty", async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150", ratio: "16/9" });
+    await flush();
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it("instancja widgetu globalnego: zaznaczenie niczego nie zeruje", async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor(
+      { src: SHAPELESS, srcIntrinsic: "300x150" },
+      { widgetId: "w1", isGlobal: true },
+    );
+    await flush();
+
+    expect(probe.calls).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('"Proporcje" na auto: plik wraca do renderu bez ramki, więc jego rozmiar zastępczy jest zerowany', async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150", ratio: "16/9" });
+    await flush();
+    expect(calls).toEqual([]);
+
+    await pickOption("Proporcje", "auto");
+
+    expect(probe.calls).toEqual([SHAPELESS]);
+    expect(calls).toEqual([
+      ["ratio", "auto"],
+      ["srcIntrinsic", ""],
+    ]);
+  });
+
+  it("zmiana pliku na plik bez proporcji: rozmiar zerowany RAZ, w kroku zmiany adresu", async () => {
+    probe.sizes = { [PHOTO]: "1200x675" };
+    probe.noRatio = [SHAPELESS];
+    const { calls } = renderEditor({ src: PHOTO, srcIntrinsic: "1200x675" });
+    await flush();
+
+    await changeSlot(LIGHT_SLOT, SHAPELESS);
+
+    expect(calls).toEqual([
+      ["src", SHAPELESS],
+      ["srcIntrinsic", ""],
+    ]);
+  });
+
+  it("werdykt, który wraca, gdy slot wskazuje już inny plik, przepada", async () => {
+    probe.manual = true;
+    const { calls } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+    await settle(NEW_PHOTO, "640x480");
+    // Pomiar z zaznaczenia (stary plik) wraca jako ostatni.
+    await settle(SHAPELESS, NO_RATIO);
+
+    expect(calls).toEqual([
+      ["src", NEW_PHOTO],
+      ["srcIntrinsic", ""],
+      ["srcIntrinsic", "640x480"],
+    ]);
+  });
+
+  it("werdykt, który wraca, gdy obraz dostał już ramkę, przepada (rozmiar zostaje)", async () => {
+    probe.manual = true;
+    const { calls, rerender } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+
+    rerender({ src: SHAPELESS, srcIntrinsic: "300x150", ratio: "16/9" });
+    await flush();
+    await settle(SHAPELESS, NO_RATIO);
+
+    expect(calls).toEqual([]);
+  });
+
+  it("werdykt, który wraca po odmontowaniu edytora, przepada", async () => {
+    probe.manual = true;
+    const { calls, unmount } = renderEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+
+    unmount();
+    await settle(SHAPELESS, NO_RATIO);
+
+    expect(calls).toEqual([]);
+  });
+
+  it("rodzic stosujący zapisy: treść kończy z pustym rozmiarem, podpowiedź mówi o braku wymiarów, a pomiar nie rusza drugi raz", async () => {
+    probe.noRatio = [SHAPELESS];
+    const { calls, state } = renderLiveEditor({ src: SHAPELESS, srcIntrinsic: "300x150" });
+    await flush();
+
+    expect(state.content).toEqual({ src: SHAPELESS, srcIntrinsic: "" });
+    expect(calls).toEqual([["srcIntrinsic", ""]]);
+    expect(probe.calls).toEqual([SHAPELESS]);
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
   });
 });
 

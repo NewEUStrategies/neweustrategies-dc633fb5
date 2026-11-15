@@ -29,6 +29,14 @@
 // cofnięcie przywraca starszy adres albo pusty rozmiar, efekt zapisałby wtedy
 // ponownie, a każdy zapis czyści stos "ponów".
 //
+// PLIK BEZ WŁASNEJ PROPORCJI (werdykt `noRatio` pomiaru, np. SVG bez `viewBox`)
+// ZERUJE rozmiar zapisany dla slotu: to rozmiar zastępczy przeglądarki albo
+// rozmiar pliku, który stał pod tym adresem wcześniej, i jego atrybuty zmieniają
+// kształt obrazu na stałe. Zerowanie idzie tymi samymi ścieżkami co zapis
+// rozmiaru (zmiana pliku, zaznaczenie, przełączone ustawienie) i pod tymi samymi
+// warunkami - zaznaczenie nie pisze do slotu, którego renderer nie użyje.
+// Pomiar NIEUDANY (plik niedostępny, limit czasu) niczego nie zmienia.
+//
 // ZNANE OGRANICZENIE. Wynik pomiaru zapisuje EDYTOR ZAZNACZONEGO widgetu. Gdy
 // redaktor odznaczy widget albo zaznaczy inny, zanim pomiar nowego pliku wróci
 // (okno to czas pobrania obrazu), wynik przepada i treść zostaje z nowym
@@ -186,16 +194,23 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
   }, []);
 
   /**
-   * Mierzy plik slotu i zapisuje rozmiar, jeśli różni się od zapisanego.
+   * Mierzy plik slotu i zapisuje rozmiar, jeśli różni się od zapisanego. Plik
+   * bez własnej proporcji (`noRatio`) zapisuje rozmiar PUSTY, czyli zeruje
+   * wartość zapisaną wcześniej; pomiar nieudany niczego nie zapisuje.
    * `onlyIfUsed`: pomiar wywołany zaznaczeniem albo przełączeniem ustawienia -
    * wynik przepada, gdy renderer w międzyczasie przestał rozmiaru używać.
    */
   const capture = useCallback((slot: FileSlot, url: string, onlyIfUsed = false) => {
     if (!url) return;
-    void measureIntrinsicSize(url).then(({ size }) => {
+    void measureIntrinsicSize(url).then(({ size, noRatio }) => {
       const now = latest.current;
       const key = INTRINSIC_KEY[slot];
-      if (!alive.current || !size || readText(now, slot) !== url || readText(now, key) === size) {
+      if (
+        !alive.current ||
+        !(size || noRatio) ||
+        readText(now, slot) !== url ||
+        readText(now, key) === size
+      ) {
         return;
       }
       if (onlyIfUsed && !slotUse(now)[slot]) return;
