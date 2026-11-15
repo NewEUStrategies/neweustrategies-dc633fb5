@@ -575,10 +575,10 @@ describe("resolveMissingContent - decyzja, gdy treści nie ma", () => {
   });
 });
 
-describe("resolveTaxonomyFallback - połowa decyzji, którą loader liczy pierwszą", () => {
+describe("resolveTaxonomyFallback - połowa decyzji z pierwszeństwem nad starym adresem wpisu", () => {
   it("zwraca null, gdy adres nie jest gołym slugiem", () => {
-    // Loader używa tego, żeby NIE płacić round-tripu po starym adresie wpisu,
-    // gdy archiwum i tak wygra.
+    // Pierwszeństwo archiwum przesądza TA funkcja, nie kolejność zapytań:
+    // loader pyta o taksonomię i o stary adres wpisu jedną falą.
     expect(resolveTaxonomyFallback({ segments: ["a", "b"], categorySlug: "b" })).toBeNull();
   });
 

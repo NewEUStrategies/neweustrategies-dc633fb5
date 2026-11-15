@@ -188,17 +188,14 @@ import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
-import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+import { lookupMissingPath } from "@/lib/routing/missingPathLookups";
 import {
   homepageCandidate,
-  legacyLookupSlug,
-  needsTaxonomyLookup,
   planHomepageDuplicate,
   planPublicPath,
   readingSettingsFrom,
   resolveHomepageDuplicate,
   resolveMissingContent,
-  resolveTaxonomyFallback,
   type FeedRedirect,
   type HomepageRivalCheck,
   type TaxonomyRedirect,
@@ -490,35 +487,18 @@ export const Route = createFileRoute("/$")({
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
-      // Taxonomy fallback: /<slug> may point at a category or tag archive.
-      // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
-      // slug matches one, redirect there instead of 404-ing.
-      let categorySlug: string | null = null;
-      let tagSlug: string | null = null;
-      if (needsTaxonomyLookup(segments)) {
-        const slug = segments[0];
-        const [{ data: cat }, { data: tag }] = await Promise.all([
-          supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
-          supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
-        ]);
-        categorySlug = cat?.slug ?? null;
-        tagSlug = tag?.slug ?? null;
-      }
-      // Taksonomia ma pierwszeństwo, więc rozstrzygamy ją PRZED round-tripem
-      // po starym adresie wpisu - inaczej trafiony archiwum płaciłoby
-      // zapytanie, którego wynik i tak zostałby zignorowany.
-      const taxonomy = resolveTaxonomyFallback({ segments, categorySlug, tagSlug });
-      if (taxonomy) {
-        setCacheControlHeader(NO_STORE);
-        throw taxonomyRedirect(taxonomy);
-      }
-      // Stare adresy wpisów: płaskie poWordPressowe (/<slug>) oraz takie z
-      // nieaktualnym rodzicem (/stara-sekcja/<slug>). Slug wpisu jest globalnie
-      // unikalny, więc ostatni segment wystarcza, by wskazać nową, kanoniczną
-      // ścieżkę (pełna ścieżka rodzica + slug) - 301, żeby przekazać link juice.
-      const legacyPostPath = await resolveLegacyPostPath(legacyLookupSlug(segments));
-      const decision = resolveMissingContent({ segments, categorySlug, tagSlug, legacyPostPath });
+      // ODCZYTY ZAPASOWE JEDNĄ FALĄ (`lib/routing/missingPathLookups.ts`):
+      // goły slug może wskazywać archiwum kategorii albo tagu (`/category/<slug>`,
+      // `/tag/<slug>`), a ostatni segment - stary adres wpisu (płaski
+      // poWordPressowy albo z nieaktualnym rodzicem; slug wpisu jest globalnie
+      // unikalny, 301 przekazuje moc linków na ścieżkę kanoniczną). Do
+      // 2026-11-14 szły dwiema SZEREGOWYMI falami (taksonomia, potem wpis),
+      // więc każde 404 płaciło trzy fale round-tripów przed pierwszym bajtem.
+      // Pierwszeństwo taksonomii rozstrzyga `resolveMissingContent`, nie
+      // kolejność zapytań.
+      const decision = resolveMissingContent({ segments, ...(await lookupMissingPath(segments)) });
       setCacheControlHeader(NO_STORE);
+      if (decision.kind === "taxonomy-redirect") throw taxonomyRedirect(decision);
       if (decision.kind === "canonical-redirect") {
         throw redirect({
           to: "/$",

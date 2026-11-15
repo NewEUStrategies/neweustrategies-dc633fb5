@@ -336,10 +336,13 @@ export function segmentsToPath(segments: readonly string[]): string {
 /**
  * FAZA 2a: goły slug wskazujący archiwum taksonomii.
  *
- * Wydzielone, bo loader MUSI móc rozstrzygnąć tę część PRZED zapłaceniem
- * round-tripu za stary adres wpisu - taksonomia ma pierwszeństwo, więc gdy
- * trafi, zapytanie o wpis jest kosztem bez zysku. Jedna implementacja: pełna
- * decyzja niżej woła tę samą funkcję.
+ * Wydzielone jako osobna, nazwana połowa decyzji: taksonomia ma pierwszeństwo
+ * nad starym adresem wpisu i to TA funkcja o tym przesądza - nie kolejność
+ * zapytań. Loader pyta o taksonomię i o stary adres wpisu JEDNĄ falą
+ * (`missingPathLookups.ts`; do 2026-11-14 szeregowo, co dokładało falę
+ * round-tripów do każdego 404), a wynik zapytania o wpis jest przy trafionym
+ * archiwum po prostu odrzucany. Jedna implementacja: pełna decyzja niżej woła
+ * tę samą funkcję.
  *
  * Kategoria przed tagiem: goły slug może istnieć w obu, a kolejność jest
  * kontraktem, nie przypadkiem.
