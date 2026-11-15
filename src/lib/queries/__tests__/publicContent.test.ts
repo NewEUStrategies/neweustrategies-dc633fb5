@@ -1362,6 +1362,17 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     expect(filtrEq(baza().chainsFor("posts")[0], "slug")).toEqual(["slug", "o-nas"]);
   });
 
+  it("adres wielosegmentowy, którego ostatni segment nie może być slugiem, nie spekuluje", async () => {
+    // Skanery (`/wp-admin/setup-config.php`, `/.git/config`): żaden wpis nie
+    // ma takiego sluga, a gałąź „treści nie ma" dla takich adresów nie pyta
+    // bazy wcale. Podpowiedź byłaby zapytaniem, które nie może trafić.
+    planuj({ resolve: ok([]) });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["wp-admin", "setup-config.php"])),
+    ).resolves.toBeNull();
+    expect(baza().chainsFor("posts")).toHaveLength(0);
+  });
+
   it("strona, która zniknęła między rezolucją a pobraniem, daje `null`", async () => {
     planuj({ resolve: TRAFIENIE_STRONY, strony: { poId: ok(null) } });
     await expect(klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]))).resolves.toBeNull();

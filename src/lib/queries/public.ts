@@ -10,6 +10,7 @@ import { GUEST_ACCESS_CONTEXT, stripInaccessibleNodes } from "@/lib/builder/acce
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { canBeStoredSlug } from "@/lib/routing/resolvePublicPath";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
@@ -764,9 +765,11 @@ type PostResolveRow = NonNullable<Awaited<ReturnType<typeof postRowById>>["data"
  * (i obietnica bywa porzucana, gdy adres okazuje się stroną).
  *
  * KOSZT. Adres jednosegmentowy nie może być wpisem (`resolve_path` wymaga
- * strony-rodzica), więc nie spekuluje. Strona zagnieżdżona i nieistniejący
- * adres wielosegmentowy płacą jedno zapytanie po indeksie `(tenant_id, slug)`
- * więcej - RÓWNOLEGŁE do `resolve_path`, więc bez wpływu na liczbę fal.
+ * strony-rodzica), więc nie spekuluje; nie spekuluje też adres, którego ostatni
+ * segment nie może być slugiem (skanery). Strona zagnieżdżona i nieistniejący
+ * adres wielosegmentowy o poprawnym slugu płacą jedno zapytanie po indeksie
+ * `(tenant_id, slug)` więcej - RÓWNOLEGŁE do `resolve_path` i zgłoszone PO nim,
+ * więc bez wpływu na liczbę fal i bez zajmowania mu miejsca w kolejce połączeń.
  */
 function speculativePostRows(slug: string): Promise<PostResolveRow[]> {
   return Promise.resolve(
@@ -895,11 +898,23 @@ async function resolveContentForSegments(
   segments: string[],
   onPathHit?: ResolvedPathHitListener,
 ): Promise<ResolvedContent | null> {
+  // `resolve_path` IDZIE NA DRUT PIERWSZE (przegląd B2, 2026-11-15). Zimny
+  // izolat startuje w tym oknie 8 podżądań (4 korzenia, 2 trasy, rezolucja
+  // i podpowiedź) przy sześciu połączeniach Workera, a kolejka obsługuje je
+  // w kolejności zgłoszenia. Rezolucja bramkuje całą resztę treści, podpowiedź
+  // niczego - gdyby szła pierwsza, to ona zajmowałaby wcześniejszy slot.
+  // `.then` wprost, nie `await` niżej: budowniczy PostgREST wysyła żądanie
+  // dopiero przy pierwszym `.then`.
+  const resolving = supabase.rpc("resolve_path", { _segments: segments }).then((r) => r);
+  // Podpowiedź tylko dla segmentu, który MOŻE być slugiem wpisu. Adresy
+  // skanerów (`/wp-admin/setup-config.php`, `/.git/config`) nie trafią w żaden
+  // wpis, a gałąź „treści nie ma" właśnie dla nich przestała pytać bazę
+  // (`canBeStoredSlug` w `lib/routing/resolvePublicPath.ts`); slug spoza
+  // alfabetu wpisany ręcznie do bazy obsłuży odczyt po id, jak dotąd.
+  const lastSegment = segments[segments.length - 1];
   const speculativeRows =
-    segments.length >= 2 ? speculativePostRows(segments[segments.length - 1]) : null;
-  const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
-    _segments: segments,
-  });
+    segments.length >= 2 && canBeStoredSlug(lastSegment) ? speculativePostRows(lastSegment) : null;
+  const { data: resolved, error: rErr } = await resolving;
   if (rErr) throw rErr;
   const hit = (resolved ?? [])[0] as { page_id: string | null; post_id: string | null } | undefined;
   if (!hit?.page_id) return null;
