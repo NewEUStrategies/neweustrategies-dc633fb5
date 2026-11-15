@@ -64,7 +64,7 @@ każdy zimny izolat renderuje od zera.
 | A1  | Etykieta sekcji jako nagłówek 2. stopnia (`role="heading" aria-level=2`), żeby strona nie skakała z `h1` na `h3`                                                                                                                                                                     | `src/lib/builder/sectionLabelVariants.tsx`                                                                                                                                                | testy `sectionLabel*.test.tsx` + nowy test roli; miniatury `sm` i puste etykiety bez roli                | wykonane (test `sectionLabelHeadingRole.test.tsx`, 24 przypadki)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | A2  | Kanoniczne adresy wpisów w widgetach zamiast `/post/<slug>` (dziś każde kliknięcie = 301 + 2 odczyty bazy). Wspólny pomocnik `postHref`; ścieżka rodzica z osadzenia `pages` w tym samym zapytaniu (zero dodatkowych podróży); zapas `/post/<slug>` gdy rodzic zagnieżdżony/nieznany | nowy `src/lib/routing/postHref.ts`; `latestPostsSuperset.ts`, `postListQuery.ts`, `sliderPostsQuery.ts`; `PostListView.tsx`, `PostsSliderWidget.tsx`; potem pozostałe widoki (lista w §4) | test równości kolumn nadzbioru; test pomocnika; `check:ts-sql-contract`; dokument `/` bez `href="/post/` | wykonane dla post-listy, slidera, pasków news-ticker i trending-now oraz listy ocenianej (`b38389cf`, `8c83feb7`, `51ba632b`): adres kanoniczny z osadzenia strony-rodzica w tym samym zapytaniu, zapas `/post/<slug>`. Zostają: bloki treści (7 widoków, `POST_SELECT` w `lib/queries/blocks.ts`), lista `/blog`, mega menu, wyszukiwarka, lista do przeczytania; `get_post_refs` i rekomendacje wymagają zmiany RPC (E). Po wdrożeniu sprawdzić jednym żądaniem anon, że `parent_page` wraca wypełnione |
 | A3  | Kontrast i wielkość celów dotykowych (komputer)                                                                                                                                                                                                                                      | do ustalenia                                                                                                                                                                              | lokalny Lighthouse (lista elementów)                                                                     | wymaga listy elementów z audytu                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| A4  | Wymiary logotypów SVG (`width`/`height` albo `aspect-ratio`)                                                                                                                                                                                                                         | komponent logo nagłówka i stopki                                                                                                                                                          | audyt „unsized-images" pusty; CLS bez zmian                                                              | niezaczęte                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| A4  | Wymiary logotypów SVG (`width`/`height` albo `aspect-ratio`)                                                                                                                                                                                                                         | komponent logo nagłówka i stopki                                                                                                                                                          | audyt „unsized-images" pusty; CLS bez zmian                                                              | na gałęzi (`0a29a634`…`e35f3e6f`, 8 commitów), PRZED przeglądem i pełnym typecheckiem po scaleniu: naturalny rozmiar pliku jako atrybuty `width`/`height` dla logo pasków, logo motywu i własnego pliku widgetu obrazu; pomiar w panelu przy zapisie opcji motywu i w edytorze obrazu. Bez zapisanych wymiarów znaczniki są jak dotąd (złote wzorce HTML). Wymaga kroków właściciela po wdrożeniu (§8)                                                                                                    |
 
 ### Partia B. Koszt renderu serwera na każdej trasie (średnie ryzyko, bez migracji)
 
@@ -317,3 +317,55 @@ powód 2, `s-maxage=30` to powód 3, `s-maxage=900` to dokument zapisany, więc
 kolejny MISS oznacza inny izolat), `nes-iso;desc="req=N"` (ten sam izolat
 podaje kolejne numery) i `db;desc="n=..."` (spadek przy powtórzeniu w tym
 samym izolacie).
+
+## 8. Stan na 15.11.2026, 15:05 i ciąg dalszy
+
+Zapis stanu na wypadek przerwania sesji. Gałąź `claude/kind-brown-vrah7o`,
+szkic PR #542, HEAD `e35f3e6f` plus ten commit.
+
+### Zweryfikowane na `d94ec1f3` (wszystko poza A4)
+
+Build `cloudflare-module`, `check:bundle` (5 383,9 KB przy progu 5 386 KB),
+`check:server-entry-purity`, `check:entry-purity`, `check:chunks`,
+`verify:static`, `typecheck` (aplikacja, skrypty, e2e), ESLint całego
+repozytorium (0 błędów; uruchamiać z `--ignore-pattern ".claude/"`, jeśli
+w katalogu leżą kopie robocze agentów) i pełny zestaw testów (3 949 plików,
+97 695 testów zielonych, 194 oczekiwane porażki, 51 pominiętych - jak na bazie).
+
+### A4 (8 commitów nad `d94ec1f3`): do zrobienia przed uznaniem za gotowe
+
+1. Pełny typecheck po scaleniu: `rm -f node_modules/.cache/tsconfig.tsbuildinfo`
+   i `bunx tsgo --noEmit --singleThreaded`, bez innych ciężkich procesów
+   (z nieaktualnym plikiem przyrostowym tsgo rośnie do 14 GB i jest zabijany).
+   Agent miał zielony typecheck tylko w zakresie zmienionych plików.
+2. Testy dotkniętych modułów na gałęzi, potem build i `check:bundle`: A4 dokłada
+   kod do chunku startowego (szacunek agenta ~1 KB surowego, niezmierzony),
+   a zapas pod progiem to 2,1 KB.
+3. Przegląd w trzech perspektywach (geometria i zgodność SSR z hydratacją,
+   trwałość danych, sens testów i audyt `unsized-images`) trwał w chwili zapisu
+   jako przepływ `image-intrinsic-dimensions` (run `wf_8caa1290-14a`); jego
+   wynik i ewentualne poprawki NIE są na gałęzi. Po przerwaniu: wznowić przepływ
+   (`resumeFromRunId`) albo powtórzyć sam przegląd na zakresie
+   `d94ec1f3..e35f3e6f`.
+4. Linia dopisana do `AGENTS.md` (reguła naturalnego rozmiaru obrazu) wymaga
+   akceptacji właściciela.
+5. Kroki właściciela po wdrożeniu (bez nich produkcja renderuje się jak dziś):
+   zapis w `/admin/theme-options` bez zmian (mierzy pliki logo); kliknięcie
+   obrazu z proporcją „auto" na stronie głównej w builderze i zapis; kontrola
+   w źródle strony: logo `width="350" height="150"`, obraz
+   `width="1200" height="675"`.
+
+### Po wdrożeniu całości: do sprawdzenia na produkcji
+
+- `server-timing` wpisu i 404: `db;desc="n=…"` wobec liczb z §0.
+- Jedno żądanie anonimowe do PostgREST z osadzeniem `parent_page`: czy wraca
+  wypełnione (inaczej linki zostają `/post/<slug>`, z ostrzeżeniem `[postHref]`).
+- Który preset builda stosuje hosting (`cloudflare-module` czy
+  `lovable-fetch-bundle`): w drugim poprawka chunku SDK MCP nie działa.
+
+### Następne pozycje
+
+A2 ciąg dalszy (bloki treści, lista `/blog`, mega menu, wyszukiwarka), D2
+(podział arkusza stylów), D1/D3, F. Decyzje właściciela bez zmian: §3 oraz
+pomarańczowy tekst, kanoniczna lista wydarzeń, zgoda na migracje RPC
+(powłoka strony to dziś najdłuższy łańcuch przed pierwszym bajtem).
