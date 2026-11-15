@@ -190,6 +190,7 @@ import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHead
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 import { lookupMissingPath } from "@/lib/routing/missingPathLookups";
+import { completeAfterResponse } from "@/lib/ssrCache";
 import {
   homepageCandidate,
   planHomepageDuplicate,
@@ -487,26 +488,45 @@ export const Route = createFileRoute("/$")({
     // się rezolucja. Dotąd round-trip reklam stał SZEREGOWO za ostatnią falą
     // treści i na typowym wpisie był jedyną pracą fazy wtórnej, czyli pełnym
     // round-tripem doliczonym do pierwszego bajtu. Tylko serwer: w przeglądarce
-    // nie ma pierwszego bajtu do obrony. Adres bez treści (404, przekierowanie)
-    // słuchacza nie budzi; po terminie żądania też nie startujemy niczego.
+    // nie ma pierwszego bajtu do obrony. Adres bez treści (404, przekierowanie
+    // sprzed rezolucji) słuchacza nie budzi; po terminie żądania też nie
+    // startujemy niczego.
     // Faza wtórna niżej zbiera tę obietnicę i ma drogę zapasową (wynik
     // z cache'u izolatu nie woła słuchacza). Bramka ze stałą Vite PRZED
     // `isServer` (ten sam zapis co przy preloadach hero niżej): tylko ona
     // wycina tę gałąź z bundla przeglądarki.
     const earlyAds: { warm: Promise<void> | null } = { warm: null };
+    let stopEarlyAds: (() => void) | undefined;
     if ((import.meta.env.SSR || import.meta.env.DEV) && isServer) {
-      onResolvedPathHit(context.queryClient, ({ kind, id }) => {
+      stopEarlyAds = onResolvedPathHit(context.queryClient, ({ kind, id }) => {
         if (deadlineAt !== undefined && Date.now() >= deadlineAt) return;
-        earlyAds.warm = prefetchAdPlacementQueries(
+        const warm = prefetchAdPlacementQueries(
           context.queryClient,
           adWarmTargetsFor(getRequestUrl() || `/${splat}`, kind, id),
           kind,
         );
+        earlyAds.warm = warm;
+        // ZA ODPOWIEDZIĄ (przegląd B2, 2026-11-15). Trafienie ścieżki nie
+        // przesądza, że loader tę obietnicę zbierze: duplikat strony głównej
+        // kończy się 301, a błąd odnogi treści - dokumentem zdegradowanym.
+        // Lot jest wtedy właścicielem single-flightu klucza reklam w izolacie;
+        // bez `waitUntil` workerd mógłby go uciąć razem z odpowiedzią i zostawić
+        // wpis „w locie", do którego dołączałyby kolejne żądania. Obietnica
+        // nigdy nie odrzuca (`prefetchAdPlacementQueries`).
+        completeAfterResponse(warm);
       });
     }
     const contentWarm = context.queryClient.ensureQueryData(contentOptions).catch(() => undefined);
     if (deadlineAt === undefined) await contentWarm;
     else await withBudget(contentWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    // Faza pierwotna skończona: słuchacz przestaje istnieć NA KAŻDEJ ścieżce
+    // wyjścia. Treść oddana z pamięci izolatu jako nieświeża odświeża się
+    // w tle fetcherem TEGO żądania - bez wyrejestrowania jej `resolve_path`
+    // budziłby słuchacza po zakończeniu loadera (często po wysłaniu
+    // odpowiedzi) i odtwarzał zapytania reklam na posprzątanym kliencie
+    // z 30-minutowym zegarem gc, którego na Workers nic nie zdejmie
+    // (`src/router.tsx`). Droga zapasowa fazy wtórnej obsługuje ten przypadek.
+    stopEarlyAds?.();
     // DEGRADACJA TO NIE JEST 404 (audyt CWV F07 / W8). Do 2026-09-20 ta gałąź
     // czytała samo `getQueryData`, więc BRAK DANYCH z dowolnego powodu -
     // miniętego budżetu, anulowania przez watchdoga SSR, błędu PostgREST -

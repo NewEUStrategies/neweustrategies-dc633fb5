@@ -163,7 +163,7 @@ function storeEntry(
 // Workers moduł degraduje do fire-and-forget. Import dynamiczny, bo ten plik
 // jest współdzielony z klientem - statyczna krawędź wciągnęłaby moduł .server
 // do chunku wejściowego przeglądarki.
-function completeAfterResponse(work: Promise<unknown>): void {
+export function completeAfterResponse(work: Promise<unknown>): void {
   void import("@/lib/http/waitUntil.server")
     .then((m) => m.runAfterResponse(work))
     .catch(() => undefined);

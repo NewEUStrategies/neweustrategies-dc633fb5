@@ -65,6 +65,8 @@ const h = vi.hoisted(() => ({
    * rezolucję adresu (start rozgrzewek z trafienia ścieżki), planują ją tutaj.
    */
   rpcOdpowiedzi: {} as Record<string, unknown>,
+  /** Obietnice oddane `completeAfterResponse` (praca „za odpowiedzią"). */
+  zaOdpowiedzia: [] as Promise<unknown>[],
   /**
    * Czy loader biegnie na SERWERZE. Wstrzykiwane, a nie dziedziczone po
    * środowisku testowym: od tej jednej wartości zależy, czy trasa zakłada
@@ -143,6 +145,15 @@ vi.mock("@/lib/seo/widgetPreloads", async (o) => ({
 }));
 
 const stub = supabaseFromStub();
+
+// `completeAfterResponse` podglądane, reszta modułu prawdziwa: loader oddaje
+// rozgrzewkę reklam „za odpowiedź" i to jest jedyny ślad tej rejestracji.
+vi.mock("@/lib/ssrCache", async (o) => ({
+  ...(await o<typeof import("@/lib/ssrCache")>()),
+  completeAfterResponse: (work: Promise<unknown>) => {
+    h.zaOdpowiedzia.push(work);
+  },
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -492,6 +503,7 @@ beforeEach(() => {
   h.rpcError = null;
   h.rpcHang = false;
   h.rpcOdpowiedzi = {};
+  h.zaOdpowiedzia = [];
   h.isServer = true;
   h.zapytania = [];
   h.widgetPreloads = [];
@@ -1799,6 +1811,46 @@ describe("loader trasy `/$` - rozgrzewka slotów reklamowych", () => {
       queryClient.getQueryData(adPlacementsQueryOptions("top_of_post", "post", "post-1").queryKey),
     ).toEqual([NAD_TRESCIA]);
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(false);
+  });
+
+  it("rozgrzewka z trafienia ścieżki jest rejestrowana ZA ODPOWIEDZIĄ", async () => {
+    // Trafienie nie przesądza, że loader zbierze obietnicę: tu treść pada
+    // i wraca dokument zdegradowany, a lot reklam jest właścicielem
+    // single-flightu klucza w izolacie. Bez `waitUntil` workerd mógłby go
+    // uciąć razem z odpowiedzią.
+    h.rpcOdpowiedzi = { resolve_path: TRAFIENIE_WPISU };
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+
+    const { wynik } = await runLoader("analizy/atom");
+
+    expect(jakoWynik(wynik).kind).toBe("degraded");
+    expect(h.zaOdpowiedzia).toHaveLength(1);
+    await expect(h.zaOdpowiedzia[0]).resolves.toBeUndefined();
+  });
+
+  it("po fazie pierwotnej słuchacz trafienia ścieżki już nie istnieje", async () => {
+    // Treść oddana z pamięci izolatu jako nieświeża odświeża się w tle
+    // fetcherem TEGO żądania. Jego `resolve_path` wraca po zakończeniu
+    // loadera - nie może wtedy odtworzyć zapytań reklam na kliencie żądania.
+    h.rpcOdpowiedzi = { resolve_path: TRAFIENIE_WPISU };
+    stub.setResponse("ad_placements", ok([NAD_TRESCIA]));
+
+    const { queryClient } = await runLoader("analizy/atom");
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+
+    // Późna rezolucja na tym samym kliencie: klucze reklam zdjęte, więc żywy
+    // słuchacz MUSIAŁBY zapytać o sloty drugi raz.
+    queryClient.removeQueries({ queryKey: ["ad_placements"] });
+    await queryClient
+      .fetchQuery({
+        ...resolvedContentQueryOptions(splatToSegments("analizy/atom")),
+        staleTime: 0,
+      })
+      .catch(() => undefined);
+
+    expect(h.zapytania.filter((t) => t === "rpc:resolve_path").length).toBeGreaterThanOrEqual(2);
+    expect(h.zapytania.filter((t) => t === "ad_placements")).toHaveLength(1);
+    expect(h.zaOdpowiedzia).toHaveLength(1);
   });
 
   it("W PRZEGLĄDARCE rozgrzewka nie startuje z trafienia ścieżki", async () => {
