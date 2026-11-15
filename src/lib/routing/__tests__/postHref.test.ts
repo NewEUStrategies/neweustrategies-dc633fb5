@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 import {
   POST_PARENT_PAGE_EMBED,
+  postCanonicalHref,
   postColumnsWithParentPage,
   postHref,
   type PostHrefSource,
@@ -71,6 +72,29 @@ describe("postHref", () => {
       parent_page: { slug: "blog", parent_id: null },
     };
     expect(postHref(row)).toBe("/blog/atom");
+  });
+});
+
+describe("postCanonicalHref", () => {
+  // Dla powierzchni, które DOTĄD linkowały innym adresem niż `/post/<slug>`
+  // (płaskie `/<slug>` w panelu mega-menu i w widgecie tytułu): adres zapasowy
+  // wybierają same, więc potrzebują odpowiedzi „kanonicznego nie ma".
+  it("rodzic najwyższego poziomu: ten sam adres co `postHref`", () => {
+    const row = { slug: "atom", parent_page: { slug: "blog", parent_id: null } };
+    expect(postCanonicalHref(row)).toBe("/blog/atom");
+    expect(postCanonicalHref(row)).toBe(postHref(row));
+  });
+
+  it.each<[string, PostHrefSource]>([
+    ["wiersz bez pola", { slug: "atom" }],
+    ["rodzic niewidoczny dla gościa", { slug: "atom", parent_page: null }],
+    [
+      "rodzic zagnieżdżony",
+      { slug: "atom", parent_page: { slug: "energetyka", parent_id: "page-analizy" } },
+    ],
+    ["pusty slug rodzica", { slug: "atom", parent_page: { slug: "", parent_id: null } }],
+  ])("%s: null - zapas wybiera wołający, nie ta funkcja", (_label, row) => {
+    expect(postCanonicalHref(row)).toBeNull();
   });
 });
 

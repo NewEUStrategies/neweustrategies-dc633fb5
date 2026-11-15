@@ -119,6 +119,35 @@ describe("kolumna wyróżniona", () => {
     expect(screen.getAllByText("Wyróżniony wpis")).toHaveLength(2);
   });
 
+  /** Adresy karty wyróżnionej: okładka z tytułem i CTA „Czytaj więcej". */
+  function featuredHrefs(): Array<string | null> {
+    const title = screen.getByRole("heading", { name: "Analiza UE" }).closest("a");
+    const cta = screen.getByText("Czytaj więcej").closest("a");
+    return [title, cta].map((a) => a?.getAttribute("href") ?? null);
+  }
+
+  it("rodzic najwyższego poziomu: oba linki karty prowadzą na adres kanoniczny", () => {
+    // Płaskie `/<slug>` trafia w 404 trasy `/$` i dopiero stamtąd w 301,
+    // a `AppLink` płaci to już przy najechaniu kursorem.
+    render(
+      <MegaPanelView
+        cols={[column()]}
+        lang="pl"
+        featured={featuredPost({ parent_page: { slug: "blog", parent_id: null } })}
+      />,
+    );
+    expect(featuredHrefs()).toEqual(["/blog/analiza-ue", "/blog/analiza-ue"]);
+  });
+
+  it.each<[string, Partial<MegaFeaturedPost>]>([
+    ["wiersz bez rodzica (odczyt zapasowy, starszy wpis cache)", {}],
+    ["rodzic niewidoczny dla gościa", { parent_page: null }],
+    ["rodzic zagnieżdżony", { parent_page: { slug: "energetyka", parent_id: "pg-analizy" } }],
+  ])("%s: karta linkuje jak dotąd, płaskim /<slug>", (_label, over) => {
+    render(<MegaPanelView cols={[column()]} lang="pl" featured={featuredPost(over)} />);
+    expect(featuredHrefs()).toEqual(["/analiza-ue", "/analiza-ue"]);
+  });
+
   it("NIE wchodzi przy szerokim panelu - trzy kolumny wypełniają całą szerokość", () => {
     render(
       <MegaPanelView

@@ -80,14 +80,18 @@ function legacyPostHref(slug: string): string {
 }
 
 /**
- * Adres wpisu BEZ prefiksu języka (prefiks dokłada wołający - `localizedPath`
- * albo rewrite routera - dokładnie tak, jak robił to dla `/post/<slug>`).
+ * Adres kanoniczny wpisu BEZ prefiksu języka, o ile da się go policzyć
+ * z wiersza: `/<slug rodzica>/<slug wpisu>`, gdy wiersz niesie rodzica
+ * najwyższego poziomu. `null` w każdym innym przypadku (brak pola, `null`,
+ * rodzic zagnieżdżony, nieoczekiwany kształt) - adres zapasowy wybiera wołający.
  *
- * Kanoniczny `/<slug rodzica>/<slug wpisu>`, gdy wiersz niesie rodzica
- * najwyższego poziomu; w każdym innym przypadku (brak pola, `null`, rodzic
- * zagnieżdżony, nieoczekiwany kształt) adres zapasowy `/post/<slug>`.
+ * Wprost woła to powierzchnia, która DOTĄD linkowała innym adresem niż
+ * `/post/<slug>` (płaskie `/<slug>` w panelu mega-menu i w widgecie tytułu):
+ * bez rodzica do policzenia zostaje przy swoim dotychczasowym adresie, bo oba
+ * zapasy różnią się skutkiem dla wpisu bez strony-rodzica (`/post/` -> 302 na
+ * `/blog`, płaski -> 404 trasy `/$`). Wszystkie pozostałe wołają `postHref`.
  */
-export function postHref(post: PostHrefSource): string {
+export function postCanonicalHref(post: PostHrefSource): string | null {
   const parent = post.parent_page;
   if (
     parent !== null &&
@@ -98,5 +102,16 @@ export function postHref(post: PostHrefSource): string {
   ) {
     return `/${parent.slug}/${post.slug}`;
   }
-  return legacyPostHref(post.slug);
+  return null;
+}
+
+/**
+ * Adres wpisu BEZ prefiksu języka (prefiks dokłada wołający - `localizedPath`
+ * albo rewrite routera - dokładnie tak, jak robił to dla `/post/<slug>`).
+ *
+ * Kanoniczny `/<slug rodzica>/<slug wpisu>` (`postCanonicalHref`), a gdy
+ * wiersz nie daje go policzyć - adres zapasowy `/post/<slug>`.
+ */
+export function postHref(post: PostHrefSource): string {
+  return postCanonicalHref(post) ?? legacyPostHref(post.slug);
 }

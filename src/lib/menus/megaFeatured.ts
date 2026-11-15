@@ -3,6 +3,8 @@
 // konkretny wpis. W przeciwnym razie zwraca ostatni opublikowany.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export interface MegaFeaturedPost {
   id: string;
@@ -18,8 +20,19 @@ export interface MegaFeaturedPost {
   author_display_name: string | null;
   author_slug: string | null;
   author_avatar_url: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` - z niej panel liczy adres
+   * kanoniczny karty (`postCanonicalHref`). Brak pola albo `null` = dotychczasowy,
+   * płaski `/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 
+/**
+ * Kolumny wyróżnionego wpisu - jedyny literał kolumn obu odczytów i zarazem
+ * odczyt zapasowy; wariant z osadzeniem strony-rodzica dokleja
+ * `readPostsWithParentPage` (`lib/routing/postParentPageRead.ts`).
+ */
 const COLS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id";
 
@@ -34,6 +47,7 @@ interface RawMegaFeaturedPost {
   published_at: string | null;
   post_format: string | null;
   author_id: string | null;
+  parent_page?: PostParentPage | null;
 }
 
 const EMPTY_AUTHOR: Pick<
@@ -52,36 +66,49 @@ export async function fetchMegaFeatured(postId: string | null): Promise<MegaFeat
   return { ...raw, ...author };
 }
 
+// Oba odczyty niosą stronę-rodzica osadzeniem (adres kanoniczny karty bez
+// osobnego round-tripu). Błąd odczytu Z OSADZENIEM nie jest błędem karty: leci
+// to samo zapytanie bez osadzenia i dopiero JEGO wynik rozstrzyga jak dotąd -
+// błąd albo brak wskazanego wpisu schodzi na najnowszy, błąd najnowszego daje
+// brak karty. `columns: string` - powód w `lib/builder/postListQuery.ts`.
 async function fetchRawMegaFeatured(postId: string | null): Promise<RawMegaFeaturedPost | null> {
   if (postId) {
-    const { data, error } = await supabase
-      .from("posts")
-      .select(COLS)
-      .eq("id", postId)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .maybeSingle();
+    const { data, error } = await readPostsWithParentPage(
+      (columns: string) =>
+        supabase
+          .from("posts")
+          .select(columns)
+          .eq("id", postId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .maybeSingle(),
+      COLS,
+    );
     if (error || !data) {
       // fallback do najnowszego
       return fetchLatestRaw();
     }
-    return data as RawMegaFeaturedPost;
+    return data as unknown as RawMegaFeaturedPost;
   }
   return fetchLatestRaw();
 }
 
 async function fetchLatestRaw(): Promise<RawMegaFeaturedPost | null> {
-  const { data, error } = await supabase
-    .from("posts")
-    .select(COLS)
-    .eq("status", "published")
-    .is("deleted_at", null)
-    .not("cover_image_url", "is", null)
-    .order("published_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await readPostsWithParentPage(
+    (columns: string) =>
+      supabase
+        .from("posts")
+        .select(columns)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("cover_image_url", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    COLS,
+  );
   if (error) return null;
-  return (data as RawMegaFeaturedPost | null) ?? null;
+  return (data as unknown as RawMegaFeaturedPost | null) ?? null;
 }
 
 async function fetchAuthor(
