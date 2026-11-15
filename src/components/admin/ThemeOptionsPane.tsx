@@ -48,6 +48,8 @@ import { ThemeFontSizesPane } from "@/components/admin/ThemeFontSizesPane";
 import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
+import { measureLogoIntrinsic } from "@/lib/admin/logoIntrinsic";
+import type { IntrinsicSizeEntry } from "@/lib/media/intrinsicSize";
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
@@ -99,6 +101,13 @@ type ThemeOptions = {
     bookmark_windows: string;
     bookmark_windows_dark: string;
     add_to_home_screen: boolean;
+    /**
+     * Naturalne rozmiary plików logo (`[adres, "WxH"]`), mierzone przy każdym
+     * "Zapisz" - patrz `measureLogoIntrinsic`. Strona dokłada z nich atrybuty
+     * `width`/`height` znacznikom logo. Poza `DEFAULTS`: brak listy to
+     * poprawny stan (znaczniki bez atrybutów).
+     */
+    intrinsic?: IntrinsicSizeEntry[];
   };
   header: {
     layout: HeaderLayout;
@@ -357,8 +366,30 @@ export function ThemeOptionsPane() {
     "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"
   >("default");
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Trwa pomiar plików logo poprzedzający zapis (patrz `withLogoIntrinsic`).
+  const [measuring, setMeasuring] = useState(false);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
+
+  // Naturalne rozmiary plików logo są mierzone W AKCJI zapisu, a nie efektem w
+  // tle: "Zapisz" kliknięte zaraz po otwarciu panelu nie może wyprzedzić
+  // pomiaru i zapisać dokumentu bez rozmiarów. Pomiar nigdy nie odrzuca
+  // obietnicy (limit 5 s na plik), więc zapis zawsze dochodzi do skutku.
+  const withLogoIntrinsic = async (next: ThemeOptions): Promise<ThemeOptions> => {
+    setMeasuring(true);
+    try {
+      return { ...next, logo: { ...next.logo, intrinsic: await measureLogoIntrinsic(next.logo) } };
+    } finally {
+      setMeasuring(false);
+    }
+  };
+  const saveDraft = async () => {
+    const next = await withLogoIntrinsic(draft);
+    // Szkic dostaje tylko świeżą listę rozmiarów - pola zmienione w trakcie
+    // pomiaru zostają w formularzu nietknięte.
+    setDraft((d) => (d ? { ...d, logo: { ...d.logo, intrinsic: next.logo.intrinsic } } : d));
+    save.mutate(next);
+  };
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
     setDraft({ ...draft, logo: { ...draft.logo, ...p } });
@@ -442,9 +473,13 @@ export function ThemeOptionsPane() {
                   <Clock className="w-4 h-4 mr-2" />
                   {t("themeOptions.history.button")}
                 </Button>
-                <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+                <Button
+                  size="sm"
+                  onClick={() => void saveDraft()}
+                  disabled={save.isPending || measuring}
+                >
                   <Save className="w-4 h-4 mr-2" />{" "}
-                  {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
+                  {save.isPending || measuring ? t("themeOptions.saving") : t("themeOptions.save")}
                 </Button>
               </div>
             </div>
@@ -1484,7 +1519,9 @@ export function ThemeOptionsPane() {
         settingsKey="theme_options"
         currentValue={draft}
         onRestore={async (value) => {
-          const restored = value as ThemeOptions;
+          // Rewizja niesie rozmiary z chwili jej zapisu - mierzymy pliki, które
+          // PRZYWRACA, żeby lista opisywała logo po przywróceniu.
+          const restored = await withLogoIntrinsic(value as ThemeOptions);
           setDraft(restored);
           await save.mutateAsync(restored);
         }}
