@@ -62,7 +62,8 @@ export const Route = createFileRoute("/podcasts/")({
       loadResilient(context.queryClient, showEpisodeStatsQueryOptions, NO_STATS),
     ]);
     const degraded = anyDegraded(episodes, shows, stats);
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

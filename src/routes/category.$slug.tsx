@@ -140,13 +140,14 @@ export const Route = createFileRoute("/category/$slug")({
     // Polityka 2. nie przebije ostrzejszej decyzji innego loadera tego samego
     // żądania: `narrowestCacheControl` (lib/http/cachePolicy.ts) wybiera
     // MNIEJSZE `s-maxage`, a `private`/`no-store` wygrywa bezwarunkowo.
-    setCacheControlHeader(
-      archive.degraded || archive.data === null
-        ? resilientCacheControl(true)
-        : settings.degraded
-          ? chromeDegradedCacheControl()
-          : resilientCacheControl(false),
-    );
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        archive.degraded || archive.data === null
+          ? resilientCacheControl(true)
+          : settings.degraded
+            ? chromeDegradedCacheControl()
+            : resilientCacheControl(false),
+      );
     // 404 WYŁĄCZNIE z czystego odczytu - blip nie ma prawa wypisać archiwum
     // z indeksu.
     const data = notFoundIfClean(archive);
@@ -171,7 +172,8 @@ export const Route = createFileRoute("/category/$slug")({
     // Reacta 19 (obraz `fetchPriority="high"` w powłoce) - link z `head()`
     // był jego duplikatem (`blog.index.tsx`).
     const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // TREŚĆ jest prawdziwa, więc strona renderuje się normalnie - nawet gdy
     // layout przyjechał z fallbacku (`layoutDegraded`), bo domyślki z kodu są
     // pełnoprawną prezentacją, a nie brakiem danych.

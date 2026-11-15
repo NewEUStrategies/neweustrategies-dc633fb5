@@ -46,7 +46,8 @@ export const Route = createFileRoute("/glossary")({
       glossaryTermsQueryOptions(),
       NO_TERMS,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

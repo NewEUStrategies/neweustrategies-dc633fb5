@@ -300,8 +300,10 @@ export const Route = createFileRoute("/")({
         // (strona główna bootuje po LCP): `lib/boot/bootSet.server.ts` przenosi je
         // z akumulatora `Link` do zestawu bootu, więc chunki przychodzą w tym samym
         // burście co wejście (warunek CLS 0, werdykt boot-js C3).
-        for (const hint of widgetPreloadHeaders(doc, ABOVE_FOLD_SECTION_COUNT))
-          appendLinkHeader(hint);
+        if (import.meta.env.SSR || import.meta.env.DEV) {
+          for (const hint of widgetPreloadHeaders(doc, ABOVE_FOLD_SECTION_COUNT))
+            appendLinkHeader(hint);
+        }
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
         if (deadlineAt === undefined) {
           await prefetchAboveFoldQueries(queryClient, doc, lang);
@@ -351,13 +353,14 @@ export const Route = createFileRoute("/")({
     // flushu, więc ta sama odpowiedź: krótka świeżość wspólna - pierwszy
     // czytelnik zasiewa L1/L2, a odświeżenie przy pierwszym STALE podmienia wpis
     // na render czysty.
-    setCacheControlHeader(
-      degraded
-        ? resilientCacheControl(true)
-        : aboveFoldLate
-          ? chromeDegradedCacheControl()
-          : resilientCacheControl(false),
-    );
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        degraded
+          ? resilientCacheControl(true)
+          : aboveFoldLate
+            ? chromeDegradedCacheControl()
+            : resilientCacheControl(false),
+      );
     // WERDYKT ZAPISU NA KOŃCU STRUMIENIA (P3.6b, R2a-b): nagłówek wyżej mówi,
     // co wiadomo w chwili loadera, a predykat - czy na końcu strumienia każde
     // dane tego dokumentu przyszły prawdziwe (bez zasiewów awaryjnych, błędów
@@ -367,7 +370,8 @@ export const Route = createFileRoute("/")({
     // Ten sam preload także jako nagłówek HTTP `Link`: przeglądarka startuje
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));

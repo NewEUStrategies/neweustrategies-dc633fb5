@@ -57,7 +57,8 @@ export const Route = createFileRoute("/tracker/changes")({
     // Zdegradowany render (pusty feed z fallbacku) nie może trafić do cache'a
     // wspólnego - brzeg serwowałby pustkę kolejnym czytelnikom długo po tym,
     // jak baza wróciła do zdrowia.
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

@@ -130,7 +130,8 @@ export const Route = createFileRoute("/pricing")({
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała. Cennik bez warstw i bez cen
     // wygląda jak oferta, której nie ma - nie wolno mu zamarznąć na brzegu na
     // 15 minut świeżości plus dobę okna stale.
-    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, audiences, faq, tiers, plans)));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(anyDegraded(seo, audiences, faq, tiers, plans)));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

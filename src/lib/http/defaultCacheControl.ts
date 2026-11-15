@@ -48,7 +48,7 @@ const LIVE_PATH_PREFIXES = ["/live"] as const;
  * składać jej przy każdym żądaniu i żeby była DOSŁOWNIE tą samą wartością, co
  * opt-out deklarowany przez trasy (`routes/admin.tsx`).
  */
-const NO_STORE = cacheControlHeader({ cacheable: false });
+const NO_STORE = /* @__PURE__ */ cacheControlHeader({ cacheable: false });
 
 /** Cache-Control dla powierzchni live: świeżość w sekundach. */
 export function liveCacheControl(): string {

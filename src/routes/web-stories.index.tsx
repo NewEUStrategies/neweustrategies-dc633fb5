@@ -31,7 +31,8 @@ export const Route = createFileRoute("/web-stories/")({
       latestWebStoriesQueryOptions(INDEX_LIMIT),
       NO_STORIES,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

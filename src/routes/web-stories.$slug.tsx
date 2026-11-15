@@ -55,7 +55,8 @@ export const Route = createFileRoute("/web-stories/$slug")({
     // zdegradowanemu („nie wiemy") i 404 (historia bywa publikowana minutę po
     // tym, jak crawler odwiedził jej adres). Ta trasa nie miała ŻADNEJ
     // polityki, więc zdegradowany render brał domyślną politykę treści.
-    setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
     // 404 WYŁĄCZNIE z czystego odczytu - niewiedza nie ma prawa wypisać
     // historii z indeksu.
     const data = notFoundIfClean(identity);
@@ -74,7 +75,8 @@ export const Route = createFileRoute("/web-stories/$slug")({
           imageSizes: COVER_IMAGE_SIZES,
         }
       : null;
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { story: data, degraded: false };
   },
   // ── NAGŁÓWEK PRZEZ WSPÓLNY BUDOWNIK, NIE RĘCZNIE ──────────────────────────

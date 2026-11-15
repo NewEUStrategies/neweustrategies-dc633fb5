@@ -81,7 +81,8 @@ export const Route = createFileRoute("/qa")({
     // fallbacku danych.
     const settingsDegraded = settings === undefined;
     if (!modules.qa_enabled) {
-      setCacheControlHeader(resilientCacheControl(settingsDegraded));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(settingsDegraded));
       return { sessions: [], degraded: settingsDegraded };
     }
     // Lista sesji jest treścią POD zgięciem i czyta ją `useQuery` (nie
@@ -93,7 +94,8 @@ export const Route = createFileRoute("/qa")({
       NO_QA_SESSIONS,
       { deadlineAt, label: "qa-sessions" },
     );
-    setCacheControlHeader(resilientCacheControl(settingsDegraded || sessions.degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(settingsDegraded || sessions.degraded));
     return {
       degraded: settingsDegraded || sessions.degraded,
       sessions: sessions.data.slice(0, 50).map((s) => ({

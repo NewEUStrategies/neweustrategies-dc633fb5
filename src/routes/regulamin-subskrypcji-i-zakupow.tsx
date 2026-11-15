@@ -60,7 +60,8 @@ export const Route = createFileRoute("/regulamin-subskrypcji-i-zakupow")({
     // czytelnika, tylko niekanoniczny dla brzegu - stąd krótka świeżość
     // z rewalidacją zamiast `no-store` (różnica wobec `resilientCacheControl`:
     // docblock helpera).
-    setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(staticFallbackCacheControl(anyDegraded(seo, document)));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

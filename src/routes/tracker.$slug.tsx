@@ -103,7 +103,8 @@ export const Route = createFileRoute("/tracker/$slug")({
     if (!degraded && !item) {
       // Zdegradowany render nie może utrwalić się na brzegu: kolejni czytelnicy
       // dostawaliby zapamiętane „nie znaleziono" długo po powrocie bazy.
-      setCacheControlHeader(resilientCacheControl(false));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(false));
       throw notFound();
     }
     let timelineDegraded = false;
@@ -116,7 +117,8 @@ export const Route = createFileRoute("/tracker/$slug")({
       );
       timelineDegraded = updates.degraded;
     }
-    setCacheControlHeader(resilientCacheControl(degraded || timelineDegraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded || timelineDegraded));
     return { item, degraded };
   },
   head: ({ loaderData, params }) => {

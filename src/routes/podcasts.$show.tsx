@@ -94,7 +94,8 @@ export const Route = createFileRoute("/podcasts/$show")({
     // samym rozróżnieniem, które opisuje komentarz wyżej.
     const show = notFoundIfClean(identity);
     if (show === null) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return { show: null, degraded: true };
     }
 
@@ -124,7 +125,8 @@ export const Route = createFileRoute("/podcasts/$show")({
             { deadlineAt, label: "podcast-show-people" },
           )
         : PEOPLE_NOT_APPLICABLE;
-    setCacheControlHeader(resilientCacheControl(anyDegraded(episodes, people)));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(anyDegraded(episodes, people)));
     // Preload LCP okładki programu - WYŁĄCZNIE nagłówek HTTP `Link` (fetch przed
     // parsowaniem HTML, utrwalany przez NES Edge Cache na HIT/STALE; droga do
     // 103 Early Hints). `<head>` dostaje preload od Reacta 19 z `<img
@@ -139,7 +141,8 @@ export const Route = createFileRoute("/podcasts/$show")({
     const coverPreload: ImagePreloadInput | null = show.cover_image_url
       ? { href: buildAvatarSrc(show.cover_image_url, 160) }
       : null;
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { show, degraded: episodes.degraded };
   },
   head: ({ loaderData, params }) => {

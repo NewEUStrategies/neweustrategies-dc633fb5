@@ -74,7 +74,8 @@ export const Route = createFileRoute("/programs/$slug")({
     // `no-store` należy się DWÓM sytuacjom i obie są przejściowe: renderowi
     // zdegradowanemu i 404. Ta trasa nie miała ŻADNEJ polityki, więc 404
     // z degradacji mógł jeszcze zamarznąć na brzegu dla kolejnych czytelników.
-    setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
     const landing = notFoundIfClean(identity);
     if (landing === null) return { landing: null, degraded: true };
     // Preload LCP hero programu - deskryptor odzwierciedla 1:1 render
@@ -91,7 +92,8 @@ export const Route = createFileRoute("/programs/$slug")({
     const heroPreload: ImagePreloadInput | null = hero
       ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
       : null;
-    if (heroPreload) appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && heroPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
     return { landing, degraded: false };
   },
   head: ({ loaderData, params }) => {

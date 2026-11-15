@@ -213,7 +213,8 @@ export const Route = createFileRoute("/sitemap")({
     // dostają własnej sekcji ani komunikatu: fallback `{}` tylko zostawia
     // linki tras, niczego nie chowa.
     const degraded = anyDegraded(pages, categories, posts, redirects);
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     // FLAGI JADĄ DO KOMPONENTU tym samym kontraktem co `/experts` i `/glossary`:
     // pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji. Bez
     // tego zasiany fallback wyglądał dokładnie jak prawda - sekcja wpisów pusta,

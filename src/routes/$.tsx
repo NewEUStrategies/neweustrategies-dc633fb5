@@ -231,7 +231,7 @@ const CONTENT_SSR_BUDGET_MS = 1_500;
 const SECONDARY_PREFETCH_BUDGET_MS = 1_500;
 const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 /**
  * WYJĄTEK OD `NO_STORE`: 301 ze starego kanału WordPressa wynika z SAMEGO
  * adresu (zero zapytań, żadna publikacja go nie zmieni), a czytniki RSS
@@ -239,7 +239,7 @@ const NO_STORE = contentCacheControl({ preview: true });
  * render SSR loaderów korzenia. Ten sam horyzont co 301 z `/feed`
  * (`routes/feed.ts`: doba).
  */
-const LEGACY_FEED_REDIRECT = cacheControlHeader({
+const LEGACY_FEED_REDIRECT = /* @__PURE__ */ cacheControlHeader({
   cacheable: true,
   browserMaxAge: 86_400,
   sharedMaxAge: 86_400,
@@ -449,15 +449,15 @@ export const Route = createFileRoute("/$")({
     const splat = (params as { _splat?: string })._splat ?? "";
     const plan = planPublicPath(splat);
     if (plan.kind === "not-found") {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     if (plan.kind === "feed-redirect") {
-      setCacheControlHeader(LEGACY_FEED_REDIRECT);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(LEGACY_FEED_REDIRECT);
       throw feedRedirect(plan);
     }
     if (plan.kind === "taxonomy-redirect") {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw taxonomyRedirect(plan);
     }
     const segments = [...plan.segments];
@@ -544,7 +544,8 @@ export const Route = createFileRoute("/$")({
       // w dehydratowanym ładunku (zamiatanie cache'u przed serializacją
       // zostawiłoby go jako wiszące zapytanie bez danych).
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return { kind: "degraded" as const, degraded: true, seoSettings: null };
     }
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
@@ -560,7 +561,7 @@ export const Route = createFileRoute("/$")({
       // Pierwszeństwo taksonomii rozstrzyga `resolveMissingContent`, nie
       // kolejność zapytań.
       const decision = resolveMissingContent({ segments, ...(await lookupMissingPath(segments)) });
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       if (decision.kind === "taxonomy-redirect") throw taxonomyRedirect(decision);
       if (decision.kind === "canonical-redirect") {
         throw redirect({
@@ -618,7 +619,7 @@ export const Route = createFileRoute("/$")({
           homepageDecision = rivals ? resolveHomepageDuplicate(reading, current, rivals) : null;
         }
         if (homepageDecision) {
-          setCacheControlHeader(NO_STORE);
+          if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
           throw redirect({ to: "/", search: true, statusCode: homepageDecision.statusCode });
         }
       }
@@ -657,7 +658,7 @@ export const Route = createFileRoute("/$")({
     // Duplikatów z nagłówkiem nie trzeba filtrować: `appendLinkHeader` trzyma
     // wartości w zbiorze per żądanie, a `widgetPreloadHeaders` produkuje dla
     // tego samego chunku identyczny napis.
-    if (isServer && doc.sections.length > 0) {
+    if ((import.meta.env.SSR || import.meta.env.DEV) && isServer && doc.sections.length > 0) {
       for (const hint of widgetPreloadHeaders(doc, 3)) appendLinkHeader(hint);
     }
     // Blocks engine: warm every data query its views will render (latest
@@ -847,7 +848,8 @@ export const Route = createFileRoute("/$")({
     }
     // JEDYNE miejsce, w którym ta trasa ogłasza politykę cache'u czystego
     // renderu - po CAŁEJ pracy, która może zdegradować.
-    setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
     const seoSettings: unknown = settingsMap["seo"];
     // Wpisy: deskryptor okładki WYŁĄCZNIE dla nagłówka HTTP `Link` (niżej) -
     // do `<head>` preload wstawia sam React 19 (powód przy `links` w `head()`),
@@ -892,7 +894,8 @@ export const Route = createFileRoute("/$")({
     // przeglądarka startuje fetch okładki/hero z nagłówków (przed parsowaniem
     // HTML), a NES Edge Cache odtwarza go na HIT/STALE (droga do 103 Early Hints
     // na Cloudflare).
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));

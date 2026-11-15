@@ -18,7 +18,7 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { errorCopy } from "@/lib/errorCopy";
 
 // Tymczasowe 302 (wpis może wrócić z kosza) nigdy nie trafia do cache.
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 /**
  * Trwałe 301 na adres kanoniczny JEST cache'owalne (audyt CWV 2026-09-20, F13):
  * `/post/<slug>` to główny adres generowany przez własne listingi i karty, więc
@@ -28,7 +28,7 @@ const NO_STORE = contentCacheControl({ preview: true });
  * stare 301 prowadzi na adres, który sam przekierowuje dalej (poprawnie, tylko
  * o jeden skok dłużej) - nigdy na 404.
  */
-const PERMANENT_REDIRECT = cacheControlHeader({
+const PERMANENT_REDIRECT = /* @__PURE__ */ cacheControlHeader({
   cacheable: true,
   browserMaxAge: 300,
   sharedMaxAge: 3_600,
@@ -39,10 +39,10 @@ export const Route = createFileRoute("/post/$slug")({
   loader: async ({ params }) => {
     const splat = await resolveLegacyPostPath(params.slug);
     if (!splat) {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw redirect({ to: "/blog", statusCode: 302 });
     }
-    setCacheControlHeader(PERMANENT_REDIRECT);
+    if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(PERMANENT_REDIRECT);
     throw redirect({
       to: "/$",
       params: { _splat: splat },

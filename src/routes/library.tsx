@@ -59,7 +59,8 @@ export const Route = createFileRoute("/library")({
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała W OGÓLE: biblioteka bez ani
     // jednego materiału to powierzchnia sprzedażowa bez oferty - nie ma prawa
     // zamarznąć na brzegu na 15 minut świeżości plus dobę okna `stale`.
-    setCacheControlHeader(resilientCacheControl(resources.degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(resources.degraded));
     return { degraded: resources.degraded };
   },
   head: () => {

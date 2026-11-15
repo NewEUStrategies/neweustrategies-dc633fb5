@@ -74,7 +74,8 @@ export const Route = createFileRoute("/polls")({
     // fallbacku danych.
     const settingsDegraded = settings === undefined;
     if (!modules.polls_enabled) {
-      setCacheControlHeader(resilientCacheControl(settingsDegraded));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(settingsDegraded));
       return { degraded: settingsDegraded };
     }
     const polls = await loadResilient(context.queryClient, publicPollsQueryOptions(), NO_POLLS, {
@@ -84,7 +85,8 @@ export const Route = createFileRoute("/polls")({
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała W OGÓLE: pusta lista ankiet
     // nie ma prawa zamarznąć na brzegu na 15 minut świeżości plus dobę okna
     // `stale-while-revalidate`.
-    setCacheControlHeader(resilientCacheControl(settingsDegraded || polls.degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(settingsDegraded || polls.degraded));
     return { degraded: settingsDegraded || polls.degraded };
   },
   head: () => {

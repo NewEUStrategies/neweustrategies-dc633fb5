@@ -101,7 +101,8 @@ export const Route = createFileRoute("/tracker/explorer")({
     // wspólnego - brzeg serwowałby pustkę kolejnym czytelnikom długo po tym,
     // jak baza wróciła do zdrowia.
     const degraded = anyDegraded(stats, items, positions);
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

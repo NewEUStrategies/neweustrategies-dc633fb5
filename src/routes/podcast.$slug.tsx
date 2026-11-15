@@ -93,7 +93,8 @@ export const Route = createFileRoute("/podcast/$slug")({
     );
     const data = notFoundIfClean(identity);
     if (data === null) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return { podcast: null, degraded: true };
     }
     // Preload LCP okładki odcinka - WYŁĄCZNIE nagłówek HTTP `Link` (fetch przed
@@ -113,7 +114,8 @@ export const Route = createFileRoute("/podcast/$slug")({
     const coverPreload: ImagePreloadInput | null = data.cover_image_url
       ? { href: buildAvatarSrc(data.cover_image_url, 128) }
       : null;
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
 
     // N5 - TRESC NAD ZGIECIEM JEDZIE Z LOADEREM, NIE PO HYDRATACJI.
     // Nazwa programu w nadtytule, wariant odtwarzacza (`sticky` przykleja pasek
@@ -158,7 +160,8 @@ export const Route = createFileRoute("/podcast/$slug")({
     // dostawaliby odcinek bez nazwy programu i bez prowadzacych przez cale okno
     // swiezosci. Czysty render zostaje przy domyslnej polityce trasy.
     if (anyDegraded(settings, parentShow, people)) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
     }
     return { podcast: data, degraded: false };
   },

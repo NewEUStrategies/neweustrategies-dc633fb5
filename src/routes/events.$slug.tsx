@@ -180,7 +180,8 @@ export const Route = createFileRoute("/events/$slug")({
       }),
     ]);
     const degraded = anyDegraded(header, event);
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     // `notFound()` WYŁĄCZNIE z CZYSTEGO odczytu. `degraded` znaczy „nie wiemy",
     // a 404 z niewiedzy wyrzuciłoby żywe wydarzenie z indeksu na dobę.
     if (!degraded && header.data === null) throw notFound();
@@ -258,7 +259,8 @@ export const Route = createFileRoute("/events/$slug")({
     // Link z `head()` był jego duplikatem (`documentPreloadDuplicates`, jak
     // w archiwach - `blog.index.tsx`), dlatego deskryptor NIE wraca w danych.
     const coverPreload = overviewCoverPreload(location.pathname, params.slug, event.data);
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return {
       degraded,
       headEvent:

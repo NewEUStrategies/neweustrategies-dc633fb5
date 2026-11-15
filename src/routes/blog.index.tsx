@@ -35,7 +35,7 @@ import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 
 const BLOG_LOADER_BUDGET_MS = 4_000;
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 
 export const Route = createFileRoute("/blog/")({
   // Defensywny parser `?page` współdzielony ze stroną główną w trybie
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/blog/")({
         { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
         { updatedAt: 0 },
       );
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       // `degraded` JEDZIE DO KOMPONENTU (wzorzec `/tracker`). Bez tej flagi
       // zasiana pustka renderowała się dokładnie jak archiwum bez wpisów
       // („Brak wpisów") - nagłówek `no-store` rozróżniał oba stany od początku,
@@ -99,7 +99,8 @@ export const Route = createFileRoute("/blog/")({
     }
     // Jw. - jedna droga do nagłówka renderu zdegradowanego, weryfikowalna
     // strukturalnie przez bramkę. Wartość bez zmian.
-    setCacheControlHeader(resilientCacheControl(!hasSettings));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(!hasSettings));
     // Preload LCP pierwszej karty siatki (PaginatedPostGrid oznacza ją
     // priority) - WYŁĄCZNIE nagłówek HTTP `Link` (utrwalany przez NES Edge
     // Cache na HIT/STALE). Do `<head>` preload wstawia sam React 19: karta
@@ -107,7 +108,8 @@ export const Route = createFileRoute("/blog/")({
     // `<link rel="preload" as="image">` na początku `<head>`. Drugi, identyczny
     // link z `head()` był duplikatem (`documentPreloadDuplicates` na `/blog`).
     const coverPreload = archiveFirstCardPreload(data.posts, false);
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { page: data.page, total: data.total, degraded: false };
   },
 

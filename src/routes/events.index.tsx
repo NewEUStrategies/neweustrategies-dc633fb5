@@ -81,7 +81,8 @@ export const Route = createFileRoute("/events/")({
       publicEventsQueryOptions(),
       NO_EVENTS,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     const now = Date.now();
     return {
       degraded,
