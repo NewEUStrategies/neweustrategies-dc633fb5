@@ -5,10 +5,11 @@
 // Rozmiar pliku trafia do HTML-u serwera wyłącznie jako atrybuty
 // `width`/`height`, z danych zapisanych wcześniej przez panel. Dwie rzeczy
 // psują to po cichu, bez czerwonego testu zachowania:
-//  1. POMIAR W PUBLICZNYM RENDERZE. `measureIntrinsicSize` ładuje plik obiektem
-//     `Image` - wciągnięty do komponentu strony dałby atrybut ustawiany dopiero
-//     w przeglądarce (HTML serwera różny od strony po hydratacji) i dodatkowe
-//     pobranie. Moduł pomiaru i lista logo mają zostać w kodzie panelu.
+//  1. POMIAR W PUBLICZNYM RENDERZE. `measureIntrinsicSize` ładuje plik sondami
+//     `<img>` dopinanymi do dokumentu - wciągnięty do komponentu strony dałby
+//     atrybut ustawiany dopiero w przeglądarce (HTML serwera różny od strony po
+//     hydratacji), dodatkowe pobranie i obce węzły w `<body>`. Moduł pomiaru i
+//     lista logo mają zostać w kodzie panelu.
 //  2. ROZMIAR PLIKU JAKO PROPORCJA UKŁADU. `width`/`height`/`aspectRatio` atomu
 //     `OptimizedImage` dokładają inline `aspect-ratio`; rozmiar pliku podany tą
 //     drogą nadpisałby klasy proporcji i utrwalił wartość nieaktualną. Widget
