@@ -73,7 +73,8 @@ export const ENTITY_SELECT_COLS = {
 /**
  * Select wiersza wpisu W REZOLUCJI ADRESU: kolumny encji PLUS taksonomie
  * osadzone przez tabele pivot (`post_tags(tags(...))`, `post_categories(
- * categories(...))`) w JEDNYM round-tripie.
+ * categories(...))`) ORAZ współautorzy (`post_authors(user_id, sort_order)`)
+ * w JEDNYM round-tripie.
  *
  * Do 2026-09-20 tagi i kategorie jechały DWOMA osobnymi zapytaniami w fali
  * głównej wpisu, która miała przez to SIEDEM odnóg przy limicie 6 równoległych
@@ -83,11 +84,20 @@ export const ENTITY_SELECT_COLS = {
  * zapytaniu, więc ukryty przez RLS tag daje `tags: null` w wierszu pivotu -
  * dokładnie tak, jak wcześniej - i jest odsiewany tą samą filtracją.
  *
+ * WSPÓŁAUTORZY (2026-11-14, roadmapa ładowania B2). `post_authors` było
+ * ostatnim osobnym odczytem tej fali kluczowanym SAMYM id wpisu - czyli
+ * trzecim zapytaniem o ten sam wpis. Zimny render wpisu to 20 round-tripów
+ * w kolejce do sześciu połączeń Workera, więc każdy zdjęty odczyt skraca
+ * kolejkę wszystkim pozostałym. Osadzenie idzie po kluczu obcym
+ * `post_authors_post_id_fkey` i przechodzi WŁASNĄ politykę RLS tabeli, tak jak
+ * przy osobnym zapytaniu; kolejność `sort_order` adresuje zasób osadzony
+ * (`referencedTable`) w miejscu wywołania (`resolveContentForSegments`).
+ *
  * Osobna stała (nie rozszerzenie `ENTITY_SELECT_COLS.post`), bo osadzenia
  * mają sens tylko tu; jeden literał szablonowy z tego samego powodu, co wyżej.
  */
 export const POST_RESOLVE_SELECT =
-  `${ENTITY_SELECT_COLS.post}, post_tags(tags(slug, name)), post_categories(categories(slug, name_pl, name_en, color))` as const;
+  `${ENTITY_SELECT_COLS.post}, post_tags(tags(slug, name)), post_categories(categories(slug, name_pl, name_en, color)), post_authors(user_id, sort_order)` as const;
 
 async function fetchAccessRule(
   entityType: "post" | "page",
@@ -708,8 +718,8 @@ export const publicCategoriesQueryOptions = () =>
 /**
  * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
  * objąć go edgeTtlCache bez zmiany logiki). Trzy fale round-tripów:
- * resolve_path -> Promise.all(metadane Z taksonomiami+body+współautorzy+
- * okruszki+access; 5 odnóg) -> profile autorów.
+ * resolve_path -> Promise.all(metadane Z taksonomiami i współautorami+body+
+ * okruszki+access; 4 odnogi) -> profile autorów.
  */
 async function resolveContentForSegments(segments: string[]): Promise<ResolvedContent | null> {
   const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
@@ -722,35 +732,38 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
   if (hit.post_id) {
     // Body columns (content_*/builder_data/blocks_data) are fetched via the
     // gated RPC, never selected directly - the row select carries only the
-    // non-sensitive display metadata (plus embedded taxonomies, see
-    // `POST_RESOLVE_SELECT`). PIĘĆ odnóg, nie siedem: wiersz wpisu niesie tagi
-    // i kategorie w osadzeniu, więc cała fala mieści się w limicie 6
-    // równoległych połączeń Workers i żadna odnoga nie czeka w kolejce.
-    const [
-      { data, error },
-      body,
-      { data: coAuthorRows, error: coAuthorRowsError },
-      crumbs,
-      access,
-    ] = await Promise.all([
-      supabase.from("posts").select(POST_RESOLVE_SELECT).eq("id", hit.post_id).maybeSingle(),
-      fetchGatedBody("post", hit.post_id),
+    // non-sensitive display metadata (plus embedded taxonomies and co-authors,
+    // see `POST_RESOLVE_SELECT`). CZTERY odnogi, nie siedem: wiersz wpisu
+    // niesie tagi, kategorie i współautorów w osadzeniu, więc cała fala mieści
+    // się w limicie 6 równoległych połączeń Workers z zapasem na odczyty
+    // korzenia biegnące w tym samym oknie.
+    const [{ data, error }, body, crumbs, access] = await Promise.all([
       supabase
-        .from("post_authors")
-        .select("user_id, sort_order")
-        .eq("post_id", hit.post_id)
-        .order("sort_order", { ascending: true }),
+        .from("posts")
+        .select(POST_RESOLVE_SELECT)
+        .eq("id", hit.post_id)
+        // Kolejność współautorów jest KONTRAKTEM (cytowania, `citation_author`):
+        // `referencedTable` adresuje zasób osadzony - bez niego `.order()`
+        // sortowałby wiersze wpisu, a współautorzy wróciliby w kolejności
+        // fizycznej (ten sam wzorzec co `menu_items` w `menu.functions.ts`).
+        .order("sort_order", { referencedTable: "post_authors", ascending: true })
+        .maybeSingle(),
+      fetchGatedBody("post", hit.post_id),
       fetchPageBreadcrumbs(hit.page_id),
       fetchAccessRule("post", hit.post_id),
     ]);
-    if (coAuthorRowsError) throw coAuthorRowsError;
     if (error) throw error;
     if (!data) return null;
     // Osadzenia schodzą z wiersza PRZED złożeniem `item`: kształt `PostData`
     // i całego `ResolvedContent` (tagi/kategorie jako osobne listy) jest
     // kontraktem konsumentów i dehydratowanego payloadu - nie może urosnąć
     // o surowe wiersze pivotu.
-    const { post_tags: tagRows, post_categories: catRows, ...row } = data;
+    const {
+      post_tags: tagRows,
+      post_categories: catRows,
+      post_authors: coAuthorRows,
+      ...row
+    } = data;
     const tags = (tagRows ?? [])
       .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
       .filter((t): t is { slug: string; name: string } => !!t);
@@ -770,7 +783,9 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
     const mainAuthorId = post.author_id ?? null;
     const orderedAuthorIds = orderAuthorIds(
       mainAuthorId,
-      (coAuthorRows ?? []).map((row) => (row as { user_id: string }).user_id),
+      // Jawny, wąski kształt wiersza osadzenia - ten sam zabieg co przy
+      // `tagRows`/`catRows` wyżej.
+      (coAuthorRows ?? []).map((coAuthor) => (coAuthor as { user_id: string }).user_id),
     );
     let author: PostAuthor | null = null;
     let authors: PostAuthorRef[] = [];

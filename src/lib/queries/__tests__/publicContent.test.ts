@@ -15,7 +15,10 @@
 //     strony. TAGI I KATEGORIE WYPADŁY Z TEJ LISTY 2026-09-20 (audyt CWV, F06):
 //     nie jadą już osobnymi zapytaniami, tylko OSADZENIEM w wierszu `posts`
 //     (`POST_RESOLVE_SELECT`), więc ich odmowa kładzie CAŁE zapytanie wiersza
-//     i wpada w `if (error) throw` - odmowa nie ma już gdzie zniknąć. Każde z nich dostaje tu
+//     i wpada w `if (error) throw` - odmowa nie ma już gdzie zniknąć.
+//     WSPÓŁAUTORZY ZESZLI Z NIEJ 2026-11-14 (roadmapa ładowania, B2) tą samą
+//     drogą: `post_authors(user_id, sort_order)` jest trzecim osadzeniem tego
+//     samego wiersza, więc wpis kosztuje o jeden round-trip mniej. Każde z nich dostaje tu
 //     przypadek PRZYPINAJĄCY stan faktyczny, a pięć najgroźniejszych dodatkowo
 //     `it.fails` z konsekwencją dla człowieka. Klasa defektu „awaria wygląda
 //     jak brak danych" wystąpiła w tym repo trzykrotnie;
@@ -33,7 +36,8 @@
 //     filtr rozgłasza w widocznej mapie strony adresy, które sitemap.xml ukrywa
 //     przed crawlerami; dlatego asercja porównuje CAŁE argumenty ogniwa;
 //   * KOLEJNOŚĆ OGNIW JEST KONTRAKTEM. Współautorzy muszą przyjść z
-//     `.order("sort_order", { ascending: true })`, kategorie publiczne z
+//     `.order("sort_order", { referencedTable: "post_authors", ascending:
+//     true })` (ogniwo na wierszu wpisu, zaadresowane do osadzenia), kategorie publiczne z
 //     `.order("name_pl")` BEZ opcji, lista bloga z `.order("published_at",
 //     { ascending: false })`. Zgubione ogniwo `.order()` to kolejność losowa
 //     między żądaniami - autorzy w cytowaniu zamieniają się miejscami, a wpisy
@@ -265,10 +269,18 @@ function wierszWpisuListy(id: string, over: Record<string, unknown> = {}): Recor
  */
 function wierszWpisuZTaksonomiami(
   id: string,
-  osadzenia: { post_tags?: unknown; post_categories?: unknown },
+  osadzenia: { post_tags?: unknown; post_categories?: unknown; post_authors?: unknown },
   over: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return wierszWpisuListy(id, { ...osadzenia, ...over });
+}
+
+/**
+ * Wiersze osadzenia `post_authors(user_id, sort_order)` w kolejności, w jakiej
+ * oddaje je PostgREST po `order=sort_order.asc` na zasobie osadzonym.
+ */
+function wspolautorzy(...userIds: string[]): Array<{ user_id: string; sort_order: number }> {
+  return userIds.map((user_id, sort_order) => ({ user_id, sort_order }));
 }
 
 function wierszProfilu(id: string): Record<string, unknown> {
@@ -330,20 +342,21 @@ function odpowiedzStron(plan: PlanStron): TableResponder {
 
 /** Plan pełnej rezolucji treści. Każda granica ma tu domyślną, UDANĄ
  *  odpowiedź, bo atrapa traktuje niezaplanowaną tabelę jako błąd testu - a
- *  `Promise.all` w rezolucji dotyka PIĘCIU granic naraz.
+ *  `Promise.all` w rezolucji dotyka CZTERECH granic naraz.
  *
  *  Nie ma tu już odnóg `tagi`/`kategorie`: od 2026-09-20 taksonomie jadą
  *  OSADZENIEM w wierszu `posts` (`POST_RESOLVE_SELECT`), więc planuje się je
  *  na wierszu wpisu (`wierszWpisuZTaksonomiami`), a nie na osobnej tabeli.
- *  Brak planu dla `post_tags`/`post_categories` jest tu KONTROLĄ NEGATYWNĄ:
- *  gdyby produkcja wróciła do osobnych round-tripów, atrapa oddałaby błąd
- *  „brak zaplanowanej odpowiedzi", a asercje `chainsFor(...)` w teście
- *  „pięć granic naraz" złapałyby to wprost. */
+ *  Od 2026-11-14 tak samo WSPÓŁAUTORZY (`post_authors` w tym samym wierszu,
+ *  fabryka `wspolautorzy(...)`).
+ *  Brak planu dla `post_tags`/`post_categories`/`post_authors` jest tu
+ *  KONTROLĄ NEGATYWNĄ: gdyby produkcja wróciła do osobnych round-tripów,
+ *  atrapa oddałaby błąd „brak zaplanowanej odpowiedzi", a asercje
+ *  `chainsFor(...)` w teście „cztery granice naraz" złapałyby to wprost. */
 interface PlanRezolucji {
   resolve?: SupabaseResult;
   wpis?: SupabaseResult;
   cialo?: SupabaseResult;
-  wspolautorzy?: SupabaseResult;
   okruszki?: SupabaseResult;
   dostep?: SupabaseResult;
   profile?: SupabaseResult;
@@ -359,7 +372,6 @@ function planuj(plan: PlanRezolucji = {}): void {
   funkcje().setResponse("get_entity_content", plan.cialo ?? ok(cialo()));
   funkcje().setResponse("page_breadcrumbs", plan.okruszki ?? ok([okruszek(ID_STRONY, 0)]));
   baza().setResponse("posts", plan.wpis ?? ok(wierszWpisuListy(ID_WPISU)));
-  baza().setResponse("post_authors", plan.wspolautorzy ?? ok([]));
   baza().setResponse("content_access_public", plan.dostep ?? ok(null));
   baza().setResponse("profiles_public", plan.profile ?? ok([]));
   baza().setResponse("author_profiles_public", plan.nakladka ?? ok(null));
@@ -841,22 +853,19 @@ describe("rezolucja adresu: pięć wyjść, gdy funkcja SQL już odpowiedziała"
 describe("rezolucja adresu: gałąź WPISU", () => {
   const TRAFIENIE_WPISU = ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]);
 
-  it("pięć granic naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
+  it("cztery granice naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
       wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
     });
     await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
 
-    // FALA GŁÓWNA MA PIĘĆ ODNÓG, NIE SIEDEM (audyt CWV 2026-09-20, F06): trzy
-    // łańcuchy tabelowe i dwie funkcje SQL. Siódma odnoga czekała w kolejce na
-    // zwolnienie slotu przy limicie 6 równoległych połączeń runtime Workers,
-    // więc liczba odnóg jest tu KONTRAKTEM WYDAJNOŚCI, nie ozdobą asercji.
-    expect(baza().chains.map((c) => c.table)).toEqual([
-      "posts",
-      "post_authors",
-      "content_access_public",
-    ]);
+    // FALA GŁÓWNA MA CZTERY ODNOGI, NIE SIEDEM (audyt CWV 2026-09-20, F06;
+    // roadmapa ładowania 2026-11-14, B2): dwa łańcuchy tabelowe i dwie funkcje
+    // SQL. Zimny render wpisu stoi w kolejce do 6 równoległych połączeń runtime
+    // Workers razem z odczytami korzenia, więc liczba odnóg jest tu KONTRAKTEM
+    // WYDAJNOŚCI, nie ozdobą asercji.
+    expect(baza().chains.map((c) => c.table)).toEqual(["posts", "content_access_public"]);
     expect(funkcje().names()).toEqual(["resolve_path", "get_entity_content", "page_breadcrumbs"]);
 
     // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała.
@@ -878,9 +887,17 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     expect(baza().chainsFor("post_tags")).toHaveLength(0);
     expect(baza().chainsFor("post_categories")).toHaveLength(0);
 
-    // Współautorzy: kolejność jest KONTRAKTEM - bez tego ogniwa autorzy w
-    // cytowaniu zamieniają się miejscami między żądaniami.
-    expect(ogniwa(lancuch("post_authors"), "order")).toEqual([["sort_order", { ascending: true }]]);
+    // Współautorzy: OSADZENI w wierszu wpisu (trzecie osadzenie obok
+    // taksonomii), ZERO osobnego round-tripu po `post_authors`.
+    expect(POST_RESOLVE_SELECT).toContain("post_authors(user_id, sort_order)");
+    expect(baza().chainsFor("post_authors")).toHaveLength(0);
+    // Kolejność jest KONTRAKTEM - bez tego ogniwa autorzy w cytowaniu
+    // zamieniają się miejscami między żądaniami. Ogniwo MUSI adresować zasób
+    // osadzony: `.order("sort_order")` bez `referencedTable` sortowałby
+    // wiersze wpisu, a współautorzy wróciliby w kolejności fizycznej.
+    expect(ogniwa(cWpis, "order")).toEqual([
+      ["sort_order", { referencedTable: "post_authors", ascending: true }],
+    ]);
 
     // Okruszki i reguła dostępu.
     expect(wywolanie("page_breadcrumbs").keys()).toEqual(["_page_id"]);
@@ -949,13 +966,19 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     // inaczej każdy dokument SSR wiezie te same dane dwa razy.
     expect(wpis.item).not.toHaveProperty("post_tags");
     expect(wpis.item).not.toHaveProperty("post_categories");
+    expect(wpis.item).not.toHaveProperty("post_authors");
   });
 
   it("profile WSZYSTKICH autorów lecą JEDNYM zapytaniem, w kanonicznej kolejności", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-      wspolautorzy: ok([{ user_id: "wsp-1" }, { user_id: "wsp-2" }]),
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1", "wsp-2") },
+          { author_id: ID_AUTORA },
+        ),
+      ),
       profile: ok([wierszProfilu("wsp-2"), wierszProfilu(ID_AUTORA), wierszProfilu("wsp-1")]),
       nakladka: ok({ job_title: "Analityk", custom_socials: [] }),
     });
@@ -963,8 +986,9 @@ describe("rezolucja adresu: gałąź WPISU", () => {
       await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
     );
     // JEDEN round-trip po profile (nie trzy) i DOKŁADNA lista id: autor główny
-    // pierwszy, potem współautorzy w kolejności `sort_order`. To jest wywołanie
-    // `orderAuthorIds` - samą funkcję pokrywa postAuthors.test.ts.
+    // pierwszy, potem współautorzy w kolejności `sort_order` (tej z osadzenia).
+    // To jest wywołanie `orderAuthorIds` - samą funkcję pokrywa
+    // postAuthors.test.ts.
     expect(baza().chainsFor("profiles_public")).toHaveLength(1);
     expect(lancuch("profiles_public").argsOf("in")).toEqual(["id", [ID_AUTORA, "wsp-1", "wsp-2"]]);
     // Nakładka tylko dla autora GŁÓWNEGO i tylko z publicznej projekcji.
@@ -979,8 +1003,7 @@ describe("rezolucja adresu: gałąź WPISU", () => {
   it("wpis BEZ autorów nie płaci ani jednego round-tripu za profile", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
-      wspolautorzy: ok([]),
+      wpis: ok(wierszWpisuZTaksonomiami(ID_WPISU, { post_authors: [] }, { author_id: null })),
     });
     const wpis = jakoWpis(
       await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
@@ -994,8 +1017,13 @@ describe("rezolucja adresu: gałąź WPISU", () => {
   it("wpis bez autora głównego, ale ze współautorami, NIE pyta o nakładkę", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
-      wspolautorzy: ok([{ user_id: "wsp-1" }]),
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1") },
+          { author_id: null },
+        ),
+      ),
       profile: ok([wierszProfilu("wsp-1")]),
     });
     const wpis = jakoWpis(
@@ -1008,18 +1036,24 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     expect(wpis.authors.map((a) => a.id)).toEqual(["wsp-1"]);
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa post_authors", async () => {
-    // Linia 729 domyka odmowę wyrażeniem `(coAuthorRows ?? [])`, więc lista
-    // autorów kurczy się do tego jednego, którego id siedzi w wierszu wpisu.
+  it("błąd odczytu jest zgłaszany: odmowa post_authors kładzie CAŁE zapytanie wiersza", async () => {
+    // Jak przy taksonomiach: w OSADZENIU nie ma osobnej odpowiedzi tabeli,
+    // którą dałoby się po cichu zgubić. Brak uprawnień do `post_authors` to
+    // `42501` na zapytaniu `posts`, więc odmowa NIE MOŻE skurczyć listy
+    // autorów do tego jednego, którego id siedzi w wierszu wpisu - a profile
+    // nie są w ogóle pytane.
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-      wspolautorzy: fail("odmowa post_authors", "42501"),
+      wpis: fail("permission denied for table post_authors", "42501"),
       profile: ok([wierszProfilu(ID_AUTORA)]),
     });
     await expect(
       klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    ).rejects.toMatchObject({ message: "odmowa post_authors" });
+    ).rejects.toMatchObject({
+      message: "permission denied for table post_authors",
+      code: "42501",
+    });
+    expect(baza().chainsFor("profiles_public")).toHaveLength(0);
   });
 
   it("błąd odczytu jest zgłaszany: odmowa post_tags kładzie CAŁE zapytanie wiersza", async () => {
@@ -1276,11 +1310,10 @@ it("successful empty metadata responses preserve the resolved article", async ()
     wpis: ok(
       wierszWpisuZTaksonomiami(
         ID_WPISU,
-        { post_tags: null, post_categories: null },
+        { post_tags: null, post_categories: null, post_authors: null },
         { author_id: ID_AUTORA },
       ),
     ),
-    wspolautorzy: ok(null),
     profile: ok(null),
     nakladka: ok(null),
   });
