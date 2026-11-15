@@ -169,6 +169,24 @@ function completeAfterResponse(work: Promise<unknown>): void {
     .catch(() => undefined);
 }
 
+// ── Bundel przeglądarki ────────────────────────────────────────────────────
+//
+// W przeglądarce cache nie istnieje: każda funkcja publiczna zaczyna się od
+// wyjścia „jesteśmy w oknie". Sam test `typeof window` rozstrzyga się jednak
+// dopiero W CZASIE DZIAŁANIA, więc bundler musiał zostawić w chunku startowym
+// klienta cały magazyn L1, serve-stale, single-flight i odświeżanie w tle -
+// kod, który tam nigdy się nie wykona. Stała niżej jest w PRODUKCYJNYM bundlu
+// klienta literałem `true` (Vite podmienia `import.meta.env.PROD`/`SSR`
+// statycznie), więc wszystko za wyjściem jest martwe i znika z bundla - ten
+// sam wzorzec, co bramka `import.meta.env.SSR` adaptera L2 niżej.
+//
+// DLACZEGO NIE SAMO `!import.meta.env.SSR`. Pod vitestem `SSR` jest fałszem,
+// a testy tego modułu sprawdzają ścieżkę serwera - `PROD` jest tam fałszem,
+// więc stała też, i o gałęzi decyduje jak dotąd `typeof window`. W dev
+// kliencie tak samo (okno istnieje). Serwer produkcyjny: `SSR` prawdziwe,
+// stała fałszywa.
+const IN_BROWSER_BUNDLE = import.meta.env.PROD && !import.meta.env.SSR;
+
 // ── Adapter L2 ─────────────────────────────────────────────────────────────
 //
 // `undefined` = jeszcze nie rozwiązany, `null` = brak (klient, vitest bez
@@ -340,7 +358,7 @@ export async function edgeTtlCache<T>(
   fetcher: () => Promise<T>,
   opts?: EdgeTtlCacheOptions,
 ): Promise<T> {
-  if (typeof window !== "undefined") return fetcher();
+  if (IN_BROWSER_BUNDLE || typeof window !== "undefined") return fetcher();
   const scope = (await currentTenantHost()) ?? "no-host";
   const scopedKey = `${scope}::${key}`;
   const now = Date.now();
@@ -403,7 +421,7 @@ export async function edgeTtlCache<T>(
  * w przeglądarce zawsze `undefined` (tam cache nie istnieje).
  */
 export async function peekEdgeTtlCache<T>(key: string, ttlMs: number): Promise<T | undefined> {
-  if (typeof window !== "undefined") return undefined;
+  if (IN_BROWSER_BUNDLE || typeof window !== "undefined") return undefined;
   const scope = (await currentTenantHost()) ?? "no-host";
   const cached = store.get(`${scope}::${key}`) as CacheEntry<T> | undefined;
   if (!cached) return undefined;
@@ -427,7 +445,7 @@ export async function peekEdgeTtlCache<T>(key: string, ttlMs: number): Promise<T
  * doganiają ją na swoim najbliższym chybieniu L1 (jak dotąd TTL-em).
  */
 export async function invalidateEdgeTtlCache(key: string): Promise<void> {
-  if (typeof window !== "undefined") return;
+  if (IN_BROWSER_BUNDLE || typeof window !== "undefined") return;
   const scope = (await currentTenantHost()) ?? "no-host";
   generation++;
   const scopedKey = `${scope}::${key}`;
