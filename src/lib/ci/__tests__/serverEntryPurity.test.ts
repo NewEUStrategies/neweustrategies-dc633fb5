@@ -527,9 +527,29 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
     expect(renderServerEntryPurityReport(report)).toContain("nie znaleziono komponentów tras");
   });
 
-  it("prefiks reguły to `/admin/` - layout `/admin` renderuje szkielet na serwerze", () => {
-    expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/"]);
+  it("prefiksy reguły to `/admin/` i `/profile/` - same layouty renderują się na serwerze", () => {
+    expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/", "/profile/"]);
     expect(clientOnlyRouteComponents([TRASA_PANELU, ZASLEPKA]).checked).toBe(1);
+  });
+
+  it("podstrony `/profile/*` muszą być zaślepką; layout `/profile` i `/profile_/…` nie", () => {
+    const profil: ServerChunk = {
+      path: "_ssr/routes-PRF.mjs",
+      source:
+        "var P=S(`/profile`)({component:w(()=>import(`./profile-L.mjs`),`component`)}),I=S(`/profile/`)({component:w(()=>import(`./profile.index-I.mjs`),`component`)}),E=S(`/profile/edit`)({component:w(()=>import(`./profile.edit-E.mjs`),`component`)}),O=S(`/profile_/portal`)({component:w(()=>import(`./profile_.portal-O.mjs`),`component`)});",
+    };
+    const report = surowa([
+      profil,
+      { path: "_ssr/profile-L.mjs", source: "l".repeat(10_510) },
+      { path: "_ssr/profile.index-I.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/profile.edit-E.mjs", source: "e".repeat(86_815) },
+      { path: "_ssr/profile_.portal-O.mjs", source: "o".repeat(3_000) },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(2);
+    expect(report.clientOnlyComponents.heavy).toEqual([
+      { route: "/profile/edit", chunk: "_ssr/profile.edit-E.mjs", bytes: 86_815 },
+    ]);
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
   });
 });
 

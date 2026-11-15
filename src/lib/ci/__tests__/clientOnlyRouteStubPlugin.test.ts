@@ -117,7 +117,23 @@ describe("routeDescendants - potomkowie layoutu z drzewa tras", () => {
     const expected = files.filter((file) => file.startsWith("admin.")).sort();
     expect(expected.length).toBeGreaterThan(150);
     expect([...set].sort()).toEqual(expected);
-    expect(CLIENT_ONLY_LAYOUTS).toEqual(["admin"]);
+    expect(CLIENT_ONLY_LAYOUTS).toEqual(["admin", "profile"]);
+  });
+
+  it("na PRAWDZIWYM drzewie: potomkowie `/profile` to pliki `profile.*`, bez `profile_.portal`", () => {
+    // `profile_.portal` wychodzi poza layout (podkreślnik), więc renderuje się bez `AuthGate`
+    // rodzica i zaślepki dostać nie może; sam layout `profile` serwer renderuje (spinner bramki).
+    const tree = readFileSync(resolve(process.cwd(), "src/routeTree.gen.ts"), "utf8");
+    const set = routeDescendants(tree, "profile");
+    const files = readdirSync(resolve(process.cwd(), "src/routes"))
+      .filter((file) => /\.tsx?$/.test(file) && !/\.(test|spec)\.tsx?$/.test(file))
+      .map((file) => file.replace(/\.tsx?$/, ""));
+    const expected = files.filter((file) => file.startsWith("profile.")).sort();
+    expect(expected.length).toBeGreaterThan(15);
+    expect([...set].sort()).toEqual(expected);
+    expect(set.has("profile")).toBe(false);
+    expect(set.has("profile_.portal")).toBe(false);
+    expect(files).toContain("profile_.portal");
   });
 });
 

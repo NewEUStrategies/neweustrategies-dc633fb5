@@ -13,6 +13,12 @@
 //    `AdminSession` po `useHydrated()`. Komponenty tras-dzieci NIGDY nie renderują się na
 //    serwerze - ani `component`, ani `errorComponent`/`notFoundComponent`/`pendingComponent`,
 //    bo granice błędów dziecka siedzą w `<Outlet/>` rodzica (7,2 MB z 22,5 MB artefaktu).
+//    Podstrony `/profile/*` (od 2026-11-15): `ProfileLayout` (src/routes/profile.tsx) owija
+//    `<Outlet/>` w `AuthGate`, który renderuje dzieci wyłącznie przy obecnej sesji, a sesja
+//    Supabase żyje w `localStorage` - `AuthProvider` zaczyna od `session: null` i ustawia ją
+//    tylko w efektach, więc serwer oddaje sam spinner bramki (0,40 MB artefaktu; dowód na
+//    prawdziwym dostawcy: src/routes/__tests__/profileRouteSsr.test.tsx). Layout, który
+//    zacznie renderować `<Outlet/>` na serwerze, MUSI zniknąć z tej listy.
 //
 // 2. TRASY Z `ssr: false` (i ich potomkowie - router dziedziczy `ssr: false` w dół drzewa,
 //    `resolveSsr` w router-core `load-server.ts`). Dopasowanie takiej trasy router owija w
@@ -64,7 +70,7 @@ const SSR_FALSE_NODES: ReadonlySet<string> = new Set([
 ]);
 
 /** Layouty, których dzieci renderują się wyłącznie po hydratacji (nagłówek pliku, klasa 1). */
-export const CLIENT_ONLY_LAYOUTS = ["admin"] as const;
+export const CLIENT_ONLY_LAYOUTS = ["admin", "profile"] as const;
 
 const IMPORT_RE = /^import \{ Route as (\w+)Import \} from '\.\/routes\/([^']+)'$/gm;
 /** `const X =` i `XImport.update({` bywają w dwóch liniach (prettier łamie długie nazwy). */

@@ -244,8 +244,13 @@ export function documentBaselineChunks(chunks: readonly ServerChunk[]): Set<stri
   return staticClosure(chunks, roots);
 }
 
-/** Prefiksy tras, których komponenty serwer zastępuje zaślepką (nagłówek pliku, czwarta klasa). */
-export const CLIENT_ONLY_ROUTE_PREFIXES = ["/admin/"] as const;
+/**
+ * Prefiksy tras-potomków layoutów bez serwerowego `<Outlet/>` (`CLIENT_ONLY_LAYOUTS` wtyczki):
+ * `/admin/*` (szkielet do hydratacji) i `/profile/*` (bramka sesji `AuthGate`; sesja żyje
+ * w `localStorage`, dowód w `src/routes/__tests__/profileRouteSsr.test.tsx`). Same layouty
+ * (`/admin`, `/profile`) serwer renderuje, więc prefiks kończy się ukośnikiem.
+ */
+export const CLIENT_ONLY_ROUTE_PREFIXES = ["/admin/", "/profile/"] as const;
 
 /** Największa dopuszczalna zaślepka: `function e(){return null}export{e as component};` ma 48 B. */
 export const CLIENT_ONLY_STUB_MAX_BYTES = 256;
