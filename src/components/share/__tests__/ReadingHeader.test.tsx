@@ -117,7 +117,14 @@ interface SearchProbeProps {
 
 /** Ustawienia Branding -> Logo, z których liczony jest logotyp poziomy. */
 interface LogoSettings {
-  logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string };
+  logo?: {
+    main?: string;
+    main_dark?: string;
+    mobile?: string;
+    mobile_dark?: string;
+    /** Naturalne rozmiary plików logo, pary `[adres, "WxH"]` (Opcje motywu). */
+    intrinsic?: Array<[string, string]>;
+  };
 }
 
 const h = vi.hoisted(() => ({
@@ -1003,6 +1010,54 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
     renderHeader({ pinned: true });
 
     expect(leftLogo()?.querySelector("img")).toHaveAttribute("src", "M.png");
+  });
+
+  // Naturalny rozmiar (`width`/`height`) ma opisywać TEN SAM plik, który trafia
+  // do `src`: adres i rozmiar idą jednym łańcuchem wariantów dla motywu.
+  // `chromeLogoPreload.test.tsx` przypina to tylko dla motywu jasnego - rozmiar
+  // liczony zawsze z łańcucha jasnego przechodził tam i tutaj na zielono, a w
+  // motywie ciemnym dawałby logo ciemnemu atrybuty innego pliku.
+  const bothLogos = () => [leftLogo()?.querySelector("img"), centerLogoEl()?.querySelector("img")];
+
+  it.each([
+    ["light", "m.svg", "350", "150"],
+    ["dark", "md.svg", "700", "300"],
+  ] as const)(
+    "motyw %s: oba logo paska niosą width/height pliku %s",
+    (theme, src, width, height) => {
+      h.theme = theme;
+      h.themeSettings = {
+        logo: {
+          mobile: "m.svg",
+          mobile_dark: "md.svg",
+          intrinsic: [
+            ["m.svg", "350x150"],
+            ["md.svg", "700x300"],
+          ],
+        },
+      };
+      renderHeader({ pinned: true, centerLogo: true });
+
+      for (const img of bothLogos()) {
+        expect(img).toHaveAttribute("src", src);
+        expect(img).toHaveAttribute("width", width);
+        expect(img).toHaveAttribute("height", height);
+      }
+    },
+  );
+
+  it("motyw ciemny bez wpisu pliku ciemnego: logo zostaje bez width/height, rozmiar pliku jasnego nie jest pożyczany", () => {
+    h.theme = "dark";
+    h.themeSettings = {
+      logo: { mobile: "m.svg", mobile_dark: "md.svg", intrinsic: [["m.svg", "350x150"]] },
+    };
+    renderHeader({ pinned: true, centerLogo: true });
+
+    for (const img of bothLogos()) {
+      expect(img).toHaveAttribute("src", "md.svg");
+      expect(img).not.toHaveAttribute("width");
+      expect(img).not.toHaveAttribute("height");
+    }
   });
 
   it("kanoniczny `/media/...svg` trafia do OBU `<img>` jako ścieżka względna", () => {
