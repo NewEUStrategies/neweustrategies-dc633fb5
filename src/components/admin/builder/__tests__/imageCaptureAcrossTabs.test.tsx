@@ -453,4 +453,55 @@ describe("panel obrazu - zapis zostaje przy zaznaczonym widgecie", () => {
     await settle(NEW_PHOTO, "640x480");
     expect(content("w1")).toEqual({ src: NEW_PHOTO, srcIntrinsic: "640x480" });
   });
+
+  // Hak żyje w panelu, a panel jest TEN SAM przy przejściu między widgetami. Wynik
+  // pomiaru zaczętego przy jednym obrazie nie może trafić do drugiego tylko
+  // dlatego, że oba wskazują ten sam plik: byłby to zapis wywołany samym
+  // zaznaczeniem, którego reguły zaznaczenia właśnie tam zabraniają.
+  it.each([
+    ["obraz w ramce", (id: string) => image(id, { src: NEW_PHOTO, ratio: "16/9" })],
+    ["instancja widgetu globalnego", (id: string) => image(id, { src: NEW_PHOTO }, "global-1")],
+  ])(
+    "drugi widget z TYM SAMYM plikiem (%s): wynik pomiaru zaczętego przy pierwszym do niego nie trafia",
+    async (_name, second) => {
+      const { content, changes, select } = renderBuilder(
+        [image("w1", { src: PHOTO, srcIntrinsic: "1200x675" }), second("w2")],
+        "w1",
+      );
+      await settle(PHOTO, "1200x675");
+      await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+      const untouched = content("w2");
+
+      await select("w2");
+      // Zaznaczenie takiego widgetu samo niczego nie mierzy - w toku jest tylko
+      // pomiar zaczęty zmianą pliku w pierwszym.
+      expect(pendingUrls()).toEqual([NEW_PHOTO]);
+      await settle(NEW_PHOTO, "640x480");
+
+      expect(content("w2")).toEqual(untouched);
+      expect(changes).not.toContain("w2");
+      expect(content("w1")).toEqual({ src: NEW_PHOTO, srcIntrinsic: "" });
+    },
+  );
+
+  it("powrót do widgetu, zanim jego pomiar wróci: wynik należy do niego i zostaje zapisany raz", async () => {
+    const { content, changes, select } = renderBuilder(
+      [image("w1", { src: PHOTO, srcIntrinsic: "1200x675" }), heading("h1")],
+      "w1",
+    );
+    await settle(PHOTO, "1200x675");
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+
+    await select("h1");
+    await select("w1");
+    const writesBefore = changes.length;
+    // Pierwszy w kolejce jest pomiar zaczęty zmianą pliku, drugi - ponownym
+    // zaznaczeniem. Oba dotyczą tego samego widgetu i pliku.
+    expect(pendingUrls()).toEqual([NEW_PHOTO, NEW_PHOTO]);
+    await settle(NEW_PHOTO, "640x480");
+    await settle(NEW_PHOTO, "640x480");
+
+    expect(content("w1")).toEqual({ src: NEW_PHOTO, srcIntrinsic: "640x480" });
+    expect(changes.length).toBe(writesBefore + 1);
+  });
 });

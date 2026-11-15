@@ -55,6 +55,13 @@
 // globalnego zaznaczenie nie mierzy, więc tam rozmiar wraca dopiero przy
 // kolejnej zmianie pliku albo ustawienia - podpowiedź pokazuje to tak samo.
 // Przejście na inną zakładkę panelu wyniku NIE gubi.
+//
+// WYNIK NALEŻY DO WIDGETU, PRZY KTÓRYM POMIAR RUSZYŁ. Panel jest ten sam przy
+// przejściu między widgetami, więc spóźniony wynik zastaje już treść INNEGO
+// widgetu. Sama zgodność adresu w slocie nie wystarcza: dwa obrazy mogą
+// wskazywać ten sam plik, a wynik pomiaru zaczętego zmianą pliku w pierwszym
+// zapisałby się w drugim - także w obrazie w ramce i w instancji widgetu
+// globalnego, czyli tam, gdzie samo zaznaczenie nie ma prawa niczego zapisać.
 import { useCallback, useContext, useEffect, useRef } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
@@ -116,6 +123,7 @@ interface Latest {
   c: WidgetNode["content"];
   pending: Map<string, Json>;
   setContent: (k: string, v: Json) => void;
+  widgetId: string | undefined;
 }
 
 const readLatest = (now: Latest, key: string): unknown =>
@@ -142,9 +150,9 @@ export function useImageIntrinsicCapture({
 
   // Stan BIEŻĄCY dla wyników pomiaru, które wracają asynchronicznie: wynik
   // wolno zapisać tylko wtedy, gdy slot nadal wskazuje zmierzony plik.
-  const latest = useRef<Latest>({ c, pending: new Map(), setContent });
+  const latest = useRef<Latest>({ c, pending: new Map(), setContent, widgetId });
   useEffect(() => {
-    latest.current = { c, pending: new Map(), setContent };
+    latest.current = { c, pending: new Map(), setContent, widgetId };
   });
   const alive = useRef(true);
   useEffect(() => {
@@ -174,15 +182,19 @@ export function useImageIntrinsicCapture({
    * wartość zapisaną wcześniej; pomiar nieudany niczego nie zapisuje.
    * `onlyIfUsed`: pomiar wywołany zaznaczeniem albo przełączeniem ustawienia -
    * wynik przepada, gdy renderer w międzyczasie przestał rozmiaru używać.
+   * Wynik przepada też wtedy, gdy zaznaczony jest już inny widget niż ten,
+   * przy którym pomiar ruszył (patrz nagłówek pliku).
    */
   const capture = useCallback(
     (slot: ImageFileSlot, url: string, onlyIfUsed = false) => {
       if (!url) return;
+      const owner = latest.current.widgetId;
       void measureIntrinsicSize(url).then(({ size, noRatio }) => {
         const now = latest.current;
         const key = INTRINSIC_KEY[slot];
         if (
           !alive.current ||
+          now.widgetId !== owner ||
           !(size || noRatio) ||
           readText(now, slot) !== url ||
           readText(now, key) === size

@@ -946,6 +946,30 @@ describe("ImageEditor - pomiar utracony przez zmianę zaznaczenia", () => {
     });
   });
 
+  it("zaznaczenie obrazu w ramce z TYM SAMYM plikiem przed powrotem pomiaru: wynik do niego nie trafia", async () => {
+    probe.manual = true;
+    const { doc, select } = renderSelection(
+      {
+        w1: { src: PHOTO, srcIntrinsic: "1200x675" },
+        w2: { src: NEW_PHOTO, ratio: "16/9" },
+      },
+      "w1",
+    );
+    await settle(PHOTO, "1200x675");
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+    await select("w2");
+    // Obraz w ramce nie jest mierzony po zaznaczeniu - w toku jest tylko pomiar
+    // zaczęty zmianą pliku w pierwszym widgecie.
+    expect(probe.pending.map((entry) => entry.url)).toEqual([NEW_PHOTO]);
+    await settle(NEW_PHOTO, "640x480");
+
+    expect(doc).toEqual({
+      w1: { src: NEW_PHOTO, srcIntrinsic: "" },
+      w2: { src: NEW_PHOTO, ratio: "16/9" },
+    });
+  });
+
   it("instancja widgetu globalnego: zaznaczenie nie mierzy, więc rozmiar zostaje pusty - podpowiedź to pokazuje", async () => {
     probe.manual = true;
     const { doc, select } = renderSelection({ g1: { src: PHOTO } }, "g1", new Set(["g1"]));
