@@ -1644,7 +1644,15 @@ function customContentEditor(
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":
-      return <ImageEditor c={c} lang={lang} setContent={setContent} />;
+      return (
+        <ImageEditor
+          c={c}
+          lang={lang}
+          setContent={setContent}
+          widgetId={widget.id}
+          isGlobal={!!widget.globalId}
+        />
+      );
     case "rated-list":
       return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
     case "section-label":

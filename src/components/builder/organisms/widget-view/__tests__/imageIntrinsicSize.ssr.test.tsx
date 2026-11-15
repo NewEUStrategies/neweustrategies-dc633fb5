@@ -6,8 +6,9 @@
 // Opcja "Proporcje" tego nie rozwiązuje: każda wartość inna niż "auto" włącza
 // ramkę i zdejmuje `site-logo-img` oraz `--img-h` (zwijanie nagłówka).
 // Renderer dokłada więc same atrybuty `width`/`height` z naturalnego rozmiaru
-// pliku, dobranego po adresie, który REALNIE trafia do `src`: dla logo motywu
-// z `theme_options.logo.intrinsic` (pary `[adres, "WxH"]`).
+// pliku, dobranego po adresie, który REALNIE trafia do `src`:
+//   - logo motywu: `theme_options.logo.intrinsic` (pary `[adres, "WxH"]`),
+//   - własny plik widgetu: `srcIntrinsic` / `srcDarkIntrinsic` w treści.
 //
 // CO TU MA DOWÓD
 //  1. ZŁOTE ZNACZNIKI. Cztery napisy poniżej zostały zdjęte z komponentu SPRZED
@@ -20,7 +21,8 @@
 //     pojawia się inline `aspect-ratio` (nadpisałby `aspect-square` wariantu
 //     "circle" i utrwalił nieaktualną wartość).
 //  3. Rozmiar idzie za ADRESEM: każda połowa pary light/dark dostaje rozmiar
-//     własnego pliku, a wpis innego pliku nie jest pożyczany.
+//     własnego pliku, a rozmiar z treści nie jest pożyczany plikowi, który go
+//     zastąpił (logo motywu podstawione za własny `src`).
 //  4. Obraz w ramce (proporcja ustawiona) się nie zmienia.
 //  5. Priorytet ładowania, `sizes`, `srcset` i `data-lcp-candidate` nie zależą
 //     od obecności rozmiaru.
@@ -59,6 +61,7 @@ const LIGHT = "https://neweuropeanstrategies.com/media/theme/logo/nes-light.svg"
 const DARK = "https://neweuropeanstrategies.com/media/theme/logo/nes-dark.svg";
 const OTHER_LOGO = "https://neweuropeanstrategies.com/media/theme/logo/nes-other.svg";
 const PHOTO = "https://neweuropeanstrategies.com/media/widgets/panel-1200x675.jpg";
+const PHOTO_DARK = "https://neweuropeanstrategies.com/media/widgets/panel-dark-800x600.jpg";
 
 type ThemeLogo = Record<string, unknown>;
 interface RenderOpts {
@@ -197,6 +200,16 @@ describe("ZŁOTE ZNACZNIKI: rozmiar nieznany = HTML sprzed zmiany, bajt w bajt",
     expect(ssr(LOGO_PAIR, { logo })).toBe(GOLDEN_LOGO_PAIR);
     expect(ssr(LOGO_SEED, { logo })).toBe(GOLDEN_LOGO_SEED);
   });
+
+  it.each([
+    ["zera", "0x0"],
+    ["sama szerokość", "1200"],
+    ["liczba", 1200],
+    ["ułamek", "1200x675.5"],
+    ["pusty napis", ""],
+  ])("obraz: błędny `srcIntrinsic` (%s) -> złoty znacznik", (_label, bad) => {
+    expect(ssr({ ...AUTO_IMAGE, srcIntrinsic: bad })).toBe(GOLDEN_AUTO_IMAGE);
+  });
 });
 
 // ─── ROZMIAR ZNANY ──────────────────────────────────────────────────────────
@@ -285,12 +298,122 @@ describe("logo motywu: rozmiar z `theme_options.logo.intrinsic`, po adresie", ()
       expect(attr(img, "height")).toBeUndefined();
     }
   });
+
+  it("(7) logo motywu podstawione za własny `src`: rozmiar z treści NIE przechodzi na inny plik", () => {
+    // Treść ma własny plik z pomiarem, ale alt "Logo" podstawia logo motywu,
+    // które wpisu nie ma. Rozmiar 1200x675 opisuje inny plik niż renderowany.
+    const content = { src: PHOTO, srcIntrinsic: "1200x675", alt_pl: "Logo", heightPx: 44 };
+    const html = ssr(content, { logo: THEME_LOGO });
+
+    expect(html).toBe(GOLDEN_LOGO_PAIR);
+  });
+});
+
+describe("własny plik widgetu: rozmiar z `srcIntrinsic` / `srcDarkIntrinsic`", () => {
+  it('(4) obraz "auto": same atrybuty, bez `aspect-ratio`, opakowanie bez stylu', () => {
+    const html = ssr({ ...AUTO_IMAGE, srcIntrinsic: "1200x675" });
+
+    expect(html).toBe(withSize(GOLDEN_AUTO_IMAGE, "Panel dyskusyjny", [[1200, 675]]));
+    expect(html).toContain(' alt="Panel dyskusyjny" width="1200" height="675" loading="lazy"');
+    expect(html).not.toContain("aspect-ratio");
+    expect(html).toContain('<span class="oi-wrap oi-hover-zoom block overflow-hidden"><img');
+  });
+
+  it("(5) obraz w ramce z `srcIntrinsic`: HTML identyczny ze złotym", () => {
+    const html = ssr({ ...FRAMED_IMAGE, srcIntrinsic: "1200x675", srcDarkIntrinsic: "800x600" });
+
+    expect(html).toBe(GOLDEN_FRAMED_IMAGE);
+  });
+
+  it("para w ramce: żadna połowa nie dostaje atrybutów", () => {
+    const html = ssr({
+      ...FRAMED_IMAGE,
+      srcDark: PHOTO_DARK,
+      srcIntrinsic: "1200x675",
+      srcDarkIntrinsic: "800x600",
+    });
+
+    expect(imgTags(html)).toHaveLength(2);
+    for (const img of imgTags(html)) {
+      expect(attr(img, "width")).toBeUndefined();
+      expect(attr(img, "height")).toBeUndefined();
+    }
+  });
+
+  it('(6) wariant "circle": atrybuty są, klasa `aspect-square` zostaje, bez inline proporcji', () => {
+    const html = ssr({ ...AUTO_IMAGE, variant: "circle", srcIntrinsic: "1200x675" });
+    const [img] = imgTags(html);
+
+    expect(attr(img, "width")).toBe("1200");
+    expect(attr(img, "height")).toBe("675");
+    expect(attr(img, "class")).toContain("rounded-full aspect-square");
+    expect(html).not.toContain("aspect-ratio");
+  });
+
+  it('(8) motyw "dark" z samym `src`: ten sam plik, więc `srcIntrinsic`', () => {
+    const [img, ...rest] = imgTags(
+      ssr(
+        { ...AUTO_IMAGE, srcIntrinsic: "1200x675", srcDarkIntrinsic: "800x600" },
+        { theme: "dark" },
+      ),
+    );
+
+    expect(rest).toEqual([]);
+    expect(attr(img, "src")).toBe(PHOTO_PATH);
+    expect(attr(img, "width")).toBe("1200");
+    expect(attr(img, "height")).toBe("675");
+  });
+
+  it("(8) para z osobnym `srcDark`: połowa ciemna bierze `srcDarkIntrinsic`", () => {
+    const [light, dark] = imgTags(
+      ssr({
+        ...AUTO_IMAGE,
+        srcDark: PHOTO_DARK,
+        srcIntrinsic: "1200x675",
+        srcDarkIntrinsic: "800x600",
+      }),
+    );
+
+    expect(attr(light, "class")).toContain("gc-img-light");
+    expect([attr(light, "width"), attr(light, "height")]).toEqual(["1200", "675"]);
+    expect(attr(dark, "class")).toContain("gc-img-dark");
+    expect([attr(dark, "width"), attr(dark, "height")]).toEqual(["800", "600"]);
+  });
+
+  it("sam `srcDark` z pomiarem: jedyny obraz bierze `srcDarkIntrinsic` w obu motywach", () => {
+    const content = { srcDark: PHOTO_DARK, srcDarkIntrinsic: "800x600", srcIntrinsic: "1200x675" };
+    for (const theme of ["light", "dark"] as const) {
+      const [img, ...rest] = imgTags(ssr(content, { theme }));
+      expect(rest).toEqual([]);
+      expect([attr(img, "width"), attr(img, "height")]).toEqual(["800", "600"]);
+    }
+  });
+
+  it("para bez `srcDarkIntrinsic`: tylko połowa jasna niesie atrybuty", () => {
+    const [light, dark] = imgTags(
+      ssr({ ...AUTO_IMAGE, srcDark: PHOTO_DARK, srcIntrinsic: "1200x675" }),
+    );
+
+    expect(attr(light, "width")).toBe("1200");
+    expect(attr(dark, "width")).toBeUndefined();
+    expect(attr(dark, "height")).toBeUndefined();
+  });
 });
 
 describe("(10) ładowanie i kandydat LCP nie zależą od rozmiaru", () => {
   const LOADING_ATTRS = ["loading", "fetchPriority", "sizes", "srcSet", "data-lcp-candidate"];
   const loadingOf = (html: string) =>
     imgTags(html).map((tag) => LOADING_ATTRS.map((name) => attr(tag, name)));
+
+  it.each([false, true, "eager"] as const)('obraz "auto", lcp=%s', (lcp) => {
+    const bare = ssr(AUTO_IMAGE, { lcp });
+    const sized = ssr({ ...AUTO_IMAGE, srcIntrinsic: "1200x675" }, { lcp });
+
+    expect(loadingOf(sized)).toEqual(loadingOf(bare));
+    expect(attr(imgTags(sized)[0], "loading")).toBe(lcp === false ? "lazy" : "eager");
+    expect(sized.includes("data-lcp-candidate")).toBe(lcp === true);
+    expect(attr(imgTags(sized)[0], "width")).toBe("1200");
+  });
 
   it.each([false, true] as const)("para logo, lcp=%s: obie połowy leniwe jak dotąd", (lcp) => {
     const logo = {
@@ -369,6 +492,15 @@ describe("HTML serwera = strona po hydratacji", () => {
       ["700", "300"],
     ]);
     expect(result.html).toContain('width="350" height="150"');
+  });
+
+  it('obraz "auto": atrybuty z serwera zostają, bez błędu hydratacji', async () => {
+    const result = await hydrate({ ...AUTO_IMAGE, srcIntrinsic: "1200x675" }, {});
+
+    expect(result.errors).toEqual([]);
+    expect(result.sameNodes).toBe(true);
+    expect(result.unchanged).toBe(true);
+    expect(result.sizes).toEqual([["1200", "675"]]);
   });
 
   it("rozmiar nieznany: po hydratacji dalej żadnego `width`/`height`", async () => {

@@ -13,7 +13,11 @@ import { altMarksLogo } from "@/lib/builder/logoAlt";
 import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { findIntrinsicSize, type IntrinsicSize } from "@/lib/media/intrinsicSize";
+import {
+  findIntrinsicSize,
+  parseIntrinsicSize,
+  type IntrinsicSize,
+} from "@/lib/media/intrinsicSize";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
 
@@ -82,6 +86,11 @@ export function ImageWidget({
 }) {
   const rawSrc = safeImageUrl(getStr(c, "src"));
   const rawSrcDark = safeImageUrl(getStr(c, "srcDark"));
+  // Naturalny rozmiar własnych plików ("WxH", mierzy go edytor obrazu w panelu).
+  // Czytane bezwarunkowo, przed wczesnym wyjściem pustego stanu: panel pokazuje
+  // te wartości zawsze, więc renderer też ma je czytać w każdym stanie.
+  const srcIntrinsic = c.srcIntrinsic;
+  const srcDarkIntrinsic = c.srcDarkIntrinsic;
   const sizes = imageWidgetSizes(c, useBuilderImageSlot());
   const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
   const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
@@ -181,10 +190,16 @@ export function ImageWidget({
   // Atrybuty `width`/`height` obrazu BEZ ramki: przeglądarka zna proporcję
   // przed pobraniem pliku (Lighthouse `unsized-images`), a rozmiar na ekranie
   // dalej wyznacza `imgStyle`. Rozmiar idzie za adresem, który realnie trafia
-  // do `src` - wpis logo z Opcji motywu. Brak wpisu = znacznik bez atrybutów,
-  // jak dotąd. Obraz w ramce ma pole z `aspect-ratio`.
+  // do `src`: najpierw wpis logo z Opcji motywu, potem pomiar z treści - tylko
+  // gdy renderowany plik to ten, dla którego go zmierzono. Brak rozmiaru =
+  // znacznik bez atrybutów, jak dotąd. Obraz w ramce ma pole z `aspect-ratio`.
   const sizeOf = (url: string): IntrinsicSize | undefined =>
-    isFramed ? undefined : findIntrinsicSize(siteLogo.intrinsic, url);
+    isFramed
+      ? undefined
+      : (findIntrinsicSize(siteLogo.intrinsic, url) ??
+        parseIntrinsicSize(
+          url === rawSrc ? srcIntrinsic : url === rawSrcDark ? srcDarkIntrinsic : undefined,
+        ));
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
     : `block ${variantCls}${isLogo ? " site-logo-img" : ""}${heightPx > 0 ? " h-[var(--img-h)]" : ""}`;

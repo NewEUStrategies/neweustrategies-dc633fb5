@@ -6,11 +6,25 @@
 // `SchemaFieldControl`, co reszta panelu. Wcześniej ten edytor przesłaniał cały
 // blok schematu, więc cztery ustawienia obsługiwane przez renderer
 // (mediaWidgets.tsx) były w panelu nieosiągalne.
-import { useState } from "react";
+//
+// NATURALNY ROZMIAR PLIKU (`srcIntrinsic` / `srcDarkIntrinsic`, napis "WxH") to
+// wartość MIERZONA, nie wpisywana: renderer dokłada z niej obrazowi bez ramki
+// atrybuty `width`/`height` (Lighthouse `unsized-images`). Dlatego nie jest
+// polem schematu ani wpisem `IMAGE_EDITOR_HANDLED_KEYS` - edytor pokazuje ją
+// jako podpowiedź pod slotem i zapisuje sam:
+//   - przy ZMIANIE pliku: stary rozmiar jest zerowany w tym samym kroku cofania
+//     co nowy adres, a nowy plik mierzony;
+//   - raz po ZAZNACZENIU widgetu (istniejąca treść sprzed tej funkcji), o ile
+//     to nie instancja widgetu globalnego.
+// Pomiar NIGDY nie jest efektem zależnym od adresu ani od zapisanej wartości:
+// cofnięcie przywraca starszy adres albo pusty rozmiar, efekt zapisałby wtedy
+// ponownie, a każdy zapis czyści stos "ponów".
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
+import { measureIntrinsicSize } from "@/lib/media/measureIntrinsicSize";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
@@ -23,7 +37,26 @@ interface Props {
   c: WidgetNode["content"];
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
+  /**
+   * Identyfikator edytowanego widgetu: zmiana = zaznaczono inny obraz, więc
+   * jego pliki są mierzone raz (patrz nagłówek pliku). Bez identyfikatora
+   * pomiar biegnie tylko przy montażu edytora.
+   */
+  widgetId?: string;
+  /**
+   * Instancja widgetu globalnego: samo zaznaczenie nie może niczego zapisać -
+   * zapis instancji wypycha jej (być może nieaktualną) migawkę do wspólnego
+   * rekordu. Rozmiar jest wtedy mierzony dopiero przy realnej zmianie pliku.
+   */
+  isGlobal?: boolean;
 }
+
+/** Slot pliku i klucz treści z jego naturalnym rozmiarem. */
+type FileSlot = "src" | "srcDark";
+const INTRINSIC_KEY = { src: "srcIntrinsic", srcDark: "srcDarkIntrinsic" } as const;
+
+/** `"1200x675"` -> `"1200 × 675 px"` (podpowiedź pod slotem, bez tłumaczenia). */
+const sizeHint = (size: string) => `${size.replace("x", " × ")} px`;
 
 /** Pola schematu obrazka rysowane przez ten edytor (kolejność = kolejność w UI). */
 const PRESENTATION_KEYS = ["caption", "variant", "objectFit", "ratio"] as const;
@@ -60,11 +93,13 @@ const SITE_LOGO_FIELD: SchemaField | undefined = (WIDGET_SCHEMAS.image ?? []).fi
   (f) => f.key === "useSiteLogo",
 );
 
-export function ImageEditor({ c, lang, setContent }: Props) {
+export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
   const src = typeof c.src === "string" ? c.src : "";
   const srcDark = typeof c.srcDark === "string" ? c.srcDark : "";
+  const srcIntrinsic = typeof c.srcIntrinsic === "string" ? c.srcIntrinsic : "";
+  const srcDarkIntrinsic = typeof c.srcDarkIntrinsic === "string" ? c.srcDarkIntrinsic : "";
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
   const altEn = typeof c.alt_en === "string" ? c.alt_en : "";
   const href = typeof c.href === "string" ? c.href : "";
@@ -73,6 +108,54 @@ export function ImageEditor({ c, lang, setContent }: Props) {
   const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
   const align = (typeof c.align === "string" ? c.align : "center") as "left" | "center" | "right";
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+
+  // Stan BIEŻĄCY dla wyników pomiaru, które wracają asynchronicznie: wynik
+  // wolno zapisać tylko wtedy, gdy slot nadal wskazuje zmierzony plik.
+  const latest = useRef({ src, srcDark, srcIntrinsic, srcDarkIntrinsic, setContent });
+  useEffect(() => {
+    latest.current = { src, srcDark, srcIntrinsic, srcDarkIntrinsic, setContent };
+  });
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  /** Mierzy plik slotu i zapisuje rozmiar, jeśli różni się od zapisanego. */
+  const capture = useCallback((slot: FileSlot, url: string) => {
+    if (!url) return;
+    void measureIntrinsicSize(url).then((size) => {
+      const now = latest.current;
+      const key = INTRINSIC_KEY[slot];
+      if (!alive.current || !size || now[slot] !== url || now[key] === size) return;
+      latest.current = { ...now, [key]: size };
+      now.setContent(key, size);
+    });
+  }, []);
+
+  /** Zmiana pliku slotu: nowy adres, wyzerowany stary rozmiar, pomiar nowego. */
+  const changeSlot = (slot: FileSlot, value: string) => {
+    const key = INTRINSIC_KEY[slot];
+    setContent(slot, value);
+    // Ten sam krok cofania co adres (zapisy jednego widgetu się zwijają), więc
+    // "cofnij" przywraca stary plik RAZEM z jego rozmiarem.
+    if (latest.current[key]) setContent(key, "");
+    latest.current = { ...latest.current, [slot]: value, [key]: "" };
+    capture(slot, value);
+  };
+
+  // Treść sprzed tej funkcji (i wklejona poza edytorem) nie ma rozmiaru - mierzymy
+  // ją raz, gdy redaktor zaznaczy widget. Zależność to WYŁĄCZNIE tożsamość
+  // widgetu, nigdy adres ani zapisana wartość (patrz nagłówek pliku).
+  useEffect(() => {
+    if (isGlobal) return;
+    capture("src", latest.current.src);
+    capture("srcDark", latest.current.srcDark);
+  }, [widgetId, isGlobal, capture]);
+
+  const darkHint = t("builder.imageEditor.slotDarkHint");
 
   return (
     <div className="space-y-4">
@@ -131,15 +214,16 @@ export function ImageEditor({ c, lang, setContent }: Props) {
         label={t("builder.imageEditor.slotLight")}
         icon={<Sun className="w-3.5 h-3.5" />}
         value={src}
-        onChange={(v) => setContent("src", v)}
+        onChange={(v) => changeSlot("src", v)}
+        hint={srcIntrinsic ? sizeHint(srcIntrinsic) : undefined}
       />
 
       <ImageSlot
         label={t("builder.imageEditor.slotDark")}
         icon={<Moon className="w-3.5 h-3.5" />}
         value={srcDark}
-        onChange={(v) => setContent("srcDark", v)}
-        hint={t("builder.imageEditor.slotDarkHint")}
+        onChange={(v) => changeSlot("srcDark", v)}
+        hint={srcDarkIntrinsic ? `${darkHint} · ${sizeHint(srcDarkIntrinsic)}` : darkHint}
       />
 
       <div className="pt-2 border-t border-border space-y-2">
