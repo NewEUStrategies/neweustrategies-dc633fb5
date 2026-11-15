@@ -28,6 +28,19 @@
 // Pomiar NIGDY nie jest efektem zależnym od adresu ani od zapisanej wartości:
 // cofnięcie przywraca starszy adres albo pusty rozmiar, efekt zapisałby wtedy
 // ponownie, a każdy zapis czyści stos "ponów".
+//
+// ZNANE OGRANICZENIE. Wynik pomiaru zapisuje EDYTOR ZAZNACZONEGO widgetu. Gdy
+// redaktor odznaczy widget albo zaznaczy inny, zanim pomiar nowego pliku wróci
+// (okno to czas pobrania obrazu), wynik przepada i treść zostaje z nowym
+// adresem i pustym rozmiarem - strona renderuje wtedy znacznik bez atrybutów,
+// dokładnie jak przed tą funkcją. Wyniku nie dopisujemy po fakcie do widgetu,
+// którego redaktor już nie edytuje: taki zapis szedłby przez historię buildera
+// poza jego działaniem (osobny krok "cofnij" bez widocznego skutku, wyczyszczony
+// stos "ponów", przerwana seria edycji innego widgetu). Stan naprawia kolejne
+// zaznaczenie widgetu (pomiar rusza od nowa, bo rozmiaru brak), a do tego czasu
+// podpowiedź pod slotem mówi, że wymiary nie są zapisane. Instancji widgetu
+// globalnego zaznaczenie nie mierzy, więc tam rozmiar wraca dopiero przy
+// kolejnej zmianie pliku albo ustawienia - podpowiedź pokazuje to tak samo.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
@@ -236,6 +249,16 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
   }, [widgetId, isGlobal, capture]);
 
   const darkHint = t("builder.imageEditor.slotDarkHint");
+  // Podpowiedź pod slotem: zapisany rozmiar albo - gdy renderer by go użył, a w
+  // treści go nie ma - informacja, że wymiary nie są zapisane: pomiar trwa, nie
+  // udał się, plik nie ma własnej proporcji (SVG) albo wynik przepadł (patrz
+  // "ZNANE OGRANICZENIE" w nagłówku). Slot, którego rozmiaru renderer nie użyje,
+  // zostaje bez tej informacji - tam brak wymiarów niczego nie zmienia.
+  const usedNow = intrinsicSlotUse((key) => c[key], siteLogo);
+  const sizeNote = (slot: FileSlot, stored: string): string =>
+    stored ? sizeHint(stored) : usedNow[slot] ? t("builder.imageEditor.sizeNotStored") : "";
+  const lightSizeNote = sizeNote("src", srcIntrinsic);
+  const darkSizeNote = sizeNote("srcDark", srcDarkIntrinsic);
 
   return (
     <div className="space-y-4">
@@ -295,7 +318,7 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
         icon={<Sun className="w-3.5 h-3.5" />}
         value={src}
         onChange={(v) => changeSlot("src", v)}
-        hint={srcIntrinsic ? sizeHint(srcIntrinsic) : undefined}
+        hint={lightSizeNote || undefined}
       />
 
       <ImageSlot
@@ -303,7 +326,7 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
         icon={<Moon className="w-3.5 h-3.5" />}
         value={srcDark}
         onChange={(v) => changeSlot("srcDark", v)}
-        hint={srcDarkIntrinsic ? `${darkHint} · ${sizeHint(srcDarkIntrinsic)}` : darkHint}
+        hint={darkSizeNote ? `${darkHint} · ${darkSizeNote}` : darkHint}
       />
 
       <div className="pt-2 border-t border-border space-y-2">

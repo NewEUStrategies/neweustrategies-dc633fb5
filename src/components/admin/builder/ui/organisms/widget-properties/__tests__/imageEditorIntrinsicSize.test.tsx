@@ -96,6 +96,7 @@ import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 const LIGHT_SLOT = "builder.imageEditor.slotLight";
 const DARK_SLOT = "builder.imageEditor.slotDark";
 const DARK_HINT = "builder.imageEditor.slotDarkHint";
+const NOT_STORED = "builder.imageEditor.sizeNotStored";
 
 const PHOTO = "https://cdn.example.test/panel.jpg";
 const PHOTO_DARK = "https://cdn.example.test/panel-dark.jpg";
@@ -166,6 +167,53 @@ function renderLiveEditor(initial: WidgetContent) {
     </QueryClientProvider>,
   );
   return { calls, state };
+}
+
+/**
+ * Rodzic jak builder z ZAZNACZENIEM: treść każdego widgetu żyje w dokumencie,
+ * panel pokazuje edytor zaznaczonego obrazu (ta sama instancja edytora przy
+ * przejściu między obrazami, odmontowanie przy odznaczeniu), a `setContent`
+ * jest związany z widgetem zaznaczonym w chwili renderu - jak
+ * `updateWidget(selectedWidget.id, ...)` w `Builder.tsx`.
+ */
+function renderSelection(
+  initial: Record<string, WidgetContent>,
+  selected: string | null,
+  globals: ReadonlySet<string> = new Set(),
+) {
+  const doc: Record<string, WidgetContent> = { ...initial };
+  const control: { select: (id: string | null) => void } = { select: () => {} };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Host() {
+    const [current, setCurrent] = useState<string | null>(selected);
+    const [, setRevision] = useState(0);
+    control.select = setCurrent;
+    if (!current) return null;
+    return (
+      <ImageEditor
+        c={doc[current]}
+        lang="pl"
+        widgetId={current}
+        isGlobal={globals.has(current)}
+        setContent={(key, value) => {
+          doc[current] = { ...doc[current], [key]: value };
+          setRevision((revision) => revision + 1);
+        }}
+      />
+    );
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <Host />
+    </QueryClientProvider>,
+  );
+  return {
+    doc,
+    select: (id: string | null) =>
+      act(async () => {
+        control.select(id);
+      }),
+  };
 }
 
 /** Domyka mikrozadania (rozstrzygnięte pomiary) i wynikające z nich rendery. */
@@ -671,6 +719,77 @@ describe("ImageEditor - zmiana pliku", () => {
   });
 });
 
+// ZNANE OGRANICZENIE (pkt 4): pomiar nowego pliku przepada, gdy redaktor odznaczy
+// widget albo zaznaczy inny, zanim wynik wróci - treść zostaje z nowym adresem
+// i PUSTYM rozmiarem (strona renderuje znacznik bez atrybutów, jak przed tą
+// funkcją). Wyniku nie dopisujemy po fakcie: zapis do widgetu, którego redaktor
+// już nie edytuje, dokładałby krok "cofnij" i czyścił stos "ponów" poza jego
+// działaniem. Stan naprawia się sam przy kolejnym zaznaczeniu - i to jest tu
+// przypięte - a do tego czasu edytor pokazuje, że wymiary nie są zapisane.
+describe("ImageEditor - pomiar utracony przez zmianę zaznaczenia", () => {
+  it("odznaczenie przed powrotem pomiaru: rozmiar zostaje pusty, a ponowne zaznaczenie mierzy plik jeszcze raz i go zapisuje", async () => {
+    probe.manual = true;
+    const { doc, select } = renderSelection({ w1: { src: PHOTO, srcIntrinsic: "1200x675" } }, "w1");
+    await settle(PHOTO, "1200x675");
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+    await select(null);
+    await settle(NEW_PHOTO, "640x480");
+    expect(doc.w1).toEqual({ src: NEW_PHOTO, srcIntrinsic: "" });
+
+    await select("w1");
+    expect(probe.pending.map((entry) => entry.url)).toEqual([NEW_PHOTO]);
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
+    await settle(NEW_PHOTO, "640x480");
+
+    expect(doc.w1).toEqual({ src: NEW_PHOTO, srcIntrinsic: "640x480" });
+    expect(probe.slots[LIGHT_SLOT].hint).toBe("640 × 480 px");
+  });
+
+  it("zaznaczenie INNEGO obrazu przed powrotem pomiaru: wynik nie trafia do żadnego widgetu, powrót mierzy ponownie", async () => {
+    probe.manual = true;
+    const { doc, select } = renderSelection(
+      {
+        w1: { src: PHOTO, srcIntrinsic: "1200x675" },
+        w2: { src: PHOTO_DARK, srcIntrinsic: "800x600" },
+      },
+      "w1",
+    );
+    await settle(PHOTO, "1200x675");
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+    await select("w2");
+    await settle(NEW_PHOTO, "640x480");
+    await settle(PHOTO_DARK, "800x600");
+    expect(doc).toEqual({
+      w1: { src: NEW_PHOTO, srcIntrinsic: "" },
+      w2: { src: PHOTO_DARK, srcIntrinsic: "800x600" },
+    });
+
+    await select("w1");
+    await settle(NEW_PHOTO, "640x480");
+
+    expect(doc).toEqual({
+      w1: { src: NEW_PHOTO, srcIntrinsic: "640x480" },
+      w2: { src: PHOTO_DARK, srcIntrinsic: "800x600" },
+    });
+  });
+
+  it("instancja widgetu globalnego: zaznaczenie nie mierzy, więc rozmiar zostaje pusty - podpowiedź to pokazuje", async () => {
+    probe.manual = true;
+    const { doc, select } = renderSelection({ g1: { src: PHOTO } }, "g1", new Set(["g1"]));
+
+    await changeSlot(LIGHT_SLOT, NEW_PHOTO);
+    await select(null);
+    await settle(NEW_PHOTO, "640x480");
+    await select("g1");
+
+    expect(probe.pending).toEqual([]);
+    expect(doc.g1).toEqual({ src: NEW_PHOTO });
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
+  });
+});
+
 describe("ImageEditor - rodzic stosujący zapisy (jak builder)", () => {
   it("po zmianie pliku treść kończy z nowym adresem i JEGO rozmiarem", async () => {
     probe.sizes = { [PHOTO]: "1200x675", [NEW_PHOTO]: "640x480" };
@@ -705,18 +824,53 @@ describe("ImageEditor - podpowiedź z rozmiarem i kontrakt panelu", () => {
     expect(screen.getByText(`${DARK_HINT} · 800 × 600 px`)).toBeInTheDocument();
   });
 
-  it("bez rozmiaru: slot jasny bez podpowiedzi, ciemny z samym opisem", () => {
-    renderEditor({ src: PHOTO, srcDark: PHOTO_DARK });
+  it("bez rozmiaru, gdy renderer go nie użyje (obraz w ramce): slot jasny bez podpowiedzi, ciemny z samym opisem", () => {
+    renderEditor({ src: PHOTO, srcDark: PHOTO_DARK, ratio: "16/9" });
 
     expect(probe.slots[LIGHT_SLOT].hint).toBeUndefined();
     expect(probe.slots[DARK_SLOT].hint).toBe(DARK_HINT);
     expect(screen.queryByText(/ px$/)).toBeNull();
   });
 
+  it("bez rozmiaru, gdy renderer by go użył: podpowiedź mówi, że wymiary nie są jeszcze zapisane", async () => {
+    // Pomiar się nie udaje (brak wpisu w `probe.sizes`), więc stan zostaje.
+    renderEditor({ src: PHOTO, srcDark: PHOTO_DARK });
+    await flush();
+
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
+    expect(probe.slots[DARK_SLOT].hint).toBe(`${DARK_HINT} · ${NOT_STORED}`);
+    expect(screen.getByText(NOT_STORED)).toBeInTheDocument();
+    expect(screen.queryByText(/ px$/)).toBeNull();
+  });
+
+  it("pusty slot nie ma czego mierzyć: bez podpowiedzi o wymiarach", () => {
+    renderEditor({ src: PHOTO, srcIntrinsic: "1200x675" });
+
+    expect(probe.slots[LIGHT_SLOT].hint).toBe("1200 × 675 px");
+    expect(probe.slots[DARK_SLOT].hint).toBe(DARK_HINT);
+  });
+
+  it("własny plik zastąpiony logo motywu: bez podpowiedzi o wymiarach", () => {
+    renderEditor({ src: PHOTO, useSiteLogo: "main" }, undefined, { main: SITE_LOGO });
+
+    expect(probe.slots[LIGHT_SLOT].hint).toBeUndefined();
+    expect(probe.slots[DARK_SLOT].hint).toBe(DARK_HINT);
+  });
+
+  it("po zapisaniu pomiaru podpowiedź przechodzi z braku wymiarów na rozmiar pliku", async () => {
+    probe.manual = true;
+    renderLiveEditor({ src: PHOTO });
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
+
+    await settle(PHOTO, "1200x675");
+
+    expect(probe.slots[LIGHT_SLOT].hint).toBe("1200 × 675 px");
+  });
+
   it("wartość innego typu niż napis jest traktowana jak brak rozmiaru", () => {
     renderEditor({ src: PHOTO, srcIntrinsic: 1200, srcDarkIntrinsic: null });
 
-    expect(probe.slots[LIGHT_SLOT].hint).toBeUndefined();
+    expect(probe.slots[LIGHT_SLOT].hint).toBe(NOT_STORED);
     expect(probe.slots[DARK_SLOT].hint).toBe(DARK_HINT);
   });
 
