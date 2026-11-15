@@ -7,7 +7,7 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
-import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
+import { headerLogoSize, headerLogoSrc, type HeaderLogoConfig } from "@/lib/brand/headerLogo";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -54,7 +54,7 @@ import {
 } from "@/lib/performance/interactionOrQuiet";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
-type ThemeLogoCfg = { logo?: HeaderLogoVariants };
+type ThemeLogoCfg = { logo?: HeaderLogoConfig };
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -160,6 +160,11 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
   // wpisu: ten sam `src` = jeden auto-preload Reacta w `<head>` (patrz
   // `lib/brand/headerLogo`).
   const mobileLogo = headerLogoSrc(theme.logo, isDark);
+  // Naturalny rozmiar TEGO SAMEGO pliku (ten sam łańcuch wariantów), z listy
+  // zapisywanej przez Opcje motywu: same atrybuty `width`/`height`, z których
+  // przeglądarka zna proporcję przed pobraniem (Lighthouse `unsized-images`).
+  // Klasy `h-8 w-auto` dalej decydują o rozmiarze; brak wpisu = brak atrybutów.
+  const mobileLogoSize = headerLogoSize(theme.logo, isDark);
 
   const [open, setOpen] = useState(false);
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
@@ -301,6 +306,8 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
               <img
                 src={mobileLogo}
                 alt={siteName}
+                width={mobileLogoSize?.width}
+                height={mobileLogoSize?.height}
                 className="h-8 w-auto max-w-[180px] object-contain"
                 loading="eager"
                 decoding="async"

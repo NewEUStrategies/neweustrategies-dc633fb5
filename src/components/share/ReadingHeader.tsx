@@ -31,9 +31,9 @@ import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { rafThrottle } from "@/lib/rafThrottle";
-import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
+import { headerLogoSize, headerLogoSrc, type HeaderLogoConfig } from "@/lib/brand/headerLogo";
 
-type ReadingHeaderThemeLogo = { logo?: HeaderLogoVariants };
+type ReadingHeaderThemeLogo = { logo?: HeaderLogoConfig };
 
 // Arkusz paska czytania, inline w powłoce wpisu. BEZ KOMENTARZY CSS w literale:
 // `<style>` jedzie w HTML-u każdego wpisu, a `check:document-weight` liczy bajty
@@ -171,6 +171,10 @@ export function ReadingHeader({
   const themeSettings = useSiteSetting<ReadingHeaderThemeLogo>("theme_options", {});
   const { theme: themeMode } = useTheme();
   const horizontalLogo = headerLogoSrc(themeSettings.logo, themeMode === "dark");
+  // Naturalny rozmiar tego samego pliku - same atrybuty `width`/`height` obu
+  // logo paska (parytet z paskiem mobilnym `Header.tsx`); rozmiar na ekranie
+  // dalej wyznaczają klasy `h-* w-auto`.
+  const horizontalLogoSize = headerLogoSize(themeSettings.logo, themeMode === "dark");
   // Logo paska LENIWE, gdy pasek startuje ukryty (wpis: `aria-hidden` + `inert`,
   // przesunięty nad ekran do chwili, gdy pasek serwisu wyjedzie z kadru; lewa
   // kolumna z logo na telefonie to w ogóle `display: none`). Eager nic tu nie
@@ -312,6 +316,8 @@ export function ReadingHeader({
                   <img
                     src={horizontalLogo}
                     alt=""
+                    width={horizontalLogoSize?.width}
+                    height={horizontalLogoSize?.height}
                     className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
                     loading={logoLoading}
                     decoding="async"
@@ -398,6 +404,8 @@ export function ReadingHeader({
                 <img
                   src={horizontalLogo}
                   alt=""
+                  width={horizontalLogoSize?.width}
+                  height={horizontalLogoSize?.height}
                   className="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain"
                   loading={logoLoading}
                   decoding="async"
