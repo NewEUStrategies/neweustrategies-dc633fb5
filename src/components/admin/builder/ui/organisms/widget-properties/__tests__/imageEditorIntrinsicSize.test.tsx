@@ -29,6 +29,12 @@
 //     pod warunkiem z pkt 5: zaznaczenie nie pisze do slotu, którego renderer
 //     nie użyje.
 //
+// GDZIE MIESZKA TA LOGIKA. W haku `useImageIntrinsicCapture`. W builderze trzyma
+// go panel właściwości nad zakładkami (dowód, że pomiar przeżywa zmianę
+// zakładki: `builder/__tests__/imageCaptureAcrossTabs.test.tsx`). Tutaj edytor
+// jest renderowany BEZ panelu, więc uruchamia ten sam hak sam - reguły powyżej
+// są sprawdzane na dokładnie tym kodzie, którego używa panel.
+//
 // `measureIntrinsicSize` jest atrapą (środowisko testowe nie ładuje obrazów);
 // `ImageSlot` jest PRAWDZIWY - atrapa tylko podsłuchuje jego propsy, żeby test
 // mógł wywołać `onChange` dokładnie tak, jak robi to pole adresu, upload i

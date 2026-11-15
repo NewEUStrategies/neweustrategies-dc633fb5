@@ -11,63 +11,43 @@
 // wartość MIERZONA, nie wpisywana: renderer dokłada z niej obrazowi bez ramki
 // atrybuty `width`/`height` (Lighthouse `unsized-images`). Dlatego nie jest
 // polem schematu ani wpisem `IMAGE_EDITOR_HANDLED_KEYS` - edytor pokazuje ją
-// jako podpowiedź pod slotem i zapisuje sam:
-//   - przy ZMIANIE pliku: stary rozmiar jest zerowany w tym samym kroku cofania
-//     co nowy adres, a nowy plik mierzony;
-//   - raz po ZAZNACZENIU widgetu (istniejąca treść sprzed tej funkcji), o ile
-//     to nie instancja widgetu globalnego i TYLKO dla slotu, którego rozmiaru
-//     publiczny renderer użyje (`intrinsicSlotUse`): obraz w ramce i widget,
-//     którego własny plik zastępuje logo motywu, nie są ani mierzone, ani
-//     zapisywane. Samo kliknięcie nie może dokładać kroku "cofnij" bez
-//     widocznego skutku ani uruchamiać autozapisu dla wartości, którą render
-//     odrzuca;
-//   - gdy redaktor PRZEŁĄCZY ustawienie tak, że renderer zacznie rozmiaru
-//     używać ("Proporcje" na auto, wyłączone "Użyj logo witryny") - efekt po
-//     zaznaczeniu nie uruchomi się drugi raz dla tego samego widgetu. Zmianę
-//     samego altu (słowo "logo") dogania dopiero kolejne zaznaczenie.
-// Pomiar NIGDY nie jest efektem zależnym od adresu ani od zapisanej wartości:
-// cofnięcie przywraca starszy adres albo pusty rozmiar, efekt zapisałby wtedy
-// ponownie, a każdy zapis czyści stos "ponów".
+// tylko jako podpowiedź pod slotem.
 //
-// PLIK BEZ WŁASNEJ PROPORCJI (werdykt `noRatio` pomiaru, np. SVG bez `viewBox`)
-// ZERUJE rozmiar zapisany dla slotu: to rozmiar zastępczy przeglądarki albo
-// rozmiar pliku, który stał pod tym adresem wcześniej, i jego atrybuty zmieniają
-// kształt obrazu na stałe. Zerowanie idzie tymi samymi ścieżkami co zapis
-// rozmiaru (zmiana pliku, zaznaczenie, przełączone ustawienie) i pod tymi samymi
-// warunkami - zaznaczenie nie pisze do slotu, którego renderer nie użyje.
-// Pomiar NIEUDANY (plik niedostępny, limit czasu) niczego nie zmienia.
+// POMIAR I ZAPIS NIE MIESZKAJĄ W EDYTORZE. Robi to hak
+// `useImageIntrinsicCapture` (reguły, kiedy mierzy i kiedy zapisuje, są w jego
+// nagłówku), a trzyma go panel właściwości NAD zakładkami: edytor siedzi w
+// zakładce "Treść", która po PRZEJŚCIU NA INNĄ ZAKŁADKĘ jest odmontowywana, więc
+// pomiar trzymany tutaj gubił wynik, gdy redaktor otworzył "Styl" albo
+// "Zaawansowane", i nie ruszał po zaznaczeniu obrazu, dopóki "Treść" nie była
+// widoczna. Edytor dostaje od panelu dwa zapisy idące przez pomiar (`capture`:
+// zmiana pliku slotu i ustawienie, od którego zależy użycie rozmiaru) i tylko
+// je wywołuje. Renderowany bez panelu (testy edytora, bramka wierności
+// ustawień) uruchamia ten sam hak sam.
 //
-// ZNANE OGRANICZENIE. Wynik pomiaru zapisuje EDYTOR ZAZNACZONEGO widgetu. Gdy
-// redaktor odznaczy widget albo zaznaczy inny, zanim pomiar nowego pliku wróci
-// (okno to czas pobrania obrazu), wynik przepada i treść zostaje z nowym
-// adresem i pustym rozmiarem - strona renderuje wtedy znacznik bez atrybutów,
-// dokładnie jak przed tą funkcją. Wyniku nie dopisujemy po fakcie do widgetu,
-// którego redaktor już nie edytuje: taki zapis szedłby przez historię buildera
-// poza jego działaniem (osobny krok "cofnij" bez widocznego skutku, wyczyszczony
-// stos "ponów", przerwana seria edycji innego widgetu). Stan naprawia kolejne
-// zaznaczenie widgetu (pomiar rusza od nowa, bo rozmiaru brak), a do tego czasu
-// podpowiedź pod slotem mówi, że wymiary nie są zapisane. Instancji widgetu
-// globalnego zaznaczenie nie mierzy, więc tam rozmiar wraca dopiero przy
-// kolejnej zmianie pliku albo ustawienia - podpowiedź pokazuje to tak samo.
-import { useCallback, useEffect, useRef, useState } from "react";
+// ZNANE OGRANICZENIE (szczegóły w nagłówku haka): wynik pomiaru przepada, gdy
+// redaktor ODZNACZY widget albo zaznaczy inny, zanim pomiar wróci - treść
+// zostaje wtedy z nowym adresem i pustym rozmiarem (znacznik bez atrybutów, jak
+// przed tą funkcją), stan naprawia kolejne zaznaczenie, a do tego czasu
+// podpowiedź pod slotem mówi, że wymiary nie są zapisane. Samo przełączenie
+// zakładki panelu wyniku nie gubi.
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import {
-  IMAGE_FILE_SLOTS,
   intrinsicSlotUse,
   type ImageFileSlot,
   type SiteLogoSettings,
 } from "@/lib/admin/imageIntrinsicUse";
-import { measureIntrinsicSize } from "@/lib/media/measureIntrinsicSize";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ImageSlot } from "./ImageSlot";
+import { useImageIntrinsicCapture, type ImageIntrinsicCapture } from "./useImageIntrinsicCapture";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -76,44 +56,16 @@ interface Props {
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
   /**
-   * Identyfikator edytowanego widgetu: zmiana = zaznaczono inny obraz, więc
-   * jego pliki są mierzone raz (patrz nagłówek pliku). Bez identyfikatora
-   * pomiar biegnie tylko przy montażu edytora.
+   * Zapisy idące przez pomiar rozmiaru, trzymane przez panel właściwości (żyją
+   * także wtedy, gdy zakładka z edytorem jest zamknięta). Bez nich edytor
+   * prowadzi pomiar sam i wtedy liczą się `widgetId` oraz `isGlobal`.
    */
+  capture?: ImageIntrinsicCapture;
+  /** Jak `widgetId` haka `useImageIntrinsicCapture` - tylko dla edytora bez `capture`. */
   widgetId?: string;
-  /**
-   * Instancja widgetu globalnego: samo zaznaczenie nie może niczego zapisać -
-   * zapis instancji wypycha jej (być może nieaktualną) migawkę do wspólnego
-   * rekordu. Rozmiar jest wtedy mierzony dopiero przy realnej edycji: zmianie
-   * pliku albo ustawienia, które włącza użycie rozmiaru (`setRenderOption`).
-   */
+  /** Jak `isGlobal` haka `useImageIntrinsicCapture` - tylko dla edytora bez `capture`. */
   isGlobal?: boolean;
 }
-
-/** Slot pliku i klucz treści z jego naturalnym rozmiarem. */
-type FileSlot = ImageFileSlot;
-const INTRINSIC_KEY = { src: "srcIntrinsic", srcDark: "srcDarkIntrinsic" } as const;
-
-/**
- * Stan BIEŻĄCY edytora dla kodu, który działa poza renderem (wynik pomiaru,
- * obsługa zdarzeń): treść z propsa plus `pending` - zapisy już wysłane, których
- * rodzic nie oddał jeszcze propsem. Każdy render zaczyna od pustego `pending`.
- */
-interface Latest {
-  c: WidgetNode["content"];
-  pending: Map<string, Json>;
-  setContent: (k: string, v: Json) => void;
-  siteLogo: SiteLogoSettings;
-}
-
-const readLatest = (now: Latest, key: string): unknown =>
-  now.pending.has(key) ? now.pending.get(key) : now.c[key];
-const readText = (now: Latest, key: string): string => {
-  const value = readLatest(now, key);
-  return typeof value === "string" ? value : "";
-};
-/** Które sloty renderer zasili rozmiarem z treści - przy bieżącym stanie edytora. */
-const slotUse = (now: Latest) => intrinsicSlotUse((key) => readLatest(now, key), now.siteLogo);
 
 /** `"1200x675"` -> `"1200 × 675 px"` (podpowiedź pod slotem, bez tłumaczenia). */
 const sizeHint = (size: string) => `${size.replace("x", " × ")} px`;
@@ -153,7 +105,7 @@ const SITE_LOGO_FIELD: SchemaField | undefined = (WIDGET_SCHEMAS.image ?? []).fi
   (f) => f.key === "useSiteLogo",
 );
 
-export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }: Props) {
+export function ImageEditor({ c, lang, setContent, capture, widgetId, isGlobal }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
   const src = typeof c.src === "string" ? c.src : "";
@@ -171,7 +123,7 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
 
   // Logo motywu z TEGO SAMEGO cache'u ustawień, z którego rysuje podgląd na
   // kanwie (bez własnego pobrania): od niego zależy, czy renderer narysuje
-  // własny plik widgetu, czyli czy jego rozmiar jest do czegokolwiek potrzebny.
+  // własny plik widgetu, czyli czy podpowiedź o braku wymiarów ma sens.
   const { data: siteSettings } = useQuery({ ...siteSettingsQueryOptions, enabled: false });
   const siteLogo = resolveSetting<{ logo?: SiteLogoSettings }>(
     siteSettings,
@@ -179,89 +131,15 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
     {},
   ).logo;
 
-  // Stan BIEŻĄCY dla wyników pomiaru, które wracają asynchronicznie: wynik
-  // wolno zapisać tylko wtedy, gdy slot nadal wskazuje zmierzony plik.
-  const latest = useRef<Latest>({ c, pending: new Map(), setContent, siteLogo });
-  useEffect(() => {
-    latest.current = { c, pending: new Map(), setContent, siteLogo };
+  // Pomiar trzyma panel (`capture`); edytor bez panelu uruchamia hak sam.
+  const ownCapture = useImageIntrinsicCapture({
+    enabled: !capture,
+    c,
+    setContent,
+    widgetId,
+    isGlobal,
   });
-  const alive = useRef(true);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  /**
-   * Mierzy plik slotu i zapisuje rozmiar, jeśli różni się od zapisanego. Plik
-   * bez własnej proporcji (`noRatio`) zapisuje rozmiar PUSTY, czyli zeruje
-   * wartość zapisaną wcześniej; pomiar nieudany niczego nie zapisuje.
-   * `onlyIfUsed`: pomiar wywołany zaznaczeniem albo przełączeniem ustawienia -
-   * wynik przepada, gdy renderer w międzyczasie przestał rozmiaru używać.
-   */
-  const capture = useCallback((slot: FileSlot, url: string, onlyIfUsed = false) => {
-    if (!url) return;
-    void measureIntrinsicSize(url).then(({ size, noRatio }) => {
-      const now = latest.current;
-      const key = INTRINSIC_KEY[slot];
-      if (
-        !alive.current ||
-        !(size || noRatio) ||
-        readText(now, slot) !== url ||
-        readText(now, key) === size
-      ) {
-        return;
-      }
-      if (onlyIfUsed && !slotUse(now)[slot]) return;
-      now.pending.set(key, size);
-      now.setContent(key, size);
-    });
-  }, []);
-
-  /** Zmiana pliku slotu: nowy adres, wyzerowany stary rozmiar, pomiar nowego. */
-  const changeSlot = (slot: FileSlot, value: string) => {
-    const now = latest.current;
-    const key = INTRINSIC_KEY[slot];
-    setContent(slot, value);
-    // Ten sam krok cofania co adres (zapisy jednego widgetu się zwijają), więc
-    // "cofnij" przywraca stary plik RAZEM z jego rozmiarem.
-    if (readText(now, key)) setContent(key, "");
-    now.pending.set(slot, value);
-    now.pending.set(key, "");
-    capture(slot, value);
-  };
-
-  /**
-   * Zapis ustawienia, od którego zależy, czy renderer użyje rozmiaru własnego
-   * pliku ("Użyj logo witryny", "Proporcje"). Gdy zmiana WŁĄCZA użycie slotu
-   * (zdjęta ramka, wyłączone logo witryny), jego plik jest mierzony od razu.
-   * To edycja redaktora, nie zaznaczenie, więc dotyczy też instancji widgetu
-   * globalnego - rozmiar wpada w ten sam krok cofania co zmiana ustawienia.
-   */
-  const setRenderOption = (k: string, v: Json) => {
-    const now = latest.current;
-    const before = slotUse(now);
-    setContent(k, v);
-    now.pending.set(k, v);
-    const after = slotUse(now);
-    for (const slot of IMAGE_FILE_SLOTS) {
-      if (!before[slot] && after[slot]) capture(slot, readText(now, slot), true);
-    }
-  };
-
-  // Treść sprzed tej funkcji (i wklejona poza edytorem) nie ma rozmiaru - mierzymy
-  // ją raz, gdy redaktor zaznaczy widget, ale tylko tam, gdzie renderer rozmiaru
-  // użyje. Zależność to WYŁĄCZNIE tożsamość widgetu, nigdy adres ani zapisana
-  // wartość (patrz nagłówek pliku).
-  useEffect(() => {
-    if (isGlobal) return;
-    const now = latest.current;
-    const used = slotUse(now);
-    for (const slot of IMAGE_FILE_SLOTS) {
-      if (used[slot]) capture(slot, readText(now, slot), true);
-    }
-  }, [widgetId, isGlobal, capture]);
+  const { changeSlot, setRenderOption } = capture ?? ownCapture;
 
   const darkHint = t("builder.imageEditor.slotDarkHint");
   // Podpowiedź pod slotem: zapisany rozmiar albo - gdy renderer by go użył, a w
@@ -270,7 +148,7 @@ export function ImageEditor({ c, lang, setContent, widgetId, isGlobal = false }:
   // "ZNANE OGRANICZENIE" w nagłówku). Slot, którego rozmiaru renderer nie użyje,
   // zostaje bez tej informacji - tam brak wymiarów niczego nie zmienia.
   const usedNow = intrinsicSlotUse((key) => c[key], siteLogo);
-  const sizeNote = (slot: FileSlot, stored: string): string =>
+  const sizeNote = (slot: ImageFileSlot, stored: string): string =>
     stored ? sizeHint(stored) : usedNow[slot] ? t("builder.imageEditor.sizeNotStored") : "";
   const lightSizeNote = sizeNote("src", srcIntrinsic);
   const darkSizeNote = sizeNote("srcDark", srcDarkIntrinsic);

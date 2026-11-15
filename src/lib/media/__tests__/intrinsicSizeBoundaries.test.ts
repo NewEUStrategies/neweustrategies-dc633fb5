@@ -50,11 +50,14 @@ describe("naturalny rozmiar obrazu - granice modułów", () => {
   });
 
   it("pomiar i lista logo naprawdę importują się wzorcem, którego pilnuje ten test", () => {
-    // Kontrola samego wzorca: panel importuje oba moduły dokładnie tak.
+    // Kontrola samego wzorca: panel importuje te moduły dokładnie tak.
+    const editorDir = "src/components/admin/builder/ui/organisms/widget-properties";
     expect(read("src/components/admin/ThemeOptionsPane.tsx")).toMatch(ADMIN_ONLY_IMPORT);
-    expect(
-      read("src/components/admin/builder/ui/organisms/widget-properties/ImageEditor.tsx"),
-    ).toMatch(ADMIN_ONLY_IMPORT);
+    expect(read(`${editorDir}/ImageEditor.tsx`)).toMatch(ADMIN_ONLY_IMPORT);
+    // Sam pomiar woła hak trzymany przez panel właściwości (nad zakładkami).
+    expect(read(`${editorDir}/useImageIntrinsicCapture.ts`)).toMatch(
+      /from\s+["']@\/lib\/media\/measureIntrinsicSize["']/,
+    );
   });
 });
 

@@ -131,6 +131,10 @@ import {
   CIRCULAR_CAROUSEL_EDITOR_HANDLED_KEYS,
   WORLD_MAP_EDITOR_HANDLED_KEYS,
 } from "./ui/organisms/widget-properties";
+import {
+  useImageIntrinsicCapture,
+  type ImageIntrinsicCapture,
+} from "./ui/organisms/widget-properties/useImageIntrinsicCapture";
 
 interface Props {
   widget: WidgetNode;
@@ -174,6 +178,18 @@ export function WidgetProperties({
   // edycje arkusza i jeszcze wcześniejszą zmianę tytułu.
   const setContentPatch = (patch: ContentPatch) =>
     onChange(contentPatchMutation(patch), { coalesce: false });
+  // Pomiar naturalnego rozmiaru plików widgetu obrazu stoi TUTAJ, nad
+  // zakładkami: działa przez całe zaznaczenie, także gdy zakładka "Treść" z
+  // edytorem obrazu jest zamknięta (i odmontowana). Zapis idzie przez
+  // `setContent`, czyli `onChange` zaznaczonego widgetu. Dla każdego innego typu
+  // widgetu hak jest wyłączony.
+  const imageCapture = useImageIntrinsicCapture({
+    enabled: widget.type === "image",
+    c: widget.content,
+    setContent,
+    widgetId: widget.id,
+    isGlobal: !!widget.globalId,
+  });
   const setOptionalNumberContent = (k: string, v: number | null) =>
     onChange((w) => {
       const content = { ...(w.content ?? {}) } as Record<string, Json>;
@@ -468,6 +484,7 @@ export function WidgetProperties({
             lang={lang}
             setContent={setContent}
             setContentPatch={setContentPatch}
+            imageCapture={imageCapture}
           />
         </TabsContent>
 
@@ -1417,12 +1434,19 @@ export function WidgetContentFields({
   lang,
   setContent,
   setContentPatch,
+  imageCapture,
 }: {
   widget: WidgetNode;
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
   /** Zapis wielu kluczy jako jeden krok historii - patrz `WidgetProperties`. */
   setContentPatch?: (patch: ContentPatch) => void;
+  /**
+   * Zapisy edytora obrazu idące przez pomiar rozmiaru pliku, trzymane przez
+   * panel nad zakładkami. Bez nich (zakładka renderowana poza panelem) edytor
+   * obrazu prowadzi pomiar sam.
+   */
+  imageCapture?: ImageIntrinsicCapture;
 }) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
@@ -1451,7 +1475,7 @@ export function WidgetContentFields({
   // Custom (list-style) editors for complex widgets. Fields of the widget's
   // schema that the custom editor does NOT claim are rendered below it, so a
   // schema entry can never be silently swallowed by the custom branch.
-  const custom = customContentEditor(widget, lang, setContent);
+  const custom = customContentEditor(widget, lang, setContent, imageCapture);
   if (custom) {
     const leftover = unhandledSchemaFields(widget.type);
     if (leftover.length === 0)
@@ -1626,6 +1650,7 @@ function customContentEditor(
   widget: WidgetNode,
   lang: "pl" | "en",
   setContent: (k: string, v: Json) => void,
+  imageCapture: ImageIntrinsicCapture | undefined,
 ): ReactElement | null {
   const c = widget.content;
   switch (widget.type) {
@@ -1649,6 +1674,7 @@ function customContentEditor(
           c={c}
           lang={lang}
           setContent={setContent}
+          capture={imageCapture}
           widgetId={widget.id}
           isGlobal={!!widget.globalId}
         />
