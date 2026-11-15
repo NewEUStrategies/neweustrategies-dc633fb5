@@ -21,8 +21,8 @@ import {
   latestSupersetAuthorIds,
   projectLatestPostRows,
 } from "@/lib/builder/latestPostsSuperset";
-import type { PostParentPage } from "@/lib/routing/postHref";
-import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
+import { postColumnsWithParentPage, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export type Lang = "pl" | "en";
 
@@ -334,14 +334,11 @@ async function fetchPopularPostIds(
  * `post-list` zasila strony główne budowane builderem - bez tych kolumn
  * sponsorowany materiał trafiałby tam bez żadnego wyróżnienia.
  *
- * Ostatnia pozycja to osadzenie strony-rodzica (`POST_PARENT_PAGE_EMBED`,
- * `lib/routing/postHref.ts`): karta linkuje wprost na adres kanoniczny wpisu,
- * a nie na `/post/<slug>`, który odpowiada 301.
+ * Jedyny literał kolumn tego zapytania i zarazem odczyt zapasowy. Wariant
+ * z osadzeniem strony-rodzica (`POST_PARENT_PAGE_EMBED`, `lib/routing/postHref.ts`)
+ * dokleja `readPostsWithParentPage`: karta linkuje wprost na adres kanoniczny
+ * wpisu, a nie na `/post/<slug>`, który odpowiada 301.
  */
-export const POST_LIST_COLUMNS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
-
-/** `POST_LIST_COLUMNS` bez osadzenia - odczyt zapasowy (`readWithPostParentPage`). */
 export const POST_LIST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
@@ -375,7 +372,8 @@ function postListReadsLatestSuperset(input: PostListFetchInput): boolean {
 
 /**
  * Wycinek nadzbioru w kształcie wierszy `fetchPostListRows`: kolumny
- * `POST_LIST_COLUMNS`, byline z jednego odczytu profili wszystkich autorów
+ * `POST_LIST_PLAIN_COLUMNS` z osadzeniem rodzica (to, o co pyta widget), byline
+ * z jednego odczytu profili wszystkich autorów
  * nadzbioru (podzbiór id wiersza daje te same profile co `.in("id", ...)`
  * widgetu). `null` = nadzbiór niedostępny, wołający pyta jak dotąd.
  */
@@ -386,7 +384,7 @@ async function postListRowsFromLatestSuperset(
   if (superset === null) return null;
   const rows = projectLatestPostRows<PostRow>(
     superset.slice(input.offset, input.offset + input.limit),
-    POST_LIST_COLUMNS,
+    postColumnsWithParentPage(POST_LIST_PLAIN_COLUMNS),
   );
   return attachAuthorNames(rows, input.withAuthors, () =>
     fetchLatestSupersetAuthors(latestSupersetAuthorIds(superset)).catch(() => []),
@@ -486,10 +484,7 @@ async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> 
     return q;
   };
 
-  const { data, error } = await readWithPostParentPage(
-    () => read(POST_LIST_COLUMNS),
-    () => read(POST_LIST_PLAIN_COLUMNS),
-  );
+  const { data, error } = await readPostsWithParentPage(read, POST_LIST_PLAIN_COLUMNS);
   if (error) throw error;
   let rows = (data ?? []) as unknown as PostRow[];
   if (effectiveOrderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);

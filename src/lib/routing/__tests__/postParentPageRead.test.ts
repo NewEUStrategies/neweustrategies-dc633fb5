@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   POST_PARENT_PAGE_RETRY_MS,
+  readPostsWithParentPage,
   readWithPostParentPage,
   resetPostParentPageRead,
 } from "../postParentPageRead";
@@ -142,5 +143,70 @@ describe("readWithPostParentPage", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain("[postHref]");
     expect(warn.mock.calls[0]).toContain("PGRST200");
+  });
+
+  it("wpis w logu niesie kod i treść błędu bazy (tekst krótki, diagnoza pełna)", async () => {
+    const r = reads(RELATIONSHIP_MISSING);
+
+    await readWithPostParentPage(r.withParentPage, r.plain);
+
+    expect(warn.mock.calls[0]).toEqual([
+      "[postHref] parent_page:",
+      "PGRST200",
+      RELATIONSHIP_MISSING.error.message,
+    ]);
+  });
+});
+
+describe("readPostsWithParentPage", () => {
+  const PLAIN_COLUMNS = "id, slug, title_pl";
+  /** Dosłowny `select` z osadzeniem - to, co pomocnik MA wysłać do bazy. */
+  const EMBEDDED_COLUMNS =
+    "id, slug, title_pl, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+  function columnRead(embedded: Result<unknown>, plain: Result<unknown>) {
+    return vi.fn((columns: string) =>
+      Promise.resolve(columns.includes("parent_page:") ? embedded : plain),
+    );
+  }
+
+  it("osadzenie działa: JEDEN odczyt, kolumny wołającego z doklejonym osadzeniem rodzica", async () => {
+    const read = columnRead({ data: WITH_PARENT, error: null }, { data: PLAIN, error: null });
+
+    await expect(readPostsWithParentPage(read, PLAIN_COLUMNS)).resolves.toEqual({
+      data: WITH_PARENT,
+      error: null,
+    });
+    expect(read.mock.calls).toEqual([[EMBEDDED_COLUMNS]]);
+  });
+
+  it("błąd osadzenia: drugi odczyt DOKŁADNIE kolumnami wołającego, wiersze zamiast błędu", async () => {
+    const read = columnRead(RELATIONSHIP_MISSING, { data: PLAIN, error: null });
+
+    await expect(readPostsWithParentPage(read, PLAIN_COLUMNS)).resolves.toEqual({
+      data: PLAIN,
+      error: null,
+    });
+    expect(read.mock.calls).toEqual([[EMBEDDED_COLUMNS], [PLAIN_COLUMNS]]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("błąd odczytu zapasowego wraca do wołającego bez zmian", async () => {
+    const down = { data: null, error: { code: "57014", message: "statement timeout" } };
+    const read = columnRead(RELATIONSHIP_MISSING, down);
+
+    await expect(readPostsWithParentPage(read, PLAIN_COLUMNS)).resolves.toEqual(down);
+  });
+
+  it("dzieli okno wyłączenia z `readWithPostParentPage`: po porażce czyta od razu bez osadzenia", async () => {
+    const broken = reads(RELATIONSHIP_MISSING);
+    await readWithPostParentPage(broken.withParentPage, broken.plain);
+    const read = columnRead({ data: WITH_PARENT, error: null }, { data: PLAIN, error: null });
+
+    await expect(readPostsWithParentPage(read, PLAIN_COLUMNS)).resolves.toEqual({
+      data: PLAIN,
+      error: null,
+    });
+    expect(read.mock.calls).toEqual([[PLAIN_COLUMNS]]);
   });
 });

@@ -43,6 +43,19 @@
 export const POST_PARENT_PAGE_EMBED =
   "parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
 
+/**
+ * Kolumny wpisu z dopisanym osadzeniem strony-rodzica: `"<kolumny>, <osadzenie>"`.
+ *
+ * Jedyne miejsce, które skleja oba człony: moduły zapytań trzymają wyłącznie
+ * literał własnych kolumn (ten sam, którym leci odczyt zapasowy), a wariant
+ * z osadzeniem powstaje tutaj. Sklejanie w FUNKCJI, nie w stałej modułu: każda
+ * pełna kopia literału z osadzeniem w chunku startowym to bajty pod bramką
+ * bundla, a szablon dwóch stałych minifikator może zwinąć z powrotem w literał.
+ */
+export function postColumnsWithParentPage(plainColumns: string): string {
+  return `${plainColumns}, ${POST_PARENT_PAGE_EMBED}`;
+}
+
 /** Strona-rodzic wpisu w kształcie osadzenia `POST_PARENT_PAGE_EMBED`. */
 export interface PostParentPage {
   slug: string;

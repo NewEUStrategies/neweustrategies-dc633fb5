@@ -26,13 +26,21 @@ vi.mock("@/integrations/supabase/client", async () => {
 
 import { fail, ok } from "@/test/supabase";
 import {
-  RATED_LIST_POST_COLUMNS,
   RATED_LIST_POST_PLAIN_COLUMNS,
   ratedListQueryOptions,
   type RatedListItem,
 } from "@/lib/builder/ratedListQuery";
 import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
 import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
+
+/**
+ * `select` listy z osadzeniem rodzica - DOSŁOWNIE, znak po znaku. Moduł
+ * zapytania trzyma już tylko literał zapasowy, a osadzenie dokleja wspólny
+ * pomocnik (`readPostsWithParentPage`); ten napis pilnuje, że do bazy idzie
+ * to samo żądanie co wtedy, gdy moduł miał pełny literał.
+ */
+const RATED_LIST_POST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
 
 function db(): SupabaseFromStub {
   if (sb.from === null) throw new Error("test: atrapa `from` nie zostala utworzona");
@@ -80,6 +88,9 @@ describe("lista oceniana: adres kanoniczny wpisu", () => {
   it("literał z osadzeniem różni się od zapasowego wyłącznie osadzeniem rodzica", () => {
     expect(RATED_LIST_POST_COLUMNS).toBe(
       `${RATED_LIST_POST_PLAIN_COLUMNS}, ${POST_PARENT_PAGE_EMBED}`,
+    );
+    expect(RATED_LIST_POST_PLAIN_COLUMNS).toBe(
+      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id",
     );
     expect(RATED_LIST_POST_PLAIN_COLUMNS).not.toContain("(");
   });

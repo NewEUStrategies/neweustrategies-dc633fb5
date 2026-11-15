@@ -13,7 +13,12 @@
 // 3. KSZTAŁT OSADZENIA. Literał `select` wskazuje klucz obcy po nazwie i niesie
 //    DOKŁADNIE dwa pola, z których `postHref` czyta adres.
 import { describe, expect, it } from "vitest";
-import { POST_PARENT_PAGE_EMBED, postHref, type PostHrefSource } from "../postHref";
+import {
+  POST_PARENT_PAGE_EMBED,
+  postColumnsWithParentPage,
+  postHref,
+  type PostHrefSource,
+} from "../postHref";
 
 describe("postHref", () => {
   it("rodzic najwyższego poziomu: /<slug rodzica>/<slug wpisu>", () => {
@@ -76,5 +81,20 @@ describe("POST_PARENT_PAGE_EMBED", () => {
     expect(POST_PARENT_PAGE_EMBED).toBe(
       "parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)",
     );
+  });
+});
+
+describe("postColumnsWithParentPage", () => {
+  it("dokleja osadzenie jako OSTATNIĄ pozycję `select`, po przecinku i spacji", () => {
+    // Dosłowny napis: to jest `select`, który idzie do PostgREST z każdego
+    // zapytania korzystającego z pomocnika.
+    expect(postColumnsWithParentPage("id, slug, title_pl")).toBe(
+      "id, slug, title_pl, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)",
+    );
+  });
+
+  it("kolumn wołającego nie zmienia (osadzenia w nawiasach też nie)", () => {
+    const columns = "id, slug, post_categories!inner(category_id)";
+    expect(postColumnsWithParentPage(columns)).toBe(`${columns}, ${POST_PARENT_PAGE_EMBED}`);
   });
 });

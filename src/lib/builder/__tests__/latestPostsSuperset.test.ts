@@ -62,14 +62,12 @@ import {
   warmLatestPostsSuperset,
 } from "@/lib/builder/latestPostsSuperset";
 import {
-  POST_LIST_COLUMNS,
   POST_LIST_PLAIN_COLUMNS,
   postListQueryOptions,
   type Lang,
   type PostRow,
 } from "@/lib/builder/postListQuery";
 import {
-  SLIDER_POST_COLUMNS,
   SLIDER_POST_PLAIN_COLUMNS,
   sliderPostsQueryOptions,
   type SliderPostRow,
@@ -81,6 +79,17 @@ import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/slider
 import { prefetchSectionQueries } from "@/lib/builder/prefetch";
 
 type Row = Record<string, unknown>;
+
+/**
+ * `select` post-listy i slidera z osadzeniem rodzica - DOSŁOWNIE, znak po
+ * znaku. Moduły zapytań trzymają już tylko literał zapasowy, a osadzenie
+ * dokleja wspólny pomocnik (`readPostsWithParentPage`); te napisy pilnują, że
+ * do bazy idą te same żądania co wtedy, gdy moduły miały pełne literały.
+ */
+const POST_LIST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+const SLIDER_POST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
 
 const LATEST_POSTS_SUPERSET_COLUMN_NAMES = selectColumnNames(LATEST_POSTS_SUPERSET_COLUMNS);
 

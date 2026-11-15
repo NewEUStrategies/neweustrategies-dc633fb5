@@ -21,8 +21,8 @@ import {
   latestPostsSupersetCovers,
   projectLatestPostRows,
 } from "@/lib/builder/latestPostsSuperset";
-import type { PostParentPage } from "@/lib/routing/postHref";
-import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
+import { postColumnsWithParentPage, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 /**
  * Wiersz slidera w cache. Pola językowe są OPCJONALNE, bo zapytanie oddaje
@@ -142,14 +142,11 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
 }
 
 /**
- * Kolumny wiersza slidera - jeden literał dla zapytania i typu wiersza.
- * Ostatnia pozycja to osadzenie strony-rodzica (`POST_PARENT_PAGE_EMBED`,
- * `lib/routing/postHref.ts`): slajd linkuje wprost na adres kanoniczny wpisu.
+ * Kolumny wiersza slidera - jedyny literał kolumn tego zapytania i zarazem
+ * odczyt zapasowy. Wariant z osadzeniem strony-rodzica (`POST_PARENT_PAGE_EMBED`,
+ * `lib/routing/postHref.ts`) dokleja `readPostsWithParentPage`: slajd linkuje
+ * wprost na adres kanoniczny wpisu.
  */
-export const SLIDER_POST_COLUMNS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
-
-/** `SLIDER_POST_COLUMNS` bez osadzenia - odczyt zapasowy (`readWithPostParentPage`). */
 export const SLIDER_POST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
 
@@ -181,7 +178,7 @@ async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPos
     if (superset !== null) {
       return projectLatestPostRows<SliderPostRow>(
         superset.slice(0, input.limit),
-        SLIDER_POST_COLUMNS,
+        postColumnsWithParentPage(SLIDER_POST_PLAIN_COLUMNS),
       );
     }
   }
@@ -210,10 +207,7 @@ async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPos
     q = q.order(sliderPostsOrderColumn(orderBy, lang), { ascending });
     return q.limit(limit);
   };
-  const { data } = await readWithPostParentPage(
-    () => read(SLIDER_POST_COLUMNS),
-    () => read(SLIDER_POST_PLAIN_COLUMNS),
-  );
+  const { data } = await readPostsWithParentPage(read, SLIDER_POST_PLAIN_COLUMNS);
   return (data ?? []) as unknown as SliderPostRow[];
 }
 

@@ -38,9 +38,18 @@ vi.mock("react-i18next", () => ({
 import { fail, ok } from "@/test/supabase";
 import { NewsTickerView } from "../NewsTickerView";
 import { TrendingNowView } from "../TrendingNowView";
-import { TICKER_POST_COLUMNS, TICKER_POST_PLAIN_COLUMNS } from "@/lib/builder/newsTickerQuery";
+import { TICKER_POST_PLAIN_COLUMNS } from "@/lib/builder/newsTickerQuery";
 import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
 import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
+
+/**
+ * `select` paska z osadzeniem rodzica - DOSŁOWNIE, znak po znaku. Moduł
+ * zapytania trzyma już tylko literał zapasowy, a osadzenie dokleja wspólny
+ * pomocnik (`readPostsWithParentPage`); ten napis pilnuje, że do bazy idzie
+ * to samo żądanie co wtedy, gdy moduł miał pełny literał.
+ */
+const TICKER_POST_COLUMNS =
+  "id, slug, title_pl, title_en, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
 
 function db(): SupabaseFromStub {
   if (sb.from === null) throw new Error("test: atrapa `from` nie zostala utworzona");
@@ -91,6 +100,7 @@ afterEach(cleanup);
 describe("zapytanie paska: rodzic w tym samym odczycie", () => {
   it("literał z osadzeniem różni się od zapasowego wyłącznie osadzeniem rodzica", () => {
     expect(TICKER_POST_COLUMNS).toBe(`${TICKER_POST_PLAIN_COLUMNS}, ${POST_PARENT_PAGE_EMBED}`);
+    expect(TICKER_POST_PLAIN_COLUMNS).toBe("id, slug, title_pl, title_en, author_id");
     expect(TICKER_POST_PLAIN_COLUMNS).not.toContain("(");
   });
 

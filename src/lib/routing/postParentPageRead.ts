@@ -22,6 +22,8 @@
 // `edgeTtlCache`. Po oknie osadzenie jest próbowane ponownie, więc naprawa
 // schematu nie wymaga wymiany izolatu.
 
+import { postColumnsWithParentPage } from "./postHref";
+
 /** Błąd odczytu w kształcie, w jakim oddaje go supabase-js. */
 interface ReadError {
   message: string;
@@ -62,15 +64,33 @@ export async function readWithPostParentPage<A, B>(
   if (now >= embedDisabledUntil) {
     embedDisabledUntil = now + POST_PARENT_PAGE_RETRY_MS;
     if (typeof console !== "undefined") {
-      console.warn(
-        "[postHref] odczyt wpisów z osadzoną stroną-rodzicem nie powiódł się; " +
-          "wracam do odczytu bez osadzenia (adresy /post/<slug>):",
-        embedded.error.code ?? "",
-        embedded.error.message,
-      );
+      // Tekst jedzie w chunku startowym klienta, więc jest krótki i w ASCII.
+      // Co się dzieje po tym wpisie (odczyt bez osadzenia, adresy
+      // `/post/<slug>` do końca okna) opisuje nagłówek modułu.
+      console.warn("[postHref] parent_page:", embedded.error.code ?? "", embedded.error.message);
     }
   }
   return plain();
+}
+
+/**
+ * `readWithPostParentPage` dla zapytania budowanego jedną funkcją
+ * `read(kolumny)`: wariant z osadzeniem dostaje
+ * `postColumnsWithParentPage(plainColumns)`, zapasowy - same `plainColumns`.
+ * Wołający trzyma JEDEN literał kolumn i nie powtarza ani osadzenia, ani pary
+ * domknięć; reguła błędów i okno wyłączenia są te same co wyżej.
+ *
+ * Łańcuch pisany wprost (`.from("posts").select(<literał>)`), który ma czytać
+ * bramka kontraktu TS <-> SQL, zostaje przy `readWithPostParentPage`.
+ */
+export function readPostsWithParentPage<T>(
+  read: (columns: string) => PromiseLike<ReadResult<T>>,
+  plainColumns: string,
+): Promise<ReadResult<T>> {
+  return readWithPostParentPage(
+    () => read(postColumnsWithParentPage(plainColumns)),
+    () => read(plainColumns),
+  );
 }
 
 /** Tylko testy: zdejmuje wyłączenie osadzenia, żeby przypadki się nie widziały. */

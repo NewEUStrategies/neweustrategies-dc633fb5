@@ -54,10 +54,12 @@ const LATEST_POSTS_SUPERSET_TTL_MS = 60_000;
 const LATEST_POSTS_SUPERSET_KEY = "builder:latest-posts:v1";
 
 /**
- * DOKŁADNA suma `POST_LIST_COLUMNS` (postListQuery.ts) i `SLIDER_POST_COLUMNS`
- * (sliderPostsQuery.ts) - kolumny slidera są podzbiorem kolumn post-listy
- * (test `latestPostsSuperset.test.ts` pilnuje równości zbiorów). Literał, nie
- * złożenie: bramka kontraktu TS <-> SQL czyta `select` wprost.
+ * DOKŁADNA suma kolumn post-listy (`POST_LIST_PLAIN_COLUMNS`, postListQuery.ts)
+ * i slidera (`SLIDER_POST_PLAIN_COLUMNS`, sliderPostsQuery.ts), obu z osadzeniem
+ * rodzica - kolumny slidera są podzbiorem kolumn post-listy (test
+ * `latestPostsSuperset.test.ts` pilnuje równości zbiorów). Literał, nie
+ * złożenie: bramka kontraktu TS <-> SQL czyta `select` wprost, a ten moduł
+ * działa tylko na serwerze, więc pełny literał nie kosztuje bajtów klienta.
  *
  * Ostatnia pozycja to osadzenie strony-rodzica (`POST_PARENT_PAGE_EMBED`,
  * `lib/routing/postHref.ts`): adres kanoniczny wpisu jedzie w TYM SAMYM

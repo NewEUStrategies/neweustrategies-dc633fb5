@@ -52,7 +52,7 @@ import {
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
 import { postHref, type PostParentPage } from "@/lib/routing/postHref";
-import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export type Lang = "pl" | "en";
 
@@ -66,17 +66,14 @@ export type Lang = "pl" | "en";
 export const RATED_LIST_STALE_MS = 2 * 60_000;
 
 /**
- * Kolumny wpisu. Eksportowane, bo `sectionPrefetch.test.ts` przypina literał:
- * zmiana kształtu wiersza zmienia to, co prefetch SSR wpisuje do cache, a widok
- * czyta ten wpis bez żadnej walidacji.
- */
-export const RATED_LIST_POST_COLUMNS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
-
-/**
- * `RATED_LIST_POST_COLUMNS` bez osadzenia strony-rodzica - odczyt zapasowy
- * (`readWithPostParentPage`): gdy odczyt z osadzeniem odda błąd, lista ma te
- * same wpisy z adresem `/post/<slug>` zamiast pustki.
+ * Kolumny wpisu - jedyny literał kolumn tego zapytania. Eksportowane, bo
+ * `sectionPrefetch.test.ts` przypina literał: zmiana kształtu wiersza zmienia
+ * to, co prefetch SSR wpisuje do cache, a widok czyta ten wpis bez żadnej
+ * walidacji.
+ *
+ * Zapytanie leci z dopisanym osadzeniem strony-rodzica (dokleja je
+ * `readPostsWithParentPage`); gdy tamten odczyt odda błąd, leci DOKŁADNIE ten
+ * literał i lista ma te same wpisy z adresem `/post/<slug>` zamiast pustki.
  */
 export const RATED_LIST_POST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id";
@@ -312,10 +309,7 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
     return q.range(from, to);
   };
 
-  const { data } = await readWithPostParentPage(
-    () => read(RATED_LIST_POST_COLUMNS),
-    () => read(RATED_LIST_POST_PLAIN_COLUMNS),
-  );
+  const { data } = await readPostsWithParentPage(read, RATED_LIST_POST_PLAIN_COLUMNS);
   let rows = (data ?? []) as unknown as PostRow[];
 
   const missingAuthorIds = Array.from(

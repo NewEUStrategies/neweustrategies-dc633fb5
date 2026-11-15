@@ -16,7 +16,7 @@ import {
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
 import type { PostParentPage } from "@/lib/routing/postHref";
-import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export interface TickerPost {
   id: string;
@@ -34,15 +34,12 @@ export interface TickerPost {
 }
 
 /**
- * Kolumny wiersza paska. Ostatnia pozycja to osadzenie strony-rodzica
- * (`POST_PARENT_PAGE_EMBED`, `lib/routing/postHref.ts`): pasek stoi w chrome
- * każdej trasy, więc adres kanoniczny jedzie w tym samym odczycie, bez
+ * Kolumny wiersza paska - jedyny literał kolumn tego zapytania i zarazem
+ * odczyt zapasowy. Wariant z osadzeniem strony-rodzica (`POST_PARENT_PAGE_EMBED`,
+ * `lib/routing/postHref.ts`) dokleja `readPostsWithParentPage`: pasek stoi
+ * w chrome każdej trasy, więc adres kanoniczny jedzie w tym samym odczycie, bez
  * osobnego round-tripu po ścieżki.
  */
-export const TICKER_POST_COLUMNS =
-  "id, slug, title_pl, title_en, author_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
-
-/** `TICKER_POST_COLUMNS` bez osadzenia - odczyt zapasowy (`readWithPostParentPage`). */
 export const TICKER_POST_PLAIN_COLUMNS = "id, slug, title_pl, title_en, author_id";
 
 /** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
@@ -107,10 +104,7 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
       .eq("status", "published")
       .order("published_at", { ascending: false })
       .limit(input.limit);
-  const { data } = await readWithPostParentPage(
-    () => read(TICKER_POST_COLUMNS),
-    () => read(TICKER_POST_PLAIN_COLUMNS),
-  );
+  const { data } = await readPostsWithParentPage(read, TICKER_POST_PLAIN_COLUMNS);
   const posts = (data ?? []) as unknown as TickerPost[];
 
   const authorIds = Array.from(
