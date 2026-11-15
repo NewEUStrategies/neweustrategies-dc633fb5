@@ -56,14 +56,32 @@ export const SERVER_BASELINE_VENDOR_GROUPS: readonly ServerVendorGroup[] = [
   },
 ];
 
+/** Kształt opcji `rolldownConfig`, którą budujemy. */
+export interface ServerVendorChunking {
+  output: { codeSplitting: { groups: ServerVendorGroup[] } };
+}
+
+/**
+ * Preset hostingu Lovable, który składa serwer w JEDEN plik (`inlineDynamicImports`,
+ * `lovableFetchBundlePreset` w `@lovable.dev/vite-tanstack-config`). Wybiera go zmienna
+ * `LOVABLE_NITRO_PRESET` w środowisku builda hostingu, nie ten plik.
+ */
+export const SINGLE_FILE_NITRO_PRESET = "lovable-fetch-bundle";
+
 /**
  * Wartość opcji `rolldownConfig` Nitro. Nitro scala ją (defu) z własną konfiguracją, a tablice
  * skleja: jego grupa `node_modules` zostaje pierwsza, nasze dochodzą za nią i wygrywają
  * priorytetem, nie pozycją.
+ *
+ * PRESET JEDNOPLIKOWY: `undefined`. Tam nie ma chunków, więc podział niczego nie zmienia,
+ * a grupy `codeSplitting` obok `inlineDynamicImports` to kombinacja, której ten build nigdy
+ * nie przechodził - nie sprawdzamy jej na buildzie wdrożeniowym. Dla Nitro `undefined` to
+ * brak opcji.
  */
-export function serverVendorChunking(): {
-  output: { codeSplitting: { groups: ServerVendorGroup[] } };
-} {
+export function serverVendorChunking(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ServerVendorChunking | undefined {
+  if (env.LOVABLE_NITRO_PRESET === SINGLE_FILE_NITRO_PRESET) return undefined;
   return {
     output: { codeSplitting: { groups: SERVER_BASELINE_VENDOR_GROUPS.map((g) => ({ ...g })) } },
   };

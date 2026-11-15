@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   SERVER_BASELINE_VENDOR_GROUPS,
   serverVendorChunking,
+  SINGLE_FILE_NITRO_PRESET,
 } from "../../../../scripts/lib/serverVendorChunks";
 
 const grupa = (name: string) => {
@@ -80,15 +81,27 @@ describe("serverVendorChunks - paczki bazowe dokumentu poza chunkiem SDK MCP", (
   });
 
   it("`serverVendorChunking()` oddaje opcję Rolldowna z kopiami grup pod `output.codeSplitting`", () => {
-    const config = serverVendorChunking();
+    const config = serverVendorChunking({});
+    if (!config) throw new Error("brak opcji dla presetu z podziałem na chunki");
     expect(Object.keys(config)).toEqual(["output"]);
     expect(Object.keys(config.output)).toEqual(["codeSplitting"]);
     expect(config.output.codeSplitting.groups).toEqual([...SERVER_BASELINE_VENDOR_GROUPS]);
     // Nitro scala konfigurację w miejscu (defu) - wspólna tablica między presetami niosłaby
     // zmiany jednego builda do drugiego.
     expect(config.output.codeSplitting.groups[0]).not.toBe(SERVER_BASELINE_VENDOR_GROUPS[0]);
-    expect(serverVendorChunking().output.codeSplitting.groups).not.toBe(
+    expect(serverVendorChunking({})?.output.codeSplitting.groups).not.toBe(
       config.output.codeSplitting.groups,
     );
+  });
+
+  it("preset jednoplikowy hostingu nie dostaje grup podziału", () => {
+    // `lovable-fetch-bundle` buduje serwer z `inlineDynamicImports`: chunków nie ma, więc
+    // podział jest bezprzedmiotowy, a kombinacji z grupami nie testuje żaden nasz build.
+    expect(
+      serverVendorChunking({ LOVABLE_NITRO_PRESET: SINGLE_FILE_NITRO_PRESET }),
+    ).toBeUndefined();
+    // Każda inna wartość (także nieznana, którą konfiguracja Lovable ignoruje) dzieli jak dotąd.
+    expect(serverVendorChunking({ LOVABLE_NITRO_PRESET: "cloudflare-module" })).toBeDefined();
+    expect(serverVendorChunking({ LOVABLE_NITRO_PRESET: "cos-innego" })).toBeDefined();
   });
 });
