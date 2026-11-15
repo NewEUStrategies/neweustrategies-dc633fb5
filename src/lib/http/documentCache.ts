@@ -119,6 +119,16 @@ export const PUBLIC_DOCUMENT_DENY_PREFIXES = [
   // może trafić do wspólnego cache'u pod kluczem zawierającym sekret.
   "/tickets",
   "/certificates",
+  // Trzecia powierzchnia tej samej klasy: zaproszenie na miejsce z pakietu
+  // (`/events/invite/<token>`, `packageInviteUrl`) - jedyny adres modułu
+  // wydarzeń, w którym klucz jedzie w ŚCIEŻCE (zarządzanie zgłoszeniem i bilet
+  // niosą go we fragmencie, REG-17). Trasa jest `ssr: false`, więc nie ma
+  // loadera, który zadeklarowałby `no-store`; bez wpisu tutaj dokument dostawał
+  // domyślne `public, s-maxage=900` i wchodził do magazynu pod kluczem
+  // zawierającym token. Analityka maskuje ten segment od dawna
+  // (`lib/analytics/redactTrackedUrl.ts`, ten sam zbiór trzech tras).
+  // Dwa segmenty, nie `/events`: katalog i strony wydarzeń zostają w cache.
+  "/events/invite",
 ] as const;
 
 // Parametry trackingowe kampanii: nie wpływają na render SSR (loadery tras
