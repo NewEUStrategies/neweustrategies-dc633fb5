@@ -401,7 +401,101 @@ Bez nich produkcja renderuje się dokładnie jak dziś.
 
 ### Następne pozycje
 
-A2 ciąg dalszy (bloki treści, lista `/blog`, mega menu, wyszukiwarka), D2
-(podział arkusza stylów), D1/D3, F. Decyzje właściciela bez zmian: §3 oraz
-pomarańczowy tekst, kanoniczna lista wydarzeń, zgoda na migracje RPC
+Faza druga: §9 (mapa z 15.11.2026 i kolejność). Decyzje właściciela bez zmian:
+§3 oraz pomarańczowy tekst, kanoniczna lista wydarzeń, zgoda na migracje RPC
 (powłoka strony to dziś najdłuższy łańcuch przed pierwszym bajtem).
+
+## 9. Faza druga: mapa i kolejność (15.11.2026)
+
+Mapa sporządzona wyłącznie przez odczyt, na artefakcie klienta z `e69fec57`.
+„Zmierzone" oznacza różnicę gzip po wycięciu kodu z gotowego pliku; „szacunek"
+oznacza symulację bez builda. Rozstrzyga dopiero `bun run build` i bramki.
+
+Stan bramek przed fazą drugą: `overall` 5 387,7 / 5 388 KB lokalnie (CI
+5 385,8), CSS razem 100,13 / 101 KiB, CSS publiczny 84,09 / 85 KiB oraz trzecia,
+najciaśniejsza: `check:document-weight` `renderBlockingCssGzipBytes` 83 394 /
+83 461 B (zapas 67 B).
+
+### 9.1. Zwolnienie bajtów w JS klienta (pierwsze w kolejności)
+
+| #   | Pozycja                                                                                                                                                                                                                              | Zysk gzip                                                      | Ryzyko  | Decyzja właściciela |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------- | ------------------- |
+| J1  | Budowniczy nagłówków i polityk cache liczeni w przeglądarce jako argumenty pustych funkcji (`setCacheControlHeader`, `appendLinkHeader`; 75 wywołań w 49 chunkach tras) oraz `stripInaccessibleNodes` za bramką `typeof window`      | 1,5 KB całość, 0,8 KB chunk startowy (zmierzone)               | niskie  | nie                 |
+| J2  | Osierocone instrukcje: schematy zod używane tylko w `z.infer` lub tylko w walidatorze serwerowym (podcasty, menu, finanse, journeys, retencja), lista hostów CSP, `TextEncoder` w `tenantAssertion`, stałe polityk cache             | 2,8 KB całość, 0,7 KB chunk startowy (zmierzone)               | niskie  | nie                 |
+| J3  | D3: eksporty modułów mieszanych trzymane w `app-initial` tylko dla chunków panelu (`seo/robots`, `builder/experiments`, `seo/settings`, `builder/globalWidgets`, `dynamicText`, `liveTypography`, `customFonts`, `ads/types` i inne) | 0 całość; chunk startowy −6,7 KB (zmierzone), górna granica 27 | średnie | nie                 |
+| J4  | D4: rejestry ikon `import * as` w `lucide-shim`                                                                                                                                                                                      | ok. 0,9 KB całość, ok. 5,7 KB chunk startowy (szacunek)        | średnie | tak (W5)            |
+| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | tak (W5)            |
+| J6  | Wpisy słowników i18n bez żadnego odwołania w kodzie (ok. 2 800 wpisów PL+EN)                                                                                                                                                         | 20–37 KB całość (szacunek heurystyczny)                        | średnie | tak                 |
+| J7  | Dziesięć funkcji serwerowych bez importera produkcyjnego (używane tylko w testach)                                                                                                                                                   | ok. 0,4 KB; usuwa też żywe punkty RPC                          | średnie | tak                 |
+
+Odrzucone po pomiarze: usuwanie plików „nieużywanych" wg knip (nie trafiają do
+bundla), statyczne bramki `isSsrRequest` (130 B), opcje tras panelu w chunku
+startowym (wynikają z drzewa tras), przycinanie katalogu ikon (zależy od treści
+w bazie), łączenie małych chunków panelu i fasad reeksportu (konfiguracja
+bundlera, wysokie ryzyko).
+
+### 9.2. Kanoniczne linki wpisów (A2, ciąg dalszy)
+
+Każdy pozostały link `/post/<slug>` albo płaski `/<slug>` kosztuje 301 i dwa
+odczyty bazy przy kliknięciu, a przez `AppLink` także przy najechaniu. Kolejność,
+jeden commit na zapytanie:
+
+1. Warunek wstępny: wspólny pomocnik składający kolumny z osadzeniem
+   `parent_page` i skrócenie ostrzeżenia (ok. −150 B w chunku startowym; dzięki
+   temu pozycje 2–5 są łącznie neutralne dla bramki zamiast +255 B).
+2. Mega menu nagłówka (`src/lib/queries/megaMenu.ts:75`), każda trasa.
+3. Karta wyróżnionego wpisu w panelu mega menu (`megaFeatured.ts`,
+   `MegaPanelView.tsx:235,310`; dziś płaski `/<slug>`).
+4. Archiwum `/blog` i strona główna w trybie ostatnich wpisów
+   (`src/lib/queries/public.ts`, `blogArchiveQueryOptions`).
+5. Bloki treści: cztery zapytania za `POST_SELECT` w `src/lib/queries/blocks.ts`
+   i ich widoki.
+6. Strona wpisu: stopka poprzedni/następny (`src/routes/$.tsx:1453-1475`; ścieżka
+   rodzica jest już w danych loadera) i linki do samego siebie.
+7. Blok kalendarza. 8. Paleta poleceń (`search.functions.ts`, funkcja serwerowa,
+   zero bajtów klienta, jedna dodatkowa podróż na zapytanie). 9. Listy
+   zalogowanego: zapisane, zakładki, dok, podsumowanie Q&A.
+
+Poza zakresem bez migracji: wyszukiwarka (`search_posts`, `search_autosuggest`),
+`get_post_refs`, `get_recommended_posts_v2`, `get_followed_feed`, dwa producenty
+powiadomień w SQL. Poza zakresem bez decyzji: adresy `/post/<slug>` zapisane
+w treści CMS przez edytory (slajdy, autouzupełnianie adresu). Świadomie bez
+zmian: linki w e-mailach newslettera (stabilny adres) i ścieżki, które już
+liczą adres kanoniczny po stronie serwera.
+
+### 9.3. Arkusz stylów (D2)
+
+Skład arkusza głównego (562 983 B, 83 590 B gzip): połowa to klasy Tailwind
+(42,0 KB gzip), reguły pisane ręcznie 37,5 KB gzip. Martwych reguł nie ma (0 na
+1 514), reszta panelowa to 0,2 KB. Rezerwuary to powierzchnie, których czytelnik
+artykułu nie używa.
+
+| #   | Pozycja                                                                                                                                              | Arkusz główny (gzip) | CSS razem        | Ryzyko  | Decyzja właściciela               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------- | ------- | --------------------------------- |
+| S1  | Wykresy: reguły `.neh-*`, 826 deklaracji `--chart-*` i druk wykresów do własnego arkusza, linkowanego przez komponenty wykresów (wzorzec `WorldMap`) | −7,8 KB (zmierzone)  | ok. 0            | średnie | nie                               |
+| S2  | Czat i dok członka (`.chat-*`, `.wd-*`) do arkusza leniwego chunku doku                                                                              | −1,5 KB (zmierzone)  | +0,3 KiB         | niskie  | nie                               |
+| S3  | Strona kariery do arkusza trasy                                                                                                                      | −0,6 KB              | +0,3 KiB         | niskie  | nie                               |
+| S4  | Ostatnie reguły wyłącznie panelowe do `admin-styles.css`                                                                                             | −0,2 KB              | 0                | niskie  | nie                               |
+| S5  | Kluby oraz reszta aplikacji członka (klasy Tailwind i reguły) w osobnym arkuszu                                                                      | −5,9 do −10,4 KB     | +2,0 do +2,9 KiB | średnie | tak: kontrakt bramek CSS          |
+| S6  | Podwójna emisja zamienników `color-mix`                                                                                                              | do −8,25 KB          | tyle samo        | wysokie | tak: zakres wsparcia przeglądarek |
+
+Wniosek o wpływie: dokument `2026-10-22-speed-index.md` liczy ok. 2 ms Speed
+Index telefonu na 1 KB gzip CSS, więc nawet −19 KB to ok. −40 ms. Szacowane
+przez PageSpeed 430 ms to koszt samego istnienia blokującego żądania, którego
+zmniejszenie arkusza nie usuwa.
+
+„Critical CSS inline" jest nierealne w tej architekturze: dowodliwe minimum dla
+samej powłoki to 41,6 KB gzip (prawie tyle, co cały dokument `/`), strony są
+składane z widgetów CMS w czasie żądania, nieblokujące ładowanie przez
+`onload` blokuje CSP (`script-src-attr 'none'`), a bramki stylów inline są
+wyczerpane (26/26 bloków). Dźwignią usuwającą to oczekiwanie jest dostarczanie:
+cache krawędziowy i 103 Early Hints, czyli W1.
+
+### 9.4. Kolejność wykonania
+
+1. J1 + J2 (zwolnienie ok. 4,3 KB) oraz równolegle 9.2 pozycje 1–6.
+2. S1, potem S2 i S4 (mieszczą się w obecnych bramkach).
+3. J3 (chunk startowy).
+4. 9.2 pozycje 7–9.
+
+Po decyzjach właściciela: J4–J7, S5, S6.
