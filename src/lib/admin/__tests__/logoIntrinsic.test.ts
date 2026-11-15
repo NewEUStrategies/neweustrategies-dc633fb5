@@ -9,17 +9,24 @@
 //  3. Chwilowa porażka pomiaru nie kasuje dobrej wartości zapisanej wcześniej
 //     dla tego samego adresu, ale nie pożycza wartości innemu adresowi.
 //  4. Lista jest budowana od nowa: wpisy adresów już nieużywanych znikają.
+//  5. Plik BEZ WŁASNEJ PROPORCJI (werdykt `noRatio` pomiaru) traci wpis zapisany
+//     wcześniej dla swojego adresu - w odróżnieniu od pomiaru nieudanego. Stary
+//     wpis to rozmiar zastępczy przeglądarki (albo rozmiar pliku, który stał pod
+//     tym adresem wcześniej) i jego atrybuty zmieniają kształt logo na stałe.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const probe = vi.hoisted(() => ({
   /** Wynik pomiaru per adres; brak wpisu = pomiar nieudany (`""`). */
   sizes: {} as Record<string, string>,
+  /** Adresy plików, które się ładują, ale nie mają własnej proporcji. */
+  noRatio: [] as string[],
   calls: [] as string[],
 }));
 
 vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: async (url: string) => {
     probe.calls.push(url);
+    if (probe.noRatio.includes(url)) return { size: "", noRatio: true };
     return { size: probe.sizes[url] ?? "", noRatio: false };
   },
 }));
@@ -36,6 +43,7 @@ const C = "https://neweuropeanstrategies.com/media/theme/logo/c.svg";
 
 beforeEach(() => {
   probe.sizes = {};
+  probe.noRatio = [];
   probe.calls = [];
 });
 
@@ -125,6 +133,36 @@ describe("measureLogoIntrinsic", () => {
     });
 
     expect(entries).toEqual([]);
+  });
+
+  it("plik bez własnej proporcji TRACI wpis zapisany wcześniej dla swojego adresu", async () => {
+    // A: SVG bez proporcji z zapisanym rozmiarem zastępczym; B: pomiar nieudany
+    // (wpis zostaje); C: świeży pomiar.
+    probe.noRatio = [A];
+    probe.sizes = { [C]: "512x128" };
+
+    const entries = await measureLogoIntrinsic({
+      main: A,
+      main_dark: B,
+      mobile: C,
+      intrinsic: [
+        [A, "300x150"],
+        [B, "700x300"],
+        [C, "1x1"],
+      ],
+    });
+
+    expect(probe.calls).toEqual([A, B, C]);
+    expect(entries).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("plik bez własnej proporcji i bez wcześniejszego wpisu: adres pominięty", async () => {
+    probe.noRatio = [A];
+
+    expect(await measureLogoIntrinsic({ main: A })).toEqual([]);
   });
 
   it("wpisy adresów, których żaden wariant już nie używa, znikają", async () => {
@@ -266,6 +304,32 @@ describe("measureSavedLogoIntrinsic", () => {
       [B, "700x300"],
       [C, "512x128"],
     ]);
+  });
+
+  it("plik bez własnej proporcji traci wpis z OBU źródeł: z wiersza i z listy dokumentu", async () => {
+    // `A`: oba źródła mają wpis; `C`: tylko wiersz; `B`: pomiar nieudany, wpis
+    // tylko na liście dokumentu - zostaje.
+    probe.noRatio = [A, C];
+
+    const entries = await measureSavedLogoIntrinsic(
+      {
+        main: A,
+        main_dark: B,
+        intrinsic: [
+          [A, "300x150"],
+          [B, "700x300"],
+        ],
+      },
+      {
+        mobile: C,
+        intrinsic: [
+          [A, "300x150"],
+          [C, "200x150"],
+        ],
+      },
+    );
+
+    expect(entries).toEqual([[B, "700x300"]]);
   });
 
   it("udany pomiar wygrywa z oboma zapisanymi wpisami", async () => {

@@ -81,6 +81,8 @@ const stubs = vi.hoisted(() => ({
   restoreValue: null as unknown,
   /** Wynik pomiaru pliku per adres; brak wpisu = pomiar nieudany (`""`). */
   measured: {} as Record<string, string>,
+  /** Adresy plików, które się ładują, ale nie mają własnej proporcji. */
+  measuredNoRatio: [] as string[],
   /** Adresy, o których pomiar poproszono, w kolejności wywołań. */
   measureCalls: [] as string[],
   /** Bramka wstrzymująca pomiar (`null` = pomiar odpowiada od razu). */
@@ -94,6 +96,7 @@ vi.mock("@/lib/media/measureIntrinsicSize", () => ({
   measureIntrinsicSize: async (url: string) => {
     stubs.measureCalls.push(url);
     if (stubs.measureGate) await stubs.measureGate;
+    if (stubs.measuredNoRatio.includes(url)) return { size: "", noRatio: true };
     return { size: stubs.measured[url] ?? "", noRatio: false };
   },
 }));
@@ -283,6 +286,7 @@ beforeEach(() => {
   history().reset();
   stubs.restoreValue = null;
   stubs.measured = {};
+  stubs.measuredNoRatio = [];
   stubs.measureCalls = [];
   stubs.measureGate = null;
   window.location.hash = "";
@@ -1215,6 +1219,28 @@ describe("ThemeOptionsPane - naturalne rozmiary logo przy zapisie", () => {
       [A, "350x150"],
       [C, "512x128"],
     ]);
+  });
+
+  it("plik bez własnej proporcji: Zapisz USUWA jego wpis z listy w wierszu, wpis pliku niedostępnego zostaje", async () => {
+    // A: SVG bez proporcji, w wierszu stoi jego rozmiar zastępczy (300 × 150)
+    // zapisany przed poprawką pomiaru; B: plik chwilowo niedostępny.
+    stubs.measuredNoRatio = [A];
+    await mountPane({
+      logo: {
+        main: A,
+        main_dark: B,
+        intrinsic: [
+          [A, "300x150"],
+          [B, "700x300"],
+        ],
+      },
+    });
+
+    const doc = await saveAndRead();
+
+    expect(stubs.measureCalls).toEqual([A, B]);
+    expect(logoOf(doc).intrinsic).toEqual([[B, "700x300"]]);
+    expect(logoOf(doc).main).toBe(A);
   });
 
   it("logo organizacji, paska bocznego i zakładek nie są mierzone", async () => {

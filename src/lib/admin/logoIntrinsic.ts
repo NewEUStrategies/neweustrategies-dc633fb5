@@ -47,6 +47,10 @@ type LogoDraft = Partial<Record<(typeof PUBLIC_LOGO_KEYS)[number], unknown>> & {
  * - Nieudany pomiar (plik chwilowo niedostępny) zostawia poprawny rozmiar
  *   zapisany wcześniej dla TEGO SAMEGO adresu; adres bez pomiaru i bez
  *   wcześniejszego wpisu jest pomijany (render zostaje bez atrybutów).
+ * - Plik BEZ WŁASNEJ PROPORCJI (`noRatio` pomiaru, np. SVG bez `viewBox`) nie
+ *   dostaje wpisu i TRACI wpis zapisany wcześniej: to nie chwilowa porażka,
+ *   tylko wiadomość, że stary rozmiar był zastępczy (albo plik podmieniono pod
+ *   tym samym adresem) i jego atrybuty zmieniają kształt logo.
  * - Wpisy adresów, których żaden wariant już nie używa, znikają: lista jest
  *   budowana od nowa i przy zapisie zastępuje poprzednią w całości.
  * - Adres `data:` jest pomijany: byłby w ustawieniach (a przez nie w każdym
@@ -70,12 +74,12 @@ export async function measureLogoIntrinsic(
   const measured = await Promise.all(urls.map((url) => measureIntrinsicSize(url)));
   const entries: IntrinsicSizeEntry[] = [];
   urls.forEach((url, index) => {
-    const previous =
-      findIntrinsicSize(storedEntries, url) ?? findIntrinsicSize(logo?.intrinsic, url);
-    const size =
-      measured[index].size ||
-      (previous ? formatIntrinsicSize(previous.width, previous.height) : "");
-    if (size) entries.push([url, size]);
+    const { size, noRatio } = measured[index];
+    const previous = noRatio
+      ? undefined
+      : (findIntrinsicSize(storedEntries, url) ?? findIntrinsicSize(logo?.intrinsic, url));
+    const kept = size || (previous ? formatIntrinsicSize(previous.width, previous.height) : "");
+    if (kept) entries.push([url, kept]);
   });
   return entries;
 }
