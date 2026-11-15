@@ -64,7 +64,7 @@ każdy zimny izolat renderuje od zera.
 | A1  | Etykieta sekcji jako nagłówek 2. stopnia (`role="heading" aria-level=2`), żeby strona nie skakała z `h1` na `h3`                                                                                                                                                                     | `src/lib/builder/sectionLabelVariants.tsx`                                                                                                                                                | testy `sectionLabel*.test.tsx` + nowy test roli; miniatury `sm` i puste etykiety bez roli                | wykonane (test `sectionLabelHeadingRole.test.tsx`, 24 przypadki)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | A2  | Kanoniczne adresy wpisów w widgetach zamiast `/post/<slug>` (dziś każde kliknięcie = 301 + 2 odczyty bazy). Wspólny pomocnik `postHref`; ścieżka rodzica z osadzenia `pages` w tym samym zapytaniu (zero dodatkowych podróży); zapas `/post/<slug>` gdy rodzic zagnieżdżony/nieznany | nowy `src/lib/routing/postHref.ts`; `latestPostsSuperset.ts`, `postListQuery.ts`, `sliderPostsQuery.ts`; `PostListView.tsx`, `PostsSliderWidget.tsx`; potem pozostałe widoki (lista w §4) | test równości kolumn nadzbioru; test pomocnika; `check:ts-sql-contract`; dokument `/` bez `href="/post/` | wykonane dla post-listy, slidera, pasków news-ticker i trending-now oraz listy ocenianej (`b38389cf`, `8c83feb7`, `51ba632b`): adres kanoniczny z osadzenia strony-rodzica w tym samym zapytaniu, zapas `/post/<slug>`. Zostają: bloki treści (7 widoków, `POST_SELECT` w `lib/queries/blocks.ts`), lista `/blog`, mega menu, wyszukiwarka, lista do przeczytania; `get_post_refs` i rekomendacje wymagają zmiany RPC (E). Po wdrożeniu sprawdzić jednym żądaniem anon, że `parent_page` wraca wypełnione |
 | A3  | Kontrast i wielkość celów dotykowych (komputer)                                                                                                                                                                                                                                      | do ustalenia                                                                                                                                                                              | lokalny Lighthouse (lista elementów)                                                                     | wymaga listy elementów z audytu                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| A4  | Wymiary logotypów SVG (`width`/`height` albo `aspect-ratio`)                                                                                                                                                                                                                         | komponent logo nagłówka i stopki                                                                                                                                                          | audyt „unsized-images" pusty; CLS bez zmian                                                              | na gałęzi (`0a29a634`…`e35f3e6f`, 8 commitów), PRZED przeglądem i pełnym typecheckiem po scaleniu: naturalny rozmiar pliku jako atrybuty `width`/`height` dla logo pasków, logo motywu i własnego pliku widgetu obrazu; pomiar w panelu przy zapisie opcji motywu i w edytorze obrazu. Bez zapisanych wymiarów znaczniki są jak dotąd (złote wzorce HTML). Wymaga kroków właściciela po wdrożeniu (§8)                                                                                                    |
+| A4  | Wymiary logotypów SVG (`width`/`height` albo `aspect-ratio`)                                                                                                                                                                                                                         | komponent logo nagłówka i stopki                                                                                                                                                          | audyt „unsized-images" pusty; CLS bez zmian                                                              | na gałęzi (`0a29a634`…`e69fec57`, 19 commitów; próg bramki `05f62691`): naturalny rozmiar pliku jako atrybuty `width`/`height` dla logo pasków, logo motywu i własnego pliku widgetu obrazu; pomiar w panelu (układ strony, bez `fetch`) przy zapisie opcji motywu i w edytorze obrazu. Bez zapisanych wymiarów znaczniki są jak dotąd (złote wzorce HTML). Dwa przeglądy, 7 znalezisk zamkniętych; druga tura poprawek bez osobnego przeglądu. Wymaga kroków właściciela po wdrożeniu (§8)               |
 
 ### Partia B. Koszt renderu serwera na każdej trasie (średnie ryzyko, bez migracji)
 
@@ -318,10 +318,10 @@ kolejny MISS oznacza inny izolat), `nes-iso;desc="req=N"` (ten sam izolat
 podaje kolejne numery) i `db;desc="n=..."` (spadek przy powtórzeniu w tym
 samym izolacie).
 
-## 8. Stan na 15.11.2026, 15:05 i ciąg dalszy
+## 8. Stan na 15.11.2026, 21:30 i ciąg dalszy
 
 Zapis stanu na wypadek przerwania sesji. Gałąź `claude/kind-brown-vrah7o`,
-szkic PR #542, HEAD `e35f3e6f` plus ten commit.
+szkic PR #542, HEAD `05f62691` plus ten commit.
 
 ### Zweryfikowane na `d94ec1f3` (wszystko poza A4)
 
@@ -332,56 +332,64 @@ repozytorium (0 błędów; uruchamiać z `--ignore-pattern ".claude/"`, jeśli
 w katalogu leżą kopie robocze agentów) i pełny zestaw testów (3 949 plików,
 97 695 testów zielonych, 194 oczekiwane porażki, 51 pominiętych - jak na bazie).
 
-### A4 (8 commitów nad `d94ec1f3`): do zrobienia przed uznaniem za gotowe
+### A4: przebieg i stan końcowy
 
-1. Pełny typecheck po scaleniu: `rm -f node_modules/.cache/tsconfig.tsbuildinfo`
-   i `bunx tsgo --noEmit --singleThreaded`, bez innych ciężkich procesów
-   (z nieaktualnym plikiem przyrostowym tsgo rośnie do 14 GB i jest zabijany).
-   Agent miał zielony typecheck tylko w zakresie zmienionych plików.
-2. Testy dotkniętych modułów na gałęzi, potem build i `check:bundle`: A4 dokłada
-   kod do chunku startowego (szacunek agenta ~1 KB surowego, niezmierzony),
-   a zapas pod progiem to 2,1 KB.
-3. Przegląd w trzech perspektywach (geometria i zgodność SSR z hydratacją,
-   trwałość danych, sens testów i audyt `unsized-images`) trwał w chwili zapisu
-   jako przepływ `image-intrinsic-dimensions` (run `wf_8caa1290-14a`); jego
-   wynik i ewentualne poprawki NIE są na gałęzi. Po przerwaniu: wznowić przepływ
-   (`resumeFromRunId`) albo powtórzyć sam przegląd na zakresie
-   `d94ec1f3..e35f3e6f`.
-4. Linia dopisana do `AGENTS.md` (reguła naturalnego rozmiaru obrazu) wymaga
-   akceptacji właściciela.
-5. Kroki właściciela po wdrożeniu (bez nich produkcja renderuje się jak dziś):
-   zapis w `/admin/theme-options` bez zmian (mierzy pliki logo); kliknięcie
-   obrazu z proporcją „auto" na stronie głównej w builderze i zapis; kontrola
-   w źródle strony: logo `width="350" height="150"`, obraz
-   `width="1200" height="675"`.
+Trzy tury, wszystkie na gałęzi:
 
-### A4: stan po przeglądzie (15.11.2026, 18:40)
+1. Wdrożenie (`0a29a634`…`e35f3e6f`, 8 commitów). CI na `5ae9f4d2` zielone
+   w całości, łącznie z e2e i pgTAP.
+2. Pierwszy przegląd (dwie z trzech perspektyw) i poprawki `6c064c3c`…`57e77034`:
+   SVG bez własnej proporcji nie dostaje rozmiaru; zaznaczenie widgetu mierzy
+   tylko rozmiar, którego użyje renderer (kliknięcie nie zapisuje już dokumentu
+   bez potrzeby); utracony pomiar jest widoczny i wraca przy kolejnym
+   zaznaczeniu; przywrócenie wersji z historii mierzy zestaw logotypów, który
+   faktycznie zostanie w wierszu.
+3. Drugi przegląd (trzy uwagi) i poprawki `00ae4201`…`e69fec57`: o proporcję
+   pliku pyta układ strony (dwa niewidoczne `<img>`), a nie `fetch` z parserem
+   SVG, który polityka CSP mogła zablokować i który ważył najwięcej; plik bez
+   własnej proporcji zeruje wcześniej zapisany rozmiar (logo motywu i widget
+   obrazu), więc nieaktualne wymiary nie zostają po podmianie pliku; pomiar
+   trzyma panel właściwości ponad zakładkami i przypisuje wynik widgetowi,
+   przy którym ruszył, więc przełączenie zakładki albo zaznaczenia go nie gubi.
 
-Pełny typecheck gałęzi z A4 (`tsgo --noEmit --singleThreaded`) i testy modułów
-dotkniętych przez A4 (20 plików, 409 testów) przeszły na `e35f3e6f`. Build
-i `check:bundle` z A4 nie były jeszcze uruchamiane.
+Weryfikacja lokalna na `e69fec57`: build, `check:chunks`, `check:entry-purity`,
+`check:server-entry-purity`, `tsgo --noEmit --singleThreaded` (kod 0), testy
+modułów dotkniętych i sąsiednich (202 pliki, 6 891 testów zielonych).
 
-Przegląd w dwóch z trzech perspektyw (trzecia, sens testów i narzędzia i18n, nie
-ruszyła) nie znalazł usterek w publicznym renderze. Cztery znaleziska dotyczą
-panelowej części zmiany; żadne nie było niezależnie zweryfikowane:
+Czego NIE sprawdzono: druga tura poprawek nie miała osobnego niezależnego
+przeglądu (decyzja o zakończeniu rund przeglądu A4); sonda układu była
+sprawdzona tylko w Chromium - Firefox i Safari bez weryfikacji (w razie innego
+zachowania skutek to brak zapisanego rozmiaru, czyli znaczniki jak dziś);
+trzecia perspektywa pierwszego przeglądu (sens testów, narzędzia i18n) nie
+ruszyła.
 
-1. **SVG bez własnych proporcji** (niska): przeglądarka podaje dla takiego pliku
-   rozmiar zastępczy (300 × 150), a zapisany jako atrybuty zmienia on wymiary
-   obrazu na stałe. Trzy logotypy produkcyjne mają `viewBox` i nie są dotknięte.
-   Kierunek: pomiar w panelu oddaje pusty wynik dla SVG bez zadeklarowanych
-   proporcji.
-2. **Zaznaczenie widgetu obrazu zapisuje dokument** (średnia): także dla obrazów
-   w kadrze i logo motywu, gdzie renderer tej wartości nie użyje. Samo kliknięcie
-   czyści wtedy stos ponawiania i uruchamia autozapis. Kierunek: zapis tylko wtedy,
-   gdy renderer wartość skonsumuje, plus pomiar przy powrocie proporcji na „auto".
-3. **Pomiar nowego pliku przepada**, gdy edytor zostanie zamknięty przed końcem
-   pomiaru (niska): obraz zostaje bez wymiarów do ponownego zaznaczenia.
-4. **Przywrócenie wersji z historii** mierzy tylko logotypy tej wersji, a zapis
-   scala ją z bieżącym wierszem (niska): wariant spoza wersji traci atrybuty do
-   następnego zapisu. Kierunek: mierzyć zestaw, który faktycznie zostanie zapisany.
+### Bramka bundla: próg `overall` 5 386 → 5 388 KB (`05f62691`)
 
-Poprawki i jeden niezależny przegląd poprawek biegną jako przepływ
-`a4-review-fixes` (run `wf_2d2779d6-777`); ich wyniku nie ma jeszcze na gałęzi.
+Decyzja właściciela z 15.11.2026. Pomiar gzip: `d94ec1f3` 5 383,9 KB (publiczne
+2 801,4, panelowe 2 582,5) → `e69fec57` 5 387,7 KB (publiczne 2 802,5, panelowe
+2 585,2). A4 kosztuje więc 3,8 KB: 2,7 KB w kodzie ładowanym tylko w panelu
+i 1,1 KB w chunkach publicznych, z czego 0,3 KB w chunku startowym. Budżety
+czytelnika (publiczne 2 881 KB, chunk startowy 579 KB, największy chunk 286 KB)
+mają duży zapas i nie były ruszane. Nowy próg to zaokrąglenie pomiaru w górę
+BEZ zwyczajowego marginesu +1 KB na różnicę hosta: zapas lokalny 0,3 KB. Jeżeli
+runner CI zmierzy więcej niż 5 388 KB, próg nie rośnie sam - decyzja wraca do
+właściciela. Następna faza musi najpierw zwolnić bajty, zanim cokolwiek dołoży.
+
+### Do decyzji właściciela przed wyjściem PR ze szkicu
+
+1. Linia dopisana do `AGENTS.md` (reguła naturalnego rozmiaru obrazu).
+2. Przełączenie PR #542 ze szkicu na gotowy do przeglądu (po zielonym CI na
+   `05f62691` lub nowszym).
+
+### Kroki właściciela po wdrożeniu A4
+
+Bez nich produkcja renderuje się dokładnie jak dziś.
+
+1. `/admin/theme-options`: jeden zapis bez zmian (mierzy pliki logo).
+2. Builder strony głównej: kliknięcie każdego obrazu z proporcją „auto"
+   (dowolna zakładka panelu) i zapis strony.
+3. Kontrola w źródle strony: logo `width="350" height="150"`, obraz
+   `width="1200" height="675"`; audyt `unsized-images` w PageSpeed pusty.
 
 ### Po wdrożeniu całości: do sprawdzenia na produkcji
 
