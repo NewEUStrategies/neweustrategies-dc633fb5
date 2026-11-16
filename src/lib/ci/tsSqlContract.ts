@@ -44,6 +44,9 @@
 //   * `supabase` w pliku z klientem przeglądarki
 //     (`@/integrations/supabase/client`) albo z `requireSupabaseAuth`, oraz
 //     `context.supabase` / `ctx.supabase` - `authenticated`;
+//   * `looseClient(źródło)` (CRM, `lib/supabase/looseQuery.ts`) - wprost albo
+//     przez `const x = looseClient(źródło)` - jak źródło `looseTable`:
+//     `context`/`ctx` - `authenticated`, `{ supabase: X }` - jak odbiorca `X`;
 //   * wszystko inne (parametr pomocnika, atrapa) - `unknown`: sprawdzamy
 //     istnienie i sygnaturę, ale nie uprawnienia.
 // Fałszywy alarm byłby tu gorszy niż luka - bramka, która krzyczy na stan
@@ -413,17 +416,25 @@ function buildScope(file: string, code: string): FileScope {
 
 // ── Rola klienta ────────────────────────────────────────────────────────────
 
-/** Rola klienta dla odbiorcy `.rpc` / `.from` (`supabase`, `context.supabase`, ...). */
+/**
+ * Rola klienta dla odbiorcy `.rpc` / `.from` (`supabase`, `context.supabase`,
+ * `looseClient(context)`, nazwa związana z `looseClient(...)`, ...).
+ */
 export function receiverRole(
   receiver: ts.Expression,
-  scope: Pick<FileScope, "adminAliases" | "browserClient" | "authMiddleware">,
+  scope: FileScope,
+  known: ReadonlySet<string>,
 ): ClientRole {
   const node = unwrap(receiver);
+  if (ts.isCallExpression(node) && isLooseHelperCall(node, LOOSE_CLIENT, scope, known)) {
+    return looseSourceRole(node.arguments[0], scope, known);
+  }
   if (ts.isIdentifier(node)) {
     if (scope.adminAliases.has(node.text)) return "service_role";
     if (node.text === "supabase" && (scope.browserClient || scope.authMiddleware))
       return "authenticated";
-    return "unknown";
+    const bound = looseClientBinding(node, scope, known);
+    return bound === null ? "unknown" : looseSourceRole(bound.arguments[0], scope, known);
   }
   if (ts.isPropertyAccessExpression(node)) {
     const name = node.name.text;
@@ -1401,12 +1412,48 @@ function boundChains(top: ts.CallExpression): ts.CallExpression[][] {
 // (`authenticated`), a dla `{ supabase: X }` - jak odbiorca `X`. Tabela
 // nieczytelna (`looseTable(context, view)`): bez faktu, a każdy `select` na
 // tym budowniczym trafia do `uncheckedSelects` (zapadka listy przejrzanej).
+//
+// `looseClient(źródło)` z tego samego modułu to klient o tej samej roli co
+// źródło - do listopada 2026 odbiorca `looseClient(context).rpc(...)` (albo
+// `const client = looseClient(context); client.rpc(...)`) dostawał rolę
+// `unknown`, więc EXECUTE `crm_funnel_stats`, `crm_import_leads`,
+// `crm_companies_aggregates` i `has_role` oraz uprawnienia odczytów
+// `looseClient({ supabase: supabaseAdmin }).from(...)` nie były sprawdzane.
+// Nazwa liczy się tylko wtedy, gdy jest `const` związanym z wywołaniem
+// pomocnika, jedynym wiązaniem tej nazwy w swoim bloku (bez przesłonięć
+// głębiej), nieprzypisywanym, a użycie leży w tym bloku. Inaczej - `unknown`,
+// jak dotąd.
 
 /** Pomocnik i jego moduł (ścieżka repo). */
 export const LOOSE_TABLE = {
   helper: "looseTable",
   module: "src/lib/supabase/looseQuery.ts",
+  arity: 2,
 } as const;
+
+/** Klient bez wygenerowanych typów z tego samego modułu. */
+export const LOOSE_CLIENT = {
+  helper: "looseClient",
+  module: LOOSE_TABLE.module,
+  arity: 1,
+} as const;
+
+/** Czy wywołanie to `helper(...)` z importu modułu pomocnika, z jego liczbą argumentów. */
+function isLooseHelperCall(
+  call: ts.CallExpression,
+  helper: typeof LOOSE_TABLE | typeof LOOSE_CLIENT,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee) || call.arguments.length !== helper.arity) return false;
+  const imported = scope.imports.get(callee.text);
+  return (
+    imported !== undefined &&
+    imported[1] === helper.helper &&
+    resolveModule(scope.file, imported[0], known) === helper.module
+  );
+}
 
 /** Czy wywołanie to `looseTable(źródło, tabela)` z importu modułu pomocnika. */
 function isLooseTableCall(
@@ -1414,18 +1461,71 @@ function isLooseTableCall(
   scope: FileScope,
   known: ReadonlySet<string>,
 ): boolean {
-  const callee = unwrap(call.expression);
-  if (!ts.isIdentifier(callee) || call.arguments.length !== 2) return false;
-  const imported = scope.imports.get(callee.text);
-  return (
-    imported !== undefined &&
-    imported[1] === LOOSE_TABLE.helper &&
-    resolveModule(scope.file, imported[0], known) === LOOSE_TABLE.module
-  );
+  return isLooseHelperCall(call, LOOSE_TABLE, scope, known);
 }
 
-/** Rola klienta źródła `looseTable(źródło, ...)`. */
-function looseSourceRole(source: ts.Expression, scope: FileScope): ClientRole {
+/** Czy `inner` leży w poddrzewie `outer` (albo nim jest). */
+function within(inner: ts.Node, outer: ts.Node): boolean {
+  for (let node: ts.Node | undefined = inner; node; node = node.parent) {
+    if (node === outer) return true;
+  }
+  return false;
+}
+
+/**
+ * Wywołanie `looseClient(...)`, z którym związana jest nazwa użyta w `id`:
+ * `const id = looseClient(x)` w instrukcji bloku, który obejmuje użycie,
+ * jedyne wiązanie tej nazwy w tym bloku (także głębiej - parametr, rozkład,
+ * zagnieżdżona funkcja) i nigdzie w nim nieprzypisywane. `null` - nazwa nie
+ * jest takim klientem (albo nie na pewno).
+ */
+function looseClientBinding(
+  id: ts.Identifier,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ts.CallExpression | null {
+  // Bez importu pomocnika nie ma czego szukać (szybka ścieżka dla 99% plików).
+  if (![...scope.imports.values()].some(([, imported]) => imported === LOOSE_CLIENT.helper)) {
+    return null;
+  }
+  const name = id.text;
+  let found: ts.CallExpression | null = null;
+  const visit = (node: ts.Node): void => {
+    if (found !== null) return;
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name &&
+      node.initializer !== undefined &&
+      ts.isVariableDeclarationList(node.parent) &&
+      node.parent.flags & ts.NodeFlags.Const &&
+      ts.isVariableStatement(node.parent.parent)
+    ) {
+      const init = unwrap(node.initializer);
+      const container = node.parent.parent.parent;
+      if (
+        ts.isCallExpression(init) &&
+        isLooseHelperCall(init, LOOSE_CLIENT, scope, known) &&
+        within(id, container) &&
+        bindingCount(container, name) === 1 &&
+        !isAssigned(container, name)
+      ) {
+        found = init;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(scope.sf);
+  return found;
+}
+
+/** Rola klienta źródła `looseTable(źródło, ...)` / `looseClient(źródło)`. */
+function looseSourceRole(
+  source: ts.Expression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ClientRole {
   const node = unwrap(source);
   if (ts.isIdentifier(node) && (node.text === "context" || node.text === "ctx")) {
     return "authenticated";
@@ -1433,10 +1533,10 @@ function looseSourceRole(source: ts.Expression, scope: FileScope): ClientRole {
   if (ts.isObjectLiteralExpression(node)) {
     for (const prop of node.properties) {
       if (ts.isPropertyAssignment(prop) && propName(prop.name) === "supabase") {
-        return receiverRole(prop.initializer, scope);
+        return receiverRole(prop.initializer, scope, known);
       }
       if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === "supabase") {
-        return receiverRole(prop.name, scope);
+        return receiverRole(prop.name, scope, known);
       }
     }
   }
@@ -1731,7 +1831,7 @@ function visitFile(
       } else if (method?.name === "from" && node.arguments.length === 1) {
         handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
       } else if (isLooseTableCall(node, scope, known)) {
-        const role = looseSourceRole(node.arguments[0], scope);
+        const role = looseSourceRole(node.arguments[0], scope, known);
         handleBuilder(node, node.arguments[1], role, false, scope, exportsIndex, known, out, flow);
       } else if (method?.name === "select") {
         selects.push(node);
@@ -1775,7 +1875,7 @@ function handleRpc(
     keys =
       objects === null || hasSpread ? null : objectShape(objects, scope, exportsIndex, known).keys;
   }
-  out.rpcs.push({ name, keys, role: receiverRole(receiver, scope), file: scope.file });
+  out.rpcs.push({ name, keys, role: receiverRole(receiver, scope, known), file: scope.file });
 }
 
 function handleFrom(
@@ -1795,7 +1895,7 @@ function handleFrom(
     const inner = callMethod(recv);
     if (inner?.name === "schema") return;
   }
-  const role = receiverRole(receiver, scope);
+  const role = receiverRole(receiver, scope, known);
   handleBuilder(node, node.arguments[0], role, true, scope, exportsIndex, known, out, flow);
 }
 

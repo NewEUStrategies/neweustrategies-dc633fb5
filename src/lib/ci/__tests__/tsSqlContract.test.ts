@@ -20,6 +20,7 @@ import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
   COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
+  LOOSE_CLIENT,
   LOOSE_TABLE,
   SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
@@ -120,6 +121,69 @@ describe("extractSeamFacts - RPC", () => {
   it("rozkład w argumentach = klucze nieznane (sprawdzamy samą nazwę)", () => {
     const f = facts({ "src/a.ts": `supabase.rpc("fn_x", { ...base, p_a: 1 })` });
     expect(f.rpcs[0].keys).toBeNull();
+  });
+
+  it("`looseClient(źródło)` wprost i przez `const`: rola jak źródło `looseTable`; nazwa z innego bloku, przesłonięta, `let` przypisany, parametr, obcy moduł - `unknown`", () => {
+    const f = facts({
+      "src/lib/supabase/looseQuery.ts":
+        "export function looseClient() {}\nexport function looseTable() {}",
+      "src/lib/crm-x.functions.ts": `
+        import { looseClient } from "@/lib/supabase/looseQuery";
+        export const a = createServerFn().handler(async ({ context }) => {
+          await looseClient(context).rpc("crm_funnel_stats");
+          const client = looseClient(context);
+          await client.rpc("has_role", { _user_id: u, _role: "admin" });
+        });
+        export const b = createServerFn().handler(async () => {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const admin = looseClient({ supabase: supabaseAdmin });
+          await admin.from("user_roles").select("user_id, role");
+          await looseClient({ supabase: supabaseAdmin }).from("profiles").select("id");
+        });
+        export const c = createServerFn().handler(async ({ context }) => {
+          const admin = looseClient(context);
+          await admin.from("crm_leads").select("id");
+        });
+        export function d(client: { rpc(n: string): unknown }) {
+          return client.rpc("x_param");
+        }
+        export const e = createServerFn().handler(async ({ context }) => {
+          let moved = looseClient(context);
+          moved = other;
+          await moved.rpc("x_let");
+          const shadow = looseClient(context);
+          {
+            const shadow = elsewhere;
+            await shadow.rpc("x_shadow");
+          }
+          await shadow.rpc("x_shadowed_outer");
+        });
+        export const g = createServerFn().handler(async () => {
+          await admin.rpc("x_out_of_block");
+        });
+      `,
+      "src/lib/other.ts": `
+        import { looseClient } from "@/lib/elsewhere";
+        await looseClient(context).rpc("x_foreign");
+      `,
+    });
+    expect(f.rpcs.map((r) => `${r.name}:${r.role}`)).toEqual([
+      "crm_funnel_stats:authenticated",
+      "has_role:authenticated",
+      "x_param:unknown",
+      "x_let:unknown",
+      // Wiązanie przesłonięte w bloku wewnętrznym: oba użycia `unknown`
+      // (reguła nie rozstrzyga zasięgów, tylko jedyne wiązanie w bloku).
+      "x_shadow:unknown",
+      "x_shadowed_outer:unknown",
+      "x_out_of_block:unknown",
+      "x_foreign:unknown",
+    ]);
+    expect(f.tables.map((t) => `${t.table}:${t.role}`)).toEqual([
+      "user_roles:service_role",
+      "profiles:service_role",
+      "crm_leads:authenticated",
+    ]);
   });
 
   it("nazwa obliczona trafia do listy miejsc nieczytelnych", () => {
@@ -1560,6 +1624,51 @@ describe("stan repozytorium", () => {
       'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")',
       "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)",
     ]);
+  });
+
+  it("`looseClient` - nazwa i moduł pomocnika są prawdziwe; w CRM żaden fakt nie zostaje z rolą `unknown` (EXECUTE i uprawnienia w pgTAP)", () => {
+    const source = readFileSync(LOOSE_CLIENT.module, "utf8");
+    expect(source).toMatch(new RegExp(`export function ${LOOSE_CLIENT.helper}\\(`));
+    // Sprawdzone lokalnie na schemacie po migracjach: `authenticated` ma
+    // EXECUTE na tych RPC, a `service_role` - SELECT na odczytanych tabelach.
+    expect(
+      repo.rpcs
+        .filter((r) =>
+          ["crm_companies_aggregates", "crm_funnel_stats", "crm_import_leads"].includes(r.name),
+        )
+        .map((r) => `${r.file}: ${r.name}: ${r.role}`)
+        .sort(),
+    ).toEqual([
+      "src/lib/crm-companies.functions.ts: crm_companies_aggregates: authenticated",
+      "src/lib/crm-funnel.functions.ts: crm_funnel_stats: authenticated",
+      "src/lib/crm-tasks.functions.ts: crm_import_leads: authenticated",
+    ]);
+    const crm = (file: string) => /^src\/lib\/crm[-.]/.test(file);
+    expect(repo.rpcs.filter((r) => crm(r.file) && r.role === "unknown")).toEqual([]);
+    expect(repo.tables.filter((t) => crm(t.file) && t.role === "unknown")).toEqual([]);
+    expect(
+      new Set(
+        repo.tables
+          .filter((t) => t.file === "src/lib/crm.functions.ts" && t.role === "service_role")
+          .map((t) => t.table),
+      ),
+    ).toEqual(
+      new Set([
+        "membership_grants",
+        "membership_tiers",
+        "metered_views",
+        "metering_settings",
+        "organization_seats",
+        "profile_awards",
+        "profile_cv_files",
+        "profile_education",
+        "profile_experiences",
+        "profile_skills",
+        "profiles",
+        "user_roles",
+        "user_subscriptions",
+      ]),
+    );
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {
