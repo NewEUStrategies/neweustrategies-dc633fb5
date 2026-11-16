@@ -13,13 +13,14 @@
 //      poziomie arkusza z przeniesionymi deklaracjami (parser CSS, nie regex -
 //      inaczej wystarczyłaby dowolna wzmianka klasy, np. wcześniejsza reguła
 //      `.block-canvas :is(.cms-h1, ...) p { margin: 0 }`, a blok rozmiarów mógłby
-//      zniknąć niezauważony);
+//      zniknąć niezauważony), nienadpisanymi później ani tą samą własnością, ani
+//      skrótem (`font`), ani częścią (`padding-inline`, `background-color`);
 //   2. emitery klasy (także budowanej dynamicznie: `cms-h${level}`, `"cms-h" + n`)
 //      leżą wyłącznie w kodzie panelu;
 //   3. każde wejście, z którego (przechodnio, także przez `import()`) da się dojść
 //      do emitera, jest trasą pod `/admin` - czyli dostaje arkusz. Wejściem jest
 //      plik trasy, moduł ładowany przez framework na każdej trasie (`router.tsx`,
-//      `start.ts`, `server.ts`) i każdy plik bez importerów.
+//      `start.ts`, `server.ts`) i każdy plik albo cykl importów bez importera z zewnątrz.
 //
 // Granica: kod źródłowy. Klas zapisanych w treści CMS (HTML w bazie) test nie widzi.
 //
@@ -31,12 +32,17 @@ import { parse, type Declaration, type Rule } from "postcss";
 import { describe, expect, it } from "vitest";
 import { buildImportGraph } from "../moduleImportGraph";
 
+/** Wzorzec wartości deklaracji: wyrażenie regularne albo dopasowanie składniowe (`tokenVars`). */
+interface ValuePattern {
+  test(value: string): boolean;
+}
+
 /** Reguła, którą przeniesiony blok daje w arkuszu panelu. */
 interface RequiredRule {
   /** Selektor złożony z listy selektorów reguły (po normalizacji białych znaków). */
   readonly selector: string;
   /** Własność -> wzorzec wartości OBOWIĄZUJĄCEJ dla selektora w arkuszu panelu. */
-  readonly declarations: Readonly<Record<string, RegExp>>;
+  readonly declarations: Readonly<Record<string, ValuePattern>>;
 }
 
 interface AdminOnlyFamily {
@@ -48,8 +54,50 @@ interface AdminOnlyFamily {
   readonly emitted: RegExp;
 }
 
-/** `var(--token, …)` / `var(--token)`: pilnujemy tokenu, nie wartości zapasowej. */
-const tokenVar = (token: string): RegExp => new RegExp(`^var\\(${token}(?=[\\s,)])`);
+/** Indeks nawiasu zamykającego ten otwarty na pozycji `open` (z pominięciem napisów) albo -1. */
+function closingParen(value: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < value.length; i += 1) {
+    const char = value[i];
+    if (char === "\\") {
+      i += 1;
+    } else if (char === '"' || char === "'") {
+      i += 1;
+      while (i < value.length && value[i] !== char) i += value[i] === "\\" ? 2 : 1;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Cała wartość to ciąg `var(--token)` / `var(--token, zapas)` dla kolejnych tokenów,
+ * rozdzielonych białymi znakami - i nic poza nim. Pilnujemy tokenu, nie wartości zapasowej
+ * (dowolnej, także z zagnieżdżonym `var()`/`calc()`, byle nawiasy się domykały); doklejony
+ * składnik (`var(--fs-h3, 1.625rem) 12px`) albo inny token to niezgodność.
+ */
+const tokenVars = (...tokens: readonly string[]): ValuePattern => ({
+  test(value) {
+    let rest = value.trim();
+    for (const [position, token] of tokens.entries()) {
+      if (position > 0) {
+        if (!/^\s/.test(rest)) return false;
+        rest = rest.trimStart();
+      }
+      if (/^var\(\s*(--[\w-]+)\s*(?=[,)])/i.exec(rest)?.[1] !== token) return false;
+      const end = closingParen(rest, "var".length);
+      if (end < 0) return false;
+      rest = rest.slice(end + 1);
+    }
+    return rest === "";
+  },
+});
+
+const tokenVar = (token: string): ValuePattern => tokenVars(token);
 
 /**
  * Edytor bloku nagłówka (TipTap: `.cms-hN > .ProseMirror > p`) - akapit i kontener biorą
@@ -93,7 +141,7 @@ const SOCIAL_RULES: readonly RequiredRule[] = [
       color: tokenVar("--td-si-color"),
       background: tokenVar("--td-si-bg"),
       "border-radius": tokenVar("--td-si-radius"),
-      padding: /^var\(--td-si-py(?=[\s,)])[^)]*\)\s+var\(--td-si-px(?=[\s,)])[^)]*\)$/,
+      padding: tokenVars("--td-si-py", "--td-si-px"),
     },
   },
   {
@@ -133,32 +181,132 @@ const normalizeSelector = (selector: string): string =>
     .trim();
 
 /**
- * Braki względem wymaganych reguł, jako `selektor { własność: wartość | (brak) }`.
+ * Skrót -> własności, które ustawia (podskróty rozwijane dalej; aliasy dawnych nazw jako
+ * skrót jednej własności). Tylko skróty dotykające przypinanych własności lub ich części.
+ */
+const SHORTHAND_PARTS: Readonly<Record<string, readonly string[]>> = {
+  font: [
+    "font-style",
+    "font-variant",
+    "font-weight",
+    "font-stretch",
+    "font-size",
+    "line-height",
+    "font-family",
+  ],
+  "place-items": ["align-items", "justify-items"],
+  "place-content": ["align-content", "justify-content"],
+  gap: ["row-gap", "column-gap"],
+  "grid-gap": ["row-gap", "column-gap"],
+  "grid-row-gap": ["row-gap"],
+  "grid-column-gap": ["column-gap"],
+  background: [
+    "background-color",
+    "background-image",
+    "background-position",
+    "background-size",
+    "background-repeat",
+    "background-attachment",
+    "background-origin",
+    "background-clip",
+  ],
+  "background-position": ["background-position-x", "background-position-y"],
+  "border-radius": [
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  "padding-block": ["padding-block-start", "padding-block-end"],
+  "padding-inline": ["padding-inline-start", "padding-inline-end"],
+};
+
+/**
+ * Grupy własności logicznych i fizycznych, które kaskadują razem: późniejsza logiczna
+ * nadpisuje wcześniejszą fizyczną i odwrotnie. Tryb pisania nie jest znany, więc każda
+ * logiczna koliduje z każdą fizyczną swojej grupy (`inline-size` z `width` i `height`).
+ */
+const LOGICAL_GROUPS: readonly { physical: readonly string[]; logical: readonly string[] }[] = [
+  {
+    physical: SHORTHAND_PARTS.padding,
+    logical: [...SHORTHAND_PARTS["padding-block"], ...SHORTHAND_PARTS["padding-inline"]],
+  },
+  {
+    physical: SHORTHAND_PARTS["border-radius"],
+    logical: [
+      "border-start-start-radius",
+      "border-start-end-radius",
+      "border-end-start-radius",
+      "border-end-end-radius",
+    ],
+  },
+  { physical: ["width", "height"], logical: ["inline-size", "block-size"] },
+];
+
+/** Własności niepodzielne, które ustawia deklaracja `prop` (rozwinięcie skrótów). */
+function longhands(prop: string): string[] {
+  const parts = SHORTHAND_PARTS[prop];
+  return parts ? parts.flatMap(longhands) : [prop];
+}
+
+const collide = (a: string, b: string): boolean =>
+  a === b ||
+  LOGICAL_GROUPS.some(
+    ({ physical, logical }) =>
+      (physical.includes(a) && logical.includes(b)) ||
+      (logical.includes(a) && physical.includes(b)),
+  );
+
+/**
+ * Czy deklaracja `later` nadpisuje (w całości albo w części) wartość przypiętej własności
+ * `pinned`: ta sama własność, skrót, który ją obejmuje (`font` -> `font-size`), jej część
+ * fizyczna lub logiczna (`padding-inline` -> `padding`, `background-color` -> `background`)
+ * albo `all`.
+ */
+const overrides = (later: string, pinned: string): boolean =>
+  later === "all" ||
+  longhands(later).some((part) => longhands(pinned).some((own) => collide(part, own)));
+
+/**
+ * Braki względem wymaganych reguł, jako `selektor { własność: wartość | (brak) }` albo
+ * `selektor { własność nadpisana przez inna: wartość }`.
  *
  * Liczą się tylko reguły NAJWYŻSZEGO poziomu arkusza (w `@media`/`@supports` reguła
  * działałaby warunkowo, w `@layer` przegrywałaby z regułami bez warstwy), których LISTA
  * selektorów zawiera wymagany selektor dokładnie - nie wystarczy wzmianka klasy w innym
- * selektorze. Wartość obowiązująca: ostatnia deklaracja w kolejności źródła, chyba że
- * wcześniejsza ma `!important`, a późniejsza nie - więc późniejsze nadpisanie tego
- * samego selektora w arkuszu panelu też jest brakiem.
+ * selektorze. Wartość obowiązująca: ostatnia deklaracja w kolejności źródła, która tę
+ * własność ustawia (ona sama, obejmujący ją skrót, jej część fizyczna lub logiczna, `all`),
+ * chyba że wcześniejsza ma `!important`, a późniejsza nie. Późniejsze nadpisanie tego samego
+ * selektora w arkuszu panelu - także skrótem albo częścią - jest więc brakiem.
  */
 function missingDeclarations(css: string, required: readonly RequiredRule[]): string[] {
   const rules = parse(css).nodes.filter((node): node is Rule => node.type === "rule");
   const missing: string[] = [];
   for (const { selector, declarations } of required) {
+    const pinned = Object.keys(declarations);
     const effective = new Map<string, Declaration>();
     for (const rule of rules) {
       if (!rule.selectors.map(normalizeSelector).includes(selector)) continue;
       rule.each((child) => {
         if (child.type !== "decl") return;
-        if (effective.get(child.prop)?.important && !child.important) return;
-        effective.set(child.prop, child);
+        // Nazwy własności CSS nie rozróżniają wielkości liter (custom properties - tak).
+        const prop = child.prop.startsWith("--") ? child.prop : child.prop.toLowerCase();
+        for (const own of pinned) {
+          if (!overrides(prop, own)) continue;
+          if (effective.get(own)?.important && !child.important) continue;
+          effective.set(own, child);
+        }
       });
     }
     for (const [prop, pattern] of Object.entries(declarations)) {
-      const value = effective.get(prop)?.value;
-      if (value === undefined || !pattern.test(value)) {
-        missing.push(`${selector} { ${prop}: ${value ?? "(brak)"} }`);
+      const winner = effective.get(prop);
+      if (winner === undefined) {
+        missing.push(`${selector} { ${prop}: (brak) }`);
+      } else if (winner.prop.toLowerCase() !== prop) {
+        missing.push(`${selector} { ${prop} nadpisana przez ${winner.prop}: ${winner.value} }`);
+      } else if (!pattern.test(winner.value)) {
+        missing.push(`${selector} { ${prop}: ${winner.value} }`);
       }
     }
   }
@@ -176,30 +324,98 @@ const PUBLIC_ROOTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Silnie spójne składowe grafu (Tarjan, iteracyjnie - bez limitu głębokości stosu wywołań)
+ * rozpiętego na `nodes` z krawędziami `next`.
+ */
+function stronglyConnectedComponents(
+  nodes: readonly string[],
+  next: (node: string) => readonly string[],
+): string[][] {
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+  const visit = (node: string): void => {
+    index.set(node, index.size);
+    low.set(node, index.get(node) as number);
+    stack.push(node);
+    onStack.add(node);
+  };
+  for (const root of nodes) {
+    if (index.has(root)) continue;
+    visit(root);
+    const frames = [{ node: root, edge: 0 }];
+    while (frames.length > 0) {
+      const frame = frames[frames.length - 1];
+      const edges = next(frame.node);
+      if (frame.edge < edges.length) {
+        const child = edges[frame.edge];
+        frame.edge += 1;
+        if (!index.has(child)) {
+          visit(child);
+          frames.push({ node: child, edge: 0 });
+        } else if (onStack.has(child)) {
+          low.set(frame.node, Math.min(low.get(frame.node) as number, index.get(child) as number));
+        }
+        continue;
+      }
+      frames.pop();
+      const parent = frames[frames.length - 1];
+      if (parent) {
+        low.set(
+          parent.node,
+          Math.min(low.get(parent.node) as number, low.get(frame.node) as number),
+        );
+      }
+      if (low.get(frame.node) !== index.get(frame.node)) continue;
+      const component: string[] = [];
+      let member: string;
+      do {
+        member = stack.pop() as string;
+        onStack.delete(member);
+        component.push(member);
+      } while (member !== frame.node);
+      components.push(component);
+    }
+  }
+  return components;
+}
+
+/**
  * Wejścia, z których przez odwrotny graf importów da się dojść do plików `targets`:
- * pliki tras, korzenie publiczne i każdy plik bez importerów - nieznane wejście (np.
- * moduł podpięty konfiguracją frameworka) liczy się jak publiczne, zamiast znikać
- * z wyniku. Przejście nie zatrzymuje się na trasie ani korzeniu, więc trasa
- * importowana przez inny moduł też prowadzi dalej, do jego wejść.
+ * pliki tras, korzenie publiczne i nieznane wejścia - nieznane (np. moduł podpięty
+ * konfiguracją frameworka) liczy się jak publiczne, zamiast znikać z wyniku. Nieznanym
+ * wejściem jest każda osiągnięta silnie spójna składowa bez importera spoza siebie
+ * i bez trasy/korzenia w środku: plik bez importerów, ale też martwy cykl importów (każdy
+ * jego plik ma importera, więc sama reguła „bez importerów" by go zgubiła). Przejście nie
+ * zatrzymuje się na trasie ani korzeniu, więc trasa importowana przez inny moduł też
+ * prowadzi dalej, do jego wejść.
  */
 function entriesReaching(
   targets: readonly string[],
   importers: ReadonlyMap<string, readonly string[]>,
 ): string[] {
-  const seen = new Set(targets);
+  const importersOf = (file: string): readonly string[] => importers.get(file) ?? [];
+  const isKnownEntry = (file: string): boolean =>
+    file.startsWith("src/routes/") || PUBLIC_ROOTS.has(file);
+  const reached = new Set(targets);
   const queue = [...targets];
-  const entries = new Set<string>();
   while (queue.length > 0) {
-    const file = queue.shift() as string;
-    const fileImporters = importers.get(file) ?? [];
-    if (file.startsWith("src/routes/") || PUBLIC_ROOTS.has(file) || fileImporters.length === 0) {
-      entries.add(file);
-    }
-    for (const importer of fileImporters) {
-      if (seen.has(importer)) continue;
-      seen.add(importer);
+    for (const importer of importersOf(queue.shift() as string)) {
+      if (reached.has(importer)) continue;
+      reached.add(importer);
       queue.push(importer);
     }
+  }
+  const entries = new Set([...reached].filter(isKnownEntry));
+  for (const component of stronglyConnectedComponents([...reached], importersOf)) {
+    const members = new Set(component);
+    const importedFromOutside = component.some((file) =>
+      importersOf(file).some((importer) => !members.has(importer)),
+    );
+    if (importedFromOutside || component.some(isKnownEntry)) continue;
+    for (const file of component) entries.add(file);
   }
   return [...entries].sort();
 }
@@ -316,6 +532,116 @@ describe("reguły wyłącznie panelowe (S4) pasują tylko do markupu tras /admin
     expect(missingDeclarations(intact.replace("--fs-h1,", "--fs-h10,"), h1)).toHaveLength(3);
   });
 
+  it("kontrola negatywna: wartość to dokładnie jedno var(--token[, zapas]), nic doklejonego", () => {
+    const fontSize = tokenVar("--fs-h3");
+    expect(fontSize.test("var(--fs-h3, 1.625rem)")).toBe(true);
+    expect(fontSize.test("var( --fs-h3 )")).toBe(true);
+    expect(fontSize.test("var(--fs-h3, calc(1rem + var(--x, 2px)))")).toBe(true);
+    expect(fontSize.test('var(--fs-h3, ")")')).toBe(true);
+    expect(fontSize.test("var(--fs-h3, 1.625rem) 12px")).toBe(false);
+    expect(fontSize.test("var(--fs-h3, 1.625rem)12px")).toBe(false);
+    expect(fontSize.test("var(--fs-h3, 1)(2)")).toBe(false);
+    expect(fontSize.test("var(--fs-h3, (1.625rem)")).toBe(false);
+    expect(fontSize.test("calc(var(--fs-h3, 1rem) * 2)")).toBe(false);
+    expect(fontSize.test("var(--fs-h30, 1rem)")).toBe(false);
+    const padding = tokenVars("--td-si-py", "--td-si-px");
+    expect(padding.test("var(--td-si-py, 6px) var(--td-si-px, 6px)")).toBe(true);
+    expect(padding.test("var(--td-si-py, 6px)var(--td-si-px, 6px)")).toBe(false);
+    expect(padding.test("var(--td-si-py, 6px) var(--td-si-px, 6px) 0")).toBe(false);
+    expect(padding.test("var(--td-si-py, 6px)")).toBe(false);
+    // Doklejony składnik w arkuszu to brak (mutacja `var(--fs-h1, 2.5rem) 12px`).
+    const h1Tail = `.cms-h1 { font-size: var(--fs-h1, 2.5rem) 12px; }`;
+    expect(
+      missingDeclarations(h1Tail, [
+        { selector: ".cms-h1", declarations: { "font-size": tokenVar("--fs-h1") } },
+      ]),
+    ).toEqual([".cms-h1 { font-size: var(--fs-h1, 2.5rem) 12px }"]);
+  });
+
+  it("kontrola negatywna: późniejszy skrót albo część przypiętej własności to brak", () => {
+    const h1 = headingRules(1).filter((rule) => rule.selector === ".cms-h1");
+    const intact = `.cms-h1 {
+        font-size: var(--fs-h1, 2.5rem);
+        line-height: var(--lh-h1, 1.15);
+        letter-spacing: var(--ls-h1, -0.5px);
+        font-weight: var(--fw-h1, 800);
+        text-transform: var(--tt-h1, none);
+      }`;
+    expect(missingDeclarations(intact, h1)).toEqual([]);
+    // Skrót `font` obejmuje rozmiar, interlinię i grubość (nie odstępy liter ani transformację).
+    expect(missingDeclarations(`${intact} .cms-h1 { font: 400 12px/1 sans-serif; }`, h1)).toEqual([
+      ".cms-h1 { font-size nadpisana przez font: 400 12px/1 sans-serif }",
+      ".cms-h1 { line-height nadpisana przez font: 400 12px/1 sans-serif }",
+      ".cms-h1 { font-weight nadpisana przez font: 400 12px/1 sans-serif }",
+    ]);
+    // `all` nadpisuje wszystko; nazwa własności bez względu na wielkość liter.
+    expect(missingDeclarations(`${intact} .cms-h1 { all: unset; }`, h1)).toHaveLength(5);
+    expect(missingDeclarations(`${intact} .cms-h1 { FONT-SIZE: 12px; }`, h1)).toEqual([
+      ".cms-h1 { font-size: 12px }",
+    ]);
+    // Skrót PRZED przypiętą własnością jej nie nadpisuje; `!important` wygrywa z późniejszym skrótem.
+    expect(missingDeclarations(`.cms-h1 { font: inherit; } ${intact}`, h1)).toEqual([]);
+    const important = intact.replace("2.5rem);", "2.5rem) !important;");
+    expect(missingDeclarations(`${important} .cms-h1 { font: 12px serif; }`, h1)).toEqual([
+      ".cms-h1 { line-height nadpisana przez font: 12px serif }",
+      ".cms-h1 { font-weight nadpisana przez font: 12px serif }",
+    ]);
+    expect(
+      missingDeclarations(`${important} .cms-h1 { font: 12px serif !important; }`, h1),
+    ).toHaveLength(3);
+
+    const button = SOCIAL_RULES.filter(({ selector }) => selector.startsWith(".cms-social__btn"));
+    const social = `
+      .cms-social__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--td-si-color, var(--foreground));
+        background: var(--td-si-bg, transparent);
+        border-radius: var(--td-si-radius, 9999px);
+        padding: var(--td-si-py, 6px) var(--td-si-px, 6px);
+        transition: color 0.15s ease, background-color 0.15s ease;
+        border: 0;
+      }
+      .cms-social__btn svg { width: var(--td-si-size, 18px); height: var(--td-si-size, 18px); }
+      .cms-social__btn:hover {
+        color: var(--td-si-hover-color, #fa9346);
+        background: var(--td-si-hover-bg, transparent);
+      }`;
+    // `transition`, `border` i `height` po `width` niczego przypiętego nie nadpisują.
+    expect(missingDeclarations(social, button)).toEqual([]);
+    // Część (logiczna) skrótu: `padding-inline`, `background-color`, róg `border-radius`.
+    expect(
+      missingDeclarations(
+        `${social} .cms-social__btn { padding-inline: 0; background-color: red; border-start-end-radius: 0; }`,
+        button,
+      ),
+    ).toEqual([
+      ".cms-social__btn { background nadpisana przez background-color: red }",
+      ".cms-social__btn { border-radius nadpisana przez border-start-end-radius: 0 }",
+      ".cms-social__btn { padding nadpisana przez padding-inline: 0 }",
+    ]);
+    expect(missingDeclarations(`${social} .cms-social__btn { padding-top: 0; }`, button)).toEqual([
+      ".cms-social__btn { padding nadpisana przez padding-top: 0 }",
+    ]);
+    expect(
+      missingDeclarations(`${social} .cms-social__btn { place-items: start; }`, button),
+    ).toEqual([".cms-social__btn { align-items nadpisana przez place-items: start }"]);
+    // Logiczny odpowiednik rozmiaru nadpisuje szerokość i wysokość (tryb pisania nieznany).
+    expect(
+      missingDeclarations(`${social} .cms-social__btn svg { inline-size: 0; }`, button),
+    ).toEqual([
+      ".cms-social__btn svg { width nadpisana przez inline-size: 0 }",
+      ".cms-social__btn svg { height nadpisana przez inline-size: 0 }",
+    ]);
+    expect(
+      missingDeclarations(
+        `.cms-social { display: inline-flex; align-items: center; gap: var(--td-si-gap, 8px); row-gap: 0; }`,
+        SOCIAL_RULES.slice(0, 1),
+      ),
+    ).toEqual([".cms-social { gap nadpisana przez row-gap: 0 }"]);
+  });
+
   it("kontrola negatywna: wejściem jest trasa, korzeń publiczny i plik bez importerów", () => {
     const emitter = "src/components/admin/blocks/edit/Heading.tsx";
     const graph = new Map<string, string[]>([
@@ -342,5 +668,43 @@ describe("reguły wyłącznie panelowe (S4) pasują tylko do markupu tras /admin
       "src/routes/admin.posts.tsx",
     ]);
     expect(isAdminRouteFile("src/router.tsx")).toBe(false);
+  });
+
+  it("kontrola negatywna: martwy cykl importów bez importera z zewnątrz jest wejściem", () => {
+    const emitter = "src/components/admin/blocks/edit/Heading.tsx";
+    // Dwa pliki importują się nawzajem i nikt spoza nich ich nie importuje: każdy ma
+    // importera, a mimo to cykl jest nieznanym wejściem (liczy się jak publiczne).
+    const deadCycle = new Map([
+      [emitter, ["src/routes/admin.posts.tsx", "src/lib/cycleA.tsx"]],
+      ["src/lib/cycleA.tsx", ["src/lib/cycleB.tsx"]],
+      ["src/lib/cycleB.tsx", ["src/lib/cycleA.tsx"]],
+    ]);
+    expect(entriesReaching([emitter], deadCycle)).toEqual([
+      "src/lib/cycleA.tsx",
+      "src/lib/cycleB.tsx",
+      "src/routes/admin.posts.tsx",
+    ]);
+    // Plik importujący sam siebie to cykl jednoelementowy - też wejście.
+    const selfImport = new Map([
+      [emitter, ["src/lib/selfLoop.tsx"]],
+      ["src/lib/selfLoop.tsx", ["src/lib/selfLoop.tsx"]],
+    ]);
+    expect(entriesReaching([emitter], selfImport)).toEqual(["src/lib/selfLoop.tsx"]);
+    // Cykl importowany z zewnątrz prowadzi do wejść importera, sam wejściem nie jest.
+    const importedCycle = new Map([
+      ...deadCycle,
+      ["src/lib/cycleB.tsx", ["src/lib/cycleA.tsx", "src/routes/admin.tsx"]],
+    ]);
+    expect(entriesReaching([emitter], importedCycle)).toEqual([
+      "src/routes/admin.posts.tsx",
+      "src/routes/admin.tsx",
+    ]);
+    // Cykl z trasą w środku: wejściem jest trasa, nie pozostałe pliki cyklu.
+    const routeCycle = new Map([
+      [emitter, ["src/lib/cycleA.tsx"]],
+      ["src/lib/cycleA.tsx", ["src/routes/admin.posts.tsx"]],
+      ["src/routes/admin.posts.tsx", ["src/lib/cycleA.tsx"]],
+    ]);
+    expect(entriesReaching([emitter], routeCycle)).toEqual(["src/routes/admin.posts.tsx"]);
   });
 });
