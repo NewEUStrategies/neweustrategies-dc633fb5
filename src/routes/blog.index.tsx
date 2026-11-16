@@ -59,7 +59,10 @@ export const Route = createFileRoute("/blog/")({
       500,
       deadlineAt,
     );
-    const hasSettings = !!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const hasSettings =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      !!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey);
     const settings =
       context.queryClient.getQueryData<Record<string, unknown>>(
         siteSettingsQueryOptions.queryKey,
@@ -107,7 +110,11 @@ export const Route = createFileRoute("/blog/")({
     // z `fetchPriority="high"` w powłoce dostaje automatyczny
     // `<link rel="preload" as="image">` na początku `<head>`. Drugi, identyczny
     // link z `head()` był duplikatem (`documentPreloadDuplicates` na `/blog`).
-    const coverPreload = archiveFirstCardPreload(data.posts, false);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload =
+      import.meta.env.SSR || import.meta.env.DEV
+        ? archiveFirstCardPreload(data.posts, false)
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { page: data.page, total: data.total, degraded: false };

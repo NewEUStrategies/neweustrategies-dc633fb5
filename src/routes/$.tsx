@@ -805,15 +805,19 @@ export const Route = createFileRoute("/$")({
       if (result.status === "rejected") return true;
       return (result.value as { degraded?: boolean } | undefined)?.degraded === true;
     };
-    const directArmCold = [
-      postLayoutSettingsQueryOptions().queryKey,
-      relatedPostsConfigQueryOptions().queryKey,
-      data.kind === "page" && data.item.template_type === "archive_listing"
-        ? archiveListingQueryOptions(data.item.id).queryKey
-        : null,
-    ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const directArmCold =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      [
+        postLayoutSettingsQueryOptions().queryKey,
+        relatedPostsConfigQueryOptions().queryKey,
+        data.kind === "page" && data.item.template_type === "archive_listing"
+          ? archiveListingQueryOptions(data.item.id).queryKey
+          : null,
+      ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
     const secondaryDegraded =
-      secondary.results === null || secondary.results.some(armDegraded) || directArmCold;
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      (secondary.results === null || secondary.results.some(armDegraded) || directArmCold);
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own. Strony czekały
@@ -831,10 +835,10 @@ export const Route = createFileRoute("/$")({
     // `dataUpdatedAt === 0` i jest degradacją, mimo że wartość „jest".
     // Korzeń stosuje ten sam predykat, ale TYLKO na ścieżce strony głównej
     // (`__root.tsx:357-367`) - na trasie łapiącej wszystko ta dziura została.
-    const settingsDegraded = !hasSsrQueryData(
-      context.queryClient,
-      siteSettingsQueryOptions.queryKey,
-    );
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const settingsDegraded =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      !hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey);
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
       // `updatedAt: 0` - ZASIEW MUSI RODZIĆ SIĘ PRZETERMINOWANY. Bez tego
       // argumentu `setQueryData` stempluje wpis `Date.now()`, a `staleTime`
@@ -872,8 +876,9 @@ export const Route = createFileRoute("/$")({
     // (lib/builder/aboveFold.tsx). Obrazy kandydatów LCP strony (P1.4) idą do
     // magazynu żądania (`lib/builder/heroPreloadStore.ts`), nie do danych
     // loadera - klient ich nie czyta, a jechały w `$tsr` (P3.7b, T6).
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
     const coverPreload =
-      data.kind === "post"
+      (import.meta.env.SSR || import.meta.env.DEV) && data.kind === "post"
         ? buildCoverPreload(
             data.item,
             context.queryClient.getQueryData<PostLayoutSettings>(

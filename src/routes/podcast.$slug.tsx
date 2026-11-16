@@ -111,9 +111,11 @@ export const Route = createFileRoute("/podcast/$slug")({
     // renderuje się w polu 128x128, więc preload/paint schodzą na ~256 px
     // wariant ze Storage zamiast pełnowymiarowego oryginału na wysokim
     // priorytecie (URL-e spoza Supabase przechodzą bez zmian).
-    const coverPreload: ImagePreloadInput | null = data.cover_image_url
-      ? { href: buildAvatarSrc(data.cover_image_url, 128) }
-      : null;
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload: ImagePreloadInput | null =
+      (import.meta.env.SSR || import.meta.env.DEV) && data.cover_image_url
+        ? { href: buildAvatarSrc(data.cover_image_url, 128) }
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
 

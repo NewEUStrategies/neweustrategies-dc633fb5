@@ -138,9 +138,11 @@ export const Route = createFileRoute("/podcasts/$show")({
     // PARYTET: ten sam buildAvatarSrc(…, 160) co w malowanym <img> - okładka
     // renderuje się w polu 160x160, więc preload/paint schodzą na ~320 px
     // wariant ze Storage zamiast pełnowymiarowego oryginału.
-    const coverPreload: ImagePreloadInput | null = show.cover_image_url
-      ? { href: buildAvatarSrc(show.cover_image_url, 160) }
-      : null;
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload: ImagePreloadInput | null =
+      (import.meta.env.SSR || import.meta.env.DEV) && show.cover_image_url
+        ? { href: buildAvatarSrc(show.cover_image_url, 160) }
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return { show, degraded: episodes.degraded };

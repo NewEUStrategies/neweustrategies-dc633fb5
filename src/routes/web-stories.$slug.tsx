@@ -68,15 +68,19 @@ export const Route = createFileRoute("/web-stories/$slug")({
     // Reacta 19 z `<img fetchPriority="high">` okładki w powłoce (ten sam klucz
     // srcSet/sizes) - link z `head()` był jego duplikatem (jak w archiwach,
     // `blog.index.tsx`), więc deskryptor nie wraca w danych loadera.
-    const coverPreload: ImagePreloadInput | null = data.cover_url
-      ? {
-          href: data.cover_url,
-          imageSrcSet: buildImageSrcSet(data.cover_url),
-          imageSizes: COVER_IMAGE_SIZES,
-        }
-      : null;
-    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
-      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    //
+    // Deskryptor liczy się W GAŁĘZI BRAMKI: czyta go wyłącznie nagłówek, więc
+    // w bundlu przeglądarki znika razem z wywołaniem (roadmapa §9.5, J1).
+    if (import.meta.env.SSR || import.meta.env.DEV) {
+      const coverPreload: ImagePreloadInput | null = data.cover_url
+        ? {
+            href: data.cover_url,
+            imageSrcSet: buildImageSrcSet(data.cover_url),
+            imageSizes: COVER_IMAGE_SIZES,
+          }
+        : null;
+      if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    }
     return { story: data, degraded: false };
   },
   // ── NAGŁÓWEK PRZEZ WSPÓLNY BUDOWNIK, NIE RĘCZNIE ──────────────────────────

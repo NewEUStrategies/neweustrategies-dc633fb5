@@ -127,7 +127,11 @@ export const Route = createFileRoute("/tag/$slug")({
     }
     // Preload LCP pierwszej okładki (jak w category.$slug): wyłącznie nagłówek
     // HTTP `Link` utrwalany przez NES Edge Cache; `<head>` - preload Reacta 19.
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload =
+      import.meta.env.SSR || import.meta.env.DEV
+        ? archiveFirstCardPreload(data.posts, settings.data.show_featured_top)
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // Treść prawdziwa = strona renderuje się normalnie, także na domyślkach

@@ -89,9 +89,11 @@ export const Route = createFileRoute("/programs/$slug")({
     // jest samo `src`) - link z `head()` był jego identycznym duplikatem
     // (`documentPreloadDuplicates`; jak w archiwach, `blog.index.tsx`).
     const hero = landing.program.hero_image_url;
-    const heroPreload: ImagePreloadInput | null = hero
-      ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
-      : null;
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const heroPreload: ImagePreloadInput | null =
+      (import.meta.env.SSR || import.meta.env.DEV) && hero
+        ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && heroPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
     return { landing, degraded: false };

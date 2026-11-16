@@ -98,9 +98,13 @@ export const Route = createFileRoute("/club/$clubSlug")({
     // bez deduplikacji, czyli jako drugi, identyczny preload (jak w archiwach,
     // `blog.index.tsx`) - dlatego układ nie ma już `head()`, a deskryptor nie
     // wraca w danych loadera.
-    const preload = clubCoverPreload(club, location.pathname);
-    if ((import.meta.env.SSR || import.meta.env.DEV) && preload)
-      appendLinkHeader(imagePreloadLinkHeaderValue(preload));
+    //
+    // Deskryptor liczy się W GAŁĘZI BRAMKI: czyta go wyłącznie nagłówek, więc
+    // w bundlu przeglądarki znika razem z wywołaniem (roadmapa §9.5, J1).
+    if (import.meta.env.SSR || import.meta.env.DEV) {
+      const preload = clubCoverPreload(club, location.pathname);
+      if (preload) appendLinkHeader(imagePreloadLinkHeaderValue(preload));
+    }
 
     return { club: toClubHeadSource(club) };
   },

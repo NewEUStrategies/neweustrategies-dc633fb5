@@ -264,7 +264,9 @@ export const Route = createFileRoute("/author/$slug")({
     // POD TERMINEM - gołe `await` na tej obietnicy trzymało TTFB aż do
     // watchdoga SSR, bo `try/catch` broni przed błędem, nie przed zwisem.
     await withBudget(materialsPromise, AUTHOR_HUB_SSR_BUDGET_MS, deadlineAt);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
     const materials =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
       context.queryClient.getQueryState(materialsOptions.queryKey)?.status !== "success";
     // Non-indexable profile robots still share the same cacheable shell.
     // `resilientCacheControl` zamiast ręcznego warunku (2026-09-13): wartość

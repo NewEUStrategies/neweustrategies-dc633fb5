@@ -171,7 +171,11 @@ export const Route = createFileRoute("/category/$slug")({
     // na HIT/STALE; droga do 103 Early Hints). `<head>` dostaje preload od
     // Reacta 19 (obraz `fetchPriority="high"` w powłoce) - link z `head()`
     // był jego duplikatem (`blog.index.tsx`).
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload =
+      import.meta.env.SSR || import.meta.env.DEV
+        ? archiveFirstCardPreload(data.posts, settings.data.show_featured_top)
+        : null;
     if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
       appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // TREŚĆ jest prawdziwa, więc strona renderuje się normalnie - nawet gdy
