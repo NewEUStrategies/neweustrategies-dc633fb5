@@ -1037,3 +1037,59 @@ zbudowany ani nie sprawdzony w przeglądarce.
 
 Nie sprawdzono: czy treść CMS w bazie niesie klasy `cms-hN` albo `cms-social`
 (zapytanie tylko do odczytu po stronie właściciela).
+
+### 9.14. Partia 5b, część 2 (16.11.2026): strażniki CI - kontrakt TS↔SQL, zapadka J2, nagłówki tras
+
+- Kontrakt TS↔SQL widzi więcej kodu:
+  - kolumny przekazywane parametrem między funkcjami (do 4 skoków) - +20 operacji na tabelach z mega menu, bloków, archiwów i list;
+  - plik `.ts` parsowany jako TS, a każdy błąd składni czerwieni bramkę. **Złapane:** `profile/export.functions.ts` dawał 0 faktów (168 błędów składni) - 32 odczyty i 13 RPC eksportu RODO szły bez sprawdzenia;
+  - `looseTable(źródło, t)` i `looseClient(źródło)` z rolą źródła - +16 odczytów `service_role` i 10 RPC z `unknown` na `authenticated`;
+  - `select` przez warunek i przez zmienną `let`/`const` z budowniczym.
+- Zapadka `select` bez faktu (UNCHECKED_SELECTS_REVIEWED) z kluczem: plik, funkcja, `.from(tabela)`, pełny tekst argumentu.
+- Wstrzymanie pojedynczego faktu (SEAM_FACTS_WITHHELD_REVIEWED) zamiast wyłączania plików. Ten mechanizm odsłonił trzy realne defekty grantu (naprawione niżej), a lista jest dziś pusta.
+- Integracja dołożyła:
+  - testy warunków tabeli i operacji w dopasowaniu faktu wstrzymanego oraz roli `unknown` dla parametru spoza kontekstu (cztery mutanty wcześniej przeżywały cały zestaw);
+  - pięć RPC CRM (`crm_enqueue_lead_push`, `has_role`, `is_super_admin`, `recompute_crm_lead_score(s)`) widocznych dla kontraktu po usunięciu `rpcOf`. Na PG16 wszystkie mają EXECUTE dla `authenticated` i zgodne nazwy argumentów - defektu brak.
+- Zapadka J2 (sieroty zod w chunkach klienta): żywotność po nazwie, nie po pliku celu `import()` (dawniej 498 z 4417 modułów było „żywych” z urzędu), zasięg blokowy wiązań, lista ucieczek przestrzeni nazw. **Złapane:** 3 gołe wywołania schematów w buildzie, w tym `ListInput`, którego stary skaner J2 nie widział.
+- Nagłówki tras (G3): wejście `Link`/`Cache-Control` za bramką serwera na 12 miejscach (stary kształt znaleziony też poza dwiema pierwotnymi trasami). Bundle bez zmian w granicach budżetu:
+  - z pełnych zestawów bootu znika `archivePreload` (/blog, /category, /tag), `eventVideoHeader` (/events/$slug i 8 podtras) oraz `coverFrame` (układ klubu, /about, /members, /new);
+  - `eventLanguages` w panelu wydarzeń jest scalony z istniejącym chunkiem - jeden plik mniej, ten sam kod.
+
+### 9.15. Naprawy uprawnień (16.11.2026, polecenie właściciela) i wdrożenie migracji
+
+- Eksport RODO: sekcja `user_reports_filed` w KAŻDYM eksporcie dawała 42501, bo tabela jest RPC-only. Teraz woła SECURITY DEFINER `public.user_reports_export_my_data(p_limit integer DEFAULT 2000)` z migracji `supabase/migrations/20261116211500_user_reports_export_my_data.sql`:
+  - 7 kolumn, bez notatki i tożsamości staffu;
+  - osoba z `auth.uid()`, najemca z profilu, sufit 1..5000;
+  - EXECUTE tylko dla `authenticated` i `service_role`;
+  - pgTAP `user_reports_export_my_data_test.sql` 22/22;
+  - lustro drizzle idx 0411 (`0411_user_reports_export_my_data`).
+- Karta leada CRM: zdjęcie członka idzie wspólną ścieżką `lookupLeadAvatars` (`service_role`, `.eq("tenant_id")` z najemcą z sesji, na zewnątrz tylko `avatar_url`).
+- Karta firmy CRM: członkowie idą przez `companyMembers` (`service_role`, najemca wołającego, kolumny z grantem bez PII, maks. 200). Uwaga: rola wyłącznie `super_admin` dostaje tu członków, których pod RLS nie widzi (`is_staff()` = false) - wyłącznie kolumny nie-PII własnego najemcy.
+- Zmiany CRM nie wymagają migracji.
+
+Kroki właściciela wg docs/RUNBOOK_MIGRACJE_LOVABLE.md:
+
+- **Przed scaleniem:** jeżeli `main` ruszył się od 8d9278dc, po `git merge origin/main` wygenerować lustro ponownie przez `bun run migrations:mirror`. Idx i `when` mogą się zmienić (konflikt dziennika: §3.3). Ręcznie nie edytować drizzle SQL, `_journal.json`, snapshotów ani `MIGRATION_LANES`.
+- **Opis PR, sekcja „Wdrożenie bazy”:** idx OD=DO=411 (albo nowy po regeneracji). Kolejność z frontem: dowolna - kod przed migracją daje tylko błąd jednej sekcji eksportu (PGRST202 zamiast dzisiejszego 42501), a poprawki CRM migracji nie potrzebują. Okno: dowolne. Zmiana danych: brak. Zmiany niekompatybilne: brak.
+- **Po scaleniu i zielonym `Required release checks`:**
+  1. Nikt nie wywołuje narzędzia migracji w innej sprawie (§4.1).
+  2. Właściciel wkleja polecenie z §4.2 (NR_PR, OD, DO).
+  3. Lovable sprawdza tylko do odczytu: `bun run migrations:deploy-sql -- --pending --from <OD>`.
+  4. JEDNO wywołanie narzędzia migracji o nazwie `pr<NR>_deployment_completion` i treści dokładnie `COMMENT ON SCHEMA public IS 'standard public schema';` - nigdy SQL samej migracji, bez zapisów do `supabase_migrations.schema_migrations` ani `drizzle.__drizzle_migrations`.
+  5. Po błędzie przejściowym ponawia wyłącznie właściciel (§4.6).
+  6. Weryfikacja §4.4: `--verify --from <OD>` zwraca 0 wierszy; `check:migration-lanes`, `check:db-contract` i `check:migration-ledger` zielone; job `post-deploy` zielony na commicie bota; w commicie bota `types.ts` BEZ zmiany wpisu `user_reports_export_my_data` (PR już go niesie w formacie generatora) - każda inna różnica to dryf produkcji; eksport danych na produkcji ma wypełnioną sekcję `user_reports_filed`.
+     Weryfikacja integracji (`ab8f46d4`, 24 commity nad `851e7948`): 18 przeniesionych
+     commitów identycznych ze źródłami (patch-id i treść), lokalny PG16 z 1 330
+     migracjami (kontrakt 9/9, `user_reports_export_my_data_test` 22/22,
+     `profiles_pii_grant_test` 14/14, testy CRM), bramki migracji i SQL zielone
+     (`check:db-contract` i `check:migration-ledger` wymagają produkcji - nie
+     uruchamiane), build i bramki bundla zielone (`app-initial` 249,2 KB, `overall`
+     5 363,8 KB), 421 plików testów (13 273 testy), kontrola typów. Niezależny
+     weryfikator: własny klon, build, PG16 i 8 mutacji (8 zabitych) - zero znalezisk.
+     Lokalne testy SQL szły na zamienniku pgTAP; prawdziwy pgTAP uruchamia job `pgtap`
+     w CI.
+
+Otwarte po partii: kolumny filtrów (`.eq`, `.or`, `.in`) nadal nie są faktami
+kontraktu; 534 fakty z rolą `unknown` (klienci przekazywani parametrem, fabryki
+`admin()`); dopasowanie zdjęcia leada po adresie jest dokładne, nie bez względu
+na wielkość liter (wspólna reguła z listą CRM).
