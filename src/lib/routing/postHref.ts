@@ -86,10 +86,13 @@ function legacyPostHref(slug: string): string {
  * rodzic zagnieżdżony, nieoczekiwany kształt) - adres zapasowy wybiera wołający.
  *
  * Wprost woła to powierzchnia, która DOTĄD linkowała innym adresem niż
- * `/post/<slug>` (płaskie `/<slug>` w panelu mega-menu i w widgecie tytułu):
- * bez rodzica do policzenia zostaje przy swoim dotychczasowym adresie, bo oba
- * zapasy różnią się skutkiem dla wpisu bez strony-rodzica (`/post/` -> 302 na
- * `/blog`, płaski -> 404 trasy `/$`). Wszystkie pozostałe wołają `postHref`.
+ * `/post/<slug>`: karta wyróżnionego wpisu w panelu mega-menu (płaskie
+ * `/<slug>`). Bez rodzica do policzenia zostaje przy swoim dotychczasowym
+ * adresie, bo oba zapasy różnią się skutkiem dla wpisu bez strony-rodzica
+ * (`/post/` -> 302 na `/blog`, płaski -> 404 trasy `/$`). Wszystkie pozostałe
+ * zapytania wołają `postHref`. Widget tytułu wpisu i link „czytaj dalej"
+ * zajawki tej funkcji NIE wołają: adres kanoniczny bieżącego wpisu dostają
+ * gotowy w `CurrentPostCtx.href`, ustawianym w `src/routes/$.tsx`.
  */
 export function postCanonicalHref(post: PostHrefSource): string | null {
   const parent = post.parent_page;

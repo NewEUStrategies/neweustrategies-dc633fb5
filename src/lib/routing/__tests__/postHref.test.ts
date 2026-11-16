@@ -76,9 +76,10 @@ describe("postHref", () => {
 });
 
 describe("postCanonicalHref", () => {
-  // Dla powierzchni, które DOTĄD linkowały innym adresem niż `/post/<slug>`
-  // (płaskie `/<slug>` w panelu mega-menu i w widgecie tytułu): adres zapasowy
-  // wybierają same, więc potrzebują odpowiedzi „kanonicznego nie ma".
+  // Dla powierzchni, która DOTĄD linkowała innym adresem niż `/post/<slug>`
+  // (płaskie `/<slug>` karty w panelu mega-menu): adres zapasowy wybiera sama,
+  // więc potrzebuje odpowiedzi „kanonicznego nie ma". Widget tytułu wpisu
+  // bierze adres z `CurrentPostCtx.href` (trasa `/$`), nie stąd.
   it("rodzic najwyższego poziomu: ten sam adres co `postHref`", () => {
     const row = { slug: "atom", parent_page: { slug: "blog", parent_id: null } };
     expect(postCanonicalHref(row)).toBe("/blog/atom");

@@ -846,7 +846,15 @@ describe("trasa łapiąca wszystko - wejścia brzegowe kompozycji", () => {
     });
 
     it("kontekst STRONY nie dostaje adresu - widgety strony linkują jak dotąd", () => {
-      mount(page());
+      // Kształt jak z produkcji: loader strony niesie `parentPageId` równe id
+      // SAMEJ strony, a `page_breadcrumbs()` zawsze zawiera tę stronę z pełną
+      // ścieżką. Okruszek rodzica więc ISTNIEJE i ma ścieżkę - o braku adresu
+      // rozstrzyga wyłącznie warunek „to wpis" w `$.tsx`. Z `parentPageId`,
+      // którego nie ma w okruszkach, test przechodziłby także bez tego warunku,
+      // a strona `/analizy` dostałaby nieistniejący adres `/analizy/atom`.
+      const dane = { ...page(), parentPageId: "page-1" };
+      expect(dane.crumbs.find((c) => c.id === dane.parentPageId)?.full_path).toBeTruthy();
+      mount(dane);
       const ctx = prop("ContentRenderer").currentPostCtx as { kind: string; href?: string };
       expect(ctx.kind).toBe("page");
       expect(ctx.href).toBeUndefined();
