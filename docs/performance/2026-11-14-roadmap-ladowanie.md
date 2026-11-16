@@ -990,3 +990,50 @@ Do decyzji właściciela: dok i paleta linkują STRONY płaskim `/<slug>`, więc
 strona zagnieżdżona dostaje tam zły adres (osobna usterka, nie wpisy). Nie
 sprawdzono: przebiegu w przeglądarce (preload, prefiks języka linków
 `to={href}`) ani danych osadzenia na produkcji.
+
+### 9.13. Partia 5b, część 1 (16.11.2026): S4 wykonane, S2 niewykonalne w planowanej formie
+
+**S4: ostatnie reguły wyłącznie panelowe w `admin-styles.css`.** Z `styles.css`
+przeszły `.cms-social` / `.cms-social__btn` (podgląd ikon w sekcji Social Theme
+Design) oraz `.cms-h1`…`.cms-h5` (edytor bloku nagłówka). W `styles.css` zostały
+publiczne `cms-social-list` i `.cms-post-content .cms-hN`. Klasy, także budowane
+dynamicznie (`cms-h${level}`), emitują wyłącznie `SocialSection.tsx`
+i `blocks/edit/Heading.tsx`, a graf importów prowadzi do nich tylko z tras
+`/admin`. Style obliczone w Chromium na markupie z prawdziwych komponentów (jasny
+i ciemny tryb, hover) dały 0 różnic na 3 960 elementach.
+
+| Miara (kontener roboczy)                | Przed (`49fc9375`) | Po       |
+| --------------------------------------- | ------------------ | -------- |
+| Arkusz główny (gzip)                    | 83 590 B           | 83 394 B |
+| Arkusz panelu (gzip)                    | 16 420 B           | 16 773 B |
+| CSS publiczny (`check:bundle`, próg 85) | 84,1 KB            | 83,9 KB  |
+| CSS razem (`check:bundle`, próg 101)    | 100,1 KB           | 100,3 KB |
+
+Czytelnik pobiera 0,2 KB blokującego CSS mniej. CSS razem rośnie o 0,15 KiB:
+w arkuszu głównym przeniesione reguły kompresowały się prawie za darmo, bo obok
+są te same deklaracje `.cms-post-content .cms-hN`. Zestawy plików bootu 342 tras
+bez zmian.
+
+Strażnik `adminOnlyStyleRules.test.ts`:
+
+- sprawdza emitery wyłącznie w kodzie panelu;
+- sprawdza punkty wejścia: trasy, `src/router.tsx`, `src/start.ts`,
+  `src/server.ts` oraz komponenty silnie spójne grafu bez importera z zewnątrz;
+- czyta arkusz panelu parserem CSS i wymaga dla każdej przeniesionej reguły
+  dokładnego selektora i tokenów deklaracji;
+- nadpisanie później w arkuszu, także skrótem (`font`, `background`) albo częścią
+  (`padding-inline`), liczy się jako brak.
+
+Dwie rundy przeglądu, wszystkie poprawki sprawdzone mutacjami. Otwarte, niska
+waga: nadpisanie wewnątrz `@media` lub zagnieżdżonej reguły nie jest wykrywane;
+cykl importów z trzech lub więcej plików nie ma osobnego testu.
+
+**S2: niewykonalne w planowanej formie.** Klasy `.chat-*` emituje także trasa
+`/messages` (oraz importowane przez nią statycznie `components/chat`), więc
+arkusz leniwego chunku doku dawałby na `/messages` mignięcie bez stylów. Do
+decyzji właściciela zostaje wariant tylko dla `.wd-*`: −547 B arkusza
+blokującego, +260 B obu bramek CSS. To szacunek z wycięcia na artefakcie, nie
+zbudowany ani nie sprawdzony w przeglądarce.
+
+Nie sprawdzono: czy treść CMS w bazie niesie klasy `cms-hN` albo `cms-social`
+(zapytanie tylko do odczytu po stronie właściciela).
