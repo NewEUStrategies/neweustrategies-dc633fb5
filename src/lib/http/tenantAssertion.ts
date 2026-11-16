@@ -103,8 +103,11 @@ export function fromBase64Url(value: string): Uint8Array | null {
   }
 }
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+// `/* @__PURE__ */`: koder i dekoder czytają tylko funkcje składające
+// i rozbierające poświadczenie na serwerze; bez adnotacji bundler zostawiał
+// oba `new` w chunku startowym klienta jako gołe wywołania.
+const textEncoder = /* @__PURE__ */ new TextEncoder();
+const textDecoder = /* @__PURE__ */ new TextDecoder();
 
 /** Dokładny tekst objęty podpisem. Jedna definicja dla krawędzi i dla bazy. */
 export function tenantAssertionMessage(kid: string, host: string, expiresAt: number): string {

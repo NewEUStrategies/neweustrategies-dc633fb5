@@ -386,10 +386,15 @@ const AUTHOR_DISPLAY_WIDGET_CATALOG: Readonly<Record<string, "panel" | "editor">
   testimonial: "panel",
 };
 
-/** Typy widgetów z bylinem autora (kolejność katalogu). */
-export const AUTHOR_DISPLAY_WIDGETS: ReadonlyArray<string> = Object.freeze(
-  Object.keys(AUTHOR_DISPLAY_WIDGET_CATALOG),
-);
+/**
+ * Typy widgetów z bylinem autora (kolejność katalogu).
+ *
+ * Zapis `@__PURE__` z funkcją natychmiastową: listę czytają dziś wyłącznie
+ * testy i bramki, a bez niego jej budowa zostawała w chunku startowym klienta
+ * jako gołe wywołanie (uzasadnienie zapisu: `lib/menus/types.ts`).
+ */
+export const AUTHOR_DISPLAY_WIDGETS: ReadonlyArray<string> = /* @__PURE__ */ (() =>
+  Object.freeze(Object.keys(AUTHOR_DISPLAY_WIDGET_CATALOG)))();
 
 /** Czy widget danego typu rysuje byline autora (i dostaje kontrolkę w panelu). */
 export function widgetHasAuthorDisplay(type: string): boolean {

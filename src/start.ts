@@ -273,7 +273,11 @@ function isPreviewRequest(request: Request): boolean {
  */
 const GOOGLE_TAG_SCRIPT_SRC =
   "https://*.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com";
-const GOOGLE_TAG_CONNECT_SRC = [
+// `/* @__PURE__ */`: politykę składa wyłącznie serwer (`contentSecurityPolicy`),
+// ale ten plik jest też w bundlu przeglądarki, a bundler nie umie dowieść, że
+// `.join` nie ma skutków ubocznych - bez adnotacji lista zostawała w chunku
+// startowym klienta jako gołe wywołanie (342 bajty). Wartość bez zmian.
+const GOOGLE_TAG_CONNECT_SRC = /* @__PURE__ */ [
   "https://*.googletagmanager.com",
   "https://*.google-analytics.com",
   "https://*.analytics.google.com",
