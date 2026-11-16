@@ -8,6 +8,7 @@ import type { RiskMatrixConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { FeatureFrame, FeatureDataTable, FEATURE_TABLE_CLS } from "./FeatureFrame";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 
 const L = {
   pl: {
@@ -152,6 +153,7 @@ export function RiskMatrix({ config, lang, className }: Props) {
       className={className}
       footer={<FeatureDataTable label={t.data}>{table}</FeatureDataTable>}
     >
+      <ChartStylesheet />
       <div className="flex gap-2">
         {/* Etykieta osi Y (pionowa). */}
         <div className="flex flex-col items-center justify-center">

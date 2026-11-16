@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { ChartFrame, CHART_TABLE_CLS } from "@/components/charts/ChartFrame";
 import { ChartTooltip } from "@/components/charts/ChartTooltip";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import {
   euCountryName,
@@ -185,6 +186,7 @@ export function PolicyPositionsMap({
       table={table}
       className={className}
     >
+      <ChartStylesheet />
       {/* Legenda kategoryczna z licznikami - zawsze widoczna (4 kategorie). */}
       <ul className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5" role="list">
         {STANCE_META.map((s) => (

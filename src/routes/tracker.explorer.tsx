@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import {
   positionsForItemsQueryOptions,
@@ -256,6 +257,8 @@ function TrackerExplorerPage() {
 
       {/* Legenda + filtr obszaru */}
       <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+        {/* Kolory stanowisk (legenda i macierz niżej) to tokeny `--chart-*` (`cssVar`). */}
+        <ChartStylesheet />
         <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5" role="list">
           {STANCE_META.map((s) => (
             <li key={s.key} className="flex items-center gap-1.5 text-xs text-muted-foreground">

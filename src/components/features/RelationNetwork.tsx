@@ -9,6 +9,7 @@ import { pickBi } from "@/lib/features/types";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { FeatureFrame, FeatureDataTable, FEATURE_TABLE_CLS } from "./FeatureFrame";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 
 const L = {
   pl: {
@@ -166,6 +167,7 @@ export function RelationNetwork({ config, lang, className }: Props) {
       className={className}
       footer={<FeatureDataTable label={t.data}>{table}</FeatureDataTable>}
     >
+      <ChartStylesheet />
       <div ref={revealRef} className={revealClassName(state)}>
         <div ref={widthRef} className="relative w-full">
           <svg

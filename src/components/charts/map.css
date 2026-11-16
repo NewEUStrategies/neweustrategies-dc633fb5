@@ -6,7 +6,7 @@
    rysującym nie ma ani jednego hexa, kolory idą przez tokeny
    --chart-*, a geometria i typografia nie zależą od motywu.
 
-   Plik jest importowany w src/styles.css zaraz po charts.css, więc
+   Plik jest importowany w chart-sheet.css zaraz po charts.css, więc
    jedzie w tym samym skompresowanym arkuszu co paleta.
    ============================================================ */
 

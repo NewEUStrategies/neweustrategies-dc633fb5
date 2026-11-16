@@ -1,0 +1,39 @@
+/* ============================================================
+   ARKUSZ WYKRESÓW - jeden zasób dla całej powierzchni wykresów.
+
+   Reguły silnika (charts.css), kartogramu (map.css), tokeny --chart-*
+   obu motywów z drukiem (chart-tokens.css, blok druku w charts.css)
+   i reguły "digital features" (features/features.css). Do 2026-11 to
+   wszystko siedziało w arkuszu głównym (src/styles.css), który blokuje
+   pierwsze malowanie KAŻDEJ strony - 7,8 KB gzip, których czytelnik
+   artykułu bez wykresu nigdy nie używał.
+
+   ŁADOWANIE. Plik wchodzi przez `?url` i `<ChartStylesheet />`
+   (src/components/charts/ChartStylesheet.tsx), czyli
+   `<link rel="stylesheet" precedence="default">` renderowany w
+   komponencie wykresu - ten sam wzorzec co mapa świata
+   (src/components/maps/WorldMap.tsx). Serwer wstawia link do `<head>`
+   albo wstrzymuje odsłonięcie granicy strumienia do jego `onload`;
+   klient wstrzymuje commit, aż arkusz się wczyta. Nigdy nie importuj go
+   z boku (`import "./chart-sheet.css"`) w module domknięcia startu -
+   build odrzuca CSS w manifeście korzenia (scripts/lib/bootAfterLcpPlugin.ts).
+
+   KOLEJNOŚĆ W KASKADZIE. React układa arkusze z `precedence` w grupy;
+   grupa "default" zaczyna się od arkusza głównego (TanStack nadaje
+   `precedence="default"` linkom `rel=stylesheet` z `head()`), więc ten
+   arkusz stoi ZA arkuszem głównym (i za arkuszem panelu, jeśli ten
+   wczytał się pierwszy). Wcześniej reguły wykresów stały na POCZĄTKU
+   arkusza głównego. Zamiana jest bezpieczna, bo żadna niewarstwowa
+   reguła arkusza głównego ani panelu nie remisuje z regułami tego pliku
+   (ta sama specyficzność, ta sama własność, ten sam element) - pomiar
+   w opisie commita, który wprowadził ten plik.
+
+   BEZ `@layer`. Ten plik musi zostać niewarstwowy: deklaracja warstwy
+   w arkuszu wczytanym przed innym przestawiłaby kolejność warstw całej
+   strony, a reguły wykresów bez warstwy biją klasy Tailwinda tak samo
+   jak wtedy, gdy stały w arkuszu głównym.
+   ============================================================ */
+@import "./charts.css";
+@import "./map.css";
+@import "./chart-tokens.css";
+@import "../features/features.css";

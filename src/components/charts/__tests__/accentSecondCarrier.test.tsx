@@ -12,7 +12,6 @@
 //      poniżej progu linii, który kod sam deklaruje; idzie tuszem na
 //      akcencie (`ACCENT_INK`), a równość tokenów, na której ten tusz stoi,
 //      pilnuje bramka arkusza niżej.
-import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
@@ -21,6 +20,7 @@ import { contrastRatio } from "@/lib/charts/palette";
 import { ROLE } from "@/lib/charts/roles";
 import { Chart } from "../Chart";
 import { ACCENT_EDGE_PX, ACCENT_INK } from "../kindPaint";
+import { DARK_TOKENS, LIGHT_TOKENS, PRINT_TOKENS } from "@/test/chartThemeBlocks";
 
 afterEach(() => {
   cleanup();
@@ -136,11 +136,9 @@ describe("stos 100% - segment w akcencie", () => {
 });
 
 describe("bramka arkusza - tusz na akcencie", () => {
-  const styles = readFileSync("src/styles.css", "utf8");
-  const charts = readFileSync("src/components/charts/charts.css", "utf8");
-  const JASNY = styles.slice(styles.indexOf(":root,"), styles.indexOf(".dark {"));
-  const CIEMNY = styles.slice(styles.indexOf(".dark {"), styles.indexOf("@layer base"));
-  const DRUK = charts.slice(charts.indexOf("@media print {"));
+  const JASNY = LIGHT_TOKENS;
+  const CIEMNY = DARK_TOKENS;
+  const DRUK = PRINT_TOKENS;
 
   function token(blok: string, nazwa: string): string {
     const m = new RegExp(`${nazwa}:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(blok);

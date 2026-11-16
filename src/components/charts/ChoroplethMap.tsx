@@ -73,6 +73,7 @@ import {
 import { ChartTooltip, type TooltipFact, type TooltipRow } from "./ChartTooltip";
 import { sourceLine } from "./chartFacts";
 import { MapLegend } from "./MapLegend";
+import { ChartStylesheet } from "./ChartStylesheet";
 import {
   classRangeLabel,
   hatchTransform,
@@ -356,6 +357,7 @@ export function ChoroplethMap({
   if (!hasValues) {
     return (
       <ChartFrame {...frameProps} table={table} exportable={false}>
+        <ChartStylesheet />
         <MapEmpty region={config.region} text={t("empty")} />
       </ChartFrame>
     );
@@ -405,6 +407,7 @@ export function ChoroplethMap({
         </>
       )}
     >
+      <ChartStylesheet />
       <div ref={revealRef} className={revealClassName(revealState)}>
         <MapCanvas {...canvas} />
         {legend}

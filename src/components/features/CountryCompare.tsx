@@ -7,6 +7,7 @@ import type { CountryCompareConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
 import { formatChartValue } from "@/lib/charts/format";
 import { FeatureFrame, FEATURE_TABLE_CLS } from "./FeatureFrame";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 
 const L = {
   pl: { empty: "Brak danych do porównania.", indicator: "Wskaźnik", noData: "—" },
@@ -48,6 +49,7 @@ export function CountryCompare({ config, lang, className }: Props) {
       source={config.source}
       className={className}
     >
+      <ChartStylesheet />
       <div className="overflow-x-auto">
         <table className={FEATURE_TABLE_CLS.table}>
           <thead>

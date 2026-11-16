@@ -22,6 +22,11 @@ import { ADMIN_HUB_INVALIDATION } from "@/lib/realtime/eventInvalidationMap.admi
 import { cacheControlHeader } from "@/lib/http/cachePolicy";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import adminCss from "@/admin-styles.css?url";
+// Arkusz wykresów: pulpity, siatki danych, próbki kolorów i edytory bloków panelu malują
+// tokenami `--chart-*` także poza ramą wykresu (plakietki delty, paski rankingów, próbki
+// palety). Panel dostaje go więc w `head()` razem z własnym arkuszem - wczytany z dokumentem,
+// a nie dopiero przy pierwszym widżecie, którego render zawiesiłby wtedy commit do `onload`.
+import chartSheetUrl from "@/components/charts/chart-sheet.css?url";
 
 /** Polityka dokumentu panelu - stała modułu, żeby nie liczyć jej co żądanie. */
 const NO_STORE = /* @__PURE__ */ cacheControlHeader({ cacheable: false });
@@ -68,7 +73,10 @@ export const Route = createFileRoute("/admin")({
   },
   head: () => ({
     meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
-    links: [{ rel: "stylesheet", href: adminCss }],
+    links: [
+      { rel: "stylesheet", href: adminCss },
+      { rel: "stylesheet", href: chartSheetUrl },
+    ],
   }),
   component: AdminLayout,
 });

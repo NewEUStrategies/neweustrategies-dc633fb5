@@ -1,0 +1,1026 @@
+/* ============================================================
+   TOKENY WYKRESÓW (--chart-*) - motyw jasny i ciemny.
+
+   Do 2026-11 stały w blokach motywu jasnego i ciemnego arkusza głównego
+   (src/styles.css), czyli blokowały pierwsze malowanie każdej strony,
+   także tej bez wykresu. Teraz jadą razem z regułami silnika w jednym
+   arkuszu wykresów (src/components/charts/chart-sheet.css), który ładuje
+   wyłącznie strona z wykresem - przez `<ChartStylesheet />` renderowany
+   w komponencie wykresu (zasób React 19 z `precedence`) i przez `head()`
+   panelu.
+
+   ZAKRESY SĄ TE SAME CO W ARKUSZU GŁÓWNYM: `:root` dla dokumentu, `.light`
+   dla wnętrza wymuszonego jasnego (canvas buildera pod ciemnym panelem)
+   i `.dark` dla motywu ciemnego, w tej samej kolejności (ciemny po jasnym,
+   równa specyficzność). Żadna reguła arkusza głównego nie deklaruje
+   `--chart-*` (pilnuje src/lib/ci/__tests__/chartSheetMounts.test.ts), więc
+   położenie tego arkusza względem głównego nie zmienia wartości tokenu.
+
+   Bramki palety, ról, geometrii i map (src/test/chartThemeBlocks.ts) tną
+   ten plik po pierwszym wystąpieniu znaczników bloków, dlatego w tym
+   komentarzu nie ma ich dosłownego zapisu.
+   ============================================================ */
+
+:root,
+.light {
+  /* ============================================================
+     WYKRESY - MOTYW JASNY (silnik SVG src/components/charts, także pod
+     warstwą BI src/components/admin/analytics)
+     ------------------------------------------------------------
+     KAŻDA liczba w tej sekcji jest policzona, nie dobrana na oko, i ma
+     bramkę: `src/lib/charts/palette.ts` trzyma te same wartości obok metody
+     pomiaru, a `src/lib/charts/__tests__/palette.test.ts` porównuje moduł
+     z TYM arkuszem token po tokenie. Podmiana odcienia bez przeliczenia
+     całej palety oblewa bramkę - i to jest jedyny sposób, w jaki paleta może
+     być pilnowana, bo kontrast i odległość barw nie są widoczne w DOM.
+
+     METODA: kontrast wzorem WCAG 2.x na luminancji relatywnej; symulacja
+     daltonizmu macierzami Machado, Oliveira i Fernandes (2009) przy pełnym
+     nasileniu; odległość CIE76 w CIELAB (D65). Płytą odniesienia jest REALNY
+     token --card (tu #ffffff), nie abstrakcyjna biel.
+
+     NUMER SLOTU TO NIE JEST KOLEJNOŚĆ PRZYPISANIA, i to jest najważniejsza
+     rzecz do zrozumienia w tej sekcji. Numer wskazuje KOLOR (jest zapisany
+     w treści: bloki CMS, CSV widgetów), a o tym, które kolory dostają dwie
+     pierwsze serie wykresu, decyduje `SLOT_SEQUENCE` w
+     `src/lib/charts/palette.ts`, wyliczona z pomiaru rozdzielności.
+     Gdyby serie dalej brały sloty po kolei 1, 2, 3..., druga i trzecia
+     (#FA9346 i #58a537) miałyby po symulacji protanopii odległość 5,57 przy
+     podłodze 22,5 - czyli dla protanopa byłyby jednym kolorem.
+
+     TRZY POZIOMY, nie jeden. Sześć pierwszych pozycji sekwencji trzyma pełną
+     podłogę: 21,21 (deuteranopia) / 25,08 (protanopia) / 16,77 (tritanopia)
+     na jasnym i 23,86 / 30,39 / 20,85 na ciemnym. Osiem pierwszych trzyma
+     podłogę rozszerzoną (12,94 / 16,49 / 16,77 oraz 12,91 / 17,61 / 20,80).
+     Reszta palety NIE MA PODŁOGI i to jest wpisane, nie przemilczane: wśród
+     dwudziestu siedmiu kolorów są pary odległe po symulacji o 0,94 (#ff9a9a
+     wobec #ff9d9d). Silnik nigdy nie sięga po nie sam - wchodzą do wykresu
+     tylko wtedy, gdy autor wybierze numer slotu wprost.
+
+     CZĘŚĆ TOKENÓW NIE PRZECHODZI PROGU 3:1 SAMA, i to też jest decyzja, nie
+     przeoczenie: #FA9346 ma na białej płycie 2,25:1, a #ffdab3 1,32:1. To są
+     kolory marki, więc token zostaje dokładnie taki, jaki zadano, a kształt
+     niesie z nich OBWÓDKA `--chart-N-edge`, którą `barFillOf` dociąga do
+     progu niezależnie od tego, ile kroków jasności to wymaga (dla #ffdab3
+     jest to 0,24 wobec bazowych 0,09). Seria w takim slocie nigdy nie jest
+     samą linią ani samym markerem bez obwódki - lista stoi w module jako
+     SLOTS_NEEDING_EDGE_FOR_SHAPE i jest liczona przez bramkę.
+     ============================================================ */
+
+  /* Wypełnienie i linia serii. Sloty 1-10 to rodziny odcienia silnika,
+     11-27 to paleta bazowa zadana jako kolory marki. Kontrast na płycie stoi
+     w komentarzu przy każdym tokenie; tam, gdzie jest poniżej 3,0:1, kształt
+     niesie obwódka (patrz nagłówek sekcji). */
+  --chart-1: #03346e; /* granat           12,21:1 */
+  --chart-2: #fa9346; /* ochra            2,25:1 */
+  --chart-3: #58a537; /* szalwia [bezp.]  3,06:1 */
+  --chart-4: #8c56d4; /* sliwka [bezp.]   4,78:1 */
+  --chart-5: #2bbbd7; /* lazur            2,28:1 */
+  --chart-6: #bb8760; /* terakota         3,11:1 */
+  --chart-7: #5f6c98; /* indygo           5,14:1 */
+  --chart-8: #607456; /* oliwka [bezp.]   5,08:1 */
+  --chart-9: #7b2525; /* roza             9,84:1 */
+  --chart-10: #4b9391; /* morski          3,57:1 */
+  --chart-11: #232c31; /* grafit          14,23:1 */
+  --chart-12: #cd393b; /* czerwien        4,95:1 */
+  --chart-13: #15334d; /* atrament        13,02:1 */
+  --chart-14: #6929c4; /* ametyst [bezp.] 7,74:1 */
+  --chart-15: #f7dd14; /* cytryna         1,37:1 */
+  --chart-16: #7f2020; /* bordo           9,86:1 */
+  --chart-17: #6d9e51; /* mech            3,15:1 */
+  --chart-18: #ed985f; /* morela          2,27:1 */
+  --chart-19: #9cc6db; /* lodowy          1,82:1 */
+  --chart-20: #c95792; /* fuksja [bezp.]  3,99:1 */
+  --chart-21: #e50046; /* malina [bezp.]  4,75:1 */
+  --chart-22: #ffdab3; /* brzoskwinia     1,32:1 */
+  --chart-23: #d4bdac; /* piaskowy        1,80:1 */
+  --chart-24: #dca47c; /* karmel          2,18:1 */
+  --chart-25: #b80000; /* rubin           6,91:1 */
+  --chart-26: #ff788d; /* koral           2,52:1 */
+  --chart-27: #b88950; /* miod            3,12:1 */
+
+  /* Wariant TEKSTOWY serii. Istnieje, bo próg kontrastu jest inny dla
+     grafiki (3,0:1, WCAG 1.4.11) i dla tekstu (4,5:1, WCAG 1.4.3): ochra
+     jako linia jest w porządku, jako podpis nie. Etykiet serii, linków i
+     legendy NIE pisz kolorem linii - to najczęstszy błąd w wykresach,
+     wygląda spójnie i nie przechodzi audytu dostępności. W motywie jasnym
+     wariant powstaje przez PRZYCIEMNIENIE odcienia serii. */
+  --chart-1t: #03346e; /* 12,21:1 - bez zmiany */
+  --chart-2t: #b95e00; /* 4,50:1 */
+  --chart-3t: #3a870e; /* 4,51:1 */
+  --chart-4t: #8c56d4; /* 4,78:1 - bez zmiany */
+  --chart-5t: #008297; /* 4,53:1 */
+  --chart-6t: #9d6b45; /* 4,54:1 */
+  --chart-7t: #5f6c98; /* 5,14:1 - bez zmiany */
+  --chart-8t: #607456; /* 5,08:1 - bez zmiany */
+  --chart-9t: #7b2525; /* 9,84:1 - bez zmiany */
+  --chart-10t: #398180; /* 4,54:1 */
+  --chart-11t: #232c31; /* 14,23:1 - bez zmiany */
+  --chart-12t: #cd393b; /* 4,95:1 - bez zmiany */
+  --chart-13t: #15334d; /* 13,02:1 - bez zmiany */
+  --chart-14t: #6929c4; /* 7,74:1 - bez zmiany */
+  --chart-15t: #867700; /* 4,51:1 */
+  --chart-16t: #7f2020; /* 9,86:1 - bez zmiany */
+  --chart-17t: #538236; /* 4,55:1 */
+  --chart-18t: #b16125; /* 4,56:1 */
+  --chart-19t: #547c8f; /* 4,51:1 */
+  --chart-20t: #bf4e89; /* 4,50:1 */
+  --chart-21t: #e50046; /* 4,75:1 - bez zmiany */
+  --chart-22t: #91704c; /* 4,54:1 */
+  --chart-23t: #877363; /* 4,50:1 */
+  --chart-24t: #9f6b44; /* 4,51:1 */
+  --chart-25t: #b80000; /* 6,91:1 - bez zmiany */
+  --chart-26t: #cb4961; /* 4,50:1 */
+  --chart-27t: #9b6d34; /* 4,53:1 */
+
+  /* Kolor etykiety WEWNĄTRZ wypełnienia slotu - jedyny wyjątek od zasady
+     "tekst wyłącznie w tokenach tekstu", bo tu kontrast liczy się wobec
+     konkretnego odcienia, nie wobec płyty. Etykieta udziału to 12 px /
+     waga 600, więc nie jest "dużym tekstem" i obowiązuje ją AA 4,5:1.
+     Zmierzone pary: 8,06 / 5,97 / 5,98 / 5,83 / 5,92 / 5,09 / 5,14 / 5,54 /
+     4,75 / 5,08. */
+  --chart-ink-1: #ffffff;
+  --chart-ink-2: #12161c;
+  --chart-ink-3: #12161c;
+  --chart-ink-4: #ffffff;
+  --chart-ink-5: #12161c;
+  --chart-ink-6: #12161c;
+  --chart-ink-7: #ffffff;
+  --chart-ink-8: #ffffff;
+  --chart-ink-9: #ffffff;
+  --chart-ink-10: #12161c;
+  --chart-ink-11: #ffffff;
+  --chart-ink-12: #ffffff;
+  --chart-ink-13: #ffffff;
+  --chart-ink-14: #ffffff;
+  --chart-ink-15: #12161c;
+  --chart-ink-16: #ffffff;
+  --chart-ink-17: #12161c;
+  --chart-ink-18: #12161c;
+  --chart-ink-19: #12161c;
+  --chart-ink-20: #12161c;
+  --chart-ink-21: #ffffff;
+  --chart-ink-22: #12161c;
+  --chart-ink-23: #12161c;
+  --chart-ink-24: #12161c;
+  --chart-ink-25: #ffffff;
+  --chart-ink-26: #12161c;
+  --chart-ink-27: #12161c;
+
+  /* ---- Semantyka znaku: ZNACZENIE, nie kategoria ----
+     Nigdy nie bierz jej ze slotu palety. Dodatni jest niebieskim tealem,
+     nie zielenią, i to jedyna decyzja, którą wymusiła czerwień: para
+     #ef5454 / #2d7a6a (klasyczny teal zielony) daje przy protanopii
+     odległość 8,5, czyli dla protanopa zysk i strata są tym samym kolorem.
+     Przesunięcie dodatniego w stronę niebieskiego podnosi tę odległość
+     czterokrotnie (33,9 / 59,6 deut / 106,7 trit).
+
+     ZNAK KODUJ KOLOREM I POZYCJĄ WZGLĘDEM ZERA JEDNOCZEŚNIE, NIGDY SAMYM
+     KOLOREM - około 8% mężczyzn nie odróżnia czerwieni od zieleni, a na
+     rynkach azjatyckich czerwony oznacza wzrost. Wariant tekstowy czerwieni
+     istnieje, bo #ef5454 ma na płycie 3,46:1 (grafika przechodzi, tekst
+     nie); #ae413f daje 5,79:1 w tym samym odcieniu. */
+  --chart-positive: #1b6f8c;
+  --chart-negative: #ef5454;
+  --chart-positive-text: #1b6f8c;
+  --chart-negative-text: #ae413f;
+  --chart-ink-positive: #ffffff;
+  --chart-ink-negative: #12161c;
+
+  /* ---- Akcent: OSOBNA RODZINA, nie siódmy kolor serii ----
+     Wyróżnia najważniejszy element (jeden słupek, jeden punkt) i NIGDY nie
+     oznacza kategorii. Wartości są te same co pomarańcz marki (--brand).
+
+     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: #FA9346 ma
+     2,25:1, #ed751a ma 2,93:1 wobec wymaganych 3,0 dla grafiki i 4,5 dla
+     tekstu. To nie znaczy, że nie wolno go używać - znaczy, że na jasnym tle
+     akcent NIE MOŻE BYĆ JEDYNYM NOŚNIKIEM INFORMACJI. Wolno nim wypełnić
+     powierzchnię pod ciemnym tekstem (tusz na #FA9346 ma 8,06:1, na #FA9346
+     10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
+     wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
+     Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
+     DWA WARIANTY AUDYTOWE, bo próg zależy od tego, czym akcent ma być:
+     --chart-accent-audit-graphic #cb7032 (3,56:1 na płycie, 3,30:1 na tle
+     strony - próg grafiki 1.4.11 i tekstu dużego) oraz --chart-accent-audit
+     #ab5517 (5,19:1 i 4,82:1 - próg tekstu normalnego 1.4.3). Oba ZAWODZĄ na
+     drugim tle sekcyjnym (2,89:1 i 4,22:1). Furtka na wypadek audytu, nie
+     podmiana tokena.
+
+     PODKŁAD #fff4ed NIE WYZNACZA POWIERZCHNI na tle strony #f8f6f4: kontrast
+     między nimi to 1,003:1, czyli identyczna jasność przy różnicy samego
+     odcienia. Taka granica znika w skali szarości, w druku i u części
+     odbiorców. Jako podkład pod ciemny tekst działa (tusz ma na nim 16,78:1),
+     ale KRAWĘDŹ musi nieść obramowanie 1 px.
+
+     Akcent koliduje z OLIWKĄ: #ed751a wobec #646e1c daje przy protanopii
+     13,50, czyli pod podłogą palety. Przed zmiękczeniem kolidował z ochrą
+     (1,62 przy deuteranopii) - lista jest liczona z palety, a nie pamiętana,
+     więc przesunęła się razem z nią (patrz SLOTS_CLASHING_WITH_ACCENT). */
+  --chart-accent: #fa9346;
+  --chart-accent-text: #ed751a;
+  --chart-accent-fill: #fa9346;
+  --chart-accent-bg: #fff4ed;
+  --chart-accent-audit: #ab5517;
+  --chart-accent-audit-graphic: #cb7032;
+
+  /* ---- Role systemu wykresów (specyfikacja 2026-10) ----
+     Jedna seria w akcencie, reszta w odcieniach neutralnych. Kolejność serii:
+     akcent, łupek główny, łupek drugi, dodatni, "powyżej przedziału".
+     Nazwy i progi stoją w src/lib/charts/roles.ts - bramka roles.test.ts
+     porównuje je z tym arkuszem co do hexa.
+
+     Łupek drugi jest o krok ciemniejszy od wzorca (#9aa6b5 dawał 2,47:1),
+     żeby trzecia seria przechodziła próg grafiki 3,0:1 także bez kreskowania.
+     "Powyżej przedziału" jest FIOLETEM, nie bursztynem: bursztyn leży w tej
+     samej rodzinie co pomarańcz marki i przy deuteranopii zlewał się z nim.
+     Atrament wykresu ma trzy stopnie: tytuł / etykiety danych / opisy osi. */
+  --chart-acc-l: #fdb078;
+  --chart-s-main: #3e4c5e;
+  --chart-s-alt: #8794a4;
+  --chart-s-alt-t: #66717f;
+  --chart-warn: #7c4dbf;
+  --chart-ink: #141313;
+  --chart-ink2: #3f3c3a;
+  --chart-ink3: #6b6662;
+  --chart-tip-mute: #b9b2ab;
+
+  /* ---- Druga powierzchnia sekcyjna ----
+     Tło ciemniejsze od domyślnego o 1,14:1, dla sekcji, które mają odstąpić
+     od reszty strony. JEDNO OGRANICZENIE, i jest ono twarde: SERIE NIE MOGĄ
+     LEŻEĆ BEZPOŚREDNIO NA TEJ POWIERZCHNI. Ochra spada tam do 2,47:1, szałwia
+     do 2,47:1, lazur do 2,49:1, morski do 2,90:1, a czerwień ujemna do
+     2,81:1 - wszystkie poniżej progu grafiki 3,0:1. Zmiękczenie palety
+     dołożyło do tej listy jeden slot (morski), bo jaśniejszy odcień ma do
+     jasnego tła bliżej - to jest cena pasteli i dlatego lista jest liczona
+     przez bramkę, a nie przepisana. Płyta wykresu zostaje BIAŁA także wtedy, gdy
+     sekcja wokół niej jest w drugim tle; token służy sekcji, nie wykresowi.
+     Bramka: SLOTS_UNSAFE_ON_SURFACE_2 w src/lib/charts/palette.ts. */
+  --chart-surface-2: #e4e8ee;
+
+  /* ---- Pasmo prognozy: krycie PER SERIA, nie stała ----
+     Cel: kontrast pasma do płyty 1,10-1,17:1. Poniżej pasmo jest
+     niewidoczne, powyżej konkuruje z linią. Stała alfa nie działa, bo
+     różnica jasności odcienia wobec płyty jest bardzo nierówna - przy
+     jednolitych 10% granat dawałby 1,177 (za mocno), a ochra 1,103.
+     Zmierzone po korekcie: 1,139 / 1,132 / 1,131 / 1,131 / 1,133 / 1,127 /
+     1,138 / 1,138 / 1,131 / 1,138. */
+  --chart-band-1: 0.07;
+  --chart-band-2: 0.16;
+  --chart-band-3: 0.13;
+  --chart-band-4: 0.1;
+  --chart-band-5: 0.15;
+  --chart-band-6: 0.13;
+  --chart-band-7: 0.1;
+  --chart-band-8: 0.1;
+  --chart-band-9: 0.07;
+  --chart-band-10: 0.12;
+  --chart-band-11: 0.07;
+  --chart-band-12: 0.09;
+  --chart-band-13: 0.07;
+  --chart-band-14: 0.08;
+  --chart-band-15: 0.36;
+  --chart-band-16: 0.07;
+  --chart-band-17: 0.13;
+  --chart-band-18: 0.16;
+  --chart-band-19: 0.22;
+  --chart-band-20: 0.11;
+  --chart-band-21: 0.07;
+  --chart-band-22: 0.47;
+  --chart-band-23: 0.23;
+  --chart-band-24: 0.18;
+  --chart-band-25: 0.07;
+  --chart-band-26: 0.14;
+  --chart-band-27: 0.13;
+  --chart-band-positive: 0.09;
+  --chart-band-negative: 0.11;
+
+  /* ---- WYPEŁNIENIA SŁUPKÓW (wariant blady / gradient / solid) ----
+     Odcienie pochodne WYPROWADZONE, nie dobrane: krok jasności w OKLCh przy
+     zachowanej chromie i odcieniu (`lib/charts/palette.ts`, `barFillOf`).
+     Bramka `__tests__/palette.test.ts` przelicza je z tokena i porównuje
+     z tym arkuszem, więc rozjazd zapala test, a nie przechodzi po cichu.
+
+     Obwódka `-edge` ODCHODZI od tła: na jasnym ciemnieje, na ciemnym
+     rozjaśnia się. Literalne "ciemniejsza w obu trybach" nie zadziała - na
+     ciemnym tle ciemniejsza krawędź idzie w stronę tła i przestaje być
+     krawędzią. Wnętrze `-inner` jest OSOBNYM odcieniem, nie tokenem pod alfą:
+     alfa przepuszcza siatkę i strefę prognozy, więc wnętrze przestawałoby
+     być jednolite. Rampa `-deep`/`-mid`/`-face` kończy się O STOPIEŃ przed
+     tokenem i nigdy go nie dosięga, dzięki czemu obwódka w czystym tokenie
+     odcina się od wypełnienia także na końcu danych. */
+  --chart-bar-edge: 1.5px;
+  --chart-1-edge: #001e47;
+  --chart-1-inner: #dae9ff;
+  --chart-1-hover: #bfdaff;
+  --chart-1-deep: #001e47;
+  --chart-1-mid: #002555;
+  --chart-1-face: #002b60;
+  --chart-2-edge: #db7723;
+  --chart-2-inner: #ffe1ce;
+  --chart-2-hover: #ffcbaa;
+  --chart-2-deep: #db7723;
+  --chart-2-mid: #e58030;
+  --chart-2-face: #ee883a;
+  --chart-3-edge: #3c8912;
+  --chart-3-inner: #ccf6be;
+  --chart-3-hover: #6bf700;
+  --chart-3-active: #2a7c13;
+  --chart-3-deep: #3c8912;
+  --chart-3-mid: #469220;
+  --chart-3-face: #4e9a2b;
+  --chart-4-edge: #7239b6;
+  --chart-4-inner: #ece2ff;
+  --chart-4-hover: #deceff;
+  --chart-4-deep: #7239b6;
+  --chart-4-mid: #7a43c0;
+  --chart-4-face: #824bc9;
+  --chart-5-edge: #009eb7;
+  --chart-5-inner: #bef2ff;
+  --chart-5-hover: #94e6fa;
+  --chart-5-deep: #009eb7;
+  --chart-5-mid: #00a8c3;
+  --chart-5-face: #13b0cc;
+  --chart-6-edge: #9e6c46;
+  --chart-6-inner: #fee2cd;
+  --chart-6-hover: #f4cfb5;
+  --chart-6-deep: #9e6c46;
+  --chart-6-mid: #a8754e;
+  --chart-6-face: #b07d56;
+  --chart-7-edge: #46527d;
+  --chart-7-inner: #dfe7ff;
+  --chart-7-hover: #ccd7f7;
+  --chart-7-deep: #46527d;
+  --chart-7-mid: #4e5b86;
+  --chart-7-face: #56628e;
+  --chart-8-edge: #475a3d;
+  --chart-8-inner: #e1ecdb;
+  --chart-8-hover: #ceddc7;
+  --chart-8-deep: #475a3d;
+  --chart-8-mid: #4f6345;
+  --chart-8-face: #566a4d;
+  --chart-9-edge: #5e050d;
+  --chart-9-inner: #ffdfdc;
+  --chart-9-hover: #ffc8c3;
+  --chart-9-deep: #5e050d;
+  --chart-9-mid: #681115;
+  --chart-9-face: #701a1c;
+  --chart-10-edge: #2e7876;
+  --chart-10-inner: #cdf0ee;
+  --chart-10-hover: #b4e2e0;
+  --chart-10-deep: #2e7876;
+  --chart-10-mid: #38817f;
+  --chart-10-face: #408987;
+  --chart-11-edge: #0e171b;
+  --chart-11-inner: #e3e9ec;
+  --chart-11-hover: #d1d9dd;
+  --chart-11-deep: #0e161b;
+  --chart-11-mid: #151d22;
+  --chart-11-face: #1b2328;
+  --chart-12-edge: #ad1120;
+  --chart-12-inner: #ffdfdc;
+  --chart-12-hover: #ffc8c3;
+  --chart-12-deep: #ad1120;
+  --chart-12-mid: #b82129;
+  --chart-12-face: #c12c31;
+  --chart-13-edge: #001c35;
+  --chart-13-inner: #d9eafb;
+  --chart-13-hover: #c4dbf0;
+  --chart-13-deep: #001c35;
+  --chart-13-mid: #05243d;
+  --chart-13-face: #0c2a44;
+  --chart-14-edge: #5000a1;
+  --chart-14-inner: #e9e3ff;
+  --chart-14-hover: #dad0ff;
+  --chart-14-deep: #5100a2;
+  --chart-14-mid: #5a09b0;
+  --chart-14-face: #601ab9;
+  --chart-15-edge: #a69400;
+  --chart-15-inner: #f5eaa2;
+  --chart-15-hover: #e9da78;
+  --chart-15-deep: #d6bf00;
+  --chart-15-mid: #e1c900;
+  --chart-15-face: #ebd100;
+  --chart-16-edge: #610009;
+  --chart-16-inner: #ffdfdc;
+  --chart-16-hover: #ffc8c2;
+  --chart-16-deep: #610009;
+  --chart-16-mid: #6c0910;
+  --chart-16-face: #741417;
+  --chart-17-edge: #538236;
+  --chart-17-inner: #d7f2ca;
+  --chart-17-hover: #c1e4b0;
+  --chart-17-deep: #538236;
+  --chart-17-mid: #5b8b3f;
+  --chart-17-face: #639347;
+  --chart-18-edge: #ce7c43;
+  --chart-18-inner: #ffe1cf;
+  --chart-18-hover: #ffcbab;
+  --chart-18-deep: #ce7c43;
+  --chart-18-mid: #d9854c;
+  --chart-18-face: #e18d54;
+  --chart-19-edge: #719aae;
+  --chart-19-inner: #d7ecf7;
+  --chart-19-hover: #c1dceb;
+  --chart-19-deep: #80a9be;
+  --chart-19-mid: #89b3c7;
+  --chart-19-face: #91bbd0;
+  --chart-20-edge: #aa3b77;
+  --chart-20-inner: #ffddeb;
+  --chart-20-hover: #ffc4de;
+  --chart-20-deep: #aa3b77;
+  --chart-20-mid: #b54480;
+  --chart-20-face: #bd4c88;
+  --chart-21-edge: #b70036;
+  --chart-21-inner: #ffdfdf;
+  --chart-21-hover: #ffc7c8;
+  --chart-21-deep: #b70036;
+  --chart-21-mid: #c6003b;
+  --chart-21-face: #d40040;
+  --chart-22-edge: #b08e69;
+  --chart-22-inner: #f7e4d1;
+  --chart-22-hover: #ebd3ba;
+  --chart-22-deep: #dfbb95;
+  --chart-22-mid: #eac59f;
+  --chart-22-face: #f3cea8;
+  --chart-23-edge: #a69080;
+  --chart-23-inner: #f1e5dd;
+  --chart-23-hover: #e4d4c9;
+  --chart-23-deep: #b7a190;
+  --chart-23-mid: #c1aa99;
+  --chart-23-face: #c9b2a1;
+  --chart-24-edge: #be8861;
+  --chart-24-inner: #ffe1cd;
+  --chart-24-hover: #f5cfb4;
+  --chart-24-deep: #be8861;
+  --chart-24-mid: #c8916a;
+  --chart-24-face: #d19972;
+  --chart-25-edge: #8c0000;
+  --chart-25-inner: #ffe0da;
+  --chart-25-hover: #ffc8bf;
+  --chart-25-deep: #8c0000;
+  --chart-25-mid: #9a0000;
+  --chart-25-face: #a70000;
+  --chart-26-edge: #df5b72;
+  --chart-26-inner: #ffdfe1;
+  --chart-26-hover: #ffc7cc;
+  --chart-26-deep: #df5b72;
+  --chart-26-mid: #ea657b;
+  --chart-26-face: #f36d83;
+  --chart-27-edge: #9b6e35;
+  --chart-27-inner: #fde3c7;
+  --chart-27-hover: #f2d1ac;
+  --chart-27-deep: #9b6e35;
+  --chart-27-mid: #a5773e;
+  --chart-27-face: #ad7f46;
+  --chart-positive-edge: #00546e;
+  --chart-positive-inner: #caefff;
+  --chart-positive-hover: #afe0f5;
+  --chart-positive-deep: #00546e;
+  --chart-positive-mid: #005d79;
+  --chart-positive-face: #096582;
+  --chart-negative-edge: #cf343a;
+  --chart-negative-inner: #ffdfdc;
+  --chart-negative-hover: #ffc8c3;
+  --chart-negative-deep: #cf343a;
+  --chart-negative-mid: #d93f42;
+  --chart-negative-face: #e3484a;
+  --chart-accent-edge: #db7723;
+  --chart-accent-inner: #ffe1ce;
+  --chart-accent-hover: #ffcbaa;
+  --chart-accent-deep: #db7723;
+  --chart-accent-mid: #e58030;
+  --chart-accent-face: #ee883a;
+
+  /* Strefa prognozy - prostokąt za pionowym separatorem. Separator ma być
+     widoczny, nie dominujący: 1,045:1 do płyty. */
+  --chart-zone: #12161c;
+  --chart-zone-alpha: 0.022;
+
+  /* Rusztowanie w ciepłej szarości systemu wykresów. Siatka ma być
+     WYCZUWALNA, NIE WIDOCZNA - 1,28:1 do płyty, poniżej progu 1,3. Linia osi
+     X jest od niej mocniejsza (1,54:1), bo zero jest informacją, a nie tłem.
+     Rusztowania nie zaokrąglamy i nie animujemy. */
+  --chart-grid: #e7e3df;
+  --chart-axis: #d5cfc9;
+
+  /* Rampa sekwencyjna (mapy-choroplety): JEDEN odcień, zmiana jasności.
+     Wyprowadzona z granatu, żeby mapa i wykres mówiły tym samym głosem.
+     Jasny motyw idzie jasny -> ciemny (min/max 10,06:1, max na płycie
+     12,27:1). */
+  --chart-seq-min: #e0eaf2;
+  --chart-seq-max: #00375f;
+
+  /* Rampy mapy do wyboru przez autora (kopia dla bramki: MAP_RAMPS
+     w palette.ts). `blue` = rampa sekwencyjna wyżej co do hexa, więc mapy
+     bez zapisanego schematu nie zmieniają koloru. Koniec maksymalny każdej
+     rampy >= 3:1 na płycie (blue / accent / slate: 12,27 / 5,19 / 8,75),
+     koniec minimalny przy jasności OKLCh 0,93. `accent` to wyłącznie rodzina
+     pomarańczu marki, a bursztynu i żółci nie ma w żadnej rampie. Turkusu
+     i fioletu nie ma: czytałyby się jak --chart-positive i --chart-warn. */
+  --chart-map-blue-min: #e0eaf2;
+  --chart-map-blue-max: #00375f;
+  --chart-map-accent-min: #ffe1cf;
+  --chart-map-accent-max: #ab5517;
+  --chart-map-slate-min: #e3e8f0;
+  --chart-map-slate-max: #3e4c5e;
+  /* Środek rampy rozbieżnej (końce: --chart-negative / --chart-positive). */
+  --chart-map-div-mid: #ebe8e5;
+  /* Brak danych: jaśniej od pierwszej klasy KAŻDEJ rampy (>= 1,17:1), więc
+     nie zrówna się luminancją z żadną klasą; kształt niesie kreskowanie
+     (2,13:1 do wypełnienia, 2,22:1 do płyty). */
+  --chart-map-nodata: #fbfaf9;
+  --chart-map-nodata-hatch: #b3ada7;
+
+  /* ---- Delikatność: osiem parametrów, każdy z warunkiem zmiany ----
+     JEDEN promień 6 px na wszystkim (karty, panele, tooltipy, słupki,
+     strefa prognozy) - żaden element nie ma własnej wartości. 6 px to punkt,
+     w którym kształt przestaje być twardy, a jeszcze nie mięknie w pigułkę;
+     przy 10-12 px słupki wyglądają infografikowo i tracą precyzję odczytu
+     długości. Przy słupkach silnik przycina go do połowy krótszego boku,
+     inaczej niski słupek zamienia się w owal i zaokrąglenie zaczyna
+     ZNIEKSZTAŁCAĆ DANE.
+
+     Grubość linii 2 px (2,5 px dla serii pod kursorem). Punkt obserwacji
+     7 px średnicy, wypełniony kolorem serii, z obwódką 1,5 px w kolorze
+     płyty - przy ponad 20 punktach chowany i pokazywany tylko pod kursorem.
+     Te same wymiary w obu motywach: przełączenie motywu zmienia kolory,
+     nigdy geometrię.
+
+     Siła wygładzenia 0,55 dotyczy monotonicznego Hermite'a
+     (Fritsch-Carlson), nie Catmull-Roma: zwykły spline przestrzeliwuje poza
+     wartości sąsiednich punktów i rysuje maksima, których nigdy nie było.
+     Zero przy prawdziwych skokach albo poniżej czterech punktów. */
+  --chart-radius: 6px;
+  --chart-stroke: 2px;
+  --chart-dot: 3.5px;
+  --chart-dot-ring: 1.5px;
+  --chart-label-weight: 500;
+  --chart-label-weight-strong: 600;
+  --chart-label-weight-total: 700;
+  /* Trzecia i dalsze serie linią przerywaną - drugi nośnik różnicy obok
+     kształtu punktu, więc kolor nie jest jedynym. */
+  --chart-series-dash: 6 4;
+  /* Cień dwuwarstwowy słaby zamiast jednego mocnego. */
+  --chart-shadow: 0 1px 2px rgb(20 19 19 / 0.04), 0 6px 20px rgb(20 19 19 / 0.05);
+
+  /* Tooltip. W motywie jasnym jest ODWRÓCONY wobec płyty (ciemny prostokąt
+     na białym tle jest czytelny); w ciemnym NIE odwracamy, tylko podnosimy
+     powierzchnię. Bez obramowania - odcina go cień. Etykiety wierszy
+     w tuszu wyciszonym (8,85:1 na tle tooltipa). */
+  --chart-tip-bg: #141313;
+  --chart-tip-border: transparent;
+  --chart-tip-ink: #f8f6f4;
+
+  /* Czcionka wykresów. Domyślnie schodzi z ustawienia panelu admina
+     (--brand-font-body -> --font-sans); wykres nie ma prawa mieć własnej
+     rodziny, bo wtedy przestaje należeć do strony. Deklarowana jako token,
+     bo silnik mierzy napisy na kanwie (src/lib/charts/measureText.ts), a
+     kanwa potrzebuje NAPISU, nie zmiennej - odczytuje go przez
+     getComputedStyle. Czyta go też src/components/charts/charts.css. */
+  --chart-font: var(--font-sans);
+}
+
+.dark {
+  /* ============================================================
+     WYKRESY - MOTYW CIEMNY
+     ------------------------------------------------------------
+     ZASADA NADRZĘDNA: PRZEŁĄCZENIE MOTYWU NIE MOŻE ZMIENIĆ ŻADNEGO WNIOSKU.
+     Ta sama seria zachowuje TEN SAM odcień (odchylenie kąta odcienia
+     w CIELAB do 10 stopni - pilnuje tego bramka), zmienia się wyłącznie
+     jasność i nasycenie. Znak dodatni zostaje tealem, ujemny czerwienią -
+     nigdy nie zamieniamy ich rolami "bo na ciemnym lepiej widać".
+
+     Progi kontrastu się NIE zmieniają (3,0:1 grafika, 4,5:1 tekst). Zmienia
+     się KIERUNEK wyprowadzania wariantu tekstowego: w jasnym przyciemniamy
+     odcień serii, w ciemnym rozjaśniamy. Zasada ta sama, wektor odwrotny.
+
+     Ta paleta jest na ciemnej płycie rozdzielniejsza w dwóch rodzajach
+     widzenia z trzech: podłoga 20,65 (deuteranopia) / 24,75 (protanopia) /
+     17,01 (tritanopia) wobec 19,57 / 23,01 / 20,13 na jasnej. Przewaga
+     trybu ciemnego skurczyła się przy zmiękczeniu i to jest spodziewane:
+     na czarnej płycie pastel kupuje się jasnością, a rozstęp jasności jest
+     dokładnie tym, czego potrzebuje rozdzielność. Wszystkie sześć przekracza
+     5,5:1 na płycie #0f0f0f, więc każdy odcień może pełnić rolę linii,
+     wypełnienia i markera.
+     ============================================================ */
+  --chart-1: #2196f3; /* granat           6,14:1 */
+  --chart-2: #fa9346; /* ochra            10,64:1 */
+  --chart-3: #76c457; /* szalwia [bezp.]  8,95:1 */
+  --chart-4: #e7bcde; /* sliwka [bezp.]   11,54:1 */
+  --chart-5: #92eeff; /* lazur            14,51:1 */
+  --chart-6: #ca7842; /* terakota         5,73:1 */
+  --chart-7: #92a1ca; /* indygo           7,46:1 */
+  --chart-8: #8b9a6e; /* oliwka [bezp.]   6,34:1 */
+  --chart-9: #ba6a4c; /* roza             4,80:1 */
+  --chart-10: #8fd3d0; /* morski          11,32:1 */
+  --chart-11: #586268; /* grafit          3,07:1 */
+  --chart-12: #ff9a9a; /* czerwien        9,44:1 */
+  --chart-13: #446380; /* atrament        3,05:1 */
+  --chart-14: #b281f7; /* ametyst [bezp.] 6,73:1 */
+  --chart-15: #fff07d; /* cytryna         16,44:1 */
+  --chart-16: #ff9d9d; /* bordo           9,64:1 */
+  --chart-17: #b5e18b; /* mech            12,88:1 */
+  --chart-18: #f7b980; /* morela          11,14:1 */
+  --chart-19: #9cc6db; /* lodowy          10,51:1 */
+  --chart-20: #c95792; /* fuksja [bezp.]  4,80:1 */
+  --chart-21: #e50046; /* malina [bezp.]  4,03:1 */
+  --chart-22: #ffdab3; /* brzoskwinia     14,54:1 */
+  --chart-23: #d4bdac; /* piaskowy        10,66:1 */
+  --chart-24: #ffd3b6; /* karmel          13,92:1 */
+  --chart-25: #b80000; /* rubin           2,77:1 */
+  --chart-26: #ff788d; /* koral           7,60:1 */
+  --chart-27: #e1b076; /* miod            9,74:1 */
+
+  /* Warianty tekstowe, próg 4,5:1 na płycie. ŻADEN odcień ciemny nie
+     potrzebuje osobnej wartości, bo wszystkie już go przekraczają - to nie
+     przeoczenie, to konsekwencja tego, że na ciemnym tle rozjaśnianie
+     PODNOSI kontrast, a zmiękczenie rozjaśniło całą paletę. */
+  --chart-1t: #2196f3; /* 6,14:1 - bez zmiany */
+  --chart-2t: #fa9346; /* 10,64:1 - bez zmiany */
+  --chart-3t: #76c457; /* 8,95:1 - bez zmiany */
+  --chart-4t: #e7bcde; /* 11,54:1 - bez zmiany */
+  --chart-5t: #92eeff; /* 14,51:1 - bez zmiany */
+  --chart-6t: #ca7842; /* 5,73:1 - bez zmiany */
+  --chart-7t: #92a1ca; /* 7,46:1 - bez zmiany */
+  --chart-8t: #8b9a6e; /* 6,34:1 - bez zmiany */
+  --chart-9t: #ba6a4c; /* 4,80:1 - bez zmiany */
+  --chart-10t: #8fd3d0; /* 11,32:1 - bez zmiany */
+  --chart-11t: #727d83; /* 4,54:1 */
+  --chart-12t: #ff9a9a; /* 9,44:1 - bez zmiany */
+  --chart-13t: #5e7e9c; /* 4,51:1 */
+  --chart-14t: #b281f7; /* 6,73:1 - bez zmiany */
+  --chart-15t: #fff07d; /* 16,44:1 - bez zmiany */
+  --chart-16t: #ff9d9d; /* 9,64:1 - bez zmiany */
+  --chart-17t: #b5e18b; /* 12,88:1 - bez zmiany */
+  --chart-18t: #f7b980; /* 11,14:1 - bez zmiany */
+  --chart-19t: #9cc6db; /* 10,51:1 - bez zmiany */
+  --chart-20t: #c95792; /* 4,80:1 - bez zmiany */
+  --chart-21t: #ef1b4d; /* 4,50:1 */
+  --chart-22t: #ffdab3; /* 14,54:1 - bez zmiany */
+  --chart-23t: #d4bdac; /* 10,66:1 - bez zmiany */
+  --chart-24t: #ffd3b6; /* 13,92:1 - bez zmiany */
+  --chart-25t: #e13e30; /* 4,50:1 */
+  --chart-26t: #ff788d; /* 7,60:1 - bez zmiany */
+  --chart-27t: #e1b076; /* 9,74:1 - bez zmiany */
+
+  /* CAŁA PALETA CIEMNA IDZIE JEDNYM TUSZEM ROBOCZYM, i to jest zmiana wobec
+     poprzedniej wersji: granat rozjaśniony do #287fd2 nie przechodził progu
+     4,5:1 z żadnym tuszem roboczym (#12161c dawał 4,37:1, biel 4,15:1)
+     i musiał brać czerń pełną. Po zmiękczeniu granat ciemny jest jaśniejszy
+     (#449eef) i #12161c ma na nim 6,38:1, więc wyjątek znika. Warunek "tusz
+     etykiety wychodzi z tuszów roboczych" jest teraz częścią wyszukiwania
+     palety, a nie obserwacją po fakcie. Zmierzone pary: 6,38 / 9,14 / 9,49 /
+     5,70 / 9,95 / 5,25 / 7,06 / 10,47 / 5,64 / 10,71. */
+  --chart-ink-1: #12161c;
+  --chart-ink-2: #12161c;
+  --chart-ink-3: #12161c;
+  --chart-ink-4: #12161c;
+  --chart-ink-5: #12161c;
+  --chart-ink-6: #12161c;
+  --chart-ink-7: #12161c;
+  --chart-ink-8: #12161c;
+  --chart-ink-9: #12161c;
+  --chart-ink-10: #12161c;
+  --chart-ink-11: #ffffff;
+  --chart-ink-12: #12161c;
+  --chart-ink-13: #ffffff;
+  --chart-ink-14: #12161c;
+  --chart-ink-15: #12161c;
+  --chart-ink-16: #12161c;
+  --chart-ink-17: #12161c;
+  --chart-ink-18: #12161c;
+  --chart-ink-19: #12161c;
+  --chart-ink-20: #12161c;
+  --chart-ink-21: #ffffff;
+  --chart-ink-22: #12161c;
+  --chart-ink-23: #12161c;
+  --chart-ink-24: #12161c;
+  --chart-ink-25: #ffffff;
+  --chart-ink-26: #12161c;
+  --chart-ink-27: #12161c;
+
+  /* Semantyka. Dodatni to rozjaśniony odpowiednik jasnego #1b6f8c;
+     para radzi sobie na ciemnym JESZCZE lepiej niż na jasnym (50,5 / 39,1 /
+     107,5), bo oba odcienie idą w górę jasności i rozchodzą się mocniej.
+     Czerwień ma na płycie 5,54:1, więc wariantu tekstowego nie potrzebuje. */
+  --chart-positive: #6fb3c9;
+  --chart-negative: #ef5454;
+  --chart-positive-text: #6fb3c9;
+  --chart-negative-text: #ef5454;
+  --chart-ink-positive: #12161c;
+  --chart-ink-negative: #12161c;
+
+  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: #FA9346 ma na płycie
+     8,51:1, #ed751a 6,54:1 - oba przechodzą próg tekstowy. Można nimi pisać
+     liczby, rysować linie, obwodzić słupki. Podkład akcentu schodzi
+     z ciepłego #fff4ed na PODNIESIONĄ POWIERZCHNIĘ, bo pomarańczowy podkład
+     na ciemnym tle miałby ~16:1 i przestałby być podkładem - stałby się
+     plamą. */
+  --chart-accent: #fa9346;
+  --chart-accent-text: #ed751a;
+  --chart-accent-fill: #fa9346;
+  --chart-accent-bg: #262424;
+  --chart-accent-audit: #fa9346;
+  /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
+     w trybie ciemnym akcent przechodzi próg tekstowy sam (8,51:1), więc nie
+     ma czego przyciemniać. Przyciemniony #ab5517 miałby na płycie 2,50:1,
+     czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
+     właśnie dlatego, że jest niepotrzebna. */
+  --chart-accent-audit-graphic: #fa9346;
+
+  /* Role systemu wykresów - wartości ciemne. Łupki zamieniają się miejscami
+     jasności (główny jasny, drugi przygaszony), żeby hierarchia serii
+     została ta sama co na jasnym. */
+  --chart-acc-l: #fdb078;
+  --chart-s-main: #a9b6c6;
+  --chart-s-alt: #5d6876;
+  --chart-s-alt-t: #7d8897;
+  --chart-warn: #ab92ec;
+  --chart-ink: #ede9e7;
+  --chart-ink2: #d2ccc6;
+  --chart-ink3: #9d968f;
+  --chart-tip-mute: #a9a29b;
+
+  /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
+     Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
+     ciemniejszego stopnia zjadałoby różnicę wobec płyty (#0f0f0f). Token
+     istnieje, żeby sekcja nie musiała rozgałęziać się po motywie, i jest
+     równy tłu strony. To rozstrzygnięcie, nie brak. */
+  --chart-surface-2: #141313;
+
+  /* Krycie pasma per seria - na ciemnym różnica jasności serii wobec płyty
+     jest jeszcze bardziej nierówna niż na jasnym, więc stała alfa dawałaby
+     pasma raz niewidoczne, raz krzyczące. Zmierzone: 1,137 / 1,136 / 1,133 /
+     1,139 / 1,133 / 1,138 / 1,133 / 1,133. */
+  --chart-band-1: 0.11;
+  --chart-band-2: 0.08;
+  --chart-band-3: 0.09;
+  --chart-band-4: 0.07;
+  --chart-band-5: 0.07;
+  --chart-band-6: 0.11;
+  --chart-band-7: 0.09;
+  --chart-band-8: 0.1;
+  --chart-band-9: 0.13;
+  --chart-band-10: 0.07;
+  --chart-band-11: 0.17;
+  --chart-band-12: 0.08;
+  --chart-band-13: 0.17;
+  --chart-band-14: 0.1;
+  --chart-band-15: 0.06;
+  --chart-band-16: 0.08;
+  --chart-band-17: 0.07;
+  --chart-band-18: 0.08;
+  --chart-band-19: 0.08;
+  --chart-band-20: 0.13;
+  --chart-band-21: 0.2;
+  --chart-band-22: 0.07;
+  --chart-band-23: 0.08;
+  --chart-band-24: 0.07;
+  --chart-band-25: 0.26;
+  --chart-band-26: 0.1;
+  --chart-band-27: 0.08;
+  --chart-band-positive: 0.09;
+  --chart-band-negative: 0.13;
+
+  /* ---- WYPEŁNIENIA SŁUPKÓW, motyw ciemny ----
+     Jasność wnętrza i hoveru PRZELICZONA dla płyty `#0f0f0f`, a nie wzięta
+     ze specyfikacji, która liczy motyw ciemny wobec `#1C1B1B`. Na tej płycie
+     jej wartości dawały wnętrza o kontraście 1,34-1,43:1 zamiast docelowych
+     1,20-1,28:1, czyli wnętrze zaczynało czytać się jako element, a nie jako
+     powierzchnia. Kroki jasności obwódki i rampy zostają bez zmian, bo są
+     liczone wobec TOKENA, nie wobec płyty. */
+  --chart-bar-edge: 1.25px;
+  --chart-1-edge: #63b3ff;
+  --chart-1-inner: #002646;
+  --chart-1-hover: #00345d;
+  --chart-1-deep: #63b3ff;
+  --chart-1-mid: #4baaff;
+  --chart-1-face: #31a1ff;
+  --chart-2-edge: #ffbd91;
+  --chart-2-inner: #3d1a00;
+  --chart-2-hover: #512500;
+  --chart-2-deep: #ffbd91;
+  --chart-2-mid: #ffaf78;
+  --chart-2-face: #ffa260;
+  --chart-3-edge: #92e274;
+  --chart-3-inner: #0d2d00;
+  --chart-3-hover: #1a3c09;
+  --chart-3-active: #2a7c13;
+  --chart-3-deep: #92e274;
+  --chart-3-mid: #89d86a;
+  --chart-3-face: #81cf62;
+  --chart-4-edge: #ffddf8;
+  --chart-4-inner: #301e2c;
+  --chart-4-hover: #402b3c;
+  --chart-4-deep: #ffdef8;
+  --chart-4-mid: #fcd0f2;
+  --chart-4-face: #f3c7ea;
+  --chart-5-edge: #f3fdff;
+  --chart-5-inner: #002b31;
+  --chart-5-hover: #003a43;
+  --chart-5-deep: #f1fdff;
+  --chart-5-mid: #d4f8ff;
+  --chart-5-face: #b9f4ff;
+  --chart-6-edge: #e8945e;
+  --chart-6-inner: #3e1900;
+  --chart-6-hover: #512503;
+  --chart-6-deep: #e8945e;
+  --chart-6-mid: #de8a55;
+  --chart-6-face: #d5824d;
+  --chart-7-edge: #aebde8;
+  --chart-7-inner: #1e2436;
+  --chart-7-hover: #2a3248;
+  --chart-7-deep: #aebde8;
+  --chart-7-mid: #a4b4de;
+  --chart-7-face: #9cacd5;
+  --chart-8-edge: #a6b689;
+  --chart-8-inner: #212814;
+  --chart-8-hover: #2f361e;
+  --chart-8-deep: #a6b689;
+  --chart-8-mid: #9dad80;
+  --chart-8-face: #95a578;
+  --chart-9-edge: #d88566;
+  --chart-9-inner: #3d190b;
+  --chart-9-hover: #502514;
+  --chart-9-deep: #d88566;
+  --chart-9-mid: #ce7c5e;
+  --chart-9-face: #c57456;
+  --chart-10-edge: #acf1ee;
+  --chart-10-inner: #0a2b2a;
+  --chart-10-hover: #123a39;
+  --chart-10-deep: #aef2ef;
+  --chart-10-mid: #a3e8e5;
+  --chart-10-face: #9adfdc;
+  --chart-11-edge: #727c82;
+  --chart-11-inner: #212629;
+  --chart-11-hover: #2e3437;
+  --chart-11-deep: #717b81;
+  --chart-11-mid: #687379;
+  --chart-11-face: #616b71;
+  --chart-12-edge: #ffc8c6;
+  --chart-12-inner: #401517;
+  --chart-12-hover: #542022;
+  --chart-12-deep: #ffc8c6;
+  --chart-12-mid: #ffb9b8;
+  --chart-12-face: #ffacab;
+  --chart-13-edge: #5d7d9b;
+  --chart-13-inner: #182634;
+  --chart-13-hover: #263442;
+  --chart-13-deep: #5d7d9b;
+  --chart-13-mid: #557492;
+  --chart-13-face: #4d6d8a;
+  --chart-14-edge: #c9a7ff;
+  --chart-14-inner: #2e154a;
+  --chart-14-hover: #3d2061;
+  --chart-14-deep: #c9a7ff;
+  --chart-14-mid: #c299ff;
+  --chart-14-face: #bc8dff;
+  --chart-15-edge: #ffffff;
+  --chart-15-inner: #2b2600;
+  --chart-15-hover: #3a3400;
+  --chart-15-deep: #fffcde;
+  --chart-15-mid: #fff8bf;
+  --chart-15-face: #fff5a4;
+  --chart-16-edge: #ffcac9;
+  --chart-16-inner: #3f1618;
+  --chart-16-hover: #532122;
+  --chart-16-deep: #ffcac9;
+  --chart-16-mid: #ffbcbb;
+  --chart-16-face: #ffafae;
+  --chart-17-edge: #d2ffa8;
+  --chart-17-inner: #192b03;
+  --chart-17-hover: #253a08;
+  --chart-17-deep: #daffb8;
+  --chart-17-mid: #caf7a0;
+  --chart-17-face: #c1ed97;
+  --chart-18-edge: #ffdec1;
+  --chart-18-inner: #381e03;
+  --chart-18-hover: #4a2a08;
+  --chart-18-deep: #ffdfc3;
+  --chart-18-mid: #ffd2a9;
+  --chart-18-face: #ffc692;
+  --chart-19-edge: #b8e3f9;
+  --chart-19-inner: #152831;
+  --chart-19-hover: #203641;
+  --chart-19-deep: #b8e3f9;
+  --chart-19-mid: #afd9ef;
+  --chart-19-face: #a7d1e6;
+  --chart-20-edge: #e873ae;
+  --chart-20-inner: #420d2a;
+  --chart-20-hover: #56173a;
+  --chart-20-deep: #e873ae;
+  --chart-20-mid: #de6aa4;
+  --chart-20-face: #d5629c;
+  --chart-21-edge: #ff4b65;
+  --chart-21-inner: #4c0011;
+  --chart-21-hover: #640019;
+  --chart-21-deep: #ff4b65;
+  --chart-21-mid: #fb2f57;
+  --chart-21-face: #f22150;
+  --chart-22-edge: #ffffff;
+  --chart-22-inner: #312211;
+  --chart-22-hover: #412f1a;
+  --chart-22-deep: #fff9f3;
+  --chart-22-mid: #ffefde;
+  --chart-22-face: #ffe6cc;
+  --chart-23-edge: #f2dac9;
+  --chart-23-inner: #2c231c;
+  --chart-23-hover: #3c3028;
+  --chart-23-deep: #f2dac9;
+  --chart-23-mid: #e8d0bf;
+  --chart-23-face: #dfc8b7;
+  --chart-24-edge: #fffaf6;
+  --chart-24-inner: #322014;
+  --chart-24-hover: #432d1f;
+  --chart-24-deep: #fff9f5;
+  --chart-24-mid: #ffece0;
+  --chart-24-face: #ffe1ce;
+  --chart-25-edge: #d83528;
+  --chart-25-inner: #4d0000;
+  --chart-25-hover: #650201;
+  --chart-25-deep: #d83528;
+  --chart-25-mid: #cd281d;
+  --chart-25-face: #c41b13;
+  --chart-26-edge: #ffacb5;
+  --chart-26-inner: #470919;
+  --chart-26-hover: #5d1324;
+  --chart-26-deep: #ffacb5;
+  --chart-26-mid: #ff9ca7;
+  --chart-26-face: #ff8d9c;
+  --chart-27-edge: #ffcd93;
+  --chart-27-inner: #352004;
+  --chart-27-hover: #462d0a;
+  --chart-27-deep: #ffcd93;
+  --chart-27-mid: #f5c389;
+  --chart-27-face: #ecbb81;
+  --chart-positive-edge: #8bd0e6;
+  --chart-positive-inner: #082933;
+  --chart-positive-hover: #103844;
+  --chart-positive-deep: #8bd0e6;
+  --chart-positive-mid: #82c6dd;
+  --chart-positive-face: #7abed4;
+  --chart-negative-edge: #ff817c;
+  --chart-negative-inner: #4c0108;
+  --chart-negative-hover: #630710;
+  --chart-negative-deep: #ff817c;
+  --chart-negative-mid: #ff6e6b;
+  --chart-negative-face: #fb5f5e;
+  --chart-accent-edge: #ffbd91;
+  --chart-accent-inner: #3d1a00;
+  --chart-accent-hover: #512500;
+  --chart-accent-deep: #ffbd91;
+  --chart-accent-mid: #ffaf78;
+  --chart-accent-face: #ffa260;
+
+  /* Strefa prognozy - nakładka ODWRÓCONA: jasny tusz przy niższej alfie daje
+     ten sam kontrast do płyty (1,045:1). */
+  --chart-zone: #ede9e7;
+  --chart-zone-alpha: 0.025;
+
+  /* Siatka i oś mają w obu motywach TEN SAM KONTRAST WZGLĘDEM PŁYTY, nie ten
+     sam kolor - to właściwe przeniesienie reguły "siatka wyczuwalna, nie
+     widoczna". Wartości są przeliczone pod płytę #0f0f0f, nie przepisane
+     z arkusza o jaśniejszej płycie: siatka 1,18:1, oś 1,53:1 - te same
+     proporcje co we wzorcu na płycie #1f1e1d. */
+  --chart-grid: #22201f;
+  --chart-axis: #363331;
+
+  /* Rampa sekwencyjna - kotwica przestawiona: ciemny -> jasny. Najwyższa
+     wartość zostaje najwidoczniejsza (min/max 7,58:1, max na płycie 9,85:1). */
+  --chart-seq-min: #1e2935;
+  --chart-seq-max: #8fbef0;
+
+  /* Rampy mapy - kotwica przestawiona jak wyżej: ciemny -> jasny, koniec
+     maksymalny >= 3:1 na płycie #0f0f0f (blue / accent / slate: 9,85 /
+     8,51 / 9,30), koniec minimalny przy jasności OKLCh 0,28. */
+  --chart-map-blue-min: #1e2935;
+  --chart-map-blue-max: #8fbef0;
+  --chart-map-accent-min: #3a2212;
+  --chart-map-accent-max: #fa9346;
+  --chart-map-slate-min: #22272e;
+  --chart-map-slate-max: #a9b6c6;
+  --chart-map-div-mid: #2a2928;
+  /* Brak danych: CIEMNIEJ od pierwszej klasy każdej rampy (>= 1,21:1);
+     kreskowanie 2,11:1 do wypełnienia. */
+  --chart-map-nodata: #161514;
+  --chart-map-nodata-hatch: #4f4b47;
+
+  /* GEOMETRIA I TYPOGRAFIA NIE ZALEŻĄ OD MOTYWU. Grubość linii, rozmiar
+     punktu i wagi pisma dziedziczą z bloku jasnego - przełączenie motywu
+     zmienia wyłącznie kolory, więc wykres nie "chudnie" ani nie przeskakuje
+     układem przy zmianie motywu. */
+
+  /* CIEŃ PRZESTAJE ISTNIEĆ. Cień symuluje przesłonięcie światła; na ciemnym
+     tle nie ma czego przesłaniać, więc box-shadow po prostu nie jest
+     widoczny. Wysokość kodujemy jaśniejszą powierzchnią plus obramowaniem
+     1 px. Wyjątek: tooltip, który realnie pływa nad treścią. */
+  --chart-shadow: none;
+
+  /* TOOLTIPA NIE ODWRACAMY, TYLKO PODNOSIMY. Lustrzane odwrócenie dałoby na
+     ciemnym jasny prostokąt, który świeci jak latarka i rozbija wykres.
+     Tekst 12,6:1, etykiety wierszy 5,67:1 wewnątrz tooltipa - kontrast liczy
+     się względem JEGO tła, nie płyty. */
+  --chart-tip-bg: #2c2a28;
+  --chart-tip-border: transparent;
+  --chart-tip-ink: #ede9e7;
+}

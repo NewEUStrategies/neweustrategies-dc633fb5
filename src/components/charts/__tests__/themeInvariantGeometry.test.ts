@@ -16,10 +16,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { EDGE_STROKE_PX } from "../kindPaint";
 import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
+import { DARK_TOKENS, LIGHT_TOKENS } from "@/test/chartThemeBlocks";
 
-const styles = readFileSync("src/styles.css", "utf8");
-const JASNY = styles.slice(styles.indexOf(":root,"), styles.indexOf(".dark {"));
-const CIEMNY = styles.slice(styles.indexOf(".dark {"), styles.indexOf("@layer base"));
+const JASNY = LIGHT_TOKENS;
+const CIEMNY = DARK_TOKENS;
 
 /** Tokeny `--chart-*` o wartości w px, z bloku motywu. */
 function dlugosci(blok: string): Map<string, string> {

@@ -54,6 +54,7 @@ import type { Json } from "@/lib/content-model/json";
 import { parseDataMapConfig } from "@/lib/charts/parse";
 import { REGION_ASPECT_FALLBACK } from "@/lib/charts/geoAspect";
 import { axeViolations, summarize } from "@/test/axe";
+import { DARK_TOKENS, LIGHT_TOKENS } from "@/test/chartThemeBlocks";
 
 const h = vi.hoisted(() => ({ geo: null as unknown, fail: false }));
 
@@ -453,11 +454,15 @@ describe("ChoroplethMap - kraje bez danych", () => {
     // KRESKOWANIE - wzór SVG, którego tło i linie idą z tokenów obu motywów.
     // Tokeny muszą istnieć w obu blokach arkusza, a linie nie mogą mieć
     // koloru karty.
-    const css = ["src/styles.css", "src/components/charts/charts.css"]
+    const css = [
+      "src/styles.css",
+      "src/components/charts/chart-tokens.css",
+      "src/components/charts/charts.css",
+    ]
       .map((path) => readFileSync(path, "utf8"))
       .join("\n");
-    const light = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
-    const dark = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+    const light = LIGHT_TOKENS;
+    const dark = DARK_TOKENS;
     const token = (block: string, name: string): string =>
       block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? "";
     for (const block of [light, dark]) {
@@ -793,11 +798,15 @@ describe("ChoroplethMap - dostępność", () => {
 });
 
 describe("ChoroplethMap - motyw jasny i ciemny", () => {
-  const css = ["src/styles.css", "src/components/charts/charts.css"]
+  const css = [
+    "src/styles.css",
+    "src/components/charts/chart-tokens.css",
+    "src/components/charts/charts.css",
+  ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
-  const LIGHT = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
-  const DARK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+  const LIGHT = LIGHT_TOKENS;
+  const DARK = DARK_TOKENS;
 
   function token(block: string, name: string): string {
     const m = block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));

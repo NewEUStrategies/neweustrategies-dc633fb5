@@ -25,12 +25,17 @@ import {
   ROLE_TOOLTIP_TEXT_TOKENS,
   TOOLTIP_STATUS_TEXT,
 } from "@/lib/charts/roles";
+import { DARK_TOKENS, LIGHT_TOKENS } from "@/test/chartThemeBlocks";
 
-const css = ["src/styles.css", "src/components/charts/charts.css"]
+const css = [
+  "src/styles.css",
+  "src/components/charts/chart-tokens.css",
+  "src/components/charts/charts.css",
+]
   .map((path) => readFileSync(path, "utf8"))
   .join("\n");
-const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
-const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+const LIGHT_BLOCK = LIGHT_TOKENS;
+const DARK_BLOCK = DARK_TOKENS;
 const PRINT_BLOCK = css.slice(css.lastIndexOf("@media print", css.indexOf(".dark .neh-chart,")));
 
 function token(block: string, name: string): string {

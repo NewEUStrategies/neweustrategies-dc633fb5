@@ -56,6 +56,7 @@ import { ACCENT_EDGE_PX } from "../kindPaint";
 import { axeViolations, summarize } from "@/test/axe";
 import { PieChart } from "../PieChart";
 import { Chart } from "../Chart";
+import { DARK_TOKENS, LIGHT_TOKENS } from "@/test/chartThemeBlocks";
 
 /** Konfiguracja tą samą drogą, którą idzie blok CMS / widget buildera. */
 function cfg(data: Record<string, Json>): ChartConfig {
@@ -1155,11 +1156,15 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
   // happy-dom nie liczy stylów, więc reguła color-contrast w axe jest
   // wyłączona (`src/test/axe.ts`). Kontrast liczymy wprost z tokenów -
   // ten sam wzorzec, co `src/lib/__tests__/brandContrast.test.ts`.
-  const css = ["src/styles.css", "src/components/charts/charts.css"]
+  const css = [
+    "src/styles.css",
+    "src/components/charts/chart-tokens.css",
+    "src/components/charts/charts.css",
+  ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
-  const LIGHT = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
-  const DARK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
+  const LIGHT = LIGHT_TOKENS;
+  const DARK = DARK_TOKENS;
 
   function token(block: string, name: string): string {
     const m = block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
@@ -1209,7 +1214,7 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
     // AA wynosi 4,5:1, nie 3:1.
     //
     // NAPRAWIONE W TOKENIE, NIE W KOMPONENCIE, i to jest tu istotne: asercja
-    // czyta WYŁĄCZNIE `src/styles.css`, więc żadna zmiana w silniku wykresów
+    // czyta WYŁĄCZNIE tokeny arkuszy, więc żadna zmiana w silniku wykresów
     // nie mogłaby jej spełnić. Para #2a78d6 / #0b0b0b w motywie jasnym dawała
     // 4,458:1 - pękała o cztery setne. Pomiar wszystkich szesnastu par pokazał,
     // że była to JEDYNA poniżej progu (pozostałe od 4,945:1 do 9,090:1),

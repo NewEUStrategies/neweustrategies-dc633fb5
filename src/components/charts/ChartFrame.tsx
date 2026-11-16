@@ -42,6 +42,7 @@ import type { WpisKlucza } from "@/lib/charts/exportImage";
 import { cn } from "@/lib/utils";
 import { MetricTooltip } from "./MetricTooltip";
 import { ChartDialog } from "./ChartDialog";
+import { ChartStylesheet } from "./ChartStylesheet";
 import { READ_GENERIC_KEYS, READ_HELP_KEYS } from "./readHelp";
 import "@/lib/i18n-charts";
 
@@ -474,6 +475,7 @@ export function ChartFrame({
           : { boxShadow: "none" }
       }
     >
+      <ChartStylesheet />
       {showHead && (
         <figcaption className="neh-panel-head">
           <div className="min-w-0 flex-1">

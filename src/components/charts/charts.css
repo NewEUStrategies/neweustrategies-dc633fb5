@@ -975,9 +975,9 @@
    `.dark`, więc PDF wpisu (FloatingShareBar woła window.print()) i wydruk
    panelu wychodzą tak samo jak wykres na ekranie w trybie jasnym.
 
-   Blok stoi tutaj, PO `@layer base`, celowo: bramka palety czyta bloki
-   `:root,` i `.dark` przez cięcie pliku do `@layer base`, więc tokeny
-   druku nie mogą trafić w żaden z tych zakresów.
+   Blok stoi tutaj, a nie w chart-tokens.css, celowo: bramki palety czytają
+   bloki `:root,` i `.dark` z chart-tokens.css przez cięcie pliku, więc
+   tokeny druku nie mogą trafić w żaden z tych zakresów.
 
    print-color-adjust: exact jest tu konieczne, bo przeglądarki domyślnie
    wygaszają tła w druku - bez tego próbki legendy i pasek legendy mapy

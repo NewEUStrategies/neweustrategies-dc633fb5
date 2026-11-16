@@ -6,6 +6,7 @@ import type { TimelineConfig, FeatureLang } from "@/lib/features/types";
 import { pickBi } from "@/lib/features/types";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { FeatureFrame } from "./FeatureFrame";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 
 const L = {
   pl: { empty: "Brak wydarzeń na osi czasu.", aria: "Oś czasu" },
@@ -40,6 +41,7 @@ export function Timeline({ config, lang, className }: Props) {
       className={className}
       ariaLabel={t.aria}
     >
+      <ChartStylesheet />
       <ol ref={ref} className={`relative ml-3 space-y-0 ${revealClassName(state)}`}>
         {/* Pionowa linia biegnąca przez wszystkie punkty. */}
         <span

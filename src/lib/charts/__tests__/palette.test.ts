@@ -5,7 +5,7 @@
 //      kolorymetrii wobec liczb ze specyfikacji),
 //   2. paleta spełnia progi - kontrast na płycie, kontrast tuszu w wypełnieniu,
 //      podłoga odległości barw po symulacji daltonizmu,
-//   3. tokeny w `src/styles.css` MAJĄ TE SAME WARTOŚCI co ten moduł.
+//   3. tokeny w arkuszu wykresów (`chart-tokens.css`) MAJĄ TE SAME WARTOŚCI co ten moduł.
 //
 // Punkt 3 jest tu najważniejszy. Bez niego moduł byłby dokumentacją, która
 // rozjeżdża się z runtime'em po pierwszej ręcznej poprawce w arkuszu: silnik
@@ -80,20 +80,24 @@ import {
   SLOTS_WITH_COMPRESSED_RAMP,
   SLOT_SEQUENCE,
 } from "@/lib/charts/palette";
+import { DARK_TOKENS, LIGHT_TOKENS, PRINT_TOKENS } from "@/test/chartThemeBlocks";
 
 // ---------------------------------------------------------------------------
-// Odczyt tokenów z arkusza - ten sam sposób cięcia bloków, co w
-// `src/components/charts/__tests__/pieChart.test.tsx`, żeby oba testy patrzyły
-// na dokładnie te same napisy.
+// Odczyt tokenów z arkuszy - te same bloki co w pozostałych bramkach wykresów
+// (`src/test/chartThemeBlocks.ts`): zakres motywu z arkusza głównego (płyta
+// `--card`) sklejony z zakresem motywu z arkusza wykresów (paleta `--chart-*`).
+// Tokeny druku mają własny zakres w `charts.css`, osobny od jasnych i ciemnych.
 // ---------------------------------------------------------------------------
-const css = ["src/styles.css", "src/components/charts/charts.css"]
+const css = [
+  "src/styles.css",
+  "src/components/charts/chart-tokens.css",
+  "src/components/charts/charts.css",
+]
   .map((path) => readFileSync(path, "utf8"))
   .join("\n");
-const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
-const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
-// Tokeny druku są w arkuszu wykresów dołączanym przez styles.css. W złożonym
-// źródle niżej mają własny zakres, osobny od tokenów jasnych i ciemnych.
-const PRINT_BLOCK = css.slice(css.indexOf("@media print {"));
+const LIGHT_BLOCK = LIGHT_TOKENS;
+const DARK_BLOCK = DARK_TOKENS;
+const PRINT_BLOCK = PRINT_TOKENS;
 
 function token(block: string, name: string): string {
   const m = block.match(new RegExp(`${name}:\\s*([^;]+);`));

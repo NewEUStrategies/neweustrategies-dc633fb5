@@ -26,6 +26,7 @@ import {
   type LegendItem,
 } from "./ChartFrame";
 import { PointDialog } from "./PointDialog";
+import { ChartStylesheet } from "./ChartStylesheet";
 import { slotsNeedingPattern } from "@/lib/charts/palette";
 import { seriesPaint, seriesRank } from "@/lib/charts/seriesStyle";
 import { KIND_CAPS } from "@/lib/charts/kindCaps";
@@ -452,6 +453,8 @@ export function Chart({
       <div
         className={`not-prose my-6 rounded-[var(--chart-radius)] border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground ${className ?? ""}`}
       >
+        {/* Pusty stan stoi POZA ramą, a promień bierze z `--chart-radius`. */}
+        <ChartStylesheet />
         {t("frame.empty")}
       </div>
     );

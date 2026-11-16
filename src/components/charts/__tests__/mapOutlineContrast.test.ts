@@ -28,15 +28,14 @@ import {
   type ChartThemeName,
 } from "@/lib/charts/palette";
 import { MAP_SCHEMES } from "@/lib/charts/types";
+import { DARK_TOKENS, LIGHT_TOKENS, PRINT_TOKENS } from "@/test/chartThemeBlocks";
 
-const STYLES = readFileSync("src/styles.css", "utf8");
-const CHARTS = readFileSync("src/components/charts/charts.css", "utf8");
 const MAP_CSS = readFileSync("src/components/charts/map.css", "utf8");
 
 const BLOKI: Record<ChartThemeName | "print", string> = {
-  light: STYLES.slice(STYLES.indexOf(":root,"), STYLES.indexOf(".dark {")),
-  dark: STYLES.slice(STYLES.indexOf(".dark {"), STYLES.indexOf("@layer base")),
-  print: CHARTS.slice(CHARTS.indexOf("@media print {")),
+  light: LIGHT_TOKENS,
+  dark: DARK_TOKENS,
+  print: PRINT_TOKENS,
 };
 
 /** Wartość tokenu jako hex - arkusz zapisuje część tokenów w `oklch(...)`. */

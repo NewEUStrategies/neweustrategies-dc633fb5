@@ -6,6 +6,7 @@ import { ArrowRight, Minus } from "@/lib/lucide-shim";
 import type { IndicatorCardConfig } from "@/lib/features/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeUrl } from "@/lib/sanitize";
+import { ChartStylesheet } from "@/components/charts/ChartStylesheet";
 
 interface Props {
   config: IndicatorCardConfig;
@@ -52,6 +53,7 @@ export function IndicatorCard({ config, className }: Props) {
 
   const inner = (
     <div className="flex h-full flex-col">
+      <ChartStylesheet />
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {config.label}
       </div>
