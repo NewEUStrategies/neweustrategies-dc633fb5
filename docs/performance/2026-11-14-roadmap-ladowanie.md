@@ -728,8 +728,8 @@ ogona zysk spada do ok. 0,7 KB. Warunek powrotu: wiedza, jakie nazwy ikon
 zapisane są w treściach produkcyjnych (wtedy wszystkie trafiają do zestawu
 ładowanego od razu) albo preload ogona przed renderem stron, które go używają.
 
-Przy okazji D4 znalazło usterki zachowania, istniejące już dziś (do decyzji
-właściciela, bez zmian w tym PR): wybieraki ikon w schematach widgetów
+Przy okazji D4 znalazło usterki zachowania, istniejące już wtedy (naprawione
+16.11.2026 po zgodzie właściciela, §9.11, poza ikonami formatów wpisu): wybieraki ikon w schematach widgetów
 (`LucideIconPicker`) zapisują nazwy w formacie `kebab-case`, których rejestr nie
 rozpoznaje, więc nagłówek, przycisk, separator, newsletter i pasek gorących
 tematów zawsze pokazują ikonę zastępczą zamiast wybranej; „Bell" na liście paska
@@ -874,3 +874,65 @@ chunku `Paywall`. Zostawione: `lazyWidgets` (ok. 1,4 KB, wspólna mapa
 serwerowych widgetów czytelniczych - osobna zmiana z testem pierwszej powłoki
 SSR), `worldMapContent` (`geoCoords` dokładałby chunk widgetowi z preloadu
 bootu), `events/schedule` i zapytania profilu prelegenta (poniżej 0,3 KB).
+
+### 9.11. Naprawa wybieraków ikon (16.11.2026, zgoda właściciela)
+
+Usterka z §9.8: osiem miejsc publicznego renderu bierze nazwę ikony z treści CMS
+(separator z ikoną, oś czasu - ikona wpisu i ikona tytułu, pasek „hot topic”,
+newsletter z ikoną, nagłówek, przycisk, pasek ogłoszeń) i rozpoznawało wyłącznie
+134 eksporty shimu w PascalCase. Wybieraki zapisują nazwy kebab-case z pełnego
+katalogu, więc wybrana ikona nigdy się nie pokazywała.
+
+Wspólny resolver `src/lib/icons/contentIcon.tsx`, kolejność (pierwsze trafienie
+wygrywa):
+
+1. eksport shimu pod dokładnie tą nazwą - dzisiejsze wyszukiwanie, HTML bajt
+   w bajt jak przed zmianą; tylko własne klucze (klucz prototypu z treści,
+   np. `constructor`, nie trafia już do Reacta jako komponent);
+2. zestaw kuratorowany `DynamicIcon` (synchronicznie): `Bell`, `Flag`, `star`;
+3. nazwa wybieraka, której odpowiednik PascalCase jest eksportem shimu o tym
+   `displayName` (51 nazw, np. `send`, `quote`, `trash-2`), synchronicznie;
+4. pozostała nazwa wybieraka: `DynamicIcon` z katalogiem. Serwer czeka na porcję
+   `icons-N`, hydratacja odtwarza SVG z DOM-u serwera, a porcję pobiera tylko
+   render czysto kliencki. Nazwa, której katalog nie zna, rysuje zastępnik
+   miejsca jak dotąd (znacznik `data-dyn-missing`), nie znak zapytania;
+5. zastępnik miejsca.
+
+Edytor osi czasu ma wybierak ikon zamiast pola tekstowego. Poprawiony też
+błąd katalogu: sześć nazw `grid-2x2`/`grid-3x3` nigdy się nie rozwiązywało.
+
+Dowody:
+
+- test wzorcowy HTML na kodzie bazowym (8 miejsc × 1 882 nazwy): każda nazwa
+  renderowana przed zmianą daje ten sam HTML, różnice są na jawnej liście;
+- glif każdej z 1 703 nazw katalogu równy komponentowi lucide-react tej nazwy;
+- hydratacja ośmiu miejsc z aktualizacjami w trakcie: bez błędów, bez porcji
+  danych, ten sam węzeł serwera;
+- render czysto kliencki: rezerwacja = pudełko ikony; obok znaku zapytania
+  innego wywołania tej samej nazwy - zastępnik jak na serwerze.
+
+Przegląd niezależny: 5 znalezisk. Naprawione 3: cudzy znak zapytania w renderze
+klienckim, pole tekstowe osi czasu oraz 51 nazw przez porcję katalogu mimo
+komponentu w starcie. Zaakceptowane 2. Pierwsze: nieznana nazwa kebab-case
+w renderze czysto klienckim pobiera porcję katalogu, a w miejscach bez
+zastępnika pudełko się zwija - głównym źródłem takich nazw było pole tekstowe
+osi czasu, już zastąpione wybierakiem. Drugie: ostrzeżenie `react-refresh`
+w `DynamicIcon.tsx` (eksport `curatedIcon`), które wpływa tylko na odświeżanie
+w trybie deweloperskim. Każda poprawka sprawdzona mutacją.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`49fc9375`) | Po         |
+| ---------------------------------------- | ------------------ | ---------- |
+| Chunk startowy (`app-initial`)           | 249,0 KB           | 249,4 KB   |
+| Domknięcie startu (11 chunków)           | 462,8 KB           | 463,2 KB   |
+| `overall`                                | 5 365,0 KB         | 5 366,1 KB |
+
+Zestawy plików bootu wszystkich 342 tras bez zmian (pomiar przez import manifestu).
+
+Otwarte:
+
+- zapisane wcześniej nazwy PascalCase spoza shimu i zestawu (np. „BellRing”
+  wpisane w dawne pole osi czasu) nadal dają zastępnik. Skala zależy od wyniku
+  zapytania o nazwy ikon w treściach produkcyjnych (wykonuje właściciel);
+- nie sprawdzono w prawdziwej przeglądarce (układ, CLS) ani czasu SSR na Workerze
+  dla stron z ikoną spoza zestawu (porcja `icons-N` na żądanie, jak dziś
+  w `nav-link`).
