@@ -82,4 +82,27 @@ describe("chunk startowy: moduły bootu nie sięgają do liści panelu", () => {
       .map((leaf) => (closure.get(leaf) as string[]).join(" -> "));
     expect(reached).toEqual([]);
   });
+
+  // Kierunek odwrotny (znalezisko przeglądu): liść wraca do `app-initial` także
+  // wtedy, gdy zaimportuje go statycznie DOWOLNY plik ścieżki bootu, nie tylko
+  // moduł z listy (np. dyspozytor widgetów nagłówka). Liście panelu mogą więc
+  // importować wyłącznie: kod panelu, kod serwerowy (`*.server.ts`, trasy
+  // plików tekstowych robots/llms) i inne liście. Nowy importer spoza tych
+  // ścieżek musi trafić tu świadomie, z uzasadnieniem.
+  const LEAF_IMPORTER_ALLOWED = [
+    /^src\/components\/admin\//,
+    /^src\/routes\/admin[./]/,
+    /\.server\.ts$/,
+    /^src\/routes\/(robots|llms)\[\.\]txt\.ts$/,
+  ];
+
+  it("liście panelu importują statycznie tylko panel, serwer i inne liście", () => {
+    const leaves = new Set(BOOT_MODULE_LEAVES.flatMap(([, list]) => list));
+    const offenders: string[] = [];
+    for (const [from, targets] of next) {
+      if (leaves.has(from) || LEAF_IMPORTER_ALLOWED.some((re) => re.test(from))) continue;
+      for (const to of targets) if (leaves.has(to)) offenders.push(`${from} -> ${to}`);
+    }
+    expect(offenders.sort()).toEqual([]);
+  });
 });
