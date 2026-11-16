@@ -47,7 +47,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import type { GeoAsset, DataMapConfig } from "@/lib/charts/types";
 import type { Json } from "@/lib/content-model/json";
@@ -454,13 +453,6 @@ describe("ChoroplethMap - kraje bez danych", () => {
     // KRESKOWANIE - wzór SVG, którego tło i linie idą z tokenów obu motywów.
     // Tokeny muszą istnieć w obu blokach arkusza, a linie nie mogą mieć
     // koloru karty.
-    const css = [
-      "src/styles.css",
-      "src/components/charts/chart-tokens.css",
-      "src/components/charts/charts.css",
-    ]
-      .map((path) => readFileSync(path, "utf8"))
-      .join("\n");
     const light = LIGHT_TOKENS;
     const dark = DARK_TOKENS;
     const token = (block: string, name: string): string =>
@@ -798,13 +790,6 @@ describe("ChoroplethMap - dostępność", () => {
 });
 
 describe("ChoroplethMap - motyw jasny i ciemny", () => {
-  const css = [
-    "src/styles.css",
-    "src/components/charts/chart-tokens.css",
-    "src/components/charts/charts.css",
-  ]
-    .map((path) => readFileSync(path, "utf8"))
-    .join("\n");
   const LIGHT = LIGHT_TOKENS;
   const DARK = DARK_TOKENS;
 
