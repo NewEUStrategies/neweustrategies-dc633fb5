@@ -193,7 +193,7 @@ describe("PUBLICZNIE BEZ KONTEKSTU: zero danych przykładowych", () => {
           leak,
           `Widget "${def.type}" pokazał dane przykładowe ("${leak}") na powierzchni publicznej.\n` +
             `Poza kanwą buildera brak kontekstu MUSI znaczyć "nie renderuj", nigdy "zmyśl".\n` +
-            `Kanoniczne wejście do próbki: useCurrentPostCtxOrPreview() z currentPostContext.tsx.`,
+            `Kanoniczne wejście do próbki: useCurrentPostCtxOrPreview() z content-model/postContextPreview.ts.`,
         ).toBeNull();
       });
     }
@@ -261,7 +261,7 @@ describe("PRÓBKA MA JEDNO ŹRÓDŁO: żaden renderer nie zaszywa własnej", () 
 
   /** Kanoniczne źródło próbki + moduły, które ją świadomie opisują. */
   const ALLOWED = new Set([
-    "lib/content-model/postContext.tsx",
+    "lib/content-model/postContextPreview.ts",
     "lib/builder/ci/sampleTokens.ts",
     "lib/builder/archiveContext.ts",
   ]);

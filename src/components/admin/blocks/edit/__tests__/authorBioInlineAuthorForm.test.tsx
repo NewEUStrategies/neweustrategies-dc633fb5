@@ -37,7 +37,7 @@ import { realT } from "@/test/i18nReal";
 import { ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { supabase } from "@/integrations/supabase/client";
 import type { InternalExpertBase } from "@/lib/experts/internalBase";
-import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 import "@/lib/i18n-admin-blocks";
 import { AuthorBioBlock } from "../PostContextBlocks";
 
