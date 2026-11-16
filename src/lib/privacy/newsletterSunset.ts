@@ -187,21 +187,25 @@ const copyFieldSchema = (field: NewsletterSunsetCopyField) =>
     message: `${field}_too_long`,
   });
 
-const langCopySchema = z
-  .object(
-    Object.fromEntries(
-      NEWSLETTER_SUNSET_COPY_FIELDS.map((field) => [field, copyFieldSchema(field)]),
-    ) as Record<NewsletterSunsetCopyField, ReturnType<typeof copyFieldSchema>>,
-  )
-  .strict();
+// `/* @__PURE__ */ (() => ...)()`: oba schematy czyta wyłącznie walidator
+// serwera (`newsletterSunset.functions.ts`, `measurement.functions.ts`), a ten
+// moduł jest wspólny z panelem - bez tego zapisu ich budowa zostawała
+// w bundlu klienta jako gołe wywołanie. Uzasadnienie: `lib/menus/types.ts`.
+const langCopySchema = /* @__PURE__ */ (() =>
+  z
+    .object(
+      Object.fromEntries(
+        NEWSLETTER_SUNSET_COPY_FIELDS.map((field) => [field, copyFieldSchema(field)]),
+      ) as Record<NewsletterSunsetCopyField, ReturnType<typeof copyFieldSchema>>,
+    )
+    .strict())();
 
 /**
  * Nadpisania z panelu: pełny kształt PL i EN. PUSTE pole = treść domyślna
  * (edycja addytywna i zawsze odwracalna, jak treści maili systemowych).
  */
-export const NewsletterSunsetCopyOverridesSchema = z
-  .object({ pl: langCopySchema, en: langCopySchema })
-  .strict();
+export const NewsletterSunsetCopyOverridesSchema = /* @__PURE__ */ (() =>
+  z.object({ pl: langCopySchema, en: langCopySchema }).strict())();
 export type NewsletterSunsetCopyOverrides = z.infer<typeof NewsletterSunsetCopyOverridesSchema>;
 
 const EMPTY_LANG: NewsletterSunsetCopy = {

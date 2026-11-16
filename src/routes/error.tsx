@@ -6,11 +6,16 @@ import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
 import { errorCopy, type ErrorKind } from "@/lib/errorCopy";
 import { SITE_NAME } from "@/lib/seo/meta";
 
-const errorSearchSchema = z.object({
-  kind: z.enum(["unauthorized", "sessionExpired", "network", "generic"] as const).optional(),
-  title: z.string().optional(),
-  footer: z.string().optional(),
-});
+// `/* @__PURE__ */ (() => ...)()`: `validateSearch` czyta schemat w chunku
+// trasy, ale podział kodu kopiuje deklarację także do chunku komponentu, gdzie
+// nikt jej nie używa - bez tego zapisu zostawała tam jako gołe wywołanie.
+// Uzasadnienie zapisu: `lib/menus/types.ts`.
+const errorSearchSchema = /* @__PURE__ */ (() =>
+  z.object({
+    kind: z.enum(["unauthorized", "sessionExpired", "network", "generic"] as const).optional(),
+    title: z.string().optional(),
+    footer: z.string().optional(),
+  }))();
 
 type ErrorSearch = z.infer<typeof errorSearchSchema>;
 

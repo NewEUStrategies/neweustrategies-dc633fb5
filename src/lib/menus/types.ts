@@ -41,30 +41,43 @@ export const DEFAULT_MEGA_CONFIG: MegaConfig = {
   featured_post_id: null,
 };
 
-export const menuItemInputSchema = z.object({
-  // Klientowe `local_id` służy tylko do zbudowania hierarchii po stronie serwera
-  // przed insertem (parent_local_id -> nowo wygenerowane UUID).
-  local_id: z.string().min(1).max(64),
-  parent_local_id: z.string().min(1).max(64).nullable(),
-  position: z.number().int().min(0).max(9999),
-  item_type: z.enum(MENU_ITEM_TYPES),
-  ref_id: z.string().uuid().nullable(),
-  label_pl: z.string().trim().min(1).max(200),
-  label_en: z.string().trim().max(200).default(""),
-  href: z.string().trim().max(1000).default(""),
-  target: z.enum(["_self", "_blank"]).default("_self"),
-  css_class: z.string().trim().max(200).default(""),
-  visibility: z.enum(MENU_ITEM_VISIBILITIES).default("all"),
-  icon: z.string().trim().max(64).default(""),
-  mega_enabled: z.boolean().default(false),
-  mega_config: megaConfigSchema.default(DEFAULT_MEGA_CONFIG),
-});
+// SCHEMATY ZAPISU - WYŁĄCZNIE DLA WALIDATORA SERWERA (`menu.functions.ts`).
+// Ten moduł jest wspólny z klientem (builder i panel czytają stąd typy oraz
+// `parseMegaConfig`), a kompilator Start zdejmuje walidator z bundla
+// przeglądarki. Bundler nie umie jednak dowieść, że budowa schematu zod nie ma
+// skutków ubocznych, więc po zdjęciu nieużywanej nazwy zostawiał w chunku
+// startowym klienta samo wywołanie (~550 bajtów wykonywanych przy każdym
+// starcie strony). Stąd zapis `/* @__PURE__ */ (() => ...)()`: wartość, typ
+// i moment budowy na serwerze są te same co dotąd, a bundler dostaje jedno
+// bezargumentowe wywołanie, które wolno mu usunąć w całości, gdy nikt nie
+// czyta wyniku. Sama adnotacja na łańcuchu `z.object({...})` nie wystarcza -
+// wywołania w argumentach zostają.
+export const menuItemInputSchema = /* @__PURE__ */ (() =>
+  z.object({
+    // Klientowe `local_id` służy tylko do zbudowania hierarchii po stronie serwera
+    // przed insertem (parent_local_id -> nowo wygenerowane UUID).
+    local_id: z.string().min(1).max(64),
+    parent_local_id: z.string().min(1).max(64).nullable(),
+    position: z.number().int().min(0).max(9999),
+    item_type: z.enum(MENU_ITEM_TYPES),
+    ref_id: z.string().uuid().nullable(),
+    label_pl: z.string().trim().min(1).max(200),
+    label_en: z.string().trim().max(200).default(""),
+    href: z.string().trim().max(1000).default(""),
+    target: z.enum(["_self", "_blank"]).default("_self"),
+    css_class: z.string().trim().max(200).default(""),
+    visibility: z.enum(MENU_ITEM_VISIBILITIES).default("all"),
+    icon: z.string().trim().max(64).default(""),
+    mega_enabled: z.boolean().default(false),
+    mega_config: megaConfigSchema.default(DEFAULT_MEGA_CONFIG),
+  }))();
 export type MenuItemInput = z.infer<typeof menuItemInputSchema>;
 
-export const saveMenuInputSchema = z.object({
-  menu_key: z.string().min(1).max(64),
-  items: z.array(menuItemInputSchema).max(500),
-});
+export const saveMenuInputSchema = /* @__PURE__ */ (() =>
+  z.object({
+    menu_key: z.string().min(1).max(64),
+    items: z.array(menuItemInputSchema).max(500),
+  }))();
 export type SaveMenuInput = z.infer<typeof saveMenuInputSchema>;
 
 export interface MenuItemRow {
