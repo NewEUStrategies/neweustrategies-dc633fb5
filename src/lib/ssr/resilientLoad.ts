@@ -196,10 +196,6 @@ export async function loadResilient<
 // i rusza odświeżenie w tle). Zbyt luźny predykat zamroziłby niekompletny
 // dokument na 180 s świeżości i do doby STALE.
 
-// Zapis `@__PURE__` z funkcją natychmiastową przy zbiorze niżej: czyta go
-// wyłącznie predykat kompletności dokumentu (serwer); bez niego odczyt
-// `WIDGET_QUERY_ROOTS.popupsActive` zostawał w chunku startowym klienta jako
-// gołe wyrażenie. Uzasadnienie zapisu: `lib/menus/types.ts`.
 /**
  * Pierwsze elementy klucza zapytań DEKORACYJNYCH, których stan (zasiew, błąd,
  * brak) nie czyni dokumentu niekompletnym:
@@ -214,8 +210,10 @@ export async function loadResilient<
  *    główna nie trafiałaby do NES Edge Cache ani z przebiegu czytelnika, ani
  *    z odświeżenia w tle.
  */
-const DECORATIVE_QUERY_ROOTS: ReadonlySet<string> = /* @__PURE__ */ (() =>
-  new Set(["ad_placements", WIDGET_QUERY_ROOTS.popupsActive]))();
+const DECORATIVE_QUERY_ROOTS: ReadonlySet<string> = new Set([
+  "ad_placements",
+  WIDGET_QUERY_ROOTS.popupsActive,
+]);
 
 /**
  * Jawna lista CELOWYCH zasiewów żądania: klucze zasiane z `updatedAt: 0` nie
