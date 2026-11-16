@@ -1,7 +1,7 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
 import { useTranslation } from "react-i18next";
-import * as LucideIcons from "@/lib/lucide-shim";
+import { Moon, Sun } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import type { AppLang } from "@/lib/i18n/localePath";
 import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
@@ -118,9 +118,9 @@ export function ThemeToggleWidget() {
         className="inline-flex items-center justify-center transition-transform duration-300 ease-out"
       >
         {isDark ? (
-          <LucideIcons.Sun className="w-4 h-4" aria-hidden="true" />
+          <Sun className="w-4 h-4" aria-hidden="true" />
         ) : (
-          <LucideIcons.Moon className="w-4 h-4" aria-hidden="true" />
+          <Moon className="w-4 h-4" aria-hidden="true" />
         )}
       </span>
     </button>

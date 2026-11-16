@@ -22,7 +22,19 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { supabase } from "@/integrations/supabase/client";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
-import * as LucideIcons from "@/lib/lucide-shim";
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  LayoutGrid,
+  Loader2,
+  Mic,
+  Search,
+  SlidersHorizontal,
+  Tags,
+  Users,
+  X,
+} from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   addRecentSearch,
@@ -666,10 +678,10 @@ export function SearchButtonWidget({
   const bucketLabel = (b: SuggestBucket) => suggestions.labels?.[b] ?? "";
 
   const iconFor = (b: SuggestBucket) => {
-    if (b === "titles") return LucideIcons.FileText;
-    if (b === "contentTypes") return LucideIcons.LayoutGrid;
-    if (b === "topics") return LucideIcons.Tags;
-    return LucideIcons.Users;
+    if (b === "titles") return FileText;
+    if (b === "contentTypes") return LayoutGrid;
+    if (b === "topics") return Tags;
+    return Users;
   };
 
   const itemLabel = (it: AutosuggestItem) =>
@@ -808,7 +820,7 @@ export function SearchButtonWidget({
           style={{ right: `${pad}px` }}
         >
           {loading && (
-            <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
           )}
           {q && (
             <button
@@ -823,7 +835,7 @@ export function SearchButtonWidget({
               }}
               className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
             >
-              <LucideIcons.X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
           <button
@@ -841,7 +853,7 @@ export function SearchButtonWidget({
             }}
             className={`${SEARCH_ICON_TARGET_CLASS} flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none`}
           >
-            <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
+            <Search className="w-[18px] h-[18px]" aria-hidden />
           </button>
           {/* REGRESJA CLS: separator i mikrofon SĄ W UKŁADZIE ZAWSZE, nawet
               zanim wiadomo, czy przeglądarka udźwignie dyktowanie. MECHANIZM:
@@ -880,7 +892,7 @@ export function SearchButtonWidget({
             {voiceListening && voiceKit ? (
               <voiceKit.VoiceListeningIndicator />
             ) : (
-              <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
+              <Mic className="w-[18px] h-[18px]" aria-hidden />
             )}
           </button>
         </div>
@@ -947,7 +959,7 @@ export function SearchButtonWidget({
               <div className="border-b border-border/40 bg-muted/20 px-4 py-3">
                 <div className="mb-2.5 flex items-center justify-between gap-3">
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    <LucideIcons.Clock className="w-3 h-3 text-[var(--brand)]" aria-hidden />
+                    <Clock className="w-3 h-3 text-[var(--brand)]" aria-hidden />
                     {t("recent")}
                   </span>
                   <button
@@ -976,7 +988,7 @@ export function SearchButtonWidget({
                       }}
                       className="group inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background px-2.5 py-1.5 text-[11px] leading-none text-foreground transition-all hover:border-[var(--brand)] hover:bg-[color-mix(in_oklab,var(--brand)_7%,transparent)] hover:text-[var(--brand-ink)]"
                     >
-                      <LucideIcons.Clock
+                      <Clock
                         className="w-3 h-3 shrink-0 text-muted-foreground/70 group-hover:text-[var(--brand)]"
                         aria-hidden
                       />
@@ -990,7 +1002,7 @@ export function SearchButtonWidget({
             {focused && hasQuery && loading && (
               <div className="px-3 py-3">
                 <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  <LucideIcons.Loader2 className="w-3 h-3 animate-spin" aria-hidden />
+                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
                   {t("searching")}
                 </div>
                 <ul className="space-y-1.5" aria-hidden>
@@ -1010,7 +1022,7 @@ export function SearchButtonWidget({
             {focused && hasQuery && !loading && showEmpty && (
               <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/70">
-                  <LucideIcons.Search className="h-5 w-5 text-muted-foreground" aria-hidden />
+                  <Search className="h-5 w-5 text-muted-foreground" aria-hidden />
                 </div>
                 <div className="max-w-[18rem] text-[13px] leading-snug text-foreground">
                   {t("no_results")}
@@ -1136,7 +1148,7 @@ export function SearchButtonWidget({
                                     {kindLabel}
                                   </span>
                                 )}
-                                <LucideIcons.ArrowRight
+                                <ArrowRight
                                   className={`h-4 w-4 shrink-0 transition-all ${
                                     isActive
                                       ? "translate-x-0 opacity-100"
@@ -1168,11 +1180,11 @@ export function SearchButtonWidget({
                 style={{ color: "var(--brand)" }}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <LucideIcons.Search className="h-4 w-4" aria-hidden />
+                  <Search className="h-4 w-4" aria-hidden />
                   {t("view_all")}
                   <span className="font-bold">„{q.trim()}"</span>
                 </span>
-                <LucideIcons.ArrowRight
+                <ArrowRight
                   className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5"
                   aria-hidden
                 />
@@ -1254,7 +1266,7 @@ export function SearchButtonWidget({
                 className="inline-flex items-center gap-1 text-[9px] font-semibold hover:underline"
                 style={{ color: "var(--brand)" }}
               >
-                <LucideIcons.SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
+                <SlidersHorizontal className="h-3 w-3 shrink-0" aria-hidden />
                 {t("advanced")}
               </AppLink>
             </div>

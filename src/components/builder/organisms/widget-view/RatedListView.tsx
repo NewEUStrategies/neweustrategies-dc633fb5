@@ -1,7 +1,7 @@
 // Organism: rated/ranked post list with manual/dynamic sourcing and rich styling.
 import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import * as LucideIcons from "@/lib/lucide-shim";
+import { Bookmark, Link as LinkIcon, Quote, Video, type LucideIcon } from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import {
   asBool,
@@ -29,6 +29,18 @@ import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { hasAuthorByline, resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { uiLocale } from "@/lib/i18n/format";
 import { WidgetStyleSheet } from "./widgetStyleSheets";
+
+// Ikona formatu wpisu: stała mapa, nie wyszukiwanie po nazwie w przestrzeni
+// nazw shimu (`import * as`), które trzymało obiekt wszystkich ikon w chunku
+// startowym (D4, roadmapa §9.1). Ten sam wynik co wcześniej: mapa wskazywała
+// też "Images" (gallery) i "Music" (audio), ale shim nie ma tych eksportów,
+// więc te formaty nigdy nie miały ikony - i nadal nie mają (bramka:
+// `src/lib/icons/__tests__/contentIconNameMarkup.test.tsx`).
+const POST_FORMAT_ICONS: Readonly<Record<string, LucideIcon>> = {
+  video: Video,
+  quote: Quote,
+  link: LinkIcon,
+};
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one. Empty string === inherit/default.
@@ -265,27 +277,9 @@ export function RatedListView({
       : {}),
   };
 
-  const formatIcon = (fmt?: string) => {
-    const Icons = LucideIcons as Record<
-      string,
-      React.ComponentType<{ className?: string; style?: CSSProperties }>
-    >;
-    const map: Record<string, string> = {
-      video: "Video",
-      gallery: "Images",
-      audio: "Music",
-      quote: "Quote",
-      link: "Link",
-    };
-    const key = map[fmt || ""] || "";
-    return key ? Icons[key] : null;
-  };
-  const BookmarkIcon = (
-    LucideIcons as Record<
-      string,
-      React.ComponentType<{ className?: string; style?: CSSProperties }>
-    >
-  ).Bookmark;
+  const formatIcon = (fmt?: string) =>
+    fmt && Object.hasOwn(POST_FORMAT_ICONS, fmt) ? POST_FORMAT_ICONS[fmt] : null;
+  const BookmarkIcon = Bookmark;
 
   const schemeCls =
     colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : mode === "dark" ? "dark" : "";
