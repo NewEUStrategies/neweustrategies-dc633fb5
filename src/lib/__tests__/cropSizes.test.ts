@@ -25,9 +25,6 @@ import {
   buildTransformedImageUrl,
   buildAvatarSrc,
   buildAvatarSrcSet,
-  listCropSizes,
-  upsertCropSize,
-  deleteCropSize,
   IMAGE_QUALITY,
   IMAGE_QUALITY_SMALL,
   RESPONSIVE_IMAGE_QUALITY,
@@ -36,8 +33,8 @@ import {
   RESPONSIVE_WIDTHS,
   LEGACY_AVATAR_RESPONSIVE_WIDTHS,
   renderedMediaUrl,
-  type CropSize,
 } from "@/lib/cropSizes";
+import { listCropSizes, upsertCropSize, deleteCropSize, type CropSize } from "@/lib/cropSizesAdmin";
 import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 const OBJ = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg";

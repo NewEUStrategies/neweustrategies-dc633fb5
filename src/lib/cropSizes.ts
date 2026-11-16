@@ -1,52 +1,10 @@
-// CRUD + helpers dla custom crop sizes (tenant-scoped).
-// Używane przez admin route oraz przez OptimizedImage/lightbox do
-// generowania URL-i wariantów obrazu (Supabase Storage transforms).
-import { supabase } from "@/integrations/supabase/client";
+// Helpers dla wariantów obrazu: OptimizedImage/lightbox generują nimi URL-e
+// wariantów (Supabase Storage transforms).
+//
+// CRUD custom crop sizes (tenant-scoped, trasa `/admin/crop-sizes`) mieszka
+// w `cropSizesAdmin.ts`: ten moduł czyta każdy obraz strony, więc jest
+// w chunku startowym klienta. Nie importuj go stąd (roadmapa ładowania §9.1 J3).
 import { PUBLIC_MEDIA_ORIGIN, isBrandedMediaOrigin } from "@/lib/media/publicUrl";
-
-export interface CropSize {
-  id: string;
-  tenant_id: string;
-  name: string;
-  ratio_w: number;
-  ratio_h: number;
-  width: number;
-  height: number;
-  position: number;
-}
-
-export type CropSizeDraft = Omit<CropSize, "id" | "tenant_id">;
-
-export async function listCropSizes(tenantId?: string): Promise<CropSize[]> {
-  let q = supabase
-    .from("custom_crop_sizes")
-    .select("id, tenant_id, name, ratio_w, ratio_h, width, height, position")
-    .order("position", { ascending: true })
-    .order("name", { ascending: true });
-  if (tenantId) q = q.eq("tenant_id", tenantId);
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data ?? []) as CropSize[];
-}
-
-export async function upsertCropSize(
-  tenantId: string,
-  draft: CropSizeDraft & { id?: string },
-): Promise<CropSize> {
-  const payload = { tenant_id: tenantId, ...draft };
-  const { data, error } = await supabase
-    .from("custom_crop_sizes")
-    .upsert(payload)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as CropSize;
-}
-
-export async function deleteCropSize(id: string): Promise<void> {
-  const { error } = await supabase.from("custom_crop_sizes").delete().eq("id", id);
-  if (error) throw error;
-}
 
 /**
  * Build a transformed image URL.
