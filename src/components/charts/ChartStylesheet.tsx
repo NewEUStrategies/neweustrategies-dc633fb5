@@ -17,5 +17,10 @@
 import chartSheetUrl from "./chart-sheet.css?url";
 
 export function ChartStylesheet() {
+  // Vitest nie przepuszcza CSS przez potok Vite i oddaje z `?url` pusty napis. Link bez
+  // adresu nie jest zasobem: React wstawiłby go w miejscu i ostrzegał o pustym `href`
+  // przy każdym renderze wykresu. Build zawsze daje adres pliku (arkusz ma ok. 34 KB, ponad
+  // progiem wstawiania zasobów jako `data:`), więc ta gałąź działa wyłącznie w testach.
+  if (!chartSheetUrl) return null;
   return <link rel="stylesheet" href={chartSheetUrl} precedence="default" />;
 }

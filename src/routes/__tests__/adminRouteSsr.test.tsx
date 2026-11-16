@@ -418,13 +418,15 @@ describe("kontrakt dokumentu panelu", () => {
     // przeglądarka dopiero PO zhydratowaniu bootu - szeregowo, nie równolegle.
     //
     // GRANICA DOWODU: `?url` rozwiązuje BUNDLER, a vitest oddaje z tego importu
-    // pusty napis - mierzymy więc DEKLARACJĘ arkusza w `head()`, nie jego
-    // adres. Że tym arkuszem jest `admin-styles.css` i że nikt inny go nie
-    // importuje, pilnuje `lib/ci/__tests__/platformBuildGuards.test.ts`.
+    // pusty napis - mierzymy więc DEKLARACJĘ arkuszy w `head()`, nie ich
+    // adresy. Arkusze są dwa: `admin-styles.css` (że to on i że nikt inny go nie
+    // importuje, pilnuje `lib/ci/__tests__/platformBuildGuards.test.ts`) i arkusz
+    // wykresów, którym pulpity panelu malują także poza ramą wykresu (pilnuje
+    // `lib/ci/__tests__/chartSheetMounts.test.ts`).
     const links = routeHead(AdminRoute).links ?? [];
     const sheets = links.filter((link) => link.rel === "stylesheet");
-    expect(sheets).toHaveLength(1);
-    expect(sheets[0]).toHaveProperty("href");
+    expect(sheets).toHaveLength(2);
+    for (const sheet of sheets) expect(sheet).toHaveProperty("href");
   });
 
   it("panel zostaje poza indeksem", () => {
