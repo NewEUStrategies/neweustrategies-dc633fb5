@@ -20,6 +20,8 @@ import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
   COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
+  LOOSE_TABLE,
+  LOOSE_TABLE_EXCLUDED_REVIEWED,
   SEAM_EXTRACTION_EXCLUDED_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
@@ -39,11 +41,13 @@ function facts(
   files: Record<string, string>,
   contracts = NO_CONTRACTS,
   excluded: Readonly<Record<string, string>> = {},
+  looseExcluded: Readonly<Record<string, string>> = {},
 ) {
   return extractSeamFacts(
     Object.entries(files).map(([file, code]) => ({ file, code })),
     contracts,
     excluded,
+    looseExcluded,
   );
 }
 
@@ -541,12 +545,16 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
           return cond ? base.select("id").eq("x", 1) : (base as Builder).select("slug");
         }
         let later = supabase.from("posts");
+        later = other;
         later.select("title_pl");
+        let neverReassigned = supabase.from("posts");
+        neverReassigned.select("excerpt_pl");
       `,
     });
-    // `let` może wskazać inny budowniczy - bez faktu i bez łańcucha.
-    expect(cols).toEqual(["src/lib/q.ts=id", "src/lib/q.ts=slug"]);
-    expect(f.coverage.tableChains).toBe(1);
+    // `let` przypisany na nowo może wskazać inny budowniczy - bez faktu
+    // i bez łańcucha; `let` bez przypisania to ten sam budowniczy.
+    expect(cols).toEqual(["src/lib/q.ts=id", "src/lib/q.ts=slug", "src/lib/q.ts=excerpt_pl"]);
+    expect(f.coverage.tableChains).toBe(2);
   });
 
   it("budowniczy w stałej przesłoniętej gdzie indziej w bloku - bez faktu, a nie cudza lista kolumn", () => {
@@ -876,6 +884,134 @@ describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", ()
   });
 });
 
+describe("extractSeamFacts - wszechświat `select` (każdy `select` na budowniczym Supabase)", () => {
+  const HEADER = `import { supabase } from "@/integrations/supabase/client";\n`;
+  const LOOSE = `import { looseTable } from "@/lib/supabase/looseQuery";\n`;
+  const LOOSE_MODULE = { "src/lib/supabase/looseQuery.ts": "export function looseTable() {}" };
+
+  it("`let q = ....update().eq()` przedłużane `q = q.eq()`, potem `q.select(...)` - fakt RETURNING tej tabeli", () => {
+    const f = facts({
+      "src/lib/admin/m.ts": `${HEADER}
+        export async function save(id: string, patch: object, base?: string) {
+          let q = supabase.from("member_organizations").update(patch).eq("id", id);
+          if (base) q = q.eq("updated_at", base);
+          return await q.select("id, updated_at");
+        }
+        export async function saveConst(id: string, patch: object) {
+          const q = supabase.from("pages").update(patch).eq("id", id);
+          return await q.select("id, updated_at");
+        }
+        export async function saveClaim(id: string | null, patch: object) {
+          let q = supabase.from("subscriptions").update(patch);
+          q = id === null ? q.is("last_event_id", null) : q.eq("last_event_id", id);
+          return await q.select("id");
+        }
+      `,
+    });
+    // `update(patch)` z identyfikatorem nie daje kolumn (jak dotąd) - fakt to
+    // RETURNING: kolumny `select` po zapisie.
+    expect(f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}`)).toEqual([
+      "member_organizations:select:authenticated:id,updated_at",
+      "pages:select:authenticated:id,updated_at",
+      "subscriptions:select:authenticated:id",
+    ]);
+    expect(f.coverage.uncheckedSelects).toEqual([]);
+  });
+
+  it("`let` przypisany inaczej niż przedłużeniem (`q = filtruj(q)`) - bez faktu, `select` na liście niesprawdzonych", () => {
+    const f = facts({
+      "src/lib/admin/m.ts": `${HEADER}
+        export async function save(id: string, patch: object) {
+          let q = supabase.from("member_organizations").update(patch).eq("id", id);
+          q = narrow(q);
+          return await q.select("id, secret_col");
+        }
+        export async function elsewhere(q2: unknown) {
+          const fromOtherFunction = shared;
+          return fromOtherFunction.select("id");
+        }
+        const shared = supabase.from("posts");
+        export const notSupabase = (el: HTMLInputElement, chart: { select(x: string): void }) => {
+          el.select();
+          chart.select("id");
+          Array.from([1]).map((x) => x);
+        };
+      `,
+    });
+    // Ani fakt `q.select`, ani `fromOtherFunction.select` (nazwa związana
+    // z budowniczym przez inną stałą) - oba w zapadce; `el.select()`
+    // i `chart.select()` to nie budowniczy Supabase.
+    expect(f.tables).toEqual([]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      'src/lib/admin/m.ts: elsewhere: .from(posts).select("id")',
+      'src/lib/admin/m.ts: save: .from(member_organizations).select("id, secret_col")',
+    ]);
+  });
+
+  it('`looseTable(context, "t")` to `.from("t")` klienta użytkownika; tabela nieczytelna - `select` na liście niesprawdzonych', () => {
+    const f = facts({
+      "src/lib/crm.functions.ts": `${LOOSE}
+        import { supabaseAdmin } from "@/integrations/supabase/client.server";
+        export const list = createServerFn().handler(async ({ data, context }) => {
+          const view = data.all ? "crm_leads_all" : "crm_leads";
+          let q = looseTable(context, view).select("*", { count: "exact" });
+          q = applyFilters(q, data);
+          await looseTable(context, "crm_lead_notes").insert({ lead_id: data.id, body: "x" }).select("id");
+          await looseTable({ supabase: supabaseAdmin }, "crm_consent_log").select("id, kind");
+          await looseTable(context, "crm_tasks").select("id", { count: "exact", head: true });
+          return q;
+        });
+      `,
+      ...LOOSE_MODULE,
+      "src/lib/other.ts": `
+        import { looseTable } from "@/lib/elsewhere";
+        await looseTable(ctx, "not_a_table_call").select("id");
+      `,
+    });
+    expect(
+      f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}:${t.star}`),
+    ).toEqual([
+      "crm_lead_notes:insert:authenticated:body,lead_id:false",
+      "crm_lead_notes:select:authenticated:id:false",
+      "crm_consent_log:select:service_role:id,kind:false",
+    ]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      'src/lib/crm.functions.ts: list: .from(?).select("*")',
+    ]);
+  });
+
+  it("plik w LOOSE_TABLE_EXCLUDED_REVIEWED: `looseTable` bez faktów, a KAŻDY jego `select` w zapadce; `.from()` pliku - jak dotąd", () => {
+    const code = `${LOOSE}${HEADER}
+      export const get = createServerFn().handler(async ({ context }) => {
+        await looseTable(context, "profiles").select("avatar_url, email");
+        await looseTable(context, "crm_tasks").insert({ title: "x" });
+        return supabase.from("posts").select("id");
+      });
+    `;
+    const files = { ...LOOSE_MODULE, "src/lib/crm.functions.ts": code };
+    const open = facts(files);
+    const cut = facts(
+      files,
+      NO_CONTRACTS,
+      {},
+      {
+        "src/lib/crm.functions.ts": "defekt grantu",
+      },
+    );
+    expect(open.tables.map((t) => `${t.table}:${t.op}`)).toEqual([
+      "profiles:select",
+      "crm_tasks:insert",
+      "posts:select",
+    ]);
+    expect(open.coverage.uncheckedSelects).toEqual([]);
+    expect(cut.tables.map((t) => `${t.table}:${t.op}`)).toEqual(["posts:select"]);
+    expect(cut.coverage.uncheckedSelects).toEqual([
+      'src/lib/crm.functions.ts: get: .from(profiles).select("avatar_url, email")',
+    ]);
+  });
+});
+
 describe("extractSeamFacts - składnia (rodzaj pliku po rozszerzeniu)", () => {
   // Kształt `profile/export.functions.ts`: strzałka generyczna w pliku `.ts`.
   // Parsowana jako TSX otwiera znacznik JSX i reszta pliku znika z kontraktu.
@@ -1130,6 +1266,35 @@ describe("stan repozytorium", () => {
     const rpcs = own.rpcs;
     expect(rpcs).toHaveLength(13);
     expect(new Set(rpcs.map((r) => r.role))).toEqual(new Set(["authenticated"]));
+  });
+
+  it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; wyłączone pliki to te z odczytem `profiles` bez grantu", () => {
+    const source = readFileSync(LOOSE_TABLE.module, "utf8");
+    expect(source).toMatch(new RegExp(`export function ${LOOSE_TABLE.helper}\\(`));
+    // Fakty, które wstrzymuje LOOSE_TABLE_EXCLUDED_REVIEWED (sprawdzone
+    // lokalnie: `authenticated` nie ma SELECT na tych kolumnach `profiles`).
+    // Gdy kod przestanie je czytać klientem użytkownika - zdejmij wpis.
+    const files = Object.keys(LOOSE_TABLE_EXCLUDED_REVIEWED).sort();
+    const own = extractSeamFacts(
+      [LOOSE_TABLE.module, ...files].map((file) => ({ file, code: readFileSync(file, "utf8") })),
+      NO_CONTRACTS,
+      {},
+      {},
+    );
+    const withheld = own.tables
+      .filter((t) => t.table === "profiles" && t.role === "authenticated" && t.op === "select")
+      .map((t) => `${t.file}: ${t.columns.filter((c) => /email|location/.test(c)).join(",")}`)
+      .filter((entry) => !entry.endsWith(": "));
+    expect(withheld).toEqual([
+      "src/lib/crm-companies.functions.ts: contact_email,location",
+      "src/lib/crm.functions.ts: contact_email,email",
+    ]);
+    // Bez wyłączenia te pliki NIE wnoszą `select` do zapadki z `looseTable`.
+    expect(own.coverage.uncheckedSelects.filter((s) => !s.includes("listStaffUsers"))).toEqual([
+      "src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_consent_log).select(CONSENT_LOG_TIMELINE_SELECT)",
+      'src/lib/crm.functions.ts: exportCrmLeadsCsv: .from(?).select("*")',
+      'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")',
+    ]);
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {

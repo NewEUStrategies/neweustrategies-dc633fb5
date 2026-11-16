@@ -25,7 +25,11 @@
 //      `readPostsWithParentPage` (oba warianty kolumn, które on wyśle)
 //      i `select` składany z parametru, którego wartość podają wywołania
 //      (także z innego pliku: `postsNarrowedToTaxonomy(kolumny, ...)`),
-//      oraz łańcuchy na stałej z budowniczym (`const base = ....from("t")`),
+//      oraz łańcuchy na zmiennej z budowniczym (`const base = ....from("t")`,
+//      `let q = ....update(p).eq(...)` przedłużane `q = q.eq(...)`, a dalej
+//      `q.select(...)`), a `looseTable(context, "t")` (CRM) liczy się jak
+//      `.from("t")`; KAŻDY `select` na budowniczym, który nie dał faktu, jest
+//      pozycją zapadki `UNCHECKED_SELECTS_REVIEWED`,
 //   3. rejestr kolumn publicznych (`PUBLIC_COLUMN_CONTRACTS`) - stałe TS, które
 //      deklarują, co z tabeli wolno czytać frontowi,
 // i renderuje z nich test pgTAP (`supabase/tests/ts_sql_contract_test.sql`),
@@ -1242,27 +1246,104 @@ function hasRuntimeColumn(select: string): boolean {
   );
 }
 
+/** Nazwa na dnie łańcucha `x.a(...).b(...)` (albo `null`). */
+function chainRootName(expr: ts.Expression): string | null {
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      node = unwrap(node.expression.expression);
+    } else if (ts.isPropertyAccessExpression(node)) {
+      node = unwrap(node.expression);
+    } else {
+      return ts.isIdentifier(node) ? node.text : null;
+    }
+  }
+}
+
 /**
- * `const base = supabase.from("t")`, a dalej `base.select(...)` /
- * `base.update(...)`: łańcuch każdego użycia stałej. Nazwa wiązana raz w swoim
- * bloku i nieprzypisywana - każde jej użycie to ten sam budowniczy.
+ * Czy KAŻDE przypisanie do `name` w poddrzewie to `name = name.<ogniwa>(...)`
+ * (także w obu gałęziach warunku) - przedłużenie tego samego budowniczego
+ * (filtr, warunek wersji). Inne
+ * przypisanie (`q = filtruj(q)`, `+=`, rozkład, `for (q of ...)`) - nie.
  */
-function constBoundChains(fromCall: ts.CallExpression): ts.CallExpression[][] {
-  const outer = outermostWrapper(fromCall);
+function onlySelfExtending(root: ts.Node, name: string): boolean {
+  // `q = q.eq(...)` albo `q = warunek ? q.is(...) : q.eq(...)`.
+  const extends_ = (expr: ts.Expression): boolean => {
+    const node = unwrap(expr);
+    return ts.isConditionalExpression(node)
+      ? extends_(node.whenTrue) && extends_(node.whenFalse)
+      : chainRootName(node) === name;
+  };
+  let ok = true;
+  const visit = (node: ts.Node): void => {
+    if (!ok) return;
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+      const left = unwrap(node.left);
+      if (ts.isIdentifier(left) && left.text === name) {
+        if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken || !extends_(node.right)) {
+          ok = false;
+          return;
+        }
+      } else if (
+        (ts.isArrayLiteralExpression(left) || ts.isObjectLiteralExpression(left)) &&
+        containsIdentifier(left, name)
+      ) {
+        ok = false;
+        return;
+      }
+    }
+    if (
+      ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+        (node.operator === ts.SyntaxKind.PlusPlusToken ||
+          node.operator === ts.SyntaxKind.MinusMinusToken) &&
+        containsIdentifier(node.operand, name)) ||
+      ((ts.isForOfStatement(node) || ts.isForInStatement(node)) &&
+        !ts.isVariableDeclarationList(node.initializer) &&
+        containsIdentifier(node.initializer, name))
+    ) {
+      ok = false;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return ok;
+}
+
+/**
+ * Budowniczy w zmiennej: łańcuch każdego użycia nazwy. `top` to ostatnie
+ * ogniwo łańcucha wprost nad `.from()` (albo samo `.from()`):
+ *   * `const base = supabase.from("t")`, a dalej `base.select(...)` /
+ *     `base.update(...)` - nazwa wiązana raz w swoim bloku i nieprzypisywana;
+ *   * `let q = supabase.from("t").update(p).eq("id", id)`, warunkowo
+ *     `q = q.eq("updated_at", v)`, a dalej `await q.select("id, updated_at")`
+ *     (RETURNING zapisu) - `let` tylko wtedy, gdy KAŻDE przypisanie przedłuża
+ *     ten sam budowniczy (`onlySelfExtending`). Inne przypisanie - reguła
+ *     milczy, a `select` na tej nazwie trafia do `uncheckedSelects`.
+ */
+function boundChains(top: ts.CallExpression): ts.CallExpression[][] {
+  const outer = outermostWrapper(top);
   const decl = outer.parent;
   if (
     !ts.isVariableDeclaration(decl) ||
     decl.initializer !== outer ||
     !ts.isIdentifier(decl.name) ||
     !ts.isVariableDeclarationList(decl.parent) ||
-    !(decl.parent.flags & ts.NodeFlags.Const) ||
     !ts.isVariableStatement(decl.parent.parent)
   ) {
     return [];
   }
+  const isConst = (decl.parent.flags & ts.NodeFlags.Const) !== 0;
+  const isLet = (decl.parent.flags & ts.NodeFlags.Let) !== 0;
+  if (!isConst && !isLet) return [];
   const name = decl.name.text;
   const container = decl.parent.parent.parent;
-  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  if (bindingCount(container, name) !== 1) return [];
+  if (isConst ? isAssigned(container, name) : !onlySelfExtending(container, name)) return [];
   const chains: ts.CallExpression[][] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isIdentifier(node) && node.text === name && node !== decl.name) {
@@ -1283,6 +1364,151 @@ function constBoundChains(fromCall: ts.CallExpression): ts.CallExpression[][] {
   return chains;
 }
 
+// ── `looseTable(kontekst, "tabela")` ────────────────────────────────────────
+//
+// Moduły CRM czytają tabele spoza wygenerowanych typów przez
+// `looseTable(context, "crm_leads")` (`lib/supabase/looseQuery.ts`), czyli
+// `.from()` klienta z kontekstu funkcji serwerowej - w kodzie nie ma wtedy
+// `.from(` i 50 odczytów nie dawało faktu ani wpisu w żadnej zapadce.
+// Wywołanie pomocnika z TEGO modułu z tabelą rozwiązywalną statycznie jest
+// traktowane jak `.from()`; rola - jak odbiorca `context.supabase`
+// (`authenticated`), a dla `{ supabase: X }` - jak odbiorca `X`. Tabela
+// nieczytelna (`looseTable(context, view)`): bez faktu, a każdy `select` na
+// tym budowniczym trafia do `uncheckedSelects` (zapadka listy przejrzanej).
+
+/**
+ * Pliki, w których `looseTable` ŚWIADOMIE nie daje faktów (klucz: ścieżka,
+ * wartość: defekt i warunek zdjęcia). Reguła odsłoniła tam odczyty BEZ grantu
+ * na schemacie po migracjach (sprawdzone lokalnie, has_column_privilege),
+ * czyli defekty dla właściciela - ich faktów nie dopisujemy do pgTAP (CI
+ * czerwieniłoby się na kodzie sprzed tej zmiany) i nie przepuszczamy po
+ * cichu: każdy `select` na `looseTable` tych plików jest pozycją zapadki
+ * `UNCHECKED_SELECTS_REVIEWED`. Fakty `.from()` tych plików - jak dotąd.
+ * Lista może TYLKO maleć.
+ */
+export const LOOSE_TABLE_EXCLUDED_REVIEWED: Readonly<Record<string, string>> = {
+  "src/lib/crm.functions.ts":
+    '`looseTable(context, "profiles").select("avatar_url, email, contact_email")` (awatar profilu w karcie leada) - ' +
+    "`authenticated` nie ma SELECT na profiles.email ani profiles.contact_email, więc zapytanie pada na 42501, a błąd jest " +
+    "ignorowany (awatar zawsze pusty). Do zdjęcia po migracji z grantem albo po przeniesieniu odczytu na RPC/rolę serwisową.",
+  "src/lib/crm-companies.functions.ts":
+    '`looseTable(context, "profiles").select("..., location, ..., contact_email, ...").eq("current_company_id", ...)` ' +
+    "(osoby firmy w CRM) - `authenticated` nie ma SELECT na profiles.location, profiles.contact_email ani " +
+    "profiles.current_company_id (filtr), więc zapytanie pada na 42501. Do zdjęcia po migracji z grantem albo po " +
+    "przeniesieniu odczytu na RPC/rolę serwisową.",
+};
+
+/** Pomocnik i jego moduł (ścieżka repo). */
+export const LOOSE_TABLE = {
+  helper: "looseTable",
+  module: "src/lib/supabase/looseQuery.ts",
+} as const;
+
+/** Czy wywołanie to `looseTable(źródło, tabela)` z importu modułu pomocnika. */
+function isLooseTableCall(
+  call: ts.CallExpression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee) || call.arguments.length !== 2) return false;
+  const imported = scope.imports.get(callee.text);
+  return (
+    imported !== undefined &&
+    imported[1] === LOOSE_TABLE.helper &&
+    resolveModule(scope.file, imported[0], known) === LOOSE_TABLE.module
+  );
+}
+
+/** Rola klienta źródła `looseTable(źródło, ...)`. */
+function looseSourceRole(source: ts.Expression, scope: FileScope): ClientRole {
+  const node = unwrap(source);
+  if (ts.isIdentifier(node) && (node.text === "context" || node.text === "ctx")) {
+    return "authenticated";
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const prop of node.properties) {
+      if (ts.isPropertyAssignment(prop) && propName(prop.name) === "supabase") {
+        return receiverRole(prop.initializer, scope);
+      }
+      if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === "supabase") {
+        return receiverRole(prop.name, scope);
+      }
+    }
+  }
+  return "unknown";
+}
+
+/** `.from()` tabeli public (nie kubełek Storage, nie inny schemat, nie `Array.from`). */
+function isTableFrom(call: ts.CallExpression): boolean {
+  const method = callMethod(call);
+  if (method?.name !== "from" || call.arguments.length !== 1) return false;
+  const recv = unwrap(method.receiver);
+  if (ts.isPropertyAccessExpression(recv) && recv.name.text === "storage") return false;
+  if (ts.isCallExpression(recv) && callMethod(recv)?.name === "schema") return false;
+  // Konstruktory globalne (`Array.from`, `Buffer.from`) - nie klient Supabase.
+  return !(ts.isIdentifier(recv) && /^[A-Z]/.test(recv.text));
+}
+
+/**
+ * Tabela budowniczego Supabase, na którym stoi wyrażenie: łańcuch w dół do
+ * `.from(t)` / `looseTable(x, t)` albo do nazwy, którą GDZIEKOLWIEK w pliku
+ * wiąże się (albo przypisuje) z takim łańcuchem. `undefined` - to nie
+ * budowniczy; `null` - budowniczy, tabela nieczytelna. Celowo szeroko: to
+ * wszechświat zapadki, nie źródło faktów.
+ */
+function builderTable(
+  expr: ts.Expression,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  seen: Set<string>,
+): string | null | undefined {
+  const tableOf = (arg: ts.Expression): string | null => {
+    const table = resolveString(arg, scope, exportsIndex, known);
+    return table !== null && COLUMN_RE.test(table) ? table : null;
+  };
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node)) {
+      if (isLooseTableCall(node, scope, known)) return tableOf(node.arguments[1]);
+      if (isTableFrom(node)) return tableOf(node.arguments[0]);
+      const method = callMethod(node);
+      if (method === null) return undefined;
+      node = unwrap(method.receiver);
+      continue;
+    }
+    if (!ts.isIdentifier(node) || seen.has(node.text)) return undefined;
+    const name = node.text;
+    seen.add(name);
+    let found: string | null | undefined;
+    const consider = (value: ts.Expression): void => {
+      const table = builderTable(value, scope, exportsIndex, known, seen);
+      if (table !== undefined && (found === undefined || found === null)) found = table;
+    };
+    const visit = (child: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(child) &&
+        ts.isIdentifier(child.name) &&
+        child.name.text === name &&
+        child.initializer !== undefined
+      ) {
+        consider(child.initializer);
+      } else if (
+        ts.isBinaryExpression(child) &&
+        child.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(unwrap(child.left)) &&
+        (unwrap(child.left) as ts.Identifier).text === name
+      ) {
+        consider(child.right);
+      }
+      ts.forEachChild(child, visit);
+    };
+    visit(scope.sf);
+    return found;
+  }
+}
+
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
 interface Collector {
@@ -1296,6 +1522,12 @@ interface Collector {
   tableChainsWithUnknownTable: number;
   unresolved: string[];
   uncheckedSelects: string[];
+  /**
+   * Wywołania `.select`, które ekstrakcja OBEJRZAŁA (fakt, miejsce
+   * nieczytelne, `head: true` albo wpis w `uncheckedSelects`). Reszta
+   * `select` na budowniczym Supabase trafia do `uncheckedSelects`.
+   */
+  visitedSelects: Set<ts.CallExpression>;
 }
 
 /**
@@ -1461,7 +1693,9 @@ function visitFile(
   known: ReadonlySet<string>,
   out: Collector,
   flow: FlowEnv,
+  looseExcluded: Readonly<Record<string, string>>,
 ): void {
+  const selects: ts.CallExpression[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const method = callMethod(node);
@@ -1469,11 +1703,27 @@ function visitFile(
         handleRpc(node, method.receiver, scope, exportsIndex, known, out);
       } else if (method?.name === "from" && node.arguments.length === 1) {
         handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
+      } else if (isLooseTableCall(node, scope, known) && !(scope.file in looseExcluded)) {
+        const role = looseSourceRole(node.arguments[0], scope);
+        handleBuilder(node, node.arguments[1], role, false, scope, exportsIndex, known, out, flow);
+      } else if (method?.name === "select") {
+        selects.push(node);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(scope.sf);
+  // Wszechświat zapadki: KAŻDY `.select` na budowniczym Supabase, którego
+  // przebieg wyżej nie obejrzał (budowniczy w `let` przypisywanym inaczej niż
+  // przedłużeniem, `looseTable` z tabelą nieczytelną albo w pliku
+  // z LOOSE_TABLE_EXCLUDED_REVIEWED, nazwa związana z budowniczym w innej
+  // funkcji...), trafia do `uncheckedSelects`.
+  for (const call of selects) {
+    if (out.visitedSelects.has(call)) continue;
+    const receiver = (call.expression as ts.PropertyAccessExpression).expression;
+    const table = builderTable(receiver, scope, exportsIndex, known, new Set());
+    if (table !== undefined) out.uncheckedSelects.push(uncheckedSelectSite(call, table, scope));
+  }
 }
 
 function handleRpc(
@@ -1519,25 +1769,52 @@ function handleFrom(
     const inner = callMethod(recv);
     if (inner?.name === "schema") return;
   }
-  // Łańcuch wprost nad `.from()` albo - gdy budowniczy trafia do stałej -
-  // łańcuch każdego jej użycia (`const base = supabase.from("posts")`).
+  const role = receiverRole(receiver, scope);
+  handleBuilder(node, node.arguments[0], role, true, scope, exportsIndex, known, out, flow);
+}
+
+/**
+ * Łańcuchy budowniczego `node` (`.from(t)` albo `looseTable(x, t)`): fakty
+ * operacji, miejsca nieczytelne i `select` bez faktu. `unresolvedIsSite` -
+ * tabela nieczytelna to wpis w `unresolvedSites` (`.from(nazwa)`); bez tego
+ * (`looseTable`) budowniczy jest pomijany, a jego `select` trafiają do
+ * `uncheckedSelects` przez wszechświat w `visitFile`.
+ */
+function handleBuilder(
+  node: ts.CallExpression,
+  tableArg: ts.Expression,
+  role: ClientRole,
+  unresolvedIsSite: boolean,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  flow: FlowEnv,
+): void {
+  // Łańcuch wprost nad budowniczym oraz - gdy budowniczy (także po ogniwach)
+  // trafia do zmiennej - łańcuch każdego jej użycia (`boundChains`).
   const direct = chainAbove(node);
-  const chains = direct.length > 0 ? [direct] : constBoundChains(node);
+  const top = direct.length > 0 ? direct[direct.length - 1] : node;
+  const chains = [...(direct.length > 0 ? [direct] : []), ...boundChains(top)];
   const QUERY = new Set(["select", "insert", "update", "upsert", "delete"]);
   const opsOf = (chain: readonly ts.CallExpression[]): string[] =>
     chain.map((c) => callMethod(c)?.name ?? "");
   // `Array.from`, `Buffer.from`, ...
   if (!chains.some((chain) => opsOf(chain).some((op) => QUERY.has(op)))) return;
-  out.tableChains += 1;
-  const table = resolveString(node.arguments[0], scope, exportsIndex, known);
+  const table = resolveString(tableArg, scope, exportsIndex, known);
   if (table === null || !COLUMN_RE.test(table)) {
+    if (!unresolvedIsSite) return;
+    out.tableChains += 1;
     out.tableChainsWithUnknownTable += 1;
-    out.unresolved.push(
-      `${scope.file}: .from(${node.arguments[0].getText(scope.sf).slice(0, 60)})`,
-    );
+    out.unresolved.push(`${scope.file}: .from(${tableArg.getText(scope.sf).slice(0, 60)})`);
+    // Zgłoszone miejsce obejmuje każdy `select` tego budowniczego.
+    for (const chain of chains) {
+      for (const call of chain)
+        if (callMethod(call)?.name === "select") out.visitedSelects.add(call);
+    }
     return;
   }
-  const role = receiverRole(receiver, scope);
+  out.tableChains += 1;
   const site = (op: TableOp, columns: readonly string[], star: boolean): void => {
     out.tables.push({ table, op, columns, star, role, file: scope.file });
   };
@@ -1548,6 +1825,7 @@ function handleFrom(
       const call = chain[i];
       const op = ops[i];
       if (op === "select") {
+        out.visitedSelects.add(call);
         const arg = call.arguments[0];
         const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
         // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
@@ -1723,6 +2001,7 @@ export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
   excluded: Readonly<Record<string, string>> = SEAM_EXTRACTION_EXCLUDED_REVIEWED,
+  looseExcluded: Readonly<Record<string, string>> = LOOSE_TABLE_EXCLUDED_REVIEWED,
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
   const scopes = new Map<string, FileScope>();
@@ -1740,10 +2019,13 @@ export function extractSeamFacts(
     tableChainsWithUnknownTable: 0,
     unresolved: [],
     uncheckedSelects: [],
+    visitedSelects: new Set(),
   };
   const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
   for (const scope of scopes.values()) {
-    if (!(scope.file in excluded)) visitFile(scope, exportsIndex, known, out, flow);
+    if (!(scope.file in excluded)) {
+      visitFile(scope, exportsIndex, known, out, flow, looseExcluded);
+    }
   }
   out.unresolved.push(...flow.unresolved);
 
@@ -1789,8 +2071,14 @@ const LANG_SUFFIX =
   "kolumny zależne od języka czasu działania (`title_${t}`, `titleCol` z warunku) - dwa warianty, generator nie rozgałęzia";
 const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie rozgałęzia';
 
+const LOOSE_EXCLUDED =
+  "`looseTable` w pliku z LOOSE_TABLE_EXCLUDED_REVIEWED - reguła odsłoniła tam odczyt `profiles` bez grantu dla `authenticated` (defekt dla właściciela), więc fakty pliku czekają na naprawę";
+const LOOSE_VIEW =
+  "tabela z warunku (`view`: `crm_leads` / `crm_leads_all`) - generator nie rozgałęzia; plik i tak w LOOSE_TABLE_EXCLUDED_REVIEWED";
+
 /**
- * Zapadka zasięgu `select`: odczyty na tabeli znanej z nazwy, które NIE dają
+ * Zapadka zasięgu `select`: KAŻDY `select` na budowniczym Supabase
+ * (`.from()`, `looseTable()`, zmienna z takim łańcuchem), który NIE daje
  * faktu ani wpisu w `unresolvedSites` (`coverage.uncheckedSelects`) - kontrakt
  * go nie sprawdza, więc kolumna dopisana tam bez GRANT-u przechodzi CI.
  * Klucz: plik, ścieżka funkcji, tabela i tekst argumentu (bez numeru linii) -
@@ -1815,7 +2103,106 @@ export const UNCHECKED_SELECTS_REVIEWED: Readonly<
     ],
   'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(subscriptions).select(SUBSCRIPTION_REF_COLUMNS.join(", "))':
     [1, '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej'],
+  'src/lib/crm-companies.functions.ts: createCrmCompany: .from(crm_companies).select("id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm-companies.functions.ts: createCrmCompany: .from(profiles).select("tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm-companies.functions.ts: createCrmContactForCompany: .from(crm_companies).select("tenant_id")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: createCrmContactForCompany: .from(crm_leads).select("id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm-companies.functions.ts: detachCompaniesFromMembers: .from(crm_companies).select("id, tenant_id")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(crm_companies).select("*")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(crm_leads).select("id, email, first_name, last_name, phone, position, stage, tags, score, score_ba)':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(profiles).select("id, display_name, first_name, last_name, avatar_url, job_title, location, slug,)':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(audit_log).select("id, action, entity_type, entity_id, metadata, actor_id, created_at")':
+    [2, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(crm_lead_notes).select("id, body, lead_id, author_id, created_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(crm_leads).select("id, email, first_name, last_name, created_at, last_activity_at, stage")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: listCrmCompanies: .from(crm_companies).select("id, name, domain, country, branch, city, website, phone, address, postal_code, )':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm-companies.functions.ts: syncCompanyMembersById: .from(crm_companies).select("tenant_id, name")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: buildLeadTimeline: .from(audit_log).select("id, action, actor_id, metadata, created_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: buildLeadTimeline: .from(contact_messages).select("id, form_name, form_type, subject, message, page_url, lang, created_at")':
+    [1, LOOSE_EXCLUDED],
+  "src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_consent_log).select(CONSENT_LOG_TIMELINE_SELECT)":
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_lead_notes).select("id, body, author_id, created_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_leads).select("*")': [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: buildLeadTimeline: .from(newsletter_subscribers).select("id, status, source_form_name, confirmed_at, created_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: bulkUpdateCrmLeads: .from(crm_leads).select("id, tags")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: exportCrmLeadsCsv: .from(?).select("*")': [1, LOOSE_VIEW],
+  'src/lib/crm.functions.ts: getCrmLead: .from(contact_messages).select("id, form_type, form_id, form_name, subject, message, lang, source, page_url, re)':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLead: .from(crm_consent_log).select("*")': [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLead: .from(crm_lead_notes).select("id, body, author_id, created_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLead: .from(crm_leads).select("*")': [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLead: .from(newsletter_subscribers).select("id, status, source, source_form_id, source_form_name, language, ip, consents, c)':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLead: .from(profiles).select("avatar_url, email, contact_email")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLeadAvatars: .from(crm_leads).select("id, email, email_norm")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: getCrmLeadMembership: .from(crm_leads).select("email, tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: getCrmLeadMonthlyMetering: .from(crm_leads).select("email, tenant_id")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmLeadProfileSync: .from(crm_leads).select("email, tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: getCrmLeadStageHistory: .from(crm_lead_stage_history).select("id, dimension, from_value, to_value, source, actor_id, journey_id, changed_at")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: getCrmScoringSettings: .from(crm_scoring_settings).select("*")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")': [1, LOOSE_VIEW],
   "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)": [1, LOCAL_CONST],
+  'src/lib/crm.functions.ts: resolveCallerTenantId: .from(profiles).select("tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: updateCrmLead: .from(crm_companies).select("id, tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: updateCrmLead: .from(crm_leads).select("id, tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
+  'src/lib/crm.functions.ts: upsertCrmScoringSettings: .from(crm_scoring_settings).select("tenant_id")':
+    [1, LOOSE_EXCLUDED],
+  'src/lib/crm.functions.ts: upsertCrmScoringSettings: .from(profiles).select("tenant_id")': [
+    1,
+    LOOSE_EXCLUDED,
+  ],
   "src/lib/experts/queries.ts: fetchExpertHubLegacy: .from(profiles_public).select(PROFILE_COLS)": [
     2,
     LOCAL_CONST,
