@@ -21,10 +21,12 @@ import {
   COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
   POST_PARENT_PAGE_READ,
+  UNCHECKED_SELECTS_REVIEWED,
   extractSeamFacts,
   parseSelectColumns,
   renderContractTest,
   seamCoverageProblems,
+  uncheckedSelectDrift,
   withPostParentPageEmbed,
   type PublicColumnContract,
 } from "../tsSqlContract";
@@ -667,6 +669,8 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
     expect(cols).toEqual(["src/lib/q.ts=ok_col"]);
     expect(f.coverage.unresolvedSites).toHaveLength(1);
     expect(f.coverage.unresolvedSites[0]).toMatch(/^src\/lib\/q\.ts:\d+: przepływ kolumn dłuższy/);
+    // Miejsce zgłoszone - `select` nie jest też „niesprawdzony po cichu".
+    expect(f.coverage.uncheckedSelects).toEqual([]);
   });
 
   it("wywołania wzajemne (cykl) - przebieg się kończy, fakt z wywołania z literałem", () => {
@@ -678,6 +682,65 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
       `,
     });
     expect(cols).toEqual(["src/lib/q.ts=id"]);
+  });
+});
+
+describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", () => {
+  const HEADER = `import { supabase } from "@/integrations/supabase/client";\n`;
+
+  it("stała lokalna funkcji, `X.join`, warunek, właściwość obiektu - na liście; literał, stała modułu, zgłoszone miejsce - nie", () => {
+    const f = facts({
+      "src/lib/q.ts": `${HEADER}
+        const MODULE_COLS = "id, slug";
+        const COLS_LIST = ["id", "slug"] as const;
+        const ENTITY = { post: "id, slug" };
+        export async function load(flag: boolean, name: string) {
+          const LOCAL = "id, slug";
+          await supabase.from("posts").select(LOCAL);
+          await supabase.from("posts").select(COLS_LIST.join(", "));
+          await supabase.from("posts").select(flag ? "id" : "slug");
+          await supabase.from("posts").select(ENTITY.post);
+          await supabase.from("posts").select("id, title_pl");
+          await supabase.from("posts").select(MODULE_COLS);
+          await supabase.from("posts").select("id", { count: "exact", head: true });
+          await supabase.from(name).select(LOCAL);
+        }
+      `,
+    });
+    expect(f.tables.map((t) => `${t.table}:${t.columns.join(",")}`)).toEqual([
+      "posts:id,title_pl",
+      "posts:id,slug",
+    ]);
+    // Tabela z nazwą obliczoną jest już w `unresolvedSites` - nie dubluje się.
+    expect(f.coverage.unresolvedSites).toEqual(["src/lib/q.ts: .from(name)"]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      'src/lib/q.ts: .select(COLS_LIST.join(", "))',
+      "src/lib/q.ts: .select(ENTITY.post)",
+      "src/lib/q.ts: .select(LOCAL)",
+      'src/lib/q.ts: .select(flag ? "id" : "slug")',
+    ]);
+  });
+
+  it("zapadka: miejsce nowe albo liczniejsze niż w przeglądzie czerwieni bramkę; naprawione - `stale`", () => {
+    const f = facts({
+      "src/lib/q.ts": `${HEADER}
+        export async function a() { const C = "id"; return supabase.from("posts").select(C); }
+        export async function b() { const C = "slug"; return supabase.from("posts").select(C); }
+      `,
+    });
+    const site = "src/lib/q.ts: .select(C)";
+    expect(uncheckedSelectDrift(f, { [site]: [2, "powód"] })).toEqual({ fresh: [], stale: [] });
+    expect(seamCoverageProblems(f, { [site]: [2, "powód"] })).toEqual([]);
+    expect(uncheckedSelectDrift(f, { [site]: [1, "powód"] }).fresh).toEqual([
+      `${site} (2, przejrzanych: 1)`,
+    ]);
+    expect(seamCoverageProblems(f, {})[0]).toContain(`${site} (2, przejrzanych: 0)`);
+    expect(
+      uncheckedSelectDrift(f, { [site]: [3, "powód"], "src/x.ts: .select(Y)": [1, "p"] }),
+    ).toEqual({
+      fresh: [],
+      stale: [`${site} (2, przejrzanych: 3)`, "src/x.ts: .select(Y) (0, przejrzanych: 1)"],
+    });
   });
 });
 
@@ -843,5 +906,12 @@ describe("stan repozytorium", () => {
     expect(repo.coverage.unresolvedSites.length).toBeLessThanOrEqual(MAX_UNRESOLVED_SITES);
     // Gdy liczba spadnie, zapadka ma zejść razem z nią.
     expect(repo.coverage.unresolvedSites.length).toBe(MAX_UNRESOLVED_SITES);
+  });
+
+  it("`select` bez faktu i bez miejsca nieczytelnego to DOKŁADNIE przejrzana lista (nowy - czerwono; naprawiony - zdejmij z listy)", () => {
+    expect(uncheckedSelectDrift(repo)).toEqual({ fresh: [], stale: [] });
+    expect(repo.coverage.uncheckedSelects).toHaveLength(
+      Object.values(UNCHECKED_SELECTS_REVIEWED).reduce((sum, [count]) => sum + count, 0),
+    );
   });
 });

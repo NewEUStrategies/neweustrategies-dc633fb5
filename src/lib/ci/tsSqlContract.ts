@@ -129,6 +129,13 @@ export interface SeamFacts {
      * oraz `select` z parametru, do którego dociera wartość czasu działania.
      */
     readonly unresolvedSites: readonly string[];
+    /**
+     * `.select(x)` na tabeli znanej z nazwy, który nie dał ANI faktu, ANI
+     * wpisu w `unresolvedSites` (stała lokalna funkcji, `X.join(", ")`,
+     * warunek `a ? b : c`, funkcja bez widocznego wołającego...) - kontrakt go
+     * nie sprawdza i nikt by o tym nie wiedział. Posortowane, z powtórzeniami.
+     */
+    readonly uncheckedSelects: readonly string[];
   };
 }
 
@@ -766,7 +773,9 @@ function postParentPageEmbed(exportsIndex: ExportIndex, known: ReadonlySet<strin
 // w przeglądarce, rozkład bez `map`, element bez nawiasu) czyni miejsce
 // nieczytelnym: znane kolumny dają fakty, a miejsce trafia do
 // `unresolvedSites` (zapadka). Funkcja nieznanego wołającego (oddana jako
-// wartość, wołana tylko z testów) faktów nie daje - jak dotąd.
+// wartość, wołana tylko z testów) faktów nie daje - jak dotąd; taki `select`,
+// podobnie jak każdy, którego reguła milczy, trafia do `uncheckedSelects`
+// (zapadka `UNCHECKED_SELECTS_REVIEWED`).
 
 /** Najwięcej skoków wywołań między `.select` a literałem kolumn. */
 export const COLUMN_FLOW_MAX_DEPTH = 4;
@@ -795,6 +804,12 @@ interface FlowEnv {
   readonly known: ReadonlySet<string>;
   /** Miejsca nieczytelne tej reguły (zbiór: jedno miejsce osiągalne z kilku `select`). */
   readonly unresolved: Set<string>;
+  /**
+   * Ile razy reguła zgłosiła miejsce nieczytelne (także już znane ze zbioru) -
+   * żeby `select` bez faktu, ale ze zgłoszonym miejscem, nie trafił do
+   * `uncheckedSelects`.
+   */
+  flagged: number;
   /** Plik -> importy nazwane z niego; budowane leniwie, raz na ekstrakcję. */
   importers: Map<string, FlowImport[]> | null;
 }
@@ -1113,6 +1128,12 @@ function flowArgumentValues(
   }));
 }
 
+/** Zgłoszenie miejsca nieczytelnego reguły przepływu (zbiór + licznik zgłoszeń). */
+function flowUnresolved(env: FlowEnv, site: string): void {
+  env.unresolved.add(site);
+  env.flagged += 1;
+}
+
 /** Wartości parametru `index` funkcji `fn` ze wszystkich widocznych wywołań. */
 function flowParamValues(
   fn: ts.SignatureDeclaration,
@@ -1124,7 +1145,8 @@ function flowParamValues(
 ): FlowValue[] {
   const site = `${scope.file}:${fn.getStart(scope.sf)}`;
   if (depth > COLUMN_FLOW_MAX_DEPTH) {
-    env.unresolved.add(
+    flowUnresolved(
+      env,
       `${site}: przepływ kolumn dłuższy niż ${COLUMN_FLOW_MAX_DEPTH} wywołania (parametr ${index + 1})`,
     );
     return [];
@@ -1143,7 +1165,8 @@ function flowParamValues(
         if (plainArg === undefined) continue;
         const embed = postParentPageEmbed(env.scopes, env.known);
         if (embed === null) {
-          env.unresolved.add(
+          flowUnresolved(
+            env,
             `${scope.file}: ${POST_PARENT_PAGE_READ.helper}(…): ${POST_PARENT_PAGE_READ.embedConstant} (${POST_PARENT_PAGE_READ.embedModule}) nieczytelne`,
           );
         }
@@ -1251,6 +1274,16 @@ interface Collector {
   tableChains: number;
   tableChainsWithUnknownTable: number;
   unresolved: string[];
+  uncheckedSelects: string[];
+}
+
+/**
+ * Opis `select` bez faktu i bez miejsca nieczytelnego: plik i tekst
+ * argumentu, BEZ numeru linii - lista przejrzana nie zmienia się od edycji
+ * w innym miejscu pliku.
+ */
+function uncheckedSelectSite(arg: ts.Expression, scope: FileScope): string {
+  return `${scope.file}: .select(${arg.getText(scope.sf).replace(/\s+/g, " ").slice(0, 80)})`;
 }
 
 function callMethod(node: ts.CallExpression): { name: string; receiver: ts.Expression } | null {
@@ -1454,6 +1487,7 @@ function handleFrom(
           site("select", [], true);
           continue;
         }
+        const flaggedBefore = flow.flagged;
         // Parametr funkcji oddanej `readPostsWithParentPage` PRZED rozwiązaniem
         // po nazwie: parametr przesłania stałą modułu o tej samej nazwie.
         const viaHelper = postParentPageSelects(arg, call, scope, exportsIndex, known, out);
@@ -1487,6 +1521,13 @@ function handleFrom(
           const parsed = parseSelectColumns(select);
           if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
         }
+        // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
+        // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
+        // Pomocnik bez napisu zawsze zgłasza miejsce, więc tu go nie ma.
+        const unchecked =
+          viaHelper === null &&
+          (flowed === null ? text === null : flowed.length === 0 && flow.flagged === flaggedBefore);
+        if (unchecked) out.uncheckedSelects.push(uncheckedSelectSite(arg, scope));
       } else if (op === "insert" || op === "update" || op === "upsert") {
         const objects = objectArgument(call.arguments[0], scope);
         let kind: TableOp = op;
@@ -1560,8 +1601,9 @@ export function extractSeamFacts(
     tableChains: 0,
     tableChainsWithUnknownTable: 0,
     unresolved: [],
+    uncheckedSelects: [],
   };
-  const flow: FlowEnv = { scopes, known, unresolved: new Set(), importers: null };
+  const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
   for (const scope of scopes.values()) visitFile(scope, exportsIndex, known, out, flow);
   out.unresolved.push(...flow.unresolved);
 
@@ -1578,6 +1620,7 @@ export function extractSeamFacts(
       tableChains: out.tableChains,
       tableChainsWithUnknownTable: out.tableChainsWithUnknownTable,
       unresolvedSites: [...out.unresolved].sort(),
+      uncheckedSelects: [...out.uncheckedSelects].sort(),
     },
   };
 }
@@ -1596,8 +1639,93 @@ export function extractSeamFacts(
  */
 export const MAX_UNRESOLVED_SITES = 13;
 
+const LOCAL_CONST =
+  "stała `const` WEWNĄTRZ funkcji z literałem kolumn - generator czyta stałe modułu i importów, nie funkcji";
+const ENTITY_COLS_PROPERTY =
+  "właściwość stałej obiektowej `ENTITY_SELECT_COLS` (wprost, przez stałą lokalną albo w szablonie `POST_RESOLVE_SELECT`) - generator czyta tylko stałe napisowe";
+const LANG_SUFFIX =
+  "kolumny zależne od języka czasu działania (`title_${t}`, `titleCol` z warunku) - dwa warianty, generator nie rozgałęzia";
+const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie rozgałęzia';
+
+/**
+ * Zapadka zasięgu `select`: odczyty na tabeli znanej z nazwy, które NIE dają
+ * faktu ani wpisu w `unresolvedSites` (`coverage.uncheckedSelects`) - kontrakt
+ * ich nie sprawdza, więc kolumna dopisana tam bez GRANT-u przechodzi CI.
+ * Klucz: plik i tekst argumentu (bez numeru linii), wartość: ile takich miejsc
+ * i dlaczego. Lista może TYLKO maleć: nowy taki `select` czerwieni
+ * `check:ts-sql-contract`. Naprawa: kolumny w literale albo w stałej modułu
+ * (`const X = "a, b"`, także szablon z innymi stałymi napisowymi); dopiero gdy
+ * się nie da - wpis tutaj, z powodem, w przeglądzie.
+ */
+export const UNCHECKED_SELECTS_REVIEWED: Readonly<
+  Record<string, readonly [count: number, reason: string]>
+> = {
+  "src/lib/billing/donations.server.ts: .select(columns)": [2, LOCAL_CONST],
+  'src/lib/billing/reconcile.server.ts: .select(ORDER_REF_COLUMNS.join(", "))': [
+    1,
+    '`ORDER_REF_COLUMNS.join(", ")` - napis składany z tablicy `as const`; generator nie składa tablic',
+  ],
+  'src/lib/billing/reconcile.server.ts: .select(SUBSCRIPTION_REF_COLUMNS.join(", "))': [
+    1,
+    '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej',
+  ],
+  "src/lib/crm.functions.ts: .select(cols)": [1, LOCAL_CONST],
+  "src/lib/experts/queries.ts: .select(EVENT_COLS)": [2, LOCAL_CONST],
+  "src/lib/experts/queries.ts: .select(PODCAST_COLS)": [1, LOCAL_CONST],
+  "src/lib/experts/queries.ts: .select(POST_COLS)": [2, LOCAL_CONST],
+  "src/lib/experts/queries.ts: .select(PROFILE_COLS)": [2, LOCAL_CONST],
+  "src/lib/mcp/tools/get-post.ts: .select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/list-recent-posts.ts: .select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/search-posts.ts: .select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  'src/lib/newsletter-campaigns.functions.ts: .select(data.segment ? "email, meta" : "email")': [
+    1,
+    TERNARY,
+  ],
+  'src/lib/newsletter-campaigns.functions.ts: .select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token,)':
+    [1, TERNARY],
+  "src/lib/notifications/preferencesQuery.ts: .select(NOTIFICATION_PREFERENCE_SELECT)": [
+    1,
+    '`NOTIFICATION_PREFERENCE_COLUMNS.join(", ")` (`preferences.ts`) - lista wyprowadzana z obiektu domyślnego w czasie działania',
+  ],
+  "src/lib/queries/public.ts: .select(ENTITY_SELECT_COLS.page)": [1, ENTITY_COLS_PROPERTY],
+  "src/lib/queries/public.ts: .select(POST_RESOLVE_SELECT)": [2, ENTITY_COLS_PROPERTY],
+  "src/lib/queries/public.ts: .select(cols)": [3, ENTITY_COLS_PROPERTY],
+};
+
+/**
+ * Rozjazd `coverage.uncheckedSelects` z listą przejrzaną: `fresh` - miejsca
+ * nowe albo liczniejsze niż w przeglądzie; `stale` - wpisy, których jest już
+ * mniej (naprawione - zdejmij z listy).
+ */
+export function uncheckedSelectDrift(
+  facts: SeamFacts,
+  reviewed: Readonly<Record<string, readonly [number, string]>> = UNCHECKED_SELECTS_REVIEWED,
+): { fresh: string[]; stale: string[] } {
+  const counts = new Map<string, number>();
+  for (const site of facts.coverage.uncheckedSelects) counts.set(site, (counts.get(site) ?? 0) + 1);
+  const fresh: string[] = [];
+  const stale: string[] = [];
+  for (const [site, count] of counts) {
+    const allowed = reviewed[site]?.[0] ?? 0;
+    if (count > allowed) fresh.push(`${site} (${count}, przejrzanych: ${allowed})`);
+  }
+  for (const [site, [allowed]] of Object.entries(reviewed)) {
+    const count = counts.get(site) ?? 0;
+    if (count < allowed) stale.push(`${site} (${count}, przejrzanych: ${allowed})`);
+  }
+  return { fresh: fresh.sort(), stale: stale.sort() };
+}
+
 /** Problemy zasięgu ekstrakcji - bez bazy, do bramki `check:ts-sql-contract`. */
-export function seamCoverageProblems(facts: SeamFacts): string[] {
+export function seamCoverageProblems(
+  facts: SeamFacts,
+  reviewedUnchecked: Readonly<
+    Record<string, readonly [number, string]>
+  > = UNCHECKED_SELECTS_REVIEWED,
+): string[] {
   const problems: string[] = [];
   for (const p of facts.publicColumns) {
     if (p.columns === null) {
@@ -1611,6 +1739,13 @@ export function seamCoverageProblems(facts: SeamFacts): string[] {
     problems.push(
       `${unresolved.length} wywołań z nazwą (albo kolumnami odczytu) nie do ustalenia statycznie (zapadka: ${MAX_UNRESOLVED_SITES}):\n` +
         unresolved.map((site) => `        ${site}`).join("\n"),
+    );
+  }
+  const { fresh } = uncheckedSelectDrift(facts, reviewedUnchecked);
+  if (fresh.length > 0) {
+    problems.push(
+      `${fresh.length} odczytów \`select\` bez faktu kontraktu i bez miejsca nieczytelnego - kolumn nikt nie sprawdza (zapadka UNCHECKED_SELECTS_REVIEWED; kolumny w literał albo stałą modułu):\n` +
+        fresh.map((site) => `        ${site}`).join("\n"),
     );
   }
   return problems;
