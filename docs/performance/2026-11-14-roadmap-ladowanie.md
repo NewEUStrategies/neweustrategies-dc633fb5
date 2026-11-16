@@ -418,15 +418,15 @@ najciaśniejsza: `check:document-weight` `renderBlockingCssGzipBytes` 83 394 /
 
 ### 9.1. Zwolnienie bajtów w JS klienta (pierwsze w kolejności)
 
-| #   | Pozycja                                                                                                                                                                                                                              | Zysk gzip                                                      | Ryzyko  | Decyzja właściciela |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------- | ------------------- |
-| J1  | Budowniczy nagłówków i polityk cache liczeni w przeglądarce jako argumenty pustych funkcji (`setCacheControlHeader`, `appendLinkHeader`; 75 wywołań w 49 chunkach tras) oraz `stripInaccessibleNodes` za bramką `typeof window`      | 1,5 KB całość, 0,8 KB chunk startowy (zmierzone)               | niskie  | nie                 |
-| J2  | Osierocone instrukcje: schematy zod używane tylko w `z.infer` lub tylko w walidatorze serwerowym (podcasty, menu, finanse, journeys, retencja), lista hostów CSP, `TextEncoder` w `tenantAssertion`, stałe polityk cache             | 2,8 KB całość, 0,7 KB chunk startowy (zmierzone)               | niskie  | nie                 |
-| J3  | D3: eksporty modułów mieszanych trzymane w `app-initial` tylko dla chunków panelu (`seo/robots`, `builder/experiments`, `seo/settings`, `builder/globalWidgets`, `dynamicText`, `liveTypography`, `customFonts`, `ads/types` i inne) | 0 całość; chunk startowy −6,7 KB (zmierzone), górna granica 27 | średnie | nie                 |
-| J4  | D4: rejestry ikon `import * as` w `lucide-shim`                                                                                                                                                                                      | ok. 0,9 KB całość, ok. 5,7 KB chunk startowy (szacunek)        | średnie | tak (W5)            |
-| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | WYKONANE (§9.6)     |
-| J6  | Wpisy słowników i18n bez żadnego odwołania w kodzie (ok. 2 800 wpisów PL+EN)                                                                                                                                                         | 20–37 KB całość (szacunek heurystyczny)                        | średnie | tak                 |
-| J7  | Dziesięć funkcji serwerowych bez importera produkcyjnego (używane tylko w testach)                                                                                                                                                   | ok. 0,4 KB; usuwa też żywe punkty RPC                          | średnie | tak                 |
+| #   | Pozycja                                                                                                                                                                                                                              | Zysk gzip                                                      | Ryzyko  | Decyzja właściciela                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------- | -------------------------------------- |
+| J1  | Budowniczy nagłówków i polityk cache liczeni w przeglądarce jako argumenty pustych funkcji (`setCacheControlHeader`, `appendLinkHeader`; 75 wywołań w 49 chunkach tras) oraz `stripInaccessibleNodes` za bramką `typeof window`      | 1,5 KB całość, 0,8 KB chunk startowy (zmierzone)               | niskie  | nie                                    |
+| J2  | Osierocone instrukcje: schematy zod używane tylko w `z.infer` lub tylko w walidatorze serwerowym (podcasty, menu, finanse, journeys, retencja), lista hostów CSP, `TextEncoder` w `tenantAssertion`, stałe polityk cache             | 2,8 KB całość, 0,7 KB chunk startowy (zmierzone)               | niskie  | nie                                    |
+| J3  | D3: eksporty modułów mieszanych trzymane w `app-initial` tylko dla chunków panelu (`seo/robots`, `builder/experiments`, `seo/settings`, `builder/globalWidgets`, `dynamicText`, `liveTypography`, `customFonts`, `ads/types` i inne) | 0 całość; chunk startowy −6,7 KB (zmierzone), górna granica 27 | średnie | nie; WYKONANE 16.11.2026 (§9.8)        |
+| J4  | D4: rejestry ikon `import * as` w `lucide-shim`                                                                                                                                                                                      | ok. 0,9 KB całość, ok. 5,7 KB chunk startowy (szacunek)        | średnie | tak (W5); WSTRZYMANE 16.11.2026 (§9.8) |
+| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | WYKONANE (§9.6)                        |
+| J6  | Wpisy słowników i18n bez żadnego odwołania w kodzie (ok. 2 800 wpisów PL+EN)                                                                                                                                                         | 20–37 KB całość (szacunek heurystyczny)                        | średnie | tak                                    |
+| J7  | Dziesięć funkcji serwerowych bez importera produkcyjnego (używane tylko w testach)                                                                                                                                                   | ok. 0,4 KB; usuwa też żywe punkty RPC                          | średnie | tak                                    |
 
 Odrzucone po pomiarze: usuwanie plików „nieużywanych" wg knip (nie trafiają do
 bundla), statyczne bramki `isSsrRequest` (130 B), opcje tras panelu w chunku
@@ -674,3 +674,65 @@ różnic na 7 479 elementach rzeczywistego markupu wykresów. Powody wstrzymania
 Powrót do S1 ma sens po W1: cache krawędziowy i 103 Early Hints dla arkusza
 zmniejszają znaczenie jego rozmiaru, a usterkę trzeba wtedy naprawić linkiem
 arkusza w renderowanej przez serwer części tych tras.
+
+### 9.8. Partia 3 (16.11.2026): J3 wykonane, D4 wstrzymane
+
+**J3 (D3): kod używany tylko przez panel poza chunkiem startowym.** Dwanaście
+modułów mieszanych rozdzielonych na część bootu i liść panelu (bez reeksportów,
+importerzy panelu i ich `vi.mock` wskazują liść): `globalWidgetsAdmin`,
+`experimentsAdmin`, `themedWrites`, `dynamicTagCatalog`, `ads/adminFields`,
+`customFontUpload`, `liveTypographyBroadcast`, `usePostLayoutSettingsAdmin`,
+`useFontScaleAdmin`, `cropSizesAdmin`, `impersonationStart`; polityka crawlerów
+AI przeniesiona z `seo/settings.ts` do `seo/robots.ts`, dzięki czemu cały
+builder robots.txt wyszedł z bootu. Kod przeniesiony bez zmian (sprawdzone
+porównaniem wielozbioru linii dla każdego podziału).
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`28c50810`) | Po                                                            |
+| ---------------------------------------- | ------------------ | ------------------------------------------------------------- |
+| Chunk startowy (`app-initial`)           | 258,5 KB           | 253,3 KB                                                      |
+| Domknięcie startu                        | 472,3 KB           | 467,1 KB                                                      |
+| JS publiczny                             | 2 780,8 KB         | 2 776,1 KB                                                    |
+| `overall`                                | 5 362,9 KB         | 5 364,5 KB (+1,6 KB: więcej małych chunków, gorsza kompresja) |
+
+Czytelnik pobiera o 5,2 KB gzip mniej na każdej stronie. Uboczne: z bootu
+wyszły też `tenant.ts` i `widgetCacheInvalidation.tsx` (WidgetLiveSync);
+dla najemców z aktywnymi popupami ścieżka `PopupHost` dociąga przez to dwa małe
+chunki (ok. 0,8 KB gzip, równolegle przez listę preloadu).
+
+Przegląd: 3 znaleziska niskiej wagi, wszystkie zamknięte. Nowy moduł polityki
+crawlerów zużywał ostatnie miejsce zapadki `platformCoreBoundary` (113 → 114
+przy suficie 114) - kod przeniesiony do `robots.ts`, krawędzi znów 113.
+Strażnik `bootAdminLeaves.gate.test.ts` sprawdza teraz oba kierunki: moduły bootu
+nie sięgają liści, a liście importuje wyłącznie panel, serwer i inne liście
+(sprawdzone mutacją). Raport uzupełniony o ścieżkę `PopupHost`.
+
+Pozostawione celowo (nagłówki modułów każą trzymać edytor i renderer razem
+albo zysk jest poniżej 0,3 KB): `authorDisplay.ts`, `content/sponsored.ts`,
+`animatedHeadingLinks.ts`, `socialBrand.ts`, `designTokens`, `useGlobalColors`.
+W `app-initial` zostało ok. 2,2 KB gzip kodu używanego tylko przez panel
+i ok. 10,7 KB kodu używanego tylko przez publiczne chunki leniwe (np.
+`newsletter/popupDesign`, `queries/podcasts`) - kandydat na kolejną partię.
+
+**D4: rejestry ikon - wstrzymane.** Gotowe na lokalnej gałęzi
+`p2/icon-registry` (domknięcie startu −4,6 KB gzip). Zysk dała dopiero kombinacja
+dwóch zmian: `lucide-shim` jako czyste reeksporty `lucide-react` oraz ikony
+spoza 12 najczęstszych nazw ładowane leniwie za granicą Suspense. Przegląd
+odtworzył dwie usterki wysokiej wagi: (1) przy renderze po stronie klienta
+(nawigacja SPA, kanwa buildera) ikona z „ogona" nie pojawia się w pierwszym
+zatwierdzeniu i dochodzi później z przesunięciem tekstu; (2) po hydratacji
+zmiana kontekstu nad oczekującą ikoną (np. sesja w `AuthProvider`) usuwa SVG
+z serwera albo wstrzymuje całą tranzycję do pobrania chunku, wbrew regule
+„HTML serwera równy stronie po hydratacji". Do tego strażnik kliknięć wysp
+hydratacji przetrzymuje kliknięcia w ikonę w linku lub przycisku. Bez leniwego
+ogona zysk spada do ok. 0,7 KB. Warunek powrotu: wiedza, jakie nazwy ikon
+zapisane są w treściach produkcyjnych (wtedy wszystkie trafiają do zestawu
+ładowanego od razu) albo preload ogona przed renderem stron, które go używają.
+
+Przy okazji D4 znalazło usterki zachowania, istniejące już dziś (do decyzji
+właściciela, bez zmian w tym PR): wybieraki ikon w schematach widgetów
+(`LucideIconPicker`) zapisują nazwy w formacie `kebab-case`, których rejestr nie
+rozpoznaje, więc nagłówek, przycisk, separator, newsletter i pasek gorących
+tematów zawsze pokazują ikonę zastępczą zamiast wybranej; „Bell" na liście paska
+alertów i domyślna „Flag" osi czasu nie są eksportami rejestru i również
+spadają do zastępczej; formaty wpisu „galeria" i „audio" nie mają ikony
+w liście z ocenami.
