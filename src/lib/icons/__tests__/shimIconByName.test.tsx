@@ -21,7 +21,7 @@ import { act } from "react";
 import * as ShimNamespace from "@/lib/lucide-shim";
 import pickerIconNames from "@/lib/icons/iconNames.generated.json";
 import { SHIM_ICON_NAMES } from "@/lib/icons/shimIconNames";
-import { SHIM_ICONS } from "@/lib/icons/shimIconLongTail";
+import { SHIM_ICONS } from "@/lib/icons/shimIconMap";
 import { shimIconByName } from "@/lib/icons/shimIconByName";
 
 const NAMESPACE = ShimNamespace as unknown as Record<string, ComponentType<object>>;
