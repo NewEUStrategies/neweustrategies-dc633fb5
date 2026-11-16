@@ -15,6 +15,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { postCanonicalHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 import { dockKeys } from "./keys";
 import { DOCK_GC_MS, DOCK_STALE_MS } from "./queryPolicy";
 
@@ -52,6 +54,8 @@ interface TitledRow {
   slug: string;
   title_pl: string | null;
   title_en: string | null;
+  /** Tylko wpisy: strona-rodzic z osadzenia w tym samym `select` (patrz niżej). */
+  parent_page?: PostParentPage | null;
 }
 
 /**
@@ -102,9 +106,21 @@ export function savedQueryOptions(userId: string | undefined) {
       // jednego okrążenia wymagałoby funkcji po stronie bazy (RPC) - to jest
       // osobna zmiana kontraktu SQL, nie zmiana w tym pliku. Dopóki jej nie
       // ma, koszt tej tury zdejmuje rozgrzewanie na najechanie kursorem.
+      //
+      // Wpisy czytają stronę-rodzica osadzeniem w TYM SAMYM odczycie, więc
+      // zapisany wpis linkuje adresem kanonicznym `/<rodzic>/<slug>` zamiast
+      // płaskiego `/<slug>`, który trasa `/$` rozwiązuje dopiero po chybionym
+      // `resolve_path` i fali odczytów zapasowych (`missingPathLookups.ts`),
+      // odpowiadając 301 (albo 404, gdy wpis nie ma rodzica). Rodzic
+      // zagnieżdżony albo niewidoczny zostawia dotychczasowy płaski adres - jak
+      // karta wyróżnionego wpisu mega-menu. Błąd odczytu z osadzeniem powtarza
+      // ten sam odczyt bez niego (`readPostsWithParentPage`).
       const [posts, pages, events] = await Promise.all([
         postIds.length
-          ? supabase.from("posts").select("id, slug, title_pl, title_en").in("id", postIds)
+          ? readPostsWithParentPage(
+              (columns: string) => supabase.from("posts").select(columns).in("id", postIds),
+              "id, slug, title_pl, title_en",
+            )
           : Promise.resolve({ data: [], error: null }),
         pageIds.length
           ? supabase.from("pages").select("id, slug, title_pl, title_en").in("id", pageIds)
@@ -131,7 +147,7 @@ export function savedQueryOptions(userId: string | undefined) {
           titlePl: meta.title_pl ?? "",
           titleEn: meta.title_en ?? "",
           slug: meta.slug,
-          href: `/${meta.slug}`,
+          href: (row.entity_type === "post" ? postCanonicalHref(meta) : null) ?? `/${meta.slug}`,
           savedAt: row.created_at,
         });
       }

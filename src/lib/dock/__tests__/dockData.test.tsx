@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
-import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
+import { fail, ok, supabaseFromStub, type RecordedChain } from "@/test/supabaseChain";
+import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { freezeClock } from "@/test/time";
 import {
   notesQueryOptions,
@@ -63,6 +65,8 @@ beforeEach(() => {
   auth.user = { id: "member" };
   db.reset();
   for (const table of tables) db.setResponse(table, ok(null));
+  // Okno wyłączenia osadzenia rodzica (odczyt zapisanych wpisów) żyje w module.
+  resetPostParentPageRead();
   qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -497,5 +501,109 @@ describe("saved content", () => {
     expect(entries.map((e) => savedEntryTitle(e, "en"))).toEqual(["Page", "event", "Wpis"]);
     for (const table of ["posts", "pages", "events"]) db.setResponse(table, ok(null));
     expect(await savedQueryOptions("member").queryFn()).toEqual([]);
+  });
+});
+
+// Zapisany wpis linkował płaskim `/<slug>`: trasa `/$` rozwiązuje go dopiero po
+// chybionym `resolve_path` i fali odczytów zapasowych, a potem odpowiada 301.
+// Strona-rodzic jedzie teraz osadzeniem w TYM SAMYM odczycie wpisów.
+describe("saved content: adres kanoniczny zapisanego wpisu", () => {
+  /** `select` wpisów Z osadzeniem strony-rodzica - dosłownie, znak po znaku. */
+  const SELECT_Z_RODZICEM =
+    "id, slug, title_pl, title_en, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+  /** Ten sam `select` bez osadzenia: odczyt zapasowy i literał sprzed zmiany. */
+  const SELECT_ZAPASOWY = "id, slug, title_pl, title_en";
+
+  /** Trzy wpisy: pod `/blog`, pod stroną zagnieżdżoną i pod rodzicem niewidocznym. */
+  const PARENTS = [
+    { slug: "blog", parent_id: null },
+    { slug: "energetyka", parent_id: "pg-analizy" },
+    null,
+  ];
+
+  function posts(withParentPage: boolean): Array<Record<string, unknown>> {
+    return PARENTS.map((parent, i) => ({
+      id: `p${i + 1}`,
+      slug: `wpis-${i + 1}`,
+      title_pl: `Wpis ${i + 1}`,
+      title_en: null,
+      ...(withParentPage ? { parent_page: parent } : {}),
+    }));
+  }
+
+  function selectOf(chain: RecordedChain | undefined): string {
+    return String(chain?.argsOf("select")?.[0]);
+  }
+
+  beforeEach(() => {
+    db.setResponse(
+      "user_bookmarks",
+      ok(
+        ["p1", "p2", "p3"].map((id, i) => ({
+          id: `b${i + 1}`,
+          entity_type: "post",
+          entity_id: id,
+          created_at: `2026-09-0${3 - i}`,
+        })),
+      ),
+    );
+    db.setResponse("posts", (chain) => ok(posts(selectOf(chain).includes("parent_page:"))));
+  });
+
+  it("literał z osadzeniem różni się od zapasowego wyłącznie osadzeniem rodzica", () => {
+    expect(SELECT_Z_RODZICEM).toBe(`${SELECT_ZAPASOWY}, ${POST_PARENT_PAGE_EMBED}`);
+  });
+
+  it("jeden odczyt wpisów z osadzeniem; rodzic najwyższego poziomu daje adres kanoniczny, zagnieżdżony i niewidoczny - dotychczasowy płaski", async () => {
+    const entries = await savedQueryOptions("member").queryFn();
+
+    expect(entries.map((e) => [e.id, e.href])).toEqual([
+      ["b1", "/blog/wpis-1"],
+      ["b2", "/wpis-2"],
+      ["b3", "/wpis-3"],
+    ]);
+    expect(db.chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(db.lastChain("posts"))).toBe(SELECT_Z_RODZICEM);
+    expect(db.lastChain("posts")?.argsOf("in")).toEqual(["id", ["p1", "p2", "p3"]]);
+    // Wpis w cache niesie gotowy adres, nie osadzenie.
+    expect(entries[0]).not.toHaveProperty("parent_page");
+  });
+
+  it("odczyt z osadzeniem zawodzi: te same wpisy z dotychczasowym płaskim adresem", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    db.setResponse("posts", (chain) =>
+      selectOf(chain).includes("parent_page:")
+        ? fail("permission denied for table pages", "42501")
+        : ok(posts(false)),
+    );
+
+    const entries = await savedQueryOptions("member").queryFn();
+
+    expect(entries.map((e) => e.href)).toEqual(["/wpis-1", "/wpis-2", "/wpis-3"]);
+    const [embedded, plain, ...rest] = db.chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(selectOf(embedded)).toBe(SELECT_Z_RODZICEM);
+    expect(selectOf(plain)).toBe(SELECT_ZAPASOWY);
+    expect(plain?.calls.slice(1)).toEqual(embedded?.calls.slice(1));
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("strona zapisana obok wpisu zostaje przy swoim adresie - osadzenie dotyczy tylko wpisów", async () => {
+    db.setResponse(
+      "user_bookmarks",
+      ok([
+        { id: "bp", entity_type: "post", entity_id: "p1", created_at: "2026-09-02" },
+        { id: "bq", entity_type: "page", entity_id: "q", created_at: "2026-09-01" },
+      ]),
+    );
+    db.setResponse("pages", ok([{ id: "q", slug: "o-nas", title_pl: "O nas", title_en: null }]));
+
+    const entries = await savedQueryOptions("member").queryFn();
+
+    expect(entries.map((e) => [e.id, e.href])).toEqual([
+      ["bp", "/blog/wpis-1"],
+      ["bq", "/o-nas"],
+    ]);
+    expect(selectOf(db.lastChain("pages"))).toBe("id, slug, title_pl, title_en");
   });
 });
