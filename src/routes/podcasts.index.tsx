@@ -16,12 +16,11 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { buildAvatarSrc } from "@/lib/cropSizes";
 import {
-  latestPodcastsQueryOptions,
   publishedShowsQueryOptions,
   showEpisodeStatsQueryOptions,
-  type PodcastListItem,
   type ShowEpisodeStat,
 } from "@/lib/queries/podcasts";
+import { latestPodcastsQueryOptions, type PodcastListItem } from "@/lib/queries/podcastsLatest";
 import {
   podcastTitle,
   podcastEpisodeLabel,

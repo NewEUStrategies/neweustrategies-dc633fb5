@@ -40,7 +40,7 @@ import {
   ratedListQueryOptions,
   ratedListUsesDynamicSource,
 } from "@/lib/builder/ratedListQuery";
-import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
+import { latestPodcastsQueryOptions } from "@/lib/queries/podcastsLatest";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { billingKeys } from "@/lib/billing/keys";
 

@@ -1,7 +1,7 @@
 // `podcast-latest` builder widget view - renders a grid of recent episodes.
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
+import { latestPodcastsQueryOptions } from "@/lib/queries/podcastsLatest";
 import { formatDuration, podcastEpisodeLabel, podcastTitle } from "@/lib/podcast/types";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";

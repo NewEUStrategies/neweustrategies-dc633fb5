@@ -8,6 +8,7 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 import * as client from "@/integrations/supabase/client";
 import * as q from "@/lib/queries/podcasts";
+import * as latest from "@/lib/queries/podcastsLatest";
 const db: SupabaseFromStub = Reflect.get(client, "db");
 let qc: QueryClient;
 beforeEach(() => {
@@ -19,7 +20,7 @@ const cases = [
   {
     name: "latest",
     table: "podcasts",
-    fetch: (c: QueryClient) => c.fetchQuery(q.latestPodcastsQueryOptions()),
+    fetch: (c: QueryClient) => c.fetchQuery(latest.latestPodcastsQueryOptions()),
     empty: [],
   },
   {
@@ -98,7 +99,7 @@ describe("public podcast read contracts", () => {
     "bounds latest/category reads for requested limit %s and excludes unpublished/deleted rows",
     async (limit) => {
       db.setResponse("podcasts", ok([{ id: "published" }]));
-      expect(await qc.fetchQuery(q.latestPodcastsQueryOptions(limit))).toEqual([
+      expect(await qc.fetchQuery(latest.latestPodcastsQueryOptions(limit))).toEqual([
         { id: "published" },
       ]);
       await qc.fetchQuery(q.podcastsByCategoryQueryOptions("cat", limit));
@@ -114,10 +115,10 @@ describe("public podcast read contracts", () => {
     // 42703 (`podcasts.explicit` never deployed), degrading /podcasts and the
     // `podcast-latest` widget. The list must not depend on columns it never renders.
     db.setResponse("podcasts", ok([]));
-    await qc.fetchQuery(q.latestPodcastsQueryOptions(30));
+    await qc.fetchQuery(latest.latestPodcastsQueryOptions(30));
     const [chain] = db.chainsFor("podcasts");
     const columns = String(chain.argsOf("select")?.[0]).split(",");
-    expect(columns).toEqual(q.PODCAST_LIST_FIELDS.split(","));
+    expect(columns).toEqual(latest.PODCAST_LIST_FIELDS.split(","));
     for (const column of [
       "explicit",
       "episode_type",

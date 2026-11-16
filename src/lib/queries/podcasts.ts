@@ -3,6 +3,10 @@
 // Sieć programów: programy (podcast_shows) -> sezony -> odcinki (podcasts),
 // uczestnicy odcinków (podcast_episode_people) + agregacje na profilu
 // eksperta i stronie specjalizacji (kategorii).
+//
+// Lista najnowszych odcinków (`latestPodcastsQueryOptions`, kolumny karty)
+// mieszka w `./podcastsLatest` - woła ją rejestr prefetchu widgetów z chunku
+// startowego, a ten moduł ładują tylko trasy podcastów, autora i taksonomii.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
@@ -12,53 +16,6 @@ export const PODCAST_FIELDS =
 
 export const PODCAST_SHOW_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_image_url,spotify_url,apple_url,youtube_url,sort_order,status,created_at,updated_at";
-
-/**
- * Kolumny KARTY odcinka na listach (katalog /podcasts, widżet CMS
- * `podcast-latest`) - dokładnie to, co karta renderuje. Bez transkrypcji,
- * notatek i jsonb (do 30 pełnych odcinków w dehydrowanym ładunku SSR) i bez
- * metadanych Apple (`explicit`, `episode_type`), których lista nie czyta.
- * Incydent 2026-10-09: pełne PODCAST_FIELDS kończyło się na produkcji 42703
- * („column podcasts.explicit does not exist", migracja 20260725090500 nigdy
- * nie poszła), więc katalog renderował wyłącznie komunikat awarii.
- */
-export const PODCAST_LIST_FIELDS =
-  "id,slug,title_pl,title_en,excerpt_pl,excerpt_en,audio_url,duration_seconds,episode_number,season,cover_image_url,published_at,show_id";
-
-export type PodcastListItem = Pick<
-  Podcast,
-  | "id"
-  | "slug"
-  | "title_pl"
-  | "title_en"
-  | "excerpt_pl"
-  | "excerpt_en"
-  | "audio_url"
-  | "duration_seconds"
-  | "episode_number"
-  | "season"
-  | "cover_image_url"
-  | "published_at"
-  | "show_id"
->;
-
-export const latestPodcastsQueryOptions = (limit = 8) =>
-  queryOptions({
-    queryKey: ["podcasts", "latest", limit] as const,
-    queryFn: async (): Promise<PodcastListItem[]> => {
-      const { data, error } = await supabase
-        .from("podcasts")
-        .select(PODCAST_LIST_FIELDS)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(Math.max(1, Math.min(limit, 50)));
-      if (error) throw error;
-      // Bez rzutowania: każda kolumna listy jest w wygenerowanych typach.
-      return data ?? [];
-    },
-    staleTime: 60_000,
-  });
 
 export const podcastBySlugQueryOptions = (slug: string) =>
   queryOptions({

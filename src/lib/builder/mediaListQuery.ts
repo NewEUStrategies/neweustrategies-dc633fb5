@@ -20,7 +20,7 @@
 // dokładnie ta klasa cichej awarii, którą ten moduł zamyka. Jedna funkcja na
 // jeden widget czyni rozjazd niewyrażalnym.
 import type { WidgetContent } from "@/lib/builder/types";
-import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
+import { latestPodcastsQueryOptions } from "@/lib/queries/podcastsLatest";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 
 /**
