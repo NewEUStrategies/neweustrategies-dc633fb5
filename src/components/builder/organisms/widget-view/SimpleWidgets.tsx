@@ -2,7 +2,8 @@
 // widget type isn't handled here - caller falls through to the main switch.
 import { useEffect, useRef, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
-import * as LucideIcons from "@/lib/lucide-shim";
+import { ArrowRight, FileText, Flame, MapPin, Quote, Star } from "@/lib/lucide-shim";
+import { shimIconByName } from "@/lib/icons/shimIconByName";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { safeUrl, safeImageUrl } from "@/lib/sanitizePure";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
@@ -474,11 +475,7 @@ export function renderSimpleWidget(
       }
       if (variant === "icon") {
         const iconName = getStr(c, "iconName") || "Star";
-        const reg = LucideIcons as Record<
-          string,
-          React.ComponentType<{ size?: number; color?: string }> | undefined
-        >;
-        const Icon = reg[iconName] ?? LucideIcons.Star;
+        const Icon = shimIconByName(iconName) ?? Star;
         const lineStyle: CSSProperties = {
           borderTopWidth: thickness,
           borderTopStyle: "solid",
@@ -1104,7 +1101,7 @@ export function renderSimpleWidget(
           title={q}
           className="rounded overflow-hidden"
           style={{ aspectRatio: ratio.replace("/", " / ") }}
-          placeholder={<LucideIcons.MapPin className="h-6 w-6" aria-hidden />}
+          placeholder={<MapPin className="h-6 w-6" aria-hidden />}
         />
       );
     }
@@ -1451,7 +1448,6 @@ export function renderSimpleWidget(
       return <AccordionWidget content={c} lang={lang} />;
     case "timeline": {
       const entries = objectEntries(c.entries);
-      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
       return (
         <div className="w-full">
@@ -1474,9 +1470,9 @@ export function renderSimpleWidget(
             const avatar = safeImageUrl(strOf(entry.avatar));
             const initials = (strOf(entry.initials) || "?").slice(0, 2).toUpperCase();
             const iconName = strOf(entry.iconName) || "FileText";
-            const IconCmp = Icons[iconName] || Icons.FileText;
+            const IconCmp = shimIconByName(iconName) ?? FileText;
             const titleIconName = strOf(entry.titleIconName);
-            const TitleIcon = titleIconName ? Icons[titleIconName] : undefined;
+            const TitleIcon = titleIconName ? shimIconByName(titleIconName) : undefined;
             const actorName = strOf(entry.actorName);
             const actorAvatar = safeImageUrl(strOf(entry.actorAvatar));
             const actorInitials = (strOf(entry.actorInitials) || "?").slice(0, 2).toUpperCase();
@@ -1498,7 +1494,7 @@ export function renderSimpleWidget(
                         decoding="async"
                         className="shrink-0 size-7 rounded-[6px] object-cover border border-border"
                       />
-                    ) : iconType === "lucide" && IconCmp ? (
+                    ) : iconType === "lucide" ? (
                       <span className="flex shrink-0 justify-center items-center size-7 bg-muted border border-border text-foreground rounded-[6px]">
                         <IconCmp className="size-4" />
                       </span>
@@ -1671,15 +1667,13 @@ export function renderSimpleWidget(
           className={`flex gap-0.5 text-brand ${variant === "centered" ? "justify-center" : ""}`}
         >
           {Array.from({ length: 5 }).map((_, i) => (
-            <LucideIcons.Star key={i} size={14} fill={i < rating ? "currentColor" : "none"} />
+            <Star key={i} size={14} fill={i < rating ? "currentColor" : "none"} />
           ))}
         </div>
       );
       return (
         <figure className={containerCls}>
-          {variant === "quote" && (
-            <LucideIcons.Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />
-          )}
+          {variant === "quote" && <Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />}
           {stars}
           <blockquote className="cms-post-excerpt italic">"{quote}"</blockquote>
           {(showAuthor || role) && (
@@ -1793,16 +1787,14 @@ export function renderSimpleWidget(
       // "#" robił z każdego paska fokusowalny odnośnik na górę strony.
       const href = safeUrl(getStr(c, "href"), "");
       const iconName = getStr(c, "iconName") || "Flame";
-      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
-      const Icon = Icons[iconName] || Icons.Flame;
-      const ArrowRight = Icons.ArrowRight;
+      const Icon = shimIconByName(iconName) ?? Flame;
       const inner = (
         <div className="flex items-center gap-4 text-sm">
           <span className="inline-flex items-center gap-2 bg-brand text-brand-foreground font-bold px-3 py-1 rounded text-xs uppercase tracking-wider shrink-0">
-            {Icon && <Icon className="w-3.5 h-3.5" />} {badge}
+            <Icon className="w-3.5 h-3.5" /> {badge}
           </span>
           <p className="truncate flex-1">{title}</p>
-          {ArrowRight && <ArrowRight className="w-4 h-4 text-brand shrink-0" />}
+          <ArrowRight className="w-4 h-4 text-brand shrink-0" />
         </div>
       );
       return (

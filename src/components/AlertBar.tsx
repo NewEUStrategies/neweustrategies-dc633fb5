@@ -11,7 +11,8 @@ import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import * as Icons from "@/lib/lucide-shim";
+import { Megaphone, X } from "@/lib/lucide-shim";
+import { shimIconByName } from "@/lib/icons/shimIconByName";
 import { AppLink } from "@/components/atoms/AppLink";
 
 type AlertStyle = "info" | "warning" | "success" | "brand";
@@ -109,8 +110,9 @@ export function AlertBar() {
     const requested = bar.icon ?? "auto";
     if (requested === "none") return null;
     const name = requested === "auto" ? AUTO_ICON[bar.style] : requested;
-    const map = Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
-    return map[name] ?? map.Megaphone ?? null;
+    // "Bell" z listy w panelu nie jest eksportem shimu, więc - jak dotąd -
+    // rysuje zastępnik (Megaphone).
+    return shimIconByName(name) ?? Megaphone;
   }, [bar.icon, bar.style]);
 
   if (!bar.enabled || !msg || dismissed) return null;
@@ -175,7 +177,7 @@ export function AlertBar() {
               aria-label={t("common.dismissAlertBar")}
               className="shrink-0 p-1 rounded hover:bg-black/10 transition"
             >
-              <Icons.X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
