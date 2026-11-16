@@ -599,7 +599,9 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
     });
     expect(cols).toEqual([]);
     expect(f.coverage.unresolvedSites).toEqual([]);
-    expect(f.coverage.uncheckedSelects).toEqual(["src/lib/q.ts: .select(`${cols}`)"]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      "src/lib/q.ts: rest: .from(posts).select(`${cols}`)",
+    ]);
   });
 
   it("nazwa funkcji przypisana na nowo (`F = inna`) - żadne wywołanie się nie liczy, także z importu", () => {
@@ -618,7 +620,9 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
     });
     expect(cols).toEqual([]);
     expect(f.coverage.unresolvedSites).toEqual([]);
-    expect(f.coverage.uncheckedSelects).toEqual(["src/lib/h.ts: .select(cols)"]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      "src/lib/h.ts: postsBy: .from(posts).select(cols)",
+    ]);
   });
 
   it("separator `join` znany dopiero w czasie działania albo z parametru - reguła milczy, `select` na liście niesprawdzonych", () => {
@@ -635,8 +639,8 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
     expect(cols).toEqual([]);
     expect(f.coverage.unresolvedSites).toEqual([]);
     expect(f.coverage.uncheckedSelects).toEqual([
-      'src/lib/q.ts: .select([cols, "slug"].join(pickSep()))',
-      'src/lib/q.ts: .select([cols, "slug"].join(sep))',
+      'src/lib/q.ts: paramSep: .from(posts).select([cols, "slug"].join(sep))',
+      'src/lib/q.ts: runtimeSep: .from(posts).select([cols, "slug"].join(pickSep()))',
     ]);
   });
 
@@ -772,10 +776,10 @@ describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", ()
     // Tabela z nazwą obliczoną jest już w `unresolvedSites` - nie dubluje się.
     expect(f.coverage.unresolvedSites).toEqual(["src/lib/q.ts: .from(name)"]);
     expect(f.coverage.uncheckedSelects).toEqual([
-      'src/lib/q.ts: .select(COLS_LIST.join(", "))',
-      "src/lib/q.ts: .select(ENTITY.post)",
-      "src/lib/q.ts: .select(LOCAL)",
-      'src/lib/q.ts: .select(flag ? "id" : "slug")',
+      'src/lib/q.ts: load: .from(posts).select(COLS_LIST.join(", "))',
+      "src/lib/q.ts: load: .from(posts).select(ENTITY.post)",
+      "src/lib/q.ts: load: .from(posts).select(LOCAL)",
+      'src/lib/q.ts: load: .from(posts).select(flag ? "id" : "slug")',
     ]);
   });
 
@@ -784,21 +788,91 @@ describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", ()
       "src/lib/q.ts": `${HEADER}
         export async function a() { const C = "id"; return supabase.from("posts").select(C); }
         export async function b() { const C = "slug"; return supabase.from("posts").select(C); }
+        export async function c() {
+          const C = "id";
+          await supabase.from("posts").select(C);
+          return supabase.from("posts").select(C);
+        }
       `,
     });
-    const site = "src/lib/q.ts: .select(C)";
-    expect(uncheckedSelectDrift(f, { [site]: [2, "powód"] })).toEqual({ fresh: [], stale: [] });
-    expect(seamCoverageProblems(f, { [site]: [2, "powód"] })).toEqual([]);
-    expect(uncheckedSelectDrift(f, { [site]: [1, "powód"] }).fresh).toEqual([
-      `${site} (2, przejrzanych: 1)`,
+    const [a, b, c] = ["a", "b", "c"].map((fn) => `src/lib/q.ts: ${fn}: .from(posts).select(C)`);
+    const all = { [a]: [1, "powód"], [b]: [1, "powód"], [c]: [2, "powód"] } as const;
+    expect(uncheckedSelectDrift(f, all)).toEqual({ fresh: [], stale: [] });
+    expect(seamCoverageProblems(f, all)).toEqual([]);
+    expect(uncheckedSelectDrift(f, { ...all, [c]: [1, "powód"] }).fresh).toEqual([
+      `${c} (2, przejrzanych: 1)`,
     ]);
-    expect(seamCoverageProblems(f, {})[0]).toContain(`${site} (2, przejrzanych: 0)`);
+    expect(seamCoverageProblems(f, {})[0]).toContain(`${a} (1, przejrzanych: 0)`);
     expect(
-      uncheckedSelectDrift(f, { [site]: [3, "powód"], "src/x.ts: .select(Y)": [1, "p"] }),
+      uncheckedSelectDrift(f, {
+        ...all,
+        [c]: [3, "powód"],
+        "src/x.ts: f: .from(t).select(Y)": [1, "p"],
+      }),
     ).toEqual({
       fresh: [],
-      stale: [`${site} (2, przejrzanych: 3)`, "src/x.ts: .select(Y) (0, przejrzanych: 1)"],
+      stale: [`${c} (2, przejrzanych: 3)`, "src/x.ts: f: .from(t).select(Y) (0, przejrzanych: 1)"],
     });
+  });
+
+  it("zamiana miejsc: naprawa w jednej funkcji i ten sam tekst w innej funkcji albo na innej tabeli - nowy klucz, czerwono", () => {
+    // Przegląd zna `a` na `posts`. Naprawione `a` + nowy `select(C)` w `b`
+    // (albo w `a`, ale na `pages`) dawniej dawały TEN SAM klucz `plik: .select(C)`
+    // i licznik się zgadzał - nowe, niesprawdzone miejsce przechodziło CI.
+    const reviewed = { "src/lib/q.ts: a: .from(posts).select(C)": [1, "powód"] } as const;
+    const before = facts({
+      "src/lib/q.ts": `${HEADER}
+        export async function a() { const C = "id"; return supabase.from("posts").select(C); }
+      `,
+    });
+    expect(seamCoverageProblems(before, reviewed)).toEqual([]);
+    const otherFunction = facts({
+      "src/lib/q.ts": `${HEADER}
+        export async function a() { return supabase.from("posts").select("id"); }
+        export async function b() { const C = "secret"; return supabase.from("posts").select(C); }
+      `,
+    });
+    expect(uncheckedSelectDrift(otherFunction, reviewed)).toEqual({
+      fresh: ["src/lib/q.ts: b: .from(posts).select(C) (1, przejrzanych: 0)"],
+      stale: ["src/lib/q.ts: a: .from(posts).select(C) (0, przejrzanych: 1)"],
+    });
+    expect(seamCoverageProblems(otherFunction, reviewed)).toHaveLength(1);
+    const otherTable = facts({
+      "src/lib/q.ts": `${HEADER}
+        export async function a() { const C = "id"; return supabase.from("pages").select(C); }
+      `,
+    });
+    expect(uncheckedSelectDrift(otherTable, reviewed).fresh).toEqual([
+      "src/lib/q.ts: a: .from(pages).select(C) (1, przejrzanych: 0)",
+    ]);
+    expect(seamCoverageProblems(otherTable, reviewed)).toHaveLength(1);
+  });
+
+  it("klucz: ścieżka nazwanych funkcji (także `const f = createServerFn().handler(async () => ...)`, metoda, właściwość); poza funkcją - `<moduł>`", () => {
+    const f = facts({
+      "src/lib/q.functions.ts": `${HEADER}
+        const TOP = supabase.from("posts").select(MOD_COLS);
+        export const getThing = createServerFn({ method: "GET" }).handler(async () => {
+          const C = "id";
+          const rows = await Promise.all([1].map(async () => supabase.from("posts").select(C)));
+          return rows;
+        });
+        export const api = {
+          load: async () => { const C = "id"; return supabase.from("posts").select(C); },
+          list() { const C = "id"; return supabase.from("posts").select(C); },
+        };
+        export function outer() {
+          return function inner() { const C = "id"; return supabase.from("posts").select(C); };
+        }
+      `,
+    });
+    expect(f.coverage.uncheckedSelects).toEqual([
+      "src/lib/q.functions.ts: <moduł>: .from(posts).select(MOD_COLS)",
+      "src/lib/q.functions.ts: getThing: .from(posts).select(C)",
+      "src/lib/q.functions.ts: list: .from(posts).select(C)",
+      "src/lib/q.functions.ts: load: .from(posts).select(C)",
+      "src/lib/q.functions.ts: outer.inner: .from(posts).select(C)",
+    ]);
   });
 });
 

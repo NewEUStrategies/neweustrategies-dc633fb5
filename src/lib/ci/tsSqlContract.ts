@@ -1299,12 +1299,69 @@ interface Collector {
 }
 
 /**
- * Opis `select` bez faktu i bez miejsca nieczytelnego: plik i tekst
- * argumentu, BEZ numeru linii - lista przejrzana nie zmienia się od edycji
- * w innym miejscu pliku.
+ * Nazwa funkcji do klucza listy przejrzanej: nazwa deklaracji, a funkcji
+ * anonimowej - wiązanie albo właściwość, do której trafia (także przez łańcuch
+ * wywołań: `export const f = createServerFn().handler(async () => ...)` - `f`).
+ * `null` - callback bez nazwy (`xs.map(...)` w wyrażeniu), pomijany w ścieżce.
  */
-function uncheckedSelectSite(arg: ts.Expression, scope: FileScope): string {
-  return `${scope.file}: .select(${arg.getText(scope.sf).replace(/\s+/g, " ").slice(0, 80)})`;
+function functionName(fn: ts.SignatureDeclaration): string | null {
+  if (
+    (ts.isFunctionDeclaration(fn) ||
+      ts.isFunctionExpression(fn) ||
+      ts.isMethodDeclaration(fn) ||
+      ts.isGetAccessorDeclaration(fn) ||
+      ts.isSetAccessorDeclaration(fn)) &&
+    fn.name !== undefined
+  ) {
+    return propName(fn.name as ts.PropertyName) ?? fn.name.getText();
+  }
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return null;
+  let current: ts.Node = outermostWrapper(fn);
+  for (;;) {
+    const parent: ts.Node = current.parent;
+    if (
+      (ts.isCallExpression(parent) &&
+        (parent.expression === current || parent.arguments.some((a) => a === current))) ||
+      (ts.isPropertyAccessExpression(parent) && parent.expression === current)
+    ) {
+      current = outermostWrapper(parent as ts.Expression);
+      continue;
+    }
+    if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+    if (ts.isPropertyAssignment(parent) || ts.isPropertyDeclaration(parent)) {
+      return propName(parent.name);
+    }
+    return null;
+  }
+}
+
+/** Ścieżka nazwanych funkcji nad węzłem (`zewn.wewn`); `<moduł>` - poza funkcją. */
+function enclosingFunctionPath(node: ts.Node): string {
+  const names: string[] = [];
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current)) {
+      const name = functionName(current);
+      if (name !== null) names.push(name);
+    }
+  }
+  return names.length === 0 ? "<moduł>" : names.reverse().join(".");
+}
+
+/**
+ * Klucz `select` bez faktu i bez miejsca nieczytelnego: plik, ścieżka
+ * funkcji, tabela i tekst argumentu - BEZ numeru linii, więc lista przejrzana
+ * nie zmienia się od edycji w innym miejscu pliku. Funkcja i tabela są
+ * w kluczu, żeby naprawa jednego miejsca i dopisanie TEGO SAMEGO tekstu
+ * w innej funkcji albo na innej tabeli nie wymieniły się po cichu.
+ */
+function uncheckedSelectSite(
+  call: ts.CallExpression,
+  table: string | null,
+  scope: FileScope,
+): string {
+  const arg = call.arguments[0];
+  const text = arg === undefined ? "" : arg.getText(scope.sf).replace(/\s+/g, " ").slice(0, 80);
+  return `${scope.file}: ${enclosingFunctionPath(call)}: .from(${table ?? "?"}).select(${text})`;
 }
 
 function callMethod(node: ts.CallExpression): { name: string; receiver: ts.Expression } | null {
@@ -1548,7 +1605,7 @@ function handleFrom(
         const unchecked =
           viaHelper === null &&
           (flowed === null ? text === null : flowed.length === 0 && flow.flagged === flaggedBefore);
-        if (unchecked) out.uncheckedSelects.push(uncheckedSelectSite(arg, scope));
+        if (unchecked) out.uncheckedSelects.push(uncheckedSelectSite(call, table, scope));
       } else if (op === "insert" || op === "update" || op === "upsert") {
         const objects = objectArgument(call.arguments[0], scope);
         let kind: TableOp = op;
@@ -1735,49 +1792,69 @@ const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie
 /**
  * Zapadka zasięgu `select`: odczyty na tabeli znanej z nazwy, które NIE dają
  * faktu ani wpisu w `unresolvedSites` (`coverage.uncheckedSelects`) - kontrakt
- * ich nie sprawdza, więc kolumna dopisana tam bez GRANT-u przechodzi CI.
- * Klucz: plik i tekst argumentu (bez numeru linii), wartość: ile takich miejsc
- * i dlaczego. Lista może TYLKO maleć: nowy taki `select` czerwieni
- * `check:ts-sql-contract`. Naprawa: kolumny w literale albo w stałej modułu
- * (`const X = "a, b"`, także szablon z innymi stałymi napisowymi); dopiero gdy
- * się nie da - wpis tutaj, z powodem, w przeglądzie.
+ * go nie sprawdza, więc kolumna dopisana tam bez GRANT-u przechodzi CI.
+ * Klucz: plik, ścieżka funkcji, tabela i tekst argumentu (bez numeru linii) -
+ * naprawa w jednej funkcji i ten sam tekst w innej (albo na innej tabeli) to
+ * nowy klucz, nie zamiana. Wartość: ile takich miejsc i dlaczego. Lista może
+ * TYLKO maleć: nowy taki `select` czerwieni `check:ts-sql-contract`. Naprawa:
+ * kolumny w literale albo w stałej modułu (`const X = "a, b"`, także szablon
+ * z innymi stałymi napisowymi); dopiero gdy się nie da - wpis tutaj, z powodem,
+ * w przeglądzie.
  */
 export const UNCHECKED_SELECTS_REVIEWED: Readonly<
   Record<string, readonly [count: number, reason: string]>
 > = {
-  "src/lib/billing/donations.server.ts: .select(columns)": [2, LOCAL_CONST],
-  'src/lib/billing/reconcile.server.ts: .select(ORDER_REF_COLUMNS.join(", "))': [
-    1,
-    '`ORDER_REF_COLUMNS.join(", ")` - napis składany z tablicy `as const`; generator nie składa tablic',
+  "src/lib/billing/donations.server.ts: findDonationAnchor: .from(donations).select(columns)": [
+    2,
+    LOCAL_CONST,
   ],
-  'src/lib/billing/reconcile.server.ts: .select(SUBSCRIPTION_REF_COLUMNS.join(", "))': [
-    1,
-    '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej',
+  'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(payment_orders).select(ORDER_REF_COLUMNS.join(", "))':
+    [
+      1,
+      '`ORDER_REF_COLUMNS.join(", ")` - napis składany z tablicy `as const`; generator nie składa tablic',
+    ],
+  'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(subscriptions).select(SUBSCRIPTION_REF_COLUMNS.join(", "))':
+    [1, '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej'],
+  "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)": [1, LOCAL_CONST],
+  "src/lib/experts/queries.ts: fetchExpertHubLegacy: .from(profiles_public).select(PROFILE_COLS)": [
+    2,
+    LOCAL_CONST,
   ],
-  "src/lib/crm.functions.ts: .select(cols)": [1, LOCAL_CONST],
-  "src/lib/experts/queries.ts: .select(EVENT_COLS)": [2, LOCAL_CONST],
-  "src/lib/experts/queries.ts: .select(PODCAST_COLS)": [1, LOCAL_CONST],
-  "src/lib/experts/queries.ts: .select(POST_COLS)": [2, LOCAL_CONST],
-  "src/lib/experts/queries.ts: .select(PROFILE_COLS)": [2, LOCAL_CONST],
-  "src/lib/mcp/tools/get-post.ts: .select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)":
-    [1, LANG_SUFFIX],
-  "src/lib/mcp/tools/list-recent-posts.ts: .select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)":
-    [1, LANG_SUFFIX],
-  "src/lib/mcp/tools/search-posts.ts: .select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)":
-    [1, LANG_SUFFIX],
-  'src/lib/newsletter-campaigns.functions.ts: .select(data.segment ? "email, meta" : "email")': [
+  "src/lib/experts/queries.ts: fetchMaterials: .from(events).select(EVENT_COLS)": [2, LOCAL_CONST],
+  "src/lib/experts/queries.ts: fetchMaterials: .from(podcasts).select(PODCAST_COLS)": [
     1,
-    TERNARY,
+    LOCAL_CONST,
   ],
-  'src/lib/newsletter-campaigns.functions.ts: .select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token,)':
+  "src/lib/experts/queries.ts: fetchMaterials: .from(posts).select(POST_COLS)": [2, LOCAL_CONST],
+  "src/lib/mcp/tools/get-post.ts: handler: .from(posts).select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/list-recent-posts.ts: handler: .from(posts).select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/search-posts.ts: handler: .from(posts).select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  'src/lib/newsletter-campaigns.functions.ts: countCampaignAudience: .from(newsletter_subscribers).select(data.segment ? "email, meta" : "email")':
     [1, TERNARY],
-  "src/lib/notifications/preferencesQuery.ts: .select(NOTIFICATION_PREFERENCE_SELECT)": [
-    1,
-    '`NOTIFICATION_PREFERENCE_COLUMNS.join(", ")` (`preferences.ts`) - lista wyprowadzana z obiektu domyślnego w czasie działania',
+  'src/lib/newsletter-campaigns.functions.ts: runCampaignSend: .from(newsletter_subscribers).select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token,)':
+    [1, TERNARY],
+  "src/lib/notifications/preferencesQuery.ts: useNotificationPreferences.queryFn: .from(notification_preferences).select(NOTIFICATION_PREFERENCE_SELECT)":
+    [
+      1,
+      '`NOTIFICATION_PREFERENCE_COLUMNS.join(", ")` (`preferences.ts`) - lista wyprowadzana z obiektu domyślnego w czasie działania',
+    ],
+  "src/lib/queries/public.ts: homePageQueryOptions.queryFn: .from(pages).select(cols)": [
+    3,
+    ENTITY_COLS_PROPERTY,
   ],
-  "src/lib/queries/public.ts: .select(ENTITY_SELECT_COLS.page)": [1, ENTITY_COLS_PROPERTY],
-  "src/lib/queries/public.ts: .select(POST_RESOLVE_SELECT)": [2, ENTITY_COLS_PROPERTY],
-  "src/lib/queries/public.ts: .select(cols)": [3, ENTITY_COLS_PROPERTY],
+  "src/lib/queries/public.ts: postRowById: .from(posts).select(POST_RESOLVE_SELECT)": [
+    1,
+    ENTITY_COLS_PROPERTY,
+  ],
+  "src/lib/queries/public.ts: resolveContentForSegments: .from(pages).select(ENTITY_SELECT_COLS.page)":
+    [1, ENTITY_COLS_PROPERTY],
+  "src/lib/queries/public.ts: speculativePostRows: .from(posts).select(POST_RESOLVE_SELECT)": [
+    1,
+    ENTITY_COLS_PROPERTY,
+  ],
 };
 
 /**
