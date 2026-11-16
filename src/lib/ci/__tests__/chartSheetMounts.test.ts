@@ -50,6 +50,14 @@ const SHEET_PARTS = [...read(CHART_SHEET).matchAll(/@import\s+["']([^"']+)["']/g
   rel(join(ROOT, "src/components/charts", m[1])),
 );
 
+/**
+ * Ostatnia część arkusza: kopie reguł arkusza głównego i panelu zawężone do elementów wykresu
+ * (parytet kaskady - wygrywały remis kolejnością). Ich selektory to klasy treści i panelu,
+ * nie klasy rodziny, więc nie wchodzą do zbioru klas rodziny.
+ */
+const PARITY_PART = "src/components/charts/chart-cascade-parity.css";
+const FAMILY_PARTS = SHEET_PARTS.filter((part) => part !== PARITY_PART);
+
 /** Klasy-przodkowie z arkusza głównego, które reguły wykresów jedynie zawężają (`.dark .neh-chart`). */
 const CONTEXT_CLASSES = new Set(["dark", "light"]);
 
@@ -63,7 +71,7 @@ const selectorClasses = (css: string): Set<string> => {
 };
 
 /** Klasy rodziny: każda klasa z selektorów arkusza wykresów poza klasami kontekstu motywu. */
-const FAMILY_CLASSES = [...new Set(SHEET_PARTS.flatMap((p) => [...selectorClasses(read(p))]))]
+const FAMILY_CLASSES = [...new Set(FAMILY_PARTS.flatMap((p) => [...selectorClasses(read(p))]))]
   .filter((name) => !CONTEXT_CLASSES.has(name))
   .sort();
 
@@ -305,14 +313,49 @@ function uncoveredChain(
 }
 
 describe("arkusz wykresów: granica z arkuszem głównym", () => {
-  it("składa się z reguł silnika, mapy, tokenów i features - w tej kolejności", () => {
+  it("składa się z reguł silnika, mapy, tokenów, features i parytetu - w tej kolejności", () => {
     expect(SHEET_PARTS).toEqual([
       "src/components/charts/charts.css",
       "src/components/charts/map.css",
       "src/components/charts/chart-tokens.css",
       "src/components/features/features.css",
+      PARITY_PART,
     ]);
     for (const part of SHEET_PARTS) expect(existsSync(join(ROOT, part)), part).toBe(true);
+  });
+
+  it("parytet kaskady kopiuje istniejące reguły źródła 1:1, zawężone do reguł wykresu", () => {
+    // Kopia, której oryginał zmienił wartość albo zniknął, przywracałaby stan sprzed zmiany
+    // tylko na stronach z wykresem - czyli rozjazd zamiast parytetu.
+    const sources = ["src/styles.css", "src/admin-styles.css"].map((path) =>
+      parseCssRules(read(path)),
+    );
+    const chartSelectors = new Set(
+      FAMILY_PARTS.flatMap((part) => parseCssRules(read(part)).flatMap((r) => r.selectors)),
+    );
+    const parity = parseCssRules(read(PARITY_PART));
+    expect(parity.length).toBeGreaterThan(0);
+    for (const rule of parity) {
+      for (const selector of rule.selectors) {
+        const cut = selector.lastIndexOf(":where(");
+        expect(cut, selector).toBeGreaterThan(0);
+        const base = selector.slice(0, cut);
+        const scope = selector.slice(cut + ":where(".length, -1);
+        for (const target of scope.split(/,\s*/)) expect(chartSelectors, target).toContain(target);
+        const original = sources
+          .flat()
+          .filter(
+            (r) => r.context.join("|") === rule.context.join("|") && r.selectors.includes(base),
+          );
+        expect(original.length, `${rule.context.join(" ")} ${base}`).toBeGreaterThan(0);
+        for (const [name, value] of rule.declarations) {
+          expect(
+            original.some((r) => r.declarations.get(name) === value),
+            `${base} { ${name}: ${value} }`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it("nie ma `@layer` (stoi za arkuszem głównym - warstwa przestawiłaby kolejność warstw)", () => {

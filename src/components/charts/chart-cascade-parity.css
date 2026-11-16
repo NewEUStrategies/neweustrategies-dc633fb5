@@ -1,0 +1,74 @@
+/* ============================================================
+   PARYTET KASKADY: reguły arkusza głównego i panelu, które wygrywały
+   z regułami wykresów KOLEJNOŚCIĄ.
+
+   Do wydzielenia arkusza wykresów reguły silnika stały na samym POCZĄTKU
+   arkusza głównego (import tuż po Tailwindzie), więc każda późniejsza
+   niewarstwowa reguła o tej samej specyficzności wygrywała z nimi remis -
+   tak samo arkusz panelu, wczytywany za głównym. Arkusz wykresów stoi teraz
+   ZA arkuszem głównym (grupa `precedence="default"`), a w panelu przed albo
+   za arkuszem panelu, zależnie od tego, który wczytał się pierwszy. Remis
+   rozstrzygałby się więc odwrotnie.
+
+   Poniżej stoją dokładnie te deklaracje, które przed wydzieleniem wygrywały
+   remis na elemencie wykresu: ten sam selektor co w arkuszu głównym albo
+   panelu, zawężony przez `:where(...)` do elementu, na którym remisuje
+   z regułą wykresu (`:where` nie dokłada specyficzności), te same wartości.
+   Plik jest OSTATNIĄ częścią arkusza wykresów, więc wygrywa remis z regułą
+   wykresu, a z resztą reguł strony jest w tej samej relacji co oryginał.
+
+   Lista pochodzi z pomiaru zbudowanych arkuszy (selektor po selektorze:
+   ta sama specyficzność, ta sama ważność, wspólna własność, element, na
+   którym pasują oba) i z porównania stylów obliczonych w Chromium. Bramka
+   src/lib/ci/__tests__/chartSheetMounts.test.ts pilnuje, że każdy selektor
+   przed `:where(` istnieje w arkuszu źródłowym z tymi samymi wartościami -
+   zmiana oryginału bez zmiany kopii zapala test.
+
+   Pominięte świadomie (remis w selektorach, ale nie na stronie): przodkowie,
+   pod którymi wykres się nie renderuje (`.lang-switch`, `.cf-shell`,
+   `.pcx-card`, `[data-footnote-tooltip]`, `.profile-shell`,
+   `.cv-print-sheet`, `.cms-elementor-richtext`, `.mpp-svg-play`), dzieci
+   bezpośrednie `.cms-mobile-hscroll` i `.space-y-*` (elementy wykresu są
+   w nich zawsze głębiej), pseudoelementy (`:before`, `:after`) oraz
+   reguły, w których obie strony mają tę samą wartość (`.neh-plot-stack`
+   z `min-width: 0`, `overflow-wrap: anywhere` dymka).
+   ============================================================ */
+
+/* src/styles.css - siatka bezpieczeństwa treści wpisu na telefonie. */
+@media (max-width: 767px) {
+  .blocks-content *:where(.neh-tooltip, .neh-btn, .neh-map-legend-scale),
+  .single-post-content *:where(.neh-tooltip, .neh-btn, .neh-map-legend-scale),
+  .post-content *:where(.neh-tooltip, .neh-btn, .neh-map-legend-scale) {
+    min-width: 0;
+  }
+  .blocks-content *:where(.neh-tooltip),
+  .single-post-content *:where(.neh-tooltip),
+  .post-content *:where(.neh-tooltip) {
+    max-width: 100%;
+  }
+  :is(.blocks-content, .single-post-content, .post-content) :is(ul, ol):where(.neh-dialog ul) {
+    padding-inline-start: 1.25rem;
+  }
+}
+
+/* src/styles.css - siatka bezpieczeństwa strony buildera. */
+[data-builder-renderer] *:where(.neh-tooltip, .neh-btn, .neh-map-legend-scale) {
+  min-width: 0;
+}
+
+/* src/styles.css - nagłówki h3 treści CMS i buildera. */
+:is(.cms-post-content, [data-builder-renderer], [data-cms-content]) h3:where(.neh-dialog h3) {
+  font-size: var(--fs-h3, 1.625rem);
+  letter-spacing: var(--ls-h3, 0);
+  font-weight: var(--fw-h3, 700);
+  text-transform: var(--tt-h3, none);
+}
+
+/* src/admin-styles.css - zagęszczona typografia panelu. */
+.cms-builder-compact :is(h1, h2, h3, h4):where(.neh-dialog h3) {
+  font-size: 11.5px;
+}
+.admin-compact h3:where(.neh-dialog h3) {
+  font-size: 14px;
+  font-weight: 600;
+}

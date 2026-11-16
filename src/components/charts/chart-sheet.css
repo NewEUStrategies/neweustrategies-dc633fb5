@@ -18,15 +18,17 @@
    z boku (`import "./chart-sheet.css"`) w module domknięcia startu -
    build odrzuca CSS w manifeście korzenia (scripts/lib/bootAfterLcpPlugin.ts).
 
-   KOLEJNOŚĆ W KASKADZIE. React układa arkusze z `precedence` w grupy;
-   grupa "default" zaczyna się od arkusza głównego (TanStack nadaje
-   `precedence="default"` linkom `rel=stylesheet` z `head()`), więc ten
-   arkusz stoi ZA arkuszem głównym (i za arkuszem panelu, jeśli ten
-   wczytał się pierwszy). Wcześniej reguły wykresów stały na POCZĄTKU
-   arkusza głównego. Zamiana jest bezpieczna, bo żadna niewarstwowa
-   reguła arkusza głównego ani panelu nie remisuje z regułami tego pliku
-   (ta sama specyficzność, ta sama własność, ten sam element) - pomiar
-   w opisie commita, który wprowadził ten plik.
+   KOLEJNOŚĆ W KASKADZIE. React układa arkusze z `precedence` w grupy
+   w kolejności pierwszego wystąpienia; grupa "default" zaczyna się od
+   arkusza głównego (TanStack nadaje `precedence="default"` linkom
+   `rel=stylesheet` z `head()`), więc ten arkusz stoi ZA arkuszem głównym,
+   a przed grupami arkuszy widgetów (`builder`, `nes-widgets`) - tak na
+   serwerze (preambuła i `$RR` granicy strumienia), jak i w kliencie.
+   W panelu stoi przed albo za arkuszem panelu, zależnie od tego, który
+   wczytał się pierwszy. Wcześniej reguły wykresów stały na POCZĄTKU
+   arkusza głównego, więc każda późniejsza niewarstwowa reguła tej samej
+   specyficzności wygrywała z nimi remis. Te remisy, które występują na
+   elementach wykresu, odtwarza ostatnia część: chart-cascade-parity.css.
 
    BEZ `@layer`. Ten plik musi zostać niewarstwowy: deklaracja warstwy
    w arkuszu wczytanym przed innym przestawiłaby kolejność warstw całej
@@ -37,3 +39,4 @@
 @import "./map.css";
 @import "./chart-tokens.css";
 @import "../features/features.css";
+@import "./chart-cascade-parity.css";
