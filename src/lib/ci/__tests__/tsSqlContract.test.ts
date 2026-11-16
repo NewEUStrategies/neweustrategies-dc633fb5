@@ -1708,6 +1708,27 @@ describe("stan repozytorium", () => {
       "src/lib/crm-funnel.functions.ts: crm_funnel_stats: authenticated",
       "src/lib/crm-tasks.functions.ts: crm_import_leads: authenticated",
     ]);
+    // Każde RPC karty i scoringu leada jest faktem z rolą klienta. Do listopada
+    // 2026 pięć z nich szło przez lokalne `rpcOf(context)` (`const rpc = ...;
+    // rpc("nazwa")`) - kontrakt ich nie widział (ani istnienia, ani EXECUTE,
+    // ani nazw argumentów). Dziś `looseClient(context).rpc(...)`.
+    expect(
+      repo.rpcs
+        .filter((r) => r.file === "src/lib/crm.functions.ts")
+        .map((r) => `${r.name}: ${r.role}: ${(r.keys ?? ["?"]).join(",")}`)
+        .sort(),
+    ).toEqual([
+      "admin_crm_set_lifecycle_stage: authenticated: p_lead_id,p_stage",
+      "admin_journey_lead_enrollments: authenticated: p_lead_id",
+      "crm_enqueue_lead_push: authenticated: p_endpoint_id,p_lead_id",
+      "crm_leads_marketing_consent_withdraw: authenticated: p_lead_ids",
+      "has_role: authenticated: _role,_user_id",
+      "has_role: authenticated: _role,_user_id",
+      "has_role: authenticated: _role,_user_id",
+      "is_super_admin: authenticated: ",
+      "recompute_crm_lead_score: authenticated: p_lead_id",
+      "recompute_crm_lead_scores: authenticated: p_after_id,p_limit",
+    ]);
     const crm = (file: string) => /^src\/lib\/crm[-.]/.test(file);
     expect(repo.rpcs.filter((r) => crm(r.file) && r.role === "unknown")).toEqual([]);
     expect(repo.tables.filter((t) => crm(t.file) && t.role === "unknown")).toEqual([]);

@@ -680,8 +680,7 @@ export const pushLeadToPartners = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => PushInput.parse(d))
   .handler(async ({ data, context }): Promise<PushLeadResult> => {
-    const rpc = rpcOf(context);
-    const { data: enqueued, error } = await rpc("crm_enqueue_lead_push", {
+    const { data: enqueued, error } = await looseClient(context).rpc("crm_enqueue_lead_push", {
       p_lead_id: data.lead_id,
       p_endpoint_id: data.endpoint_id ?? null,
     });
@@ -908,16 +907,6 @@ const ScoringSettingsInput = z
     message: "thresholds_must_descend",
   });
 
-type RpcFn = (
-  name: string,
-  args?: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
-
-const rpcOf = (context: unknown): RpcFn =>
-  (context as { supabase: { rpc: RpcFn } }).supabase.rpc.bind(
-    (context as { supabase: { rpc: RpcFn } }).supabase,
-  );
-
 // Scoring to konfiguracja/akcje sztabowe - wymuszamy requireCrmStaff (rola +
 // step-up MFA) obok backstopu w RPC/RLS (dwie niezależne warstwy, doktryna repo).
 export const getCrmScoringSettings = createServerFn({ method: "GET" })
@@ -936,9 +925,9 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
   .validator((d) => ScoringSettingsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const rpc = rpcOf(context);
-    const { data: isAdmin } = await rpc("has_role", { _user_id: userId, _role: "admin" });
-    const { data: isSuper } = await rpc("is_super_admin");
+    const client = looseClient(context);
+    const { data: isAdmin } = await client.rpc("has_role", { _user_id: userId, _role: "admin" });
+    const { data: isSuper } = await client.rpc("is_super_admin");
     if (!isAdmin && !isSuper) throw new Error("Forbidden");
     const { data: tenantRow } = await looseTable(context, "profiles")
       .select("tenant_id")
@@ -978,8 +967,7 @@ export const recomputeLeadScore = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const rpc = rpcOf(context);
-    const { data: result, error } = await rpc("recompute_crm_lead_score", {
+    const { data: result, error } = await looseClient(context).rpc("recompute_crm_lead_score", {
       p_lead_id: data.id,
     });
     if (error) throw new Error(error.message);
@@ -1000,8 +988,7 @@ export const recomputeAllLeadScores = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ processed: number; lastId: string | null; done: boolean }> => {
-      const rpc = rpcOf(context);
-      const { data: result, error } = await rpc("recompute_crm_lead_scores", {
+      const { data: result, error } = await looseClient(context).rpc("recompute_crm_lead_scores", {
         p_limit: data.limit,
         p_after_id: data.after_id ?? null,
       });
