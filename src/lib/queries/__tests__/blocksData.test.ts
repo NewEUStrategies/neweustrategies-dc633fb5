@@ -1447,6 +1447,28 @@ describe("calendarBlockQueryOptions", () => {
     expect(wynik).toEqual([{ slug: "z-data", published_at: "2026-06-15T09:00:00.000Z" }]);
   });
 
+  it("do cache'u trafia najwyżej jeden wiersz na dzień: pierwszy wpis doby warszawskiej, w całości", async () => {
+    // Wszystko, co oddaje `queryFn`, jedzie w stanie odwodnionym w HTML, a
+    // siatka linkuje dzień wyłącznie pierwszym wpisem doby. Wiersze w kolejności
+    // zapytania (rosnąco). 22:30Z 15 czerwca to 00:30 16 czerwca w Warszawie:
+    // doba liczona w UTC dałaby dniowi 15 trzy wpisy, a dniowi 16 zły wpis.
+    const blog = { slug: "blog", parent_id: null };
+    const wiersze = [
+      { slug: "15-rano", published_at: "2026-06-15T05:00:00.000Z", parent_page: blog },
+      { slug: "15-poludnie", published_at: "2026-06-15T10:00:00.000Z", parent_page: blog },
+      { slug: "16-po-polnocy", published_at: "2026-06-15T22:30:00.000Z", parent_page: null },
+      { slug: "16-wieczor", published_at: "2026-06-16T18:00:00.000Z", parent_page: blog },
+      { slug: "lipiec", published_at: "2026-07-01T10:00:00.000Z", parent_page: blog },
+    ];
+    baza().setResponse("posts", ok(wiersze));
+
+    const wynik = await klient().fetchQuery(calendarBlockQueryOptions({ year: 2026, month: 6 }));
+
+    // Wiersz zostaje nietknięty (`parent_page` też - z niego widok liczy adres
+    // dnia), a dzień spoza miesiąca odpada, jak odpadał w widoku.
+    expect(wynik).toEqual([wiersze[0], wiersze[2]]);
+  });
+
   it("odmowa bazy rzuca, a `data: null` daje pusty miesiąc", async () => {
     baza().setResponse("posts", fail("odmowa kalendarza"));
     await expect(

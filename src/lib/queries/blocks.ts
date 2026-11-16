@@ -586,15 +586,39 @@ function siteMonthWindow(input: CalendarInput): { start: string; end: string } {
  * Dzień miesiąca (1-31), w którym wpis wyszedł - w strefie serwisu, tak jak
  * datuje go strona wpisu - albo `null`, gdy chwila leży poza miesiącem
  * `target` albo jest nieczytelna. Klucz doby (YYYY-MM-DD) to początek zegara
- * `wallClockInZone`, a nie `eventDayKey`: siatka woła to dla każdego z do 500
- * wierszy, a `eventDayKey` buduje nowy `Intl.DateTimeFormat` przy każdym
- * wywołaniu (setki ms CPU na render SSR). Formater zegara jest buforowany per
- * strefa; doba wychodzi ta sama.
+ * `wallClockInZone`, a nie `eventDayKey`: zapytanie kalendarza woła to dla
+ * każdego z do 500 wierszy (`calendarFirstPostPerDay`), a `eventDayKey` buduje
+ * nowy `Intl.DateTimeFormat` przy każdym wywołaniu (setki ms CPU na render
+ * SSR). Formater zegara jest buforowany per strefa; doba wychodzi ta sama.
  */
 export function calendarPublishedDay(publishedAt: string, target: CalendarInput): number | null {
   const key = wallClockInZone(publishedAt, SITE_TIME_ZONE).slice(0, 10);
   if (!key.startsWith(`${pad(target.year, 4)}-${pad(target.month)}-`)) return null;
   return Number(key.slice(8, 10));
+}
+
+/**
+ * Wpis, który linkuje dzień siatki: PIERWSZY wiersz danej doby w kolejności
+ * `rows` (zapytanie sortuje rosnąco, więc najwcześniejsza publikacja dnia),
+ * kluczem dzień 1-31 miesiąca `target`. Wiersz spoza miesiąca albo z
+ * nieczytelną datą odpada (`calendarPublishedDay` = `null`). Kolejność mapy to
+ * kolejność pierwszych wystąpień.
+ *
+ * JEDNA reguła dla zapytania i widoku: zapytanie przycina nią wiersze, zanim
+ * trafią do cache'u (a z nim do stanu odwodnionego w HTML), a `CalendarView`
+ * bierze z niej adres dnia - także z wierszy, których nikt nie przyciął
+ * (stan odwodniony sprzed tej zmiany, atrapy testów), z tym samym wynikiem.
+ */
+export function calendarFirstPostPerDay<T extends { published_at: string }>(
+  rows: readonly T[],
+  target: CalendarInput,
+): Map<number, T> {
+  const byDay = new Map<number, T>();
+  for (const row of rows) {
+    const day = calendarPublishedDay(row.published_at, target);
+    if (day !== null && !byDay.has(day)) byDay.set(day, row);
+  }
+  return byDay;
 }
 
 /**
@@ -619,6 +643,15 @@ export const calendarBlockQueryOptions = (input: CalendarInput) =>
     // odczytu z osadzeniem powtarza ten sam odczyt bez niego; błąd TEGO
     // odczytu rzuca jak dotąd. `parent_page` zostaje w wierszu, bo zapytanie
     // rozgrzewa SSR - serwer i przeglądarka liczą adres z tego samego wiersza.
+    //
+    // CACHE NIESIE NAJWYŻEJ JEDEN WIERSZ NA DZIEŃ. Siatka linkuje dzień
+    // pierwszym wpisem doby i nie czyta nic więcej, a wszystko, co zwraca ten
+    // `queryFn`, jedzie w stanie odwodnionym w HTML. Miesiąc 120 wpisów to
+    // było 120 wierszy z `parent_page` (ok. 16 KB surowego JSON-u przy slugach
+    // ok. 35 znaków), przy suficie 500 - ok. 67 KB; po przycięciu zostaje do
+    // 31 wierszy (ok. 4 KB).
+    // Przycina `calendarFirstPostPerDay`, ta sama reguła, którą widok wybiera
+    // wpis dnia, więc siatka i adresy są te same co z pełnej listy.
     queryFn: async (): Promise<CalendarPostRow[]> => {
       const { start, end } = siteMonthWindow(input);
       const { data, error } = await readPostsWithParentPage(
@@ -635,7 +668,10 @@ export const calendarBlockQueryOptions = (input: CalendarInput) =>
         "slug, published_at",
       );
       if (error) throw error;
-      return ((data ?? []) as unknown as CalendarPostRow[]).filter((r) => !!r.published_at);
+      const published = ((data ?? []) as unknown as CalendarPostRow[]).filter(
+        (r) => !!r.published_at,
+      );
+      return [...calendarFirstPostPerDay(published, input).values()];
     },
   });
 

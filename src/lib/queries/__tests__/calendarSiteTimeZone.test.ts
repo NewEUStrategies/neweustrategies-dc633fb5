@@ -110,7 +110,8 @@ describe("koszt dnia publikacji na publicznym SSR", () => {
     vi.restoreAllMocks();
   });
 
-  // Siatka woła `calendarPublishedDay` dla każdego z do 500 wierszy zapytania.
+  // Zapytanie, przycinając wiersze do jednego na dzień (`calendarFirstPostPerDay`),
+  // woła `calendarPublishedDay` dla każdego z do 500 wierszy z bazy.
   // Nowy `Intl.DateTimeFormat` na wiersz kosztował setki ms CPU na render SSR.
   it("500 wpisów miesiąca nie buduje formatera strefy dla każdego wiersza", () => {
     const rows = Array.from({ length: 500 }, (_, i) =>

@@ -15,6 +15,9 @@
 //     kalendarz ma dni z adresem zapasowym, a nie pustą siatkę.
 //  4. HTML serwera i strona po hydratacji mają te same adresy: obie strony
 //     liczą je z tego samego wiersza w stanie odwodnionym.
+//  5. Stan odwodniony niesie najwyżej jeden wiersz na dzień (pierwszy wpis
+//     doby), a siatka z przyciętych wierszy jest znak w znak ta sama, co
+//     z pełnej listy z bazy.
 //
 // Granice: klient Supabase to rejestrator łańcuchów i RPC, router to atrapa
 // odnośnika. Godziny publikacji są przed południem UTC, więc dzień w strefie
@@ -22,7 +25,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { QueryClient, QueryClientProvider, dehydrate, hydrate } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  dehydrate,
+  hydrate,
+  type DehydratedState,
+} from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { RecordedChain, SupabaseFromStub, SupabaseRpcStub } from "@/test/supabase";
 
@@ -48,7 +57,11 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 import { fail, ok } from "@/test/supabase";
-import { calendarBlockQueryOptions, calendarTarget } from "@/lib/queries/blocks";
+import {
+  calendarBlockQueryOptions,
+  calendarTarget,
+  type CalendarPostRow,
+} from "@/lib/queries/blocks";
 import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
 import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { CalendarView } from "../CalendarView";
@@ -83,6 +96,22 @@ function posts(withParentPage: boolean): Array<Record<string, unknown>> {
     published_at: `2026-07-0${i + 1}T10:00:00.000Z`,
     ...(withParentPage ? { parent_page: parent } : {}),
   }));
+}
+
+/**
+ * Tłok: cztery wpisy na każdy z trzech dni. Pierwszy wpis doby to wiersz
+ * z `posts`; późniejsze mają rodzica najwyższego poziomu i WŁASNY slug, więc
+ * dzień zlinkowany którymkolwiek z nich miałby inny adres niż oczekiwany.
+ */
+function crowdedPosts(withParentPage: boolean): Array<Record<string, unknown>> {
+  return posts(withParentPage).flatMap((first, i) => [
+    first,
+    ...[15, 30, 45].map((minute) => ({
+      slug: `wpis-${i + 1}-pozniej-${minute}`,
+      published_at: `2026-07-0${i + 1}T10:${minute}:00.000Z`,
+      ...(withParentPage ? { parent_page: { slug: "blog", parent_id: null } } : {}),
+    })),
+  ]);
 }
 
 function selectOf(chain: RecordedChain | undefined): string {
@@ -185,5 +214,33 @@ describe("blok kalendarza: adres kanoniczny dnia", () => {
     const { container } = render(tree(browserClient));
     expect(hrefsOf(container)).toEqual(hrefsInHtml(serverHtml));
     expect(db().chainsFor("posts")).toHaveLength(before);
+  });
+
+  it("stan odwodniony niesie jeden wiersz na dzień, a siatka jest ta sama co z pełnej listy", async () => {
+    db().setResponse("posts", (chain) =>
+      ok(crowdedPosts(selectOf(chain).includes("parent_page:"))),
+    );
+    const serverClient = freshClient();
+    await serverClient.prefetchQuery(calendarBlockQueryOptions(calendarTarget(MONTH)));
+    const serverHtml = renderToString(tree(serverClient));
+
+    // Do HTML-a jedzie pierwszy wpis każdej doby - w całości, z `parent_page`.
+    const dehydrated = JSON.parse(JSON.stringify(dehydrate(serverClient))) as DehydratedState;
+    expect(dehydrated.queries.map((q) => q.state.data)).toEqual([posts(true)]);
+
+    // Odniesienie: ta sama siatka z PEŁNĄ listą z bazy w cache'u (12 wierszy,
+    // jak przed przycięciem) - przycięcie nie zmienia ani znaku HTML-a.
+    const fullClient = freshClient();
+    fullClient.setQueryData(
+      calendarBlockQueryOptions(calendarTarget(MONTH)).queryKey,
+      crowdedPosts(true) as unknown as CalendarPostRow[],
+    );
+    expect(renderToString(tree(fullClient))).toBe(serverHtml);
+    expect(hrefsInHtml(serverHtml)).toEqual(["/blog/wpis-1", "/post/wpis-2", "/post/wpis-3"]);
+
+    // Przeglądarka hydratuje przycięte wiersze i rysuje to samo co serwer.
+    const browserClient = freshClient();
+    hydrate(browserClient, dehydrated);
+    expect(renderToString(tree(browserClient))).toBe(serverHtml);
   });
 });

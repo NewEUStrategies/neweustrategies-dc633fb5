@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   calendarBlockQueryOptions,
-  calendarPublishedDay,
+  calendarFirstPostPerDay,
   calendarTarget,
 } from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -27,13 +27,12 @@ export function CalendarView({ month, lang }: Props) {
   // widzieli inny dzień niż strona wpisu (szczegóły przy `calendarPublishedDay`).
   // Adres dnia: kanoniczny `/<rodzic>/<slug>` z osadzenia w wierszu, a bez
   // niego `/post/<slug>` (`postHref`) - liczony z wiersza w stanie odwodnionym,
-  // więc HTML serwera i strona po hydratacji mają ten sam adres.
+  // więc HTML serwera i strona po hydratacji mają ten sam adres. Wpis dnia
+  // wybiera ta sama reguła, którą zapytanie przycina wiersze do jednego na dzień
+  // (`calendarFirstPostPerDay`).
   const byDay = useMemo(() => {
     const m = new Map<number, string>();
-    for (const r of rows) {
-      const d = calendarPublishedDay(r.published_at, target);
-      if (d !== null && !m.has(d)) m.set(d, postHref(r));
-    }
+    for (const [day, row] of calendarFirstPostPerDay(rows, target)) m.set(day, postHref(row));
     return m;
   }, [rows, target]);
 
