@@ -87,16 +87,18 @@ import { fail, ok, supabaseFromStub } from "@/test/supabase";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import {
   globalWidgetKey,
-  makeGlobalInstance,
   mergeGlobalIntoInstance,
   parseGlobalWidgetData,
-  pushGlobalWidgetData,
   resolveGlobalWidgetInstance,
-  useGlobalWidgetMeta,
   useGlobalWidgetNode,
+} from "../globalWidgets";
+import {
+  makeGlobalInstance,
+  pushGlobalWidgetData,
+  useGlobalWidgetMeta,
   useGlobalWidgets,
   widgetToGlobalData,
-} from "../globalWidgets";
+} from "../globalWidgetsAdmin";
 import type { WidgetNode } from "../types";
 
 const TABLE = "builder_global_widgets";

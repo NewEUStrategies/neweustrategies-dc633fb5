@@ -14,12 +14,8 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentTenantId } from "@/lib/tenant";
 import type { BuilderDocument, WidgetNode } from "@/lib/builder/types";
-import {
-  globalWidgetKey,
-  pushGlobalWidgetData,
-  widgetToGlobalData,
-  type GlobalWidgetData,
-} from "@/lib/builder/globalWidgets";
+import { globalWidgetKey, type GlobalWidgetData } from "@/lib/builder/globalWidgets";
+import { pushGlobalWidgetData, widgetToGlobalData } from "@/lib/builder/globalWidgetsAdmin";
 
 const PUSH_DEBOUNCE_MS = 800;
 

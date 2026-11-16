@@ -46,7 +46,7 @@ import {
   Palette,
   SlidersHorizontal,
 } from "@/lib/lucide-shim";
-import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
+import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgetsAdmin";
 import { needsSharedAuthorControl, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

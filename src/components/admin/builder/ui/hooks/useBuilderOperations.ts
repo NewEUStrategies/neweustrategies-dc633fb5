@@ -19,11 +19,8 @@ import type { History } from "@/hooks/useHistory";
 import * as ops from "@/lib/builder/operations";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
-import {
-  useGlobalWidgets,
-  makeGlobalInstance,
-  type GlobalWidget,
-} from "@/lib/builder/globalWidgets";
+import type { GlobalWidget } from "@/lib/builder/globalWidgets";
+import { useGlobalWidgets, makeGlobalInstance } from "@/lib/builder/globalWidgetsAdmin";
 import { useExperimentsAdmin } from "@/lib/builder/experiments";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import type { StarterTemplate } from "@/lib/builder/starterTemplates";

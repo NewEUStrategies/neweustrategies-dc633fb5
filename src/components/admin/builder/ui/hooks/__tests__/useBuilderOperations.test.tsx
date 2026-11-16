@@ -49,8 +49,8 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/builder/templates", () => ({
   useSectionTemplates: () => ({ items: [], loading: false, save: templateSave }),
 }));
-vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgets")>();
+vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgetsAdmin")>();
   return { ...actual, useGlobalWidgets: () => ({ items: [], save: globalSave }) };
 });
 vi.mock("@/lib/builder/experiments", () => ({

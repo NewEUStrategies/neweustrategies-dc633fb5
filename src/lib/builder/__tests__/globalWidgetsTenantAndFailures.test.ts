@@ -47,7 +47,8 @@ vi.mock("@/lib/builder/widgetCacheInvalidation", () => ({
 }));
 
 import { fail, ok, supabaseFromStub } from "@/test/supabase";
-import { globalWidgetKey, useGlobalWidgetNode, useGlobalWidgets } from "../globalWidgets";
+import { globalWidgetKey, useGlobalWidgetNode } from "../globalWidgets";
+import { useGlobalWidgets } from "../globalWidgetsAdmin";
 import type { WidgetNode } from "../types";
 
 const TABLE = "builder_global_widgets";

@@ -25,8 +25,8 @@ const push = vi.hoisted(() =>
   vi.fn<(id: string, data: GlobalWidgetData) => Promise<boolean>>(async () => true),
 );
 
-vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgets")>();
+vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgetsAdmin")>();
   return { ...actual, pushGlobalWidgetData: push };
 });
 
