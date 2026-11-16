@@ -796,9 +796,11 @@ porównaniem wielozbioru linii):
 
 - `content-model/postContextPreview.ts` - próbka kanwy buildera
   i `useCurrentPostCtxOrPreview` (boot czyta z `postContext.tsx` tylko kontekst);
-- `queries/podcastsLatest.ts` - lista najnowszych odcinków, jedyne zapytanie
-  podcastów wołane przez rejestr prefetchu; `queries/podcasts.ts` ładują trasy
-  podcastów, autora i taksonomii;
+- `queries/podcastsLatest.ts` - lista najnowszych odcinków (jedyne zapytanie
+  podcastów wołane przez rejestr prefetchu) i pełne kolumny odcinka;
+  `queries/podcastsByCategory.ts` i `queries/podcastsByProfile.ts` - sekcje
+  „Podcasty" strony kategorii/tagu i strony autora, każda w chunku swojej strony;
+  `queries/podcasts.ts` ładują już tylko trasy podcastów i panel;
 - `newsletter/popupDesignResolve.ts` - koercja zapisu i paleta popupu
   rejestracji (domyślne zostają, czyta je hook ustawień);
 - `builder/clubHubQuery.ts` - zapytania sekcji widgetu „Klub: strona" (jedyny
@@ -806,22 +808,61 @@ porównaniem wielozbioru linii):
 - `seo/siteMapCopy.ts` - teksty `/sitemap`: stała wspólna `head()` i komponentu
   ciągnęła moduł `sitemap.tsx?tsr-shared=1` (2,7 KB) do bootu.
 
-| Miara (`check:bundle`, kontener roboczy) | Przed (`57af436c`) | Po (`68ee8188`) |
-| ---------------------------------------- | ------------------ | --------------- |
-| Chunk startowy (`app-initial`)           | 253,3 KB           | 248,9 KB        |
-| Domknięcie startu (11 chunków)           | 467,1 KB           | 462,7 KB        |
-| JS publiczny                             | 2 776,1 KB         | 2 777,3 KB      |
-| `overall`                                | 5 364,5 KB         | 5 365,6 KB      |
+| Miara (`check:bundle`, kontener roboczy) | Przed (`57af436c`) | Po (z poprawkami przeglądu) |
+| ---------------------------------------- | ------------------ | --------------------------- |
+| Chunk startowy (`app-initial`)           | 253,3 KB           | 249,0 KB                    |
+| Domknięcie startu (11 chunków)           | 467,1 KB           | 462,8 KB                    |
+| JS publiczny                             | 2 776,2 KB         | 2 777,2 KB                  |
+| `overall`                                | 5 364,4 KB         | 5 365,0 KB                  |
 
-Czytelnik pobiera o 4,4 KB gzip mniej na każdej stronie; domknięcie startu ma
-dalej 11 chunków. W serii bootu (preloady tras z manifestu) nowy chunk
-dostały tylko trasy podcastów (`podcasts`, ich własne zapytania) i panelowe
-`/admin/newsletter/subscribers` (`popupDesignResolve`). Po hydratacji
-jeden dodatkowy chunk pobierają: popup rejestracji (`popupDesignResolve`),
-strona autora i taksonomii (`podcasts`, sekcja odcinków) oraz widgety tagów
-dynamicznych (`postContextPreview`) - każdy z mniejszym bilansem bajtów.
-Strażnik `bootLazyLeaves.gate.test.ts` pilnuje obu kierunków i `head()` mapy
-strony (sprawdzone mutacjami).
+Czytelnik pobiera o 4,3 KB gzip mniej na każdej stronie; domknięcie startu ma
+dalej te same 11 chunków.
+
+**Seria bootu - korekta pomiaru (przegląd partii 4).** Pierwszy raport
+podawał, że nowy chunk w serii bootu dostały „4 z 232 tras”. Narzędzie
+porównujące czytało manifest wyrażeniem regularnym dla postaci tablicowej
+i pomijało 111 wpisów, które minifikator zapisał jako napis z `.split(",")`.
+Wśród nich były `/category/$slug`, `/tag/$slug` i `/author/$slug`, które
+w tamtej wersji dostały chunk `podcasts` (48→49, 48→49, 62→63; o jedno
+żądanie więcej na trzech głównych trasach czytelnika z `AFTER_LCP_ROUTE_IDS`).
+Poprawka: sekcje „Podcasty” tych stron mają własne liście
+(`podcastsByCategory` w chunku `TaxonomyPage`, `podcastsByProfile` w chunku
+trasy autora), a `PODCAST_FIELDS` przeszło do `podcastsLatest` (moduł bootu).
+Nowy pomiar importuje zbudowany moduł manifestu, więc obie postaci
+wylicza silnik JavaScript, nie wyrażenie regularne. Wynik dla 342 tras, porównanie z bazą
+`57af436c`: 326 bez zmian, w tym `/`, `/$`, `/blog/`, `/post/$slug`
+i `/category`, `/tag`, `/author` (48, 48, 62 - jak w bazie). Zmieniło się 16
+tras, każda o jeden plik:
+
+- 3 trasy podcastów: `podcasts` (ich własne zapytania, dotąd w `app-initial`);
+- 11 tras panelu: `postContextPreview`, `popupDesignResolve` albo `podcasts`;
+- `/sitemap`: trzeci chunk podziału trasy (`siteMapRedirects.functions`,
+  872 B gzip), dzielony przez loader i komponent. Dotąd ten kod siedział
+  w `app-initial` i płacił za niego każdy czytelnik.
+
+Po hydratacji jeden dodatkowy chunk pobierają: popup rejestracji
+(`popupDesignResolve`) i widgety tagów dynamicznych (`postContextPreview`).
+Do tego odświeżenie ustawień newslettera na stronach z formularzem inline (na
+zatrzasku interakcji lub ciszy oraz przy nawigacji SPA): ciało odczytu
+`newsletterSettingsData` czyta z liścia wyłącznie `resolvePopupDesign`, a pobiera
+cały `popupDesignResolve` (2,3 KB gzip razem z paletą i kontrastem). Każda z tych
+ścieżek ma mniejszy bilans bajtów niż przed zmianą.
+
+Świadomie bez podziału: wydzielenie samej koercji `resolvePopupDesign` zostawiłoby
+drugi, wspólny chunk na tej ścieżce. Oszczędność wyniosłaby około 1 KB i dopiero
+po interakcji, kosztem kolejnego modułu.
+
+Strażnik `bootLazyLeaves.gate.test.ts` sprawdza trzy rzeczy. Po pierwsze, moduły
+bootu nie sięgają do liści. Po drugie, liście importują tylko wymienieni
+odbiorcy. Po trzecie (znalezisko przeglądu), trasa, która importuje liść,
+czyta jego wiązania tylko w częściach wydzielanych przez splitter
+(`routeSplitBehavior`: loader i komponenty), także pośrednio przez stałe
+najwyższego poziomu. Nie czyta ich w powłoce trasy (`head`, `beforeLoad`,
+`validateSearch`, `loaderDeps`, `pendingComponent`, eksporty), która jest
+w `app-initial`. Wcześniej mutacja `head()` trasy `/podcasts` przechodziła
+przez wszystkie bramki. Strażnik sprawdzono sześcioma mutacjami (pięć czerwonych,
+jedna kontrolna zielona) - `head()`, stała wspólna, eksport, `head()` autora,
+import `TaxonomyPage` ze wspólnego modułu.
 
 Odrzucone po pomiarze: szerszy podział newslettera (hook ustawień,
 `popupFields` i treść zgody poza bootem; build: start −6,3 KB razem z próbką
