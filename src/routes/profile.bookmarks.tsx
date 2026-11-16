@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ListHydrationNotice } from "@/components/profile/atoms/ListHydrationNotice";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export const Route = createFileRoute("/profile/bookmarks")({
   component: BookmarksPage,
@@ -27,6 +29,12 @@ interface PostLite {
   title_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` - z niej wiersz liczy adres
+   * kanoniczny (`postHref`). Brak pola albo `null` (odczyt zapasowy, rodzic
+   * zagnieżdżony albo niewidoczny) = `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 interface PageLite {
   id: string;
@@ -87,15 +95,23 @@ function BookmarksPage() {
   const postsQ = useQuery({
     queryKey: ["bookmarks.posts", ids.post],
     enabled: !!user && ids.post.length > 0,
+    // Strona-rodzic jedzie osadzeniem w TYM SAMYM odczycie, więc wiersz linkuje
+    // adresem kanonicznym zamiast `/post/<slug>` (301 i dwa odczyty bazy na
+    // kliknięcie). Błąd odczytu z osadzeniem powtarza ten sam odczyt bez niego
+    // (wiersze z adresem zapasowym); błąd TEGO odczytu zostaje błędem hydracji.
     queryFn: async (): Promise<PostLite[]> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select("id, slug, title_pl, title_en, cover_image_url, published_at")
-        .in("id", ids.post)
-        .eq("status", "published")
-        .is("deleted_at", null);
+      const { data, error } = await readPostsWithParentPage(
+        (columns: string) =>
+          supabase
+            .from("posts")
+            .select(columns)
+            .in("id", ids.post)
+            .eq("status", "published")
+            .is("deleted_at", null),
+        "id, slug, title_pl, title_en, cover_image_url, published_at",
+      );
       if (error) throw error;
-      return (data ?? []) as PostLite[];
+      return (data ?? []) as unknown as PostLite[];
     },
   });
 
@@ -188,11 +204,7 @@ function BookmarksPage() {
                       <div className="w-16 h-12 rounded bg-muted" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <Link
-                        to="/post/$slug"
-                        params={{ slug: p.slug }}
-                        className="font-medium hover:underline truncate block"
-                      >
+                      <Link to={postHref(p)} className="font-medium hover:underline truncate block">
                         {pickTitle(p, lang)}
                       </Link>
                       {p.published_at && (

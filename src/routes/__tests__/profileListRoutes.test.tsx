@@ -221,7 +221,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }));
 
 import { renderRoute } from "@/test/routeHarness";
-import { fail, ok } from "@/test/supabaseChain";
+import { fail, ok, type RecordedChain } from "@/test/supabaseChain";
+import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { Route as BookmarksRoute } from "@/routes/profile.bookmarks";
 import { Route as FollowsRoute } from "@/routes/profile.follows";
 
@@ -248,6 +250,10 @@ beforeEach(() => {
   h.rpcCalls = [];
   h.pagePaths = {};
   chain().reset();
+  // Odczyt zapisanych wpisów idzie przez `readPostsWithParentPage`, którego
+  // okno wyłączenia osadzenia żyje w module - przypadek z odmową bazy nie
+  // może przestawić kolejnych na odczyt bez osadzenia.
+  resetPostParentPageRead();
   // Domyślnie każda tabela hydracji odpowiada pustką - test, który czegoś
   // oczekuje, planuje to jawnie.
   for (const table of ["posts", "pages", "profiles", "categories", "tags", "programs"]) {
@@ -531,15 +537,16 @@ describe("/profile/bookmarks - zapisane wpisy", () => {
   });
 
   it("awaria hydracji daje DROGĘ WYJŚCIA: ponowienie odczytu", async () => {
-    let attempts = 0;
+    // Baza odmawia do chwili ponowienia. Przełącznik, nie licznik prób: jedna
+    // próba hydracji wpisów to dwa odczyty (z osadzeniem rodzica i zapasowy),
+    // a test dowodzi ścieżki „awaria -> ponów -> lista", nie liczby odczytów.
+    let broken = true;
     h.bookmarks = [bookmark("post", "post-1")];
-    chain().setResponse("posts", () => {
-      attempts += 1;
-      return attempts === 1 ? fail("hydracja padła") : ok([POST_ROWS[0]]);
-    });
+    chain().setResponse("posts", () => (broken ? fail("hydracja padła") : ok([POST_ROWS[0]])));
     await mountBookmarks();
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    broken = false;
     fireEvent.click(screen.getByText("profile.lists.retry"));
     await waitFor(() => expect(rowCount("post")).toBe(1));
     expect(screen.queryByRole("alert")).toBeNull();
@@ -571,6 +578,81 @@ describe("/profile/bookmarks - zapisane wpisy", () => {
     await waitFor(() => expect(tabText("post")).toContain("profile.bookmarks.empty"));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(node('[data-tab-content="post"]').textContent).not.toContain("profile.lists.loadFailed");
+  });
+});
+
+// Wpis linkował `/post/<slug>`, czyli adres odpowiadający 301 na
+// `/<strona-rodzic>/<slug>` (dodatkowy dokument i dwa odczyty bazy przy
+// kliknięciu). Strona-rodzic jedzie teraz osadzeniem w TYM SAMYM odczycie.
+describe("/profile/bookmarks - adres kanoniczny zapisanego wpisu", () => {
+  /** `select` hydracji wpisów Z osadzeniem strony-rodzica - dosłownie. */
+  const SELECT_Z_RODZICEM =
+    "id, slug, title_pl, title_en, cover_image_url, published_at, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+  /** Ten sam `select` bez osadzenia: odczyt zapasowy i literał sprzed zmiany. */
+  const SELECT_ZAPASOWY = "id, slug, title_pl, title_en, cover_image_url, published_at";
+
+  /** Trzy wpisy: pod `/blog`, pod stroną zagnieżdżoną i pod rodzicem niewidocznym. */
+  const PARENTS = [
+    { slug: "blog", parent_id: null },
+    { slug: "energetyka", parent_id: "pg-analizy" },
+    null,
+  ];
+
+  function rows(withParentPage: boolean): Array<Record<string, unknown>> {
+    return PARENTS.map((parent, i) => ({
+      id: `post-${i + 1}`,
+      slug: `wpis-${i + 1}`,
+      title_pl: `Wpis ${i + 1}`,
+      title_en: null,
+      cover_image_url: null,
+      published_at: null,
+      ...(withParentPage ? { parent_page: parent } : {}),
+    }));
+  }
+
+  function selectOf(read: RecordedChain | undefined): string {
+    return String(read?.argsOf("select")?.[0]);
+  }
+
+  beforeEach(() => {
+    h.bookmarks = ["post-1", "post-2", "post-3"].map((id) => bookmark("post", id));
+    chain().setResponse("posts", (read) => ok(rows(selectOf(read).includes("parent_page:"))));
+  });
+
+  it("literał z osadzeniem różni się od zapasowego wyłącznie osadzeniem rodzica", () => {
+    expect(SELECT_Z_RODZICEM).toBe(`${SELECT_ZAPASOWY}, ${POST_PARENT_PAGE_EMBED}`);
+  });
+
+  it("jeden odczyt wpisów z osadzeniem; rodzic najwyższego poziomu daje adres kanoniczny, zagnieżdżony i niewidoczny - /post/", async () => {
+    await mountBookmarks();
+
+    await waitFor(() => expect(rowCount("post")).toBe(3));
+    expect(hrefs("post")).toEqual(["/blog/wpis-1", "/post/wpis-2", "/post/wpis-3"]);
+    expect(chain().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(chain().lastChain("posts"))).toBe(SELECT_Z_RODZICEM);
+    // Ścieżkę wpisu niesie osadzenie - żadnego `page_full_path` na wiersz.
+    expect(h.rpcCalls).toEqual([]);
+  });
+
+  it("odczyt z osadzeniem zawodzi: te same wiersze z adresem zapasowym, nie błąd hydracji", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    chain().setResponse("posts", (read) =>
+      selectOf(read).includes("parent_page:")
+        ? fail("permission denied for table pages", "42501")
+        : ok(rows(false)),
+    );
+    await mountBookmarks();
+
+    await waitFor(() => expect(rowCount("post")).toBe(3));
+    expect(hrefs("post")).toEqual(["/post/wpis-1", "/post/wpis-2", "/post/wpis-3"]);
+    const [embedded, plain, ...rest] = chain().chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(selectOf(embedded)).toBe(SELECT_Z_RODZICEM);
+    expect(selectOf(plain)).toBe(SELECT_ZAPASOWY);
+    // Poza `select` zapas to TO SAMO zapytanie: identyfikatory, status, kosz.
+    expect(plain?.calls.slice(1)).toEqual(embedded?.calls.slice(1));
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });
 
