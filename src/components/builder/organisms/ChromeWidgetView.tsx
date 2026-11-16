@@ -43,6 +43,7 @@ import type { WidgetNode, Device, WidgetTypography } from "@/lib/builder/types";
 import { WidgetView as ServerWidgetView } from "./WidgetView";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { contentIcon } from "@/lib/icons/contentIcon";
 import { sanitizeHtmlId, sanitizeCssClass, scopeCustomCss, safeUrl } from "@/lib/sanitizePure";
 import { useInView } from "@/hooks/use-in-view";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -645,8 +646,8 @@ export function renderChromeWidget(frame: WidgetFrame): React.ReactNode | undefi
       const title = pickI18n(c, "title", lang) || "Newsletter";
       const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
       const iconName = getStr(c, "iconName") || "Mail";
-      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
-      const IconCmp = Icons[iconName] || Icons.Mail;
+      // Nazwa z wybieraka ikon (kebab-case) też się renderuje; pudełko `w-5 h-5`.
+      const IconCmp = contentIcon(iconName, LucideIcons.Mail, 20);
 
       // Warianty kompaktowe nie mają formularza - to sam trigger. Tu inline
       // edycja tytułu jest możliwa i zostaje. Publicznie trigger jest kotwicą,
@@ -847,14 +848,7 @@ export function renderChromeWidget(frame: WidgetFrame): React.ReactNode | undefi
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       const finalCls = headCls;
-      const reg: Record<
-        string,
-        React.ComponentType<{ size?: number; className?: string }> | undefined
-      > = LucideIcons as Record<
-        string,
-        React.ComponentType<{ size?: number; className?: string }> | undefined
-      >;
-      const Icon = iconName ? (reg[iconName] ?? null) : null;
+      const Icon = iconName ? contentIcon(iconName, null, 28) : null;
       const inner = canEdit ? (
         <Editable
           as={tag}
@@ -1010,9 +1004,7 @@ export function renderChromeWidget(frame: WidgetFrame): React.ReactNode | undefi
         btnStyle.borderColor = btnBorderColor;
       }
       const hasBtnStyle = Object.keys(btnStyle).length > 0;
-      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
-        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
-      const Icon = iconName ? (reg[iconName] ?? null) : null;
+      const Icon = iconName ? contentIcon(iconName, null, 14) : null;
       const inner = canEdit ? (
         <span className={cls} style={hasBtnStyle ? btnStyle : undefined}>
           {Icon && <Icon size={14} />}

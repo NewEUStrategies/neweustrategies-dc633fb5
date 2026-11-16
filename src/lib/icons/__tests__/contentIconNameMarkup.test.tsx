@@ -447,7 +447,9 @@ describe("ikony z treści CMS: HTML każdego miejsca wobec kodu bazowego", () =>
     await expect(`${changes.join("\n\n")}\n`).toMatchFileSnapshot(
       "./__snapshots__/contentIconNameMarkup.zmiany.txt",
     );
-  });
+    // ~1900 nazw x 8 miejsc, z czego nazwy katalogu czekają na porcję danych
+    // renderem strumieniowym - kilkanaście tysięcy renderów.
+  }, 300_000);
 });
 
 /**
