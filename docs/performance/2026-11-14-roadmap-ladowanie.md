@@ -85,12 +85,12 @@ każdy zimny izolat renderuje od zera.
 
 ### Partia D. Klient (średnie ryzyko)
 
-| #   | Pozycja                                                                                                                  | Weryfikacja                                          | Stan             |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ---------------- |
-| D1  | `vendor-supabase` (53 KiB gz) poza bootem gościa (plan P3.1)                                                             | `check:chunks`; ślad sieci anonimowej strony głównej | niezaczęte       |
-| D2  | Podział `styles.css` (563 KB / 82 KB gz, blokuje render na każdej trasie): reguły panelu i modułów poza arkusz publiczny | rozmiar arkusza publicznego; zrzuty przed/po         | niezaczęte       |
-| D3  | Liście `$initial` z modułów mieszanych boot/admin w `app-initial` (≤ 15–20 KB gz)                                        | `check:bundle`, `report:chunk-inventory`             | niezaczęte       |
-| D4  | Rejestry ikon `import * as` → `DynamicIcon`; decyzja o zestawie Font Awesome                                             | `check:menu-icons`, rozmiar chunku ikon              | czeka na decyzję |
+| #   | Pozycja                                                                                                                  | Weryfikacja                                          | Stan                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------- |
+| D1  | `vendor-supabase` (53 KiB gz) poza bootem gościa (plan P3.1)                                                             | `check:chunks`; ślad sieci anonimowej strony głównej | rekomendacja z 16.11.2026: odłożyć (§9.9) |
+| D2  | Podział `styles.css` (563 KB / 82 KB gz, blokuje render na każdej trasie): reguły panelu i modułów poza arkusz publiczny | rozmiar arkusza publicznego; zrzuty przed/po         | niezaczęte                                |
+| D3  | Liście `$initial` z modułów mieszanych boot/admin w `app-initial` (≤ 15–20 KB gz)                                        | `check:bundle`, `report:chunk-inventory`             | niezaczęte                                |
+| D4  | Rejestry ikon `import * as` → `DynamicIcon`; decyzja o zestawie Font Awesome                                             | `check:menu-icons`, rozmiar chunku ikon              | czeka na decyzję                          |
 
 ### Partia E. Zapytania scalone w RPC (wymaga migracji i wdrożenia przez właściciela)
 
@@ -736,3 +736,52 @@ tematów zawsze pokazują ikonę zastępczą zamiast wybranej; „Bell" na liśc
 alertów i domyślna „Flag" osi czasu nie są eksportami rejestru i również
 spadają do zastępczej; formaty wpisu „galeria" i „audio" nie mają ikony
 w liście z ocenami.
+
+### 9.9. D1 (biblioteka Supabase na starcie strony gościa): mapa i rekomendacja „odłożyć" (16.11.2026)
+
+Mapa tylko do odczytu (run `wf_89b8fcd2-b5f`), wnioski sprawdzone w kodzie na
+`5402ddd0`.
+
+- Cały kod `@supabase/*` jest w jednym chunku `vendor-supabase`: 214 889 B
+  surowego, 55 157 B gzip (zmierzone, metoda bramki). Do domknięcia startu
+  wiąże go jedna krawędź: statyczny `import { createClient }` w
+  `src/integrations/supabase/client.ts:22`. Skład (granice segmentów
+  szacowane): auth-js 46%, realtime-js z phoenix 26%, storage-js z iceberg-js
+  13%, postgrest-js 8%, rdzeń supabase-js 5%, functions-js 1%.
+- Gość nie potrzebuje klienta przed pierwszym malowaniem: `AuthProvider` rozpoznaje
+  gościa bez SDK, a zgody od P3.1 nie tworzą klienta. Potrzebuje go jednak
+  wkrótce potem: na stronach z `$.tsx` zaraz po hydratacji (`metering_settings`,
+  `post_custom_meta_defs`, `rpc/current_membership_tier`, komentarze), na `/`
+  przy wspólnym wyzwalaczu interakcji lub ciszy (5–20 s po `load`), przy każdej
+  nawigacji w przeglądarce i przy każdym wywołaniu funkcji serwerowej (globalne
+  `attachSupabaseAuth` woła `auth.getSession()`).
+- Na sześciu trasach w trybie `lcp` (`/`, `/$`, `/blog/`, kategoria, tag, autor)
+  start i tak biegnie dopiero po LCP (`bootSet.server.ts`, `bootLoaderScript.ts`),
+  więc wycięcie SDK ze startu nie zmienia pierwszego malowania; wcześniejsza
+  analiza Lantern po C3 dała ok. 0 do +1 pkt na telefonie (werdykt boot-js C4).
+  Zysk dotyczyłby tras w trybie `now` (wydarzenia, podcasty, programy, strony
+  statyczne, 404) i czytelników z zapisaną sesją.
+
+Warianty (szczegóły w wyniku runu): A, przygotowanie bez zmiany bajtów (fabryka
+klienta publicznego z `menu.functions.ts` i `mobileDrawer.functions.ts` do
+modułu serwerowego, gość bez sesji nie tworzy klienta dla funkcji serwerowych;
+mały nakład, bez decyzji właściciela); B, częściowe SDK (realtime i storage
+leniwie, ok. −22 do −25 KB gzip, szacunek; kopia wewnętrznego kleju supabase-js
+do utrzymania); C, całe SDK leniwie za istniejącym Proxy (−53,9 KB gzip ze
+startu, duży nakład, zmiana kolejności zdarzeń auth i obsługi tokenów w URL,
+725 mocków testowych, brak testów e2e przepływów logowania); D, jak C plus
+osobny klient PostgREST dla odczytów gościa (drugi klient, parytet nagłówków).
+
+**Rekomendacja: D1 odłożyć** (decyzja należy do właściciela). Bajty zostałyby odroczone, nie usunięte (gość i tak
+pobiera SDK wkrótce po starcie), a miernik roadmapy (Speed Index zależny od TTFB)
+nie drgnie - zadziałałby warunek stopu z §4. Powrót do wariantu C, gdy pomiary
+W2 pokażą znaczący ruch gości lub koszt FCP/LCP na trasach w trybie `now` albo
+celem stanie się CPU startu u realnych użytkowników (INP); przed C trzeba dodać
+testy e2e przepływów logowania (link magiczny, odzyskiwanie hasła, powrót z OAuth,
+logowanie w innej karcie). Wskaźnik w tabeli partii D był błędny: właściwy plan to
+faza1 boot-js §3.1 / werdykt C4 / PLAN P8.1, nie P3.1 (część B P3.1 jest
+wykonana).
+
+Wartościowsze dla czytelnika w tej fazie: ok. 10,7 KB gzip kodu w `app-initial`,
+którego używają wyłącznie publiczne chunki leniwe (§9.8), oraz - po decyzji
+właściciela - arkusz stylów blokujący render (S1 wstrzymane, §9.7).
