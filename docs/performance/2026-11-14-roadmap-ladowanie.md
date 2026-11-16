@@ -112,13 +112,13 @@ reszta do decyzji właściciela.
 
 ## 3. Poza kodem: decyzje właściciela
 
-| #   | Decyzja                                                                                              | Skutek                                                  |
-| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| W1  | Przeniesienie produkcji na Worker we własnym koncie Cloudflare, Smart Placement, Brotli, Early Hints | jedyna dźwignia sprowadzająca SI telefonu do ~1,4–2,2 s |
-| W2  | `vars.LHCI_URL`, `vars.LHCI_EXTRA_PATHS`, `PSI_API_KEY`                                              | pomiar tras innych niż główna, telefon i komputer       |
-| W3  | Decyzja DPO: anonimowe metryki czasowe bez zgody                                                     | widoczność pierwszego wejścia czytelnika                |
-| W4  | Zgoda na migracje z partii E i ich wdrożenie                                                         | −2…−3 fale zapytań na każdej trasie                     |
-| W5  | Font Awesome: zostaje czy wychodzi                                                                   | odblokowuje D4                                          |
+| #   | Decyzja                                                                                              | Skutek                                                   |
+| --- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| W1  | Przeniesienie produkcji na Worker we własnym koncie Cloudflare, Smart Placement, Brotli, Early Hints | jedyna dźwignia sprowadzająca SI telefonu do ~1,4–2,2 s  |
+| W2  | `vars.LHCI_URL`, `vars.LHCI_EXTRA_PATHS`, `PSI_API_KEY`                                              | pomiar tras innych niż główna, telefon i komputer        |
+| W3  | Decyzja DPO: anonimowe metryki czasowe bez zgody                                                     | widoczność pierwszego wejścia czytelnika                 |
+| W4  | Zgoda na migracje z partii E i ich wdrożenie                                                         | −2…−3 fale zapytań na każdej trasie                      |
+| W5  | Font Awesome: zostaje czy wychodzi                                                                   | odblokowuje D4; ROZSTRZYGNIĘTE 16.11.2026: usunąć (§9.6) |
 
 ## 4. Kolejność i warunki stopu
 
@@ -424,7 +424,7 @@ najciaśniejsza: `check:document-weight` `renderBlockingCssGzipBytes` 83 394 /
 | J2  | Osierocone instrukcje: schematy zod używane tylko w `z.infer` lub tylko w walidatorze serwerowym (podcasty, menu, finanse, journeys, retencja), lista hostów CSP, `TextEncoder` w `tenantAssertion`, stałe polityk cache             | 2,8 KB całość, 0,7 KB chunk startowy (zmierzone)               | niskie  | nie                 |
 | J3  | D3: eksporty modułów mieszanych trzymane w `app-initial` tylko dla chunków panelu (`seo/robots`, `builder/experiments`, `seo/settings`, `builder/globalWidgets`, `dynamicText`, `liveTypography`, `customFonts`, `ads/types` i inne) | 0 całość; chunk startowy −6,7 KB (zmierzone), górna granica 27 | średnie | nie                 |
 | J4  | D4: rejestry ikon `import * as` w `lucide-shim`                                                                                                                                                                                      | ok. 0,9 KB całość, ok. 5,7 KB chunk startowy (szacunek)        | średnie | tak (W5)            |
-| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | tak (W5)            |
+| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | WYKONANE (§9.6)     |
 | J6  | Wpisy słowników i18n bez żadnego odwołania w kodzie (ok. 2 800 wpisów PL+EN)                                                                                                                                                         | 20–37 KB całość (szacunek heurystyczny)                        | średnie | tak                 |
 | J7  | Dziesięć funkcji serwerowych bez importera produkcyjnego (używane tylko w testach)                                                                                                                                                   | ok. 0,4 KB; usuwa też żywe punkty RPC                          | średnie | tak                 |
 
@@ -583,3 +583,41 @@ znalezisk, żadnego poważnego.
 z odpowiedzi; brak przebiegu w przeglądarce (hydratacja, ślad sieci stopki);
 czy osadzenie `parent_page` zwraca dane roli anonimowej na produkcji (krok
 właściciela po wdrożeniu, §8).
+
+### 9.6. Wykonanie: usunięcie opcji Font Awesome (16.11.2026)
+
+Decyzja właściciela z 16.11.2026 (W5, wariant 1 z czterech przedstawionych:
+usunąć, zostawić, rozbudować do pełnej alternatywy, Font Awesome Pro). Commit
+`30fc9181` na gałęzi PR.
+
+Powód: opcja „Font Awesome (rezerwowy)" w `/admin/settings/general` była
+niepełna. Działała tylko na ikony z `src/lib/lucide-shim.tsx` (129 ikon w 288
+plikach), a 892 pliki importują Lucide bezpośrednio, więc interfejs mieszał dwa
+style; 22 ze 129 ikon nie miały odpowiednika i znikały; serwer zawsze renderował
+Lucide, więc po hydratacji ikony migały, a do pobrania chunku nie były widoczne.
+
+Usunięte: `lucide-shim.fa.tsx`, `iconPack.ts`, `IconPackSync` w korzeniu, pole
+w panelu z czterema kluczami słownika PL/EN, testy tych modułów, pakiety
+`@fortawesome/free-solid-svg-icons` i `@fortawesome/free-brands-svg-icons`.
+`lucide-shim` eksportuje wprost komponenty Lucide. Wartość `icon_pack` zapisana
+w bazie zostaje (panel jej nie pokazuje i nie kasuje), bez migracji.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`dc01012f`) | Po (`30fc9181`) |
+| ---------------------------------------- | ------------------ | --------------- |
+| `overall` (cały JS klienta)              | 5 380,4 KB         | 5 362,2 KB      |
+| JS publiczny                             | 2 798,7 KB         | 2 780,5 KB      |
+| Chunk startowy                           | 259,4 KB           | 258,5 KB        |
+| Domknięcie startu                        | 473,2 KB           | 472,3 KB        |
+
+Zapas pod progiem `overall` (5 388 KB) wynosi teraz 25,8 KB. Czytelnik przy
+ustawieniu Lucide nie pobierał chunku Font Awesome, więc dla niego zysk to
+0,9 KB w chunku startowym (opakowanie każdej ikony, magazyn preferencji,
+zapytanie o ustawienie); pozostałe 17,3 KB to miejsce w bramce.
+
+Weryfikacja: typecheck, ESLint i Prettier na zmienionych plikach, 225 plików
+testów (6 202 testy, 32 oczekiwane porażki), build, `check:bundle`,
+`check:chunks`, `check:entry-purity`, `check:server-entry-purity`. Skrypt
+`check:menu-icons` wymieniony w tabeli partii D nie istnieje w `package.json`.
+
+Odblokowane: D4 (rejestry ikon `import * as` w `lucide-shim`), bo nie trzeba
+już zachowywać zgodności z mapą nazw Font Awesome.
