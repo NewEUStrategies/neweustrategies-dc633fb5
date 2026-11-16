@@ -792,6 +792,46 @@ describe("trasa łapiąca wszystko - wejścia brzegowe kompozycji", () => {
       });
     });
 
+    it.each([
+      ["najwyższego poziomu: jego slug", { slug: "raporty", parent_id: null }, "raporty"],
+      ["zagnieżdżony: /post/", { slug: "energia", parent_id: "page-9" }, "post"],
+      ["niewidoczny dla gościa: /post/", null, "post"],
+    ])(
+      "sąsiad pod INNĄ stroną-rodzicem z osadzenia - rodzic %s",
+      (_nazwa, parentPage, oczekiwana) => {
+        // Rodzic sąsiada przyszedł osadzeniem w odczycie sąsiadów
+        // (`adjacentPostsQueryOptions`); adres kanoniczny daje tylko strona
+        // najwyższego poziomu - ta sama reguła co listy (`postCanonicalHref`).
+        zSasiadami(
+          article(),
+          { ...sasiad("wczesniejszy", "page-inna"), parent_page: parentPage },
+          sasiad("pozniejszy", "page-1"),
+        );
+
+        expect(prop("PostFooterBars")).toMatchObject({
+          prev: { slug: "wczesniejszy", parent_path: oczekiwana },
+          // Ten sam rodzic co bieżący wpis: nadal pełna ścieżka z okruszków.
+          next: { slug: "pozniejszy", parent_path: "analizy" },
+        });
+      },
+    );
+
+    it("sąsiad pod TĄ SAMĄ stroną: ścieżka z okruszków wygrywa z osadzeniem", () => {
+      // Osadzenie wyraża tylko stronę najwyższego poziomu, okruszki - pełną
+      // ścieżkę; dla tego samego rodzica rozstrzygają okruszki.
+      const data = article();
+      data.parentPageId = "page-2";
+      zSasiadami(
+        data,
+        { ...sasiad("wczesniejszy", "page-2"), parent_page: { slug: "atom", parent_id: "page-1" } },
+        null,
+      );
+
+      expect(prop("PostFooterBars")).toMatchObject({
+        prev: { slug: "wczesniejszy", parent_path: "analizy/atom" },
+      });
+    });
+
     it("rodzic ZAGNIEŻDŻONY: sąsiad dostaje pełną ścieżkę, której osadzenie w zapytaniu nie wyrazi", () => {
       const data = article();
       data.parentPageId = "page-2";

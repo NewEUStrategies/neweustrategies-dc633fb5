@@ -190,6 +190,7 @@ import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHead
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 import { lookupMissingPath } from "@/lib/routing/missingPathLookups";
+import { postCanonicalHref } from "@/lib/routing/postHref";
 import { completeAfterResponse } from "@/lib/ssrCache";
 import {
   homepageCandidate,
@@ -1483,10 +1484,15 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
           // wpis: adres kanoniczny bez odczytu, także dla rodzica
           // zagnieżdżonego. Stopka ładuje oba odnośniki z wyprzedzeniem
           // (`preload="viewport"`), więc `/post/<slug>` płaciło tu 301 i dwa
-          // odczyty bazy na KAŻDE wyświetlenie wpisu. Inny rodzic albo brak
-          // ścieżki: "post" - trasa /post/$slug policzy ścieżkę w bazie.
+          // odczyty bazy na KAŻDE wyświetlenie wpisu. Inny rodzic: jego slug
+          // z osadzenia w odczycie sąsiada, gdy to strona najwyższego poziomu
+          // (`postCanonicalHref` - ta sama reguła co listy). Rodzic
+          // zagnieżdżony albo brak ścieżki: "post" - trasa /post/$slug
+          // policzy ścieżkę w bazie.
           parent_path:
-            postParentPath && row.parent_page_id === data.parentPageId ? postParentPath : "post",
+            postParentPath && row.parent_page_id === data.parentPageId
+              ? postParentPath
+              : (postCanonicalHref(row) && row.parent_page?.slug) || "post",
         }
       : null;
   const prevPost = toNeighbor(adjacentPosts?.prev);

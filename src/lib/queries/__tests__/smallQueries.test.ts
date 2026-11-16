@@ -123,6 +123,7 @@ import { authorCvQueryOptions } from "@/lib/queries/authorCv";
 import { glossaryTermsQueryOptions } from "@/lib/queries/glossary";
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
 import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
+import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
 import { mobileDrawerConfigQueryOptions } from "@/lib/queries/mobileDrawer";
 import { fetchNextPost } from "@/lib/queries/nextPost";
 import { postSeriesQueryOptions, seriesPageQueryOptions } from "@/lib/queries/series";
@@ -219,6 +220,11 @@ describe("sąsiedzi wpisu: który materiał jest poprzedni, a który następny",
     return { slug, title_pl: `Tytuł ${slug}`, title_en: `Title ${slug}`, parent_page_id: "str-1" };
   }
 
+  /** Napis `select` łańcucha - dosłownie. */
+  function wybraneKolumny(chain: RecordedChain | undefined): string {
+    return String(chain?.argsOf("select")?.[0]);
+  }
+
   it("bez identyfikatora albo bez daty zapytanie jest WYŁĄCZONE", () => {
     expect(adjacentPostsQueryOptions(null, DATA_WPISU).enabled).toBe(false);
     expect(adjacentPostsQueryOptions("w-1", null).enabled).toBe(false);
@@ -279,6 +285,62 @@ describe("sąsiedzi wpisu: który materiał jest poprzedni, a który następny",
     await expect(klient().fetchQuery(adjacentPostsQueryOptions("w-1", DATA_WPISU))).rejects.toThrow(
       "odmowa poprzedniego",
     );
+  });
+
+  // Sąsiad pod INNĄ stroną-rodzicem linkował `/post/<slug>` (301 i dwa odczyty
+  // bazy), a stopka ładuje oba odnośniki z wyprzedzeniem. Rodzic jedzie teraz
+  // osadzeniem w tym samym odczycie - trasa liczy z niego adres kanoniczny.
+  const SELECT_Z_RODZICEM =
+    "slug, title_pl, title_en, parent_page_id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+  const SELECT_ZAPASOWY = "slug, title_pl, title_en, parent_page_id";
+
+  it("każdy kierunek to JEDEN odczyt z osadzeniem strony-rodzica, a wiersz niesie rodzica", async () => {
+    expect(SELECT_Z_RODZICEM).toBe(`${SELECT_ZAPASOWY}, ${POST_PARENT_PAGE_EMBED}`);
+    baza().setResponse("posts", (chain) =>
+      ok([
+        {
+          ...wierszSasiada(chain.has("lt") ? "starszy" : "nowszy"),
+          parent_page: { slug: "analizy", parent_id: null },
+        },
+      ]),
+    );
+
+    const wynik = await klient().fetchQuery(adjacentPostsQueryOptions("w-1", DATA_WPISU));
+
+    expect(wynik.prev?.parent_page).toEqual({ slug: "analizy", parent_id: null });
+    expect(wynik.next?.parent_page).toEqual({ slug: "analizy", parent_id: null });
+    expect(baza().chainsFor("posts").map(wybraneKolumny)).toEqual([
+      SELECT_Z_RODZICEM,
+      SELECT_Z_RODZICEM,
+    ]);
+  });
+
+  it("odczyt z osadzeniem zawodzi: ci sami sąsiedzi z odczytu zapasowego, stopka nie znika", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    baza().setResponse("posts", (chain) =>
+      wybraneKolumny(chain).includes("parent_page:")
+        ? fail("permission denied for table pages", "42501")
+        : ok([wierszSasiada(chain.has("lt") ? "starszy" : "nowszy")]),
+    );
+
+    const wynik = await klient().fetchQuery(adjacentPostsQueryOptions("w-1", DATA_WPISU));
+
+    expect(wynik.prev?.slug).toBe("starszy");
+    expect(wynik.next?.slug).toBe("nowszy");
+    expect(wynik.prev).not.toHaveProperty("parent_page");
+    const odczyty = baza().chainsFor("posts");
+    expect(odczyty).toHaveLength(4);
+    for (const kierunek of ["lt", "gt"]) {
+      const [zOsadzeniem, zapasowy, ...reszta] = odczyty.filter((c) => c.has(kierunek));
+      expect(reszta).toHaveLength(0);
+      expect(wybraneKolumny(zOsadzeniem)).toBe(SELECT_Z_RODZICEM);
+      expect(wybraneKolumny(zapasowy)).toBe(SELECT_ZAPASOWY);
+      // Poza `select` zapas to TO SAMO zapytanie: filtry, kierunek, sortowanie, limit.
+      expect(zapasowy?.calls.slice(1)).toEqual(zOsadzeniem?.calls.slice(1));
+    }
+    // Dwa równoległe odczyty zawodzą razem - log jeden na okno.
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it("ODMOWA po stronie NASTĘPNEGO rzuca osobnym błędem", async () => {
