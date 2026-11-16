@@ -14,17 +14,16 @@
 // dotyczą styku z `resolveColorForMode` (ramka widgetu): kolory ramki zapisuje
 // rodzina `*Invertible*`, w której wartość płaska = jasny + odwrócenie w dark.
 import { describe, expect, it } from "vitest";
+import { isThemedValue, pickMode } from "../themed";
 import {
   isInvertibleModeOverridden,
   isModeOverridden,
-  isThemedValue,
   pickInvertibleOverride,
-  pickMode,
   resetInvertibleMode,
   resetMode,
   setInvertibleMode,
   setMode,
-} from "../themed";
+} from "../themedWrites";
 import { resolveColorForMode } from "../autoInvertColor";
 import { parseColorChannels } from "../cssColor";
 import type { Themed } from "../types";

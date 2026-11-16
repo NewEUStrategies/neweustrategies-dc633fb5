@@ -22,15 +22,14 @@ import type {
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
 import { contentPatchMutation } from "@/lib/builder/contentPatch";
+import { pickMode, pickShared } from "@/lib/builder/themed";
 import {
-  pickMode,
   setMode as setThemedMode,
-  pickShared,
   pickInvertibleOverride,
   setInvertibleMode,
   resetInvertibleMode,
   isInvertibleModeOverridden,
-} from "@/lib/builder/themed";
+} from "@/lib/builder/themedWrites";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 import {

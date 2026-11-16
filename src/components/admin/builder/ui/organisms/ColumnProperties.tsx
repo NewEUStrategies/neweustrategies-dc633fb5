@@ -12,12 +12,8 @@ import type {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sun, Moon, Undo as RotateCcw } from "@/lib/lucide-shim";
-import {
-  pickMode,
-  setMode as setThemedMode,
-  isModeOverridden,
-  resetMode,
-} from "@/lib/builder/themed";
+import { pickMode } from "@/lib/builder/themed";
+import { setMode as setThemedMode, isModeOverridden, resetMode } from "@/lib/builder/themedWrites";
 import { PropField } from "../atoms/PropField";
 import { ClampedNumberInput } from "../atoms/ClampedNumberInput";
 
