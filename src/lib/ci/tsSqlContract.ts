@@ -20,7 +20,9 @@
 // kompilatora TypeScript, bez kompilacji) zbiera FAKTY SZWU:
 //   1. `.rpc("fn", { klucze })` - nazwa, klucze argumentów, rola klienta,
 //   2. `.from("t")` z łańcuchem `.select/.insert/.update/.upsert/.delete` -
-//      tabela, kolumny, literały zapisywane do kolumn, cel `onConflict`,
+//      tabela, kolumny, literały zapisywane do kolumn, cel `onConflict`;
+//      także `.select(<parametr>)` w funkcji oddanej pomocnikowi
+//      `readPostsWithParentPage` (oba warianty kolumn, które on wyśle),
 //   3. rejestr kolumn publicznych (`PUBLIC_COLUMN_CONTRACTS`) - stałe TS, które
 //      deklarują, co z tabeli wolno czytać frontowi,
 // i renderuje z nich test pgTAP (`supabase/tests/ts_sql_contract_test.sql`),
@@ -118,7 +120,10 @@ export interface SeamFacts {
     readonly rpcCallsWithUnknownName: number;
     readonly tableChains: number;
     readonly tableChainsWithUnknownTable: number;
-    /** Pliki z wywołaniem, którego nazwy/tabeli nie da się ustalić statycznie. */
+    /**
+     * Pliki z wywołaniem, którego nazwy/tabeli nie da się ustalić statycznie,
+     * oraz odczyty `readPostsWithParentPage`, których kolumn nie da się ustalić.
+     */
     readonly unresolvedSites: readonly string[];
   };
 }
@@ -416,6 +421,290 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
   return { columns: [...columns].sort(), star };
 }
 
+// ── Odczyt wpisów przez `readPostsWithParentPage` ───────────────────────────
+//
+// `readPostsWithParentPage(read, PLAIN)` (`lib/routing/postParentPageRead.ts`)
+// woła `read(postColumnsWithParentPage(PLAIN))`, a po błędzie `read(PLAIN)`.
+// W łańcuchu `.from("posts").select(columns)` wewnątrz `read` argument
+// `select` jest parametrem, więc `resolveString` go nie zna i bez tej reguły
+// odczyt nie dawał żadnego faktu: kolumna dopisana do PLAIN bez GRANT-u
+// przechodziła CI i padała dopiero w przeglądarce.
+//
+// REGUŁA JEST WĄSKA CELOWO - jeden kształt, bez zgadywania:
+//   * argument `.select` to PIERWSZY parametr NAJBLIŻSZEJ funkcji (strzałka,
+//     wyrażenie `function` albo deklaracja), jedyne wiązanie tej nazwy w tej
+//     funkcji i nigdzie w niej nie przypisywane - czyli wartość, którą podał
+//     pomocnik;
+//   * ta funkcja jest pierwszym argumentem wywołania pomocnika wprost albo
+//     przez `const`/deklarację funkcji w tym samym pliku (nazwa wiązana raz
+//     w swoim bloku i nieprzypisywana), a pomocnik to import z jego modułu;
+//   * drugi argument pomocnika rozwiązuje się zwykłym `resolveString`.
+// Parametr przekazany DALEJ (`postsQuery(narrowing, columns)`,
+// `postsConstrainedByTaxonomy(columns, ...)`) nie jest tym kształtem - tam
+// `select` składa inna funkcja i reguła milczy, jak dotąd.
+//
+// Oba warianty dają fakty: osadzenie bierzemy ze stałej, której używa sam
+// pomocnik (`POST_PARENT_PAGE_EMBED` w `postHref.ts`), nie z kopii literału.
+// `parseSelectColumns` pomija zasoby osadzone (także w literałach gdzie
+// indziej), więc dziś oba warianty dają te same kolumny `posts`; uprawnienia
+// do `pages(slug, parent_id)` z osadzenia bramka nie sprawdza nigdzie.
+
+/** Pomocnik, jego moduł i stała osadzenia, którą dokleja (ścieżki repo). */
+export const POST_PARENT_PAGE_READ = {
+  helper: "readPostsWithParentPage",
+  module: "src/lib/routing/postParentPageRead.ts",
+  embedModule: "src/lib/routing/postHref.ts",
+  embedConstant: "POST_PARENT_PAGE_EMBED",
+} as const;
+
+/**
+ * Wariant kolumn z osadzeniem - ten sam napis, który składa
+ * `postColumnsWithParentPage` (test pilnuje równości z tamtą funkcją).
+ */
+export function withPostParentPageEmbed(plainColumns: string, embed: string): string {
+  return `${plainColumns}, ${embed}`;
+}
+
+type ReadFunction = ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration;
+
+/** Najbliższa funkcja zawierająca węzeł (dowolnego rodzaju). */
+function enclosingFunction(node: ts.Node): ts.SignatureDeclaration | null {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current)) return current;
+  }
+  return null;
+}
+
+/** Ile wiązań nazwy (zmienna, parametr, rozkład, funkcja, klasa, enum) jest w poddrzewie. */
+function bindingCount(root: ts.Node, name: string): number {
+  let count = 0;
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name
+    ) {
+      count += 1;
+    } else if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isClassExpression(node) ||
+        ts.isEnumDeclaration(node)) &&
+      node.name?.text === name
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return count;
+}
+
+function containsIdentifier(node: ts.Node, name: string): boolean {
+  if (ts.isIdentifier(node)) return node.text === name;
+  return ts.forEachChild(node, (child) => containsIdentifier(child, name) || undefined) ?? false;
+}
+
+/** Czy w poddrzewie coś przypisuje do nazwy (`=`, `+=`, `++`, rozkład, `for (x of ...)`). */
+function isAssigned(root: ts.Node, name: string): boolean {
+  let assigned = false;
+  const isTarget = (target: ts.Expression): boolean => {
+    const node = unwrap(target);
+    if (ts.isIdentifier(node)) return node.text === name;
+    // Przypisanie rozkładające: konserwatywnie - nazwa gdziekolwiek po lewej.
+    if (ts.isArrayLiteralExpression(node) || ts.isObjectLiteralExpression(node)) {
+      return containsIdentifier(node, name);
+    }
+    return false;
+  };
+  const visit = (node: ts.Node): void => {
+    if (assigned) return;
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      isTarget(node.left)
+    ) {
+      assigned = true;
+      return;
+    }
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      (node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken) &&
+      isTarget(node.operand)
+    ) {
+      assigned = true;
+      return;
+    }
+    if (
+      (ts.isForOfStatement(node) || ts.isForInStatement(node)) &&
+      !ts.isVariableDeclarationList(node.initializer) &&
+      isTarget(node.initializer)
+    ) {
+      assigned = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return assigned;
+}
+
+/** Wyrażenie razem z owijkami (nawiasy, `as`, `satisfies`, `!`) nad nim. */
+function outermostWrapper(node: ts.Expression): ts.Expression {
+  let current: ts.Expression = node;
+  for (;;) {
+    const parent = current.parent;
+    if (
+      (ts.isParenthesizedExpression(parent) ||
+        ts.isAsExpression(parent) ||
+        ts.isSatisfiesExpression(parent) ||
+        ts.isNonNullExpression(parent) ||
+        ts.isTypeAssertionExpression(parent)) &&
+      parent.expression === current
+    ) {
+      current = parent;
+      continue;
+    }
+    return current;
+  }
+}
+
+/** Czy wywołanie to `readPostsWithParentPage(...)` z importu modułu pomocnika. */
+function isPostParentPageHelperCall(
+  call: ts.CallExpression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee)) return false;
+  const imported = scope.imports.get(callee.text);
+  return (
+    imported !== undefined &&
+    imported[1] === POST_PARENT_PAGE_READ.helper &&
+    resolveModule(scope.file, imported[0], known) === POST_PARENT_PAGE_READ.module
+  );
+}
+
+/** Wywołania pomocnika, którym funkcja `fn` jest oddana jako pierwszy argument. */
+function helperCallsReceiving(
+  fn: ReadFunction,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ts.CallExpression[] {
+  let name: string;
+  let container: ts.Node;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined) return [];
+    name = fn.name.text;
+    container = fn.parent;
+  } else {
+    const outer = outermostWrapper(fn);
+    const parent = outer.parent;
+    // Wprost: `readPostsWithParentPage((columns) => ..., COLS)`.
+    if (ts.isCallExpression(parent)) {
+      return parent.arguments[0] === outer && isPostParentPageHelperCall(parent, scope, known)
+        ? [parent]
+        : [];
+    }
+    // Przez stałą: `const read = (columns) => ...; readPostsWithParentPage(read, COLS)`.
+    if (
+      !ts.isVariableDeclaration(parent) ||
+      parent.initializer !== outer ||
+      !ts.isIdentifier(parent.name) ||
+      !ts.isVariableDeclarationList(parent.parent) ||
+      !(parent.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(parent.parent.parent)
+    ) {
+      return [];
+    }
+    name = parent.name.text;
+    container = parent.parent.parent.parent;
+  }
+  // Nazwa wiązana RAZ w swoim bloku i nieprzypisywana - każde jej użycie
+  // w tym bloku to ta funkcja.
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  const calls: ts.CallExpression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && isPostParentPageHelperCall(node, scope, known)) {
+      const first = node.arguments[0] === undefined ? null : unwrap(node.arguments[0]);
+      if (first !== null && ts.isIdentifier(first) && first.text === name) calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(container);
+  return calls;
+}
+
+/**
+ * Napisy `select`, które dostanie `.select(arg)` przez `readPostsWithParentPage`.
+ * `null` - to nie ten kształt (wołający rozwiązuje argument jak dotąd);
+ * pusta lista - ten kształt, ale kolumn nie da się ustalić (miejsce trafia do
+ * `unresolved`, fakt nie powstaje).
+ */
+function postParentPageSelects(
+  arg: ts.Expression,
+  selectCall: ts.CallExpression,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+): string[] | null {
+  const id = unwrap(arg);
+  if (!ts.isIdentifier(id)) return null;
+  const fn = enclosingFunction(selectCall);
+  if (
+    fn === null ||
+    !(ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isFunctionDeclaration(fn))
+  ) {
+    return null;
+  }
+  const first = fn.parameters[0];
+  if (
+    first === undefined ||
+    first.dotDotDotToken !== undefined ||
+    !ts.isIdentifier(first.name) ||
+    first.name.text !== id.text ||
+    bindingCount(fn, id.text) !== 1 ||
+    isAssigned(fn, id.text)
+  ) {
+    return null;
+  }
+  const calls = helperCallsReceiving(fn, scope, known);
+  if (calls.length === 0) return null;
+
+  const embedScope = exportsIndex.get(POST_PARENT_PAGE_READ.embedModule);
+  const embed =
+    embedScope === undefined
+      ? null
+      : resolveConstant(POST_PARENT_PAGE_READ.embedConstant, embedScope, exportsIndex, known, 0);
+  const selects: string[] = [];
+  for (const call of calls) {
+    const plainArg = call.arguments[1];
+    const plain =
+      plainArg === undefined ? null : resolveString(plainArg, scope, exportsIndex, known);
+    const site = `${scope.file}: .select(${id.text}) <- ${POST_PARENT_PAGE_READ.helper}`;
+    if (plain === null) {
+      out.unresolved.push(
+        `${site}(…, ${plainArg === undefined ? "" : plainArg.getText(scope.sf).slice(0, 60)})`,
+      );
+      continue;
+    }
+    if (embed === null) {
+      // Kolumny zwykłego wariantu są pewne; wariantu z osadzeniem - nie.
+      out.unresolved.push(
+        `${site}: ${POST_PARENT_PAGE_READ.embedConstant} (${POST_PARENT_PAGE_READ.embedModule}) nieczytelne`,
+      );
+    } else {
+      selects.push(withPostParentPageEmbed(plain, embed));
+    }
+    selects.push(plain);
+  }
+  return selects;
+}
+
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
 interface Collector {
@@ -622,10 +911,14 @@ function handleFrom(
         site("select", [], true);
         continue;
       }
-      const text = resolveString(arg, scope, exportsIndex, known);
-      if (text === null) continue;
-      const parsed = parseSelectColumns(text);
-      if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
+      // Parametr funkcji oddanej `readPostsWithParentPage` PRZED rozwiązaniem
+      // po nazwie: parametr przesłania stałą modułu o tej samej nazwie.
+      const viaHelper = postParentPageSelects(arg, call, scope, exportsIndex, known, out);
+      const text = viaHelper === null ? resolveString(arg, scope, exportsIndex, known) : null;
+      for (const select of viaHelper ?? (text === null ? [] : [text])) {
+        const parsed = parseSelectColumns(select);
+        if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
+      }
     } else if (op === "insert" || op === "update" || op === "upsert") {
       const objects = objectArgument(call.arguments[0], scope);
       let kind: TableOp = op;
@@ -723,9 +1016,11 @@ export function extractSeamFacts(
 /**
  * Zapadka: wywołania, których nazwy funkcji albo tabeli NIE da się ustalić
  * statycznie (pomocniki generyczne: sortowanie, wybór linku, bramka
- * analityki). Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
- * wywołanie z obliczoną nazwą zapala `check:ts-sql-contract`: zamień je na
- * literał (najlepiej) albo świadomie podnieś zapadkę w przeglądzie.
+ * analityki), oraz odczyty `readPostsWithParentPage` z kolumnami nie do
+ * ustalenia. Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
+ * wywołanie z obliczoną nazwą (albo listą kolumn) zapala
+ * `check:ts-sql-contract`: zamień je na literał (najlepiej) albo świadomie
+ * podnieś zapadkę w przeglądzie.
  */
 export const MAX_UNRESOLVED_SITES = 13;
 
@@ -742,7 +1037,7 @@ export function seamCoverageProblems(facts: SeamFacts): string[] {
   const unresolved = facts.coverage.unresolvedSites;
   if (unresolved.length > MAX_UNRESOLVED_SITES) {
     problems.push(
-      `${unresolved.length} wywołań z nazwą nie do ustalenia statycznie (zapadka: ${MAX_UNRESOLVED_SITES}):\n` +
+      `${unresolved.length} wywołań z nazwą (albo kolumnami odczytu) nie do ustalenia statycznie (zapadka: ${MAX_UNRESOLVED_SITES}):\n` +
         unresolved.map((site) => `        ${site}`).join("\n"),
     );
   }
