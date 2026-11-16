@@ -165,7 +165,8 @@ import "@/test/i18nReal";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderRoute } from "@/test/routeHarness";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { COPY, Route } from "@/routes/sitemap";
+import { COPY } from "@/lib/seo/siteMapCopy";
+import { Route } from "@/routes/sitemap";
 
 const PATH = "/sitemap";
 
