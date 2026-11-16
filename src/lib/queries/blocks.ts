@@ -597,26 +597,45 @@ export function calendarPublishedDay(publishedAt: string, target: CalendarInput)
   return Number(key.slice(8, 10));
 }
 
+/**
+ * Wiersz kalendarza. `parent_page` - strona-rodzic z osadzenia w tym samym
+ * `select`; z niej widok liczy adres dnia (`postHref`). Brak pola albo `null`
+ * (odczyt zapasowy, rodzic zagnieżdżony albo niewidoczny) = `/post/<slug>`.
+ */
+export interface CalendarPostRow {
+  slug: string;
+  published_at: string;
+  parent_page?: PostParentPage | null;
+}
+
 export const calendarBlockQueryOptions = (input: CalendarInput) =>
   queryOptions({
     queryKey: ["public", "blocks", "calendar", input] as const,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    queryFn: async (): Promise<Array<{ slug: string; published_at: string }>> => {
+    // Osadzenie strony-rodzica jak w listach bloków (`readBlockPosts`): dzień
+    // linkuje adresem kanonicznym zamiast `/post/<slug>` (301 i dwa odczyty
+    // bazy na kliknięcie, a `AppLink` płaci je już przy najechaniu). Błąd
+    // odczytu z osadzeniem powtarza ten sam odczyt bez niego; błąd TEGO
+    // odczytu rzuca jak dotąd. `parent_page` zostaje w wierszu, bo zapytanie
+    // rozgrzewa SSR - serwer i przeglądarka liczą adres z tego samego wiersza.
+    queryFn: async (): Promise<CalendarPostRow[]> => {
       const { start, end } = siteMonthWindow(input);
-      const { data, error } = await supabase
-        .from("posts")
-        .select("slug, published_at")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .gte("published_at", start)
-        .lt("published_at", end)
-        .order("published_at", { ascending: true })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []).filter(
-        (r): r is { slug: string; published_at: string } => !!r.published_at,
+      const { data, error } = await readPostsWithParentPage(
+        (columns: string) =>
+          supabase
+            .from("posts")
+            .select(columns)
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .gte("published_at", start)
+            .lt("published_at", end)
+            .order("published_at", { ascending: true })
+            .limit(500),
+        "slug, published_at",
       );
+      if (error) throw error;
+      return ((data ?? []) as unknown as CalendarPostRow[]).filter((r) => !!r.published_at);
     },
   });
 
