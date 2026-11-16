@@ -204,15 +204,52 @@ describe("exportCrmLeadsCsv", () => {
 });
 
 describe("getCrmLead", () => {
-  it("składa kartę kontaktu z pięciu źródeł i dokleja avatar profilu", async () => {
-    lead.setResponse("crm_leads", () =>
-      ok({ id: LEAD_ID, email: "a@example.test", tenant_id: TENANT }),
-    );
+  // Zdjęcie członka na karcie kontaktu. Do 2026-11-16 karta pytała `profiles`
+  // o `email`/`contact_email` klientem wołającego - te kolumny nie mają grantu
+  // dla `authenticated` (20260724090100), więc PostgREST odrzucał całe
+  // zapytanie (42501), a pusty `catch` dawał brak zdjęcia na KAŻDEJ karcie.
+  // Atrapa oddawała wtedy wiersz, którego prawdziwa baza nie wyda. Teraz karta
+  // idzie tą samą ścieżką co lista (`getCrmLeadAvatars`): tenant z sesji,
+  // lookup spod service-role zawężony do tego tenanta.
+  const LEAD = {
+    id: LEAD_ID,
+    email: "Anna@Example.test",
+    email_norm: "anna@example.test",
+    tenant_id: TENANT,
+  };
+  const AVATAR = "https://cdn.test/anna.png";
+  const avatarOf = (result: unknown) =>
+    (parsed(result) as { profile_avatar_url: unknown }).profile_avatar_url;
+
+  /** Lead + cztery źródła karty puste + tenant wołającego z jego profilu (RLS). */
+  const planCard = (row: unknown = LEAD, callerTenant: unknown = { tenant_id: TENANT }) => {
+    lead.setResponse("crm_leads", () => ok(row));
+    for (const table of [
+      "contact_messages",
+      "newsletter_subscribers",
+      "crm_consent_log",
+      "crm_lead_notes",
+    ]) {
+      lead.setResponse(table, () => ok([]));
+    }
+    lead.setResponse("profiles", () => ok(callerTenant));
+  };
+
+  it("bramka staffu CRM zostaje na funkcji (lookup spod service-role nie jest publiczny)", () => {
+    expect(serverFnMiddlewareNames(crm.getCrmLead)).toEqual(["requireCrmStaff"]);
+  });
+
+  it("składa kartę kontaktu z pięciu źródeł i dokleja avatar członka o adresie leada", async () => {
+    planCard();
     lead.setResponse("contact_messages", () => ok([{ id: "m1" }]));
     lead.setResponse("newsletter_subscribers", () => ok([{ id: "s1" }]));
     lead.setResponse("crm_consent_log", () => ok([{ id: "c1" }]));
     lead.setResponse("crm_lead_notes", () => ok([{ id: "n1" }]));
-    lead.setResponse("profiles", () => ok({ avatar_url: "https://example.test/a.png" }));
+    admin.setResponse("profiles", (chain) =>
+      chain.argsOf("in")?.[0] === "email"
+        ? ok([{ email: "anna@example.test", contact_email: null, avatar_url: AVATAR }])
+        : ok([]),
+    );
 
     const result = await callServerFn(crm.getCrmLead, {
       data: { id: LEAD_ID },
@@ -223,8 +260,104 @@ describe("getCrmLead", () => {
       subscriptions: [{ id: "s1" }],
       consents: [{ id: "c1" }],
       notes: [{ id: "n1" }],
-      profile_avatar_url: "https://example.test/a.png",
+      profile_avatar_url: AVATAR,
     });
+  });
+
+  it("klient wołającego nie pyta o kolumny bez grantu - tylko o własny tenant", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([]));
+
+    await callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() });
+
+    // Jedyny odczyt `profiles` klientem użytkownika: własny wiersz, kolumna z grantem.
+    const own = lead.chainsFor("profiles");
+    expect(own.map((chain) => chain.argsOf("select"))).toEqual([["tenant_id"]]);
+    expect(own[0]?.argsOf("eq")).toEqual(["id", USER_ID]);
+  });
+
+  it("lookup spod service-role stoi na tenancie wołającego, adresy biorą się z leada", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([]));
+
+    await callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() });
+
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map((chain) => chain.argsOf("in")?.[0]).sort()).toEqual([
+      "contact_email",
+      "email",
+    ]);
+    for (const chain of chains) {
+      expect(chain.argsOf("select")).toEqual(["email, contact_email, avatar_url"]);
+      expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+      expect(chain.argsOf("in")?.[1]).toEqual(["anna@example.test", "Anna@Example.test"]);
+      expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
+    }
+  });
+
+  it("odpowiedź nie niesie adresów profilu - tylko avatar_url", async () => {
+    planCard();
+    admin.setResponse("profiles", () =>
+      ok([{ email: "inny@example.test", contact_email: "Anna@Example.test", avatar_url: AVATAR }]),
+    );
+
+    const result = await callServerFn(crm.getCrmLead, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    expect(avatarOf(result)).toBe(AVATAR);
+    expect(JSON.stringify(result)).not.toContain("inny@example.test");
+  });
+
+  it("lead innego najemcy niż wołający: bez lookupu spod service-role, inicjały", async () => {
+    planCard({ ...LEAD, tenant_id: "66666666-6666-4666-8666-666666666666" });
+
+    const result = await callServerFn(crm.getCrmLead, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    expect(avatarOf(result)).toBeNull();
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("bez tenanta w profilu wołającego: ODMOWA lookupu (bez service-role), karta działa, błąd w logu", async () => {
+    planCard(LEAD, null);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(crm.getCrmLead, {
+        data: { id: LEAD_ID },
+        context: context(),
+      });
+      expect(avatarOf(result)).toBeNull();
+      expect(admin.chains).toHaveLength(0);
+      expect(logged).toHaveBeenCalledWith("[crm] lead avatar lookup failed", {
+        leadId: LEAD_ID,
+        error: "tenant_unresolved",
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("błąd lookupu nie wywraca karty, ale nie znika po cichu - trafia do logu bez adresu", async () => {
+    planCard();
+    admin.setResponse("profiles", () => fail("connection reset", "08006"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(crm.getCrmLead, {
+        data: { id: LEAD_ID },
+        context: context(),
+      });
+      expect(avatarOf(result)).toBeNull();
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledWith("[crm] lead avatar lookup failed", {
+        leadId: LEAD_ID,
+        error: "connection reset",
+      });
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("example.test");
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("brak leada to błąd, a nie pusta karta", async () => {
@@ -232,28 +365,6 @@ describe("getCrmLead", () => {
     await expect(
       callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() }),
     ).rejects.toThrow("Lead not found");
-  });
-
-  it("błąd odczytu profilu nie wywraca karty - avatar zostaje pusty", async () => {
-    lead.setResponse("crm_leads", () =>
-      ok({ id: LEAD_ID, email: "a@example.test", tenant_id: TENANT }),
-    );
-    for (const table of [
-      "contact_messages",
-      "newsletter_subscribers",
-      "crm_consent_log",
-      "crm_lead_notes",
-    ]) {
-      lead.setResponse(table, () => ok([]));
-    }
-    lead.setResponse("profiles", () => {
-      throw new Error("RLS");
-    });
-    const result = await callServerFn(crm.getCrmLead, {
-      data: { id: LEAD_ID },
-      context: context(),
-    });
-    expect((parsed(result) as { profile_avatar_url: unknown }).profile_avatar_url).toBeNull();
   });
 
   it("odrzuca identyfikator, który nie jest UUID", async () => {

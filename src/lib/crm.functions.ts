@@ -25,9 +25,11 @@ import {
   chunked,
   emailLookupValues,
   matchLeadAvatars,
+  type LeadAvatar,
   type LeadEmailRow,
   type ProfileAvatarRow,
 } from "@/lib/crm/leadAvatars";
+import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
 import {
   LeadListFilterSchema,
   ManualLifecycleStageSchema,
@@ -155,23 +157,7 @@ export const getCrmLead = createServerFn({ method: "POST" })
       ),
     ]);
 
-    // Zaczytaj avatar_url z profiles po e-mailu (email lub contact_email),
-    // żeby w widoku szczegółów pokazać zdjęcie profilowe użytkownika.
-    let profile_avatar_url: string | null = null;
-    try {
-      const email = L.email?.toLowerCase() ?? "";
-      if (email) {
-        const { data: prof } = (await looseTable(context, "profiles")
-          .select("avatar_url, email, contact_email")
-          .or(`email.ilike.${email},contact_email.ilike.${email}`)
-          .eq("tenant_id", L.tenant_id)
-          .limit(1)
-          .maybeSingle()) as { data: { avatar_url: string | null } | null };
-        profile_avatar_url = prof?.avatar_url ?? null;
-      }
-    } catch {
-      profile_avatar_url = null;
-    }
+    const profile_avatar_url = await leadCardAvatar(context, lead as LeadCardRow);
 
     return {
       json: j({ lead, messages, subscriptions: subs, consents, notes, profile_avatar_url }),
@@ -1165,23 +1151,10 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
     return { ok: true, deleted: data.ids.length };
   });
 
-// Tenant wołającego dla zapytań spod service-role: z jego profilu pod RLS, NIE
-// z tokenu (powód niżej, przy listStaffUsers). Wspólny dla listStaffUsers
-// i getCrmLeadAvatars - obie funkcje stawiają na nim jedyną granicę najemcy.
-async function resolveCallerTenantId(context: {
-  readonly supabase: unknown;
-  readonly userId: string;
-}): Promise<string> {
-  const { data: tenantRow, error: tenantErr } = await looseTable(context, "profiles")
-    .select("tenant_id")
-    .eq("id", context.userId)
-    .maybeSingle();
-  if (tenantErr) throw new Error(tenantErr.message);
-  const tenantId = (tenantRow as { tenant_id?: string } | null)?.tenant_id;
-  // Brak tenanta = ODMOWA, nigdy "pokaż wszystko". To jest istota poprawki.
-  if (!tenantId) throw new Error("tenant_unresolved");
-  return tenantId;
-}
+// Tenant wołającego dla zapytań spod service-role (`resolveCallerTenantId`,
+// lib/crm/callerTenant.ts): z jego profilu pod RLS, NIE z tokenu (powód niżej,
+// przy listStaffUsers). Wspólny dla listStaffUsers, getCrmLeadAvatars i karty
+// leada - wszystkie stawiają na nim jedyną granicę najemcy.
 
 // Lista staffu do pickera "właściciela" - profile użytkowników z rolami
 // CRM (admin/editor/super_admin) W TENANCIE WOŁAJĄCEGO.
@@ -1284,33 +1257,86 @@ export const getCrmLeadAvatars = createServerFn({ method: "POST" })
       if (res.error) throw new Error(res.error.message);
       leads.push(...rowsOf(res));
     }
-    const values = emailLookupValues(leads);
-    if (values.length === 0) return { avatars: [] };
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = looseClient({ supabase: supabaseAdmin });
-    const lookup = async (column: "email" | "contact_email", part: string[]) => {
-      const res = await admin
-        .from("profiles")
-        .select("email, contact_email, avatar_url")
-        .eq("tenant_id", tenantId)
-        .in(column, part)
-        .not("avatar_url", "is", null)
-        .order("id", { ascending: true })
-        .returns<ProfileAvatarRow>();
-      if (res.error) throw new Error(res.error.message);
-      return rowsOf(res);
-    };
-
-    const byEmail: ProfileAvatarRow[] = [];
-    const byContactEmail: ProfileAvatarRow[] = [];
-    for (const part of chunked(values, LEAD_AVATAR_CHUNK)) {
-      const [primary, contact] = await Promise.all([
-        lookup("email", part),
-        lookup("contact_email", part),
-      ]);
-      byEmail.push(...primary);
-      byContactEmail.push(...contact);
-    }
-    return { avatars: matchLeadAvatars(leads, byEmail, byContactEmail) };
+    return { avatars: await lookupLeadAvatars(tenantId, leads) };
   });
+
+/**
+ * Awatary członków dla leadów JUŻ odczytanych pod RLS - jedna ścieżka dla
+ * listy (`getCrmLeadAvatars`) i karty kontaktu (`getCrmLead`), więc oba
+ * widoki pokazują to samo zdjęcie według tej samej reguły dopasowania
+ * (lib/crm/leadAvatars.ts).
+ *
+ * `tenantId` MUSI pochodzić z `resolveCallerTenantId`: spod service-role
+ * `.eq("tenant_id", tenantId)` jest jedyną granicą najemcy. Adresy biorą się
+ * z leadów, nie z wejścia; z profili wychodzi wyłącznie `avatar_url` (adresy
+ * zostają na serwerze - wynik niesie id leada, nie adres profilu).
+ */
+async function lookupLeadAvatars(
+  tenantId: string,
+  leads: readonly LeadEmailRow[],
+): Promise<LeadAvatar[]> {
+  const values = emailLookupValues(leads);
+  if (values.length === 0) return [];
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = looseClient({ supabase: supabaseAdmin });
+  const lookup = async (column: "email" | "contact_email", part: string[]) => {
+    const res = await admin
+      .from("profiles")
+      .select("email, contact_email, avatar_url")
+      .eq("tenant_id", tenantId)
+      .in(column, part)
+      .not("avatar_url", "is", null)
+      .order("id", { ascending: true })
+      .returns<ProfileAvatarRow>();
+    if (res.error) throw new Error(res.error.message);
+    return rowsOf(res);
+  };
+
+  const byEmail: ProfileAvatarRow[] = [];
+  const byContactEmail: ProfileAvatarRow[] = [];
+  for (const part of chunked(values, LEAD_AVATAR_CHUNK)) {
+    const [primary, contact] = await Promise.all([
+      lookup("email", part),
+      lookup("contact_email", part),
+    ]);
+    byEmail.push(...primary);
+    byContactEmail.push(...contact);
+  }
+  return matchLeadAvatars(leads, byEmail, byContactEmail);
+}
+
+/** Lead karty kontaktu w zakresie potrzebnym do lookupu awatara. */
+type LeadCardRow = LeadEmailRow & { readonly tenant_id: string };
+
+/**
+ * Zdjęcie profilu członka na karcie kontaktu (`getCrmLead`).
+ *
+ * Do 2026-11-16 karta pytała `profiles` o `email`/`contact_email` klientem
+ * wołającego. Te kolumny celowo nie mają grantu dla `authenticated`
+ * (20260724090100, pgTAP `profiles_pii_grant_test`), więc PostgREST odrzucał
+ * całe zapytanie kodem 42501, a pusty `catch` zamieniał to w brak zdjęcia -
+ * na KAŻDEJ karcie. Teraz ta sama ścieżka co lista: tenant z sesji, lookup
+ * spod service-role zawężony do tego tenanta. Lead innego najemcy (zakres
+ * super admina) zostaje z inicjałami - bez lookupu poza tenantem wołającego.
+ *
+ * Zdjęcie jest ozdobą karty, więc awaria lookupu nie wywraca karty - ale nie
+ * znika już po cichu: trafia do logu serwera z id leada (bez adresu).
+ */
+async function leadCardAvatar(
+  context: { readonly supabase: unknown; readonly userId: string },
+  lead: LeadCardRow,
+): Promise<string | null> {
+  try {
+    const tenantId = await resolveCallerTenantId(context);
+    if (lead.tenant_id !== tenantId) return null;
+    const [match] = await lookupLeadAvatars(tenantId, [lead]);
+    return match?.avatar_url ?? null;
+  } catch (err) {
+    console.error("[crm] lead avatar lookup failed", {
+      leadId: lead.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
