@@ -14,7 +14,7 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { CurrentPostProvider } from "@/lib/content-model/postContext";
 import { buildArchiveCtx } from "@/lib/builder/archiveContext";
 import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
-import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcasts";
+import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcastsByCategory";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { archiveLayoutQueryOptions } from "@/lib/archive-layout-settings";
 import { getLayoutComponent } from "@/components/archive/layouts/registry";

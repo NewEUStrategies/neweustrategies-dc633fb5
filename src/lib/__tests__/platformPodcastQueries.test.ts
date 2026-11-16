@@ -9,6 +9,8 @@ vi.mock("@/integrations/supabase/client", async () => {
 import * as client from "@/integrations/supabase/client";
 import * as q from "@/lib/queries/podcasts";
 import * as latest from "@/lib/queries/podcastsLatest";
+import { podcastsByCategoryQueryOptions } from "@/lib/queries/podcastsByCategory";
+import { podcastsByProfileQueryOptions } from "@/lib/queries/podcastsByProfile";
 const db: SupabaseFromStub = Reflect.get(client, "db");
 let qc: QueryClient;
 beforeEach(() => {
@@ -74,7 +76,7 @@ const cases = [
   {
     name: "category",
     table: "podcasts",
-    fetch: (c: QueryClient) => c.fetchQuery(q.podcastsByCategoryQueryOptions("category-id")),
+    fetch: (c: QueryClient) => c.fetchQuery(podcastsByCategoryQueryOptions("category-id")),
     empty: [],
   },
 ];
@@ -102,7 +104,7 @@ describe("public podcast read contracts", () => {
       expect(await qc.fetchQuery(latest.latestPodcastsQueryOptions(limit))).toEqual([
         { id: "published" },
       ]);
-      await qc.fetchQuery(q.podcastsByCategoryQueryOptions("cat", limit));
+      await qc.fetchQuery(podcastsByCategoryQueryOptions("cat", limit));
       for (const chain of db.chainsFor("podcasts")) {
         expect(chain.calls).toContainEqual({ method: "eq", args: ["status", "published"] });
         expect(chain.argsOf("is")).toEqual(["deleted_at", null]);
@@ -187,7 +189,7 @@ describe("public podcast read contracts", () => {
       db.setResponse("podcasts", (chain) =>
         (source === "appearances" ? chain.has("in") : !chain.has("in")) ? fail("denied") : ok([]),
       );
-      await expect(qc.fetchQuery(q.podcastsByProfileQueryOptions("profile"))).rejects.toThrow(
+      await expect(qc.fetchQuery(podcastsByProfileQueryOptions("profile"))).rejects.toThrow(
         "denied",
       );
     },
@@ -209,7 +211,7 @@ describe("public podcast read contracts", () => {
       ),
     );
     expect(
-      (await qc.fetchQuery(q.podcastsByProfileQueryOptions("profile", 3))).map((x) => x.id),
+      (await qc.fetchQuery(podcastsByProfileQueryOptions("profile", 3))).map((x) => x.id),
     ).toEqual(["new", "same", "undated"]);
     expect(
       db
@@ -221,10 +223,10 @@ describe("public podcast read contracts", () => {
   it("supports no appearances and nullable result sets without a malformed IN query", async () => {
     db.setResponse("podcast_episode_people", ok(null));
     db.setResponse("podcasts", ok(null));
-    expect(await qc.fetchQuery(q.podcastsByProfileQueryOptions("profile"))).toEqual([]);
+    expect(await qc.fetchQuery(podcastsByProfileQueryOptions("profile"))).toEqual([]);
     expect(db.chainsFor("podcasts")).toHaveLength(1);
     qc.clear();
     db.setResponse("podcast_episode_people", ok([{ episode_id: "gone" }]));
-    expect(await qc.fetchQuery(q.podcastsByProfileQueryOptions("profile"))).toEqual([]);
+    expect(await qc.fetchQuery(podcastsByProfileQueryOptions("profile"))).toEqual([]);
   });
 });

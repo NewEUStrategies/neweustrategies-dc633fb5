@@ -15,6 +15,10 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Podcast } from "@/lib/podcast/types";
 
+/** Pełne kolumny odcinka (strona odcinka, sekcje autora i kategorii). */
+export const PODCAST_FIELDS =
+  "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en,transcript_pl,transcript_en,audio_url,duration_seconds,episode_number,season,cover_image_url,status,published_at,author_id,show_id,category_id,chapters,quotes,resources,explicit,episode_type,created_at,updated_at";
+
 /**
  * Kolumny KARTY odcinka na listach (katalog /podcasts, widżet CMS
  * `podcast-latest`) - dokładnie to, co karta renderuje. Bez transkrypcji,

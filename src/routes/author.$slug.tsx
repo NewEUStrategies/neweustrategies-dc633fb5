@@ -47,7 +47,7 @@ import {
   isPaginatedAuthorHubView,
   parseAuthorHubSearch,
 } from "@/lib/experts/materialsSearch";
-import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
+import { podcastsByProfileQueryOptions } from "@/lib/queries/podcastsByProfile";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";

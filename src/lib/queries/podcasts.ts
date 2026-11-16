@@ -5,14 +5,17 @@
 // eksperta i stronie specjalizacji (kategorii).
 //
 // Lista najnowszych odcinków (`latestPodcastsQueryOptions`, kolumny karty)
-// mieszka w `./podcastsLatest` - woła ją rejestr prefetchu widgetów z chunku
-// startowego, a ten moduł ładują tylko trasy podcastów, autora i taksonomii.
+// i pełna lista kolumn odcinka (`PODCAST_FIELDS`) mieszkają w `./podcastsLatest`
+// - woła je rejestr prefetchu widgetów z chunku startowego. Sekcje „Podcasty"
+// strony autora i strony kategorii/tagu mają własne liście
+// (`./podcastsByProfile`, `./podcastsByCategory`), żeby trafiały do chunków tych
+// stron, a nie do wspólnego chunku tego modułu (przegląd §9.10: dodatkowe
+// żądanie w zestawie startowym /category, /tag, /author). Ten moduł ładują
+// tylko trasy podcastów i panel.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
-
-export const PODCAST_FIELDS =
-  "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en,transcript_pl,transcript_en,audio_url,duration_seconds,episode_number,season,cover_image_url,status,published_at,author_id,show_id,category_id,chapters,quotes,resources,explicit,episode_type,created_at,updated_at";
+import { PODCAST_FIELDS } from "./podcastsLatest";
 
 export const PODCAST_SHOW_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_image_url,spotify_url,apple_url,youtube_url,sort_order,status,created_at,updated_at";
@@ -197,81 +200,3 @@ export const episodesPeopleQueryOptions = (episodeIds: readonly string[]) =>
   });
 
 // ---------- agregacje: profil eksperta + specjalizacja ----------------------
-
-/**
- * Odcinki, w których ekspert występuje (prowadzący/gość przez profil) lub
- * których jest autorem. Zasila sekcję "Podcasty" na /author/$slug.
- */
-export const podcastsByProfileQueryOptions = (profileId: string, limit = 12) =>
-  queryOptions({
-    queryKey: ["podcasts", "by-profile", profileId, limit] as const,
-    queryFn: async (): Promise<Podcast[]> => {
-      const { data: people, error: peopleError } = await supabase
-        .from("podcast_episode_people")
-        .select("episode_id")
-        .eq("profile_id", profileId)
-        .limit(200);
-      if (peopleError) throw peopleError;
-      const ids = Array.from(new Set((people ?? []).map((r) => r.episode_id as string)));
-
-      // Dwie gałęzie (występy + autorstwo) zamiast .or() z podzapytaniem,
-      // którego PostgREST nie wspiera dla listy id.
-      const [byRole, byAuthor] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("podcasts")
-              .select(PODCAST_FIELDS)
-              .in("id", ids)
-              .eq("status", "published")
-              .is("deleted_at", null)
-          : Promise.resolve({ data: [], error: null }),
-        supabase
-          .from("podcasts")
-          .select(PODCAST_FIELDS)
-          .eq("author_id", profileId)
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false, nullsFirst: false })
-          .limit(limit),
-      ]);
-      if (byRole.error) throw byRole.error;
-      if (byAuthor.error) throw byAuthor.error;
-
-      const seen = new Set<string>();
-      const merged: Podcast[] = [];
-      for (const row of [
-        ...(byRole.data ?? []),
-        ...(byAuthor.data ?? []),
-      ] as unknown as Podcast[]) {
-        if (seen.has(row.id)) continue;
-        seen.add(row.id);
-        merged.push(row);
-      }
-      merged.sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? ""));
-      return merged.slice(0, limit);
-    },
-    staleTime: 2 * 60_000,
-    enabled: !!profileId,
-  });
-
-/** Odcinki przypięte do specjalizacji (kategorii) - sekcja na /category/$slug. */
-export const podcastsByCategoryQueryOptions = (categoryId: string, limit = 8) =>
-  queryOptions({
-    queryKey: ["podcasts", "by-category", categoryId, limit] as const,
-    queryFn: async (): Promise<Podcast[]> => {
-      const { data, error } = await supabase
-        .from("podcasts")
-        .select(PODCAST_FIELDS)
-        .eq("category_id", categoryId)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(Math.max(1, Math.min(limit, 50)));
-      if (error) throw error;
-      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
-      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
-      return (data ?? []) as unknown as Podcast[];
-    },
-    staleTime: 2 * 60_000,
-    enabled: !!categoryId,
-  });
