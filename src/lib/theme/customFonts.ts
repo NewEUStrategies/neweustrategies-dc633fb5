@@ -7,9 +7,11 @@
 // `site_design_tokens.fonts.custom[]` and rendered as an `@font-face` rule by
 // <DesignTokensStyle />. The font also appears in the global <FontPicker /> so
 // editors can use it for headings/body text just like any built-in option.
-import { supabase } from "@/integrations/supabase/client";
-import { brandedMediaUrl } from "@/lib/media/publicUrl";
-import { notifyError } from "@/lib/notify";
+//
+// Wgrywanie fontu (`uploadCustomFont`, `slugifyFontName`) mieszka
+// w `customFontUpload.ts`: ten moduł czyta `designTokens.ts` (reguły
+// `@font-face` w chunku startowym), a wgrywanie woła wyłącznie panel. Nie
+// importuj go stąd (roadmapa ładowania §9.1 J3).
 
 export interface CustomFont {
   /** Stable id used as the CSS font-family name (slug). */
@@ -27,18 +29,6 @@ export interface CustomFont {
 }
 
 const FONT_SLUG_RE = /^[a-z0-9-]{1,40}$/;
-
-export function slugifyFontName(raw: string): string {
-  return (
-    raw
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "font"
-  );
-}
 
 export function fontFaceCss(f: CustomFont): string {
   if (!f.id || !f.url || !FONT_SLUG_RE.test(f.id)) return "";
@@ -67,45 +57,4 @@ function guessFormat(url: string): string | null {
   if (u.endsWith(".ttf")) return "truetype";
   if (u.endsWith(".otf")) return "opentype";
   return null;
-}
-
-const ALLOWED_EXT = new Set(["woff2", "woff", "ttf", "otf"]);
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-
-export async function uploadCustomFont(opts: {
-  file: File;
-  label: string;
-  tenantId: string;
-  weight?: string;
-  style?: "normal" | "italic";
-}): Promise<CustomFont | null> {
-  const ext = opts.file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (!ALLOWED_EXT.has(ext)) {
-    notifyError("Dozwolone formaty: .woff2, .woff, .ttf, .otf");
-    return null;
-  }
-  if (opts.file.size > MAX_BYTES) {
-    notifyError("Plik fontu jest większy niż 5 MB");
-    return null;
-  }
-  const id = slugifyFontName(opts.label || opts.file.name.replace(/\.[^.]+$/, ""));
-  const path = `${opts.tenantId}/fonts/${id}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from("media").upload(path, opts.file, {
-    contentType: opts.file.type || `font/${ext === "ttf" ? "ttf" : ext}`,
-    cacheControl: "31536000, immutable",
-    upsert: false,
-  });
-  if (error) {
-    notifyError(error.message || "Nie udało się wysłać fontu");
-    return null;
-  }
-  const { data } = supabase.storage.from("media").getPublicUrl(path);
-  return {
-    id,
-    label: opts.label || id,
-    url: brandedMediaUrl(data.publicUrl),
-    weight: opts.weight ?? "400",
-    style: opts.style ?? "normal",
-    display: "swap",
-  };
 }

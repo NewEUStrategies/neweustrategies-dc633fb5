@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  fontFaceCss,
-  customFontsCss,
-  slugifyFontName,
-  type CustomFont,
-} from "@/lib/theme/customFonts";
+import { fontFaceCss, customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
+import { slugifyFontName } from "@/lib/theme/customFontUpload";
 
 describe("customFonts", () => {
   it("slugifies non-ascii names safely", () => {

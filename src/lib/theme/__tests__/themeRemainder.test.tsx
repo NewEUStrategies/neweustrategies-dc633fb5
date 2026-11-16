@@ -68,13 +68,8 @@ import {
   useCarouselDefaults,
   useSaveCarouselDefaults,
 } from "@/lib/theme/carouselDefaults";
-import {
-  customFontsCss,
-  fontFaceCss,
-  slugifyFontName,
-  uploadCustomFont,
-  type CustomFont,
-} from "@/lib/theme/customFonts";
+import { customFontsCss, fontFaceCss, type CustomFont } from "@/lib/theme/customFonts";
+import { slugifyFontName, uploadCustomFont } from "@/lib/theme/customFontUpload";
 import {
   FONT_SIZES_DEFAULTS,
   HEADING_LEVELS,
