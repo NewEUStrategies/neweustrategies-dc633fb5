@@ -16,21 +16,25 @@
 // natomiast, że TS jej po drodze NIE OKALECZA.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { asServerFn } from "@/test/serverFnChain";
+import type { RecordedChain, SupabaseFromStub } from "@/test/supabase";
 
 const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   createClient: vi.fn(),
   embedTexts: vi.fn(),
+  from: null as SupabaseFromStub | null,
 }));
 
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnChain")).reactStartMock(),
 );
 
+// Fabryka modułu jest leniwa (handler importuje SDK dynamicznie), więc atrapa
+// `from` powstaje niżej, przy imporcie pliku, a klient czyta ją przy wywołaniu.
 vi.mock("@supabase/supabase-js", () => ({
   createClient: (...args: unknown[]) => {
     h.createClient(...args);
-    return { rpc: h.rpc };
+    return { rpc: h.rpc, from: (table: string) => db().from(table) };
   },
 }));
 
@@ -40,6 +44,9 @@ vi.mock("@/integrations/supabase/tenant-host-fetch", () => ({
 
 vi.mock("@/lib/server/embeddings.server", () => ({ embedTexts: h.embedTexts }));
 
+import { fail, ok, supabaseFromStub } from "@/test/supabase";
+import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { globalSearch, type SearchHit } from "@/lib/search/search.functions";
 import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.functions";
 import {
@@ -57,6 +64,14 @@ const ENV = { url: "https://db.example.supabase.co", key: "publishable-key" };
 /** Wektor 768D - taki, jaki zwraca bramka. Wartość bez znaczenia, długość ma. */
 const vector = (seed = 0.1) => Array.from({ length: 8 }, (_, i) => seed + i / 100);
 
+h.from = supabaseFromStub();
+
+/** Atrapa `sb.from(...)` klienta serwerowego (odczyt stron-rodziców trafień). */
+function db(): SupabaseFromStub {
+  if (h.from === null) throw new Error("test: atrapa `from` nie została utworzona");
+  return h.from;
+}
+
 beforeEach(() => {
   process.env.SUPABASE_URL = ENV.url;
   process.env.SUPABASE_PUBLISHABLE_KEY = ENV.key;
@@ -65,6 +80,10 @@ beforeEach(() => {
   h.embedTexts.mockReset();
   h.rpc.mockResolvedValue({ data: [], error: null });
   h.embedTexts.mockResolvedValue([vector()]);
+  // Domyślnie żaden wpis z trafień nie ma strony-rodzica w odczycie osadzenia.
+  db().reset();
+  db().setResponse("posts", ok([]));
+  resetPostParentPageRead();
 });
 
 afterEach(() => {
@@ -201,6 +220,111 @@ describe("globalSearch - mapowanie wyników", () => {
   it("brak wierszy daje pustą listę", async () => {
     h.rpc.mockResolvedValue({ data: null, error: null });
     await expect(quick.call({ q: "x" })).resolves.toEqual({ hits: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// globalSearch - adres kanoniczny wpisu (9.2 poz. 8)
+// ---------------------------------------------------------------------------
+//
+// `search_quick` oddaje sam slug, więc trafienie linkowało `/post/<slug>` -
+// adres odpowiadający 301 (dodatkowy dokument i dwa odczyty bazy przy wyborze
+// trafienia). Funkcja dociąga strony-rodziców JEDNYM odczytem `posts`
+// z osadzeniem po identyfikatorach wpisów z trafień.
+
+/** `select` odczytu stron-rodziców - dosłownie, znak po znaku. */
+const SELECT_RODZICOW = "id, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+function selectOf(chain: RecordedChain | undefined): string {
+  return String(chain?.argsOf("select")?.[0]);
+}
+
+/** Trzy wpisy (pod `/blog`, pod stroną zagnieżdżoną, pod rodzicem niewidocznym) i strona. */
+const TRAFIENIA = [
+  { kind: "post", id: "p-1", slug: "wpis-1", title_pl: "Wpis 1", title_en: "Post 1" },
+  { kind: "page", id: "pg-1", slug: "o-nas", title_pl: "O nas", title_en: "About" },
+  { kind: "post", id: "p-2", slug: "wpis-2", title_pl: "Wpis 2", title_en: "Post 2" },
+  { kind: "post", id: "p-3", slug: "wpis-3", title_pl: "Wpis 3", title_en: "Post 3" },
+];
+
+const RODZICE = [
+  { id: "p-1", parent_page: { slug: "blog", parent_id: null } },
+  { id: "p-2", parent_page: { slug: "energetyka", parent_id: "pg-analizy" } },
+  { id: "p-3", parent_page: null },
+];
+
+describe("globalSearch - adres kanoniczny wpisu", () => {
+  beforeEach(() => {
+    h.rpc.mockResolvedValue({ data: TRAFIENIA, error: null });
+    db().setResponse("posts", ok(RODZICE));
+  });
+
+  it("literał odczytu to identyfikator i osadzenie rodzica - nic więcej", () => {
+    expect(SELECT_RODZICOW).toBe(`id, ${POST_PARENT_PAGE_EMBED}`);
+  });
+
+  it("wpis pod rodzicem najwyższego poziomu linkuje adresem kanonicznym; zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    const { hits } = await quick.call({ q: "wpis" });
+
+    expect(hits.map((hit) => hit.href)).toEqual([
+      "/blog/wpis-1",
+      "/o-nas",
+      "/post/wpis-2",
+      "/post/wpis-3",
+    ]);
+  });
+
+  it("JEDNA dodatkowa podróż: odczyt `posts` z osadzeniem, tylko po identyfikatorach wpisów", async () => {
+    await quick.call({ q: "wpis" });
+
+    const reads = db().chainsFor("posts");
+    expect(reads).toHaveLength(1);
+    expect(selectOf(reads[0])).toBe(SELECT_RODZICOW);
+    // Strona nie jest wpisem - jej identyfikator nie trafia do odczytu.
+    expect(reads[0]?.argsOf("in")).toEqual(["id", ["p-1", "p-2", "p-3"]]);
+    expect(db().chains).toHaveLength(1);
+  });
+
+  it("bez trafień-wpisów (same strony albo pusto) nie ma dodatkowej podróży", async () => {
+    h.rpc.mockResolvedValue({ data: [TRAFIENIA[1]], error: null });
+    const { hits } = await quick.call({ q: "o nas" });
+    expect(hits.map((hit) => hit.href)).toEqual(["/o-nas"]);
+
+    h.rpc.mockResolvedValue({ data: [], error: null });
+    await quick.call({ q: "nic" });
+
+    expect(db().chains).toHaveLength(0);
+  });
+
+  it("odczyt z osadzeniem zawodzi: te same trafienia z /post/<slug>, bez drugiego odczytu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    db().setResponse("posts", fail("permission denied for table pages", "42501"));
+
+    const { hits } = await quick.call({ q: "wpis" });
+
+    expect(hits.map((hit) => hit.href)).toEqual([
+      "/post/wpis-1",
+      "/o-nas",
+      "/post/wpis-2",
+      "/post/wpis-3",
+    ]);
+    // Zapas nie pyta bazy: trafienia RPC mają już slug i tytuły.
+    expect(db().chainsFor("posts")).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    // W oknie wyłączenia osadzenia kolejne zapytanie palety nie ma dodatkowej
+    // podróży, a adresy są zapasowe - jak przed zmianą.
+    db().setResponse("posts", ok(RODZICE));
+    const again = await quick.call({ q: "wpis" });
+    expect(again.hits.map((hit) => hit.href)).toEqual([
+      "/post/wpis-1",
+      "/o-nas",
+      "/post/wpis-2",
+      "/post/wpis-3",
+    ]);
+    expect(db().chainsFor("posts")).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });
 
