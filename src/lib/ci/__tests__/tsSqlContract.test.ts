@@ -10,12 +10,15 @@
 //   * klucz tożsamości z ładunku jsonb.
 // Tu sprawdzamy, że ekstraktor WIDZI te fakty w kodzie i że render niesie je
 // do SQL; prawdziwą decyzję podejmuje katalog Postgresa w jobie `pgtap`.
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import * as postHrefModule from "@/lib/routing/postHref";
 import { POST_PARENT_PAGE_EMBED, postColumnsWithParentPage } from "@/lib/routing/postHref";
 import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
+  COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
   POST_PARENT_PAGE_READ,
   extractSeamFacts,
@@ -292,12 +295,13 @@ describe("extractSeamFacts - readPostsWithParentPage", () => {
     expect(posts).toEqual(bothVariants(["id", "slug"]));
   });
 
-  it("parametryzowany select bez pomocnika (albo z cudzym pomocnikiem) - bez faktu, jak dotąd", () => {
+  it("parametryzowany select z cudzym pomocnikiem albo odwróconymi argumentami - bez faktu", () => {
+    // Wywołanie `read("id, slug")` wprost daje fakt z reguły przepływu kolumn
+    // przez parametr (osobny opis niżej); tu tylko pomocnik, który nim nie jest.
     const { f, posts } = postFacts(
       `
       import { readPostsWithParentPage as foreign } from "@/lib/other";
       const read = (columns: string) => supabase.from("posts").select(columns);
-      await read("id, slug");
       await otherHelper(read, "id, slug");
       await otherHelper((columns: string) => supabase.from("posts").select(columns), "id, slug");
       await readPostsWithParentPage("id, slug", (columns: string) => supabase.from("posts").select(columns));
@@ -309,10 +313,10 @@ describe("extractSeamFacts - readPostsWithParentPage", () => {
     expect(f.coverage.unresolvedSites).toEqual([]);
   });
 
-  it("parametr przekazany dalej, przypisany albo w zagnieżdżonej funkcji - poza regułą", () => {
+  it("parametr przypisany albo w zagnieżdżonej funkcji - poza regułą", () => {
+    // Parametr przekazany DALEJ (`postsQuery(columns)`) ma fakty z reguły
+    // przepływu kolumn - test w jej opisie niżej.
     const { posts } = postFacts(`
-      function postsQuery(columns: string) { return supabase.from("posts").select(columns); }
-      await readPostsWithParentPage((columns: string) => postsQuery(columns), "id, slug");
       await readPostsWithParentPage((columns: string) => {
         columns = columns + ", body";
         return supabase.from("posts").select(columns);
@@ -402,6 +406,278 @@ describe("extractSeamFacts - readPostsWithParentPage", () => {
     expect((postHrefModule as Record<string, unknown>)[POST_PARENT_PAGE_READ.embedConstant]).toBe(
       POST_PARENT_PAGE_EMBED,
     );
+  });
+});
+
+describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
+  // `.select(x)`, gdzie `x` zależy od parametru funkcji, a kolumny podaje
+  // wołający - także z innego pliku i przez kilka funkcji pośrednich.
+  const HELPER_MODULES = {
+    [POST_PARENT_PAGE_READ.module]: `export function readPostsWithParentPage(read, plain) {}`,
+    [POST_PARENT_PAGE_READ.embedModule]: `export const POST_PARENT_PAGE_EMBED = ${JSON.stringify(POST_PARENT_PAGE_EMBED)};`,
+  };
+  const HEADER = `
+    import { supabase } from "@/integrations/supabase/client";
+    import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
+  `;
+
+  function flowFacts(files: Record<string, string>) {
+    const withHeader = Object.fromEntries(
+      Object.entries(files).map(([file, code]) => [file, HEADER + code]),
+    );
+    const f = facts({ ...HELPER_MODULES, ...withHeader });
+    const posts = f.tables.filter((t) => t.table === "posts");
+    return { f, posts, cols: posts.map((t) => `${t.file}=${t.columns.join(",")}`) };
+  }
+
+  function site(columns: string[], file = "src/lib/q.ts") {
+    return { table: "posts", op: "select", columns, star: false, role: "authenticated", file };
+  }
+
+  it("funkcja pośrednia w tym samym pliku (kształt `blocks.ts`): oba warianty pomocnika", () => {
+    const { f, posts } = flowFacts({
+      "src/lib/q.ts": `
+        function postsQuery(narrowing: unknown, columns: string) {
+          return narrowing === null ? supabase.from("posts").select(columns) : other(columns);
+        }
+        await readPostsWithParentPage((columns: string) => refine(postsQuery(n, columns)), "id, slug");
+      `,
+    });
+    expect(posts).toEqual([site(["id", "slug"]), site(["id", "slug"])]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("prawdziwy `taxonomyPivot.ts` przez import: osadzenia z jego stałych, kolumny z pliku wołającego", () => {
+    const { f, posts } = flowFacts({
+      "src/lib/queries/taxonomyPivot.ts": readFileSync("src/lib/queries/taxonomyPivot.ts", "utf8"),
+      "src/lib/q.ts": `
+        import { postsConstrainedByTaxonomy, postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
+        const ARCHIVE_COLS = "id, author_id";
+        export async function load(id: string, constraints: unknown[]) {
+          const read = (columns: string) =>
+            postsNarrowedToTaxonomy(columns, { kind: "category", termIds: [id] }).limit(3);
+          await readPostsWithParentPage(read, "id, slug, title_pl");
+          await postsNarrowedToTaxonomy(ARCHIVE_COLS, { kind: "tag", termIds: [id] }, { count: "exact" });
+          await readPostsWithParentPage(
+            (columns: string) => postsConstrainedByTaxonomy(columns, constraints).eq("status", "published"),
+            "id, post_format",
+          );
+        }
+      `,
+    });
+    const read = site(["id", "slug", "title_pl"]);
+    const archive = site(["author_id", "id"]);
+    const constrained = site(["id", "post_format"]);
+    // Dwa `select` zawężenia (kategoria, tag) x trzy wartości kolumn, potem
+    // jeden `select` warunków x dwa warianty pomocnika.
+    expect(posts).toEqual([read, read, archive, read, read, archive, constrained, constrained]);
+    // Osadzenia tabel pośrednich (`${CATEGORY_PIVOT_EMBED}`, `[cols, ...].join`)
+    // rozwiązane - inaczej miejsce trafiłoby tutaj.
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("osadzenie spoza stałej (wartość czasu działania obok kolumn) - miejsce nieczytelne, nie cichy fakt", () => {
+    const { f, posts } = flowFacts({
+      "src/lib/h.ts": `
+        const EMBED = pickEmbed();
+        export function narrowed(cols: string) {
+          return supabase.from("posts").select(\`\${cols}, \${EMBED}\`);
+        }
+      `,
+      "src/lib/q.ts": `
+        import { narrowed } from "@/lib/h";
+        await narrowed("id");
+      `,
+    });
+    expect(posts).toEqual([site(["id"])]);
+    expect(f.coverage.unresolvedSites).toEqual([
+      "src/lib/h.ts: .select(`${cols}, ${EMBED}`) <- src/lib/q.ts: kolumna z wartości czasu działania",
+    ]);
+  });
+
+  it("`[cols, ...xs.map(cb)].join`: element z nawiasem to zasób osadzony; inny element - miejsce nieczytelne", () => {
+    const { f, cols } = flowFacts({
+      "src/lib/h.ts": `
+        export function constrained(cols: string, xs: X[]) {
+          const select = [cols, ...xs.map(({ alias, table }) => \`\${alias}:\${table}!inner()\`)].join(", ");
+          return supabase.from("posts").select(select as "x");
+        }
+        export function leaky(cols: string, xs: X[]) {
+          const select = [cols, ...xs.map((x) => \`\${x.column}\`)].join(", ");
+          return supabase.from("posts").select(select);
+        }
+        export function spread(cols: string, extra: string[]) {
+          return supabase.from("posts").select([cols, ...extra].join(", "));
+        }
+      `,
+      "src/lib/q.ts": `
+        import { constrained, leaky, spread } from "@/lib/h";
+        await constrained("id, slug", xs);
+        await leaky("id", xs);
+        await spread("title_pl", extra);
+      `,
+    });
+    expect(cols).toEqual(["src/lib/q.ts=id,slug", "src/lib/q.ts=id", "src/lib/q.ts=title_pl"]);
+    // Lista jest posortowana: rozkład bez `map`, potem element bez nawiasu.
+    expect(f.coverage.unresolvedSites).toEqual([
+      'src/lib/h.ts: .select([cols, ...extra].join(", ")) <- src/lib/q.ts: kolumna z wartości czasu działania',
+      "src/lib/h.ts: .select(select) <- src/lib/q.ts: kolumna z wartości czasu działania",
+    ]);
+  });
+
+  it("budowniczy w stałej (`const base = supabase.from(...)`): łańcuch każdego użycia", () => {
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `
+        export function q(cond: boolean) {
+          const base = supabase.from("posts");
+          return cond ? base.select("id").eq("x", 1) : (base as Builder).select("slug");
+        }
+        let later = supabase.from("posts");
+        later.select("title_pl");
+      `,
+    });
+    // `let` może wskazać inny budowniczy - bez faktu i bez łańcucha.
+    expect(cols).toEqual(["src/lib/q.ts=id", "src/lib/q.ts=slug"]);
+    expect(f.coverage.tableChains).toBe(1);
+  });
+
+  it("budowniczy w stałej przesłoniętej gdzie indziej w bloku - bez faktu, a nie cudza lista kolumn", () => {
+    const { cols } = flowFacts({
+      "src/lib/q.ts": `
+        const base = supabase.from("posts");
+        function f() { const base = other(); return base.select("secret"); }
+        await base.select("id");
+      `,
+    });
+    expect(cols).toEqual([]);
+  });
+
+  it("wywołanie wprost (także z aliasem importu) i stała `const` wołającego", () => {
+    const { f, cols } = flowFacts({
+      "src/lib/h.ts": `
+        export function postsBy(cols: string) { return supabase.from("posts").select(cols); }
+        export const postsByArrow = (cols: string) => supabase.from("posts").select(cols, { count: "exact" });
+      `,
+      "src/lib/q.ts": `
+        import { postsBy as load, postsByArrow } from "@/lib/h";
+        await load("id, slug");
+        export function g() { const LOCAL = "title_en"; return postsByArrow(LOCAL); }
+      `,
+    });
+    expect(cols).toEqual(["src/lib/q.ts=id,slug", "src/lib/q.ts=title_en"]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("parametr przypisany albo z wartością domyślną - bez faktu", () => {
+    const { cols } = flowFacts({
+      "src/lib/q.ts": `
+        function assigned(cols: string) { cols = cols + ", secret"; return supabase.from("posts").select(cols); }
+        function defaulted(cols = "secret") { return supabase.from("posts").select(cols); }
+        await assigned("id");
+        await defaulted("slug");
+      `,
+    });
+    expect(cols).toEqual([]);
+  });
+
+  it("nazwa funkcji przesłonięta u wołającego (import, blok tego pliku) - wywołanie się nie liczy", () => {
+    const { cols } = flowFacts({
+      "src/lib/h.ts": `export function postsBy(cols: string) { return supabase.from("posts").select(cols); }`,
+      "src/lib/q.ts": `
+        import { postsBy } from "@/lib/h";
+        function g() { const postsBy = (x: string) => x; return postsBy("secret"); }
+        function local(cols: string) { return supabase.from("posts").select(cols); }
+        { function local(x: string) { return x; } local("secret"); }
+      `,
+    });
+    expect(cols).toEqual([]);
+  });
+
+  it("wywołanie z rozkładem, bez argumentu albo z funkcją nieeksportowaną - pomijane", () => {
+    const { f, cols } = flowFacts({
+      "src/lib/h.ts": `function hidden(cols: string) { return supabase.from("posts").select(cols); }`,
+      "src/lib/q.ts": `
+        import { hidden } from "@/lib/h";
+        function q(cols: string) { return supabase.from("posts").select(cols); }
+        await q(...args);
+        await q();
+        await hidden("secret");
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("stała lokalna albo parametr funkcji zewnętrznej przesłania stałą modułu - nie wartość z modułu", () => {
+    // Obie wartości znane dopiero w czasie działania: brak faktu i jedno
+    // miejsce nieczytelne (ten sam `select`, ten sam plik literału).
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `
+        const COLS = "secret";
+        function q(cols: string) { return supabase.from("posts").select(cols); }
+        export function g() { const COLS = pickColumns(); return q(COLS); }
+        export function outer(COLS: string) { return [1].map(() => q(COLS)); }
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([
+      "src/lib/q.ts: .select(cols) <- src/lib/q.ts: kolumna z wartości czasu działania",
+    ]);
+  });
+
+  it("parametr przesłania stałą modułu o tej samej nazwie - wartość od wołającego", () => {
+    const { cols } = flowFacts({
+      "src/lib/q.ts": `
+        const cols = "secret";
+        function q(cols: string) { return supabase.from("posts").select(cols); }
+        await q("id");
+      `,
+    });
+    expect(cols).toEqual(["src/lib/q.ts=id"]);
+  });
+
+  it("`const` w bloku nieobejmującym użycia, `let` albo dwa parametry w szablonie - reguła milczy", () => {
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `
+        function scoped(cols: string) {
+          if (flag) { const sel = \`\${cols}, a\`; }
+          return supabase.from("posts").select(sel);
+        }
+        function mutable(cols: string) { let sel = cols; return supabase.from("posts").select(sel); }
+        function two(a: string, b: string) { return supabase.from("posts").select(\`\${a}, \${b}\`); }
+        await scoped("id");
+        await mutable("id");
+        await two("id", "slug");
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it(`najwyżej ${COLUMN_FLOW_MAX_DEPTH} skoki wywołań; dłuższy przepływ - miejsce nieczytelne`, () => {
+    const chain = (prefix: string, hops: number) =>
+      Array.from({ length: hops }, (_, i) =>
+        i === 0
+          ? `function ${prefix}0(cols: string) { return supabase.from("posts").select(cols); }`
+          : `function ${prefix}${i}(cols: string) { return ${prefix}${i - 1}(cols); }`,
+      ).join("\n") + `\nawait ${prefix}${hops - 1}("${prefix}_col");`;
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `${chain("ok", COLUMN_FLOW_MAX_DEPTH)}\n${chain("far", COLUMN_FLOW_MAX_DEPTH + 1)}`,
+    });
+    expect(cols).toEqual(["src/lib/q.ts=ok_col"]);
+    expect(f.coverage.unresolvedSites).toHaveLength(1);
+    expect(f.coverage.unresolvedSites[0]).toMatch(/^src\/lib\/q\.ts:\d+: przepływ kolumn dłuższy/);
+  });
+
+  it("wywołania wzajemne (cykl) - przebieg się kończy, fakt z wywołania z literałem", () => {
+    const { cols } = flowFacts({
+      "src/lib/q.ts": `
+        function a(c: string) { return c ? supabase.from("posts").select(c) : b(c); }
+        function b(c: string) { return a(c); }
+        await a("id");
+      `,
+    });
+    expect(cols).toEqual(["src/lib/q.ts=id"]);
   });
 });
 
@@ -518,6 +794,48 @@ describe("stan repozytorium", () => {
     expect(
       repo.coverage.unresolvedSites.filter((s) => s.includes(POST_PARENT_PAGE_READ.helper)),
     ).toEqual([]);
+  });
+
+  it("odczyty przekazujące kolumny dalej (postsQuery, taxonomyPivot) mają fakty w pliku literału", () => {
+    // Plik literału -> [liczba faktów `posts.select`, kolumny]. Odczyt przez
+    // pomocnik ma dwa warianty, `postsNarrowedToTaxonomy` - dwa `select`
+    // (kategoria, tag). `blocks.ts`: 2 + 4 z przepływu i 1 bezpośredni
+    // `.select(POST_SELECT)` (sąsiad wpisu); `archives.ts`: 2 z przepływu.
+    const expected: Record<string, readonly [number, string]> = {
+      "src/lib/queries/megaMenu.ts": [4, "cover_image_url,id,published_at,slug,title_en,title_pl"],
+      "src/lib/queries/blocks.ts": [
+        7,
+        "cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
+      ],
+      "src/lib/queries/archives.ts": [
+        2,
+        "author_id,cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
+      ],
+      "src/lib/builder/postListQuery.ts": [
+        2,
+        "author_id,cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,post_format,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
+      ],
+      "src/lib/builder/ratedListQuery.ts": [
+        2,
+        "author_id,excerpt_en,excerpt_pl,id,post_format,published_at,slug,title_en,title_pl",
+      ],
+      "src/lib/builder/sliderPostsQuery.ts": [
+        2,
+        "author_id,cover_image_url,excerpt_en,excerpt_pl,id,published_at,slug,title_en,title_pl",
+      ],
+      "src/lib/builder/newsTickerQuery.ts": [2, "author_id,id,slug,title_en,title_pl"],
+    };
+    for (const [file, [count, columns]] of Object.entries(expected)) {
+      const posts = repo.tables.filter(
+        (t) =>
+          t.file === file &&
+          t.table === "posts" &&
+          t.op === "select" &&
+          t.role === "authenticated" &&
+          t.columns.join(",") === columns,
+      );
+      expect(posts, file).toHaveLength(count);
+    }
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {

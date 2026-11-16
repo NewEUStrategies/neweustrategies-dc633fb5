@@ -22,7 +22,10 @@
 //   2. `.from("t")` z łańcuchem `.select/.insert/.update/.upsert/.delete` -
 //      tabela, kolumny, literały zapisywane do kolumn, cel `onConflict`;
 //      także `.select(<parametr>)` w funkcji oddanej pomocnikowi
-//      `readPostsWithParentPage` (oba warianty kolumn, które on wyśle),
+//      `readPostsWithParentPage` (oba warianty kolumn, które on wyśle)
+//      i `select` składany z parametru, którego wartość podają wywołania
+//      (także z innego pliku: `postsNarrowedToTaxonomy(kolumny, ...)`),
+//      oraz łańcuchy na stałej z budowniczym (`const base = ....from("t")`),
 //   3. rejestr kolumn publicznych (`PUBLIC_COLUMN_CONTRACTS`) - stałe TS, które
 //      deklarują, co z tabeli wolno czytać frontowi,
 // i renderuje z nich test pgTAP (`supabase/tests/ts_sql_contract_test.sql`),
@@ -122,7 +125,8 @@ export interface SeamFacts {
     readonly tableChainsWithUnknownTable: number;
     /**
      * Pliki z wywołaniem, którego nazwy/tabeli nie da się ustalić statycznie,
-     * oraz odczyty `readPostsWithParentPage`, których kolumn nie da się ustalić.
+     * odczyty `readPostsWithParentPage`, których kolumn nie da się ustalić,
+     * oraz `select` z parametru, do którego dociera wartość czasu działania.
      */
     readonly unresolvedSites: readonly string[];
   };
@@ -407,11 +411,8 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
   const columns = new Set<string>();
   let star = false;
   for (const raw of splitTopLevel(select)) {
-    if (raw.includes("(") || raw.startsWith("...")) continue;
-    let item = raw;
-    const alias = item.indexOf(":");
-    if (alias !== -1 && item[alias + 1] !== ":") item = item.slice(alias + 1);
-    item = item.split("::")[0].split("->")[0].trim();
+    const item = selectItemColumn(raw);
+    if (item === null) continue;
     if (item === "*") {
       star = true;
       continue;
@@ -419,6 +420,18 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
     if (COLUMN_RE.test(item)) columns.add(item);
   }
   return { columns: [...columns].sort(), star };
+}
+
+/**
+ * Kolumna elementu listy `select` (bez aliasu, rzutowania i ścieżki json);
+ * `null` - zasób osadzony albo rozkład, czyli nie kolumna tej tabeli.
+ */
+function selectItemColumn(raw: string): string | null {
+  if (raw.includes("(") || raw.startsWith("...")) return null;
+  let item = raw;
+  const alias = item.indexOf(":");
+  if (alias !== -1 && item[alias + 1] !== ":") item = item.slice(alias + 1);
+  return item.split("::")[0].split("->")[0].trim();
 }
 
 // ── Odczyt wpisów przez `readPostsWithParentPage` ───────────────────────────
@@ -441,7 +454,9 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
 //   * drugi argument pomocnika rozwiązuje się zwykłym `resolveString`.
 // Parametr przekazany DALEJ (`postsQuery(narrowing, columns)`,
 // `postsConstrainedByTaxonomy(columns, ...)`) nie jest tym kształtem - tam
-// `select` składa inna funkcja i reguła milczy, jak dotąd.
+// `select` składa inna funkcja; te odczyty widzi reguła przepływu kolumn
+// przez parametr (sekcja niżej), dla której pomocnik jest jednym ze źródeł
+// wartości parametru.
 //
 // Oba warianty dają fakty: osadzenie bierzemy ze stałej, której używa sam
 // pomocnik (`POST_PARENT_PAGE_EMBED` w `postHref.ts`), nie z kopii literału.
@@ -675,11 +690,7 @@ function postParentPageSelects(
   const calls = helperCallsReceiving(fn, scope, known);
   if (calls.length === 0) return null;
 
-  const embedScope = exportsIndex.get(POST_PARENT_PAGE_READ.embedModule);
-  const embed =
-    embedScope === undefined
-      ? null
-      : resolveConstant(POST_PARENT_PAGE_READ.embedConstant, embedScope, exportsIndex, known, 0);
+  const embed = postParentPageEmbed(exportsIndex, known);
   const selects: string[] = [];
   for (const call of calls) {
     const plainArg = call.arguments[1];
@@ -703,6 +714,529 @@ function postParentPageSelects(
     selects.push(plain);
   }
   return selects;
+}
+
+/** Osadzenie, które dokleja pomocnik - wartość PRAWDZIWEJ stałej z `postHref.ts`. */
+function postParentPageEmbed(exportsIndex: ExportIndex, known: ReadonlySet<string>): string | null {
+  const embedScope = exportsIndex.get(POST_PARENT_PAGE_READ.embedModule);
+  return embedScope === undefined
+    ? null
+    : resolveConstant(POST_PARENT_PAGE_READ.embedConstant, embedScope, exportsIndex, known, 0);
+}
+
+// ── Kolumny przekazywane parametrem między funkcjami ────────────────────────
+//
+// Reguła pomocnika (wyżej) widzi `.select(columns)` tylko wtedy, gdy funkcja
+// oddana `readPostsWithParentPage` SAMA woła `.select` na swoim parametrze.
+// Sześć odczytów wpisów (mega menu, bloki treści, cztery widgety buildera)
+// i archiwum taksonomii przekazuje kolumny DALEJ - do `postsQuery`
+// (`blocks.ts`), `postsNarrowedToTaxonomy` albo `postsConstrainedByTaxonomy`
+// (`taxonomyPivot.ts`), które składają `select` w innej funkcji, także
+// w innym pliku (`${cols}, ${OSADZENIE}`, `[cols, ...osadzenia].join(", ")`).
+// Bez tej reguły kolumna dopisana do ich literału bez GRANT-u przechodziła CI.
+//
+// JAK. `.select(arg)`, którego `arg` zależy od DOKŁADNIE JEDNEGO parametru
+// najbliższej funkcji F, dostaje fakty z wartości, jakie ten parametr
+// przyjmuje w wywołaniach F:
+//   * wywołanie po nazwie w tym samym pliku albo - gdy F jest eksportem
+//     najwyższego poziomu (`export function` / `export const`) - przez import
+//     nazwany w innym pliku (bez reeksportów i importów przestrzeni nazw);
+//   * `readPostsWithParentPage(F, PLAIN)` dla pierwszego parametru: oba
+//     warianty, które pomocnik wysyła (z osadzeniem i zapasowy);
+//   * argument to literał albo stała - albo znów parametr funkcji wołającej:
+//     wtedy krok w górę, najwyżej `COLUMN_FLOW_MAX_DEPTH` skoków.
+// Fakt dostaje plik, w którym rozwiązał się literał kolumn (tam się je
+// dopisuje), a rolę - odbiorca `.from()` w funkcji składającej `select`.
+//
+// STRAŻNICY (jak przy pomocniku: fałszywy fakt jest gorszy niż brak faktu):
+//   * parametr: identyfikator bez `...` i bez wartości domyślnej, jedyne
+//     wiązanie tej nazwy w F, nigdzie nieprzypisywany;
+//   * nazwa F wiązana RAZ w swoim bloku i nieprzypisywana; w pliku
+//     importującym nazwa lokalna niczym nieprzesłonięta;
+//   * wywołanie z rozkładem (`f(...args)`) do pozycji parametru - pomijane;
+//   * nazwy w wyrażeniu `select` i w argumentach: parametr, `const`
+//     najbliższej funkcji (jedyne wiązanie, w zasięgu użycia), stała modułu
+//     albo importu, której nazwy nic w pliku nie przesłania - wartość
+//     PRAWDZIWEJ stałej (np. `CATEGORY_PIVOT_EMBED`, `POST_PARENT_PAGE_EMBED`).
+//     `let`, wiązanie wielokrotne albo przesłonięte: reguła milczy;
+//   * `[...].join(sep)` z rozkładem `xs.map(cb)`: element listy to wynik `cb`
+//     z wartościami czasu działania; bez faktu kolumny tylko wtedy, gdy jest
+//     zasobem osadzonym (`alias:tabela!inner()`), czyli nie kolumną tej tabeli.
+// Wartość czasu działania na miejscu KOLUMNY (argument wyliczany dopiero
+// w przeglądarce, rozkład bez `map`, element bez nawiasu) czyni miejsce
+// nieczytelnym: znane kolumny dają fakty, a miejsce trafia do
+// `unresolvedSites` (zapadka). Funkcja nieznanego wołającego (oddana jako
+// wartość, wołana tylko z testów) faktów nie daje - jak dotąd.
+
+/** Najwięcej skoków wywołań między `.select` a literałem kolumn. */
+export const COLUMN_FLOW_MAX_DEPTH = 4;
+
+/** Znak spoza składni `select`: część napisu znana dopiero w czasie działania. */
+const RUNTIME_PART = "";
+
+/** Kawałek szablonu `select`: tekst albo parametr najbliższej funkcji. */
+type FlowPart = string | { readonly param: number };
+
+interface FlowValue {
+  /** Napis `select` (z `RUNTIME_PART` w miejscach nieznanych statycznie). */
+  readonly text: string;
+  /** Plik, w którym rozwiązał się literał kolumn. */
+  readonly file: string;
+}
+
+interface FlowImport {
+  readonly scope: FileScope;
+  readonly local: string;
+  readonly imported: string;
+}
+
+interface FlowEnv {
+  readonly scopes: ExportIndex;
+  readonly known: ReadonlySet<string>;
+  /** Miejsca nieczytelne tej reguły (zbiór: jedno miejsce osiągalne z kilku `select`). */
+  readonly unresolved: Set<string>;
+  /** Plik -> importy nazwane z niego; budowane leniwie, raz na ekstrakcję. */
+  importers: Map<string, FlowImport[]> | null;
+}
+
+interface FlowCtx {
+  readonly scope: FileScope;
+  /** Najbliższa funkcja wyrażenia - jej parametry to dziury szablonu. */
+  readonly fn: ts.SignatureDeclaration | null;
+  /** Callbacki `.map(cb)` w trakcie oceny - ich wiązania to wartości czasu działania. */
+  readonly lambdas: readonly ts.SignatureDeclaration[];
+}
+
+/** Indeks parametru `name` funkcji `fn`; `-1` - to nie parametr; `null` - parametr poza regułą. */
+function flowParamIndex(fn: ts.SignatureDeclaration, name: string): number | null {
+  const index = fn.parameters.findIndex((p) => ts.isIdentifier(p.name) && p.name.text === name);
+  if (index === -1) return -1;
+  const param = fn.parameters[index];
+  return param.dotDotDotToken === undefined &&
+    param.initializer === undefined &&
+    bindingCount(fn, name) === 1 &&
+    !isAssigned(fn, name)
+    ? index
+    : null;
+}
+
+/**
+ * Inicjalizator jedynej deklaracji `const name` w `fn`, w zasięgu `use`.
+ * `undefined` - nazwa nie jest w `fn` wiązana; `null` - jest, ale poza regułą
+ * (`let`, wiele wiązań, przypisanie, blok nieobejmujący użycia, funkcja
+ * zagnieżdżona, parametr rozkładany).
+ */
+function flowLocalConst(
+  fn: ts.SignatureDeclaration,
+  name: string,
+  use: ts.Node,
+): ts.Expression | null | undefined {
+  const count = bindingCount(fn, name);
+  if (count === 0) return undefined;
+  if (count !== 1 || isAssigned(fn, name)) return null;
+  const decls: ts.VariableDeclaration[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) {
+      decls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn);
+  const decl = decls[0];
+  if (
+    decls.length !== 1 ||
+    decl.initializer === undefined ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent) ||
+    enclosingFunction(decl) !== fn
+  ) {
+    return null;
+  }
+  const block = decl.parent.parent.parent;
+  for (let node: ts.Node | undefined = use; node; node = node.parent) {
+    if (node === block) return decl.initializer;
+  }
+  return null;
+}
+
+function flowIdentifier(
+  id: ts.Identifier,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  const name = id.text;
+  if (ctx.lambdas.some((cb) => bindingCount(cb, name) > 0)) return [RUNTIME_PART];
+  if (ctx.fn !== null) {
+    const index = flowParamIndex(ctx.fn, name);
+    if (index === null) return null;
+    if (index >= 0) return [{ param: index }];
+    const init = flowLocalConst(ctx.fn, name, id);
+    if (init === null) return null;
+    if (init !== undefined) return flowTemplate(init, ctx, env, depth + 1);
+  }
+  // Poza najbliższą funkcją: tylko stała modułu albo importu, a nazwy nie
+  // wiąże w pliku nic innego (zmienna funkcji zewnętrznej, parametr gdzie
+  // indziej) - inaczej wartość z modułu mogłaby nie być tą wysyłaną.
+  const { scope } = ctx;
+  const topLevel = scope.strings.has(name) || scope.stringExprs.has(name) ? 1 : 0;
+  if ((topLevel === 1 || scope.imports.has(name)) && bindingCount(scope.sf, name) === topLevel) {
+    const value = resolveConstant(name, scope, env.scopes, env.known, 0);
+    if (value !== null) return [value];
+  }
+  return [RUNTIME_PART];
+}
+
+/** Wynik callbacku: ciało-wyrażenie albo blok z jednym `return`. */
+function callbackResult(cb: ts.ArrowFunction | ts.FunctionExpression): ts.Expression | null {
+  if (!ts.isBlock(cb.body)) return cb.body;
+  const [only] = cb.body.statements;
+  return cb.body.statements.length === 1 &&
+    ts.isReturnStatement(only) &&
+    only.expression !== undefined
+    ? only.expression
+    : null;
+}
+
+/** Element rozkładu w `[...].join`: `xs.map(cb)` - jeden reprezentatywny wynik `cb`. */
+function flowSpreadItem(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  const node = unwrap(expr);
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "map" &&
+    node.arguments.length >= 1
+  ) {
+    const cb = unwrap(node.arguments[0]);
+    if (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) {
+      const result = callbackResult(cb);
+      if (result !== null) {
+        return flowTemplate(result, { ...ctx, lambdas: [...ctx.lambdas, cb] }, env, depth + 1);
+      }
+    }
+  }
+  return [RUNTIME_PART];
+}
+
+/** `[a, ...xs.map(cb)].join(sep)`; `undefined` - to nie ten kształt. */
+function flowJoin(
+  call: ts.CallExpression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null | undefined {
+  const callee = call.expression;
+  if (
+    !ts.isPropertyAccessExpression(callee) ||
+    callee.name.text !== "join" ||
+    call.arguments.length !== 1
+  ) {
+    return undefined;
+  }
+  const list = unwrap(callee.expression);
+  if (!ts.isArrayLiteralExpression(list)) return undefined;
+  const sepParts = flowTemplate(call.arguments[0], ctx, env, depth + 1);
+  if (
+    sepParts === null ||
+    !sepParts.every((p): p is string => typeof p === "string" && !p.includes(RUNTIME_PART))
+  ) {
+    return null;
+  }
+  const sep = sepParts.join("");
+  const out: FlowPart[] = [];
+  for (const [i, el] of list.elements.entries()) {
+    const item = ts.isSpreadElement(el)
+      ? flowSpreadItem(el.expression, ctx, env, depth + 1)
+      : flowTemplate(el, ctx, env, depth + 1);
+    if (item === null) return null;
+    if (i > 0) out.push(sep);
+    out.push(...item);
+  }
+  return out;
+}
+
+/**
+ * Szablon napisu: tekst, `RUNTIME_PART` w miejscach znanych dopiero w czasie
+ * działania i dziury na parametry najbliższej funkcji. `null` - wyrażenie
+ * poza regułą (wiązanie, którego wartości nie da się pewnie ustalić).
+ */
+function flowTemplate(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  if (depth > 8) return null;
+  const node = unwrap(expr);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
+  if (ts.isTemplateExpression(node)) {
+    const parts: FlowPart[] = [node.head.text];
+    for (const span of node.templateSpans) {
+      const inner = flowTemplate(span.expression, ctx, env, depth + 1);
+      if (inner === null) return null;
+      parts.push(...inner, span.literal.text);
+    }
+    return parts;
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = flowTemplate(node.left, ctx, env, depth + 1);
+    const right = flowTemplate(node.right, ctx, env, depth + 1);
+    return left === null || right === null ? null : [...left, ...right];
+  }
+  if (ts.isIdentifier(node)) return flowIdentifier(node, ctx, env, depth);
+  if (ts.isCallExpression(node)) {
+    const joined = flowJoin(node, ctx, env, depth);
+    if (joined !== undefined) return joined;
+  }
+  return [RUNTIME_PART];
+}
+
+function flowParams(parts: readonly FlowPart[]): number[] {
+  const params = new Set<number>();
+  for (const part of parts) if (typeof part !== "string") params.add(part.param);
+  return [...params];
+}
+
+function flowSubstitute(parts: readonly FlowPart[], value: string): string {
+  return parts.map((part) => (typeof part === "string" ? part : value)).join("");
+}
+
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === kind);
+}
+
+/** Wywołania `name(...)` (odbiorca: sam identyfikator) w poddrzewie. */
+function callsByName(root: ts.Node, name: string): ts.CallExpression[] {
+  const calls: ts.CallExpression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrap(node.expression);
+      if (ts.isIdentifier(callee) && callee.text === name) calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return calls;
+}
+
+function importersOf(file: string, env: FlowEnv): readonly FlowImport[] {
+  if (env.importers === null) {
+    const index = new Map<string, FlowImport[]>();
+    for (const scope of env.scopes.values()) {
+      for (const [local, [spec, imported]] of scope.imports) {
+        const target = resolveModule(scope.file, spec, env.known);
+        if (target === null) continue;
+        const list = index.get(target) ?? [];
+        list.push({ scope, local, imported });
+        index.set(target, list);
+      }
+    }
+    env.importers = index;
+  }
+  return env.importers.get(file) ?? [];
+}
+
+/** Wywołania funkcji `fn` po nazwie: w jej bloku i (eksport) w plikach importujących. */
+function directCallsOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: FlowEnv,
+): Array<{ readonly call: ts.CallExpression; readonly scope: FileScope }> {
+  let name: string;
+  let statement: ts.Statement;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined || fn.body === undefined) return [];
+    name = fn.name.text;
+    statement = fn;
+  } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+    const outer = outermostWrapper(fn);
+    const decl = outer.parent;
+    if (
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== outer ||
+      !ts.isIdentifier(decl.name) ||
+      !ts.isVariableDeclarationList(decl.parent) ||
+      !(decl.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(decl.parent.parent)
+    ) {
+      return [];
+    }
+    name = decl.name.text;
+    statement = decl.parent.parent;
+  } else {
+    return [];
+  }
+  const container = statement.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  const calls = callsByName(container, name).map((call) => ({ call, scope }));
+  if (
+    ts.isSourceFile(container) &&
+    hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
+    !hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+  ) {
+    for (const imp of importersOf(scope.file, env)) {
+      if (imp.imported !== name) continue;
+      if (bindingCount(imp.scope.sf, imp.local) !== 0 || isAssigned(imp.scope.sf, imp.local)) {
+        continue;
+      }
+      for (const call of callsByName(imp.scope.sf, imp.local))
+        calls.push({ call, scope: imp.scope });
+    }
+  }
+  return calls;
+}
+
+/** Wartości argumentu `arg` wywołania `call` (krok w górę, gdy to parametr wołającego). */
+function flowArgumentValues(
+  arg: ts.Expression,
+  call: ts.CallExpression,
+  scope: FileScope,
+  env: FlowEnv,
+  depth: number,
+  stack: Set<string>,
+): FlowValue[] {
+  const fn = enclosingFunction(call);
+  const parts = flowTemplate(arg, { scope, fn, lambdas: [] }, env, 0);
+  if (parts === null) return [{ text: RUNTIME_PART, file: scope.file }];
+  const params = flowParams(parts);
+  if (params.length === 0) return [{ text: flowSubstitute(parts, ""), file: scope.file }];
+  if (params.length > 1 || fn === null) return [{ text: RUNTIME_PART, file: scope.file }];
+  return flowParamValues(fn, params[0], scope, env, depth + 1, stack).map((v) => ({
+    text: flowSubstitute(parts, v.text),
+    file: v.file,
+  }));
+}
+
+/** Wartości parametru `index` funkcji `fn` ze wszystkich widocznych wywołań. */
+function flowParamValues(
+  fn: ts.SignatureDeclaration,
+  index: number,
+  scope: FileScope,
+  env: FlowEnv,
+  depth: number,
+  stack: Set<string>,
+): FlowValue[] {
+  const site = `${scope.file}:${fn.getStart(scope.sf)}`;
+  if (depth > COLUMN_FLOW_MAX_DEPTH) {
+    env.unresolved.add(
+      `${site}: przepływ kolumn dłuższy niż ${COLUMN_FLOW_MAX_DEPTH} wywołania (parametr ${index + 1})`,
+    );
+    return [];
+  }
+  const key = `${site}:${index}`;
+  if (stack.has(key)) return [];
+  stack.add(key);
+  try {
+    const values: FlowValue[] = [];
+    if (
+      index === 0 &&
+      (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isFunctionDeclaration(fn))
+    ) {
+      for (const call of helperCallsReceiving(fn, scope, env.known)) {
+        const plainArg = call.arguments[1];
+        if (plainArg === undefined) continue;
+        const embed = postParentPageEmbed(env.scopes, env.known);
+        if (embed === null) {
+          env.unresolved.add(
+            `${scope.file}: ${POST_PARENT_PAGE_READ.helper}(…): ${POST_PARENT_PAGE_READ.embedConstant} (${POST_PARENT_PAGE_READ.embedModule}) nieczytelne`,
+          );
+        }
+        for (const plain of flowArgumentValues(plainArg, call, scope, env, depth, stack)) {
+          if (embed !== null) {
+            values.push({ text: withPostParentPageEmbed(plain.text, embed), file: plain.file });
+          }
+          values.push(plain);
+        }
+      }
+    }
+    for (const { call, scope: callerScope } of directCallsOf(fn, scope, env)) {
+      const args = call.arguments;
+      if (args.slice(0, index + 1).some((a) => ts.isSpreadElement(a))) continue;
+      const arg = args[index];
+      if (arg === undefined) continue;
+      values.push(...flowArgumentValues(arg, call, callerScope, env, depth, stack));
+    }
+    return values;
+  } finally {
+    stack.delete(key);
+  }
+}
+
+/**
+ * Napisy `select` (z plikiem literału kolumn) dla `.select(arg)`, którego
+ * argument zależy od jednego parametru najbliższej funkcji. `null` - to nie
+ * ten kształt (bez faktu, jak dotąd).
+ */
+function columnFlowSelects(
+  arg: ts.Expression,
+  selectCall: ts.CallExpression,
+  scope: FileScope,
+  env: FlowEnv,
+): FlowValue[] | null {
+  const fn = enclosingFunction(selectCall);
+  if (fn === null) return null;
+  const parts = flowTemplate(arg, { scope, fn, lambdas: [] }, env, 0);
+  if (parts === null) return null;
+  const params = flowParams(parts);
+  if (params.length !== 1) return null;
+  return flowParamValues(fn, params[0], scope, env, 1, new Set()).map((v) => ({
+    text: flowSubstitute(parts, v.text),
+    file: v.file,
+  }));
+}
+
+/** Czy któryś element listy `select` na miejscu kolumny jest wartością czasu działania. */
+function hasRuntimeColumn(select: string): boolean {
+  return splitTopLevel(select).some(
+    (raw) => selectItemColumn(raw)?.includes(RUNTIME_PART) ?? false,
+  );
+}
+
+/**
+ * `const base = supabase.from("t")`, a dalej `base.select(...)` /
+ * `base.update(...)`: łańcuch każdego użycia stałej. Nazwa wiązana raz w swoim
+ * bloku i nieprzypisywana - każde jej użycie to ten sam budowniczy.
+ */
+function constBoundChains(fromCall: ts.CallExpression): ts.CallExpression[][] {
+  const outer = outermostWrapper(fromCall);
+  const decl = outer.parent;
+  if (
+    !ts.isVariableDeclaration(decl) ||
+    decl.initializer !== outer ||
+    !ts.isIdentifier(decl.name) ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent)
+  ) {
+    return [];
+  }
+  const name = decl.name.text;
+  const container = decl.parent.parent.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  const chains: ts.CallExpression[][] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === name && node !== decl.name) {
+      const ref = outermostWrapper(node);
+      const access = ref.parent;
+      if (
+        ts.isPropertyAccessExpression(access) &&
+        access.expression === ref &&
+        ts.isCallExpression(access.parent) &&
+        access.parent.expression === access
+      ) {
+        chains.push([access.parent, ...chainAbove(access.parent)]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(container);
+  return chains;
 }
 
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
@@ -815,6 +1349,7 @@ function visitFile(
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
   out: Collector,
+  flow: FlowEnv,
 ): void {
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
@@ -822,7 +1357,7 @@ function visitFile(
       if (method?.name === "rpc" && node.arguments.length >= 1) {
         handleRpc(node, method.receiver, scope, exportsIndex, known, out);
       } else if (method?.name === "from" && node.arguments.length === 1) {
-        handleFrom(node, method.receiver, scope, exportsIndex, known, out);
+        handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
       }
     }
     ts.forEachChild(node, visit);
@@ -863,6 +1398,7 @@ function handleFrom(
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
   out: Collector,
+  flow: FlowEnv,
 ): void {
   const recv = unwrap(receiver);
   // `supabase.storage.from("bucket")` to kubełek Storage, nie tabela;
@@ -872,10 +1408,15 @@ function handleFrom(
     const inner = callMethod(recv);
     if (inner?.name === "schema") return;
   }
-  const chain = chainAbove(node);
-  const ops = chain.map((c) => callMethod(c)?.name ?? "");
+  // Łańcuch wprost nad `.from()` albo - gdy budowniczy trafia do stałej -
+  // łańcuch każdego jej użycia (`const base = supabase.from("posts")`).
+  const direct = chainAbove(node);
+  const chains = direct.length > 0 ? [direct] : constBoundChains(node);
   const QUERY = new Set(["select", "insert", "update", "upsert", "delete"]);
-  if (!ops.some((op) => QUERY.has(op))) return; // `Array.from`, `Buffer.from`, ...
+  const opsOf = (chain: readonly ts.CallExpression[]): string[] =>
+    chain.map((c) => callMethod(c)?.name ?? "");
+  // `Array.from`, `Buffer.from`, ...
+  if (!chains.some((chain) => opsOf(chain).some((op) => QUERY.has(op)))) return;
   out.tableChains += 1;
   const table = resolveString(node.arguments[0], scope, exportsIndex, known);
   if (table === null || !COLUMN_RE.test(table)) {
@@ -890,70 +1431,98 @@ function handleFrom(
     out.tables.push({ table, op, columns, star, role, file: scope.file });
   };
 
-  for (let i = 0; i < chain.length; i += 1) {
-    const call = chain[i];
-    const op = ops[i];
-    if (op === "select") {
-      const arg = call.arguments[0];
-      const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-      // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
-      const head =
-        opts !== null &&
-        ts.isObjectLiteralExpression(opts) &&
-        opts.properties.some(
-          (p) =>
-            ts.isPropertyAssignment(p) &&
-            propName(p.name) === "head" &&
-            p.initializer.kind === ts.SyntaxKind.TrueKeyword,
-        );
-      if (head) continue;
-      if (arg === undefined) {
-        site("select", [], true);
-        continue;
-      }
-      // Parametr funkcji oddanej `readPostsWithParentPage` PRZED rozwiązaniem
-      // po nazwie: parametr przesłania stałą modułu o tej samej nazwie.
-      const viaHelper = postParentPageSelects(arg, call, scope, exportsIndex, known, out);
-      const text = viaHelper === null ? resolveString(arg, scope, exportsIndex, known) : null;
-      for (const select of viaHelper ?? (text === null ? [] : [text])) {
-        const parsed = parseSelectColumns(select);
-        if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
-      }
-    } else if (op === "insert" || op === "update" || op === "upsert") {
-      const objects = objectArgument(call.arguments[0], scope);
-      let kind: TableOp = op;
-      let conflict: string | null = null;
-      if (op === "upsert") {
+  for (const chain of chains) {
+    const ops = opsOf(chain);
+    for (let i = 0; i < chain.length; i += 1) {
+      const call = chain[i];
+      const op = ops[i];
+      if (op === "select") {
+        const arg = call.arguments[0];
         const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-        if (opts && ts.isObjectLiteralExpression(opts)) {
-          for (const p of opts.properties) {
-            if (!ts.isPropertyAssignment(p)) continue;
-            const key = propName(p.name);
-            if (key === "ignoreDuplicates" && p.initializer.kind === ts.SyntaxKind.TrueKeyword) {
-              kind = "upsert_ignore";
+        // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
+        const head =
+          opts !== null &&
+          ts.isObjectLiteralExpression(opts) &&
+          opts.properties.some(
+            (p) =>
+              ts.isPropertyAssignment(p) &&
+              propName(p.name) === "head" &&
+              p.initializer.kind === ts.SyntaxKind.TrueKeyword,
+          );
+        if (head) continue;
+        if (arg === undefined) {
+          site("select", [], true);
+          continue;
+        }
+        // Parametr funkcji oddanej `readPostsWithParentPage` PRZED rozwiązaniem
+        // po nazwie: parametr przesłania stałą modułu o tej samej nazwie.
+        const viaHelper = postParentPageSelects(arg, call, scope, exportsIndex, known, out);
+        // Kolumny z parametru przekazanego przez wywołania (reguła przepływu),
+        // także PRZED rozwiązaniem po nazwie - z tego samego powodu. Fakt
+        // dostaje plik literału kolumn, rolę - odbiorca tego `.from()`.
+        const flowed = viaHelper === null ? columnFlowSelects(arg, call, scope, flow) : null;
+        const text =
+          viaHelper === null && flowed === null
+            ? resolveString(arg, scope, exportsIndex, known)
+            : null;
+        for (const value of flowed ?? []) {
+          const parsed = parseSelectColumns(value.text);
+          if (parsed.star || parsed.columns.length > 0) {
+            out.tables.push({
+              table,
+              op: "select",
+              columns: parsed.columns,
+              star: parsed.star,
+              role,
+              file: value.file,
+            });
+          }
+          if (hasRuntimeColumn(value.text)) {
+            flow.unresolved.add(
+              `${scope.file}: .select(${arg.getText(scope.sf).slice(0, 60)}) <- ${value.file}: kolumna z wartości czasu działania`,
+            );
+          }
+        }
+        for (const select of viaHelper ?? (text === null ? [] : [text])) {
+          const parsed = parseSelectColumns(select);
+          if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
+        }
+      } else if (op === "insert" || op === "update" || op === "upsert") {
+        const objects = objectArgument(call.arguments[0], scope);
+        let kind: TableOp = op;
+        let conflict: string | null = null;
+        if (op === "upsert") {
+          const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
+          if (opts && ts.isObjectLiteralExpression(opts)) {
+            for (const p of opts.properties) {
+              if (!ts.isPropertyAssignment(p)) continue;
+              const key = propName(p.name);
+              if (key === "ignoreDuplicates" && p.initializer.kind === ts.SyntaxKind.TrueKeyword) {
+                kind = "upsert_ignore";
+              }
+              if (key === "onConflict")
+                conflict = resolveString(p.initializer, scope, exportsIndex, known);
             }
-            if (key === "onConflict")
-              conflict = resolveString(p.initializer, scope, exportsIndex, known);
+          }
+          if (conflict !== null) {
+            const columns = conflict
+              .split(",")
+              .map((c) => c.trim())
+              .filter((c) => c.length > 0);
+            if (columns.every((c) => COLUMN_RE.test(c))) {
+              out.conflicts.push({ table, columns: [...columns].sort(), file: scope.file });
+            }
           }
         }
-        if (conflict !== null) {
-          const columns = conflict
-            .split(",")
-            .map((c) => c.trim())
-            .filter((c) => c.length > 0);
-          if (columns.every((c) => COLUMN_RE.test(c))) {
-            out.conflicts.push({ table, columns: [...columns].sort(), file: scope.file });
-          }
+        if (objects === null) continue;
+        const shape = objectShape(objects, scope, exportsIndex, known);
+        site(kind, shape.keys, false);
+        for (const lit of shape.literals) {
+          out.literals.push({ table, column: lit.column, value: lit.value, file: scope.file });
         }
+      } else if (op === "delete") {
+        site("delete", [], false);
       }
-      if (objects === null) continue;
-      const shape = objectShape(objects, scope, exportsIndex, known);
-      site(kind, shape.keys, false);
-      for (const lit of shape.literals) {
-        out.literals.push({ table, column: lit.column, value: lit.value, file: scope.file });
-      }
-    } else if (op === "delete") {
-      site("delete", [], false);
     }
   }
 }
@@ -992,7 +1561,9 @@ export function extractSeamFacts(
     tableChainsWithUnknownTable: 0,
     unresolved: [],
   };
-  for (const scope of scopes.values()) visitFile(scope, exportsIndex, known, out);
+  const flow: FlowEnv = { scopes, known, unresolved: new Set(), importers: null };
+  for (const scope of scopes.values()) visitFile(scope, exportsIndex, known, out, flow);
+  out.unresolved.push(...flow.unresolved);
 
   return {
     rpcs: out.rpcs,
@@ -1016,8 +1587,9 @@ export function extractSeamFacts(
 /**
  * Zapadka: wywołania, których nazwy funkcji albo tabeli NIE da się ustalić
  * statycznie (pomocniki generyczne: sortowanie, wybór linku, bramka
- * analityki), oraz odczyty `readPostsWithParentPage` z kolumnami nie do
- * ustalenia. Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
+ * analityki), odczyty `readPostsWithParentPage` z kolumnami nie do
+ * ustalenia i kolumny z parametru, do którego dociera wartość czasu działania
+ * (reguła przepływu kolumn). Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
  * wywołanie z obliczoną nazwą (albo listą kolumn) zapala
  * `check:ts-sql-contract`: zamień je na literał (najlepiej) albo świadomie
  * podnieś zapadkę w przeglądzie.

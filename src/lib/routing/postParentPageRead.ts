@@ -86,10 +86,12 @@ export async function readWithPostParentPage<A, B>(
  * domknięć; reguła błędów i okno wyłączenia są te same co wyżej.
  *
  * Bramka kontraktu TS <-> SQL (`src/lib/ci/tsSqlContract.ts`) widzi oba
- * warianty, gdy `read` SAM woła `.select(columns)` na swoim pierwszym
- * parametrze, a `plainColumns` to literał albo stała. Parametr przekazany
- * dalej (`postsConstrainedByTaxonomy(columns, ...)`, `postsQuery(...)`) jest
- * dla niej niewidoczny: kolumn takiego odczytu bramka nie sprawdza.
+ * warianty, gdy `plainColumns` to literał albo stała, a `read` woła
+ * `.select(columns)` na swoim pierwszym parametrze albo przekazuje go dalej
+ * funkcji, która składa z niego `select` (`postsConstrainedByTaxonomy(columns,
+ * ...)`, `postsQuery(...)`; reguła przepływu kolumn, najwyżej
+ * `COLUMN_FLOW_MAX_DEPTH` wywołań). Kolumny wyliczane w czasie działania
+ * bramka zgłasza jako miejsce nieczytelne.
  */
 export function readPostsWithParentPage<T>(
   read: (columns: string) => PromiseLike<ReadResult<T>>,
