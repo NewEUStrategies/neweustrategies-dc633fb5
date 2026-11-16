@@ -582,6 +582,58 @@ describe("extractSeamFacts - kolumny przekazywane parametrem", () => {
     expect(cols).toEqual([]);
   });
 
+  it("parametr rozkładany (`...cols`) - bez faktu, a nie fakt z samego pierwszego argumentu", () => {
+    // `rest("id", "secret_col")` daje `cols = ["id", "secret_col"]`, czyli
+    // `select("id,secret_col")`; pierwszy argument to tylko część listy.
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `
+        function rest(...cols: string[]) { return supabase.from("posts").select(\`\${cols}\`); }
+        await rest("id", "secret_col");
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+    expect(f.coverage.uncheckedSelects).toEqual(["src/lib/q.ts: .select(`${cols}`)"]);
+  });
+
+  it("nazwa funkcji przypisana na nowo (`F = inna`) - żadne wywołanie się nie liczy, także z importu", () => {
+    // Po `postsBy = other` wywołanie `postsBy("...")` trafia do innej funkcji:
+    // jego argument nie jest listą kolumn tego `select`.
+    const { f, cols } = flowFacts({
+      "src/lib/h.ts": `
+        export function postsBy(cols: string) { return supabase.from("posts").select(cols); }
+        postsBy = other;
+        await postsBy("secret_col");
+      `,
+      "src/lib/q.ts": `
+        import { postsBy } from "@/lib/h";
+        await postsBy("secret_import");
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+    expect(f.coverage.uncheckedSelects).toEqual(["src/lib/h.ts: .select(cols)"]);
+  });
+
+  it("separator `join` znany dopiero w czasie działania albo z parametru - reguła milczy, `select` na liście niesprawdzonych", () => {
+    // Granice elementów listy zależą od separatora; bez jego wartości reguła
+    // nie składa napisu (ani fakt, ani miejsce nieczytelne z przepływu).
+    const { f, cols } = flowFacts({
+      "src/lib/q.ts": `
+        function runtimeSep(cols: string) { return supabase.from("posts").select([cols, "slug"].join(pickSep())); }
+        function paramSep(cols: string, sep: string) { return supabase.from("posts").select([cols, "slug"].join(sep)); }
+        await runtimeSep("id");
+        await paramSep("id", ", ");
+      `,
+    });
+    expect(cols).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+    expect(f.coverage.uncheckedSelects).toEqual([
+      'src/lib/q.ts: .select([cols, "slug"].join(pickSep()))',
+      'src/lib/q.ts: .select([cols, "slug"].join(sep))',
+    ]);
+  });
+
   it("nazwa funkcji przesłonięta u wołającego (import, blok tego pliku) - wywołanie się nie liczy", () => {
     const { cols } = flowFacts({
       "src/lib/h.ts": `export function postsBy(cols: string) { return supabase.from("posts").select(cols); }`,
