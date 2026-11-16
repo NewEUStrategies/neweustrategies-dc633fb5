@@ -347,7 +347,7 @@ function QaDetail() {
             {t("community.qa.summaryAvailable")}
           </p>
           <Button asChild size="sm" className="mt-3">
-            <Link to="/post/$slug" params={{ slug: summaryQ.data.slug }}>
+            <Link to={summaryQ.data.href}>
               {t("community.qa.summaryRead")}
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Link>

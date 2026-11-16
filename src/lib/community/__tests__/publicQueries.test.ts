@@ -94,6 +94,8 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 
 import { ok, fail } from "@/test/supabase";
+import { POST_PARENT_PAGE_EMBED } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import { publicEventRow } from "@/test/events/publicEventRow";
 import { eventPageHeaderRow } from "@/test/events/eventPageHeaderRow";
 import { invalidationKeysFor } from "@/lib/realtime/eventInvalidationMap";
@@ -205,6 +207,10 @@ beforeEach(() => {
   db().reset();
   rpc().reset();
   ssr.calls.length = 0;
+  // Teaser podsumowania czyta przez `readPostsWithParentPage`, którego okno
+  // wyłączenia osadzenia żyje w module - odmowa bazy w jednym przypadku nie
+  // może przestawić kolejnych na odczyt bez osadzenia.
+  resetPostParentPageRead();
 });
 
 // ---------------------------------------------------------------------------
@@ -940,12 +946,17 @@ describe("teaser podsumowania sesji: szkic z kolejki redakcyjnej nie wycieka", (
     expect(chain.has("maybeSingle")).toBe(true);
   });
 
-  it("czyta TYLKO trzy kolumny teasera - bez treści wpisu", async () => {
+  it("czyta TYLKO trzy kolumny teasera i stronę-rodzica - bez treści wpisu", async () => {
     db().setResponse("posts", ok(null));
 
     await fetchQaSummaryPost("post-1");
 
-    expect(selectedColumns(chainOf("posts"))).toEqual(["slug", "title_pl", "title_en"]);
+    // Dosłownie, znak po znaku: kolumny teasera plus osadzenie rodzica, z którego
+    // liczy się adres kanoniczny baneru.
+    expect(chainOf("posts").argsOf("select")?.[0]).toBe(
+      `slug, title_pl, title_en, ${POST_PARENT_PAGE_EMBED}`,
+    );
+    expect(selectedColumns(chainOf("posts")).slice(0, 3)).toEqual(["slug", "title_pl", "title_en"]);
   });
 
   it("szkic (brak dopasowania) daje null, a nie pusty teaser", async () => {
@@ -955,9 +966,85 @@ describe("teaser podsumowania sesji: szkic z kolejki redakcyjnej nie wycieka", (
   });
 
   it("odmowa bazy leci dalej jako błąd", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     db().setResponse("posts", fail("permission denied for table posts", "42501"));
 
     await expect(fetchQaSummaryPost("post-1")).rejects.toThrow("permission denied for table posts");
+    warn.mockRestore();
+  });
+});
+
+// Baner linkował `/post/<slug>`, czyli adres odpowiadający 301 na
+// `/<strona-rodzic>/<slug>` (dodatkowy dokument i dwa odczyty bazy przy
+// kliknięciu). Teaser niesie teraz gotowy `href` z osadzenia w tym samym odczycie.
+describe("teaser podsumowania sesji: adres kanoniczny wpisu", () => {
+  const SELECT_Z_RODZICEM =
+    "slug, title_pl, title_en, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+  const SELECT_ZAPASOWY = "slug, title_pl, title_en";
+
+  function selectOf(chain: RecordedChain | undefined): string {
+    return String(chain?.argsOf("select")?.[0]);
+  }
+
+  /** Teaser z rodzicem w odczycie z osadzeniem, bez niego w zapasowym. */
+  function respondWith(parent: { slug: string; parent_id: string | null } | null): void {
+    db().setResponse("posts", (chain) =>
+      ok({
+        slug: "budzet-podsumowanie",
+        title_pl: "Podsumowanie",
+        title_en: "Summary",
+        ...(selectOf(chain).includes("parent_page:") ? { parent_page: parent } : {}),
+      }),
+    );
+  }
+
+  it("literał z osadzeniem różni się od zapasowego wyłącznie osadzeniem rodzica", () => {
+    expect(SELECT_Z_RODZICEM).toBe(`${SELECT_ZAPASOWY}, ${POST_PARENT_PAGE_EMBED}`);
+  });
+
+  it("rodzic najwyższego poziomu daje adres kanoniczny; jeden odczyt, teaser bez osadzenia", async () => {
+    respondWith({ slug: "blog", parent_id: null });
+
+    await expect(fetchQaSummaryPost("post-1")).resolves.toEqual({
+      slug: "budzet-podsumowanie",
+      title_pl: "Podsumowanie",
+      title_en: "Summary",
+      href: "/blog/budzet-podsumowanie",
+    });
+    expect(db().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(chainOf("posts"))).toBe(SELECT_Z_RODZICEM);
+  });
+
+  it.each([
+    ["zagnieżdżony", { slug: "energetyka", parent_id: "pg-analizy" }],
+    ["niewidoczny dla gościa", null],
+  ])("rodzic %s zostaje przy /post/<slug>", async (_label, parent) => {
+    respondWith(parent);
+
+    const teaser = await fetchQaSummaryPost("post-1");
+
+    expect(teaser?.href).toBe("/post/budzet-podsumowanie");
+  });
+
+  it("odczyt z osadzeniem zawodzi: ten sam teaser z adresem zapasowym, nie błąd", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    db().setResponse("posts", (chain) =>
+      selectOf(chain).includes("parent_page:")
+        ? fail("permission denied for table pages", "42501")
+        : ok({ slug: "budzet-podsumowanie", title_pl: "Podsumowanie", title_en: "Summary" }),
+    );
+
+    const teaser = await fetchQaSummaryPost("post-1");
+
+    expect(teaser?.href).toBe("/post/budzet-podsumowanie");
+    const [embedded, plain, ...rest] = db().chainsFor("posts");
+    expect(rest).toHaveLength(0);
+    expect(selectOf(embedded)).toBe(SELECT_Z_RODZICEM);
+    expect(selectOf(plain)).toBe(SELECT_ZAPASOWY);
+    // Poza `select` zapas to TO SAMO zapytanie: identyfikator, status, kosz.
+    expect(plain?.calls.slice(1)).toEqual(embedded?.calls.slice(1));
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });
 

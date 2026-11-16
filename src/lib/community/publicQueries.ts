@@ -7,6 +7,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export interface PublicEvent {
   id: string;
@@ -516,22 +518,42 @@ export interface QaSummaryPostTeaser {
   slug: string;
   title_pl: string;
   title_en: string;
+  /** Adres wpisu bez prefiksu języka, policzony przez `postHref` (niżej). */
+  href: string;
 }
+
+/** Wiersz odczytu teasera: kolumny wpisu i strona-rodzic z osadzenia. */
+type QaSummaryPostRow = Omit<QaSummaryPostTeaser, "href"> & {
+  parent_page?: PostParentPage | null;
+};
 
 /**
  * Teaser opublikowanego podsumowania sesji (RLS: publiczny odczyt tylko
  * opublikowanych wpisów - szkic z redakcyjnej kolejki nie wycieka).
+ *
+ * Strona-rodzic jedzie osadzeniem w TYM SAMYM odczycie, więc baner linkuje
+ * adresem kanonicznym zamiast `/post/<slug>` (301 i dwa odczyty bazy na
+ * kliknięcie). Rodzic zagnieżdżony albo niewidoczny zostaje przy
+ * `/post/<slug>`; błąd odczytu z osadzeniem powtarza ten sam odczyt bez niego,
+ * a błąd TEGO odczytu leci dalej jak dotąd. Teaser niesie gotowy `href`, nie
+ * osadzenie.
  */
 export async function fetchQaSummaryPost(postId: string): Promise<QaSummaryPostTeaser | null> {
-  const { data, error } = await supabase
-    .from("posts")
-    .select("slug, title_pl, title_en")
-    .eq("id", postId)
-    .eq("status", "published")
-    .is("deleted_at", null)
-    .maybeSingle();
+  const { data, error } = await readPostsWithParentPage(
+    (columns: string) =>
+      supabase
+        .from("posts")
+        .select(columns)
+        .eq("id", postId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .maybeSingle(),
+    "slug, title_pl, title_en",
+  );
   if (error) throw error;
-  return (data ?? null) as QaSummaryPostTeaser | null;
+  if (!data) return null;
+  const { parent_page, ...teaser } = data as unknown as QaSummaryPostRow;
+  return { ...teaser, href: postHref({ slug: teaser.slug, parent_page }) };
 }
 
 export interface PublicQaQuestion {
