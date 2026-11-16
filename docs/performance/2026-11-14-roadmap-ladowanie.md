@@ -785,3 +785,51 @@ wykonana).
 Wartościowsze dla czytelnika w tej fazie: ok. 10,7 KB gzip kodu w `app-initial`,
 którego używają wyłącznie publiczne chunki leniwe (§9.8), oraz - po decyzji
 właściciela - arkusz stylów blokujący render (S1 wstrzymane, §9.7).
+
+### 9.10. Partia 4 (16.11.2026): kod publicznych chunków leniwych poza chunkiem startowym
+
+Ciąg dalszy J3 (§9.8) dla kodu, którego w `app-initial` używały wyłącznie
+publiczne chunki leniwe. Najpierw ustalono, który moduł bootu importuje
+statycznie każdy kandydat (inwentarz `BUNDLE_INVENTORY=1` i graf źródeł), potem
+wydzielono liście bez reeksportów (kod przeniesiony bez zmian, sprawdzone
+porównaniem wielozbioru linii):
+
+- `content-model/postContextPreview.ts` - próbka kanwy buildera
+  i `useCurrentPostCtxOrPreview` (boot czyta z `postContext.tsx` tylko kontekst);
+- `queries/podcastsLatest.ts` - lista najnowszych odcinków, jedyne zapytanie
+  podcastów wołane przez rejestr prefetchu; `queries/podcasts.ts` ładują trasy
+  podcastów, autora i taksonomii;
+- `newsletter/popupDesignResolve.ts` - koercja zapisu i paleta popupu
+  rejestracji (domyślne zostają, czyta je hook ustawień);
+- `builder/clubHubQuery.ts` - zapytania sekcji widgetu „Klub: strona" (jedyny
+  importer `ClubHubView`, więc liść jedzie w jego chunku);
+- `seo/siteMapCopy.ts` - teksty `/sitemap`: stała wspólna `head()` i komponentu
+  ciągnęła moduł `sitemap.tsx?tsr-shared=1` (2,7 KB) do bootu.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`57af436c`) | Po (`68ee8188`) |
+| ---------------------------------------- | ------------------ | --------------- |
+| Chunk startowy (`app-initial`)           | 253,3 KB           | 248,9 KB        |
+| Domknięcie startu (11 chunków)           | 467,1 KB           | 462,7 KB        |
+| JS publiczny                             | 2 776,1 KB         | 2 777,3 KB      |
+| `overall`                                | 5 364,5 KB         | 5 365,6 KB      |
+
+Czytelnik pobiera o 4,4 KB gzip mniej na każdej stronie; domknięcie startu ma
+dalej 11 chunków. W serii bootu (preloady tras z manifestu) nowy chunk
+dostały tylko trasy podcastów (`podcasts`, ich własne zapytania) i panelowe
+`/admin/newsletter/subscribers` (`popupDesignResolve`). Po hydratacji
+jeden dodatkowy chunk pobierają: popup rejestracji (`popupDesignResolve`),
+strona autora i taksonomii (`podcasts`, sekcja odcinków) oraz widgety tagów
+dynamicznych (`postContextPreview`) - każdy z mniejszym bilansem bajtów.
+Strażnik `bootLazyLeaves.gate.test.ts` pilnuje obu kierunków i `head()` mapy
+strony (sprawdzone mutacjami).
+
+Odrzucone po pomiarze: szerszy podział newslettera (hook ustawień,
+`popupFields` i treść zgody poza bootem; build: start −6,3 KB razem z próbką
+i podcastami, wobec −3,7 KB z wąskim liściem popupu) dokładał 1-4 chunki do serii bootu `/login`, `/membership-registration`,
+`/newsletter/measurement` i `/profile/notifications`, a archiwom (`TaxonomyPage`)
++0,7 KB netto; `postLayouts` (render wpisu, ok. 0,65 KB) dokładał chunk każdej
+stronie wpisu; `billing/queries` przeniósłby `checkout.functions` do osobnego
+chunku `Paywall`. Zostawione: `lazyWidgets` (ok. 1,4 KB, wspólna mapa
+serwerowych widgetów czytelniczych - osobna zmiana z testem pierwszej powłoki
+SSR), `worldMapContent` (`geoCoords` dokładałby chunk widgetowi z preloadu
+bootu), `events/schedule` i zapytania profilu prelegenta (poniżej 0,3 KB).
