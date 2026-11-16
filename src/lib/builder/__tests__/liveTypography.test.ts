@@ -14,12 +14,14 @@
 //     usuwana razem z typografią.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  broadcastWidgetTypography,
   buildLiveTypographyVarsCss,
-  clearAllLiveWidgetTypography,
   subscribeWidgetTypography,
   widgetTypographyTemplate,
 } from "../liveTypography";
+import {
+  broadcastWidgetTypography,
+  clearAllLiveWidgetTypography,
+} from "../liveTypographyBroadcast";
 
 afterEach(() => {
   clearAllLiveWidgetTypography();

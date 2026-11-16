@@ -65,7 +65,7 @@ vi.mock("@/lib/appDialogs", () => ({
 }));
 vi.mock("@/components/Header", () => ({ Header: () => <div data-testid="naglowek-strony" /> }));
 vi.mock("@/components/Footer", () => ({ Footer: () => <div data-testid="stopka-strony" /> }));
-vi.mock("@/lib/builder/liveTypography", () => ({
+vi.mock("@/lib/builder/liveTypographyBroadcast", () => ({
   clearAllLiveWidgetTypography: () => {
     typography.cleared += 1;
   },

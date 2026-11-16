@@ -56,7 +56,7 @@ import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
 import { useGlobalWidgetSync } from "./ui/hooks/useGlobalWidgetSync";
 import { InlineSizeToolbar } from "./ui/organisms/InlineSizeToolbar";
-import { clearAllLiveWidgetTypography } from "@/lib/builder/liveTypography";
+import { clearAllLiveWidgetTypography } from "@/lib/builder/liveTypographyBroadcast";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
 import { BulkActionBar } from "./ui/molecules/BulkActionBar";

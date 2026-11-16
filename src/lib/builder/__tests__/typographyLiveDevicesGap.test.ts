@@ -17,11 +17,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildLiveWidgetTypographyCss, buildWidgetTypographyCss } from "../typographyCss";
 import {
-  broadcastWidgetTypography,
   normalizeTypographyGapPx,
   subscribeWidgetTypography,
   widgetTypographyTemplate,
 } from "../liveTypography";
+import { broadcastWidgetTypography } from "../liveTypographyBroadcast";
 
 /** Reguły z deklaracją `font-size` pogrupowane po przodku urządzenia. */
 function sizesByAncestor(css: string): Record<string, string[]> {

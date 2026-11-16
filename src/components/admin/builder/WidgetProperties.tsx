@@ -31,7 +31,7 @@ import {
   isInvertibleModeOverridden,
 } from "@/lib/builder/themedWrites";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
-import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
+import { broadcastWidgetTypography } from "@/lib/builder/liveTypographyBroadcast";
 import {
   Sun,
   Moon,
