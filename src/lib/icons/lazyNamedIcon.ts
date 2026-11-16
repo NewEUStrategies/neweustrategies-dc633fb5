@@ -20,9 +20,17 @@ const missingCaches = new Map<
 async function loadNode(name: string): Promise<IconNode | null> {
   const module = await chunks[iconChunkIndex(name)]();
   const registry: Record<string, unknown> = module.default;
-  const node = registry[name];
+  const node = Object.prototype.hasOwnProperty.call(registry, name) ? registry[name] : undefined;
   // Historical aliases point to a canonical entry instead of duplicating SVGs.
   if (typeof node === "string") return loadNode(node);
+  if (node === undefined) {
+    // Klucz PascalCase gubi zapis „cyfra x cyfra": `grid-2x2` -> `Grid2x2` ->
+    // `grid-2x-2`. Sześć nazw katalogu (`grid-2x2`, `grid-3x3`...) - wybierane
+    // w wybieraku - trafiało przez to w znak zapytania. Druga próba ze sklejonym
+    // zapisem; nazwy, które trafiają dziś, nie dochodzą do tej gałęzi.
+    const joined = name.replace(/(\d)x-(\d)/g, "$1x$2");
+    if (joined !== name) return loadNode(joined);
+  }
   return unpackIconNode(node);
 }
 
