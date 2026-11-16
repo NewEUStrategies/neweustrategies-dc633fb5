@@ -12,12 +12,17 @@
 // do SQL; prawdziwą decyzję podejmuje katalog Postgresa w jobie `pgtap`.
 import { describe, expect, it } from "vitest";
 
+import * as postHrefModule from "@/lib/routing/postHref";
+import { POST_PARENT_PAGE_EMBED, postColumnsWithParentPage } from "@/lib/routing/postHref";
+import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
   MAX_UNRESOLVED_SITES,
+  POST_PARENT_PAGE_READ,
   extractSeamFacts,
   parseSelectColumns,
   renderContractTest,
   seamCoverageProblems,
+  withPostParentPageEmbed,
   type PublicColumnContract,
 } from "../tsSqlContract";
 import { loadProductionSources } from "../../../../scripts/lib/onConflictArbitersInputs";
@@ -185,6 +190,173 @@ describe("extractSeamFacts - tabele", () => {
   });
 });
 
+describe("extractSeamFacts - readPostsWithParentPage", () => {
+  // Moduły pomocnika w wersji minimalnej: import musi się rozwiązać do JEGO
+  // modułu, a osadzenie - do stałej, której pomocnik używa (prawdziwa wartość).
+  const HELPER_MODULES = {
+    [POST_PARENT_PAGE_READ.module]: `export function readPostsWithParentPage(read, plain) {}`,
+    [POST_PARENT_PAGE_READ.embedModule]: `export const POST_PARENT_PAGE_EMBED = ${JSON.stringify(POST_PARENT_PAGE_EMBED)};`,
+  };
+  const HEADER = `
+    import { supabase } from "@/integrations/supabase/client";
+    import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
+  `;
+
+  function postFacts(code: string, extra: Record<string, string> = {}) {
+    const f = facts({ ...HELPER_MODULES, ...extra, "src/lib/q.ts": HEADER + code });
+    return { f, posts: f.tables.filter((t) => t.table === "posts") };
+  }
+
+  /** Oba warianty pomocnika: z osadzeniem i zapasowy - te same kolumny `posts`. */
+  function bothVariants(columns: string[]) {
+    const site = {
+      table: "posts",
+      op: "select",
+      columns,
+      star: false,
+      role: "authenticated",
+      file: "src/lib/q.ts",
+    };
+    return [site, site];
+  }
+
+  it("strzałka wprost: fakty z drugiego argumentu, także z opcjami `select`", () => {
+    const { f, posts } = postFacts(`
+      const COLS = "id, slug, title_pl";
+      await readPostsWithParentPage(
+        (columns: string) =>
+          supabase.from("posts").select(columns, { count: "exact" }).eq("status", "published"),
+        COLS,
+      );
+    `);
+    expect(posts).toEqual(bothVariants(["id", "slug", "title_pl"]));
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("strzałka przez stałą (w funkcji, z argumentem typu) i literał w drugim argumencie", () => {
+    const { posts } = postFacts(`
+      export async function load(limit: number) {
+        const read = (columns: string) =>
+          supabase.from("posts").select(columns).order("published_at").limit(limit);
+        return readPostsWithParentPage<unknown>(read, "id, slug, cover_image_url");
+      }
+    `);
+    expect(posts).toEqual(bothVariants(["cover_image_url", "id", "slug"]));
+  });
+
+  it("deklaracja funkcji, drugi argument ze stałą z importu w szablonie", () => {
+    const { posts } = postFacts(
+      `
+      import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+      function read(columns: string) {
+        return supabase.from("posts").select(columns).is("deleted_at", null);
+      }
+      await readPostsWithParentPage(read, \`id, slug, \${SPONSORED_LIST_COLS}\`);
+    `,
+      { "src/lib/content/sponsored.ts": `export const SPONSORED_LIST_COLS = "is_sponsored";` },
+    );
+    expect(posts).toEqual(bothVariants(["id", "is_sponsored", "slug"]));
+  });
+
+  it("drugi argument nie do ustalenia: brak faktu, miejsce na liście nieczytelnych", () => {
+    const { f, posts } = postFacts(`
+      await readPostsWithParentPage(
+        (columns: string) => supabase.from("posts").select(columns),
+        pickColumns(lang),
+      );
+    `);
+    expect(posts).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([
+      "src/lib/q.ts: .select(columns) <- readPostsWithParentPage(…, pickColumns(lang))",
+    ]);
+  });
+
+  it("parametr niczego nie przesłania: `select` czyta inną nazwę - reguła milczy", () => {
+    const { f, posts } = postFacts(`
+      const OTHER = "id, title_en";
+      let columns = await loadColumns();
+      await readPostsWithParentPage((cols: string) => supabase.from("posts").select(columns), "id, slug");
+      await readPostsWithParentPage((cols: string) => supabase.from("posts").select(OTHER), "id, slug");
+    `);
+    // Pierwszy odczyt: zmienna spoza funkcji, nic statycznego. Drugi: stała
+    // modułu jak dotąd - kolumny pomocnika (`id, slug`) nie są tu przypisywane.
+    expect(posts.map((t) => t.columns)).toEqual([["id", "title_en"]]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("parametr przesłaniający stałą modułu: wygrywa wartość od pomocnika", () => {
+    const { posts } = postFacts(`
+      const columns = "id";
+      await readPostsWithParentPage((columns: string) => supabase.from("posts").select(columns), "id, slug");
+    `);
+    expect(posts).toEqual(bothVariants(["id", "slug"]));
+  });
+
+  it("parametryzowany select bez pomocnika (albo z cudzym pomocnikiem) - bez faktu, jak dotąd", () => {
+    const { f, posts } = postFacts(
+      `
+      import { readPostsWithParentPage as foreign } from "@/lib/other";
+      const read = (columns: string) => supabase.from("posts").select(columns);
+      await read("id, slug");
+      await otherHelper(read, "id, slug");
+      await otherHelper((columns: string) => supabase.from("posts").select(columns), "id, slug");
+      await readPostsWithParentPage("id, slug", (columns: string) => supabase.from("posts").select(columns));
+      await foreign((columns: string) => supabase.from("posts").select(columns), "id, slug");
+    `,
+      { "src/lib/other.ts": `export function readPostsWithParentPage() {}` },
+    );
+    expect(posts).toEqual([]);
+    expect(f.coverage.unresolvedSites).toEqual([]);
+  });
+
+  it("parametr przekazany dalej, przypisany albo w zagnieżdżonej funkcji - poza regułą", () => {
+    const { posts } = postFacts(`
+      function postsQuery(columns: string) { return supabase.from("posts").select(columns); }
+      await readPostsWithParentPage((columns: string) => postsQuery(columns), "id, slug");
+      await readPostsWithParentPage((columns: string) => {
+        columns = columns + ", body";
+        return supabase.from("posts").select(columns);
+      }, "id, slug");
+      await readPostsWithParentPage(
+        (columns: string) => cache(() => supabase.from("posts").select(columns)),
+        "id, slug",
+      );
+      const read = (columns: string) => supabase.from("posts").select(columns);
+      { const read = other; await readPostsWithParentPage(read, "id, slug"); }
+    `);
+    expect(posts).toEqual([]);
+  });
+
+  it("osadzenie nieczytelne: wariant zapasowy zostaje, brak osadzenia widać na liście", () => {
+    const f = facts({
+      [POST_PARENT_PAGE_READ.module]: HELPER_MODULES[POST_PARENT_PAGE_READ.module],
+      "src/lib/q.ts": `${HEADER}
+        await readPostsWithParentPage((columns: string) => supabase.from("posts").select(columns), "id");
+      `,
+    });
+    expect(f.tables.map((t) => [t.table, t.columns])).toEqual([["posts", ["id"]]]);
+    expect(f.coverage.unresolvedSites).toEqual([
+      "src/lib/q.ts: .select(columns) <- readPostsWithParentPage: POST_PARENT_PAGE_EMBED (src/lib/routing/postHref.ts) nieczytelne",
+    ]);
+  });
+
+  it("wariant z osadzeniem to dokładnie napis `postColumnsWithParentPage`", () => {
+    const plain = "id, slug, title_pl";
+    expect(withPostParentPageEmbed(plain, POST_PARENT_PAGE_EMBED)).toBe(
+      postColumnsWithParentPage(plain),
+    );
+  });
+
+  it("nazwy w regule wskazują prawdziwy pomocnik i prawdziwą stałą osadzenia", () => {
+    expect(
+      typeof (postParentPageReadModule as Record<string, unknown>)[POST_PARENT_PAGE_READ.helper],
+    ).toBe("function");
+    expect((postHrefModule as Record<string, unknown>)[POST_PARENT_PAGE_READ.embedConstant]).toBe(
+      POST_PARENT_PAGE_EMBED,
+    );
+  });
+});
+
 describe("extractSeamFacts - kolumny publiczne", () => {
   const contract: PublicColumnContract = {
     table: "ad_slots",
@@ -282,6 +454,22 @@ describe("stan repozytorium", () => {
     expect(repo.publicColumns.map((p) => [p.table, p.columns?.includes("notes")])).toEqual([
       ["ad_slots", false],
     ]);
+  });
+
+  it("odczyty przez readPostsWithParentPage z `.select(columns)` w funkcji pomocnika mają fakty", () => {
+    // Po dwa odczyty w pliku, każdy w dwóch wariantach (z osadzeniem i zapasowy).
+    for (const file of ["src/lib/menus/megaFeatured.ts", "src/lib/queries/public.ts"]) {
+      const posts = repo.tables.filter(
+        (t) => t.file === file && t.table === "posts" && t.op === "select",
+      );
+      expect(posts, file).toHaveLength(4);
+      expect(new Set(posts.map((t) => `${t.role}:${t.columns.join(",")}`)).size, file).toBe(1);
+      expect(posts[0].role).toBe("authenticated");
+      expect(posts[0].columns).toEqual(expect.arrayContaining(["id", "slug", "published_at"]));
+    }
+    expect(
+      repo.coverage.unresolvedSites.filter((s) => s.includes(POST_PARENT_PAGE_READ.helper)),
+    ).toEqual([]);
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {
