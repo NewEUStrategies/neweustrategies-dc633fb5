@@ -19,6 +19,8 @@ import type { PublicPoll } from "@/lib/community/publicQueries";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { postsNarrowedToTaxonomy, type TaxonomyNarrowing } from "@/lib/queries/taxonomyPivot";
 import { SITE_TIME_ZONE } from "@/lib/i18n/format";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 import { eventDayKey, instantFromWallClock, wallClockInZone } from "@/lib/events/timezone";
 
 const STALE_TIME = 2 * 60_000;
@@ -40,6 +42,12 @@ export interface BlockPostRow {
   cover_image_url: string | null;
   published_at: string | null;
   parent_page_id: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` (zapytania listowe) - z niej
+   * widok liczy adres kanoniczny karty (`postHref`). Brak pola albo `null`
+   * (odczyt zapasowy, tryb `trending`, sąsiad wpisu) = `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 
 export interface TaxonomyItem {
@@ -65,6 +73,11 @@ export interface PostNeighbor {
   href: string;
 }
 
+/**
+ * Kolumny wiersza wpisu w blokach - jedyny literał kolumn tej warstwy i zarazem
+ * odczyt zapasowy list. Wariant z osadzeniem strony-rodzica dokleja
+ * `readPostsWithParentPage` (`lib/routing/postParentPageRead.ts`).
+ */
 const POST_SELECT = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
 /**
@@ -88,11 +101,39 @@ async function categoryIdForSlug(categorySlug: string): Promise<string | null | 
   return cat?.id ?? undefined;
 }
 
-/** Zapytanie o wpisy, zawężone do kategorii albo nie - jedno miejsce na ten wybór. */
-function postsQuery(narrowing: TaxonomyNarrowing | null) {
+/**
+ * Zapytanie o wpisy, zawężone do terminu taksonomii albo nie - jedno miejsce na
+ * ten wybór. `columns: string` (nie literał): te same kolumny lecą w dwóch
+ * wariantach, z osadzeniem strony-rodzica i bez - powód w `postListQuery.ts`.
+ */
+function postsQuery(narrowing: TaxonomyNarrowing | null, columns: string) {
   return narrowing === null
-    ? supabase.from("posts").select(POST_SELECT)
-    : postsNarrowedToTaxonomy(POST_SELECT, narrowing);
+    ? supabase.from("posts").select(columns)
+    : postsNarrowedToTaxonomy(columns, narrowing);
+}
+
+/**
+ * Lista wpisów bloku: `refine` dokłada filtry, sortowanie i limit na zapytaniu
+ * z `postsQuery`, a odczyt leci z osadzeniem strony-rodzica (adres kanoniczny
+ * karty bez osobnego round-tripu po ścieżki).
+ *
+ * Błąd odczytu Z OSADZENIEM nie jest błędem bloku: leci to samo zapytanie bez
+ * osadzenia i wiersze wracają bez `parent_page` (karty z adresem zapasowym
+ * `/post/<slug>`). Błąd TEGO odczytu rzuca jak dotąd - blok wchodzi w stan
+ * błędu, a nie udaje listy bez wpisów. `data: null` to nadal pusta lista.
+ */
+async function readBlockPosts(
+  narrowing: TaxonomyNarrowing | null,
+  refine: (
+    query: ReturnType<typeof postsQuery>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<BlockPostRow[]> {
+  const { data, error } = await readPostsWithParentPage(
+    (columns: string) => refine(postsQuery(narrowing, columns)),
+    POST_SELECT,
+  );
+  if (error) throw error;
+  return (data ?? []) as BlockPostRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -113,14 +154,13 @@ export const latestPostsBlockQueryOptions = (input: LatestPostsInput) =>
       const safeCount = Math.max(1, Math.min(50, input.count));
       const catId = await categoryIdForSlug(input.category);
       if (catId === undefined) return [];
-      const q = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(safeCount);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(catId === null ? null : { kind: "category", termIds: [catId] }, (q) =>
+        q
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(safeCount),
+      );
     },
   });
 
@@ -316,17 +356,18 @@ export const queryLoopBlockQueryOptions = (input: QueryLoopInput) =>
     queryFn: async (): Promise<BlockPostRow[]> => {
       const catId = await categoryIdForSlug(input.categorySlug);
       if (catId === undefined) return [];
-      const base = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .limit(Math.max(1, Math.min(24, input.limit)));
-      const q =
-        input.orderBy === "title"
-          ? base.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
-          : base.order("published_at", { ascending: false });
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(
+        catId === null ? null : { kind: "category", termIds: [catId] },
+        (query) => {
+          const base = query
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .limit(Math.max(1, Math.min(24, input.limit)));
+          return input.orderBy === "title"
+            ? base.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
+            : base.order("published_at", { ascending: false });
+        },
+      );
     },
   });
 
@@ -372,16 +413,16 @@ export const relatedPostsBlockQueryOptions = (input: RelatedPostsInput) =>
       }
       if (narrowing !== null && narrowing.termIds.length === 0) return [];
 
-      let q = postsQuery(narrowing)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(cap);
-      if (input.currentId) q = q.neq("id", input.currentId);
-      if (input.strategy === "author" && input.authorId) q = q.eq("author_id", input.authorId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(narrowing, (query) => {
+        let q = query
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(cap);
+        if (input.currentId) q = q.neq("id", input.currentId);
+        if (input.strategy === "author" && input.authorId) q = q.eq("author_id", input.authorId);
+        return q;
+      });
     },
   });
 
@@ -471,6 +512,8 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
           _limit: lim + 1,
         });
         if (error) throw error;
+        // Funkcja SQL oddaje tylko `parent_page_id` (bez sluga strony), więc
+        // wiersz nie niesie `parent_page` i karta zostaje przy `/post/<slug>`.
         return (data ?? []).map((p) => ({
           id: p.id,
           slug: p.slug,
@@ -488,16 +531,15 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
           ? await categoryIdForSlug(input.categorySlug)
           : null;
       if (input.strategy === "category" && (catId === null || catId === undefined)) return [];
-      const q = postsQuery(
+      return readBlockPosts(
         catId === null || catId === undefined ? null : { kind: "category", termIds: [catId] },
-      )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(lim + 1);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+        (q) =>
+          q
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .order("published_at", { ascending: false })
+            .limit(lim + 1),
+      );
     },
   });
 

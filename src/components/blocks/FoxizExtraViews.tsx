@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { Clock, Eye, User, Calendar, FolderOpen, Star, LogIn, LogOut } from "lucide-react";
 import { formatDate, uiLocale } from "@/lib/i18n/format";
+import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
 
 type Lang = "pl" | "en";
 
@@ -338,9 +339,9 @@ interface MorePostsProps {
   cls?: string;
 }
 
-interface PostLite {
+/** `slug` i opcjonalny `parent_page` (adres kanoniczny karty) - z `PostHrefSource`. */
+interface PostLite extends PostHrefSource {
   id: string;
-  slug: string;
   title_pl: string | null;
   title_en: string | null;
   cover_image_url: string | null;
@@ -384,7 +385,9 @@ export function MorePostsView({
         {posts.map((p) => {
           const title =
             (lang === "pl" ? p.title_pl : p.title_en) ?? p.title_pl ?? p.title_en ?? p.slug;
-          const href = `/post/${p.slug}`;
+          // Adres kanoniczny z rodzica osadzonego w wierszu; tryb `trending`
+          // (funkcja SQL bez sluga strony) zostaje przy `/post/<slug>`.
+          const href = postHref(p);
           return (
             <li key={p.id}>
               <AppLink href={href} className="group block">

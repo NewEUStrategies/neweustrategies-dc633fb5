@@ -309,6 +309,26 @@ describe("MorePostsView - polecane wpisy", () => {
     expect(container.querySelector('a[href="/post/wpis-post-1"]')).toBeNull();
   });
 
+  // Karta linkowała `/post/<slug>` (301 i dwa odczyty bazy). Wiersz z listy
+  // niesie stronę-rodzica z osadzenia; wiersz z trybu `trending` (funkcja SQL
+  // bez sluga strony) jej nie niesie i zostaje przy adresie zapasowym.
+  it("rodzic najwyższego poziomu daje adres kanoniczny; zagnieżdżony, niewidoczny i brak pola zostają przy /post/", async () => {
+    h.posts = [
+      post("a", { parent_page: { slug: "blog", parent_id: null } }),
+      post("b", { parent_page: { slug: "energetyka", parent_id: "pg-1" } }),
+      post("c", { parent_page: null }),
+      post("d"),
+    ];
+    renderWithQueryClient(inPost(POST, <MorePostsView />));
+    const section = await screen.findByRole("region", { name: "Polecane dla Ciebie" });
+    expect(Array.from(section.querySelectorAll("a"), (a) => a.getAttribute("href"))).toEqual([
+      "/blog/wpis-a",
+      "/post/wpis-b",
+      "/post/wpis-c",
+      "/post/wpis-d",
+    ]);
+  });
+
   it("limit ponad 12 pokazuje najwyżej 12 wpisów", async () => {
     h.posts = Array.from({ length: 15 }, (_, i) => post(`x${i}`));
     renderWithQueryClient(inPost(POST, <MorePostsView limit={50} heading="Czytaj dalej" />));

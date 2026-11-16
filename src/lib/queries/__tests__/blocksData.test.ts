@@ -81,8 +81,8 @@
 //   * osobnego pomiaru stref kalendarza. Archiwum grupuje miesiące w UTC;
 //     poniższe przypadki graniczne sprawdzają także zgodność emitowanego
 //     zakresu z parserem wyszukiwarki.
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, dehydrate, hydrate } from "@tanstack/react-query";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
 import type { SupabaseRpcStub } from "@/test/supabase/rpc";
 import { freezeClock } from "@/test/time";
@@ -104,8 +104,17 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: { from: from.from, rpc: rpc.rpc } };
 });
 
-import { fail, ok, okCount, type RecordedChain } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  okCount,
+  type RecordedChain,
+  type SupabaseResult,
+  type TableResponder,
+} from "@/test/supabaseChain";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { postHref } from "@/lib/routing/postHref";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import {
   authorPostsCountQueryOptions,
@@ -192,9 +201,54 @@ function dokument(bloki: Block[]): BlocksDoc {
   return { version: 1, blocks: bloki };
 }
 
+/**
+ * `select` listy wpisów bloku BEZ osadzenia - dosłownie, znak po znaku: odczyt
+ * zapasowy list, odczyt sąsiada wpisu i kształt sprzed adresów kanonicznych.
+ */
+const SELECT_WPISU =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate";
+/** Ten sam `select` Z osadzeniem strony-rodzica - to, o co pytają listy. */
+const SELECT_WPISU_Z_RODZICEM =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+
+function selectOf(chain: RecordedChain | undefined): string {
+  return String(chain?.argsOf("select")?.[0]);
+}
+
+/** Odmowa odczytu Z OSADZENIEM rodzica, zwykła odpowiedź odczytu zapasowego. */
+function osadzenieZawodzi(zapas: SupabaseResult): TableResponder {
+  return (chain) =>
+    selectOf(chain).includes("parent_page:")
+      ? fail("permission denied for table pages", "42501")
+      : zapas;
+}
+
+/** Trzy wpisy: pod `/blog`, pod stroną zagnieżdżoną i pod rodzicem niewidocznym dla gościa. */
+function wpisyZRodzicami(): BlockPostRow[] {
+  return [
+    wpis("a", { parent_page_id: "pg-blog", parent_page: { slug: "blog", parent_id: null } }),
+    wpis("b", {
+      parent_page_id: "pg-energetyka",
+      parent_page: { slug: "energetyka", parent_id: "pg-analizy" },
+    }),
+    wpis("c", { parent_page_id: "pg-szkic", parent_page: null }),
+  ];
+}
+
+/** Ostrzeżenie o nieudanym odczycie z osadzeniem - wyciszone, liczone w asercjach. */
+let ostrzezenie: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   baza().reset();
   funkcje().reset();
+  // Wyłączenie osadzenia strony-rodzica po błędzie jest stanem MODUŁU - bez
+  // zdjęcia go przypadek z odmową zmieniałby `select` list w kolejnych.
+  resetPostParentPageRead();
+  ostrzezenie = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -297,6 +351,12 @@ describe("zawężenie kategorią (categoryIdForSlug)", () => {
     await expect(
       klient().fetchQuery(latestPostsBlockQueryOptions({ count: 5, category: "europa" })),
     ).rejects.toThrow("odmowa posts");
+    // Odmowa OBU wariantów kolumn: zapas ratuje rozjazd osadzenia strony-rodzica,
+    // nie awarię samego odczytu `posts`.
+    expect(baza().chainsFor("posts").map(selectOf)).toEqual([
+      `${SELECT_WPISU_Z_RODZICEM}, post_categories!inner(category_id)`,
+      `${SELECT_WPISU}, post_categories!inner(category_id)`,
+    ]);
   });
 });
 
@@ -325,6 +385,7 @@ describe("latestPostsBlockQueryOptions", () => {
     // Bez tych kolumn karta wpisu nie wie, że jest sponsorowana - a ujawnienie
     // materiału sponsorowanego jest wymogiem prawnym, nie ozdobą.
     expect(String(c.argsOf("select")?.[0])).toContain(SPONSORED_LIST_COLS);
+    expect(SELECT_WPISU).toContain(SPONSORED_LIST_COLS);
   });
 
   it("odmowa bazy rzuca, a `data: null` daje pustą listę", async () => {
@@ -592,6 +653,23 @@ describe("postNeighborQueryOptions", () => {
     expect(c.argsOf("gt")).toEqual(["published_at", "2026-06-15T09:00:00.000Z"]);
     expect(c.has("lt")).toBe(false);
     expect(c.argsOf("order")).toEqual(["published_at", { ascending: true }]);
+  });
+
+  it("sąsiad czyta kolumny wpisu BEZ osadzenia rodzica - ścieżkę liczy `page_full_path`", async () => {
+    // Blok sąsiada ma własną drogę do adresu kanonicznego (pełna ścieżka także
+    // dla rodzica zagnieżdżonego), więc jego `select` zostaje literałem sprzed
+    // zmiany - i to on trzyma kolumny wpisu w bramce kontraktu TS <-> SQL.
+    baza().setResponse("posts", ok([wpis("stary")]));
+    await klient().fetchQuery(
+      postNeighborQueryOptions({
+        currentId: "biezacy",
+        publishedAt: "2026-06-15T09:00:00.000Z",
+        direction: "prev",
+      }),
+    );
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(lancuch("posts"))).toBe(SELECT_WPISU);
+    expect(ostrzezenie).not.toHaveBeenCalled();
   });
 
   it("brak sąsiada daje null - i `data: null` znaczy to samo co pusta lista", async () => {
@@ -1075,6 +1153,9 @@ describe("morePostsBlockQueryOptions", () => {
     // Tryb popularności NIE MOŻE dotykać tabeli `posts` - całe zawężenie
     // (okno czasu, ranking) siedzi w funkcji SECURITY DEFINER.
     expect(baza().chains).toEqual([]);
+    // Funkcja SQL oddaje tylko `parent_page_id` (bez sluga strony): wiersz nie
+    // niesie `parent_page`, więc karta zostaje przy adresie zapasowym.
+    expect(wynik.map(postHref)).toEqual(["/post/goraczka"]);
   });
 
   it("odmowa funkcji SQL rzuca, a `data: null` daje pustą listę", async () => {
@@ -1163,6 +1244,158 @@ describe("morePostsBlockQueryOptions", () => {
         morePostsBlockQueryOptions({ strategy: "latest", limit: 4, categorySlug: null }),
       ),
     ).resolves.toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADRES KANONICZNY KART: strona-rodzic w TYM SAMYM odczycie list
+//
+// Cztery listy (latest-posts, query-loop, related-posts, more-posts poza trybem
+// `trending`) linkowały `/post/<slug>`, czyli adres odpowiadający 301 i dwoma
+// odczytami bazy. Wiersz niesie teraz stronę-rodzica z osadzenia, a widok
+// liczy adres przez `postHref`.
+// ---------------------------------------------------------------------------
+
+/** Odczyt listy bloku świeżym klientem - bez zawężenia albo zawężony kategorią `europa`. */
+type OdczytListy = () => Promise<BlockPostRow[]>;
+
+const LISTY_BLOKOW: ReadonlyArray<readonly [string, OdczytListy, OdczytListy]> = [
+  [
+    "latest-posts",
+    () => klient().fetchQuery(latestPostsBlockQueryOptions({ count: 3, category: "" })),
+    () => klient().fetchQuery(latestPostsBlockQueryOptions({ count: 3, category: "europa" })),
+  ],
+  [
+    "query-loop",
+    () =>
+      klient().fetchQuery(
+        queryLoopBlockQueryOptions({ categorySlug: "", limit: 6, orderBy: "date", lang: "pl" }),
+      ),
+    () =>
+      klient().fetchQuery(
+        queryLoopBlockQueryOptions({
+          categorySlug: "europa",
+          limit: 6,
+          orderBy: "date",
+          lang: "pl",
+        }),
+      ),
+  ],
+  [
+    "related-posts",
+    () =>
+      klient().fetchQuery(
+        relatedPostsBlockQueryOptions({
+          currentId: "biezacy",
+          strategy: "latest",
+          categorySlugs: [],
+          tagSlugs: [],
+          authorId: null,
+          limit: 3,
+        }),
+      ),
+    () =>
+      klient().fetchQuery(
+        relatedPostsBlockQueryOptions({
+          currentId: "biezacy",
+          strategy: "category",
+          categorySlugs: ["europa"],
+          tagSlugs: [],
+          authorId: null,
+          limit: 3,
+        }),
+      ),
+  ],
+  [
+    "more-posts",
+    () =>
+      klient().fetchQuery(
+        morePostsBlockQueryOptions({ strategy: "latest", limit: 4, categorySlug: null }),
+      ),
+    () =>
+      klient().fetchQuery(
+        morePostsBlockQueryOptions({ strategy: "category", limit: 4, categorySlug: "europa" }),
+      ),
+  ],
+];
+
+describe.each(LISTY_BLOKOW)("adres kanoniczny karty: %s", (_nazwa, bezZawezenia, zKategoria) => {
+  /** Odpowiedź tabeli kategorii pasująca do obu kształtów odczytu (jeden wiersz i lista). */
+  function kategoriaIstnieje(): void {
+    baza().setResponse("categories", (chain) =>
+      chain.has("maybeSingle") ? ok({ id: "kat-1" }) : ok([{ id: "kat-1" }]),
+    );
+  }
+
+  it("rodzic jedzie w TYM SAMYM odczycie: jedno żądanie o wpisy, zero o strony i zero RPC ścieżek", async () => {
+    baza().setResponse("posts", ok(wpisyZRodzicami()));
+    await bezZawezenia();
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(lancuch("posts"))).toBe(SELECT_WPISU_Z_RODZICEM);
+    expect(baza().chainsFor("pages")).toEqual([]);
+    expect(funkcje().names()).toEqual([]);
+    expect(ostrzezenie).not.toHaveBeenCalled();
+  });
+
+  it("zawężenie kategorią dokłada swoje osadzenie ZA osadzeniem rodzica", async () => {
+    kategoriaIstnieje();
+    baza().setResponse("posts", ok(wpisyZRodzicami()));
+    await zKategoria();
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(lancuch("posts"))).toBe(
+      `${SELECT_WPISU_Z_RODZICEM}, post_categories!inner(category_id)`,
+    );
+  });
+
+  it("rodzic najwyższego poziomu daje /<rodzic>/<slug>; zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    baza().setResponse("posts", ok(wpisyZRodzicami()));
+    const wynik = await bezZawezenia();
+    expect(wynik.map(postHref)).toEqual(["/blog/wpis-a", "/post/wpis-b", "/post/wpis-c"]);
+  });
+
+  it("wiersz bez strony-rodzica zostaje przy /post/<slug>", async () => {
+    baza().setResponse("posts", ok([wpis("1")]));
+    const wynik = await bezZawezenia();
+    expect(wynik.map(postHref)).toEqual(["/post/wpis-1"]);
+  });
+
+  it("odczyt z osadzeniem zawodzi: TO SAMO zapytanie bez osadzenia, karty z adresem zapasowym", async () => {
+    baza().setResponse("posts", osadzenieZawodzi(ok([wpis("1"), wpis("2")])));
+    const wynik = await bezZawezenia();
+    // Blok nie znika i nie wchodzi w błąd: lista jest, adresy jak przed zmianą.
+    expect(wynik.map(postHref)).toEqual(["/post/wpis-1", "/post/wpis-2"]);
+
+    const [zRodzicem, zapasowy, ...reszta] = baza().chainsFor("posts");
+    expect(reszta).toEqual([]);
+    expect(selectOf(zRodzicem)).toBe(SELECT_WPISU_Z_RODZICEM);
+    expect(selectOf(zapasowy)).toBe(SELECT_WPISU);
+    // Poza kolumnami oba odczyty to ten sam łańcuch: filtry, sortowanie, limit.
+    expect(zapasowy?.calls.slice(1)).toEqual(zRodzicem?.calls.slice(1));
+    expect(ostrzezenie).toHaveBeenCalledTimes(1);
+  });
+
+  it("odczyt zapasowy z zawężeniem trzyma osadzenie kategorii", async () => {
+    kategoriaIstnieje();
+    baza().setResponse("posts", osadzenieZawodzi(ok([wpis("1")])));
+    await zKategoria();
+    expect(baza().chainsFor("posts").map(selectOf)).toEqual([
+      `${SELECT_WPISU_Z_RODZICEM}, post_categories!inner(category_id)`,
+      `${SELECT_WPISU}, post_categories!inner(category_id)`,
+    ]);
+  });
+
+  it("ODMOWA obu wariantów kolumn rzuca - blok nie udaje listy bez wpisów", async () => {
+    baza().setResponse("posts", fail("odmowa posts", "57014"));
+    await expect(bezZawezenia()).rejects.toThrow("odmowa posts");
+    expect(baza().chainsFor("posts").map(selectOf)).toEqual([
+      SELECT_WPISU_Z_RODZICEM,
+      SELECT_WPISU,
+    ]);
+  });
+
+  it("PUSTO z odczytu zapasowego (`data: null`) to nadal pusta lista, nie błąd", async () => {
+    baza().setResponse("posts", osadzenieZawodzi(ok(null)));
+    await expect(bezZawezenia()).resolves.toEqual([]);
   });
 });
 
@@ -1627,6 +1860,40 @@ describe("prefetchBlockQueries", () => {
         "pl",
       ),
     ).resolves.toEqual({ degraded: false });
+  });
+
+  it("stan odwodniony niesie `parent_page`: serwer i klient liczą TEN SAM adres karty", async () => {
+    // HTML serwera i strona po hydratacji muszą mieć te same `href`. Widok
+    // liczy adres z wiersza (`postHref`), więc dowodem jest wiersz: po
+    // odwodnieniu, serializacji i nawodnieniu klient czyta spod klucza bloku
+    // dokładnie to, z czego renderował serwer - bez drugiego odczytu.
+    baza().setResponse("posts", ok(wpisyZRodzicami()));
+    const serwer = klient();
+    const doc = dokument([{ id: "a", type: "latest-posts", data: { count: 3 } }]);
+    await prefetchBlockQueries(serwer, doc, "pl");
+    const klucz = latestPostsBlockQueryOptions({ count: 3, category: "" }).queryKey;
+    const naSerwerze = serwer.getQueryData(klucz) ?? [];
+    expect(naSerwerze.map(postHref)).toEqual(["/blog/wpis-a", "/post/wpis-b", "/post/wpis-c"]);
+
+    const przegladarka = new QueryClient();
+    hydrate(przegladarka, JSON.parse(JSON.stringify(dehydrate(serwer))));
+    const wPrzegladarce = przegladarka.getQueryData(klucz) ?? [];
+    expect(wPrzegladarce).toEqual(naSerwerze);
+    expect(wPrzegladarce.map(postHref)).toEqual(naSerwerze.map(postHref));
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+  });
+
+  it("stan odwodniony po odczycie ZAPASOWYM: obie strony liczą adres zapasowy", async () => {
+    // Osadzenie wyłączone w izolacie serwera to wiersze bez `parent_page` -
+    // klient dostaje te same wiersze i nie „poprawia" adresu po hydratacji.
+    baza().setResponse("posts", osadzenieZawodzi(ok([wpis("1")])));
+    const serwer = klient();
+    const doc = dokument([{ id: "a", type: "latest-posts", data: { count: 3 } }]);
+    await expect(prefetchBlockQueries(serwer, doc, "pl")).resolves.toEqual({ degraded: false });
+    const klucz = latestPostsBlockQueryOptions({ count: 3, category: "" }).queryKey;
+    const przegladarka = new QueryClient();
+    hydrate(przegladarka, JSON.parse(JSON.stringify(dehydrate(serwer))));
+    expect((przegladarka.getQueryData(klucz) ?? []).map(postHref)).toEqual(["/post/wpis-1"]);
   });
 
   it("okno świeżości PRZEŻYWA rzutowanie w prefetchBlockDataQuery", async () => {

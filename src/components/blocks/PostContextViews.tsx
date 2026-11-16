@@ -24,6 +24,7 @@ import { LEGACY_AVATAR_RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
 
 import { formatDate } from "@/lib/i18n/format";
+import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
 import {
   User,
   Mail,
@@ -454,9 +455,9 @@ interface RelatedPostsProps {
   cls?: string;
 }
 
-interface RelatedRow {
+/** `slug` i opcjonalny `parent_page` (adres kanoniczny karty) - z `PostHrefSource`. */
+interface RelatedRow extends PostHrefSource {
   id: string;
-  slug: string;
   title_pl: string | null;
   title_en: string | null;
   cover_image_url: string | null;
@@ -516,10 +517,7 @@ export function RelatedPostsView({
             const tt = relatedTitle(p, lang);
             return (
               <li key={p.id}>
-                <AppLink
-                  href={`/post/${p.slug}`}
-                  className="text-sm text-foreground hover:text-primary"
-                >
+                <AppLink href={postHref(p)} className="text-sm text-foreground hover:text-primary">
                   {tt}
                 </AppLink>
               </li>
@@ -541,7 +539,7 @@ export function RelatedPostsView({
       <ul className={`${container} list-none m-0 p-0`}>
         {posts.map((p) => {
           const tt = relatedTitle(p, lang);
-          const href = `/post/${p.slug}`;
+          const href = postHref(p);
           return (
             <li key={p.id} className={isGrid ? "flex flex-col gap-2" : "flex gap-4 items-start"}>
               {p.cover_image_url && (
