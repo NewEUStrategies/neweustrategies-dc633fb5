@@ -157,10 +157,22 @@ export const getCrmCompany = createServerFn({ method: "POST" })
  * z sesji (`resolveCallerTenantId`), odczyt spod service-role z jawnym
  * `.eq("tenant_id", tenantId)` - jedyną granicą najemcy, bo RLS jest tam
  * wyłączone - i `current_company_id` wyłącznie jako filtr po stronie serwera.
- * Kolumny: dokładnie to, co karta renderuje, i wyłącznie kolumny z grantem
- * dla `authenticated` - odpowiedź nie wynosi do przeglądarki niczego, czego
- * staff nie przeczytałby sam pod RLS (bez `contact_email` i `location`).
- * Firma innego najemcy niż wołający: lista pusta, bez lookupu.
+ * Kolumny: dokładnie to, co karta renderuje (id, nazwy, `avatar_url`,
+ * `job_title`, `slug`), i wyłącznie kolumny z grantem SELECT dla
+ * `authenticated` - bez `contact_email` i `location` (PII bez grantu).
+ * `current_company_id` i `updated_at` służą tylko do filtra i kolejności po
+ * stronie serwera, w odpowiedzi ich nie ma.
+ *
+ * To NIE jest zakres, który wołający przeczytałby sam pod RLS. Polityka
+ * `Profiles authenticated read` wpuszcza do cudzych profili wyłącznie
+ * `is_staff()` (admin/editor/author) w tym samym najemcy, a `requireCrmStaff`
+ * przepuszcza także `super_admin`: wołający, którego JEDYNĄ rolą jest
+ * `super_admin`, pod RLS widzi tylko własny profil, a tu dostaje członków
+ * firmy. Dokładne zachowanie dla każdej roli z bramki: wiersze profili
+ * najemcy WOŁAJĄCEGO (z jego profilu, nie z firmy ani z ładunku) przypiętych
+ * do tej firmy, najwyżej 200, wyłącznie z kolumnami wyżej - nigdy PII bez
+ * grantu i nigdy profil innego najemcy. Firma innego najemcy niż wołający
+ * (zakres super admina „wszystkie tenanty"): lista pusta, bez lookupu.
  *
  * Awaria lookupu nie wywraca karty firmy (inaczej strona pokazałaby „Firma
  * nieznaleziona"), ale nie znika już po cichu: trafia do logu serwera.
