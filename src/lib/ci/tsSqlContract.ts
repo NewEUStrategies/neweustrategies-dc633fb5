@@ -58,6 +58,22 @@
 // nigdy pliku ani pomocnika. Dziś lista jest pusta - każdy fakt idzie do
 // pgTAP z rolą klienta.
 //
+// MIARA POZA BRAMKĄ (`SeamFacts.observed`, `renderObservedQueries`,
+// `generate:ts-sql-contract --measure`). Dwie luki tej bramki są dziś
+// MIERZONE, a nie egzekwowane - wynik nie trafia do pgTAP ani do
+// `check:ts-sql-contract`:
+//   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...).
+//     Postgres wymaga SELECT na kolumnie z WHERE/ORDER BY także w UPDATE
+//     i DELETE, więc filtr po kolumnie bez grantu daje 42501 tak samo jak
+//     odczyt (listopad 2026: `user_reports.reporter_id` w eksporcie RODO,
+//     `profiles.current_company_id` w karcie firmy CRM);
+//   * rola klienta szerzej niż reguły bramki: fabryki klienta serwisowego
+//     (`await admin()`), `createClient(…, klucz)`, `const x = ...`
+//     i parametr klienta - przez WSZYSTKIE wywołania funkcji (inaczej
+//     `unknown`; nigdy zgadywanie).
+// Fakt bramki zachowuje swoją rolę (`enforcedRole`), więc wygenerowany
+// pgTAP jest bajt w bajt ten sam co bez miary.
+//
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
 // wycinkami kodu.
@@ -180,6 +196,84 @@ export interface SeamFacts {
      */
     readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
+  /** Miara poza bramką (filtry, rola szerzej) - nie wpływa na pgTAP ani na zasięg. */
+  readonly observed: ObservedFacts;
+}
+
+// ── Miara poza bramką: typy ─────────────────────────────────────────────────
+
+/** Rola zmierzona: jak `ClientRole`, plus `anon` z klienta z kluczem publicznym. */
+export type MeasuredRole = ClientRole | "anon";
+
+export interface RoleResolution {
+  readonly role: MeasuredRole;
+  /** Jak rozstrzygnięto rolę: reguła bramki (`bramka: ...`) albo łańcuch miary. */
+  readonly via: string;
+  /**
+   * Wartość nigdy nie jest podana (parametr pomijany we WSZYSTKICH
+   * wywołaniach) - nie niesie klienta, więc nie wpływa na zgodność ról.
+   */
+  readonly absent?: boolean;
+}
+
+interface ObservedCommon {
+  readonly role: MeasuredRole;
+  readonly via: string;
+  /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
+  readonly enforcedRole: ClientRole;
+  /** Plik wywołania (`file` faktu bywa plikiem literału kolumn). */
+  readonly site: string;
+  /** Ścieżka nazwanych funkcji wywołania (jak w kluczach list przejrzanych). */
+  readonly fn: string;
+}
+
+export interface ObservedRpc extends ObservedCommon {
+  readonly name: string;
+  readonly keys: readonly string[] | null;
+  readonly file: string;
+}
+
+export interface ObservedTable extends ObservedCommon {
+  readonly table: string;
+  readonly op: TableOp;
+  readonly columns: readonly string[];
+  readonly star: boolean;
+  readonly file: string;
+}
+
+/** Kolumna filtra albo sortowania: rola potrzebuje SELECT na `table.column`. */
+export interface FilterSite extends ObservedCommon {
+  /** Tabela kolumny - przy filtrze zasobu osadzonego tabela osadzona. */
+  readonly table: string;
+  readonly column: string;
+  /** Ścieżka osadzenia (`slot`, `a.b`); `null` - kolumna tabeli z `.from()`. */
+  readonly embed: string | null;
+  /** Metoda budowniczego (`eq`, `or`, `match`, `order`, ...). */
+  readonly method: string;
+  /** Operacja łańcucha (filtr UPDATE/DELETE też wymaga SELECT). */
+  readonly op: TableOp;
+  /** Plik, w którym rozwiązał się literał kolumny. */
+  readonly file: string;
+}
+
+export interface ObservedFacts {
+  /** Każdy fakt RPC bramki z rolą zmierzoną (ta sama kolejność co `rpcs`). */
+  readonly rpcs: readonly ObservedRpc[];
+  /** Każdy fakt tabeli bramki (także wstrzymany) z rolą zmierzoną. */
+  readonly tables: readonly ObservedTable[];
+  readonly filters: readonly FilterSite[];
+  /**
+   * Filtry na rozpoznanym budowniczym, których kolumny (albo tabeli
+   * osadzenia) nie da się ustalić statycznie, oraz filtry budowniczego
+   * z tabelą nieczytelną. Posortowane.
+   */
+  readonly unresolvedFilters: readonly string[];
+  /**
+   * Wywołania w kształcie filtra PostgREST na odbiorcy, którego ekstrakcja
+   * nie wiąże z żadnym budowniczym (parametr pomocnika `q`, wynik funkcji) -
+   * kolumny nieobjęte miarą. Szacunek po kształcie wywołania. Posortowane.
+   */
+  readonly filtersOutsideChains: readonly string[];
 }
 
 /**
@@ -1632,6 +1726,1759 @@ function builderTable(
   }
 }
 
+// ── Miara poza bramką: rola klienta szerzej ─────────────────────────────────
+//
+// Reguły bramki (`receiverRole`) rozstrzygają rolę po NAZWIE odbiorcy; reszta
+// (535 faktów w listopadzie 2026: parametr `supabase: SupabaseClient`,
+// `await admin()`, `rpcClient(admin)`, `const db = await adminClient(x)`)
+// to `unknown`. Miara idzie dalej, ale tylko tam, gdzie wartość odbiorcy
+// wynika z kodu bez zgadywania:
+//   * `const x = E` (albo `let` bez przypisań), jedyne wiązanie nazwy w swojej
+//     funkcji, a użycie w bloku deklaracji - rola `E`; `const { p } = E` -
+//     rola `E.p`;
+//   * wywołanie funkcji tego pliku albo importu nazwanego (także
+//     `const { f } = await import(...)`) - KAŻDY `return` daje tę samą rolę;
+//     `return parametr` (także `parametr.p`, `a ?? b`) to argument TEGO
+//     wywołania, a `return null` albo pominięty argument - brak klienta,
+//     czyli brak zapytania;
+//   * `createClient(url, process.env.*SERVICE_ROLE*)` - `service_role`; klucz
+//     publiczny (`*PUBLISHABLE*`, `*ANON*`) - `anon`, a z nagłówkiem
+//     `Authorization` w opcjach - `authenticated` (token z żądania);
+//     opcje nieczytelne - `unknown`;
+//   * import `supabaseAdmin` z `client.server` - `service_role`; import
+//     `supabase` z `client` - `authenticated` (ta sama umowa co w bramce);
+//   * parametr funkcji (także `opts.supabase` i `{ supabase }`) - przez
+//     WSZYSTKIE wywołania: każde odwołanie do nazwy funkcji w jej bloku
+//     i w plikach importujących to wywołanie wprost (nie wartość, nie
+//     `export { f }`), moduł nie ma importu przestrzeni nazw, reeksportu ani
+//     `import()` bez rozkładu, a role argumentów wszystkich wywołań są równe.
+// Wszystko inne - `unknown` z powodem w `via`. Najwyżej `ROLE_FLOW_MAX_DEPTH`
+// skoków; cykl - `unknown`.
+
+/** Najwięcej skoków (stała, parametr, fabryka) między odbiorcą a klientem. */
+export const ROLE_FLOW_MAX_DEPTH = 6;
+
+/** Moduły klienta, których eksport nie jest zwykłą stałą (Proxy). */
+const KNOWN_CLIENT_EXPORTS: readonly {
+  readonly module: string;
+  readonly name: string;
+  readonly role: ClientRole;
+  readonly via: string;
+}[] = [
+  {
+    module: "src/integrations/supabase/client.server.ts",
+    name: "supabaseAdmin",
+    role: "service_role",
+    via: "import supabaseAdmin",
+  },
+  {
+    module: "src/integrations/supabase/client.ts",
+    name: "supabase",
+    role: "authenticated",
+    via: "import klienta przeglądarki",
+  },
+];
+
+interface CallSite {
+  readonly call: ts.CallExpression;
+  readonly scope: FileScope;
+}
+
+/** Odwołanie do modułu spoza importu nazwanego (przestrzeń nazw, reeksport, `import()`). */
+interface ModuleRef {
+  readonly scope: FileScope;
+  readonly node: ts.Node;
+}
+
+interface RoleEnv {
+  readonly flow: FlowEnv;
+  /** Plik -> odwołania spoza importów nazwanych; budowane leniwie. */
+  moduleRefs: Map<string, ModuleRef[]> | null;
+  readonly memo: Map<string, RoleResolution>;
+  readonly sites: Map<ts.Node, readonly CallSite[] | null>;
+  /** Licznik cięć głębokości - wynik z cięciem nie trafia do `memo`. */
+  depthCuts: number;
+}
+
+const MAX_VIA = 400;
+
+function unknownRole(via: string): RoleResolution {
+  return { role: "unknown", via: via.slice(0, MAX_VIA) };
+}
+
+function compactText(node: ts.Node, scope: FileScope, max = 60): string {
+  return node.getText(scope.sf).replace(/\s+/g, " ").slice(0, max);
+}
+
+/** Opis reguły bramki, która dała rolę (lustro gałęzi `receiverRole`). */
+function legacyRoleVia(receiver: ts.Expression, scope: FileScope): string {
+  const node = unwrap(receiver);
+  if (ts.isIdentifier(node)) {
+    if (scope.adminAliases.has(node.text)) {
+      return node.text === "supabaseAdmin" ? "supabaseAdmin" : `${node.text} = supabaseAdmin`;
+    }
+    if (node.text === "supabase") {
+      return scope.browserClient ? "klient przeglądarki" : "plik z requireSupabaseAuth";
+    }
+  }
+  return compactText(node, scope);
+}
+
+/** Wspólna rola wartości; różne albo nieznane - `unknown` z powodem. */
+function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolution {
+  const roles = all.filter((r) => r.absent !== true);
+  if (roles.length === 0) {
+    return { ...unknownRole(`${label}: żadna wartość nie niesie klienta`), absent: all.length > 0 };
+  }
+  const distinct = [...new Set(roles.map((r) => r.role))];
+  if (distinct.length !== 1 || distinct[0] === "unknown") {
+    const first = roles.find((r) => r.role === "unknown");
+    return unknownRole(
+      `${label}: role [${distinct.join(", ")}]${first === undefined ? "" : ` - ${first.via}`}`,
+    );
+  }
+  const vias = [...new Set(roles.map((r) => r.via))];
+  return { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) };
+}
+
+/** Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary. */
+function measuredRole(
+  expr: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const legacy = receiverRole(expr, scope, env.flow.known);
+  if (legacy !== "unknown") {
+    const node = unwrap(expr);
+    // Reguła NAZWY `supabase` (plik z klientem przeglądarki albo
+    // z `requireSupabaseAuth`) nie patrzy na wiązanie: parametr albo stała
+    // o tej nazwie może nieść innego klienta. Wiązanie z ustaloną INNĄ rolą
+    // wygrywa (i jest widoczne jako rozjazd z `enforcedRole`); nieustalone -
+    // zostaje reguła bramki.
+    if (ts.isIdentifier(node) && node.text === "supabase" && !scope.adminAliases.has("supabase")) {
+      const binding = bindingOf(node, scope);
+      if (binding.kind === "param" || binding.kind === "local") {
+        const bound = identifierRole(node, scope, env, depth);
+        if (bound.role !== "unknown" && bound.role !== legacy) {
+          return {
+            role: bound.role,
+            via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${bound.via}`.slice(
+              0,
+              MAX_VIA,
+            ),
+          };
+        }
+      }
+    }
+    return { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` };
+  }
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.depthCuts += 1;
+    return unknownRole(`przepływ roli dłuższy niż ${ROLE_FLOW_MAX_DEPTH} skoków`);
+  }
+  const node = unwrap(expr);
+  if (ts.isCallExpression(node)) return callRole(node, scope, env, depth);
+  if (ts.isIdentifier(node)) return identifierRole(node, scope, env, depth);
+  if (ts.isPropertyAccessExpression(node)) {
+    return memberRole(node.expression, node.name.text, scope, env, depth);
+  }
+  if (ts.isConditionalExpression(node)) {
+    return agreeingRole(
+      "warunek",
+      [node.whenTrue, node.whenFalse].map((b) => measuredRole(b, scope, env, depth + 1)),
+    );
+  }
+  return unknownRole(`wyrażenie ${compactText(node, scope)}`);
+}
+
+type Binding =
+  | {
+      readonly kind: "param";
+      readonly fn: ts.SignatureDeclaration;
+      readonly index: number;
+      readonly prop: string | null;
+    }
+  | { readonly kind: "local"; readonly init: ts.Expression; readonly prop: string | null }
+  | {
+      /** `let` przypisywany wyłącznie `nazwa = E`: inicjalizator i każda prawa strona. */
+      readonly kind: "reassigned";
+      readonly decl: ts.VariableDeclaration;
+      readonly values: readonly ts.Expression[];
+    }
+  | { readonly kind: "function"; readonly fn: ts.SignatureDeclaration }
+  | { readonly kind: "import"; readonly module: string; readonly name: string }
+  | { readonly kind: "none"; readonly why: string };
+
+function noBinding(why: string): Binding {
+  return { kind: "none", why };
+}
+
+/** `import("spec")` (bez owijek) - specyfikator albo `null`. */
+function dynamicImportSpec(expr: ts.Expression): string | null {
+  const node = unwrap(expr);
+  if (
+    ts.isCallExpression(node) &&
+    node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+    node.arguments.length >= 1 &&
+    ts.isStringLiteral(node.arguments[0])
+  ) {
+    return node.arguments[0].text;
+  }
+  return null;
+}
+
+/** Czy wzorzec rozkładu wiąże nazwę (na dowolnej głębokości). */
+function patternBinds(name: ts.BindingName, target: string): boolean {
+  if (ts.isIdentifier(name)) return name.text === target;
+  return name.elements.some((el) => !ts.isOmittedExpression(el) && patternBinds(el.name, target));
+}
+
+/**
+ * Deklaracje nazwy WPROST w zasięgu blokowym (instrukcje bloku, pliku albo
+ * `case`), bez bloków i funkcji zagnieżdżonych: zmienna (także element
+ * rozkładu), funkcja, klasa, enum, import.
+ */
+function directDeclarations(container: ts.Node, name: string): ts.Node[] {
+  const statements = ts.isCaseBlock(container)
+    ? container.clauses.flatMap((c) => [...c.statements])
+    : ts.isSourceFile(container) || ts.isBlock(container) || ts.isModuleBlock(container)
+      ? [...container.statements]
+      : [];
+  const out: ts.Node[] = [];
+  const fromPattern = (decl: ts.VariableDeclaration): void => {
+    if (ts.isIdentifier(decl.name)) {
+      if (decl.name.text === name) out.push(decl);
+      return;
+    }
+    const walk = (pattern: ts.BindingPattern): void => {
+      for (const el of pattern.elements) {
+        if (ts.isOmittedExpression(el)) continue;
+        if (ts.isIdentifier(el.name)) {
+          if (el.name.text === name) out.push(el);
+        } else walk(el.name);
+      }
+    };
+    walk(decl.name);
+  };
+  for (const stmt of statements) {
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) fromPattern(decl);
+    } else if (
+      (ts.isFunctionDeclaration(stmt) ||
+        ts.isClassDeclaration(stmt) ||
+        ts.isEnumDeclaration(stmt)) &&
+      stmt.name?.text === name
+    ) {
+      out.push(stmt);
+    } else if (ts.isImportDeclaration(stmt) && stmt.importClause !== undefined) {
+      const clause = stmt.importClause;
+      if (clause.name?.text === name) out.push(clause);
+      const named = clause.namedBindings;
+      if (named !== undefined && ts.isNamespaceImport(named) && named.name.text === name) {
+        out.push(named);
+      }
+      if (named !== undefined && ts.isNamedImports(named)) {
+        for (const el of named.elements) if (el.name.text === name) out.push(el);
+      }
+    }
+  }
+  return out;
+}
+
+/** Czy w ciele funkcji (bez funkcji zagnieżdżonych) jest `var` tej nazwy - wynoszony poza blok. */
+function hasVarDeclaration(fn: ts.SignatureDeclaration, name: string): boolean {
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found || (node !== fn && ts.isFunctionLike(node))) return;
+    if (
+      ts.isVariableDeclarationList(node) &&
+      !(node.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)) &&
+      node.declarations.some((d) => patternBinds(d.name, name))
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(fn, visit);
+  return found;
+}
+
+/**
+ * Zasięg, który deklaruje nazwę widzianą z identyfikatora (blok, plik,
+ * funkcja z parametrem, pętla, `catch`); `null` - nazwa globalna.
+ */
+function declaringScope(id: ts.Identifier): ts.Node | null {
+  const name = id.text;
+  for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
+    const parent = node.parent;
+    if (
+      (ts.isSourceFile(parent) ||
+        ts.isBlock(parent) ||
+        ts.isModuleBlock(parent) ||
+        ts.isCaseBlock(parent)) &&
+      directDeclarations(parent, name).length > 0
+    ) {
+      return parent;
+    }
+    if (ts.isFunctionLike(parent) && parent.parameters.some((p) => patternBinds(p.name, name))) {
+      return parent;
+    }
+    if (
+      ((ts.isForStatement(parent) || ts.isForOfStatement(parent) || ts.isForInStatement(parent)) &&
+        parent.initializer !== undefined &&
+        ts.isVariableDeclarationList(parent.initializer) &&
+        parent.initializer.declarations.some((d) => patternBinds(d.name, name))) ||
+      (ts.isCatchClause(parent) &&
+        parent.variableDeclaration !== undefined &&
+        patternBinds(parent.variableDeclaration.name, name))
+    ) {
+      return parent;
+    }
+  }
+  return null;
+}
+
+/**
+ * Prawe strony przypisań `nazwa = E` (także `??=`, `||=`) do zmiennej
+ * zadeklarowanej WPROST w `root` - przypisania do innej zmiennej o tej samej
+ * nazwie (przesłonięcie w bloku wewnętrznym) się nie liczą. `null` - inna
+ * mutacja (`+=`, `++`, rozkład, `for (nazwa of ...)`).
+ */
+function simpleAssignments(root: ts.Node, name: string): ts.Expression[] | null {
+  const values: ts.Expression[] = [];
+  let simple = true;
+  const ours = (id: ts.Identifier): boolean => declaringScope(id) === root;
+  const mentions = (node: ts.Node): boolean => {
+    let found = false;
+    const visit = (child: ts.Node): void => {
+      if (found) return;
+      if (ts.isIdentifier(child) && child.text === name && ours(child)) found = true;
+      else ts.forEachChild(child, visit);
+    };
+    visit(node);
+    return found;
+  };
+  const visit = (node: ts.Node): void => {
+    if (!simple) return;
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+      const left = unwrap(node.left);
+      if (ts.isIdentifier(left) && left.text === name && ours(left)) {
+        // `x ??= E` i `x ||= E` - x to poprzednia wartość albo E.
+        const kind = node.operatorToken.kind;
+        if (
+          kind === ts.SyntaxKind.EqualsToken ||
+          kind === ts.SyntaxKind.QuestionQuestionEqualsToken ||
+          kind === ts.SyntaxKind.BarBarEqualsToken
+        ) {
+          values.push(node.right);
+        } else simple = false;
+      } else if (
+        (ts.isArrayLiteralExpression(left) || ts.isObjectLiteralExpression(left)) &&
+        mentions(left)
+      ) {
+        simple = false;
+      }
+    }
+    if (
+      ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+        (node.operator === ts.SyntaxKind.PlusPlusToken ||
+          node.operator === ts.SyntaxKind.MinusMinusToken) &&
+        mentions(node.operand)) ||
+      ((ts.isForOfStatement(node) || ts.isForInStatement(node)) &&
+        !ts.isVariableDeclarationList(node.initializer) &&
+        mentions(node.initializer))
+    ) {
+      simple = false;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return simple ? values : null;
+}
+
+/** Wiązanie z deklaracji znalezionej w zasięgu `container`. */
+function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Binding {
+  if (ts.isFunctionDeclaration(decl)) {
+    return isAssigned(container, name)
+      ? noBinding(`${name}: funkcja przypisana`)
+      : { kind: "function", fn: decl };
+  }
+  if (ts.isImportSpecifier(decl)) {
+    const spec = decl.parent.parent.parent.moduleSpecifier;
+    return ts.isStringLiteral(spec)
+      ? { kind: "import", module: spec.text, name: (decl.propertyName ?? decl.name).text }
+      : noBinding(`${name}: import nieczytelny`);
+  }
+  if (ts.isVariableDeclaration(decl)) {
+    const list = decl.parent;
+    if (!ts.isVariableDeclarationList(list)) return noBinding(`${name}: deklaracja poza regułą`);
+    if (list.flags & ts.NodeFlags.Const) {
+      return decl.initializer === undefined
+        ? noBinding(`${name}: const bez wartości`)
+        : { kind: "local", init: decl.initializer, prop: null };
+    }
+    if (!(list.flags & ts.NodeFlags.Let)) return noBinding(`${name}: var`);
+    const assigned = simpleAssignments(container, name);
+    if (assigned === null) return noBinding(`${name}: let z mutacją inną niż \`=\``);
+    if (assigned.length === 0) {
+      return decl.initializer === undefined
+        ? noBinding(`${name}: let bez wartości`)
+        : { kind: "local", init: decl.initializer, prop: null };
+    }
+    return {
+      kind: "reassigned",
+      decl,
+      values: decl.initializer === undefined ? assigned : [decl.initializer, ...assigned],
+    };
+  }
+  if (ts.isBindingElement(decl)) {
+    const pattern = decl.parent;
+    const vd = pattern.parent;
+    if (
+      !ts.isObjectBindingPattern(pattern) ||
+      !ts.isVariableDeclaration(vd) ||
+      vd.initializer === undefined ||
+      decl.dotDotDotToken !== undefined ||
+      decl.initializer !== undefined ||
+      !ts.isVariableDeclarationList(vd.parent) ||
+      !(vd.parent.flags & ts.NodeFlags.Const)
+    ) {
+      return noBinding(`${name}: element rozkładu poza regułą`);
+    }
+    const prop = decl.propertyName ? propName(decl.propertyName) : name;
+    if (prop === null) return noBinding(`${name}: klucz rozkładu obliczany`);
+    const spec = dynamicImportSpec(vd.initializer);
+    return spec !== null
+      ? { kind: "import", module: spec, name: prop }
+      : { kind: "local", init: vd.initializer, prop };
+  }
+  return noBinding(`${name}: deklaracja ${ts.SyntaxKind[decl.kind]}`);
+}
+
+/**
+ * Wiązanie identyfikatora według zasięgów leksykalnych: najbliższy blok
+ * (albo funkcja - parametry), który deklaruje nazwę WPROST. Parametr
+ * przypisywany, `var`, zmienna pętli albo `catch` - poza regułą.
+ */
+function bindingOf(id: ts.Identifier, _scope: FileScope): Binding {
+  const name = id.text;
+  for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
+    const parent = node.parent;
+    if (
+      ts.isSourceFile(parent) ||
+      ts.isBlock(parent) ||
+      ts.isModuleBlock(parent) ||
+      ts.isCaseBlock(parent)
+    ) {
+      const decls = directDeclarations(parent, name);
+      if (decls.length > 1) return noBinding(`${name}: kilka deklaracji w bloku`);
+      if (decls.length === 1) return declarationBinding(decls[0], parent, name);
+    } else if (ts.isFunctionLike(parent)) {
+      if (hasVarDeclaration(parent, name)) return noBinding(`${name}: var w funkcji`);
+      for (const [index, p] of parent.parameters.entries()) {
+        if (!patternBinds(p.name, name)) continue;
+        if (isAssigned(parent, name)) return noBinding(`${name}: parametr przypisywany`);
+        if (ts.isIdentifier(p.name)) {
+          return p.dotDotDotToken || p.initializer
+            ? noBinding(`${name}: parametr rozkładany albo z wartością domyślną`)
+            : { kind: "param", fn: parent, index, prop: null };
+        }
+        const el = ts.isObjectBindingPattern(p.name)
+          ? p.name.elements.find((e) => ts.isIdentifier(e.name) && e.name.text === name)
+          : undefined;
+        const prop = el === undefined ? null : el.propertyName ? propName(el.propertyName) : name;
+        return el === undefined ||
+          prop === null ||
+          el.dotDotDotToken ||
+          el.initializer ||
+          p.dotDotDotToken
+          ? noBinding(`${name}: element parametru poza regułą`)
+          : { kind: "param", fn: parent, index, prop };
+      }
+      if (ts.isFunctionExpression(parent) && parent.name?.text === name) {
+        return noBinding(`${name}: nazwa wyrażenia funkcji`);
+      }
+    } else if (
+      (ts.isForStatement(parent) || ts.isForOfStatement(parent) || ts.isForInStatement(parent)) &&
+      parent.initializer !== undefined &&
+      ts.isVariableDeclarationList(parent.initializer) &&
+      parent.initializer.declarations.some((d) => patternBinds(d.name, name))
+    ) {
+      return noBinding(`${name}: zmienna pętli`);
+    } else if (
+      ts.isCatchClause(parent) &&
+      parent.variableDeclaration !== undefined &&
+      patternBinds(parent.variableDeclaration.name, name)
+    ) {
+      return noBinding(`${name}: zmienna catch`);
+    }
+  }
+  return noBinding(`${name}: brak wiązania w pliku`);
+}
+
+/** Eksport nazwany modułu: funkcja albo stała najwyższego poziomu. */
+function moduleExport(
+  spec: string,
+  name: string,
+  from: FileScope,
+  env: RoleEnv,
+): { readonly binding: Binding; readonly scope: FileScope } | null {
+  const target = resolveModule(from.file, spec, env.flow.known);
+  const scope = target === null ? undefined : env.flow.scopes.get(target);
+  if (scope === undefined || bindingCount(scope.sf, name) !== 1 || isAssigned(scope.sf, name)) {
+    return null;
+  }
+  for (const stmt of scope.sf.statements) {
+    if (!hasModifier(stmt, ts.SyntaxKind.ExportKeyword)) continue;
+    if (ts.isFunctionDeclaration(stmt) && stmt.name?.text === name) {
+      return { binding: { kind: "function", fn: stmt }, scope };
+    }
+    if (ts.isVariableStatement(stmt) && stmt.declarationList.flags & ts.NodeFlags.Const) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.name.text === name && decl.initializer) {
+          return { binding: { kind: "local", init: decl.initializer, prop: null }, scope };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function importRole(
+  spec: string,
+  name: string,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const target = resolveModule(scope.file, spec, env.flow.known);
+  const knownExport = KNOWN_CLIENT_EXPORTS.find((k) => k.module === target && k.name === name);
+  if (knownExport !== undefined) return { role: knownExport.role, via: knownExport.via };
+  const exported = moduleExport(spec, name, scope, env);
+  if (exported === null || exported.binding.kind !== "local" || exported.binding.prop !== null) {
+    return unknownRole(`import ${name} z ${spec}: nie stała modułu`);
+  }
+  const inner = measuredRole(exported.binding.init, exported.scope, env, depth + 1);
+  return inner.role === "unknown"
+    ? inner
+    : { role: inner.role, via: `import ${name} <- ${inner.via}` };
+}
+
+function identifierRole(
+  id: ts.Identifier,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const binding = bindingOf(id, scope);
+  switch (binding.kind) {
+    case "param":
+      return paramRole(binding.fn, binding.index, binding.prop, scope, env, depth);
+    case "local": {
+      const inner =
+        binding.prop === null
+          ? measuredRole(binding.init, scope, env, depth + 1)
+          : memberRole(binding.init, binding.prop, scope, env, depth + 1);
+      return inner.role === "unknown"
+        ? inner
+        : { role: inner.role, via: `const ${id.text} <- ${inner.via}`.slice(0, MAX_VIA) };
+    }
+    case "reassigned":
+      return agreeingRole(
+        `let ${id.text} (${binding.values.length} wartości)`,
+        binding.values.map((v) => measuredRole(v, scope, env, depth + 1)),
+      );
+    case "import":
+      return importRole(binding.module, binding.name, scope, env, depth);
+    case "function":
+      return unknownRole(`${id.text}: funkcja, nie klient`);
+    case "none":
+      return unknownRole(binding.why);
+  }
+}
+
+/** Rola `base.prop` (także `{ prop: X }` i parametr przekazujący obiekt dalej). */
+function memberRole(
+  base: ts.Expression,
+  prop: string,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const node = unwrap(base);
+  // Te same reguły nazw co w bramce (`receiverRole`, `looseSourceRole`).
+  if (prop === "supabaseAdmin") return { role: "service_role", via: "bramka: .supabaseAdmin" };
+  if (
+    prop === "supabase" &&
+    ts.isIdentifier(node) &&
+    (node.text === "context" || node.text === "ctx")
+  ) {
+    return { role: "authenticated", via: `bramka: ${node.text}.supabase` };
+  }
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.depthCuts += 1;
+    return unknownRole(`przepływ roli dłuższy niż ${ROLE_FLOW_MAX_DEPTH} skoków`);
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    let value: ts.Expression | null = null;
+    for (const p of node.properties) {
+      if (ts.isSpreadAssignment(p)) return unknownRole(`obiekt z rozkładem zamiast .${prop}`);
+      if (ts.isPropertyAssignment(p) && propName(p.name) === prop) value = p.initializer;
+      if (ts.isShorthandPropertyAssignment(p) && p.name.text === prop) value = p.name;
+    }
+    return value === null
+      ? unknownRole(`obiekt bez właściwości ${prop}`)
+      : measuredRole(value, scope, env, depth + 1);
+  }
+  if (ts.isIdentifier(node)) {
+    const binding = bindingOf(node, scope);
+    if (binding.kind === "param" && binding.prop === null) {
+      return paramRole(binding.fn, binding.index, prop, scope, env, depth);
+    }
+    if (binding.kind === "local" && binding.prop === null) {
+      return memberRole(binding.init, prop, scope, env, depth + 1);
+    }
+    return unknownRole(
+      `${node.text}.${prop}: ${binding.kind === "none" ? binding.why : `wiązanie ${binding.kind}`}`,
+    );
+  }
+  return unknownRole(`.${prop} na ${compactText(node, scope)}`);
+}
+
+/** Rola źródła `looseTable(źródło, t)` / `looseClient(źródło)` - czyli `źródło.supabase`. */
+function looseMeasuredRole(
+  source: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const legacy = looseSourceRole(source, scope, env.flow.known);
+  if (legacy !== "unknown") {
+    return { role: legacy, via: `bramka: looseClient(${compactText(source, scope)})` };
+  }
+  return memberRole(source, "supabase", scope, env, depth);
+}
+
+/** Nazwa zmiennej środowiska klucza (`process.env.X`, przez stałe i `?? ""`). */
+function envKeyOf(expr: ts.Expression | undefined, scope: FileScope, depth = 0): string | null {
+  if (expr === undefined || depth > 6) return null;
+  const node = unwrap(expr);
+  if (
+    ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      node.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    const literal = (e: ts.Expression): boolean => ts.isStringLiteralLike(unwrap(e));
+    if (literal(node.right)) return envKeyOf(node.left, scope, depth + 1);
+    if (literal(node.left)) return envKeyOf(node.right, scope, depth + 1);
+    const left = envKeyOf(node.left, scope, depth + 1);
+    return left !== null && left === envKeyOf(node.right, scope, depth + 1) ? left : null;
+  }
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    const base = node.expression.getText(scope.sf).replace(/\s+/g, "");
+    const key = ts.isPropertyAccessExpression(node)
+      ? node.name.text
+      : ts.isStringLiteralLike(node.argumentExpression)
+        ? node.argumentExpression.text
+        : null;
+    return key !== null && (base === "process.env" || base === "import.meta.env") ? key : null;
+  }
+  if (ts.isIdentifier(node)) {
+    const binding = bindingOf(node, scope);
+    return binding.kind === "local" && binding.prop === null
+      ? envKeyOf(binding.init, scope, depth + 1)
+      : null;
+  }
+  return null;
+}
+
+/** Czy opcje `createClient` mogą nieść nagłówek `Authorization`; `null` - nie wiadomo. */
+function mayCarryAuthorization(
+  expr: ts.Expression | undefined,
+  path: readonly string[],
+): boolean | null {
+  if (expr === undefined) return false;
+  const node = unwrap(expr);
+  if (ts.isConditionalExpression(node)) {
+    const a = mayCarryAuthorization(node.whenTrue, path);
+    const b = mayCarryAuthorization(node.whenFalse, path);
+    return a === null || b === null ? null : a || b;
+  }
+  if (!ts.isObjectLiteralExpression(node)) return null;
+  let carries = false;
+  for (const p of node.properties) {
+    if (ts.isSpreadAssignment(p)) return null;
+    const key = p.name === undefined ? null : propName(p.name as ts.PropertyName);
+    if (key === null) {
+      if (!ts.isMethodDeclaration(p)) return null;
+      continue;
+    }
+    if (path.length === 0) {
+      // `accessToken` (funkcja tokenu) na najwyższym poziomie opcji.
+      if (key === "accessToken") carries = true;
+    }
+    if (path.length === 2 && key.toLowerCase() === "authorization") carries = true;
+    const next = ["global", "headers"][path.length];
+    if (key === next && ts.isPropertyAssignment(p)) {
+      const inner = mayCarryAuthorization(p.initializer, [...path, key]);
+      if (inner === null) return null;
+      carries ||= inner;
+    }
+  }
+  return carries;
+}
+
+/** `createClient` z `@supabase/supabase-js` (import statyczny albo `await import`). */
+function isSupabaseCreateClient(callee: ts.Identifier, scope: FileScope): boolean {
+  const binding = bindingOf(callee, scope);
+  return (
+    binding.kind === "import" &&
+    binding.module === "@supabase/supabase-js" &&
+    binding.name === "createClient"
+  );
+}
+
+function createClientRole(call: ts.CallExpression, scope: FileScope): RoleResolution {
+  const key = envKeyOf(call.arguments[1], scope);
+  if (key === null) return unknownRole("createClient: klucz spoza process.env");
+  if (/SERVICE_ROLE/.test(key)) return { role: "service_role", via: `createClient(…, ${key})` };
+  if (/PUBLISHABLE|ANON/.test(key)) {
+    const auth = mayCarryAuthorization(call.arguments[2], []);
+    if (auth === null) return unknownRole(`createClient(…, ${key}): opcje nieczytelne`);
+    return auth
+      ? { role: "authenticated", via: `createClient(…, ${key}) z nagłówkiem Authorization` }
+      : { role: "anon", via: `createClient(…, ${key})` };
+  }
+  return unknownRole(`createClient: klucz ${key}`);
+}
+
+/** Wyrażenia zwracane przez funkcję (bez funkcji zagnieżdżonych); `null` - bez ciała. */
+function returnExpressions(fn: ts.SignatureDeclaration): ts.Expression[] | null {
+  const body = (fn as ts.FunctionLikeDeclaration).body;
+  if (body === undefined) return null;
+  if (!ts.isBlock(body)) return [body];
+  const out: ts.Expression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionLike(node)) return;
+    if (ts.isReturnStatement(node) && node.expression !== undefined) out.push(node.expression);
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(body, visit);
+  return out;
+}
+
+/** Możliwe wartości wyrażenia: gałęzie `a ?? b`, `a || b` i warunku. */
+function alternativesOf(expr: ts.Expression): ts.Expression[] {
+  const node = unwrap(expr);
+  if (
+    ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+      node.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    return [...alternativesOf(node.left), ...alternativesOf(node.right)];
+  }
+  if (ts.isConditionalExpression(node)) {
+    return [...alternativesOf(node.whenTrue), ...alternativesOf(node.whenFalse)];
+  }
+  return [node];
+}
+
+/** Funkcja wołana po nazwie: deklaracja, `const f = () => ...` albo eksport importu. */
+function calledFunction(
+  callee: ts.Identifier,
+  scope: FileScope,
+  env: RoleEnv,
+): { readonly fn: ts.SignatureDeclaration; readonly scope: FileScope } | null {
+  let binding = bindingOf(callee, scope);
+  let calleeScope = scope;
+  if (binding.kind === "import") {
+    const exported = moduleExport(binding.module, binding.name, scope, env);
+    if (exported === null) return null;
+    binding = exported.binding;
+    calleeScope = exported.scope;
+  }
+  if (binding.kind === "function") return { fn: binding.fn, scope: calleeScope };
+  if (binding.kind === "local" && binding.prop === null) {
+    const init = unwrap(binding.init);
+    if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+      return { fn: init, scope: calleeScope };
+    }
+  }
+  return null;
+}
+
+/** Argument wywołania na pozycji parametru; `"spread"` - rozkład przed nią. */
+function argumentAt(call: ts.CallExpression, index: number): ts.Expression | undefined | "spread" {
+  const args = call.arguments;
+  if (args.slice(0, index + 1).some((a) => ts.isSpreadElement(a))) return "spread";
+  return args[index];
+}
+
+function callRole(
+  call: ts.CallExpression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  if (isLooseHelperCall(call, LOOSE_CLIENT, scope, env.flow.known)) {
+    return looseMeasuredRole(call.arguments[0], scope, env, depth + 1);
+  }
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee)) return unknownRole(`wywołanie ${compactText(callee, scope)}`);
+  if (isSupabaseCreateClient(callee, scope)) return createClientRole(call, scope);
+  const target = calledFunction(callee, scope, env);
+  if (target === null) return unknownRole(`${callee.text}(): nie funkcja do odczytu`);
+  const { fn, scope: calleeScope } = target;
+  const returns = returnExpressions(fn);
+  if (returns === null) return unknownRole(`${callee.text}(): bez ciała`);
+  const roles: RoleResolution[] = [];
+  for (const value of returns.flatMap(alternativesOf)) {
+    if (
+      value.kind === ts.SyntaxKind.NullKeyword ||
+      (ts.isIdentifier(value) && value.text === "undefined") ||
+      ts.isVoidExpression(value)
+    ) {
+      continue;
+    }
+    // `return parametr` / `return parametr.p` - argument TEGO wywołania.
+    const base = ts.isPropertyAccessExpression(value) ? unwrap(value.expression) : value;
+    const ref = ts.isIdentifier(base) ? bindingOf(base, calleeScope) : null;
+    if (ref !== null && ref.kind === "param" && ref.fn === fn) {
+      const prop = ts.isPropertyAccessExpression(value) ? value.name.text : null;
+      if (ref.prop !== null && prop !== null) {
+        roles.push(unknownRole(`${callee.text}(): zagnieżdżona właściwość parametru`));
+        continue;
+      }
+      const arg = argumentAt(call, ref.index);
+      if (arg === "spread") return unknownRole(`${callee.text}(): argument z rozkładu`);
+      if (arg === undefined) continue;
+      const member = prop ?? ref.prop;
+      roles.push(
+        member === null
+          ? measuredRole(arg, scope, env, depth + 1)
+          : memberRole(arg, member, scope, env, depth + 1),
+      );
+      continue;
+    }
+    roles.push(measuredRole(value, calleeScope, env, depth + 1));
+  }
+  return agreeingRole(`${callee.text}()`, roles);
+}
+
+/** Odwołania spoza importów nazwanych (indeks budowany raz). */
+function moduleRefsOf(file: string, env: RoleEnv): readonly ModuleRef[] {
+  if (env.moduleRefs === null) {
+    const index = new Map<string, ModuleRef[]>();
+    const add = (scope: FileScope, spec: string, node: ts.Node): void => {
+      const target = resolveModule(scope.file, spec, env.flow.known);
+      if (target === null) return;
+      const list = index.get(target) ?? [];
+      list.push({ scope, node });
+      index.set(target, list);
+    };
+    for (const scope of env.flow.scopes.values()) {
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isImportDeclaration(node) &&
+          ts.isStringLiteral(node.moduleSpecifier) &&
+          node.importClause?.namedBindings !== undefined &&
+          ts.isNamespaceImport(node.importClause.namedBindings)
+        ) {
+          add(scope, node.moduleSpecifier.text, node);
+        } else if (
+          ts.isExportDeclaration(node) &&
+          node.moduleSpecifier !== undefined &&
+          ts.isStringLiteral(node.moduleSpecifier)
+        ) {
+          add(scope, node.moduleSpecifier.text, node);
+        } else if (ts.isCallExpression(node)) {
+          const spec = dynamicImportSpec(node);
+          if (spec !== null) add(scope, spec, node);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(scope.sf);
+    }
+    env.moduleRefs = index;
+  }
+  return env.moduleRefs.get(file) ?? [];
+}
+
+/** Czy identyfikator jest odwołaniem do WARTOŚCI (nie nazwą właściwości, nie typem). */
+function isValueReference(id: ts.Identifier): boolean {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) && p.name === id) return false;
+  if (
+    (ts.isPropertyAssignment(p) ||
+      ts.isPropertyDeclaration(p) ||
+      ts.isMethodDeclaration(p) ||
+      ts.isPropertySignature(p) ||
+      ts.isMethodSignature(p) ||
+      ts.isGetAccessorDeclaration(p) ||
+      ts.isSetAccessorDeclaration(p) ||
+      ts.isEnumMember(p) ||
+      ts.isJsxAttribute(p)) &&
+    p.name === id
+  ) {
+    return false;
+  }
+  if (ts.isBindingElement(p) && p.propertyName === id) return false;
+  if (ts.isImportSpecifier(p) || ts.isImportClause(p) || ts.isNamespaceImport(p)) return false;
+  if (ts.isExportSpecifier(p)) {
+    return p.parent.parent.moduleSpecifier === undefined && (p.propertyName ?? p.name) === id;
+  }
+  if (ts.isQualifiedName(p) && p.right === id) return false;
+  if (ts.isLabeledStatement(p) || ts.isBreakOrContinueStatement(p)) return false;
+  for (let n: ts.Node = p; !ts.isSourceFile(n); n = n.parent) {
+    if (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) return false;
+    if (ts.isStatement(n)) break;
+  }
+  return true;
+}
+
+/** Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem wprost; inaczej `null`. */
+function directCallReferences(
+  root: ts.Node,
+  name: string,
+  declaration: ts.Node | null,
+): ts.CallExpression[] | null {
+  const calls: ts.CallExpression[] = [];
+  let complete = true;
+  const visit = (node: ts.Node): void => {
+    if (!complete) return;
+    if (ts.isIdentifier(node)) {
+      if (node.text === name && node !== declaration && isValueReference(node)) {
+        const outer = outermostWrapper(node);
+        if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
+          calls.push(outer.parent);
+        } else complete = false;
+      }
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return complete ? calls : null;
+}
+
+/** Wywołania przez `import()`: rozkład `const { f } = await import(...)` albo `(await import(...)).f(...)`. */
+function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
+  if (!ts.isCallExpression(ref.node)) return null; // przestrzeń nazw, reeksport
+  let outer: ts.Node = ref.node;
+  while (
+    (ts.isAwaitExpression(outer.parent) ||
+      ts.isParenthesizedExpression(outer.parent) ||
+      ts.isAsExpression(outer.parent) ||
+      ts.isNonNullExpression(outer.parent)) &&
+    outer.parent.expression === outer
+  ) {
+    outer = outer.parent;
+  }
+  const parent = outer.parent;
+  if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) {
+    if (parent.name.text !== name) return [];
+    const wrapped = outermostWrapper(parent);
+    return ts.isCallExpression(wrapped.parent) && wrapped.parent.expression === wrapped
+      ? [{ call: wrapped.parent, scope: ref.scope }]
+      : null;
+  }
+  if (
+    ts.isVariableDeclaration(parent) &&
+    parent.initializer === outer &&
+    ts.isObjectBindingPattern(parent.name) &&
+    ts.isVariableDeclarationList(parent.parent) &&
+    parent.parent.flags & ts.NodeFlags.Const &&
+    ts.isVariableStatement(parent.parent.parent)
+  ) {
+    const block = parent.parent.parent.parent;
+    const sites: CallSite[] = [];
+    for (const el of parent.name.elements) {
+      if (el.dotDotDotToken) return null;
+      const source = el.propertyName
+        ? propName(el.propertyName)
+        : ts.isIdentifier(el.name)
+          ? el.name.text
+          : null;
+      if (source !== name) continue;
+      if (!ts.isIdentifier(el.name)) return null;
+      const local = el.name.text;
+      if (bindingCount(block, local) !== 1 || isAssigned(block, local)) return null;
+      const calls = directCallReferences(block, local, el.name);
+      if (calls === null) return null;
+      sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
+    }
+    return sites;
+  }
+  return null;
+}
+
+/**
+ * WSZYSTKIE wywołania funkcji albo `null`, gdy nie da się ich zobaczyć
+ * w całości (funkcja anonimowa, nazwa użyta jako wartość, reeksport,
+ * import przestrzeni nazw, `import()` bez rozkładu, eksport domyślny).
+ */
+function callSitesOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+): readonly CallSite[] | null {
+  if (env.sites.has(fn)) return env.sites.get(fn) ?? null;
+  const compute = (): CallSite[] | null => {
+    let name: string;
+    let statement: ts.Statement;
+    let declaration: ts.Node;
+    if (ts.isFunctionDeclaration(fn)) {
+      if (fn.name === undefined || fn.body === undefined) return null;
+      name = fn.name.text;
+      statement = fn;
+      declaration = fn.name;
+    } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+      const outer = outermostWrapper(fn);
+      const decl = outer.parent;
+      // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
+      // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
+      // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
+      if (ts.isCallExpression(decl) && decl.expression !== outer) {
+        const k = decl.arguments.indexOf(outer);
+        const callee = unwrap(decl.expression);
+        if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return null;
+        const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
+        const param = target?.fn.parameters[k];
+        if (
+          target == null ||
+          param === undefined ||
+          !ts.isIdentifier(param.name) ||
+          param.dotDotDotToken !== undefined ||
+          param.initializer !== undefined ||
+          isAssigned(target.fn, param.name.text)
+        ) {
+          return null;
+        }
+        const invocations = directCallReferences(target.fn, param.name.text, param.name);
+        return invocations === null
+          ? null
+          : invocations.map((call) => ({ call, scope: target.scope }));
+      }
+      if (
+        !ts.isVariableDeclaration(decl) ||
+        decl.initializer !== outer ||
+        !ts.isIdentifier(decl.name) ||
+        !ts.isVariableDeclarationList(decl.parent) ||
+        !(decl.parent.flags & ts.NodeFlags.Const) ||
+        !ts.isVariableStatement(decl.parent.parent)
+      ) {
+        return null;
+      }
+      name = decl.name.text;
+      statement = decl.parent.parent;
+      declaration = decl.name;
+    } else {
+      return null;
+    }
+    const container = statement.parent;
+    if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return null;
+    const own = directCallReferences(container, name, declaration);
+    if (own === null) return null;
+    const sites: CallSite[] = own.map((call) => ({ call, scope }));
+    if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      return sites;
+    }
+    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return null;
+    for (const ref of moduleRefsOf(scope.file, env)) {
+      const more = dynamicImportCalls(ref, name);
+      if (more === null) return null;
+      sites.push(...more);
+    }
+    for (const imp of importersOf(scope.file, env.flow)) {
+      if (imp.imported !== name) continue;
+      if (bindingCount(imp.scope.sf, imp.local) !== 0) return null;
+      const more = directCallReferences(imp.scope.sf, imp.local, null);
+      if (more === null) return null;
+      sites.push(...more.map((call) => ({ call, scope: imp.scope })));
+    }
+    return sites;
+  };
+  const sites = compute();
+  env.sites.set(fn, sites);
+  return sites;
+}
+
+/** Rola parametru (albo jego właściwości) ze WSZYSTKICH wywołań funkcji. */
+function paramRole(
+  fn: ts.SignatureDeclaration,
+  index: number,
+  prop: string | null,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const label = `parametr ${index + 1}${prop === null ? "" : `.${prop}`} funkcji ${functionName(fn) ?? "<anonimowa>"}`;
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.depthCuts += 1;
+    return unknownRole(`${label}: przepływ roli dłuższy niż ${ROLE_FLOW_MAX_DEPTH} skoków`);
+  }
+  const key = `${scope.file}:${fn.getStart(scope.sf)}:${index}:${prop ?? ""}`;
+  const cached = env.memo.get(key);
+  if (cached !== undefined) return cached;
+  env.memo.set(key, unknownRole(`${label}: cykl wywołań`));
+  const cutsBefore = env.depthCuts;
+  const sites = callSitesOf(fn, scope, env);
+  let result: RoleResolution;
+  if (sites === null) {
+    result = unknownRole(`${label}: nie każde odwołanie do funkcji to widoczne wywołanie`);
+  } else {
+    const roles: RoleResolution[] = [];
+    let spread = false;
+    for (const site of sites) {
+      const arg = argumentAt(site.call, index);
+      if (arg === "spread") {
+        spread = true;
+        break;
+      }
+      if (arg === undefined) continue;
+      roles.push(
+        prop === null
+          ? measuredRole(arg, site.scope, env, depth + 1)
+          : memberRole(arg, prop, site.scope, env, depth + 1),
+      );
+    }
+    result = spread
+      ? unknownRole(`${label}: argument z rozkładu`)
+      : roles.length === 0
+        ? { ...unknownRole(`${label}: argument pominięty we wszystkich wywołaniach`), absent: true }
+        : agreeingRole(`${label} (${sites.length} wywołań)`, roles);
+  }
+  if (env.depthCuts === cutsBefore) env.memo.set(key, result);
+  else env.memo.delete(key);
+  return result;
+}
+
+// ── Miara poza bramką: kolumny filtrów i sortowania ─────────────────────────
+//
+// Postgres wymaga SELECT na kolumnie użytej w WHERE i ORDER BY - także
+// w UPDATE i DELETE - oraz na kolumnach celu `ON CONFLICT (...)`, a przy
+// `DO UPDATE SET c = EXCLUDED.c` (upsert PostgREST bez `ignoreDuplicates`)
+// także na każdej kolumnie ładunku (sprawdzone na PG16). Fakt filtra to:
+// tabela, kolumna, rola i plik literału kolumny. Źródła kolumny:
+//   * pierwszy argument metod filtra postgrest-js (`FILTER_COLUMN_METHODS`),
+//     także `"osadzenie.kolumna"`, `"kolumna->>klucz"` i `order("rel(kol)")`;
+//   * klucze `.match({ ... })`;
+//   * napis `.or("a.eq.x,and(b.gt.1,c.is.null)")` - literał, szablon
+//     z kolumną w literale (`kolumna.ilike.${v}`), `[...].join(",")`
+//     i `xs.map(cb).join(",")`; `referencedTable`/`foreignTable` w opcjach
+//     `.or` i `.order` przenoszą kolumny do tabeli osadzonej;
+//   * cel `onConflict` (bez niego - klucz główny) i kolumny ładunku upsertu.
+// Wartości z warunku (`c ? "a" : "b"`) dają oba warianty, parametr - wartości
+// z wywołań (reguła przepływu kolumn). Osadzenie mapujemy na tabelę przez
+// listę `select` tego samego łańcucha (`alias:tabela!fk(...)`); nieczytelne -
+// `unresolvedFilters`, nigdy zgadywanie.
+
+/** Metody filtra i sortowania z kolumną w pierwszym argumencie (postgrest-js 2.x). */
+export const FILTER_COLUMN_METHODS: ReadonlySet<string> = new Set([
+  "eq",
+  "neq",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "like",
+  "likeAllOf",
+  "likeAnyOf",
+  "ilike",
+  "ilikeAllOf",
+  "ilikeAnyOf",
+  "regexMatch",
+  "regexIMatch",
+  "is",
+  "isDistinct",
+  "in",
+  "notIn",
+  "contains",
+  "containedBy",
+  "rangeGt",
+  "rangeGte",
+  "rangeLt",
+  "rangeLte",
+  "rangeAdjacent",
+  "overlaps",
+  "textSearch",
+  "not",
+  "filter",
+  "order",
+]);
+
+const FILTER_METHODS: ReadonlySet<string> = new Set([...FILTER_COLUMN_METHODS, "match", "or"]);
+
+/** Operatory PostgREST w logicznym filtrze (`or=(kol.op.wartość)`). */
+const POSTGREST_OPERATORS: ReadonlySet<string> = new Set([
+  "eq",
+  "neq",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "like",
+  "ilike",
+  "match",
+  "imatch",
+  "in",
+  "is",
+  "isdistinct",
+  "fts",
+  "plfts",
+  "phfts",
+  "wfts",
+  "cs",
+  "cd",
+  "ov",
+  "sl",
+  "sr",
+  "nxr",
+  "nxl",
+  "adj",
+  "not",
+]);
+
+/** Kolumna celu konfliktu bez `onConflict` - klucz główny (rozwija SQL miary). */
+export const PRIMARY_KEY_COLUMNS = "(klucz główny)";
+
+/** Najwięcej wariantów napisu filtra (iloczyn warunków) - powyżej: nieczytelne. */
+const MAX_FILTER_VARIANTS = 16;
+
+/** Kolumna (ze ścieżką osadzenia) z argumentu filtra; `null` - nie kolumna. */
+export function filterColumnPath(raw: string): { embed: string[]; column: string } | null {
+  const text = raw.trim();
+  const related = /^([a-z_][a-z0-9_]*)\(([a-z_][a-z0-9_]*)\)$/.exec(text);
+  if (related !== null) return { embed: [related[1]], column: related[2] };
+  const arrow = text.indexOf("->");
+  const parts = (arrow === -1 ? text : text.slice(0, arrow)).split(".");
+  if (parts.some((p) => !COLUMN_RE.test(p))) return null;
+  return { embed: parts.slice(0, -1), column: parts[parts.length - 1] };
+}
+
+/** Warunki listy `or`/`and` na najwyższym poziomie (nawiasy i cudzysłowy chronią przecinek). */
+function splitFilterConditions(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  let current = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === "\\" && i + 1 < text.length) {
+        current += ch + text[i + 1];
+        i += 1;
+        continue;
+      }
+      if (ch === '"') quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out.map((c) => c.trim()).filter((c) => c.length > 0);
+}
+
+/**
+ * Ścieżki kolumn z logicznego filtra PostgREST (`a.eq.1,and(b.gt.2,emb.c.is.null)`).
+ * `unresolved` - warunki bez rozpoznanego operatora albo z kolumną znaną
+ * dopiero w czasie działania.
+ */
+export function parseOrFilterColumns(text: string): { paths: string[]; unresolved: string[] } {
+  const paths: string[] = [];
+  const unresolved: string[] = [];
+  const walk = (list: string, depth: number): void => {
+    for (const cond of splitFilterConditions(list)) {
+      const logic = /^(?:not\.)?(?:and|or)\(([\s\S]*)\)$/.exec(cond);
+      if (logic !== null && depth < 8) {
+        walk(logic[1], depth + 1);
+        continue;
+      }
+      const tokens = cond.split(".");
+      const op = tokens.findIndex(
+        (t, i) => i > 0 && POSTGREST_OPERATORS.has(t.replace(/\((?:any|all)\)$/, "")),
+      );
+      const path = op > 0 ? tokens.slice(0, op).join(".") : null;
+      if (path === null || path.includes(RUNTIME_PART)) unresolved.push(cond);
+      else paths.push(path);
+    }
+  };
+  walk(text, 0);
+  return { paths, unresolved };
+}
+
+/** Zasoby osadzone listy `select`: nazwa (alias albo relacja) -> relacja i jej lista. */
+function selectEmbeds(select: string): Map<string, { rel: string; inner: string }> {
+  const out = new Map<string, { rel: string; inner: string }>();
+  for (const raw of splitTopLevel(select)) {
+    const open = raw.indexOf("(");
+    if (open === -1 || !raw.endsWith(")")) continue;
+    const inner = raw.slice(open + 1, -1);
+    if (inner.trim().length === 0) continue; // agregat `count()`
+    let head = raw.slice(0, open).trim();
+    if (head.startsWith("...")) head = head.slice(3);
+    let alias: string | null = null;
+    const colon = head.indexOf(":");
+    if (colon !== -1) {
+      alias = head.slice(0, colon).trim();
+      head = head.slice(colon + 1).trim();
+    }
+    const rel = head.split("!")[0].trim();
+    if (!COLUMN_RE.test(rel)) continue;
+    if (alias !== null) out.set(alias, { rel, inner });
+    if (!out.has(rel)) out.set(rel, { rel, inner });
+  }
+  return out;
+}
+
+/** Tabela ścieżki osadzenia (`a.b`) według listy `select`; `null` - nieczytelna. */
+export function embeddedTable(select: string | null, path: readonly string[]): string | null {
+  let current = select;
+  let table: string | null = null;
+  for (const segment of path) {
+    if (current === null) return null;
+    const embed = selectEmbeds(current).get(segment);
+    if (embed === undefined) return null;
+    table = embed.rel;
+    current = embed.inner;
+  }
+  return table;
+}
+
+function variantProduct(a: FlowPart[][], b: FlowPart[][]): FlowPart[][] | null {
+  if (a.length * b.length > MAX_FILTER_VARIANTS) return null;
+  return a.flatMap((x) => b.map((y) => [...x, ...y]));
+}
+
+/**
+ * Warianty napisu filtra (kolumny albo listy `or`): jak `flowTemplate`, ale
+ * warunek i `??` dają OBA warianty, a `xs.map(cb).join(sep)` - wynik `cb`
+ * z wartościami czasu działania. `null` - wiązanie poza regułą.
+ */
+function filterVariants(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[][] | null {
+  if (depth > 8) return null;
+  const node = unwrap(expr);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [[node.text]];
+  const union = (parts: ts.Expression[]): FlowPart[][] | null => {
+    const out: FlowPart[][] = [];
+    for (const part of parts) {
+      const v = filterVariants(part, ctx, env, depth + 1);
+      if (v === null) return null;
+      out.push(...v);
+    }
+    return out.length > MAX_FILTER_VARIANTS ? null : out;
+  };
+  if (ts.isConditionalExpression(node)) return union([node.whenTrue, node.whenFalse]);
+  if (ts.isBinaryExpression(node)) {
+    const kind = node.operatorToken.kind;
+    if (kind === ts.SyntaxKind.QuestionQuestionToken || kind === ts.SyntaxKind.BarBarToken) {
+      return union([node.left, node.right]);
+    }
+    if (kind === ts.SyntaxKind.PlusToken) {
+      const left = filterVariants(node.left, ctx, env, depth + 1);
+      const right = filterVariants(node.right, ctx, env, depth + 1);
+      return left === null || right === null ? null : variantProduct(left, right);
+    }
+  }
+  if (ts.isTemplateExpression(node)) {
+    let acc: FlowPart[][] | null = [[node.head.text]];
+    for (const span of node.templateSpans) {
+      const inner = filterVariants(span.expression, ctx, env, depth + 1);
+      if (inner === null || acc === null) return null;
+      acc = variantProduct(
+        acc,
+        inner.map((v) => [...v, span.literal.text]),
+      );
+    }
+    return acc;
+  }
+  if (ts.isIdentifier(node)) {
+    // Wiązanie poza regułą (`let`, przesłonięcie) to wartość czasu działania:
+    // na miejscu KOLUMNY czyni warunek nieczytelnym, na miejscu wartości -
+    // nic nie zmienia (kolumny filtra nie zależą od wartości).
+    const name = node.text;
+    if (ctx.lambdas.some((cb) => bindingCount(cb, name) > 0)) return [[RUNTIME_PART]];
+    if (ctx.fn !== null) {
+      const index = flowParamIndex(ctx.fn, name);
+      if (index === null) return [[RUNTIME_PART]];
+      if (index >= 0) return [[{ param: index }]];
+      const init = flowLocalConst(ctx.fn, name, node);
+      if (init === null) return [[RUNTIME_PART]];
+      if (init !== undefined) return filterVariants(init, ctx, env, depth + 1);
+    }
+    const parts = flowIdentifier(node, { ...ctx, fn: null }, env, depth);
+    return parts === null ? [[RUNTIME_PART]] : [parts];
+  }
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "join" &&
+    node.arguments.length === 1
+  ) {
+    const sepVariants = filterVariants(node.arguments[0], ctx, env, depth + 1);
+    const sep =
+      sepVariants?.length === 1 &&
+      sepVariants[0].every((p): p is string => typeof p === "string" && !p.includes(RUNTIME_PART))
+        ? sepVariants[0].join("")
+        : null;
+    if (sep === null) return null;
+    const list = unwrap(node.expression.expression);
+    if (ts.isArrayLiteralExpression(list)) {
+      let acc: FlowPart[][] | null = [[]];
+      for (const [i, el] of list.elements.entries()) {
+        const item = ts.isSpreadElement(el)
+          ? mappedItemVariants(el.expression, ctx, env, depth + 1)
+          : filterVariants(el, ctx, env, depth + 1);
+        if (item === null || acc === null) return null;
+        acc = variantProduct(
+          acc,
+          item.map((v) => (i > 0 ? [sep, ...v] : v)),
+        );
+      }
+      return acc;
+    }
+    return mappedItemVariants(list, ctx, env, depth + 1);
+  }
+  return [[RUNTIME_PART]];
+}
+
+/** Element `xs.map(cb)` - jeden reprezentatywny wynik `cb`; inaczej wartość czasu działania. */
+function mappedItemVariants(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[][] | null {
+  const node = unwrap(expr);
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "map" &&
+    node.arguments.length >= 1
+  ) {
+    const cb = unwrap(node.arguments[0]);
+    if (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) {
+      const result = callbackResult(cb);
+      if (result !== null) {
+        return filterVariants(result, { ...ctx, lambdas: [...ctx.lambdas, cb] }, env, depth + 1);
+      }
+    }
+  }
+  return [[RUNTIME_PART]];
+}
+
+/** Napisy filtra (z plikiem literału) dla wyrażenia; `why` - dlaczego część nieczytelna. */
+function filterTexts(
+  expr: ts.Expression,
+  call: ts.CallExpression,
+  scope: FileScope,
+  env: FlowEnv,
+): { values: FlowValue[]; why: string | null } {
+  const fn = enclosingFunction(call);
+  const variants = filterVariants(expr, { scope, fn, lambdas: [] }, env, 0);
+  if (variants === null)
+    return { values: [], why: "wiązanie poza regułą albo zbyt wiele wariantów" };
+  const values: FlowValue[] = [];
+  let why: string | null = null;
+  for (const variant of variants) {
+    const params = flowParams(variant);
+    if (params.length === 0) {
+      values.push({ text: flowSubstitute(variant, ""), file: scope.file });
+    } else if (params.length === 1 && fn !== null) {
+      const flowed = flowParamValues(fn, params[0], scope, env, 1, new Set());
+      if (flowed.length === 0) why = "parametr bez widocznych wartości";
+      for (const v of flowed) {
+        values.push({ text: flowSubstitute(variant, v.text), file: v.file });
+      }
+    } else {
+      why = "kilka parametrów w jednym napisie";
+    }
+  }
+  return { values, why };
+}
+
+/** Opcja `referencedTable`/`foreignTable` (literał) - ścieżka osadzenia; `undefined` - brak opcji. */
+function referencedTableOption(
+  opts: ts.Expression | undefined,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+): string[] | null | undefined {
+  if (opts === undefined) return undefined;
+  const node = unwrap(opts);
+  if (!ts.isObjectLiteralExpression(node)) return null;
+  for (const p of node.properties) {
+    if (ts.isSpreadAssignment(p)) return null;
+    if (!ts.isPropertyAssignment(p)) continue;
+    const key = propName(p.name);
+    if (key !== "referencedTable" && key !== "foreignTable") continue;
+    const value = resolveString(p.initializer, scope, exportsIndex, known);
+    if (value === null) return null;
+    const path = value.split(".");
+    return path.every((s) => COLUMN_RE.test(s)) ? path : null;
+  }
+  return undefined;
+}
+
+interface FilterColumn {
+  readonly embed: readonly string[];
+  readonly column: string;
+  readonly file: string;
+}
+
+/** Kolumny jednego wywołania filtra; `unresolved` - opisy części nieczytelnych. */
+function filterCallColumns(
+  call: ts.CallExpression,
+  method: string,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  env: FlowEnv,
+): { columns: FilterColumn[]; unresolved: string[] } {
+  const columns: FilterColumn[] = [];
+  const unresolved: string[] = [];
+  const arg = call.arguments[0];
+  if (arg === undefined || ts.isSpreadElement(arg)) {
+    return { columns, unresolved: ["argument nieczytelny"] };
+  }
+  if (method === "match") {
+    const objects = objectArgument(arg, scope);
+    if (objects === null || objects.some((o) => o.properties.some(ts.isSpreadAssignment))) {
+      return { columns, unresolved: ["obiekt `match` nieczytelny"] };
+    }
+    for (const key of objectShape(objects, scope, exportsIndex, known).keys) {
+      const path = filterColumnPath(key);
+      if (path === null) unresolved.push(`klucz ${key}`);
+      else columns.push({ ...path, file: scope.file });
+    }
+    return { columns, unresolved };
+  }
+  const prefix =
+    method === "or" || method === "order"
+      ? referencedTableOption(call.arguments[1], scope, exportsIndex, known)
+      : undefined;
+  if (prefix === null) return { columns, unresolved: ["opcja referencedTable nieczytelna"] };
+  const { values, why } = filterTexts(arg, call, scope, env);
+  if (why !== null) unresolved.push(why);
+  for (const value of values) {
+    const paths =
+      method === "or" ? parseOrFilterColumns(value.text) : { paths: [value.text], unresolved: [] };
+    for (const cond of paths.unresolved)
+      unresolved.push(`warunek ${cond.replaceAll(RUNTIME_PART, "${…}")}`);
+    for (const raw of paths.paths) {
+      const path = raw.includes(RUNTIME_PART) ? null : filterColumnPath(raw);
+      if (path === null) {
+        unresolved.push(`kolumna ${raw.replaceAll(RUNTIME_PART, "${…}")}`);
+        continue;
+      }
+      columns.push({
+        embed: [...(prefix ?? []), ...path.embed],
+        column: path.column,
+        file: value.file,
+      });
+    }
+  }
+  return { columns, unresolved };
+}
+
+/** Czy wywołanie MA kształt filtra PostgREST (dla wywołań spoza rozpoznanego łańcucha). */
+function looksLikePostgrestFilter(call: ts.CallExpression, method: string): boolean {
+  const n = call.arguments.length;
+  const first = n > 0 ? unwrap(call.arguments[0]) : null;
+  const text =
+    first !== null &&
+    (ts.isStringLiteral(first) ||
+      ts.isNoSubstitutionTemplateLiteral(first) ||
+      ts.isTemplateExpression(first));
+  switch (method) {
+    case "or":
+      return n >= 1 && n <= 2;
+    case "match":
+      return n === 1 && first !== null && ts.isObjectLiteralExpression(first);
+    case "not":
+    case "filter":
+      return n === 3;
+    case "order":
+      return text && n >= 1 && n <= 2;
+    case "contains":
+    case "containedBy":
+    case "overlaps":
+      return text && n === 2;
+    default:
+      return n >= 2 && n <= 3;
+  }
+}
+
+/** Metody budowniczego PostgREST, przez które przechodzi łańcuch w dół do `.from()`. */
+const BUILDER_CHAIN_METHODS: ReadonlySet<string> = new Set([
+  ...FILTER_METHODS,
+  "select",
+  "insert",
+  "update",
+  "upsert",
+  "delete",
+  "limit",
+  "range",
+  "single",
+  "maybeSingle",
+  "returns",
+  "overrideTypes",
+  "abortSignal",
+  "throwOnError",
+  "setHeader",
+  "maxAffected",
+  "csv",
+  "explain",
+]);
+
+/** Budowniczy rozpoznany przez wartość (parametr, fabryka, stała): tabela, rola, `select`, operacja. */
+interface BuilderRef {
+  readonly table: string;
+  readonly role: RoleResolution;
+  readonly select: string | null;
+  readonly op: TableOp;
+}
+
+/**
+ * Budowniczy pod wyrażeniem: łańcuch w dół do `.from(t)`/`looseTable(x, t)`,
+ * przez stałą, `let` przypisywany (`out = applyX(out)`: inicjalizator, a
+ * odwołania do samej zmiennej w prawych stronach - ten sam zbiór), warunek
+ * (obie gałęzie), funkcję zwracającą budowniczego (każdy `return`)
+ * i parametr (WSZYSTKIE wywołania, także callback wołany w funkcji, której
+ * go oddano). `null` - którakolwiek wartość nieczytelna.
+ */
+function builderOf(
+  expr: ts.Expression,
+  scope: FileScope,
+  env: MeasureEnv,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  depth: number,
+  above: { readonly select: string | null; readonly op: TableOp },
+  assumed: ReadonlyMap<ts.Node, BuilderRef[]> = new Map(),
+): BuilderRef[] | null {
+  if (depth > ROLE_FLOW_MAX_DEPTH) return null;
+  let node = unwrap(expr);
+  let select = above.select;
+  let op = above.op;
+  const tableOf = (arg: ts.Expression | undefined): string | null => {
+    const table = arg === undefined ? null : resolveString(arg, scope, exportsIndex, known);
+    return table !== null && COLUMN_RE.test(table) ? table : null;
+  };
+  const all = (parts: (BuilderRef[] | null)[]): BuilderRef[] | null => {
+    if (parts.length === 0 || parts.some((p) => p === null)) return null;
+    const out = (parts as BuilderRef[][]).flat();
+    return out.length === 0 ? null : out;
+  };
+  const next = (e: ts.Expression, at: FileScope, more = assumed): BuilderRef[] | null =>
+    builderOf(e, at, env, exportsIndex, known, depth + 1, { select, op }, more);
+  for (;;) {
+    if (ts.isCallExpression(node)) {
+      if (isLooseTableCall(node, scope, known)) {
+        const table = tableOf(node.arguments[1]);
+        if (table === null) return null;
+        const role = looseMeasuredRole(node.arguments[0], scope, env.roles, 0);
+        return [{ table, role, select, op }];
+      }
+      if (isTableFrom(node)) {
+        const method = callMethod(node);
+        const recv = method === null ? null : unwrap(method.receiver);
+        if (
+          recv === null ||
+          (ts.isPropertyAccessExpression(recv) && recv.name.text === "storage")
+        ) {
+          return null;
+        }
+        const table = tableOf(node.arguments[0]);
+        if (table === null) return null;
+        return [{ table, role: measuredRole(recv, scope, env.roles, 0), select, op }];
+      }
+      const method = callMethod(node);
+      if (method !== null) {
+        if (!BUILDER_CHAIN_METHODS.has(method.name)) return null;
+        if (method.name === "select" && select === null) {
+          select =
+            node.arguments[0] === undefined
+              ? "*"
+              : resolveString(node.arguments[0], scope, exportsIndex, known);
+        }
+        if (
+          method.name === "update" ||
+          method.name === "delete" ||
+          method.name === "insert" ||
+          method.name === "upsert"
+        ) {
+          op = method.name;
+        }
+        node = unwrap(method.receiver);
+        continue;
+      }
+      // Funkcja zwracająca budowniczego: każdy `return` (wartości w jej pliku).
+      const callee = unwrap(node.expression);
+      const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env.roles) : null;
+      const returns = target === null ? null : returnExpressions(target.fn);
+      if (target === null || returns === null) return null;
+      return all(returns.flatMap(alternativesOf).map((r) => next(r, target.scope)));
+    }
+    if (ts.isConditionalExpression(node)) {
+      return all([node.whenTrue, node.whenFalse].map((b) => next(b, scope)));
+    }
+    if (!ts.isIdentifier(node)) return null;
+    const binding = bindingOf(node, scope);
+    if (binding.kind === "local" && binding.prop === null) return next(binding.init, scope);
+    if (binding.kind === "reassigned") {
+      const known_ = assumed.get(binding.decl);
+      if (known_ !== undefined) return known_;
+      const [first, ...rest] = binding.values;
+      const base = next(first, scope);
+      if (base === null) return null;
+      const more = new Map(assumed).set(binding.decl, base);
+      return all([base, ...rest.map((v) => next(v, scope, more))]);
+    }
+    if (binding.kind === "param" && binding.prop === null) {
+      const sites = callSitesOf(binding.fn, scope, env.roles);
+      if (sites === null) return null;
+      const parts: (BuilderRef[] | null)[] = [];
+      for (const site of sites) {
+        const arg = argumentAt(site.call, binding.index);
+        if (arg === "spread") return null;
+        if (arg === undefined) continue;
+        parts.push(next(arg, site.scope));
+      }
+      return all(parts);
+    }
+    return null;
+  }
+}
+
+/** Korzeń łańcucha filtra: odbiorca pierwszego ogniwa spoza metod budowniczego. */
+function filterChainRoot(expr: ts.Expression): ts.Expression {
+  let node: ts.Expression = expr;
+  for (;;) {
+    const inner = unwrap(node);
+    const method = ts.isCallExpression(inner) ? callMethod(inner) : null;
+    if (method === null || !BUILDER_CHAIN_METHODS.has(method.name)) return inner;
+    node = method.receiver;
+  }
+}
+
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
 interface Collector {
@@ -1654,6 +3501,26 @@ interface Collector {
    * `select` na budowniczym Supabase trafia do `uncheckedSelects`.
    */
   visitedSelects: Set<ts.CallExpression>;
+  /** Miara poza bramką (`SeamFacts.observed`). */
+  observed: {
+    rpcs: ObservedRpc[];
+    tables: ObservedTable[];
+    filters: FilterSite[];
+    unresolvedFilters: string[];
+    filtersOutsideChains: string[];
+    /** Wywołania filtra obejrzane na rozpoznanym budowniczym (fakt albo miejsce nieczytelne). */
+    visitedFilters: Set<ts.CallExpression>;
+  };
+}
+
+/** Środowisko miary: rola szerzej i osobny przebieg przepływu kolumn filtrów. */
+interface MeasureEnv {
+  readonly roles: RoleEnv;
+  /**
+   * Własny `FlowEnv` filtrów: miejsca nieczytelne i licznik zgłoszeń reguły
+   * przepływu kolumn `select` (zapadki bramki) zostają nietknięte.
+   */
+  readonly filters: FlowEnv;
 }
 
 /**
@@ -1822,25 +3689,113 @@ function visitFile(
   known: ReadonlySet<string>,
   out: Collector,
   flow: FlowEnv,
+  measure: MeasureEnv | null,
 ): void {
   const selects: ts.CallExpression[] = [];
+  const filters: ts.CallExpression[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const method = callMethod(node);
       if (method?.name === "rpc" && node.arguments.length >= 1) {
-        handleRpc(node, method.receiver, scope, exportsIndex, known, out);
+        handleRpc(node, method.receiver, scope, exportsIndex, known, out, measure);
       } else if (method?.name === "from" && node.arguments.length === 1) {
-        handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
+        handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow, measure);
       } else if (isLooseTableCall(node, scope, known)) {
         const role = looseSourceRole(node.arguments[0], scope, known);
-        handleBuilder(node, node.arguments[1], role, false, scope, exportsIndex, known, out, flow);
+        const measured =
+          measure === null
+            ? null
+            : { env: measure, role: looseMeasuredRole(node.arguments[0], scope, measure.roles, 0) };
+        handleBuilder(
+          node,
+          node.arguments[1],
+          role,
+          false,
+          scope,
+          exportsIndex,
+          known,
+          out,
+          flow,
+          measured,
+        );
       } else if (method?.name === "select") {
         selects.push(node);
+      } else if (measure !== null && method !== null && FILTER_METHODS.has(method.name)) {
+        filters.push(node);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(scope.sf);
+  // Miara: filtr na budowniczym, którego łańcuch nie został obejrzany
+  // (zmienna z budowniczym w innej funkcji, warunek), to miejsce
+  // nieczytelne; filtr na odbiorcy bez związku z budowniczym (parametr
+  // pomocnika) - szacunek luki po samym kształcie wywołania.
+  for (const call of measure === null ? [] : filters) {
+    if (measure === null || out.observed.visitedFilters.has(call)) continue;
+    const method = (call.expression as ts.PropertyAccessExpression).name.text;
+    if (!looksLikePostgrestFilter(call, method)) continue;
+    const receiver = (call.expression as ts.PropertyAccessExpression).expression;
+    const root = filterChainRoot(receiver);
+    // `Object.is(a, b)`, `Array.from(...)` - konstruktory globalne, nie klient.
+    if (ts.isIdentifier(root) && /^[A-Z]/.test(root.text)) continue;
+    // Filtr i sortowanie wyniku `.rpc(...)` to kolumny wyniku funkcji, nie
+    // tabeli - uprawnień kolumn nie wymagają.
+    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") continue;
+    const where = `${scope.file}: ${enclosingFunctionPath(call)}: .${method}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)})`;
+    // Budowniczy przez wartość: parametr pomocnika (`applyFilters(q)`),
+    // funkcja zwracająca budowniczego, `let` przedłużany samym sobą.
+    const builders = builderOf(receiver, scope, measure, exportsIndex, known, 0, {
+      select: null,
+      op: "select",
+    });
+    if (builders !== null) {
+      out.observed.visitedFilters.add(call);
+      const found = filterCallColumns(call, method, scope, exportsIndex, known, measure.filters);
+      for (const why of found.unresolved) out.observed.unresolvedFilters.push(`${where}: ${why}`);
+      const seen = new Set<string>();
+      for (const builder of builders) {
+        const key = `${builder.table}|${builder.role.role}|${builder.op}|${builder.select ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        for (const column of found.columns) {
+          let rel = builder.table;
+          if (column.embed.length > 0) {
+            const embedded = embeddedTable(builder.select, column.embed);
+            if (embedded === null) {
+              out.observed.unresolvedFilters.push(
+                `${where}: osadzenie ${column.embed.join(".")} bez tabeli w liście \`select\` (${builder.table})`,
+              );
+              continue;
+            }
+            rel = embedded;
+          }
+          out.observed.filters.push({
+            table: rel,
+            column: column.column,
+            embed: column.embed.length > 0 ? column.embed.join(".") : null,
+            method,
+            op: builder.op,
+            role: builder.role.role,
+            via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
+            enforcedRole: "unknown",
+            file: column.file,
+            site: scope.file,
+            fn: enclosingFunctionPath(call),
+          });
+        }
+      }
+      continue;
+    }
+    const table = builderTable(receiver, scope, exportsIndex, known, new Set());
+    if (table !== undefined) {
+      out.observed.unresolvedFilters.push(
+        `${where}: budowniczy ${table ?? "?"} poza obejrzanym łańcuchem`,
+      );
+    } else {
+      out.observed.filtersOutsideChains.push(where);
+    }
+  }
   // Wszechświat zapadki: KAŻDY `.select` na budowniczym Supabase, którego
   // przebieg wyżej nie obejrzał (budowniczy w `let` przypisywanym inaczej niż
   // przedłużeniem, `looseTable` z tabelą nieczytelną, nazwa związana
@@ -1860,6 +3815,7 @@ function handleRpc(
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
   out: Collector,
+  measure: MeasureEnv | null,
 ): void {
   out.rpcCalls += 1;
   const name = resolveString(node.arguments[0], scope, exportsIndex, known);
@@ -1876,7 +3832,20 @@ function handleRpc(
     keys =
       objects === null || hasSpread ? null : objectShape(objects, scope, exportsIndex, known).keys;
   }
-  out.rpcs.push({ name, keys, role: receiverRole(receiver, scope, known), file: scope.file });
+  const role = receiverRole(receiver, scope, known);
+  out.rpcs.push({ name, keys, role, file: scope.file });
+  if (measure === null) return;
+  const measured = measuredRole(receiver, scope, measure.roles, 0);
+  out.observed.rpcs.push({
+    name,
+    keys,
+    role: measured.role,
+    via: measured.via,
+    enforcedRole: role,
+    file: scope.file,
+    site: scope.file,
+    fn: enclosingFunctionPath(node),
+  });
 }
 
 function handleFrom(
@@ -1887,6 +3856,7 @@ function handleFrom(
   known: ReadonlySet<string>,
   out: Collector,
   flow: FlowEnv,
+  measure: MeasureEnv | null,
 ): void {
   const recv = unwrap(receiver);
   // `supabase.storage.from("bucket")` to kubełek Storage, nie tabela;
@@ -1897,7 +3867,22 @@ function handleFrom(
     if (inner?.name === "schema") return;
   }
   const role = receiverRole(receiver, scope, known);
-  handleBuilder(node, node.arguments[0], role, true, scope, exportsIndex, known, out, flow);
+  const measured =
+    measure === null
+      ? null
+      : { env: measure, role: measuredRole(receiver, scope, measure.roles, 0) };
+  handleBuilder(
+    node,
+    node.arguments[0],
+    role,
+    true,
+    scope,
+    exportsIndex,
+    known,
+    out,
+    flow,
+    measured,
+  );
 }
 
 /**
@@ -1917,6 +3902,7 @@ function handleBuilder(
   known: ReadonlySet<string>,
   out: Collector,
   flow: FlowEnv,
+  measure: { readonly env: MeasureEnv; readonly role: RoleResolution } | null,
 ): void {
   // Łańcuch wprost nad budowniczym oraz - gdy budowniczy (także po ogniwach)
   // trafia do zmiennej - łańcuch każdego jej użycia (`boundChains`).
@@ -1930,6 +3916,17 @@ function handleBuilder(
   if (!chains.some((chain) => opsOf(chain).some((op) => QUERY.has(op)))) return;
   const table = resolveString(tableArg, scope, exportsIndex, known);
   if (table === null || !COLUMN_RE.test(table)) {
+    // Miara: filtry budowniczego z tabelą nieczytelną - bez faktu, na liście.
+    for (const chain of measure === null ? [] : chains) {
+      for (const call of chain) {
+        const name = callMethod(call)?.name ?? "";
+        if (!FILTER_METHODS.has(name) && name !== "upsert") continue;
+        out.observed.visitedFilters.add(call);
+        out.observed.unresolvedFilters.push(
+          `${scope.file}: ${enclosingFunctionPath(call)}: .from(${compactText(tableArg, scope)}).${name}(…): tabela nieczytelna`,
+        );
+      }
+    }
     if (!unresolvedIsSite) return;
     out.tableChains += 1;
     out.tableChainsWithUnknownTable += 1;
@@ -1942,13 +3939,27 @@ function handleBuilder(
     return;
   }
   out.tableChains += 1;
+  // Fakt bramki i jego lustro w mierze (ta sama tabela, operacja i kolumny,
+  // rola zmierzona; `enforcedRole` - rola, z którą fakt idzie do pgTAP).
+  const fact = (f: TableSite, call: ts.CallExpression): void => {
+    const withheld = pushTableFact(out, f, call, scope);
+    if (measure === null) return;
+    out.observed.tables.push({
+      ...f,
+      role: measure.role.role,
+      via: measure.role.via,
+      enforcedRole: withheld ? "unknown" : f.role,
+      site: scope.file,
+      fn: enclosingFunctionPath(call),
+    });
+  };
   const site = (
     call: ts.CallExpression,
     op: TableOp,
     columns: readonly string[],
     star: boolean,
   ): void => {
-    pushTableFact(out, { table, op, columns, star, role, file: scope.file }, call, scope);
+    fact({ table, op, columns, star, role, file: scope.file }, call);
   };
 
   for (const chain of chains) {
@@ -1990,8 +4001,7 @@ function handleBuilder(
         for (const value of flowed ?? []) {
           const parsed = parseSelectColumns(value.text);
           if (parsed.star || parsed.columns.length > 0) {
-            pushTableFact(
-              out,
+            fact(
               {
                 table,
                 op: "select",
@@ -2001,7 +4011,6 @@ function handleBuilder(
                 file: value.file,
               },
               call,
-              scope,
             );
           }
           if (hasRuntimeColumn(value.text)) {
@@ -2059,6 +4068,150 @@ function handleBuilder(
       } else if (op === "delete") {
         site(call, "delete", [], false);
       }
+    }
+  }
+  if (measure !== null) {
+    observeChainFilters(chains, direct, table, scope, exportsIndex, known, out, measure);
+  }
+}
+
+/**
+ * Miara: kolumny filtrów, sortowania i upsertu na łańcuchach budowniczego
+ * tabeli `table` - rola potrzebuje na nich SELECT (także w UPDATE/DELETE).
+ */
+function observeChainFilters(
+  chains: readonly (readonly ts.CallExpression[])[],
+  direct: readonly ts.CallExpression[],
+  table: string,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  measure: { readonly env: MeasureEnv; readonly role: RoleResolution },
+): void {
+  const QUERY_OPS = new Set<string>(["update", "delete", "insert", "upsert"]);
+  for (const chain of chains) {
+    const whole = chain === direct ? chain : [...direct, ...chain];
+    const op =
+      (whole.map((c) => callMethod(c)?.name ?? "").find((m) => QUERY_OPS.has(m)) as
+        TableOp | undefined) ?? "select";
+    // Lista `select` łańcucha - do mapy osadzeń (`alias:tabela!fk(...)`):
+    // literał albo stała, a gdy składa ją parametr - warianty szablonu
+    // (osadzenia ze stałych modułu, kolumny parametru jako wartość czasu
+    // działania); tabela osadzenia musi być ta sama we wszystkich.
+    const selectCall = whole.find((c) => callMethod(c)?.name === "select");
+    const selectArg = selectCall?.arguments[0];
+    const selectLiteral =
+      selectArg === undefined ? "*" : resolveString(selectArg, scope, exportsIndex, known);
+    const selectTexts: string[] | null =
+      selectCall === undefined
+        ? null
+        : selectLiteral !== null
+          ? [selectLiteral]
+          : (filterVariants(
+              selectArg as ts.Expression,
+              { scope, fn: enclosingFunction(selectCall), lambdas: [] },
+              measure.env.filters,
+              0,
+            )?.map((v) => flowSubstitute(v, RUNTIME_PART)) ?? null);
+    for (const call of chain) {
+      const method = callMethod(call)?.name ?? "";
+      const where = `${scope.file}: ${enclosingFunctionPath(call)}: .from(${table}).${method}`;
+      const push = (column: FilterColumn, label: string): void => {
+        let rel = table;
+        if (column.embed.length > 0) {
+          const tables = (selectTexts ?? [null]).map((t) => embeddedTable(t, column.embed));
+          const embedded = tables.every((t) => t !== null && t === tables[0]) ? tables[0] : null;
+          if (embedded === null) {
+            out.observed.unresolvedFilters.push(
+              `${where}(${column.embed.join(".")}.${column.column}): osadzenie bez tabeli w liście \`select\``,
+            );
+            return;
+          }
+          rel = embedded;
+        }
+        out.observed.filters.push({
+          table: rel,
+          column: column.column,
+          embed: column.embed.length > 0 ? column.embed.join(".") : null,
+          method: label,
+          op,
+          role: measure.role.role,
+          via: measure.role.via,
+          enforcedRole: "unknown",
+          file: column.file,
+          site: scope.file,
+          fn: enclosingFunctionPath(call),
+        });
+      };
+      if (method === "upsert") {
+        // `ON CONFLICT (cel)` - SELECT na celu; `DO UPDATE SET c = EXCLUDED.c`
+        // (bez `ignoreDuplicates`) - SELECT na każdej kolumnie ładunku.
+        const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
+        let conflict: string | null | undefined;
+        let ignore = false;
+        if (opts !== null) {
+          if (!ts.isObjectLiteralExpression(opts)) conflict = null;
+          else {
+            for (const p of opts.properties) {
+              if (!ts.isPropertyAssignment(p)) continue;
+              const key = propName(p.name);
+              if (key === "ignoreDuplicates") {
+                ignore = p.initializer.kind === ts.SyntaxKind.TrueKeyword;
+              }
+              if (key === "onConflict") {
+                conflict = resolveString(p.initializer, scope, exportsIndex, known);
+              }
+            }
+          }
+        }
+        out.observed.visitedFilters.add(call);
+        if (conflict === null) {
+          out.observed.unresolvedFilters.push(`${where}: cel onConflict nieczytelny`);
+        } else {
+          const columns =
+            conflict === undefined
+              ? [PRIMARY_KEY_COLUMNS]
+              : conflict
+                  .split(",")
+                  .map((c) => c.trim())
+                  .filter((c) => c.length > 0);
+          for (const column of columns) {
+            if (column !== PRIMARY_KEY_COLUMNS && !COLUMN_RE.test(column)) {
+              out.observed.unresolvedFilters.push(`${where}: cel onConflict ${column}`);
+              continue;
+            }
+            push({ embed: [], column, file: scope.file }, "onConflict");
+          }
+        }
+        if (!ignore) {
+          const objects = objectArgument(call.arguments[0], scope);
+          if (objects === null || objects.some((o) => o.properties.some(ts.isSpreadAssignment))) {
+            out.observed.unresolvedFilters.push(`${where}: kolumny ładunku nieczytelne (EXCLUDED)`);
+          } else {
+            for (const column of objectShape(objects, scope, exportsIndex, known).keys) {
+              push({ embed: [], column, file: scope.file }, "upsert(EXCLUDED)");
+            }
+          }
+        }
+        continue;
+      }
+      if (!FILTER_METHODS.has(method)) continue;
+      out.observed.visitedFilters.add(call);
+      const found = filterCallColumns(
+        call,
+        method,
+        scope,
+        exportsIndex,
+        known,
+        measure.env.filters,
+      );
+      for (const why of found.unresolved) {
+        out.observed.unresolvedFilters.push(
+          `${where}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)}): ${why}`,
+        );
+      }
+      for (const column of found.columns) push(column, method);
     }
   }
 }
@@ -2183,7 +4336,7 @@ function pushTableFact(
   fact: TableSite,
   call: ts.CallExpression,
   scope: FileScope,
-): void {
+): boolean {
   if (fact.file === scope.file && !fact.star) {
     const candidates = out.withheldReviewed.filter(
       (e) =>
@@ -2198,11 +4351,12 @@ function pushTableFact(
       const entry = candidates.find((e) => e.fn === fn);
       if (entry !== undefined) {
         out.withheld.push({ ...fact, fn, key: withheldKey(entry) });
-        return;
+        return true;
       }
     }
   }
   out.tables.push(fact);
+  return false;
 }
 
 /** Pełna ekstrakcja faktów szwu z kodu produkcyjnego. */
@@ -2210,6 +4364,13 @@ export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
   withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
+  options: {
+    /**
+     * Miara poza bramką (`observed`): kolumny filtrów i rola szerzej. Bez niej
+     * (bramka CI) `observed` jest puste, a ekstrakcja - ta sama co przed miarą.
+     */
+    readonly observe?: boolean;
+  } = {},
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
   const scopes = new Map<string, FileScope>();
@@ -2230,10 +4391,38 @@ export function extractSeamFacts(
     unresolved: [],
     uncheckedSelects: [],
     visitedSelects: new Set(),
+    observed: {
+      rpcs: [],
+      tables: [],
+      filters: [],
+      unresolvedFilters: [],
+      filtersOutsideChains: [],
+      visitedFilters: new Set(),
+    },
   };
   const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
+  const measureFlow: FlowEnv = {
+    scopes,
+    known,
+    unresolved: new Set(),
+    flagged: 0,
+    importers: null,
+  };
+  const measure: MeasureEnv | null =
+    options.observe === true
+      ? {
+          roles: {
+            flow: measureFlow,
+            moduleRefs: null,
+            memo: new Map(),
+            sites: new Map(),
+            depthCuts: 0,
+          },
+          filters: measureFlow,
+        }
+      : null;
   for (const scope of scopes.values()) {
-    visitFile(scope, exportsIndex, known, out, flow);
+    visitFile(scope, exportsIndex, known, out, flow, measure);
   }
   out.unresolved.push(...flow.unresolved);
   const matched = new Map<string, number>();
@@ -2259,6 +4448,17 @@ export function extractSeamFacts(
         const key = withheldKey(entry);
         return { key, matched: matched.get(key) ?? 0 };
       }),
+    },
+    observed: {
+      rpcs: out.observed.rpcs,
+      tables: out.observed.tables,
+      filters: out.observed.filters,
+      // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
+      // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
+      unresolvedFilters: [
+        ...new Set([...out.observed.unresolvedFilters, ...measureFlow.unresolved]),
+      ].sort(),
+      filtersOutsideChains: [...out.observed.filtersOutsideChains].sort(),
     },
   };
 }
@@ -2539,6 +4739,49 @@ function valuesBlock(table: string, columns: string, rows: readonly string[]): s
 }
 
 /**
+ * Funkcja wyboru przeciążenia RPC - wspólna dla testu pgTAP i zapytań miary,
+ * żeby miara nie liczyła przeciążeń inaczej niż bramka.
+ */
+const RPC_MATCH_SQL = `-- Przeciazenie, ktore PostgREST wybierze dla tych kluczy: kazdy klucz to
+-- nazwany parametr wejsciowy, a kazdy parametr bez DEFAULT jest podany.
+-- Jedyny nienazwany parametr json/jsonb przyjmuje dowolne klucze.
+CREATE FUNCTION pg_temp.ts_rpc_match(p_fn text, p_keys text[])
+RETURNS oid LANGUAGE plpgsql STABLE AS $f$
+DECLARE
+  r record;
+  v_in text[];
+  v_req text[];
+BEGIN
+  FOR r IN
+    SELECT p.oid, p.proargnames, p.proargmodes, p.proargtypes, p.pronargs, p.pronargdefaults
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = p_fn
+     ORDER BY p.oid
+  LOOP
+    IF r.pronargs = 1 AND r.proargnames IS NULL
+       AND r.proargtypes[0] IN ('json'::regtype, 'jsonb'::regtype) THEN
+      RETURN r.oid;
+    END IF;
+    IF r.proargnames IS NULL THEN
+      v_in := '{}';
+      CONTINUE WHEN r.pronargs > 0;
+    ELSIF r.proargmodes IS NULL THEN
+      v_in := r.proargnames[1:r.pronargs];
+    ELSE
+      SELECT coalesce(array_agg(t.nm ORDER BY t.ord), '{}') INTO v_in
+        FROM unnest(r.proargnames, r.proargmodes) WITH ORDINALITY AS t(nm, md, ord)
+       WHERE t.md IN ('i', 'b', 'v');
+    END IF;
+    v_req := v_in[1:(r.pronargs - r.pronargdefaults)];
+    IF p_keys <@ v_in AND v_req <@ p_keys THEN
+      RETURN r.oid;
+    END IF;
+  END LOOP;
+  RETURN NULL;
+END $f$;
+`;
+
+/**
  * Test pgTAP kontraktu. Deterministyczny (posortowany) - dwa przebiegi na tym
  * samym kodzie dają bajt w bajt ten sam plik.
  */
@@ -2661,44 +4904,7 @@ ${valuesBlock("ts_table", "rel, op, role, cols, star, sites", tableRows)}
 ${valuesBlock("ts_literal", "rel, col, val, sites", literalRows)}
 ${valuesBlock("ts_conflict", "rel, cols, sites", conflictRows)}
 ${valuesBlock("ts_public_cols", "rel, role, cols, source", publicRows)}
--- Przeciazenie, ktore PostgREST wybierze dla tych kluczy: kazdy klucz to
--- nazwany parametr wejsciowy, a kazdy parametr bez DEFAULT jest podany.
--- Jedyny nienazwany parametr json/jsonb przyjmuje dowolne klucze.
-CREATE FUNCTION pg_temp.ts_rpc_match(p_fn text, p_keys text[])
-RETURNS oid LANGUAGE plpgsql STABLE AS $f$
-DECLARE
-  r record;
-  v_in text[];
-  v_req text[];
-BEGIN
-  FOR r IN
-    SELECT p.oid, p.proargnames, p.proargmodes, p.proargtypes, p.pronargs, p.pronargdefaults
-      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'public' AND p.proname = p_fn
-     ORDER BY p.oid
-  LOOP
-    IF r.pronargs = 1 AND r.proargnames IS NULL
-       AND r.proargtypes[0] IN ('json'::regtype, 'jsonb'::regtype) THEN
-      RETURN r.oid;
-    END IF;
-    IF r.proargnames IS NULL THEN
-      v_in := '{}';
-      CONTINUE WHEN r.pronargs > 0;
-    ELSIF r.proargmodes IS NULL THEN
-      v_in := r.proargnames[1:r.pronargs];
-    ELSE
-      SELECT coalesce(array_agg(t.nm ORDER BY t.ord), '{}') INTO v_in
-        FROM unnest(r.proargnames, r.proargmodes) WITH ORDINALITY AS t(nm, md, ord)
-       WHERE t.md IN ('i', 'b', 'v');
-    END IF;
-    v_req := v_in[1:(r.pronargs - r.pronargdefaults)];
-    IF p_keys <@ v_in AND v_req <@ p_keys THEN
-      RETURN r.oid;
-    END IF;
-  END LOOP;
-  RETURN NULL;
-END $f$;
-
+${RPC_MATCH_SQL}
 -- Czy literal przechodzi typ kolumny (enum, domena) i KAZDY jednokolumnowy
 -- CHECK. Wyrazenie CHECK liczone jest na wierszu z ta jedna kolumna, wiec
 -- regula jest ta sama, ktora sprawdza INSERT - bez parsowania listy wartosci.
@@ -2932,6 +5138,177 @@ SELECT is(
   'Ladunek: SECURITY DEFINER dla klienta nie czyta klucza tozsamosci z jsonb bez bramki redakcji');
 
 SELECT * FROM finish();
+ROLLBACK;
+`;
+}
+
+// ── Render miary poza bramką ────────────────────────────────────────────────
+
+/**
+ * Zapytania miary (`generate:ts-sql-contract --measure`): zwykły SQL, nie
+ * pgTAP - NIE trafia do `supabase/tests` ani do CI. Na bazie po wszystkich
+ * migracjach zwraca listę naruszeń (rodzaj, plik, funkcja, relacja, kolumna,
+ * rola zmierzona i rola bramki, problem, droga ustalenia roli) dla:
+ *   * RPC i faktów tabel z rolą zmierzoną (także `anon`),
+ *   * kolumn filtrów, sortowania i upsertu (SELECT; cel konfliktu bez
+ *     `onConflict` - kolumny klucza głównego), także ich istnienie.
+ * Rola `unknown` - tylko istnienie, bez uprawnień.
+ */
+export function renderObservedQueries(facts: SeamFacts): string {
+  const o = facts.observed;
+  const rpcRows = o.rpcs.map((r) =>
+    [
+      sqlString(r.name),
+      sqlTextArray(r.keys),
+      sqlString(r.role),
+      sqlString(r.enforcedRole),
+      sqlString(r.via),
+      sqlString(r.site),
+      sqlString(r.fn),
+    ].join(", "),
+  );
+  const tableRows = o.tables.map((t) =>
+    [
+      sqlString(t.table),
+      sqlString(t.op),
+      sqlString(t.role),
+      sqlString(t.enforcedRole),
+      sqlTextArray(t.columns),
+      t.star ? "true" : "false",
+      sqlString(t.via),
+      sqlString(t.file),
+      sqlString(t.site),
+      sqlString(t.fn),
+    ].join(", "),
+  );
+  const filterRows = o.filters.map((f) =>
+    [
+      sqlString(f.table),
+      f.column === PRIMARY_KEY_COLUMNS ? "NULL" : sqlString(f.column),
+      f.embed === null ? "NULL" : sqlString(f.embed),
+      sqlString(f.method),
+      sqlString(f.op),
+      sqlString(f.role),
+      sqlString(f.via),
+      sqlString(f.file),
+      sqlString(f.site),
+      sqlString(f.fn),
+    ].join(", "),
+  );
+  const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
+  const roles = "('anon', 'authenticated', 'service_role')";
+  return `-- ============================================================================
+-- WYGENEROWANE - MIARA POZA BRAMKA CI (\`bun run generate:ts-sql-contract --measure\`).
+-- Nie jest testem pgTAP i nie trafia do supabase/tests. Zwraca naruszenia:
+-- rodzaj | plik wywolania | funkcja | relacja | kolumna | rola zmierzona |
+-- rola bramki | problem | droga ustalenia roli.
+-- RPC: ${o.rpcs.length}, fakty tabel: ${o.tables.length}, kolumny filtrow: ${o.filters.length}.
+-- ============================================================================
+BEGIN;
+CREATE TEMP TABLE obs_rpc (fn text, keys text[], role text, enforced text, via text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, file text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op text, role text, via text, file text, site text, func text) ON COMMIT DROP;
+
+${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
+${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
+${valuesBlock("obs_filter", "rel, col, embed, method, op, role, via, file, site, func", filterRows)}
+${RPC_MATCH_SQL}
+-- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
+CREATE TEMP VIEW obs_filter_cols AS
+SELECT f.rel, coalesce(f.col, pk.col) AS col, f.embed, f.method, f.op, f.role, f.via, f.file, f.site, f.func
+  FROM obs_filter f
+  LEFT JOIN LATERAL (
+    SELECT a.attname::text AS col
+      FROM pg_index i
+      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey::int2[])
+     WHERE i.indrelid = ${rel("f.rel")} AND i.indisprimary
+  ) pk ON f.col IS NULL;
+
+SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
+  SELECT 'rpc' AS kind, r.site, r.func, r.fn AS rel, coalesce(array_to_string(r.keys, ','), '?') AS col,
+         r.role, r.enforced,
+         CASE WHEN NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                                WHERE n.nspname = 'public' AND p.proname = r.fn)
+              THEN 'funkcja nie istnieje'
+              WHEN r.keys IS NOT NULL AND pg_temp.ts_rpc_match(r.fn, r.keys) IS NULL
+              THEN 'brak przeciazenia dla tych kluczy'
+              ELSE 'brak EXECUTE' END AS problem,
+         r.via
+    FROM obs_rpc r
+   WHERE (r.keys IS NOT NULL AND pg_temp.ts_rpc_match(r.fn, r.keys) IS NULL)
+      OR (r.keys IS NULL AND NOT EXISTS (
+            SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = r.fn))
+      OR (r.role IN ${roles} AND (
+            (r.keys IS NOT NULL AND pg_temp.ts_rpc_match(r.fn, r.keys) IS NOT NULL
+             AND NOT has_function_privilege(r.role, pg_temp.ts_rpc_match(r.fn, r.keys), 'EXECUTE'))
+            OR (r.keys IS NULL AND NOT EXISTS (
+                  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                   WHERE n.nspname = 'public' AND p.proname = r.fn
+                     AND has_function_privilege(r.role, p.oid, 'EXECUTE')))))
+  UNION ALL
+  SELECT CASE WHEN t.op = 'select' THEN 'select-column' ELSE 'write' END, t.site, t.func, t.rel,
+         coalesce(c.col, '*'), t.role, t.enforced,
+         CASE WHEN ${rel("t.rel")} IS NULL THEN 'relacja nie istnieje'
+              WHEN c.col IS NOT NULL AND NOT EXISTS (
+                     SELECT 1 FROM pg_attribute a
+                      WHERE a.attrelid = ${rel("t.rel")} AND a.attname = c.col
+                        AND a.attnum > 0 AND NOT a.attisdropped)
+              THEN 'kolumna nie istnieje'
+              ELSE 'brak ' || priv.p END,
+         t.via
+    FROM obs_table t
+    LEFT JOIN LATERAL (
+      SELECT a.attname::text AS col FROM pg_attribute a
+       WHERE a.attrelid = ${rel("t.rel")} AND a.attnum > 0 AND NOT a.attisdropped
+         AND (t.star OR a.attname = ANY (t.cols))
+      UNION
+      SELECT x FROM unnest(t.cols) x
+    ) c ON true
+    LEFT JOIN LATERAL unnest(CASE t.op
+        WHEN 'select' THEN ARRAY['SELECT']
+        WHEN 'insert' THEN ARRAY['INSERT']
+        WHEN 'update' THEN ARRAY['UPDATE']
+        WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']
+        WHEN 'upsert_ignore' THEN ARRAY['INSERT']
+        ELSE ARRAY[NULL]::text[] END) AS priv(p) ON true
+   WHERE ${rel("t.rel")} IS NULL
+      OR (c.col IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM pg_attribute a
+             WHERE a.attrelid = ${rel("t.rel")} AND a.attname = c.col
+               AND a.attnum > 0 AND NOT a.attisdropped))
+      OR (t.role IN ${roles} AND priv.p IS NOT NULL AND c.col IS NOT NULL
+          AND EXISTS (SELECT 1 FROM pg_attribute a
+                       WHERE a.attrelid = ${rel("t.rel")} AND a.attname = c.col
+                         AND a.attnum > 0 AND NOT a.attisdropped)
+          AND NOT has_column_privilege(t.role, ${rel("t.rel")}, c.col, priv.p))
+  UNION ALL
+  SELECT 'write', t.site, t.func, t.rel, '*', t.role, t.enforced, 'brak DELETE', t.via
+    FROM obs_table t
+   WHERE t.op = 'delete' AND t.role IN ${roles} AND ${rel("t.rel")} IS NOT NULL
+     AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE')
+  UNION ALL
+  SELECT 'filter-column', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny?)'), f.role, 'unknown',
+         CASE WHEN ${rel("f.rel")} IS NULL THEN 'relacja nie istnieje'
+              WHEN f.col IS NULL THEN 'brak klucza glownego'
+              WHEN NOT EXISTS (SELECT 1 FROM pg_attribute a
+                                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                                  AND a.attnum > 0 AND NOT a.attisdropped)
+              THEN 'kolumna nie istnieje'
+              ELSE 'brak SELECT' END
+           || ' (' || f.method || coalesce(', osadzenie ' || f.embed, '') || ', ' || f.op
+           || CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END || ')',
+         f.via
+    FROM obs_filter_cols f
+   WHERE ${rel("f.rel")} IS NULL
+      OR f.col IS NULL
+      OR NOT EXISTS (SELECT 1 FROM pg_attribute a
+                      WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                        AND a.attnum > 0 AND NOT a.attisdropped)
+      OR (f.role IN ${roles}
+          AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT'))
+) v
+ORDER BY kind, site, func, rel, col, role;
 ROLLBACK;
 `;
 }

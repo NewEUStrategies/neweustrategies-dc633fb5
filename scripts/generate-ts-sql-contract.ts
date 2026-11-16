@@ -17,18 +17,59 @@
  *   bun run generate:ts-sql-contract            # zapis do supabase/tests/
  *   bun run generate:ts-sql-contract --stdout   # na standardowe wyjście
  *   bun run check:ts-sql-contract               # bez bazy: zasięg ekstrakcji
+ *   bun run generate:ts-sql-contract --measure  # MIARA poza bramką (stdout)
+ *
+ * `--measure` NIE zmienia bramki: drukuje zwykły SQL (nie pgTAP) z faktami
+ * miary - kolumny filtrów/sortowania/upsertu i rola klienta ustalona szerzej
+ * (`SeamFacts.observed`) - do uruchomienia ręcznie na bazie po migracjach;
+ * podsumowanie i miejsca nieczytelne idą na stderr. Plik w `supabase/tests`
+ * i wynik `--check` są bajt w bajt te same co bez tej flagi.
  */
 import { writeFileSync } from "node:fs";
 import {
   extractSeamFacts,
   renderContractTest,
+  renderObservedQueries,
   seamCoverageProblems,
 } from "../src/lib/ci/tsSqlContract";
 import { loadProductionSources } from "./lib/onConflictArbitersInputs";
 
 const OUTPUT = "supabase/tests/ts_sql_contract_test.sql";
 
+function measure(): void {
+  const facts = extractSeamFacts(loadProductionSources(), undefined, undefined, { observe: true });
+  const o = facts.observed;
+  const all = [...o.rpcs, ...o.tables];
+  const count = <T>(xs: readonly T[], key: (x: T) => string): string =>
+    Object.entries(
+      xs.reduce<Record<string, number>>((m, x) => {
+        m[key(x)] = (m[key(x)] ?? 0) + 1;
+        return m;
+      }, {}),
+    )
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, n]) => `${k}=${n}`)
+      .join(", ");
+  console.error(
+    [
+      `miara kontraktu TS <-> SQL (poza bramką):`,
+      `  fakty RPC i tabel z rolą unknown: bramka ${all.filter((x) => x.enforcedRole === "unknown").length}, miara ${all.filter((x) => x.role === "unknown").length}`,
+      `  rola bramka->miara: ${count(all, (x) => `${x.enforcedRole}->${x.role}`)}`,
+      `  kolumny filtrów: ${o.filters.length} (${count(o.filters, (f) => f.role)})`,
+      `  miejsca filtrów nieczytelne: ${o.unresolvedFilters.length}`,
+      `  wywołania filtra poza rozpoznanym budowniczym: ${o.filtersOutsideChains.length}`,
+      ...o.unresolvedFilters.map((x) => `    ? ${x}`),
+      ...o.filtersOutsideChains.map((x) => `    ~ ${x}`),
+    ].join("\n"),
+  );
+  process.stdout.write(renderObservedQueries(facts));
+}
+
 function main(): void {
+  if (process.argv.includes("--measure")) {
+    measure();
+    return;
+  }
   const started = Date.now();
   const facts = extractSeamFacts(loadProductionSources());
   const elapsed = `${((Date.now() - started) / 1000).toFixed(2)} s`;
