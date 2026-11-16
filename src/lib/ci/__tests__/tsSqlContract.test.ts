@@ -855,6 +855,70 @@ describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", ()
     expect(seamCoverageProblems(otherTable, reviewed)).toHaveLength(1);
   });
 
+  it("klucz: PEŁNY tekst argumentu (białe znaki zwinięte) - kolumna dopisana za 80. znakiem to nowy klucz, czerwono", () => {
+    // Dawniej klucz obcinał tekst do 80 znaków: `secret_col` dopisany na końcu
+    // długiego `select` z warunkiem zostawiał ten sam klucz i przechodził CI.
+    const long = (extra: string) =>
+      facts({
+        "src/lib/q.ts": `${HEADER}
+          export async function send(segment: boolean) {
+            return supabase
+              .from("newsletter_subscribers")
+              .select(segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email${extra}");
+          }
+        `,
+      });
+    const before = long("");
+    const [site] = before.coverage.uncheckedSelects;
+    expect(site).toBe(
+      'src/lib/q.ts: send: .from(newsletter_subscribers).select(segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email")',
+    );
+    expect(site.indexOf('"id, email")')).toBeGreaterThan(80);
+    const reviewed = { [site]: [1, "powód"] } as const;
+    expect(seamCoverageProblems(before, reviewed)).toEqual([]);
+    const after = long(", secret_col");
+    expect(uncheckedSelectDrift(after, reviewed)).toEqual({
+      fresh: [
+        'src/lib/q.ts: send: .from(newsletter_subscribers).select(segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email, secret_col") (1, przejrzanych: 0)',
+      ],
+      stale: [`${site} (0, przejrzanych: 1)`],
+    });
+    expect(seamCoverageProblems(after, reviewed)).toHaveLength(1);
+    // Żaden próg: kolumna na końcu argumentu dłuższego niż 600 znaków też
+    // zmienia klucz (klucz kończy się PEŁNYM tekstem argumentu).
+    const columns = Array.from({ length: 60 }, (_, i) => `column_${i}`).join(", ");
+    const huge = (extra: string) =>
+      facts({
+        "src/lib/q.ts": `${HEADER}
+          export async function send(segment: boolean) {
+            return supabase.from("posts").select(segment ? "id" : "${columns}${extra}");
+          }
+        `,
+      }).coverage.uncheckedSelects;
+    expect(huge("")).toEqual([
+      `src/lib/q.ts: send: .from(posts).select(segment ? "id" : "${columns}")`,
+    ]);
+    expect(columns.length).toBeGreaterThan(600);
+    expect(huge(", secret_col")).toEqual([
+      `src/lib/q.ts: send: .from(posts).select(segment ? "id" : "${columns}, secret_col")`,
+    ]);
+    // Wieloliniowy argument: białe znaki zwinięte do jednej spacji.
+    const multiline = facts({
+      "src/lib/q.ts": `${HEADER}
+        export async function send(segment: boolean) {
+          return supabase.from("posts").select(
+            segment
+              ? "id"
+              : "slug",
+          );
+        }
+      `,
+    });
+    expect(multiline.coverage.uncheckedSelects).toEqual([
+      'src/lib/q.ts: send: .from(posts).select(segment ? "id" : "slug")',
+    ]);
+  });
+
   it("klucz: ścieżka nazwanych funkcji (także `const f = createServerFn().handler(async () => ...)`, metoda, właściwość); poza funkcją - `<moduł>`", () => {
     const f = facts({
       "src/lib/q.functions.ts": `${HEADER}

@@ -1609,7 +1609,10 @@ function enclosingFunctionPath(node: ts.Node): string {
  * funkcji, tabela i tekst argumentu - BEZ numeru linii, więc lista przejrzana
  * nie zmienia się od edycji w innym miejscu pliku. Funkcja i tabela są
  * w kluczu, żeby naprawa jednego miejsca i dopisanie TEGO SAMEGO tekstu
- * w innej funkcji albo na innej tabeli nie wymieniły się po cichu.
+ * w innej funkcji albo na innej tabeli nie wymieniły się po cichu. Tekst
+ * argumentu jest PEŁNY (białe znaki zwinięte do spacji): do listopada 2026
+ * klucz obcinał go do 80 znaków, więc kolumna dopisana za 80. znakiem
+ * przejrzanego `select` zostawiała ten sam klucz i przechodziła CI.
  */
 function uncheckedSelectSite(
   call: ts.CallExpression,
@@ -1617,7 +1620,7 @@ function uncheckedSelectSite(
   scope: FileScope,
 ): string {
   const arg = call.arguments[0];
-  const text = arg === undefined ? "" : arg.getText(scope.sf).replace(/\s+/g, " ").slice(0, 80);
+  const text = arg === undefined ? "" : arg.getText(scope.sf).replace(/\s+/g, " ");
   return `${scope.file}: ${enclosingFunctionPath(call)}: .from(${table ?? "?"}).select(${text})`;
 }
 
@@ -2299,7 +2302,7 @@ export const UNCHECKED_SELECTS_REVIEWED: Readonly<
     [1, LANG_SUFFIX],
   'src/lib/newsletter-campaigns.functions.ts: countCampaignAudience: .from(newsletter_subscribers).select(data.segment ? "email, meta" : "email")':
     [1, TERNARY],
-  'src/lib/newsletter-campaigns.functions.ts: runCampaignSend: .from(newsletter_subscribers).select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token,)':
+  'src/lib/newsletter-campaigns.functions.ts: runCampaignSend: .from(newsletter_subscribers).select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email, first_name, last_name, language, unsubscribe_token")':
     [1, TERNARY],
   "src/lib/notifications/preferencesQuery.ts: useNotificationPreferences.queryFn: .from(notification_preferences).select(NOTIFICATION_PREFERENCE_SELECT)":
     [
