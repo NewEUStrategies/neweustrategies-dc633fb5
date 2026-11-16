@@ -53,9 +53,11 @@ vi.mock("@/hooks/usePostLayoutSettings", async () => {
   const fixture = defaultPostLayoutSettings();
   return {
     usePostLayoutSettings: () => ({ data: fixture, isLoading: false }),
-    useSavePostLayoutSettings: () => ({ mutate: h.saveOverlay, isPending: false }),
   };
 });
+vi.mock("@/hooks/usePostLayoutSettingsAdmin", () => ({
+  useSavePostLayoutSettings: () => ({ mutate: h.saveOverlay, isPending: false }),
+}));
 
 import { useThemeDesignDrafts } from "../useThemeDesignDrafts";
 

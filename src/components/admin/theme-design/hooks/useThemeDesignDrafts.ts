@@ -31,7 +31,8 @@ import {
   CAROUSEL_DEFAULTS,
   type CarouselDefaults,
 } from "@/lib/theme/carouselDefaults";
-import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettingsAdmin";
 import { useCurrentTenantId } from "@/lib/tenant";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
 import { applyColor, applySectionPatch, diffChangedFields } from "../lib/mutations";

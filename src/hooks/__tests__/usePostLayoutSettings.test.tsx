@@ -41,12 +41,14 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 
 import {
-  adminPostLayoutSettingsQueryOptions,
   postLayoutSettingsQueryOptions,
-  useAdminPostLayoutSettings,
   usePostLayoutSettings,
-  useSavePostLayoutSettings,
 } from "@/hooks/usePostLayoutSettings";
+import {
+  adminPostLayoutSettingsQueryOptions,
+  useAdminPostLayoutSettings,
+  useSavePostLayoutSettings,
+} from "@/hooks/usePostLayoutSettingsAdmin";
 import { defaultPostLayoutSettings, type PostLayoutSettings } from "@/lib/postLayouts";
 import { fail, ok, pgError, type SupabaseFromStub } from "@/test/supabaseChain";
 import { POST_IDS } from "@/test/postExperience/fixtures";

@@ -31,7 +31,8 @@ import {
   type FontSizesSettings,
   type HeadingLevel,
 } from "@/lib/theme/fontSizes";
-import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettingsAdmin";
 
 type TextTransform = FontSizesSettings["headings"]["h1"]["transform"];
 

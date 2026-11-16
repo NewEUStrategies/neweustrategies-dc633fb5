@@ -124,10 +124,8 @@ import "@/lib/i18n-admin-core";
 import { Route } from "@/routes/admin.content-area";
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { defaultPostLayoutSettings } from "@/lib/postLayouts";
-import {
-  adminPostLayoutSettingsQueryOptions,
-  postLayoutSettingsQueryOptions,
-} from "@/hooks/usePostLayoutSettings";
+import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
+import { adminPostLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettingsAdmin";
 import { axeViolations, summarize } from "@/test/axe";
 import {
   adminContentPaddingClass,
