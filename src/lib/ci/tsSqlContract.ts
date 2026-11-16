@@ -55,7 +55,8 @@
 // Znany defekt grantu, którego bramka jeszcze nie może czerwienić (kod sprzed
 // niej), to wpis `SEAM_FACTS_WITHHELD_REVIEWED`: wstrzymuje uprawnienia
 // JEDNEGO faktu (plik, funkcja, tabela, operacja, rola, pełna lista kolumn),
-// nigdy pliku ani pomocnika.
+// nigdy pliku ani pomocnika. Dziś lista jest pusta - każdy fakt idzie do
+// pgTAP z rolą klienta.
 //
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
@@ -2139,6 +2140,14 @@ function parseErrorsOf(scopes: ReadonlyMap<string, FileScope>): string[] {
 // renderuje się z rolą `unknown` - istnienie relacji i kolumn sprawdza pgTAP
 // dalej, wstrzymane są wyłącznie uprawnienia. Literały i cele onConflict
 // wstrzymanego zapisu - jak dotąd (osobne fakty).
+//
+// Lista jest dziś PUSTA. Trzy wpisy z przeglądu (listopad 2026) zeszły razem
+// z naprawami: sekcja `user_reports_filed` eksportu RODO woła SECURITY DEFINER
+// `user_reports_export_my_data` (20261116211500), a awatar karty leada
+// (`lookupLeadAvatars`) i członkowie karty firmy (`companyMembers`) czytają
+// `profiles` spod `service_role` z najemcą z sesji. Mechanizm zostaje: nowy
+// znany defekt grantu w kodzie sprzed bramki dostaje wpis tu, nie wyłączenie
+// pliku.
 
 /** Wpis przeglądu: jeden fakt, którego uprawnień kontrakt świadomie nie sprawdza. */
 export interface WithheldFactReviewed {
@@ -2158,69 +2167,7 @@ export function withheldKey(entry: Omit<WithheldFactReviewed, "reason">): string
   return `${entry.file}: ${entry.fn}: ${entry.op} ${entry.table} dla ${entry.role} [${entry.columns.join(",")}]`;
 }
 
-export const SEAM_FACTS_WITHHELD_REVIEWED: readonly WithheldFactReviewed[] = [
-  {
-    file: "src/lib/profile/export.functions.ts",
-    fn: "exportMyData",
-    table: "user_reports",
-    op: "select",
-    role: "authenticated",
-    columns: ["created_at", "details", "id", "reason", "reported_id", "resolved_at", "status"],
-    reason:
-      'Eksport danych RODO, sekcja `user_reports_filed`: `supabase.from("user_reports").select("id, reported_id, reason, details, status, created_at, resolved_at").eq("reporter_id", userId)` ' +
-      "klientem użytkownika. Migracje 20260717162432 i 20260717170000 robią `REVOKE ALL ON public.user_reports FROM PUBLIC, anon, authenticated` " +
-      "(tabela jest RPC-only), więc PostgREST oddaje 42501 i sekcja trafia do `errors`/`manifest.failed` w KAŻDYM eksporcie. " +
-      'Sam GRANT SELECT tych 7 kolumn NIE wystarczy (sprawdzone lokalnie: nadal 42501) - filtr `.eq("reporter_id", ...)` też wymaga SELECT na `reporter_id`. ' +
-      "Naprawa: GRANT SELECT (id, reporter_id, reported_id, reason, details, status, created_at, resolved_at) dla `authenticated` razem z istniejącą polityką RLS " +
-      "`user_reports_self_read` ALBO - zgodnie z projektem RPC-only tej tabeli - funkcja SECURITY DEFINER w rodzaju `my_user_reports` (zgłaszający z `auth.uid()`, " +
-      "nie z ładunku), przez którą pójdzie eksport. Zdjęcie wpisu: odczyty eksportu przechodzą na schemacie po migracjach (ten fakt w pgTAP bez wstrzymania).",
-  },
-  {
-    file: "src/lib/crm-companies.functions.ts",
-    fn: "getCrmCompany",
-    table: "profiles",
-    op: "select",
-    role: "authenticated",
-    columns: [
-      "avatar_url",
-      "contact_email",
-      "discoverable",
-      "display_name",
-      "first_name",
-      "id",
-      "job_title",
-      "last_name",
-      "location",
-      "slug",
-    ],
-    reason:
-      'Członkowie firmy w karcie firmy CRM: `looseTable(context, "profiles").select("id, display_name, first_name, last_name, avatar_url, job_title, location, slug, contact_email, discoverable")' +
-      '.eq("current_company_id", data.id)` klientem użytkownika. Kolumny `location` i `contact_email` są CELOWO odebrane `authenticated` (poprawka PII P1, ' +
-      "migracja 20260724090100_fix_profiles_authenticated_pii_and_anon_view.sql, pilnuje jej supabase/tests/profiles_pii_grant_test.sql), a filtr `current_company_id` " +
-      "nie ma grantu kolumnowego wcale (kolumna z 20260721200229, sprzed odebrania SELECT tabelowego). Zapytanie pada na 42501, a kod błąd połyka " +
-      "(`rowsOf` na wyniku z błędem daje `[]`), więc lista członków w karcie firmy jest ZAWSZE pusta. NIGDY nie nadawać tych kolumn `authenticated`: " +
-      "odczyt przenieść na ścieżkę roli serwisowej (albo SECURITY DEFINER) ze sprawdzeniem personelu CRM i najemcą z sesji, nie z ładunku " +
-      '(wzór: `listStaffUsers` i `getCrmLeadAvatars` w crm.functions.ts - `requireCrmStaff`, najemca z `resolveCallerTenantId`, `.eq("tenant_id", ...)` ' +
-      "na każdym zapytaniu roli serwisowej). Zdjęcie wpisu: kod przestaje czytać `profiles` klientem użytkownika w tej funkcji.",
-  },
-  {
-    file: "src/lib/crm.functions.ts",
-    fn: "getCrmLead",
-    table: "profiles",
-    op: "select",
-    role: "authenticated",
-    columns: ["avatar_url", "contact_email", "email"],
-    reason:
-      'Awatar członka w karcie leada CRM: `looseTable(context, "profiles").select("avatar_url, email, contact_email")' +
-      '.or("email.ilike.<e-mail leada>,contact_email.ilike.<e-mail leada>")` klientem użytkownika. Kolumny `email` i `contact_email` są CELOWO odebrane ' +
-      "`authenticated` (poprawka PII P1, migracja 20260724090100_fix_profiles_authenticated_pii_and_anon_view.sql, pilnuje jej " +
-      "supabase/tests/profiles_pii_grant_test.sql). Zapytanie pada na 42501, a kod błąd połyka (czyta tylko `data`), więc awatar członka w karcie leada " +
-      "jest ZAWSZE pusty. NIGDY nie nadawać tych kolumn `authenticated`: odczyt przenieść na ścieżkę roli serwisowej (albo SECURITY DEFINER) ze " +
-      "sprawdzeniem personelu CRM i najemcą z sesji, nie z ładunku (wzór: `getCrmLeadAvatars` i `listStaffUsers` w tym pliku - `requireCrmStaff`, najemca " +
-      'z `resolveCallerTenantId`, `.eq("tenant_id", ...)` na każdym zapytaniu roli serwisowej). Zdjęcie wpisu: kod przestaje czytać ' +
-      "`profiles` klientem użytkownika w tej funkcji.",
-  },
-];
+export const SEAM_FACTS_WITHHELD_REVIEWED: readonly WithheldFactReviewed[] = [];
 
 /** Kolumny wpisu i faktu są tą samą listą. */
 function sameColumns(a: readonly string[], b: readonly string[]): boolean {

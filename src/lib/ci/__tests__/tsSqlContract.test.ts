@@ -1510,18 +1510,18 @@ describe("stan repozytorium", () => {
     expect(repo.coverage.parseErrors).toEqual([]);
   });
 
-  it("fakty wstrzymane to DOKŁADNIE przejrzana lista - każdy wpis trafia w jeden fakt, z powodem", () => {
+  it("fakty wstrzymane to DOKŁADNIE przejrzana lista (dziś pusta) - każdy wpis trafia w jeden fakt, z powodem", () => {
     // Pełny odcisk: plik, funkcja, operacja, tabela, rola, kolumny. Nowy
-    // wstrzymany fakt (albo inna lista kolumn) zmienia ten napis.
+    // wstrzymany fakt (albo inna lista kolumn) zmienia ten napis. Trzy wpisy
+    // z listopada 2026 (eksport `user_reports`, `profiles` w kartach leada
+    // i firmy CRM) zeszły razem z naprawami - kod nie czyta już tych kolumn
+    // klientem użytkownika, więc wpis trafiałby w zero faktów.
     expect(
       repo.withheld
         .map((w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`)
         .sort(),
-    ).toEqual([
-      "src/lib/crm-companies.functions.ts: getCrmCompany: select profiles dla authenticated [avatar_url,contact_email,discoverable,display_name,first_name,id,job_title,last_name,location,slug]",
-      "src/lib/crm.functions.ts: getCrmLead: select profiles dla authenticated [avatar_url,contact_email,email]",
-      "src/lib/profile/export.functions.ts: exportMyData: select user_reports dla authenticated [created_at,details,id,reason,reported_id,resolved_at,status]",
-    ]);
+    ).toEqual([]);
+    expect(SEAM_FACTS_WITHHELD_REVIEWED).toEqual([]);
     expect(repo.withheld.map((w) => w.key).sort()).toEqual(
       SEAM_FACTS_WITHHELD_REVIEWED.map(withheldKey).sort(),
     );
@@ -1534,16 +1534,15 @@ describe("stan repozytorium", () => {
     }
   });
 
-  it("eksport danych RODO (`profile/export.functions.ts`): 32 odczyty i 13 RPC w kontrakcie, wstrzymany wyłącznie odczyt `user_reports`", () => {
-    // Do listopada 2026 plik parsowany jako TSX nie dawał ŻADNEGO faktu, a potem
-    // był wyłączony w całości przez defekt jednego odczytu. Dziś każdy jego
-    // odczyt i RPC idzie do pgTAP (sprawdzone lokalnie na schemacie po
-    // migracjach: wszystkie przechodzą), a wpis przeglądu wstrzymuje tylko
-    // uprawnienia `user_reports` (istnienie kolumn - nadal w pgTAP).
+  it("eksport danych RODO (`profile/export.functions.ts`): 32 odczyty i 14 RPC w kontrakcie (zgłoszenia przez `user_reports_export_my_data`), nic wstrzymanego", () => {
+    // Do listopada 2026 plik parsowany jako TSX nie dawał ŻADNEGO faktu, potem
+    // był wyłączony w całości, a potem wstrzymany był jego odczyt
+    // `user_reports` (tabela RPC-only - 42501 w każdym eksporcie). Dziś
+    // sekcja `user_reports_filed` woła SECURITY DEFINER RPC
+    // (20261116211500), a każdy odczyt i RPC pliku idzie do pgTAP z rolą
+    // klienta (sprawdzone lokalnie na schemacie po migracjach).
     const file = "src/lib/profile/export.functions.ts";
-    expect(
-      repo.withheld.filter((w) => w.file === file).map((w) => `${w.table}:${w.columns.join(",")}`),
-    ).toEqual(["user_reports:created_at,details,id,reason,reported_id,resolved_at,status"]);
+    expect(repo.withheld.filter((w) => w.file === file)).toEqual([]);
     const tables = repo.tables.filter((t) => t.file === file);
     expect(tables.filter((t) => t.table === "user_reports")).toEqual([]);
     expect(tables).toHaveLength(32);
@@ -1552,40 +1551,68 @@ describe("stan repozytorium", () => {
     );
     expect(tables.filter((t) => t.star).map((t) => t.table)).toEqual(["notification_preferences"]);
     const rpcs = repo.rpcs.filter((r) => r.file === file);
-    expect(rpcs).toHaveLength(13);
+    expect(rpcs).toHaveLength(14);
     expect(new Set(rpcs.map((r) => r.role))).toEqual(new Set(["authenticated"]));
+    expect(rpcs.filter((r) => r.name === "user_reports_export_my_data")).toEqual([
+      { name: "user_reports_export_my_data", keys: ["p_limit"], role: "authenticated", file },
+    ]);
     // Plik jest we wszechświecie zapadki `select` jak każdy inny.
     expect(repo.coverage.uncheckedSelects.filter((site) => site.startsWith(file))).toEqual([]);
   });
 
-  it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; w plikach CRM wstrzymane WYŁĄCZNIE dwa odczyty `profiles`, reszta (także zapisy i literały) w pgTAP", () => {
+  it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; w plikach CRM nic nie jest wstrzymane, `profiles` klientem użytkownika tylko `tenant_id`, reszta (także zapisy i literały) w pgTAP", () => {
     const source = readFileSync(LOOSE_TABLE.module, "utf8");
     expect(source).toMatch(new RegExp(`export function ${LOOSE_TABLE.helper}\\(`));
     const crm = ["src/lib/crm-companies.functions.ts", "src/lib/crm.functions.ts"];
     const inCrm = (file: string) => crm.includes(file);
-    // Odczyty `profiles` klientem użytkownika z kolumnami celowo odebranymi
-    // `authenticated` (sprawdzone lokalnie) - wstrzymane, z powodem we wpisie.
-    expect(
-      repo.withheld
-        .filter((w) => inCrm(w.file))
-        .map((w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`)
-        .sort(),
-    ).toEqual([
-      "src/lib/crm-companies.functions.ts: getCrmCompany: select profiles dla authenticated [avatar_url,contact_email,discoverable,display_name,first_name,id,job_title,last_name,location,slug]",
-      "src/lib/crm.functions.ts: getCrmLead: select profiles dla authenticated [avatar_url,contact_email,email]",
-    ]);
-    // Pozostałe odczyty `profiles` klientem użytkownika w tych plikach (najemca
-    // wołającego) idą do pgTAP - i nie niosą kolumn PII.
+    // Do listopada 2026 wstrzymane były dwa odczyty `profiles` klientem
+    // użytkownika z kolumnami celowo odebranymi `authenticated` (karta leada:
+    // `email`/`contact_email`, karta firmy: `location`/`contact_email`
+    // i filtr `current_company_id`) - oba padały na 42501. Dziś obie karty
+    // czytają spod `service_role` (niżej), więc nie ma czego wstrzymywać.
+    expect(repo.withheld.filter((w) => inCrm(w.file))).toEqual([]);
+    // Odczyty `profiles` klientem użytkownika w CRM (z `resolveCallerTenantId`
+    // wydzielonym do lib/crm/callerTenant.ts) to wyłącznie najemca wołającego
+    // - bez kolumn PII.
     expect(
       repo.tables
-        .filter((t) => inCrm(t.file) && t.table === "profiles" && t.role === "authenticated")
+        .filter(
+          (t) =>
+            (inCrm(t.file) || t.file === "src/lib/crm/callerTenant.ts") &&
+            t.table === "profiles" &&
+            t.role === "authenticated",
+        )
         .map((t) => `${t.file}: ${t.op} [${t.columns.join(",")}]`)
         .sort(),
     ).toEqual([
       "src/lib/crm-companies.functions.ts: select [tenant_id]",
       "src/lib/crm.functions.ts: select [tenant_id]",
-      "src/lib/crm.functions.ts: select [tenant_id]",
+      "src/lib/crm/callerTenant.ts: select [tenant_id]",
     ]);
+    // Nowe ścieżki serwerowe obu kart (najemca z sesji, `.eq("tenant_id", ...)`
+    // bezwarunkowo): `companyMembers` (karta firmy) - jedyny odczyt `profiles`
+    // spod `service_role` w crm-companies, wyłącznie kolumny z grantem dla
+    // `authenticated`; `lookupLeadAvatars` (lista i karta leada) - jeden
+    // odczyt adresów, z którego do przeglądarki wychodzi tylko `avatar_url`.
+    expect(
+      repo.tables
+        .filter(
+          (t) =>
+            t.file === "src/lib/crm-companies.functions.ts" &&
+            t.table === "profiles" &&
+            t.role === "service_role",
+        )
+        .map((t) => `${t.op} [${t.columns.join(",")}]`),
+    ).toEqual(["select [avatar_url,display_name,first_name,id,job_title,last_name,slug]"]);
+    expect(
+      repo.tables.filter(
+        (t) =>
+          t.file === "src/lib/crm.functions.ts" &&
+          t.table === "profiles" &&
+          t.role === "service_role" &&
+          t.columns.join(",") === "avatar_url,contact_email,email",
+      ),
+    ).toHaveLength(1);
     // Zapisy i odczyty `looseTable` tych plików są faktami kontraktu.
     const ops = new Set(
       repo.tables
@@ -1669,6 +1696,17 @@ describe("stan repozytorium", () => {
         "user_subscriptions",
       ]),
     );
+    // Karta firmy: członkowie (`companyMembers`) spod `service_role` - jedyna
+    // tabela tej roli w pliku.
+    expect(
+      new Set(
+        repo.tables
+          .filter(
+            (t) => t.file === "src/lib/crm-companies.functions.ts" && t.role === "service_role",
+          )
+          .map((t) => t.table),
+      ),
+    ).toEqual(new Set(["profiles"]));
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {
