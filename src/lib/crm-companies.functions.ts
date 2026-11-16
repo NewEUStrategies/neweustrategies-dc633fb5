@@ -7,6 +7,7 @@ import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, type LooseQuery } from "@/lib/supabase/looseQuery";
 import { nullIfBlank } from "@/lib/crm/text";
+import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
 import { isEventActivityAction } from "@/lib/crm/eventActivity";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
@@ -127,15 +128,7 @@ export const getCrmCompany = createServerFn({ method: "POST" })
     const fetchAll = async (query: LooseQuery): Promise<unknown[]> => rowsOf(await query);
 
     const [profiles, leads] = await Promise.all([
-      fetchAll(
-        looseTable(context, "profiles")
-          .select(
-            "id, display_name, first_name, last_name, avatar_url, job_title, location, slug, contact_email, discoverable",
-          )
-          .eq("current_company_id", data.id)
-          .order("updated_at", { ascending: false })
-          .limit(200),
-      ),
+      companyMembers(context, company as { id: string; tenant_id: string }),
       fetchAll(
         looseTable(context, "crm_leads")
           .select(
@@ -149,6 +142,54 @@ export const getCrmCompany = createServerFn({ method: "POST" })
 
     return { json: j({ company, profiles, leads }) };
   });
+
+/**
+ * Członkowie platformy przypięci do firmy (`profiles.current_company_id`) -
+ * lista „Kontakty" na karcie firmy.
+ *
+ * Do 2026-11-16 karta czytała to klientem wołającego i pytała o `location`,
+ * `contact_email` oraz filtrowała po `current_company_id`. Żadna z tych kolumn
+ * nie ma grantu dla `authenticated` (20260724090100, pgTAP
+ * `profiles_pii_grant_test`), więc PostgREST odrzucał całe zapytanie (42501),
+ * a `rowsOf` bez sprawdzenia `error` dawał pustą listę - na KAŻDEJ karcie.
+ *
+ * Grantu nie otwieramy. Ścieżka jak awatary leadów (crm.functions.ts): tenant
+ * z sesji (`resolveCallerTenantId`), odczyt spod service-role z jawnym
+ * `.eq("tenant_id", tenantId)` - jedyną granicą najemcy, bo RLS jest tam
+ * wyłączone - i `current_company_id` wyłącznie jako filtr po stronie serwera.
+ * Kolumny: dokładnie to, co karta renderuje, i wyłącznie kolumny z grantem
+ * dla `authenticated` - odpowiedź nie wynosi do przeglądarki niczego, czego
+ * staff nie przeczytałby sam pod RLS (bez `contact_email` i `location`).
+ * Firma innego najemcy niż wołający: lista pusta, bez lookupu.
+ *
+ * Awaria lookupu nie wywraca karty firmy (inaczej strona pokazałaby „Firma
+ * nieznaleziona"), ale nie znika już po cichu: trafia do logu serwera.
+ */
+async function companyMembers(
+  context: { readonly supabase: unknown; readonly userId: string },
+  company: { readonly id: string; readonly tenant_id: string },
+): Promise<unknown[]> {
+  try {
+    const tenantId = await resolveCallerTenantId(context);
+    if (company.tenant_id !== tenantId) return [];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const res = await looseClient({ supabase: supabaseAdmin })
+      .from("profiles")
+      .select("id, display_name, first_name, last_name, avatar_url, job_title, slug")
+      .eq("tenant_id", tenantId)
+      .eq("current_company_id", company.id)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (res.error) throw new Error(res.error.message);
+    return rowsOf(res);
+  } catch (err) {
+    console.error("[crm] company members lookup failed", {
+      companyId: company.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
 
 /**
  * Linki społecznościowe (kolumna `social_links`, te same sieci co karta encji
