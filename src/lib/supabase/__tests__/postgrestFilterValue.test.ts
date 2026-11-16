@@ -157,7 +157,8 @@ describe("likeMatches (semantyka LIKE PostgreSQL, sprawdzona na PG16)", () => {
     expect(likeMatches("A\\b@x.pl", "a\\\\b@x.pl", true)).toBe(true);
     expect(likeMatches("ab@x.pl", "a\\\\b@x.pl", true)).toBe(false);
     expect(likeMatches("ANNA@X.PL", "anna@x.pl", false)).toBe(false);
-    expect(() => likeMatches("a", "a\\", true)).toThrow(/escape/);
+    // PG16: `'ab' ILIKE 'a\'` -> ERROR „LIKE pattern must not end with escape character".
+    expect(() => likeMatches("ab", "a\\", true)).toThrow(/escape/);
   });
 });
 

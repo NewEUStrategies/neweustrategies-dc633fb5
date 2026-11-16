@@ -195,7 +195,10 @@ export function decodeInParam(param: string): string[] {
 
 /**
  * LIKE/ILIKE PostgreSQL: `_` dowolny znak, `%` dowolny ciąg, `\` ucieczka
- * (domyślna). Wzorzec kończący się `\` to błąd - jak w PostgreSQL.
+ * (domyślna). Wzorzec kończący się `\` port odrzuca ZAWSZE; PostgreSQL 16
+ * rzuca ten sam błąd, gdy dojdzie do takiego `\` z niewyczerpanym tekstem
+ * (`'ab' ILIKE 'a\'`), a przy wyczerpanym zwraca fałsz (`'a' ILIKE 'a\'`) -
+ * sprawdzone na PG16. `likeLiteral` takiego wzorca nie produkuje.
  */
 export function likeMatches(text: string, pattern: string, caseInsensitive: boolean): boolean {
   let source = "";
