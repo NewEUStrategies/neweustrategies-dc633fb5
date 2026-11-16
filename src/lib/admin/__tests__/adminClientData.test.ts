@@ -95,11 +95,8 @@ import {
   uploadResourceFile,
   type ResourceInput,
 } from "@/lib/admin/library";
-import {
-  getImpersonationState,
-  impersonateUser,
-  stopImpersonation,
-} from "@/lib/admin/impersonation";
+import { getImpersonationState, stopImpersonation } from "@/lib/admin/impersonation";
+import { impersonateUser } from "@/lib/admin/impersonationStart";
 import { IMPERSONATION_STORAGE_KEY } from "@/lib/storageKeys";
 
 const USER = "11111111-1111-4111-8111-111111111111";

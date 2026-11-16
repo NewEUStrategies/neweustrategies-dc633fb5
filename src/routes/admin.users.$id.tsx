@@ -68,7 +68,7 @@ import {
 import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
 import { sendActivationEmailForUser } from "@/lib/admin/invitations.functions";
 import { invitationErrorKey } from "@/lib/admin/invitationErrors";
-import { impersonateUser } from "@/lib/admin/impersonation";
+import { impersonateUser } from "@/lib/admin/impersonationStart";
 import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
 import { grantBadge, revokeUserBadge } from "@/lib/admin/badges";
 import { ProfileBadges } from "@/components/profile/ProfileBadges";

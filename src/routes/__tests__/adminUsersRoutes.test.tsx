@@ -249,7 +249,7 @@ vi.mock("@/lib/adminToasts", () => ({
   },
 }));
 
-vi.mock("@/lib/admin/impersonation", () => ({
+vi.mock("@/lib/admin/impersonationStart", () => ({
   impersonateUser: async (id: string, label: string) => {
     h.impersonations.push({ id, label });
   },
@@ -2370,7 +2370,7 @@ describe("admin.users.$id - ścieżki błędu pozostałych paneli", () => {
     const original = window.location.assign;
     const assigns: string[] = [];
     Reflect.set(window.location, "assign", (href: string) => assigns.push(href));
-    const invitationsModule = await import("@/lib/admin/impersonation");
+    const invitationsModule = await import("@/lib/admin/impersonationStart");
     const spy = vi
       .spyOn(invitationsModule, "impersonateUser")
       .mockRejectedValueOnce(new Error("session_exchange_failed"));
@@ -3041,7 +3041,7 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
 
   it("nieudana impersonacja Z LISTY pokazuje komunikat", async () => {
     h.roles = ["super_admin"];
-    const impersonationModule = await import("@/lib/admin/impersonation");
+    const impersonationModule = await import("@/lib/admin/impersonationStart");
     const spy = vi
       .spyOn(impersonationModule, "impersonateUser")
       .mockRejectedValueOnce(new Error("otp_expired"));
@@ -3078,7 +3078,7 @@ describe("admin.users - ramiona warunków odczytu i wyliczeń", () => {
 
   it("wyjątek NIE-`Error` z impersonacji na karcie degraduje do zastępczego napisu", async () => {
     h.roles = ["super_admin"];
-    const impersonationModule = await import("@/lib/admin/impersonation");
+    const impersonationModule = await import("@/lib/admin/impersonationStart");
     const spy = vi.spyOn(impersonationModule, "impersonateUser").mockRejectedValueOnce("string");
     try {
       await mountDetail();
