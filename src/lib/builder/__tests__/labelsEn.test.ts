@@ -16,7 +16,7 @@ import { SLIDER_VARIANTS, NAV_ARROW_VARIANTS } from "../sliderVariants";
 import { SECTION_LABEL_ARROWS, SECTION_LABEL_VARIANTS } from "../sectionLabelVariants";
 import { ANIMATED_SHAPES, ANIMATED_MODES } from "../animatedHeadingVariants";
 import { SIDEBAR_STYLES, SIDEBAR_ICON_FIELDS } from "../sidebarStyles";
-import { DYNAMIC_TAG_GROUPS } from "../dynamicText";
+import { DYNAMIC_TAG_GROUPS } from "../dynamicTagCatalog";
 import { EDIT_TARGET_META } from "../editTargets";
 import { GLOBAL_COLOR_GROUPS, GLOBAL_COLOR_CATEGORIES } from "../globalColors";
 

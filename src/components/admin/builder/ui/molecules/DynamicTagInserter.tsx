@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Wand2 } from "@/lib/lucide-shim";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DYNAMIC_TAG_GROUPS } from "@/lib/builder/dynamicText";
+import { DYNAMIC_TAG_GROUPS } from "@/lib/builder/dynamicTagCatalog";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import "@/lib/i18n-builder";
 
