@@ -19,7 +19,8 @@ import {
   type CrawlHostClass,
 } from "@/lib/http/host";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, robotsUsagePolicy, type SeoSettings } from "@/lib/seo/settings";
+import { aiCrawlerGroups, robotsUsagePolicy } from "@/lib/seo/crawlerPolicy";
+import type { SeoSettings } from "@/lib/seo/settings";
 
 /**
  * Origin, którym podgląd się posługuje. Host podglądu/edytora nie jest adresem

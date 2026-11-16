@@ -19,12 +19,8 @@ import {
 import { llmsTxtResourceLines, type MachineSurfaceFilter } from "@/lib/seo/machineSurfaces";
 import { primarySiteSections } from "@/lib/seo/primaryNavigation";
 import { NES_ORGANIZATION_IDENTITY } from "@/lib/seo/organizationIdentity";
-import {
-  parseSeoSettings,
-  robotsUsagePolicy,
-  siteDescriptionOverride,
-  type SeoSettings,
-} from "@/lib/seo/settings";
+import { robotsUsagePolicy } from "@/lib/seo/crawlerPolicy";
+import { parseSeoSettings, siteDescriptionOverride, type SeoSettings } from "@/lib/seo/settings";
 import {
   fetchLiveCoverageEntries,
   fetchPublicCategories,
