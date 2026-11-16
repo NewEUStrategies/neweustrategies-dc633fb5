@@ -1450,11 +1450,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     ],
   );
 
+  // Pełna ścieżka strony-rodzica BIEŻĄCEGO wpisu (np. `analizy/energetyka`) -
+  // z okruszków, które loader już niesie (`page_breadcrumbs` strony-rodzica),
+  // bez żadnego odczytu. Z niej powstają adresy kanoniczne liczone na stronie
+  // wpisu: własny (`currentPostCtx.href`) i sąsiadów stojących pod TĄ SAMĄ
+  // stroną. `null` (strona albo brak okruszka rodzica) = linki jak dotąd.
+  const postParentPath =
+    (isPost && data.crumbs.find((c) => c.id === data.parentPageId)?.full_path) || null;
+
   // Prev/next footer navigation (show_prev_next). Client-side only and gated:
   // the query fires exclusively when the toggle is effectively on (global
   // setting or per-post override) for a published post, so it costs nothing
-  // otherwise. parent_path="post" routes the links through the dedicated
-  // /post/$slug resolver, which always works regardless of parent page paths.
+  // otherwise.
   const prevNextEnabled = Boolean(
     isPost &&
     post &&
@@ -1472,7 +1479,14 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       ? {
           slug: row.slug,
           title: lang === "en" ? row.title_en || row.title_pl : row.title_pl || row.title_en,
-          parent_path: "post",
+          // Sąsiad pod tą samą stroną-rodzicem ma tę samą ścieżkę co bieżący
+          // wpis: adres kanoniczny bez odczytu, także dla rodzica
+          // zagnieżdżonego. Stopka ładuje oba odnośniki z wyprzedzeniem
+          // (`preload="viewport"`), więc `/post/<slug>` płaciło tu 301 i dwa
+          // odczyty bazy na KAŻDE wyświetlenie wpisu. Inny rodzic albo brak
+          // ścieżki: "post" - trasa /post/$slug policzy ścieżkę w bazie.
+          parent_path:
+            postParentPath && row.parent_page_id === data.parentPageId ? postParentPath : "post",
         }
       : null;
   const prevPost = toNeighbor(adjacentPosts?.prev);
@@ -1508,6 +1522,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       kind: isPost ? "post" : "page",
       id: it.id,
       slug: it.slug ?? undefined,
+      href: postParentPath && it.slug ? `/${postParentPath}/${it.slug}` : undefined,
       title_pl: it.title_pl ?? undefined,
       title_en: it.title_en ?? undefined,
       excerpt_pl: post?.excerpt_pl ?? undefined,
@@ -1549,7 +1564,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       })),
       breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
     }),
-    [isPost, it, post, readMinutes, postAuthor, postTags, postCategories, crumbs, lang],
+    [
+      isPost,
+      it,
+      post,
+      readMinutes,
+      postAuthor,
+      postTags,
+      postCategories,
+      crumbs,
+      lang,
+      postParentPath,
+    ],
   );
 
   // Baner odbiorcy - wylacznie gdy kod byl potrzebny (bez niego trafialby tu

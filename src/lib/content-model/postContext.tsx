@@ -47,6 +47,13 @@ export interface CurrentPostCtx {
   kind: "post" | "page" | "archive" | "search" | "preview";
   id?: string;
   slug?: string;
+  /**
+   * Adres kanoniczny BIEŻĄCEGO wpisu bez prefiksu języka
+   * (`/<pełna ścieżka strony-rodzica>/<slug>`). Ustawia go wyłącznie trasa
+   * wpisu, z okruszków loadera; brak pola (strona, archiwum, podgląd, wpis bez
+   * okruszka rodzica) = widget linkuje swoim dotychczasowym adresem.
+   */
+  href?: string;
   title_pl?: string;
   title_en?: string;
   excerpt_pl?: string;

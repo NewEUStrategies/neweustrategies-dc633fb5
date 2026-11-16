@@ -137,7 +137,7 @@ function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const linkToPost = asBool(c.linkToPost, false);
   const inner =
     linkToPost && ctx.slug ? (
-      <AppLink href={`/${ctx.slug}`} className="hover:text-brand transition">
+      <AppLink href={ctx.href ?? `/${ctx.slug}`} className="hover:text-brand transition">
         {title}
       </AppLink>
     ) : (
