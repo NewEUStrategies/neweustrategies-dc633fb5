@@ -96,7 +96,6 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { LazyFriendlyErrorPage } from "../components/error/LazyFriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
-import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
@@ -1635,7 +1634,6 @@ function RootComponent() {
       <ClientObservability />
       <ThemeProvider>
         <AuthProvider>
-          <IconPackSync />
           <AuthenticatedLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
