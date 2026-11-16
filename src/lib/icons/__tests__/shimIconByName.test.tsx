@@ -1,8 +1,9 @@
 // `shimIconByName`: ikona shimu wybierana nazwą z treści CMS (D4, roadmapa §9.1).
 //
 // Co udowadniamy:
-//   * LISTA NAZW = KLUCZE PRZESTRZENI NAZW SHIMU (w obie strony) - inaczej
-//     nowy eksport shimu zapisany w treści przestałby się rozwiązywać po cichu;
+//   * LISTA NAZW I MAPA OGONA = PRZESTRZEŃ NAZW SHIMU (klucze w obie strony,
+//     ten sam komponent pod kluczem) - inaczej nowy eksport shimu zapisany
+//     w treści przestałby się rozwiązywać po cichu;
 //   * ROZSTRZYGANIE JAK `Icons[name]` NA PRZESTRZENI NAZW: każdy własny
 //     eksport daje ikonę o identycznym HTML, każda inna nazwa (1 703 nazwy
 //     pickera, nazwy graniczne) daje `undefined`; klucze prototypu też
@@ -20,6 +21,7 @@ import { act } from "react";
 import * as ShimNamespace from "@/lib/lucide-shim";
 import pickerIconNames from "@/lib/icons/iconNames.generated.json";
 import { SHIM_ICON_NAMES } from "@/lib/icons/shimIconNames";
+import { SHIM_ICONS } from "@/lib/icons/shimIconLongTail";
 import { shimIconByName } from "@/lib/icons/shimIconByName";
 
 const NAMESPACE = ShimNamespace as unknown as Record<string, ComponentType<object>>;
@@ -52,6 +54,11 @@ describe("shimIconByName: rozstrzyganie nazw", () => {
   it("lista nazw jest równa kluczom przestrzeni nazw shimu", () => {
     expect([...SHIM_ICON_NAMES].sort()).toEqual(NAMESPACE_KEYS);
     expect(new Set(SHIM_ICON_NAMES).size).toBe(SHIM_ICON_NAMES.length);
+  });
+
+  it("mapa ogona ma te same klucze i te same komponenty co przestrzeń nazw shimu", () => {
+    expect(Object.keys(SHIM_ICONS).sort()).toEqual(NAMESPACE_KEYS);
+    for (const name of NAMESPACE_KEYS) expect(SHIM_ICONS[name], name).toBe(NAMESPACE[name]);
   });
 
   it("każdy eksport shimu daje ikonę o HTML identycznym z eksportem", () => {
