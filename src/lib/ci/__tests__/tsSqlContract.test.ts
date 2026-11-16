@@ -1633,8 +1633,9 @@ describe("stan repozytorium", () => {
     // Nowe ścieżki serwerowe obu kart (najemca z sesji, `.eq("tenant_id", ...)`
     // bezwarunkowo): `companyMembers` (karta firmy) - jedyny odczyt `profiles`
     // spod `service_role` w crm-companies, wyłącznie kolumny z grantem dla
-    // `authenticated`; `lookupLeadAvatars` (lista i karta leada) - jeden
-    // odczyt adresów, z którego do przeglądarki wychodzi tylko `avatar_url`.
+    // `authenticated`; `lookupLeadAvatars` (lista i karta leada) - DWA odczyty
+    // adresów na porcję (logowanie: dokładne `email.in`; kontakt: `ilike` bez
+    // wielkości liter), z których do przeglądarki wychodzi tylko `avatar_url`.
     expect(
       repo.tables
         .filter(
@@ -1653,7 +1654,24 @@ describe("stan repozytorium", () => {
           t.role === "service_role" &&
           t.columns.join(",") === "avatar_url,contact_email,email",
       ),
-    ).toHaveLength(1);
+    ).toEqual([
+      {
+        table: "profiles",
+        op: "select",
+        columns: ["avatar_url", "contact_email", "email"],
+        star: false,
+        role: "service_role",
+        file: "src/lib/crm.functions.ts",
+      },
+      {
+        table: "profiles",
+        op: "select",
+        columns: ["avatar_url", "contact_email", "email"],
+        star: false,
+        role: "service_role",
+        file: "src/lib/crm.functions.ts",
+      },
+    ]);
     // Zapisy i odczyty `looseTable` tych plików są faktami kontraktu.
     const ops = new Set(
       repo.tables

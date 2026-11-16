@@ -13,7 +13,14 @@
 //
 // Dane wyłącznie syntetyczne (domena example.test).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import {
+  ok,
+  fail,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
+import { decodeOrParam, runRecordedChain } from "@/test/supabase/postgrestGrammar";
 import {
   callServerFn,
   type ServerFnContext,
@@ -84,6 +91,29 @@ function context(): ServerFnContext {
 }
 
 const parsed = (result: unknown): unknown => JSON.parse((result as { json: string }).json);
+
+/**
+ * Lookup awatara w dwóch zapytaniach na porcję, oba z drzewem `.or(...)`
+ * odczytanym portem parsera PostgREST: adres logowania (jeden liść
+ * `email.in.(...)`) i adres kontaktowy (liście `contact_email.*`).
+ */
+const orLeaves = (chain: RecordedChain) => decodeOrParam(`(${String(chain.argsOf("or")?.[0])})`);
+const avatarChainKind = (chain: RecordedChain): "email" | "contact_email" => {
+  if (chain.has("in") || chain.calls.filter((c) => c.method === "or").length !== 1) {
+    throw new Error("nieznany kształt zapytania o awatar");
+  }
+  const columns = new Set(orLeaves(chain).map((f) => f.column));
+  if (columns.size === 1 && columns.has("email") && orLeaves(chain).length === 1) return "email";
+  if (columns.size === 1 && columns.has("contact_email")) return "contact_email";
+  throw new Error("nieznany kształt zapytania o awatar");
+};
+const contactLeaves = orLeaves;
+/** Wartości listy `email.in.(...)` zapytania o adres logowania. */
+const loginValues = (chain: RecordedChain): string[] => {
+  const [leaf] = orLeaves(chain);
+  if (leaf?.op !== "in" || leaf.column !== "email") throw new Error("oczekiwano email.in");
+  return leaf.values;
+};
 
 beforeEach(() => {
   lead.reset();
@@ -246,7 +276,7 @@ describe("getCrmLead", () => {
     lead.setResponse("crm_consent_log", () => ok([{ id: "c1" }]));
     lead.setResponse("crm_lead_notes", () => ok([{ id: "n1" }]));
     admin.setResponse("profiles", (chain) =>
-      chain.argsOf("in")?.[0] === "email"
+      avatarChainKind(chain) === "email"
         ? ok([{ email: "anna@example.test", contact_email: null, avatar_url: AVATAR }])
         : ok([]),
     );
@@ -283,16 +313,19 @@ describe("getCrmLead", () => {
     await callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() });
 
     const chains = admin.chainsFor("profiles");
-    expect(chains.map((chain) => chain.argsOf("in")?.[0]).sort()).toEqual([
-      "contact_email",
-      "email",
-    ]);
+    expect(chains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
     for (const chain of chains) {
       expect(chain.argsOf("select")).toEqual(["email, contact_email, avatar_url"]);
       expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
-      expect(chain.argsOf("in")?.[1]).toEqual(["anna@example.test", "Anna@Example.test"]);
       expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
     }
+    // Adres leada `Anna@Example.test`: logowanie dokładnie (z auth, małymi
+    // literami), kontakt bez wielkości liter - jeden liść `ilike`.
+    const byKind = Object.fromEntries(chains.map((c) => [avatarChainKind(c), c]));
+    expect(loginValues(byKind.email as RecordedChain)).toEqual(["anna@example.test"]);
+    expect(contactLeaves(byKind.contact_email as RecordedChain)).toEqual([
+      { column: "contact_email", negated: false, op: "ilike", value: "anna@example.test" },
+    ]);
   });
 
   it("odpowiedź nie niesie adresów profilu - tylko avatar_url", async () => {
@@ -1097,8 +1130,6 @@ describe("getCrmLeadAvatars", () => {
   // listę bez zdjęć. Teraz lookup idzie tu: service-role, zawężony do tenanta.
   const SECOND_ID = "55555555-5555-4555-8555-555555555555";
   const avatarsOf = (result: unknown) => (result as { avatars: unknown[] }).avatars;
-  const inColumn = (chain: { argsOf(m: string): ReadonlyArray<unknown> | undefined }) =>
-    chain.argsOf("in")?.[0];
 
   const planTenantAndLeads = (leads: unknown[]) => {
     lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
@@ -1111,7 +1142,7 @@ describe("getCrmLeadAvatars", () => {
       { id: SECOND_ID, email: "bartek@example.test", email_norm: "bartek@example.test" },
     ]);
     admin.setResponse("profiles", (chain) =>
-      inColumn(chain) === "email"
+      avatarChainKind(chain) === "email"
         ? ok([
             {
               email: "anna@example.test",
@@ -1152,7 +1183,7 @@ describe("getCrmLeadAvatars", () => {
     expect(leadChain?.argsOf("in")).toEqual(["id", [LEAD_ID]]);
     // Profile: po jednym zapytaniu na kolumnę adresu, każde zawężone do tenanta.
     const profileChains = admin.chainsFor("profiles");
-    expect(profileChains.map(inColumn).sort()).toEqual(["contact_email", "email"]);
+    expect(profileChains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
     for (const chain of profileChains) {
       expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
       expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
@@ -1170,8 +1201,16 @@ describe("getCrmLeadAvatars", () => {
       data: { lead_ids: [LEAD_ID] },
       context: context(),
     });
-    for (const chain of admin.chainsFor("profiles")) {
-      expect(chain.argsOf("in")?.[1]).toEqual(["anna@example.test", "Anna@Example.test"]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains).toHaveLength(2);
+    for (const chain of chains) {
+      if (avatarChainKind(chain) === "email") {
+        expect(loginValues(chain)).toEqual(["anna@example.test"]);
+      } else {
+        expect(contactLeaves(chain).map((f) => (f.op === "ilike" ? f.value : null))).toEqual([
+          "anna@example.test",
+        ]);
+      }
     }
   });
 
@@ -1262,8 +1301,30 @@ describe("getCrmLeadAvatars", () => {
     expect(
       lead.chainsFor("crm_leads").map((c) => (c.argsOf("in")?.[1] as string[]).length),
     ).toEqual([100, 50]);
-    // 150 adresów (już małymi literami) -> 2 porcje x 2 kolumny.
-    expect(admin.chainsFor("profiles")).toHaveLength(4);
+    // Profile: porcje trzymają LICZBĘ adresów (<= 100) i DŁUGOŚĆ filtra
+    // kontaktowego w URL (<= 6000 znaków po kodowaniu, jak w postgrest-js) -
+    // liść `ilike` jest kilka razy dłuższy niż wartość w `.in()`.
+    const chains = admin.chainsFor("profiles");
+    const emailChains = chains.filter((c) => avatarChainKind(c) === "email");
+    const contactChains = chains.filter((c) => avatarChainKind(c) === "contact_email");
+    expect(emailChains.length).toBe(contactChains.length);
+    expect(emailChains.length).toBeGreaterThan(1);
+    for (const chain of emailChains) {
+      expect(loginValues(chain).length).toBeLessThanOrEqual(100);
+    }
+    for (const chain of chains) {
+      const param = new URLSearchParams([["or", `(${String(chain.argsOf("or")?.[0])})`]]);
+      expect(param.toString().length - "or=".length).toBeLessThanOrEqual(6000);
+    }
+    // Każdy adres dokładnie raz w każdej klasie.
+    const expected = ids.map((id) => `${id}@example.test`).sort();
+    expect(emailChains.flatMap(loginValues).sort()).toEqual(expected);
+    expect(
+      contactChains
+        .flatMap(contactLeaves)
+        .map((f) => (f.op === "ilike" ? f.value : ""))
+        .sort(),
+    ).toEqual(expected);
   });
 
   it("walidator odbija id spoza UUID i stronę ponad maksymalny rozmiar", () => {
@@ -1273,6 +1334,173 @@ describe("getCrmLeadAvatars", () => {
         lead_ids: Array.from({ length: 501 }, () => LEAD_ID),
       }),
     ).toThrow();
+  });
+});
+
+describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (lista i karta)", () => {
+  // Członek, którego `contact_email` różni się od adresu leada TYLKO wielkością
+  // liter (lead anna.kowalska@firma.test, kontakt Anna.Kowalska@Firma.TEST,
+  // inny adres logowania), do 2026-11-16 nie dostawał zdjęcia: oba zapytania
+  // szły dokładnym `.in()`. Teraz kontakt idzie `ilike` z wzorcem bez
+  // wieloznaczników.
+  //
+  // Atrapa `profiles` WYKONUJE zapisany łańcuch tak, jak PostgREST (port
+  // parsera drzewa `or=(...)`, cytowanie postgrest-js w `.in()`, zamiana `*`
+  // na `%`, semantyka LIKE - test/supabase/postgrestGrammar.ts). Członkowie
+  // „przynęty" mają MNIEJSZE id niż właściwi: gdyby wzorzec przepuścił
+  // wieloznacznik, `order("id")` dałby leadowi zdjęcie przynęty.
+  const OTHER_TENANT = "66666666-6666-4666-8666-666666666666";
+  const pid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const member = (
+    n: number,
+    contact_email: string | null,
+    over: { email?: string; tenant_id?: string; avatar_url?: string | null } = {},
+  ) => ({
+    id: pid(n),
+    tenant_id: TENANT,
+    email: `konto${n}@inna.test`,
+    contact_email,
+    avatar_url: `https://cdn.test/${n}.png`,
+    ...over,
+  });
+  // Kolejność w tablicy celowo NIE jest kolejnością id (p14 przed p13).
+  const MEMBERS = [
+    member(0, "Login@Firma.test"),
+    member(1, "janXkowalski@firma.test"),
+    member(2, "100abcpewny@firma.test"),
+    member(3, "ab@firma.test"),
+    member(4, "ktokolwiek@firma.test"),
+    member(5, "aXYZb@firma.test"),
+    member(6, "Anna.Kowalska@Firma.TEST", { tenant_id: OTHER_TENANT }),
+    member(7, "Anna.Kowalska@Firma.TEST"),
+    member(8, "JAN_KOWALSKI@FIRMA.TEST"),
+    member(9, "100%PEWNY@firma.test"),
+    member(10, "A\\B@Firma.test"),
+    member(11, "a*b@firma.test"),
+    member(12, 'O"Neil,(PR):x+1@Firma.test'),
+    member(14, "WSPOLNY@firma.test"),
+    member(13, "wspolny@firma.test"),
+    member(15, null, { email: "login@firma.test" }),
+    member(16, "Bez.Zdjecia@firma.test", { avatar_url: null }),
+    member(18, "X*Y@FIRMA.TEST"),
+  ];
+  const lid = (n: number) => `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const HOSTILE = 'a",contact_email.ilike."%@firma.test';
+  // [adres leada, oczekiwany awatar albo null]
+  const CASES: ReadonlyArray<readonly [string, string | null]> = [
+    ["anna.kowalska@firma.test", "https://cdn.test/7.png"], // tylko wielkość liter
+    ["jan_kowalski@firma.test", "https://cdn.test/8.png"], // `_` nie trafia p1
+    ["100%pewny@firma.test", "https://cdn.test/9.png"], // `%` nie trafia p2
+    ["a\\b@firma.test", "https://cdn.test/10.png"], // `\` nie trafia p3
+    ["A*b@Firma.test", null], // `*`: dokładnie, a p11 ma inną wielkość liter
+    ["a*b@firma.test", "https://cdn.test/11.png"], // `*`: dokładnie, nie trafia p5
+    ["x*y@firma.test", null], // `*` z inną wielkością liter: świadomie bez trafienia
+    ['o"neil,(pr):x+1@firma.test', "https://cdn.test/12.png"], // gramatyka PostgREST
+    ["Wspolny@Firma.test", "https://cdn.test/13.png"], // kilku członków: najmniejsze id
+    ["login@firma.test", "https://cdn.test/15.png"], // logowanie wygrywa z kontaktem p0
+    ["bez.zdjecia@firma.test", null], // członek bez zdjęcia
+    [HOSTILE, null], // cytat nie domyka się w środku adresu
+  ];
+  // Dwa leady z tym samym adresem `*` w różnej wielkości liter dzielą klucz:
+  // lookup dokładny dostaje OBIE zapisane postaci, więc oba trafiają p11.
+  const LEADS = CASES.map(([email], i) => ({
+    id: lid(i),
+    email,
+    email_norm: email.trim().toLowerCase(),
+    tenant_id: TENANT,
+  }));
+  const expectedFor = (i: number) =>
+    LEADS[i]?.email_norm === "a*b@firma.test" ? "https://cdn.test/11.png" : CASES[i]?.[1];
+
+  beforeEach(() => {
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, MEMBERS)));
+  });
+
+  const listAvatars = async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(LEADS.map(({ tenant_id: _t, ...row }) => row)));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: LEADS.map((l) => l.id) },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    return new Map(result.avatars.map((a) => [a.lead_id, a.avatar_url]));
+  };
+
+  const cardAvatar = async (row: (typeof LEADS)[number]) => {
+    lead.setResponse("crm_leads", () => ok(row));
+    for (const table of [
+      "contact_messages",
+      "newsletter_subscribers",
+      "crm_consent_log",
+      "crm_lead_notes",
+    ]) {
+      lead.setResponse(table, () => ok([]));
+    }
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    const result = await callServerFn(crm.getCrmLead, { data: { id: row.id }, context: context() });
+    return (parsed(result) as { profile_avatar_url: string | null }).profile_avatar_url;
+  };
+
+  it("lista: kontakt w innej wielkości liter trafia, wieloznacznik i obcy tenant - nie", async () => {
+    const avatars = await listAvatars();
+    expect(LEADS.map((l) => avatars.get(l.id) ?? null)).toEqual(
+      LEADS.map((_, i) => expectedFor(i) ?? null),
+    );
+  });
+
+  it("karta pokazuje DOKŁADNIE to samo zdjęcie co lista - dla każdego leada", async () => {
+    const avatars = await listAvatars();
+    for (const row of LEADS) {
+      expect(await cardAvatar(row)).toBe(avatars.get(row.id) ?? null);
+    }
+  });
+
+  it("filtr kontaktu: jeden liść na adres, `ilike` bez wieloznaczników, `*` tylko dokładnie", async () => {
+    await listAvatars();
+    const contact = admin
+      .chainsFor("profiles")
+      .filter((c) => avatarChainKind(c) === "contact_email");
+    expect(contact).toHaveLength(1);
+    const leaves = contactLeaves(contact[0] as RecordedChain);
+    const keys = [...new Set(LEADS.map((l) => l.email_norm))];
+    expect(leaves).toHaveLength(keys.length);
+    expect(leaves.every((f) => f.column === "contact_email" && !f.negated)).toBe(true);
+    for (const [i, key] of keys.entries()) {
+      const leaf = leaves[i];
+      if (key.includes("*")) {
+        // Ścieżka dokładna: PostgREST zrobiłby z `*` w ilike wieloznacznik `%`.
+        expect(leaf?.op).toBe("in");
+      } else {
+        expect(leaf?.op).toBe("ilike");
+        // Wzorzec nie ma ANI JEDNEGO wieloznacznika bez ucieczki.
+        const value = leaf?.op === "ilike" ? leaf.value : "";
+        expect(value.replace(/\\[\s\S]/g, "")).not.toMatch(/[%_*]/);
+      }
+    }
+    expect(leaves.find((f) => f.op === "in")).toEqual({
+      column: "contact_email",
+      negated: false,
+      op: "in",
+      values: ["a*b@firma.test", "A*b@Firma.test"],
+    });
+  });
+
+  it("oba zapytania karty i listy stoją na tenancie wołającego", async () => {
+    await listAvatars();
+    await cardAvatar(LEADS[0] as (typeof LEADS)[number]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map(avatarChainKind).sort()).toEqual([
+      "contact_email",
+      "contact_email",
+      "email",
+      "email",
+    ]);
+    for (const chain of chains) {
+      expect(chain.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+        ["tenant_id", TENANT],
+      ]);
+      expect(chain.argsOf("order")).toEqual(["id", { ascending: true }]);
+    }
   });
 });
 
