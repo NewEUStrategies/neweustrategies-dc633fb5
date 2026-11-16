@@ -136,6 +136,15 @@ export interface SeamFacts {
      * nie sprawdza i nikt by o tym nie wiedział. Posortowane, z powtórzeniami.
      */
     readonly uncheckedSelects: readonly string[];
+    /**
+     * Pliki, których parser kompilatora nie przeczytał bez błędów składni
+     * (`plik: N błędów składni, pierwszy: linia L: komunikat`). Drzewo takiego
+     * pliku jest po pierwszym błędzie zgadywane, więc jego wywołania mogą nie
+     * dać ŻADNEGO faktu - i nikt by o tym nie wiedział. Posortowane.
+     */
+    readonly parseErrors: readonly string[];
+    /** Pliki wejścia wyłączone z ekstrakcji (`SEAM_EXTRACTION_EXCLUDED_REVIEWED`). */
+    readonly excludedFiles: readonly string[];
   };
 }
 
@@ -284,8 +293,20 @@ function resolveConstant(
     : resolveConstant(imported[1], targetScope, scopes, known, depth + 1);
 }
 
+/**
+ * Rodzaj skryptu PO ROZSZERZENIU, jak u kompilatora. Plik `.ts` parsowany jako
+ * TSX gubi się na pierwszej strzałce generycznej (`async <Row>(...) =>` to
+ * w TSX otwarcie znacznika) i resztę pliku czyta jako tekst JSX - do
+ * listopada 2026 eksport danych RODO (`profile/export.functions.ts`) dawał
+ * przez to 168 błędów składni, zero łańcuchów `.from` i zero `.rpc`, a 33
+ * odczyty i 13 wywołań RPC nie były sprawdzane przez nic.
+ */
+export function scriptKindOf(file: string): ts.ScriptKind {
+  return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
 function buildScope(file: string, code: string): FileScope {
-  const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, scriptKindOf(file));
   const strings = new Map<string, string>();
   const stringExprs = new Map<string, ts.Expression>();
   const objects = new Map<string, ts.ObjectLiteralExpression>();
@@ -1581,10 +1602,70 @@ function readPublicColumns(
   return { ...contract, columns: parsed.star ? null : parsed.columns };
 }
 
+/**
+ * Błędy składni każdego pliku - publicznym API kompilatora
+ * (`Program.getSyntacticDiagnostics`) na TYCH SAMYCH drzewach, z których
+ * ekstrakcja czyta fakty. Program jest pamięciowy: bez `lib`, bez rozwiązywania
+ * importów i bez systemu plików (moduł zostaje czysty).
+ */
+function parseErrorsOf(scopes: ReadonlyMap<string, FileScope>): string[] {
+  const host: ts.CompilerHost = {
+    getSourceFile: (name) => scopes.get(name)?.sf,
+    getDefaultLibFileName: () => "lib.d.ts",
+    writeFile: () => undefined,
+    getCurrentDirectory: () => "",
+    getCanonicalFileName: (name) => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+    fileExists: (name) => scopes.has(name),
+    readFile: () => undefined,
+  };
+  const program = ts.createProgram({
+    rootNames: [...scopes.keys()],
+    options: { noLib: true, noResolve: true, types: [] },
+    host,
+  });
+  const out: string[] = [];
+  for (const scope of scopes.values()) {
+    const sf = program.getSourceFile(scope.file);
+    // Program, który nie oddał NASZEGO drzewa, sprawdzałby inny tekst - to
+    // błąd bramki, nie pliku, więc nie może przejść w ciszy.
+    if (sf !== scope.sf) {
+      out.push(`${scope.file}: kompilator nie przyjął drzewa ekstrakcji`);
+      continue;
+    }
+    const diagnostics = program.getSyntacticDiagnostics(sf);
+    if (diagnostics.length === 0) continue;
+    const first = diagnostics[0];
+    const line =
+      first.start === undefined ? "?" : sf.getLineAndCharacterOfPosition(first.start).line + 1;
+    out.push(
+      `${scope.file}: ${diagnostics.length} błędów składni, pierwszy: linia ${line}: ${ts.flattenDiagnosticMessageText(first.messageText, " ")}`,
+    );
+  }
+  return out.sort();
+}
+
+/**
+ * Pliki, których zapytań kontrakt ŚWIADOMIE nie czyta (klucz: ścieżka,
+ * wartość: powód z przeglądu i warunek zdjęcia wpisu). Plik jest parsowany
+ * i podlega strażnikowi składni jak każdy inny - wyłączone są wyłącznie jego
+ * fakty. Wpis to DŁUG z nazwanym defektem, nie zgoda: lista może TYLKO maleć.
+ */
+export const SEAM_EXTRACTION_EXCLUDED_REVIEWED: Readonly<Record<string, string>> = {
+  "src/lib/profile/export.functions.ts":
+    "eksport danych RODO czyta `user_reports` (sekcja `user_reports_filed`: id, reported_id, reason, details, status, created_at, resolved_at) " +
+    "klientem użytkownika, a migracje 20260717162432 i 20260717170000 robią `REVOKE ALL ON public.user_reports FROM PUBLIC, anon, authenticated` " +
+    "bez grantu kolumnowego - polityka RLS `user_reports_self_read` istnieje, ale bez GRANT SELECT PostgREST oddaje 42501, więc sekcja trafia " +
+    "do `errors`/`manifest.failed` w KAŻDYM eksporcie. Fakt sprawdzony lokalnie (has_column_privilege = false dla 7 kolumn); pozostałe 32 odczyty " +
+    "i 13 RPC tego pliku przechodzą. Do zdjęcia, gdy migracja nada authenticated SELECT tych kolumn (albo sekcja pójdzie przez RPC właściciela).",
+};
+
 /** Pełna ekstrakcja faktów szwu z kodu produkcyjnego. */
 export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
+  excluded: Readonly<Record<string, string>> = SEAM_EXTRACTION_EXCLUDED_REVIEWED,
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
   const scopes = new Map<string, FileScope>();
@@ -1604,7 +1685,9 @@ export function extractSeamFacts(
     uncheckedSelects: [],
   };
   const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
-  for (const scope of scopes.values()) visitFile(scope, exportsIndex, known, out, flow);
+  for (const scope of scopes.values()) {
+    if (!(scope.file in excluded)) visitFile(scope, exportsIndex, known, out, flow);
+  }
   out.unresolved.push(...flow.unresolved);
 
   return {
@@ -1621,6 +1704,8 @@ export function extractSeamFacts(
       tableChainsWithUnknownTable: out.tableChainsWithUnknownTable,
       unresolvedSites: [...out.unresolved].sort(),
       uncheckedSelects: [...out.uncheckedSelects].sort(),
+      parseErrors: parseErrorsOf(scopes),
+      excludedFiles: [...scopes.keys()].filter((file) => file in excluded).sort(),
     },
   };
 }
@@ -1727,6 +1812,15 @@ export function seamCoverageProblems(
   > = UNCHECKED_SELECTS_REVIEWED,
 ): string[] {
   const problems: string[] = [];
+  // Bez wyjątków: drzewo pliku z błędem składni jest od pierwszego błędu
+  // zgadywane, więc kontrakt może nie widzieć ani jednego jego zapytania.
+  const { parseErrors } = facts.coverage;
+  if (parseErrors.length > 0) {
+    problems.push(
+      `${parseErrors.length} plików z błędami składni - ich zapytań kontrakt nie widzi:\n` +
+        parseErrors.map((entry) => `        ${entry}`).join("\n"),
+    );
+  }
   for (const p of facts.publicColumns) {
     if (p.columns === null) {
       problems.push(

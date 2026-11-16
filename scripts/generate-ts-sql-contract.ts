@@ -36,7 +36,8 @@ function main(): void {
   const summary =
     `kontrakt TS <-> SQL: ${facts.rpcs.length} wywołań RPC, ${facts.tables.length} operacji na tabelach, ` +
     `${facts.literals.length} literałów, ${facts.conflicts.length} celów onConflict, ` +
-    `${facts.publicColumns.length} stałych kolumn publicznych (${c.files} plików, ${elapsed})`;
+    `${facts.publicColumns.length} stałych kolumn publicznych (${c.files} plików, ` +
+    `${c.parseErrors.length} z błędami składni, ${elapsed})`;
 
   const problems = seamCoverageProblems(facts);
   if (process.argv.includes("--check")) {

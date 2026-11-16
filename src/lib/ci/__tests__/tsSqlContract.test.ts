@@ -20,6 +20,7 @@ import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
   COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
+  SEAM_EXTRACTION_EXCLUDED_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
   extractSeamFacts,
@@ -34,10 +35,15 @@ import { loadProductionSources } from "../../../../scripts/lib/onConflictArbiter
 
 const NO_CONTRACTS: readonly PublicColumnContract[] = [];
 
-function facts(files: Record<string, string>, contracts = NO_CONTRACTS) {
+function facts(
+  files: Record<string, string>,
+  contracts = NO_CONTRACTS,
+  excluded: Readonly<Record<string, string>> = {},
+) {
   return extractSeamFacts(
     Object.entries(files).map(([file, code]) => ({ file, code })),
     contracts,
+    excluded,
   );
 }
 
@@ -796,6 +802,69 @@ describe("extractSeamFacts - `select` bez faktu i bez miejsca nieczytelnego", ()
   });
 });
 
+describe("extractSeamFacts - składnia (rodzaj pliku po rozszerzeniu)", () => {
+  // Kształt `profile/export.functions.ts`: strzałka generyczna w pliku `.ts`.
+  // Parsowana jako TSX otwiera znacznik JSX i reszta pliku znika z kontraktu.
+  const GENERIC_ARROW = `
+    import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+    export const f = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+      const { supabase } = context;
+      const pages = async <Row>(read: () => PromiseLike<Row>) => read();
+      await supabase.rpc("get_own_profile");
+      return pages(() => supabase.from("user_roles").select("role, tenant_id"));
+    });
+  `;
+
+  it("plik `.ts` ze strzałką generyczną `async <Row>(` - fakty są, błędów składni brak", () => {
+    const f = facts({ "src/lib/profile/export.functions.ts": GENERIC_ARROW });
+    expect(f.coverage.parseErrors).toEqual([]);
+    expect(f.rpcs.map((r) => `${r.name}:${r.role}`)).toEqual(["get_own_profile:authenticated"]);
+    expect(f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}`)).toEqual([
+      "user_roles:select:authenticated:role,tenant_id",
+    ]);
+    expect(seamCoverageProblems(f)).toEqual([]);
+  });
+
+  it("plik z błędem składni czerwieni zasięg - także bez wywołań i także plik wyłączony z ekstrakcji", () => {
+    const f = facts(
+      {
+        // Ten sam tekst w `.tsx` to błąd składni - jak każdy plik `.ts` dawniej.
+        "src/lib/profile/export.functions.tsx": GENERIC_ARROW,
+        "src/lib/broken.ts": `export const x = ;`,
+        "src/lib/ok.ts": `export const y = 1;`,
+      },
+      NO_CONTRACTS,
+      { "src/lib/broken.ts": "wyłączony z faktów, nie ze strażnika składni" },
+    );
+    expect(f.coverage.parseErrors).toHaveLength(2);
+    expect(f.coverage.parseErrors[0]).toMatch(
+      /^src\/lib\/broken\.ts: 1 błędów składni, pierwszy: linia 1: /,
+    );
+    expect(f.coverage.parseErrors[1]).toMatch(/^src\/lib\/profile\/export\.functions\.tsx: \d+ /);
+    const problems = seamCoverageProblems(f);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("2 plików z błędami składni");
+    expect(problems[0]).toContain("src/lib/broken.ts: 1 błędów składni");
+  });
+
+  it("plik wyłączony z ekstrakcji nie daje faktów (i jest jawnie wymieniony); reszta - jak dotąd", () => {
+    const files = {
+      "src/lib/profile/export.functions.ts": GENERIC_ARROW,
+      "src/lib/other.functions.ts": GENERIC_ARROW,
+    };
+    const all = facts(files);
+    const cut = facts(files, NO_CONTRACTS, { "src/lib/profile/export.functions.ts": "powód" });
+    expect(all.tables.map((t) => t.file)).toEqual([
+      "src/lib/profile/export.functions.ts",
+      "src/lib/other.functions.ts",
+    ]);
+    expect(cut.tables.map((t) => t.file)).toEqual(["src/lib/other.functions.ts"]);
+    expect(cut.rpcs.map((r) => r.file)).toEqual(["src/lib/other.functions.ts"]);
+    expect(cut.coverage.excludedFiles).toEqual(["src/lib/profile/export.functions.ts"]);
+    expect(all.coverage.excludedFiles).toEqual([]);
+  });
+});
+
 describe("extractSeamFacts - kolumny publiczne", () => {
   const contract: PublicColumnContract = {
     table: "ad_slots",
@@ -951,6 +1020,42 @@ describe("stan repozytorium", () => {
       );
       expect(posts, file).toHaveLength(count);
     }
+  });
+
+  it("każdy plik produkcyjny parsuje się bez błędów składni", () => {
+    expect(repo.coverage.parseErrors).toEqual([]);
+  });
+
+  it("wyłączenia z ekstrakcji to DOKŁADNIE przejrzana lista plików, które istnieją", () => {
+    expect(repo.coverage.excludedFiles).toEqual(
+      Object.keys(SEAM_EXTRACTION_EXCLUDED_REVIEWED).sort(),
+    );
+  });
+
+  it("eksport danych RODO (`profile/export.functions.ts`) parsuje się i ma fakty - wyłączony wyłącznie przez wpis z defektem `user_reports`", () => {
+    // Do listopada 2026 plik parsowany jako TSX nie dawał ŻADNEGO faktu. Dziś
+    // parsuje się poprawnie, ale jego fakty czeka wpis w
+    // SEAM_EXTRACTION_EXCLUDED_REVIEWED: odczyt `user_reports` klientem
+    // użytkownika nie ma GRANT-u (sprawdzone lokalnie na schemacie po
+    // migracjach). Gdy plik przestanie czytać `user_reports` wprost - zdejmij
+    // wpis, a ten test przestanie przechodzić jako przypomnienie.
+    const file = "src/lib/profile/export.functions.ts";
+    expect(repo.tables.filter((t) => t.file === file)).toEqual([]);
+    expect(repo.rpcs.filter((r) => r.file === file)).toEqual([]);
+    const own = extractSeamFacts([{ file, code: readFileSync(file, "utf8") }], NO_CONTRACTS, {});
+    expect(own.coverage.parseErrors).toEqual([]);
+    expect(
+      own.tables.filter((t) => t.table === "user_reports").map((t) => t.columns.join(",")),
+    ).toEqual(["created_at,details,id,reason,reported_id,resolved_at,status"]);
+    const tables = own.tables;
+    expect(tables).toHaveLength(33);
+    expect(new Set(tables.map((t) => `${t.op}:${t.role}`))).toEqual(
+      new Set(["select:authenticated"]),
+    );
+    expect(tables.filter((t) => t.star).map((t) => t.table)).toEqual(["notification_preferences"]);
+    const rpcs = own.rpcs;
+    expect(rpcs).toHaveLength(13);
+    expect(new Set(rpcs.map((r) => r.role))).toEqual(new Set(["authenticated"]));
   });
 
   it("zasięg: bez problemów i w granicy zapadki nazw nieczytelnych", () => {
