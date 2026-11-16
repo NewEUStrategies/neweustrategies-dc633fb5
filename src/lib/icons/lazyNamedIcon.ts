@@ -2,6 +2,7 @@ import { lazy, type ComponentType } from "react";
 import { createLucideIcon, HelpCircle, type IconNode, type LucideProps } from "lucide-react";
 import { iconChunkIndex } from "./iconChunkIndex.js";
 import { unpackIconNode } from "./iconNodePacking";
+import { catalogIconName } from "./catalogIconName";
 
 const chunks = [
   () => import("./chunks/icons-0.json"),
@@ -43,11 +44,7 @@ export function lazyNamedIcon(
   key: string,
   missing?: ComponentType<LucideProps>,
 ): ComponentType<LucideProps> {
-  const name = key
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
-    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
-    .toLowerCase();
+  const name = catalogIconName(key);
   let icons = cache;
   if (missing) {
     icons = missingCaches.get(missing) ?? new Map();

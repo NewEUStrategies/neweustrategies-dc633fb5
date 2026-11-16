@@ -432,3 +432,64 @@ describe.each(SITES)("contentIcon w renderze czysto klienckim (SPA, kanwa): $id"
     expect(consoleError).not.toHaveBeenCalled();
   });
 });
+
+// ---------- render czysto kliencki obok znaku zapytania innego wywołania ----------
+//
+// Przegląd naprawy: domyślny `DynamicIcon` (np. `nav-link` w nagłówku, który
+// zostaje w DOM-ie przy nawigacji SPA) rysuje dla nazwy spoza katalogu znak
+// zapytania z `data-dyn-icon` tego samego klucza. Miejsce z treści z tą samą
+// nazwą, wyrenderowane potem czysto po stronie klienta, nie może przejąć tego
+// kształtu: serwer rysuje dla niego zastępnik miejsca ze znacznikiem braku.
+
+/** HTML serwera domyślnego `DynamicIcon` (bez `missing`) dla nazwy. */
+async function defaultDynamicIconHtml(name: string): Promise<string> {
+  vi.resetModules();
+  const { DynamicIcon } = await import("@/lib/icons/DynamicIcon");
+  const element = (
+    <Suspense fallback={null}>
+      <DynamicIcon name={name} className="w-4 h-4" />
+    </Suspense>
+  );
+  let html = renderToString(element);
+  for (let i = 0; i < 50 && /<!--\$[!?]-->/.test(html); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    html = renderToString(element);
+  }
+  return html;
+}
+
+describe.each(SITES)(
+  "contentIcon w renderze czysto klienckim obok znaku zapytania: $id",
+  (site) => {
+    it("nazwa spoza katalogu - zastępnik miejsca jak na serwerze, nie cudzy znak zapytania", async () => {
+      const name = "nie-ma-takiej-ikony";
+      const navLink = await defaultDynamicIconHtml(name);
+      expect(navLink, "warunek testu: znak zapytania pod tym samym kluczem").toContain(
+        'data-dyn-icon="NieMaTakiejIkony"',
+      );
+      expect(navLink).toContain("lucide-circle-question-mark");
+      const html = await serverHtml(site, name);
+
+      const browser = await browserModules();
+      const header = document.createElement("header");
+      header.innerHTML = navLink;
+      document.body.append(header);
+      const container = document.createElement("div");
+      document.body.append(container);
+      const root = createRoot(container);
+      roots.push(root);
+      await act(async () => {
+        root.render(<Holder render={() => site.element(browser, name)} />);
+      });
+      for (let i = 0; i < 100 && !container.querySelector(ICON_SELECTOR[name]); i += 1) {
+        await settle();
+      }
+      expect(container.querySelector(ICON_SELECTOR[name]), "znacznik braku miejsca").not.toBeNull();
+      expect(container.innerHTML).not.toContain("lucide-circle-question-mark");
+      const serverDom = document.createElement("div");
+      serverDom.innerHTML = html;
+      expect(normalizedHtml(container)).toBe(normalizedHtml(serverDom));
+      expect(consoleError).not.toHaveBeenCalled();
+    });
+  },
+);
