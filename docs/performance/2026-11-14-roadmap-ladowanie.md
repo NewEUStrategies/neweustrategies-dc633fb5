@@ -936,3 +936,57 @@ Otwarte:
 - nie sprawdzono w prawdziwej przeglądarce (układ, CLS) ani czasu SSR na Workerze
   dla stron z ikoną spoza zestawu (porcja `icons-N` na żądanie, jak dziś
   w `nav-link`).
+
+### 9.12. Partia 5a (16.11.2026): linki wpisów 9.2 poz. 7–9 i stopka sąsiadów
+
+Jedno zapytanie na commit, wzorzec z §9.5: osadzenie `parent_page` przez
+`readPostsWithParentPage`, adres przez `postHref`/`postCanonicalHref`. Adres
+kanoniczny daje tylko strona-rodzic najwyższego poziomu. Rodzic zagnieżdżony albo
+niewidoczny zostawia dotychczasowy adres. Błąd odczytu z osadzeniem powtarza
+odczyt bez osadzenia.
+
+- **Kalendarz (poz. 7).** `calendarBlockQueryOptions` i `CalendarView`. Po
+  przeglądzie zapytanie zostawia w pamięci podręcznej (i w stanie odwodnionym
+  w HTML) tylko pierwszy wpis dnia, czyli to, co widok czyta (wspólna funkcja
+  `calendarFirstPostPerDay`, dzień liczony w strefie Warszawy). Stan odwodniony
+  dla 120 wpisów w miesiącu: 954 B gzip na bazie, 1 031 B z osadzeniem przed
+  poprawką, 551 B po niej. Dla 500 wpisów: 2 930 → 3 165 → 552 B. Pomiar
+  w uprzęży testowej, nie w dokumencie strumieniowym. Koszt w chunku startowym:
+  +137 B surowo, około +60–73 B gzip (dwa prawdziwe buildy).
+- **Paleta poleceń (poz. 8).** `globalSearch` po `search_quick` robi jeden odczyt
+  `posts` z osadzeniem, tylko po identyfikatorach wpisów. Wariant zapasowy nie
+  pyta bazy, bo trafienia mają już slug. Zero bajtów w kliencie (chunk
+  `CommandPalette` bez `parent_page` i `search_quick`). Overlay wyszukiwarki
+  czyta RPC `search_posts`, więc zostaje poza zakresem bez migracji.
+- **Listy zalogowanego (poz. 9).** Zakładka „zapisane” w `/reading-list`,
+  `/profile/bookmarks`, panel „Zapisane” w doku i baner podsumowania Q&A.
+- **Z inwentarza: stopka poprzedni/następny.** Sąsiad pod INNĄ stroną najwyższego
+  poziomu dostaje adres z osadzenia. Ten sam rodzic bierze ścieżkę z okruszków.
+
+Pomiar po integracji (na `f375420c`, kontener roboczy): `app-initial` 249,4 KB
+i domknięcie startu 463,2 KB bez zmian w zaokrągleniu, `overall` 5 366,1 →
+5 366,8 KB (w szumie ±1 KB). Zestawy plików bootu 342/342 tras bez zmian (import
+manifestu). Kontrakt TS↔SQL: +9 operacji, żaden fakt nie zniknął.
+
+Przegląd niezależny: własny build w osobnym klonie, pięć mutacji (każda
+czerwona), porównanie zapytań przed i po (zapasowe `select` dosłownie te same,
+filtry i najemca bez zmian), inwentarz własnym grepem. Jedno znalezisko (niska
+waga, stan odwodniony kalendarza) naprawione i zweryfikowane.
+
+Inwentarz pozostałych `/post/<slug>` i płaskich `/<slug>` (poza panelem):
+
+- dane RPC, wymagają migracji (partia E): `TailoredMustReadsView`, zakładki
+  rekomendacji i obserwowanych (`get_recommended_posts_v2`, `get_followed_feed`),
+  podpowiedzi wyszukiwarki (`search_autosuggest`), overlay (`search_posts`),
+  slajdy z referencjami (`get_post_refs`), hub eksperta (`get_expert_hub`,
+  `get_expert_materials`);
+- celowo bez zmian: e-maile newslettera, adresy liczone już przez serwer
+  (`postViews.functions`, `nextPost`, blok `post-navigation-link`), adresy
+  zapisane w bazie lub treści CMS, powiadomienia z SQL;
+- zapas tylko przy braku `href`: pasek gorących tematów, `ContextBlockViews`,
+  widgety tagów dynamicznych, `/sitemap`.
+
+Do decyzji właściciela: dok i paleta linkują STRONY płaskim `/<slug>`, więc
+strona zagnieżdżona dostaje tam zły adres (osobna usterka, nie wpisy). Nie
+sprawdzono: przebiegu w przeglądarce (preload, prefiks języka linków
+`to={href}`) ani danych osadzenia na produkcji.
