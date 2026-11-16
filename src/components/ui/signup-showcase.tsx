@@ -18,13 +18,12 @@ import { PopupImage } from "@/components/atoms/PopupImage";
 import { popupGallerySizes } from "@/lib/newsletter/popupImages";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { type GalleryBlock, type PopupGalleryDesign } from "@/lib/newsletter/popupDesign";
 import {
   contrastRatio,
   galleryBackground,
-  type GalleryBlock,
-  type PopupGalleryDesign,
   type PopupPalette,
-} from "@/lib/newsletter/popupDesign";
+} from "@/lib/newsletter/popupDesignResolve";
 
 export interface ShowcaseImage {
   url: string;

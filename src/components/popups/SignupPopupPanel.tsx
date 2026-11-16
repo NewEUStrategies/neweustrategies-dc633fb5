@@ -18,7 +18,7 @@ import {
   resolvePopupDesign,
   resolvePopupPalette,
   type PopupPalette,
-} from "@/lib/newsletter/popupDesign";
+} from "@/lib/newsletter/popupDesignResolve";
 import "@/lib/i18n-signup-popup";
 
 export interface SignupPopupPanelProps {
