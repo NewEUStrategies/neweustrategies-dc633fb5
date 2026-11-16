@@ -981,6 +981,33 @@ describe("extractSeamFacts - wszechświat `select` (każdy `select` na budownicz
     ]);
   });
 
+  it("budowniczy przez warunek (`(c ? q.eq() : q).select()`, `const g = c ? q.is() : q.gt()`, `a ?? b`) - też we wszechświecie", () => {
+    // Kształty `oneTimeFulfilment.server.ts` i `legacyNonPaymentReconcile.server.ts`:
+    // dawniej poza wszechświatem, więc nowy `select` przez warunek przechodził CI.
+    const f = facts({
+      "src/lib/billing/x.server.ts": `${HEADER}
+        export async function settle(c: boolean) {
+          const flip = supabase.from("payment_orders").update({ status: "paid" }).eq("id", 1);
+          return (c ? flip.eq("x", 1) : flip).select("id");
+        }
+        export async function clamp(c: boolean) {
+          const base = supabase.from("user_subscriptions").update({ status: "x" });
+          const guarded = c ? base.is("y", null) : base.gt("y", 1);
+          return guarded.select("id");
+        }
+        export async function either(a: unknown) {
+          const b = supabase.from("posts");
+          return (a ?? b).select("slug");
+        }
+      `,
+    });
+    expect(f.coverage.uncheckedSelects).toEqual([
+      'src/lib/billing/x.server.ts: clamp: .from(user_subscriptions).select("id")',
+      'src/lib/billing/x.server.ts: either: .from(posts).select("slug")',
+      'src/lib/billing/x.server.ts: settle: .from(payment_orders).select("id")',
+    ]);
+  });
+
   it("plik w LOOSE_TABLE_EXCLUDED_REVIEWED: `looseTable` bez faktów, a KAŻDY jego `select` w zapadce; `.from()` pliku - jak dotąd", () => {
     const code = `${LOOSE}${HEADER}
       export const get = createServerFn().handler(async ({ context }) => {

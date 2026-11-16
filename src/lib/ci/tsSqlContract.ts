@@ -1478,6 +1478,24 @@ function builderTable(
       node = unwrap(method.receiver);
       continue;
     }
+    // `(warunek ? q.eq(...) : q).select(...)`, `a ?? b`, `a || b` - budowniczy
+    // w którejkolwiek gałęzi (pierwsza z tabelą wygrywa).
+    if (
+      ts.isConditionalExpression(node) ||
+      (ts.isBinaryExpression(node) &&
+        (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+          node.operatorToken.kind === ts.SyntaxKind.BarBarToken))
+    ) {
+      const branches = ts.isConditionalExpression(node)
+        ? [node.whenTrue, node.whenFalse]
+        : [node.left, node.right];
+      let found: string | null | undefined;
+      for (const branch of branches) {
+        const table = builderTable(branch, scope, exportsIndex, known, seen);
+        if (table !== undefined && (found === undefined || found === null)) found = table;
+      }
+      return found;
+    }
     if (!ts.isIdentifier(node) || seen.has(node.text)) return undefined;
     const name = node.text;
     seen.add(name);
@@ -2075,6 +2093,8 @@ const LOOSE_EXCLUDED =
   "`looseTable` w pliku z LOOSE_TABLE_EXCLUDED_REVIEWED - reguła odsłoniła tam odczyt `profiles` bez grantu dla `authenticated` (defekt dla właściciela), więc fakty pliku czekają na naprawę";
 const LOOSE_VIEW =
   "tabela z warunku (`view`: `crm_leads` / `crm_leads_all`) - generator nie rozgałęzia; plik i tak w LOOSE_TABLE_EXCLUDED_REVIEWED";
+const VIA_CONDITIONAL =
+  "RETURNING zapisu na budowniczym przez warunek (`c ? q.is(...) : q.gt(...)`, `(c ? q.eq(...) : q).select(...)`) - generator nie prowadzi łańcucha przez warunek";
 
 /**
  * Zapadka zasięgu `select`: KAŻDY `select` na budowniczym Supabase
@@ -2096,6 +2116,12 @@ export const UNCHECKED_SELECTS_REVIEWED: Readonly<
     2,
     LOCAL_CONST,
   ],
+  'src/lib/billing/legacyNonPaymentReconcile.server.ts: applyLegacyPlan: .from(user_subscriptions).select("id")':
+    [1, VIA_CONDITIONAL],
+  'src/lib/billing/oneTimeFulfilment.server.ts: settleOrder.flipToPaid: .from(payment_orders).select("id")':
+    [1, VIA_CONDITIONAL],
+  'src/lib/billing/oneTimeFulfilment.server.ts: settleSubscriptionCheckoutOrder: .from(payment_orders).select("id")':
+    [1, VIA_CONDITIONAL],
   'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(payment_orders).select(ORDER_REF_COLUMNS.join(", "))':
     [
       1,
