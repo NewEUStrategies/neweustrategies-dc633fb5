@@ -493,9 +493,93 @@ cache krawędziowy i 103 Early Hints, czyli W1.
 
 ### 9.4. Kolejność wykonania
 
-1. J1 + J2 (zwolnienie ok. 4,3 KB) oraz równolegle 9.2 pozycje 1–6.
+1. J1 + J2 (zwolnienie ok. 4,3 KB) oraz równolegle 9.2 pozycje 1–6:
+   WYKONANE 16.11.2026 (§9.5).
 2. S1, potem S2 i S4 (mieszczą się w obecnych bramkach).
 3. J3 (chunk startowy).
 4. 9.2 pozycje 7–9.
 
 Po decyzjach właściciela: J4–J7, S5, S6.
+
+### 9.5. Wykonanie: partia 1 (16.11.2026)
+
+Commity na gałęzi PR: J1 + J2 `80991f55`…`4e8515e7` (8), linki `1ed8608d`…
+`c0c081e8` (6), poprawki po przeglądzie `27079b1e`, `4c23b09e`.
+
+Pomiar na zintegrowanym buildzie (kontener roboczy, `check:bundle`):
+
+| Miara                       | Przed (`d178d332`) | Po (`4c23b09e`)           |
+| --------------------------- | ------------------ | ------------------------- |
+| `overall` (cały JS klienta) | 5 387,7 KB         | 5 380,4 KB (zapas 7,6 KB) |
+| JS publiczny                | 2 802,5 KB         | 2 798,7 KB                |
+| Chunk startowy              | 261,4 KB           | 259,4 KB                  |
+| Domknięcie startu           | 475,2 KB           | 473,2 KB                  |
+
+Sam strumień bajtów na własnej gałęzi dał 5 379,2 KB (−8,5 KB wobec planowanych
+−4,3 KB); linki kosztują po scaleniu ok. +1,2 KB tej liczby, z czego większość
+to szum (niżej).
+
+**J1.** Każde wywołanie `setCacheControlHeader` i `appendLinkHeader` w `src/routes`
+(93 wywołania w 53 plikach) stoi za statyczną bramką
+`import.meta.env.SSR || import.meta.env.DEV`; `stripInaccessibleNodes` za stałą
+`IN_BROWSER_BUNDLE` jak w `ssrCache.ts`. Bramka MUSI mieć dokładnie tę postać:
+inna pisownia może zdjąć nagłówek po stronie serwera i uczynić stronę prywatną
+publicznie cache'owalną. Pilnuje tego test-zapadka
+`src/routes/__tests__/headerSetterStaticGate.test.ts` (tylko `src/routes`; dwa
+wywołania poza tym katalogiem są w kodzie serwerowym). Dowód równoważności:
+w zbudowanym artefakcie serwera chunk routera różni się od bazy w trzech
+miejscach, bez wpływu na wartości nagłówków.
+
+**J2.** Schematy zod używane wyłącznie jako typy stały się typami (podcasty,
+nadpisanie spisu treści; tożsamość typów dowiedziona asercją `Equal<>` pod
+`tsgo`). Schematy używane tylko przez walidatory serwera są owinięte w
+`/* @__PURE__ */ (() => ...)()`, a nie przeniesione: po zdjęciu owijek 13 plików
+kompiluje się bajt w bajt jak przed zmianą, więc walidacja po stronie serwera
+jest dokładnie tak samo ścisła. Sama adnotacja `@__PURE__` na łańcuchu zod nie
+wystarcza (zostają wywołania w argumentach), stąd owijka. Zostało 37
+osieroconych instrukcji (1,4 KB surowego), w tym 10 zaślepek funkcji
+serwerowych czekających na decyzję (J7).
+
+**Linki (9.2, pozycje 1–6).** Zapytania przeliczone przez osadzenie `parent_page`
+dają adres kanoniczny tylko dla rodzica najwyższego poziomu; wpis pod stroną
+zagnieżdżoną zostaje przy `/post/<slug>`. Wyjątek: stopka poprzedni/następny
+i linki wpisu do samego siebie biorą pełną ścieżkę rodzica z okruszków loadera,
+więc obsługują także zagnieżdżenie. Adres własny wpisu jest nowym, opcjonalnym
+polem `CurrentPostCtx.href` ustawianym w `src/routes/$.tsx`; strony go nie
+dostają. Błąd odczytu z osadzeniem powtarza zapytanie bez osadzenia; błąd
+zwykłego odczytu wypływa jak dotąd.
+
+**Przegląd niezależny** (jeden recenzent na strumień, obie perspektywy): 6
+znalezisk, żadnego poważnego.
+
+- Naprawione: brak testu hintów `modulepreload` na stronie głównej; test
+  kontekstu strony na danych, przy których przechodził także bez pilnowanego
+  warunku (oba nowe testy sprawdzone mutacją); nieaktualne komentarze.
+- Otwarte: zapytania przekazujące kolumny przez parametr (7 nowych i 4 z fazy
+  pierwszej) są niewidoczne dla bramki kontraktu TS↔SQL w tych miejscach. Dziś
+  żadna para tabela–operacja–rola–kolumna nie wypadła, bo te same kolumny
+  pokrywają inne literały, ale ochrona jest słabsza. Poprawka: generator
+  (`src/lib/ci/tsSqlContract.ts`) ma rozwiązywać literał z drugiego argumentu
+  `readPostsWithParentPage`.
+- Otwarte: brak zapadki dla J2 (nowy schemat używany tylko jako typ wróci do
+  bundla niezauważony, dopóki mieści się w progu); kandydat: skaner
+  osieroconych instrukcji jako kontrola po buildzie.
+- Otwarte, drobne: na kilku trasach (`web-stories.$slug`, strona klubu) wejście
+  do nagłówka `Link` nadal liczy się w przeglądarce; bramka obejmuje samo
+  wywołanie.
+
+**Dwie obserwacje o bramkach.**
+
+- Liczba `overall` ma szum ok. ±1 KB między buildami o różnicy kilkudziesięciu
+  bajtów kodu (5 385,3–5 387,7 KB w siedmiu kolejnych buildach): zmieniają się
+  skróty w nazwach chunków, a z nimi kompresja importów w plikach, których treść
+  się nie zmieniła. Zapas poniżej 1 KB nie jest więc wiarygodny.
+- `check:document-weight` jest w kontenerze roboczym czerwone o 7 B na
+  `headRawBytes` (23 928 wobec 23 921) także na commicie bazowym: adres artefaktu
+  z pięciocyfrowym portem występuje w `<head>` 22 razy. To cecha środowiska; CI
+  przechodzi.
+
+**Czego nie sprawdzono.** Nie uruchomiono serwera i nie odczytano nagłówków
+z odpowiedzi; brak przebiegu w przeglądarce (hydratacja, ślad sieci stopki);
+czy osadzenie `parent_page` zwraca dane roli anonimowej na produkcji (krok
+właściciela po wdrożeniu, §8).
