@@ -108,7 +108,6 @@ const OWNER_FILTERS: ReadonlyArray<readonly [table: string, ownerColumn: string 
   ["user_bookmarks", "user_id"],
   ["user_read_history", "user_id"],
   ["comments", "user_id"],
-  ["user_reports", "reporter_id"],
   ["profile_recommendations", "author_id"],
   ["profile_skill_endorsements", "endorser_id"],
   ["profile_skill_endorsements", "recipient_id"],
@@ -182,6 +181,7 @@ beforeEach(() => {
   rpc.setData("list_my_inmails", []);
   rpc.setData("club_export_my_data", {});
   rpc.setData("event_cfp_export_my_data", {});
+  rpc.setData("user_reports_export_my_data", []);
 });
 
 describe("eksport RODO - koperta paczki", () => {
@@ -404,6 +404,70 @@ describe.each([
 
     expect(manifest.truncated).toEqual([
       { id: first, limit: EXPORT_ROW_LIMIT, returned: EXPORT_ROW_LIMIT },
+    ]);
+  });
+});
+
+// Zgłoszenia złożone przez osobę. `user_reports` jest RPC-only (brak grantu
+// SELECT dla `authenticated`), więc do 2026-11-16 `.from("user_reports")`
+// kończyło KAŻDY eksport błędem 42501 w tej sekcji. Teraz jedzie SECURITY
+// DEFINER RPC `user_reports_export_my_data` (osoba z `auth.uid()`, najemca
+// z profilu - dowód zakresu w `supabase/tests/user_reports_export_my_data_test.sql`).
+describe("eksport RODO - zgłoszenia złożone (user_reports_export_my_data)", () => {
+  /** Wiersz w kształcie `RETURNS TABLE` funkcji - siedem kolumn sekcji. */
+  const report = {
+    id: "rep-1",
+    reported_id: "22222222-2222-4222-8222-222222222222",
+    reason: "spam",
+    details: "Masowe zaproszenia",
+    status: "resolved",
+    created_at: relativeIso(-3 * DZIEN),
+    resolved_at: relativeIso(-DZIEN),
+  };
+
+  it("tabela RPC-only nie jest czytana wprost - JEDNO wywołanie RPC z sufitem z rejestru, bez `userId`", async () => {
+    await runExport();
+
+    expect(from.chains.map((chain) => chain.table)).not.toContain("user_reports");
+    expect(rpc.callsFor("user_reports_export_my_data").map((call) => call.args)).toEqual([
+      { p_limit: EXPORT_ROW_LIMIT },
+    ]);
+  });
+
+  it("wiersze RPC trafiają do sekcji bez przeróbek", async () => {
+    rpc.setData("user_reports_export_my_data", [report]);
+
+    const result = await runExport();
+
+    expect(result.sections.user_reports_filed).toEqual([report]);
+    expect(result).not.toHaveProperty("errors");
+  });
+
+  it("brak funkcji przed wdrożeniem migracji: błąd tej sekcji w `errors` i `manifest.failed`, reszta paczki przeżywa", async () => {
+    rpc.setError(
+      "user_reports_export_my_data",
+      "Could not find the function public.user_reports_export_my_data(p_limit) in the schema cache",
+      "PGRST202",
+    );
+
+    const result = await runExport();
+
+    expect(result.sections).not.toHaveProperty("user_reports_filed");
+    expect(result.errors).toEqual({
+      user_reports_filed:
+        "Could not find the function public.user_reports_export_my_data(p_limit) in the schema cache",
+    });
+    expect(result.manifest.failed).toEqual(["user_reports_filed"]);
+    expect(result.sections.comments).toEqual([]);
+  });
+
+  it("sekcja na sufcie wierszy ląduje w `manifest.truncated`", async () => {
+    rpc.setData("user_reports_export_my_data", rows(EXPORT_ROW_LIMIT, "rep"));
+
+    const { manifest } = await runExport();
+
+    expect(manifest.truncated).toEqual([
+      { id: "user_reports_filed", limit: EXPORT_ROW_LIMIT, returned: EXPORT_ROW_LIMIT },
     ]);
   });
 });
@@ -742,15 +806,18 @@ describe.each([
 
 describe("eksport RODO - awaria jest jawna, sekcja po sekcji", () => {
   it("odmowa tabeli: sekcja znika z `sections`, powód w `errors` i `manifest.failed`", async () => {
-    from.setResponse("user_reports", fail("permission denied for table user_reports", "42501"));
+    from.setResponse(
+      "user_read_history",
+      fail("permission denied for table user_read_history", "42501"),
+    );
 
     const result = await runExport();
 
-    expect(result.sections).not.toHaveProperty("user_reports_filed");
+    expect(result.sections).not.toHaveProperty("reading_history");
     expect(result.errors).toEqual({
-      user_reports_filed: "permission denied for table user_reports",
+      reading_history: "permission denied for table user_read_history",
     });
-    expect(result.manifest.failed).toEqual(["user_reports_filed"]);
+    expect(result.manifest.failed).toEqual(["reading_history"]);
     expect(result.sections.comments).toEqual([]);
   });
 
