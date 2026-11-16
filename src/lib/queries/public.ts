@@ -12,6 +12,8 @@ import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import { canBeStoredSlug } from "@/lib/routing/resolvePublicPath";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
@@ -582,6 +584,30 @@ export function resolvePostsPerPage(settings: Record<string, unknown> | undefine
   return Number.isFinite(n) && n >= 1 ? Math.min(100, Math.round(n)) : BLOG_PAGE_SIZE;
 }
 
+/**
+ * Kolumny pozycji listy bloga - jedyny literał kolumn obu zapytań (lista
+ * i archiwum) i zarazem odczyt zapasowy. Wariant z osadzeniem strony-rodzica
+ * dokleja `readPostsWithParentPage` (`lib/routing/postParentPageRead.ts`).
+ */
+const BLOG_LIST_COLUMNS = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
+
+/** Wiersz odczytu listy bloga: pozycja bez adresu, z rodzicem z osadzenia (gdy odczyt go niesie). */
+type BlogListRow = Omit<BlogListItem, "href"> & { parent_page?: PostParentPage | null };
+
+/**
+ * Wiersz -> pozycja listy z adresem wpisu. Adres liczy `postHref` z rodzica
+ * osadzonego w TYM SAMYM odczycie: kanoniczny `/<rodzic>/<slug>`, a gdy
+ * wiersz go nie niesie (odczyt zapasowy, rodzic zagnieżdżony albo niewidoczny)
+ * - `/post/<slug>`, który trasa `/post/$slug` rozwiąże w bazie i odpowie 301.
+ * Zero N+1: żadnego `page_full_path` na pozycję.
+ *
+ * `parent_page` NIE trafia do pozycji: adres jest już policzony, a każde pole
+ * wiersza jedzie w stanie odwodnionym dokumentu `/blog` (do 100 pozycji).
+ */
+function blogListItem({ parent_page, ...row }: BlogListRow): BlogListItem {
+  return { ...row, href: postHref({ slug: row.slug, parent_page }) };
+}
+
 export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
   queryOptions({
     queryKey: ["public", "blog", "list", { limit }] as const,
@@ -590,26 +616,24 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
       // zapytanie biegło na każde żądanie SSR. Klucz zawiera limit (rozmiar
       // strony z ustawień czytania rozdziela wpisy cache).
       edgeTtlCache(`public:blog-list:${limit}`, 60_000, async () => {
-        const { data, error } = await supabase
-          .from("posts")
-          .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
-          )
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false })
-          .limit(limit);
+        // Dwa warianty kolumn jednego zapytania: z osadzeniem strony-rodzica
+        // i - tylko gdy tamto odda błąd - bez niego (lista z adresami
+        // zapasowymi zamiast błędu po rozjeździe schematu `pages`). Błąd
+        // odczytu zapasowego rzuca jak dotąd. `columns: string` - powód
+        // w `lib/builder/postListQuery.ts` (parser typów `select`).
+        const { data, error } = await readPostsWithParentPage(
+          (columns: string) =>
+            supabase
+              .from("posts")
+              .select(columns)
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("published_at", { ascending: false })
+              .limit(limit),
+          BLOG_LIST_COLUMNS,
+        );
         if (error) throw error;
-        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-        // Posts always link via the dedicated `/post/$slug` route, which resolves
-        // even when a parent path is missing. (A previous version fetched one
-        // `page_full_path` RPC per parent page here and then never used the
-        // result - removed: pure N+1 with no effect on the href.)
-        const posts: BlogListItem[] = rows.map((r) => ({
-          ...r,
-          href: `/post/${r.slug}`,
-        }));
-        return { posts };
+        return { posts: ((data ?? []) as unknown as BlogListRow[]).map(blogListItem) };
       }),
     staleTime: 2 * 60_000,
   });
@@ -646,21 +670,22 @@ export const blogArchiveQueryOptions = (params: BlogArchiveParams = {}) => {
     queryFn: async (): Promise<BlogArchiveResult> =>
       edgeTtlCache(`public:blog-archive:${page}:${pageSize}`, 60_000, async () => {
         const from = (page - 1) * pageSize;
-        const { data, count, error } = await supabase
-          .from("posts")
-          .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
-            { count: "exact" },
-          )
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false })
-          .range(from, from + pageSize - 1);
+        // Osadzenie strony-rodzica i odczyt zapasowy - jak w `blogListQueryOptions`.
+        // Licznik (`count: "exact"`) wraca z tego wariantu, którego wynik został
+        // oddany; osadzenie rodzica (jeden do jednego) nie zmienia liczby wierszy.
+        const { data, count, error } = await readPostsWithParentPage(
+          (columns: string) =>
+            supabase
+              .from("posts")
+              .select(columns, { count: "exact" })
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("published_at", { ascending: false })
+              .range(from, from + pageSize - 1),
+          BLOG_LIST_COLUMNS,
+        );
         if (error) throw error;
-        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-        // Wpisy linkują przez dedykowaną trasę /post/$slug (jak blogListQueryOptions)
-        // - rozwiązuje się także przy brakującej ścieżce rodzica, zero N+1.
-        const posts: BlogListItem[] = rows.map((r) => ({ ...r, href: `/post/${r.slug}` }));
+        const posts = ((data ?? []) as unknown as BlogListRow[]).map(blogListItem);
         return { posts, total: count ?? 0, page, pageSize };
       }),
     staleTime: 2 * 60_000,

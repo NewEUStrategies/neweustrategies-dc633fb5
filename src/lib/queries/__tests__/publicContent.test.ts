@@ -112,6 +112,7 @@ import {
 import type { RecordedRpc, SupabaseRpcStub } from "@/test/supabase/rpc";
 import { EMPTY_BODY } from "@/lib/access/gating";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 
 /** Data bazowa całego pliku - żaden przypadek nie czyta prawdziwego zegara. */
 const DATA_BAZOWA = "2026-08-21T10:00:00.000Z";
@@ -401,10 +402,14 @@ beforeEach(() => {
   baza().reset();
   funkcje().reset();
   h.cache.length = 0;
+  // Wyłączenie osadzenia strony-rodzica po błędzie jest stanem MODUŁU - bez
+  // zdjęcia go przypadek z odmową zmieniałby `select` listy bloga w kolejnych.
+  resetPostParentPageRead();
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 // ==========================================================================
@@ -634,6 +639,34 @@ describe("rozmiar strony list wpisów: co wolno wpisać operatorowi", () => {
 // LISTA BLOGA - kształt zapytania i dwa stany zwrotki
 // ==========================================================================
 
+/** `select` listy i archiwum bloga Z osadzeniem strony-rodzica - dosłownie, znak po znaku. */
+const SELECT_BLOGA_Z_RODZICEM =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+/** Ten sam `select` bez osadzenia: odczyt zapasowy i kształt sprzed zmiany. */
+const SELECT_BLOGA_ZAPASOWY =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate";
+
+function selectOf(chain: RecordedChain | undefined): string {
+  return String(chain?.argsOf("select")?.[0]);
+}
+
+/** Trzy wpisy: pod `/blog`, pod stroną zagnieżdżoną i pod rodzicem niewidocznym dla gościa. */
+function wierszeBlogaZRodzicami(): Array<Record<string, unknown>> {
+  return [
+    wierszWpisuListy("a", { parent_page: { slug: "blog", parent_id: null } }),
+    wierszWpisuListy("b", { parent_page: { slug: "energetyka", parent_id: "pg-analizy" } }),
+    wierszWpisuListy("c", { parent_page: null }),
+  ];
+}
+
+/** Odmowa odczytu Z OSADZENIEM, zwykła odpowiedź odczytu zapasowego. */
+function osadzenieZawodzi(zapas: SupabaseResult): TableResponder {
+  return (chain) =>
+    selectOf(chain).includes("parent_page:")
+      ? fail("permission denied for table pages", "42501")
+      : zapas;
+}
+
 describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
   it("pyta wyłącznie o opublikowane i nieusunięte, od najnowszych, z limitem strony", async () => {
     baza().setResponse("posts", ok([wierszWpisuListy("a")]));
@@ -656,12 +689,56 @@ describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
     expect(h.cache).toEqual([{ key: "public:blog-list:120", ttl: 60_000 }]);
   });
 
-  it("adres wpisu idzie przez trasę /post/$slug, więc brak ścieżki rodzica go nie psuje", async () => {
+  it("wiersz bez strony-rodzica linkuje przez trasę /post/$slug, więc brak ścieżki rodzica go nie psuje", async () => {
     baza().setResponse("posts", ok([wierszWpisuListy("a"), wierszWpisuListy("b")]));
     const wynik = await klient().fetchQuery(blogListQueryOptions());
     expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
     // Zero N+1: żadne `page_full_path` nie poleciało.
     expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("rodzic jedzie w TYM SAMYM odczycie: jedno żądanie o wpisy, zero o strony i zero RPC ścieżek", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    await klient().fetchQuery(blogListQueryOptions());
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(lancuch("posts"))).toBe(SELECT_BLOGA_Z_RODZICEM);
+    expect(baza().chainsFor("pages")).toHaveLength(0);
+    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("adres kanoniczny dla rodzica najwyższego poziomu; zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual([
+      "/blog/slug-a",
+      "/post/slug-b",
+      "/post/slug-c",
+    ]);
+  });
+
+  it("pozycja listy NIE niesie `parent_page` - kształt wiersza w cache jak przed zmianą", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    for (const pozycja of wynik.posts) {
+      expect(Object.keys(pozycja)).toEqual([...Object.keys(wierszWpisuListy("x")), "href"]);
+    }
+  });
+
+  it("odczyt z osadzeniem zawodzi: TO SAMO zapytanie bez osadzenia, lista z adresami zapasowymi", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    baza().setResponse(
+      "posts",
+      osadzenieZawodzi(ok([wierszWpisuListy("a"), wierszWpisuListy("b")])),
+    );
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
+
+    const [zRodzicem, zapasowy, ...reszta] = baza().chainsFor("posts");
+    expect(reszta).toHaveLength(0);
+    expect(selectOf(zRodzicem)).toBe(SELECT_BLOGA_Z_RODZICEM);
+    expect(selectOf(zapasowy)).toBe(SELECT_BLOGA_ZAPASOWY);
+    expect(zapasowy?.calls.slice(1)).toEqual(zRodzicem?.calls.slice(1));
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("PUSTO: serwis bez wpisów oddaje pustą listę", async () => {
@@ -670,8 +747,14 @@ describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
   });
 
   it("ODMOWA: baza, która odmówiła, rzuca - lista nie udaje serwisu bez treści", async () => {
+    // Odmowa obu wariantów kolumn: zapas ratuje rozjazd osadzenia, nie awarię `posts`.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     baza().setResponse("posts", fail("odmowa posts", "42501"));
     await expect(klient().fetchQuery(blogListQueryOptions())).rejects.toThrow("odmowa posts");
+    expect(baza().chainsFor("posts").map(selectOf)).toEqual([
+      SELECT_BLOGA_Z_RODZICEM,
+      SELECT_BLOGA_ZAPASOWY,
+    ]);
   });
 });
 
@@ -711,9 +794,66 @@ describe("archiwum bloga: okno strony jest dokładne, licznik niezależny od wie
     expect(wynik.total).toBe(0);
   });
 
+  it("rodzic jedzie w TYM SAMYM odczycie co okno strony i licznik: jedno żądanie o wpisy", async () => {
+    baza().setResponse("posts", okZLicznikiem(wierszeBlogaZRodzicami(), 137));
+    await klient().fetchQuery(blogArchiveQueryOptions({ pageSize: 20 }));
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(lancuch("posts").argsOf("select")).toEqual([
+      SELECT_BLOGA_Z_RODZICEM,
+      { count: "exact" },
+    ]);
+    expect(baza().chainsFor("pages")).toHaveLength(0);
+    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("karta /blog linkuje adresem kanonicznym; rodzic zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    // Ten sam wpis miał na `/blog` dwa adresy: kanoniczny z breadcrumbów
+    // i `/post/<slug>` z karty, który odpowiada 301 i dwoma odczytami bazy.
+    baza().setResponse("posts", okZLicznikiem(wierszeBlogaZRodzicami(), 137));
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions({ pageSize: 20 }));
+    expect(wynik.posts.map((p) => p.href)).toEqual([
+      "/blog/slug-a",
+      "/post/slug-b",
+      "/post/slug-c",
+    ]);
+    // Stan odwodniony dokumentu `/blog` nie rośnie o osadzenie rodzica.
+    for (const pozycja of wynik.posts) {
+      expect(Object.keys(pozycja)).toEqual([...Object.keys(wierszWpisuListy("x")), "href"]);
+    }
+  });
+
+  it("wiersz bez strony-rodzica zostaje przy /post/$slug", async () => {
+    baza().setResponse("posts", okZLicznikiem([wierszWpisuListy("a")], 1));
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a"]);
+  });
+
+  it("odczyt z osadzeniem zawodzi: to samo okno i licznik bez osadzenia, karty z adresem zapasowym", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    baza().setResponse(
+      "posts",
+      osadzenieZawodzi(okZLicznikiem([wierszWpisuListy("a"), wierszWpisuListy("b")], 137)),
+    );
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions({ page: 3, pageSize: 10 }));
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
+    // Licznik pochodzi z odczytu zapasowego - paginacja nie znika.
+    expect(wynik).toMatchObject({ total: 137, page: 3, pageSize: 10 });
+
+    const [zRodzicem, zapasowy, ...reszta] = baza().chainsFor("posts");
+    expect(reszta).toHaveLength(0);
+    expect(zRodzicem?.argsOf("select")).toEqual([SELECT_BLOGA_Z_RODZICEM, { count: "exact" }]);
+    expect(zapasowy?.argsOf("select")).toEqual([SELECT_BLOGA_ZAPASOWY, { count: "exact" }]);
+    expect(zapasowy?.calls.slice(1)).toEqual(zRodzicem?.calls.slice(1));
+    expect(ogniwa(lancuch("posts"), "range")).toEqual([[20, 29]]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it("ODMOWA: archiwum rzuca, zamiast pokazać „brak wpisów” z licznikiem 0", async () => {
+    // Odmowa obu wariantów kolumn: zapas ratuje rozjazd osadzenia, nie awarię `posts`.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     baza().setResponse("posts", fail("odmowa archiwum", "57014"));
     await expect(klient().fetchQuery(blogArchiveQueryOptions())).rejects.toThrow("odmowa archiwum");
+    expect(baza().chainsFor("posts")).toHaveLength(2);
   });
 });
 

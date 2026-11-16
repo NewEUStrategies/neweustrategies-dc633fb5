@@ -30,10 +30,15 @@ interface ReadError {
   code?: string;
 }
 
-/** Wynik odczytu PostgREST - tyle, ile czyta ta warstwa. */
+/**
+ * Wynik odczytu PostgREST - tyle, ile czyta ta warstwa. `count` niesie odczyt
+ * z `{ count: "exact" }` (archiwum bloga): wraca do wołającego z tego wariantu
+ * kolumn, którego wynik został oddany.
+ */
 interface ReadResult<T> {
   data: T | null;
   error: ReadError | null;
+  count?: number | null;
 }
 
 /** Jak długo po porażce osadzenia izolat czyta bez niego. */
