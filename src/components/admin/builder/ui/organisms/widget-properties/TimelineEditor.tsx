@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PropField, ItemFrame } from "../../atoms";
+import { LucideIconPicker } from "../../molecules/LucideIconPicker";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
@@ -196,20 +197,21 @@ export function TimelineEditor({ c, lang, setContent }: Props) {
               )}
               {iconType === "lucide" && (
                 <PropField label={t("builder.timelineEditor.iconName")}>
-                  <Input
-                    value={strOf(it.iconName)}
-                    onChange={(e) => patch(i, { iconName: e.target.value })}
-                    placeholder="Flag, FileText, Clock…"
-                    className="h-8 text-xs"
+                  {/* Wybierak (nazwy kebab-case z katalogu), nie pole tekstowe:
+                      wpisane nazwy PascalCase spoza shimu i zestawu
+                      kuratorowanego (np. „BellRing") nie renderowały się na
+                      stronie - przegląd naprawy wybieraków ikon. Wyczyszczenie
+                      zapisuje pusty napis, jak dawne pole. */}
+                  <LucideIconPicker
+                    value={strOf(it.iconName) || undefined}
+                    onChange={(name) => patch(i, { iconName: name ?? "" })}
                   />
                 </PropField>
               )}
               <PropField label={t("builder.timelineEditor.titleIconName")}>
-                <Input
-                  value={strOf(it.titleIconName)}
-                  onChange={(e) => patch(i, { titleIconName: e.target.value })}
-                  placeholder="FileText (opcjonalnie)"
-                  className="h-8 text-xs"
+                <LucideIconPicker
+                  value={strOf(it.titleIconName) || undefined}
+                  onChange={(name) => patch(i, { titleIconName: name ?? "" })}
                 />
               </PropField>
               <PropField
