@@ -186,6 +186,40 @@ describe("extractSeamFacts - RPC", () => {
     ]);
   });
 
+  it("`looseClient(param)` i `looseTable(param, t)` z parametrem innym niż kontekst - rola `unknown` (istnienie w pgTAP, uprawnienia nie)", () => {
+    // Rola idzie z NAZWY źródła (`context`/`ctx`) albo z `{ supabase: X }`
+    // rozpoznanego odbiorcy. Parametr o dowolnej innej nazwie może być
+    // klientem użytkownika albo serwisowym - reguła nie zgaduje.
+    const f = facts({
+      "src/lib/supabase/looseQuery.ts":
+        "export function looseClient() {}\nexport function looseTable() {}",
+      "src/lib/crm-y.functions.ts": `
+        import { looseClient, looseTable } from "@/lib/supabase/looseQuery";
+        export async function viaParam(client: unknown, db: { supabase: unknown }) {
+          await looseClient(client).rpc("x_client_param");
+          await looseClient(db).rpc("x_db_param");
+          await looseClient({ supabase: client }).rpc("x_wrapped_param");
+          const bound = looseClient(client);
+          await bound.rpc("x_bound_param");
+          await looseTable(client, "crm_leads").select("id");
+          await looseTable({ supabase: client }, "profiles").select("tenant_id");
+          await looseClient(client).from("crm_companies").select("name");
+        }
+      `,
+    });
+    expect(f.rpcs.map((r) => `${r.name}:${r.role}`)).toEqual([
+      "x_client_param:unknown",
+      "x_db_param:unknown",
+      "x_wrapped_param:unknown",
+      "x_bound_param:unknown",
+    ]);
+    expect(f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}`)).toEqual([
+      "crm_leads:select:unknown:id",
+      "profiles:select:unknown:tenant_id",
+      "crm_companies:select:unknown:name",
+    ]);
+  });
+
   it("nazwa obliczona trafia do listy miejsc nieczytelnych", () => {
     const f = facts({ "src/a.ts": `supabase.rpc(fnName)` });
     expect(f.rpcs).toEqual([]);
