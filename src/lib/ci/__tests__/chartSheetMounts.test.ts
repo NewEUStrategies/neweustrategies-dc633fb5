@@ -343,6 +343,27 @@ describe("arkusz wykresów: granica z arkuszem głównym", () => {
     expect(tokens).toMatch(/:root,\s*\.light\s*\{[\s\S]*--chart-1:/);
     expect(tokens).toMatch(/\.dark\s*\{[\s\S]*--chart-1:/);
   });
+
+  it("`color-mix()` w deklaracji tylko z zamiennikiem w `@supports` (arkusz nie idzie przez Tailwinda)", () => {
+    // W arkuszu głównym kompilator Tailwinda dokładał do każdej takiej deklaracji kolor bez
+    // mieszania dla przeglądarek bez `color-mix()`. Arkusz wykresów tego kroku nie ma, więc
+    // mieszanka poza `@supports (color: color-mix(...))` znaczyłaby brak koloru w bazie
+    // przeglądarek (Chrome 107, Safari 16.0, Firefox 104). Własności niestandardowe
+    // (`--x: color-mix(...)`) Tailwind też zostawiał bez zamiennika.
+    const naked: string[] = [];
+    const guarded: string[] = [];
+    for (const part of SHEET_PARTS) {
+      for (const rule of parseCssRules(read(part))) {
+        const inSupports = rule.context.some((c) => /^@supports \(color: ?color-mix\(/.test(c));
+        for (const [name, value] of rule.declarations) {
+          if (name.startsWith("--") || !value.includes("color-mix(")) continue;
+          (inSupports ? guarded : naked).push(`${part}: ${rule.selectors.join(", ")} { ${name} }`);
+        }
+      }
+    }
+    expect(naked).toEqual([]);
+    expect(guarded.length).toBeGreaterThan(0);
+  });
 });
 
 describe("arkusz wykresów: każdy moduł, który nim maluje, go ładuje", () => {

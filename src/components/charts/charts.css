@@ -623,7 +623,19 @@
    obniżenie krycia sprowadza je do niewidoczności, a obwódki mają nad progiem
    3,0:1 zapas od 0,15 do 8,66 i przy części odcieni spadłyby poniżej. */
 .neh-chart .neh-hit[data-active="true"] {
-  fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+  fill: var(--foreground);
+}
+/* ZAMIENNIK `color-mix()` PISANY RĘCZNIE. Dopóki ta reguła stała w arkuszu
+   głównym, kompilator Tailwinda dokładał do niej dokładnie tę parę: kolor bez
+   mieszania dla przeglądarek bez `color-mix()` (baza: Chrome 107, Safari 16.0,
+   Firefox 104 - scripts/lib/browserBaseline.ts) i mieszankę w `@supports`.
+   Arkusz wykresów nie przechodzi przez Tailwinda, więc para stoi tu jawnie -
+   ten sam wynik w każdej przeglądarce co przed wydzieleniem arkusza. Pilnuje
+   tego chartSheetMounts.test.ts (żadne `color-mix()` poza takim blokiem). */
+@supports (color: color-mix(in lab, red, red)) {
+  .neh-chart .neh-hit[data-active="true"] {
+    fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+  }
 }
 
 /* ============================================================
