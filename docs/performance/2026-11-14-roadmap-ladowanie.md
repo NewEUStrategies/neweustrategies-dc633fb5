@@ -472,7 +472,7 @@ artykułu nie używa.
 
 | #   | Pozycja                                                                                                                                              | Arkusz główny (gzip) | CSS razem        | Ryzyko  | Decyzja właściciela               |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------- | ------- | --------------------------------- |
-| S1  | Wykresy: reguły `.neh-*`, 826 deklaracji `--chart-*` i druk wykresów do własnego arkusza, linkowanego przez komponenty wykresów (wzorzec `WorldMap`) | −7,8 KB (zmierzone)  | ok. 0            | średnie | nie                               |
+| S1  | Wykresy: reguły `.neh-*`, 826 deklaracji `--chart-*` i druk wykresów do własnego arkusza, linkowanego przez komponenty wykresów (wzorzec `WorldMap`) | −7,8 KB (zmierzone)  | ok. 0            | średnie | nie; WSTRZYMANE 16.11.2026 (§9.7) |
 | S2  | Czat i dok członka (`.chat-*`, `.wd-*`) do arkusza leniwego chunku doku                                                                              | −1,5 KB (zmierzone)  | +0,3 KiB         | niskie  | nie                               |
 | S3  | Strona kariery do arkusza trasy                                                                                                                      | −0,6 KB              | +0,3 KiB         | niskie  | nie                               |
 | S4  | Ostatnie reguły wyłącznie panelowe do `admin-styles.css`                                                                                             | −0,2 KB              | 0                | niskie  | nie                               |
@@ -555,7 +555,7 @@ znalezisk, żadnego poważnego.
 - Naprawione: brak testu hintów `modulepreload` na stronie głównej; test
   kontekstu strony na danych, przy których przechodził także bez pilnowanego
   warunku (oba nowe testy sprawdzone mutacją); nieaktualne komentarze.
-- Otwarte: zapytania przekazujące kolumny przez parametr (7 nowych i 4 z fazy
+- Otwarte (częściowo zamknięte w §9.7: 4 z 10 odczytów widoczne): zapytania przekazujące kolumny przez parametr (7 nowych i 4 z fazy
   pierwszej) są niewidoczne dla bramki kontraktu TS↔SQL w tych miejscach. Dziś
   żadna para tabela–operacja–rola–kolumna nie wypadła, bo te same kolumny
   pokrywają inne literały, ale ochrona jest słabsza. Poprawka: generator
@@ -621,3 +621,56 @@ testów (6 202 testy, 32 oczekiwane porażki), build, `check:bundle`,
 
 Odblokowane: D4 (rejestry ikon `import * as` w `lucide-shim`), bo nie trzeba
 już zachowywać zgodności z mapą nazw Font Awesome.
+
+### 9.7. Partia 2 (16.11.2026): generator kontraktu wykonany, arkusz wykresów wstrzymany
+
+**Generator kontraktu TS↔SQL** (`src/lib/ci/tsSqlContract.ts`, commity
+`60c82c8b`…`8b6446cb`). `.select(x)` daje fakty, gdy `x` jest pierwszym
+parametrem funkcji oddanej `readPostsWithParentPage` (wprost albo przez `const`
+lub deklarację funkcji w tym samym pliku), a drugi argument pomocnika rozwiązuje
+się do napisu. Fakty powstają dla obu wariantów, które pomocnik wysyła (zwykły
+i z osadzeniem `POST_PARENT_PAGE_EMBED`, czytanym z prawdziwej stałej).
+Operacje na tabelach: 1 538 → 1 546; zbiór par tabela–operacja–rola–kolumna bez
+zmian (3 032), lista nieczytelnych miejsc bez zmian (13 z 13).
+
+Pokrycie jest częściowe: widoczne są 4 z 10 odczytów (`megaFeatured.ts` ×2,
+`public.ts` ×2). Pozostałe 6 (`megaMenu.ts`, `blocks.ts`, `postListQuery.ts`,
+`ratedListQuery.ts`, `sliderPostsQuery.ts`, `newsTickerQuery.ts`) przekazuje
+kolumny dalej do `postsQuery`, `postsNarrowedToTaxonomy` albo
+`postsConstrainedByTaxonomy`, które budują `select` w innej funkcji (w tym
+przez `[cols, ...embeds].join`). Do pokrycia ich potrzebne jest śledzenie
+parametru przez wywołania między plikami albo literał w miejscu zapytania;
+żadne zapytanie nie zostało zmienione. Przy okazji: wszystkie `select`
+w `src/lib/queries/taxonomyPivot.ts` są dla bramki niewidoczne niezależnie od
+wołającego, a generator nie ma roli `anon` (zapytania przeglądarki sprawdza
+względem grantów `authenticated`).
+
+Przegląd niezależny: 3 znaleziska. Naprawione: brak testów dla czterech
+strażników reguły (przesłonięcie parametru w bloku i `catch`, owijki wyrażenia,
+nazwa pomocnika, wymóg `const`); każdy nowy test sprawdzony mutacją. Otwarte:
+6 niewidocznych odczytów (wyżej). Weryfikacja: typecheck, ESLint, Prettier,
+`check:ts-sql-contract`, 247 plików testów.
+
+**S1, arkusz wykresów: wstrzymane decyzją właściciela z 16.11.2026.** Gotowe na
+lokalnej gałęzi `p2/charts-css` (5 commitów nad `dc01012f`). Arkusz blokujący
+render na stronach bez wykresu: 83 590 → 75 575 B gzip (zmierzone), arkusz
+wykresów 8 312 B gzip ładowany tylko przez wykres; zbiory deklaracji przed
+i po identyczne poza 11 kopiami parytetu kaskady; style obliczone w Chromium bez
+różnic na 7 479 elementach rzeczywistego markupu wykresów. Powody wstrzymania:
+
+- usterka wysokiej wagi z przeglądu, odtworzona: gdy wykres montuje się po
+  danych pobranych w przeglądarce (dossier `/tracker/<slug>`, statystyki klubu,
+  raport sponsora), React wstrzymuje zatwierdzenie do załadowania arkusza,
+  a przy aktualizacji synchronicznej najbliższa granica Suspense (cała trasa)
+  pokazuje `RouteLoadingSkeleton`;
+- strony z wykresem mają drugi arkusz blokujący render (panel: trzeci), wbrew
+  zasadzie `renderBlockingCssCount` = 1, której żaden dokument z bramki nie
+  sprawdza dla stron z wykresem;
+- remisy kaskady wygrywane dotąd kolejnością utrzymuje plik 11 skopiowanych
+  deklaracji; nowy remis nie zostałby wykryty automatycznie;
+- zysk: ok. 15 ms Speed Index na telefonie według przelicznika
+  z `2026-10-22-speed-index.md`, a CSS łącznie +0,29 KiB (zapas 0,6 KiB).
+
+Powrót do S1 ma sens po W1: cache krawędziowy i 103 Early Hints dla arkusza
+zmniejszają znaczenie jego rozmiaru, a usterkę trzeba wtedy naprawić linkiem
+arkusza w renderowanej przez serwer części tych tras.
