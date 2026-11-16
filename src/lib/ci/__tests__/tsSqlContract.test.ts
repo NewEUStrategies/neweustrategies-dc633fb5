@@ -22,7 +22,7 @@ import {
   MAX_UNRESOLVED_SITES,
   LOOSE_TABLE,
   LOOSE_TABLE_EXCLUDED_REVIEWED,
-  SEAM_EXTRACTION_EXCLUDED_REVIEWED,
+  SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
   extractSeamFacts,
@@ -31,7 +31,9 @@ import {
   seamCoverageProblems,
   uncheckedSelectDrift,
   withPostParentPageEmbed,
+  withheldKey,
   type PublicColumnContract,
+  type WithheldFactReviewed,
 } from "../tsSqlContract";
 import { loadProductionSources } from "../../../../scripts/lib/onConflictArbitersInputs";
 
@@ -40,13 +42,13 @@ const NO_CONTRACTS: readonly PublicColumnContract[] = [];
 function facts(
   files: Record<string, string>,
   contracts = NO_CONTRACTS,
-  excluded: Readonly<Record<string, string>> = {},
+  withheld: readonly WithheldFactReviewed[] = [],
   looseExcluded: Readonly<Record<string, string>> = {},
 ) {
   return extractSeamFacts(
     Object.entries(files).map(([file, code]) => ({ file, code })),
     contracts,
-    excluded,
+    withheld,
     looseExcluded,
   );
 }
@@ -1018,14 +1020,9 @@ describe("extractSeamFacts - wszechświat `select` (każdy `select` na budownicz
     `;
     const files = { ...LOOSE_MODULE, "src/lib/crm.functions.ts": code };
     const open = facts(files);
-    const cut = facts(
-      files,
-      NO_CONTRACTS,
-      {},
-      {
-        "src/lib/crm.functions.ts": "defekt grantu",
-      },
-    );
+    const cut = facts(files, NO_CONTRACTS, [], {
+      "src/lib/crm.functions.ts": "defekt grantu",
+    });
     expect(open.tables.map((t) => `${t.table}:${t.op}`)).toEqual([
       "profiles:select",
       "crm_tasks:insert",
@@ -1062,17 +1059,13 @@ describe("extractSeamFacts - składnia (rodzaj pliku po rozszerzeniu)", () => {
     expect(seamCoverageProblems(f)).toEqual([]);
   });
 
-  it("plik z błędem składni czerwieni zasięg - także bez wywołań i także plik wyłączony z ekstrakcji", () => {
-    const f = facts(
-      {
-        // Ten sam tekst w `.tsx` to błąd składni - jak każdy plik `.ts` dawniej.
-        "src/lib/profile/export.functions.tsx": GENERIC_ARROW,
-        "src/lib/broken.ts": `export const x = ;`,
-        "src/lib/ok.ts": `export const y = 1;`,
-      },
-      NO_CONTRACTS,
-      { "src/lib/broken.ts": "wyłączony z faktów, nie ze strażnika składni" },
-    );
+  it("plik z błędem składni czerwieni zasięg - także bez wywołań", () => {
+    const f = facts({
+      // Ten sam tekst w `.tsx` to błąd składni - jak każdy plik `.ts` dawniej.
+      "src/lib/profile/export.functions.tsx": GENERIC_ARROW,
+      "src/lib/broken.ts": `export const x = ;`,
+      "src/lib/ok.ts": `export const y = 1;`,
+    });
     expect(f.coverage.parseErrors).toHaveLength(2);
     expect(f.coverage.parseErrors[0]).toMatch(
       /^src\/lib\/broken\.ts: 1 błędów składni, pierwszy: linia 1: /,
@@ -1083,22 +1076,135 @@ describe("extractSeamFacts - składnia (rodzaj pliku po rozszerzeniu)", () => {
     expect(problems[0]).toContain("2 plików z błędami składni");
     expect(problems[0]).toContain("src/lib/broken.ts: 1 błędów składni");
   });
+});
 
-  it("plik wyłączony z ekstrakcji nie daje faktów (i jest jawnie wymieniony); reszta - jak dotąd", () => {
-    const files = {
-      "src/lib/profile/export.functions.ts": GENERIC_ARROW,
-      "src/lib/other.functions.ts": GENERIC_ARROW,
-    };
-    const all = facts(files);
-    const cut = facts(files, NO_CONTRACTS, { "src/lib/profile/export.functions.ts": "powód" });
-    expect(all.tables.map((t) => t.file)).toEqual([
-      "src/lib/profile/export.functions.ts",
-      "src/lib/other.functions.ts",
+describe("extractSeamFacts - fakty wstrzymane w przeglądzie (SEAM_FACTS_WITHHELD_REVIEWED)", () => {
+  // Kształt `profile/export.functions.ts`: jeden odczyt bez grantu wśród wielu
+  // poprawnych. Dawniej wpis wyłączał CAŁY plik - kolumna dopisana do
+  // sąsiedniego odczytu, zmyślone RPC i nowy odczyt przechodziły CI.
+  const FILE = "src/lib/profile/export.functions.ts";
+  const CODE = `
+    import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+    export const exportMyData = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+      const { supabase } = context;
+      const LOCAL = "id";
+      return {
+        reports: supabase.from("user_reports").select("id, reason").eq("reporter_id", u),
+        badges: supabase.from("profile_badges").select("badge, created_at, bogus_secret_col"),
+        widened: supabase.from("user_reports").select("id, reason, reporter_id"),
+        local: supabase.from("posts").select(LOCAL),
+        renamed: supabase.rpc("get_own_profile_nonexistent"),
+      };
+    });
+    export const other = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+      const { supabase } = context;
+      return supabase.from("user_reports").select("id, reason");
+    });
+  `;
+  const ENTRY: WithheldFactReviewed = {
+    file: FILE,
+    fn: "exportMyData",
+    table: "user_reports",
+    op: "select",
+    role: "authenticated",
+    columns: ["id", "reason"],
+    reason: "defekt grantu",
+  };
+  const LOCAL_SITE = `${FILE}: exportMyData: .from(posts).select(LOCAL)`;
+
+  it("wstrzymany DOKŁADNIE jeden fakt (plik, funkcja, tabela, operacja, rola, kolumny); reszta pliku - fakty, RPC i zapadka jak każdy kod", () => {
+    const f = facts({ [FILE]: CODE }, NO_CONTRACTS, [ENTRY]);
+    expect(f.withheld.map((w) => `${w.fn}: ${w.table}:${w.role}:${w.columns.join(",")}`)).toEqual([
+      "exportMyData: user_reports:authenticated:id,reason",
     ]);
-    expect(cut.tables.map((t) => t.file)).toEqual(["src/lib/other.functions.ts"]);
-    expect(cut.rpcs.map((r) => r.file)).toEqual(["src/lib/other.functions.ts"]);
-    expect(cut.coverage.excludedFiles).toEqual(["src/lib/profile/export.functions.ts"]);
-    expect(all.coverage.excludedFiles).toEqual([]);
+    expect(f.withheld[0].key).toBe(withheldKey(ENTRY));
+    // Kolumna dopisana do wstrzymanego odczytu (`widened`) i ten sam odczyt
+    // w innej funkcji (`other`) to INNE fakty - idą do pgTAP z rolą klienta.
+    expect(
+      f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}:${t.file}`),
+    ).toEqual([
+      `profile_badges:select:authenticated:badge,bogus_secret_col,created_at:${FILE}`,
+      `user_reports:select:authenticated:id,reason,reporter_id:${FILE}`,
+      `user_reports:select:authenticated:id,reason:${FILE}`,
+    ]);
+    expect(f.rpcs.map((r) => `${r.name}:${r.role}`)).toEqual([
+      "get_own_profile_nonexistent:authenticated",
+    ]);
+    expect(f.coverage.uncheckedSelects).toEqual([LOCAL_SITE]);
+    expect(f.coverage.withheldReviewed).toEqual([{ key: withheldKey(ENTRY), matched: 1 }]);
+    expect(seamCoverageProblems(f, { [LOCAL_SITE]: [1, "powód"] })).toEqual([]);
+    // Bez wpisu ten sam odczyt to zwykły fakt.
+    expect(facts({ [FILE]: CODE }).tables).toHaveLength(4);
+  });
+
+  it("wpis, który nie trafia w dokładnie jeden fakt, czerwieni zasięg (inna lista kolumn, rola, funkcja, plik; dwa trafienia)", () => {
+    const reviewed = { [LOCAL_SITE]: [1, "powód"] } as const;
+    for (const entry of [
+      { ...ENTRY, columns: ["id"] },
+      { ...ENTRY, role: "service_role" as const },
+      { ...ENTRY, fn: "other" },
+      { ...ENTRY, fn: "exportMyData.inner" },
+      { ...ENTRY, file: "src/lib/profile/other.functions.ts" },
+    ]) {
+      const f = facts({ [FILE]: CODE }, NO_CONTRACTS, [entry]);
+      const label = withheldKey(entry);
+      if (entry.fn === "other") {
+        // Ten sam tekst w innej funkcji: wstrzymany jest TAMTEN fakt, a odczyt
+        // z przeglądu (`exportMyData`) idzie do pgTAP.
+        expect(
+          f.withheld.map((w) => w.fn),
+          label,
+        ).toEqual(["other"]);
+        expect(
+          f.tables.filter((t) => t.table === "user_reports" && t.columns.join(",") === "id,reason"),
+          label,
+        ).toHaveLength(1);
+        continue;
+      }
+      expect(f.withheld, label).toEqual([]);
+      expect(f.tables, label).toHaveLength(4);
+      const problems = seamCoverageProblems(f, reviewed);
+      expect(problems, label).toHaveLength(1);
+      expect(problems[0]).toContain(`${label} (faktów: 0)`);
+    }
+    const twice = facts(
+      {
+        [FILE]: `
+          import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+          export const exportMyData = createServerFn().handler(async ({ context }) => {
+            const { supabase } = context;
+            await supabase.from("user_reports").select("id, reason");
+            return supabase.from("user_reports").select("reason, id");
+          });
+        `,
+      },
+      NO_CONTRACTS,
+      [ENTRY],
+    );
+    expect(twice.withheld).toHaveLength(2);
+    expect(seamCoverageProblems(twice)[0]).toContain(`${withheldKey(ENTRY)} (faktów: 2)`);
+  });
+
+  it("render: fakt wstrzymany idzie z rolą `unknown` - istnienie relacji i kolumn sprawdzane, uprawnienia nie", () => {
+    const f = facts(
+      {
+        [FILE]: `
+          import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+          export const exportMyData = createServerFn().handler(async ({ context }) => {
+            const { supabase } = context;
+            return supabase.from("user_reports").select("id, reason");
+          });
+        `,
+      },
+      NO_CONTRACTS,
+      [ENTRY],
+    );
+    expect(f.tables).toEqual([]);
+    const sql = renderContractTest(f);
+    expect(sql).toContain(
+      `('user_reports', 'select', 'unknown', ARRAY['id', 'reason']::text[], false, '${FILE}')`,
+    );
+    expect(sql).not.toContain("('user_reports', 'select', 'authenticated'");
   });
 });
 
@@ -1263,36 +1369,48 @@ describe("stan repozytorium", () => {
     expect(repo.coverage.parseErrors).toEqual([]);
   });
 
-  it("wyłączenia z ekstrakcji to DOKŁADNIE przejrzana lista plików, które istnieją", () => {
-    expect(repo.coverage.excludedFiles).toEqual(
-      Object.keys(SEAM_EXTRACTION_EXCLUDED_REVIEWED).sort(),
+  it("fakty wstrzymane to DOKŁADNIE przejrzana lista - każdy wpis trafia w jeden fakt, z powodem", () => {
+    // Pełny odcisk: plik, funkcja, operacja, tabela, rola, kolumny. Nowy
+    // wstrzymany fakt (albo inna lista kolumn) zmienia ten napis.
+    expect(
+      repo.withheld.map(
+        (w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`,
+      ),
+    ).toEqual([
+      "src/lib/profile/export.functions.ts: exportMyData: select user_reports dla authenticated [created_at,details,id,reason,reported_id,resolved_at,status]",
+    ]);
+    expect(repo.withheld.map((w) => w.key)).toEqual(SEAM_FACTS_WITHHELD_REVIEWED.map(withheldKey));
+    expect(repo.coverage.withheldReviewed.map((e) => e.matched)).toEqual(
+      SEAM_FACTS_WITHHELD_REVIEWED.map(() => 1),
     );
+    for (const entry of SEAM_FACTS_WITHHELD_REVIEWED) {
+      expect(entry.reason.length, withheldKey(entry)).toBeGreaterThan(200);
+      expect(entry.columns, withheldKey(entry)).toEqual([...entry.columns].sort());
+    }
   });
 
-  it("eksport danych RODO (`profile/export.functions.ts`) parsuje się i ma fakty - wyłączony wyłącznie przez wpis z defektem `user_reports`", () => {
-    // Do listopada 2026 plik parsowany jako TSX nie dawał ŻADNEGO faktu. Dziś
-    // parsuje się poprawnie, ale jego fakty czeka wpis w
-    // SEAM_EXTRACTION_EXCLUDED_REVIEWED: odczyt `user_reports` klientem
-    // użytkownika nie ma GRANT-u (sprawdzone lokalnie na schemacie po
-    // migracjach). Gdy plik przestanie czytać `user_reports` wprost - zdejmij
-    // wpis, a ten test przestanie przechodzić jako przypomnienie.
+  it("eksport danych RODO (`profile/export.functions.ts`): 32 odczyty i 13 RPC w kontrakcie, wstrzymany wyłącznie odczyt `user_reports`", () => {
+    // Do listopada 2026 plik parsowany jako TSX nie dawał ŻADNEGO faktu, a potem
+    // był wyłączony w całości przez defekt jednego odczytu. Dziś każdy jego
+    // odczyt i RPC idzie do pgTAP (sprawdzone lokalnie na schemacie po
+    // migracjach: wszystkie przechodzą), a wpis przeglądu wstrzymuje tylko
+    // uprawnienia `user_reports` (istnienie kolumn - nadal w pgTAP).
     const file = "src/lib/profile/export.functions.ts";
-    expect(repo.tables.filter((t) => t.file === file)).toEqual([]);
-    expect(repo.rpcs.filter((r) => r.file === file)).toEqual([]);
-    const own = extractSeamFacts([{ file, code: readFileSync(file, "utf8") }], NO_CONTRACTS, {});
-    expect(own.coverage.parseErrors).toEqual([]);
     expect(
-      own.tables.filter((t) => t.table === "user_reports").map((t) => t.columns.join(",")),
-    ).toEqual(["created_at,details,id,reason,reported_id,resolved_at,status"]);
-    const tables = own.tables;
-    expect(tables).toHaveLength(33);
+      repo.withheld.filter((w) => w.file === file).map((w) => `${w.table}:${w.columns.join(",")}`),
+    ).toEqual(["user_reports:created_at,details,id,reason,reported_id,resolved_at,status"]);
+    const tables = repo.tables.filter((t) => t.file === file);
+    expect(tables.filter((t) => t.table === "user_reports")).toEqual([]);
+    expect(tables).toHaveLength(32);
     expect(new Set(tables.map((t) => `${t.op}:${t.role}`))).toEqual(
       new Set(["select:authenticated"]),
     );
     expect(tables.filter((t) => t.star).map((t) => t.table)).toEqual(["notification_preferences"]);
-    const rpcs = own.rpcs;
+    const rpcs = repo.rpcs.filter((r) => r.file === file);
     expect(rpcs).toHaveLength(13);
     expect(new Set(rpcs.map((r) => r.role))).toEqual(new Set(["authenticated"]));
+    // Plik jest we wszechświecie zapadki `select` jak każdy inny.
+    expect(repo.coverage.uncheckedSelects.filter((site) => site.startsWith(file))).toEqual([]);
   });
 
   it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; wyłączone pliki to te z odczytem `profiles` bez grantu", () => {
@@ -1305,7 +1423,7 @@ describe("stan repozytorium", () => {
     const own = extractSeamFacts(
       [LOOSE_TABLE.module, ...files].map((file) => ({ file, code: readFileSync(file, "utf8") })),
       NO_CONTRACTS,
-      {},
+      [],
       {},
     );
     const withheld = own.tables

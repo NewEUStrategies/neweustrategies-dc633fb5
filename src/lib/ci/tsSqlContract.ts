@@ -49,6 +49,11 @@
 // Fałszywy alarm byłby tu gorszy niż luka - bramka, która krzyczy na stan
 // zgodny z bazą, zostaje wyłączona pierwszego dnia.
 //
+// Znany defekt grantu, którego bramka jeszcze nie może czerwienić (kod sprzed
+// niej), to wpis `SEAM_FACTS_WITHHELD_REVIEWED`: wstrzymuje uprawnienia
+// JEDNEGO faktu (plik, funkcja, tabela, operacja, rola, pełna lista kolumn),
+// nigdy pliku ani pomocnika.
+//
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
 // wycinkami kodu.
@@ -114,9 +119,25 @@ export interface PublicColumnFact extends PublicColumnContract {
   readonly columns: readonly string[] | null;
 }
 
+/**
+ * Fakt operacji na tabeli WSTRZYMANY w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`):
+ * kod go wnosi, ale jego uprawnień kontrakt nie sprawdza - to znany defekt
+ * grantu z nazwanym właścicielem naprawy. Istnienie relacji i kolumn sprawdza
+ * nadal (render z rolą `unknown`).
+ */
+export interface WithheldFact extends TableSite {
+  /** Ścieżka nazwanych funkcji wywołania (jak w kluczu zapadki `select`). */
+  readonly fn: string;
+  /** Klucz wpisu przeglądu, który go wstrzymał. */
+  readonly key: string;
+}
+
 export interface SeamFacts {
   readonly rpcs: readonly RpcSite[];
+  /** Fakty operacji na tabelach, które idą do pgTAP z rolą klienta. */
   readonly tables: readonly TableSite[];
+  /** Fakty wstrzymane wpisem przeglądu - DOKŁADNIE te, nic poza nimi. */
+  readonly withheld: readonly WithheldFact[];
   readonly literals: readonly LiteralWrite[];
   readonly conflicts: readonly ConflictTarget[];
   readonly publicColumns: readonly PublicColumnFact[];
@@ -147,8 +168,13 @@ export interface SeamFacts {
      * dać ŻADNEGO faktu - i nikt by o tym nie wiedział. Posortowane.
      */
     readonly parseErrors: readonly string[];
-    /** Pliki wejścia wyłączone z ekstrakcji (`SEAM_EXTRACTION_EXCLUDED_REVIEWED`). */
-    readonly excludedFiles: readonly string[];
+    /**
+     * Wpisy `SEAM_FACTS_WITHHELD_REVIEWED` i liczba faktów, które każdy
+     * wstrzymał. Przegląd dotyczył JEDNEGO faktu, więc każda inna liczba to
+     * problem zasięgu: 0 - wpis nieaktualny (kod już tego nie czyta albo
+     * zmienił kolumny), więcej - wpis wstrzymuje coś, czego nikt nie oglądał.
+     */
+    readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
 }
 
@@ -1532,6 +1558,9 @@ function builderTable(
 interface Collector {
   rpcs: RpcSite[];
   tables: TableSite[];
+  /** Wpisy przeglądu faktów wstrzymanych (wejście) i to, co wstrzymały. */
+  withheldReviewed: readonly WithheldFactReviewed[];
+  withheld: WithheldFact[];
   literals: LiteralWrite[];
   conflicts: ConflictTarget[];
   rpcCalls: number;
@@ -1833,8 +1862,13 @@ function handleBuilder(
     return;
   }
   out.tableChains += 1;
-  const site = (op: TableOp, columns: readonly string[], star: boolean): void => {
-    out.tables.push({ table, op, columns, star, role, file: scope.file });
+  const site = (
+    call: ts.CallExpression,
+    op: TableOp,
+    columns: readonly string[],
+    star: boolean,
+  ): void => {
+    pushTableFact(out, { table, op, columns, star, role, file: scope.file }, call, scope);
   };
 
   for (const chain of chains) {
@@ -1858,7 +1892,7 @@ function handleBuilder(
           );
         if (head) continue;
         if (arg === undefined) {
-          site("select", [], true);
+          site(call, "select", [], true);
           continue;
         }
         const flaggedBefore = flow.flagged;
@@ -1876,14 +1910,19 @@ function handleBuilder(
         for (const value of flowed ?? []) {
           const parsed = parseSelectColumns(value.text);
           if (parsed.star || parsed.columns.length > 0) {
-            out.tables.push({
-              table,
-              op: "select",
-              columns: parsed.columns,
-              star: parsed.star,
-              role,
-              file: value.file,
-            });
+            pushTableFact(
+              out,
+              {
+                table,
+                op: "select",
+                columns: parsed.columns,
+                star: parsed.star,
+                role,
+                file: value.file,
+              },
+              call,
+              scope,
+            );
           }
           if (hasRuntimeColumn(value.text)) {
             flow.unresolved.add(
@@ -1893,7 +1932,9 @@ function handleBuilder(
         }
         for (const select of viaHelper ?? (text === null ? [] : [text])) {
           const parsed = parseSelectColumns(select);
-          if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
+          if (parsed.star || parsed.columns.length > 0) {
+            site(call, "select", parsed.columns, parsed.star);
+          }
         }
         // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
         // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
@@ -1931,12 +1972,12 @@ function handleBuilder(
         }
         if (objects === null) continue;
         const shape = objectShape(objects, scope, exportsIndex, known);
-        site(kind, shape.keys, false);
+        site(call, kind, shape.keys, false);
         for (const lit of shape.literals) {
           out.literals.push({ table, column: lit.column, value: lit.value, file: scope.file });
         }
       } else if (op === "delete") {
-        site("delete", [], false);
+        site(call, "delete", [], false);
       }
     }
   }
@@ -1999,26 +2040,105 @@ function parseErrorsOf(scopes: ReadonlyMap<string, FileScope>): string[] {
   return out.sort();
 }
 
+// ── Fakty wstrzymane w przeglądzie (lista może TYLKO maleć) ─────────────────
+//
+// Reguła ekstrakcji czasem odsłania odczyt, którego schemat po migracjach nie
+// przepuszcza (sprawdzone lokalnie: `has_column_privilege`, zapytanie roli).
+// To defekt dla właściciela - faktu nie dopisujemy do pgTAP (CI czerwieniłoby
+// się na kodzie sprzed zmiany bramki), ale też NIE wyłączamy pliku: do
+// listopada 2026 wyłączenie całego pliku (`profile/export.functions.ts`)
+// i wszystkich `looseTable` dwóch plików CRM zdejmowało z kontraktu 32 odczyty,
+// 13 RPC i 25 wierszy (także zapisy z literałami), a nieistniejąca kolumna
+// dopisana do sąsiedniego odczytu, RPC o zmyślonej nazwie albo zapis
+// `crm_leads.stage = 'not_a_stage'` przechodziły CI.
+//
+// Wpis wstrzymuje DOKŁADNIE JEDEN fakt: plik, funkcja, tabela, operacja, rola
+// i PEŁNA lista kolumn. Wszystko inne w pliku - jak każdy kod: fakty do pgTAP,
+// `select` bez faktu do zapadki. Kolumna dopisana do wstrzymanego odczytu to
+// inny fakt (idzie do pgTAP z rolą klienta), a wpis, który nie trafia
+// w dokładnie jeden fakt, czerwieni `check:ts-sql-contract`. Wstrzymany fakt
+// renderuje się z rolą `unknown` - istnienie relacji i kolumn sprawdza pgTAP
+// dalej, wstrzymane są wyłącznie uprawnienia. Literały i cele onConflict
+// wstrzymanego zapisu - jak dotąd (osobne fakty).
+
+/** Wpis przeglądu: jeden fakt, którego uprawnień kontrakt świadomie nie sprawdza. */
+export interface WithheldFactReviewed {
+  readonly file: string;
+  /** Ścieżka nazwanych funkcji wywołania (`enclosingFunctionPath`, jak w kluczu zapadki). */
+  readonly fn: string;
+  readonly table: string;
+  readonly op: TableOp;
+  readonly role: ClientRole;
+  /** Kolumny faktu DOKŁADNIE (posortowane, bez `*`). */
+  readonly columns: readonly string[];
+  /** Defekt, właściwa naprawa i warunek zdjęcia wpisu - to czyta właściciel. */
+  readonly reason: string;
+}
+
+export function withheldKey(entry: Omit<WithheldFactReviewed, "reason">): string {
+  return `${entry.file}: ${entry.fn}: ${entry.op} ${entry.table} dla ${entry.role} [${entry.columns.join(",")}]`;
+}
+
+export const SEAM_FACTS_WITHHELD_REVIEWED: readonly WithheldFactReviewed[] = [
+  {
+    file: "src/lib/profile/export.functions.ts",
+    fn: "exportMyData",
+    table: "user_reports",
+    op: "select",
+    role: "authenticated",
+    columns: ["created_at", "details", "id", "reason", "reported_id", "resolved_at", "status"],
+    reason:
+      'Eksport danych RODO, sekcja `user_reports_filed`: `supabase.from("user_reports").select("id, reported_id, reason, details, status, created_at, resolved_at").eq("reporter_id", userId)` ' +
+      "klientem użytkownika. Migracje 20260717162432 i 20260717170000 robią `REVOKE ALL ON public.user_reports FROM PUBLIC, anon, authenticated` " +
+      "(tabela jest RPC-only), więc PostgREST oddaje 42501 i sekcja trafia do `errors`/`manifest.failed` w KAŻDYM eksporcie. " +
+      'Sam GRANT SELECT tych 7 kolumn NIE wystarczy (sprawdzone lokalnie: nadal 42501) - filtr `.eq("reporter_id", ...)` też wymaga SELECT na `reporter_id`. ' +
+      "Naprawa: GRANT SELECT (id, reporter_id, reported_id, reason, details, status, created_at, resolved_at) dla `authenticated` razem z istniejącą polityką RLS " +
+      "`user_reports_self_read` ALBO - zgodnie z projektem RPC-only tej tabeli - funkcja SECURITY DEFINER w rodzaju `my_user_reports` (zgłaszający z `auth.uid()`, " +
+      "nie z ładunku), przez którą pójdzie eksport. Zdjęcie wpisu: odczyty eksportu przechodzą na schemacie po migracjach (ten fakt w pgTAP bez wstrzymania).",
+  },
+];
+
+/** Kolumny wpisu i faktu są tą samą listą. */
+function sameColumns(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((c, i) => c === b[i]);
+}
+
 /**
- * Pliki, których zapytań kontrakt ŚWIADOMIE nie czyta (klucz: ścieżka,
- * wartość: powód z przeglądu i warunek zdjęcia wpisu). Plik jest parsowany
- * i podlega strażnikowi składni jak każdy inny - wyłączone są wyłącznie jego
- * fakty. Wpis to DŁUG z nazwanym defektem, nie zgoda: lista może TYLKO maleć.
+ * Fakt operacji na tabeli: do `tables` albo - gdy pasuje DOKŁADNIE do wpisu
+ * przeglądu (plik wywołania i literału ten sam) - do `withheld`.
  */
-export const SEAM_EXTRACTION_EXCLUDED_REVIEWED: Readonly<Record<string, string>> = {
-  "src/lib/profile/export.functions.ts":
-    "eksport danych RODO czyta `user_reports` (sekcja `user_reports_filed`: id, reported_id, reason, details, status, created_at, resolved_at) " +
-    "klientem użytkownika, a migracje 20260717162432 i 20260717170000 robią `REVOKE ALL ON public.user_reports FROM PUBLIC, anon, authenticated` " +
-    "bez grantu kolumnowego - polityka RLS `user_reports_self_read` istnieje, ale bez GRANT SELECT PostgREST oddaje 42501, więc sekcja trafia " +
-    "do `errors`/`manifest.failed` w KAŻDYM eksporcie. Fakt sprawdzony lokalnie (has_column_privilege = false dla 7 kolumn); pozostałe 32 odczyty " +
-    "i 13 RPC tego pliku przechodzą. Do zdjęcia, gdy migracja nada authenticated SELECT tych kolumn (albo sekcja pójdzie przez RPC właściciela).",
-};
+function pushTableFact(
+  out: Collector,
+  fact: TableSite,
+  call: ts.CallExpression,
+  scope: FileScope,
+): void {
+  if (fact.file === scope.file && !fact.star) {
+    const candidates = out.withheldReviewed.filter(
+      (e) =>
+        e.file === fact.file &&
+        e.table === fact.table &&
+        e.op === fact.op &&
+        e.role === fact.role &&
+        sameColumns(e.columns, fact.columns),
+    );
+    if (candidates.length > 0) {
+      const fn = enclosingFunctionPath(call);
+      const entry = candidates.find((e) => e.fn === fn);
+      if (entry !== undefined) {
+        out.withheld.push({ ...fact, fn, key: withheldKey(entry) });
+        return;
+      }
+    }
+  }
+  out.tables.push(fact);
+}
 
 /** Pełna ekstrakcja faktów szwu z kodu produkcyjnego. */
 export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
-  excluded: Readonly<Record<string, string>> = SEAM_EXTRACTION_EXCLUDED_REVIEWED,
+  withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
   looseExcluded: Readonly<Record<string, string>> = LOOSE_TABLE_EXCLUDED_REVIEWED,
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
@@ -2029,6 +2149,8 @@ export function extractSeamFacts(
   const out: Collector = {
     rpcs: [],
     tables: [],
+    withheldReviewed,
+    withheld: [],
     literals: [],
     conflicts: [],
     rpcCalls: 0,
@@ -2041,15 +2163,16 @@ export function extractSeamFacts(
   };
   const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
   for (const scope of scopes.values()) {
-    if (!(scope.file in excluded)) {
-      visitFile(scope, exportsIndex, known, out, flow, looseExcluded);
-    }
+    visitFile(scope, exportsIndex, known, out, flow, looseExcluded);
   }
   out.unresolved.push(...flow.unresolved);
+  const matched = new Map<string, number>();
+  for (const w of out.withheld) matched.set(w.key, (matched.get(w.key) ?? 0) + 1);
 
   return {
     rpcs: out.rpcs,
     tables: out.tables,
+    withheld: out.withheld,
     literals: out.literals,
     conflicts: out.conflicts,
     publicColumns: contracts.map((c) => readPublicColumns(c, scopes, known)),
@@ -2062,7 +2185,10 @@ export function extractSeamFacts(
       unresolvedSites: [...out.unresolved].sort(),
       uncheckedSelects: [...out.uncheckedSelects].sort(),
       parseErrors: parseErrorsOf(scopes),
-      excludedFiles: [...scopes.keys()].filter((file) => file in excluded).sort(),
+      withheldReviewed: withheldReviewed.map((entry) => {
+        const key = withheldKey(entry);
+        return { key, matched: matched.get(key) ?? 0 };
+      }),
     },
   };
 }
@@ -2325,6 +2451,16 @@ export function seamCoverageProblems(
         unresolved.map((site) => `        ${site}`).join("\n"),
     );
   }
+  // Wpis faktu wstrzymanego trafia w DOKŁADNIE jeden fakt: zero - kod już tak
+  // nie czyta (zdejmij wpis; dopisana kolumna to inny fakt, który i tak idzie
+  // do pgTAP), więcej - wpis wstrzymuje fakt, którego nikt nie oglądał.
+  const offTarget = facts.coverage.withheldReviewed.filter((entry) => entry.matched !== 1);
+  if (offTarget.length > 0) {
+    problems.push(
+      `${offTarget.length} wpisów SEAM_FACTS_WITHHELD_REVIEWED nie trafia w dokładnie jeden fakt (0 - nieaktualny, zdejmij; więcej - wstrzymuje fakt spoza przeglądu):\n` +
+        offTarget.map((entry) => `        ${entry.key} (faktów: ${entry.matched})`).join("\n"),
+    );
+  }
   const { fresh } = uncheckedSelectDrift(facts, reviewedUnchecked);
   if (fresh.length > 0) {
     problems.push(
@@ -2454,8 +2590,20 @@ export function renderContractTest(
 
   // Grupa = (tabela, operacja, rola, PLIK): naruszenie kolumny ma wskazywać
   // plik, który ją czyta, a nie wszystkie pliki dotykające tej tabeli.
+  // Fakt wstrzymany idzie z rolą `unknown`: istnienie relacji i kolumn
+  // sprawdzamy, uprawnień (znany defekt z wpisu przeglądu) - nie.
   const tableRows = groupBy(
-    facts.tables,
+    [
+      ...facts.tables,
+      ...facts.withheld.map((w): TableSite => ({
+        table: w.table,
+        op: w.op,
+        columns: w.columns,
+        star: w.star,
+        role: "unknown",
+        file: w.file,
+      })),
+    ],
     (t) => `${t.table}|${t.op}|${t.role}|${t.file}`,
     (t) => ({ key: t, value: { columns: new Set(t.columns), star: t.star } }),
     (v, t) => {
