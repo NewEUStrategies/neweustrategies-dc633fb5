@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RobotsTxtPreview } from "@/components/admin/seo/RobotsTxtPreview";
 import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, robotsUsagePolicy } from "@/lib/seo/crawlerPolicy";
+import { aiCrawlerGroups, robotsUsagePolicy } from "@/lib/seo/robots";
 import { DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
 import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 

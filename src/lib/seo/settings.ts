@@ -5,9 +5,9 @@
 // agrees on shape and fallbacks.
 //
 // Polityka crawlerów AI (grupy robots.txt, warunki cytowania) mieszka
-// w `crawlerPolicy.ts`: ten moduł jest w chunku startowym klienta, a import
+// w `robots.ts`: ten moduł jest w chunku startowym klienta, a import
 // `robots.ts` stąd wciągał do niego builder robots.txt. Nie importuj tu
-// `robots.ts` ani `crawlerPolicy.ts`.
+// `robots.ts` (zapadka: `bootAdminLeaves.gate.test.ts`).
 import { z } from "zod";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 

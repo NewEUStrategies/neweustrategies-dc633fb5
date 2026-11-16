@@ -24,8 +24,13 @@ import {
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import { planNewsSitemap } from "@/lib/seo/newsSitemap";
-import { buildRobotsTxt, type RobotsGroup, type RobotsUsagePolicy } from "@/lib/seo/robots";
-import { aiCrawlerGroups, robotsUsagePolicy } from "@/lib/seo/crawlerPolicy";
+import {
+  aiCrawlerGroups,
+  buildRobotsTxt,
+  robotsUsagePolicy,
+  type RobotsGroup,
+  type RobotsUsagePolicy,
+} from "@/lib/seo/robots";
 import { DEFAULT_SEO_SETTINGS, parseSeoSettings, type SeoSettings } from "@/lib/seo/settings";
 
 /** Polityka crawlowania jednego tenanta: mapy, grupy botów, warunki cytowania. */

@@ -20,7 +20,7 @@ import { buildImportGraph } from "../moduleImportGraph";
 /** Moduł bootu -> pliki, których jego statyczne domknięcie nie może zawierać. */
 const BOOT_MODULE_LEAVES: ReadonlyArray<readonly [string, readonly string[]]> = [
   // `robots.ts` też: builder robots.txt wołają tylko trasy serwerowe i podgląd panelu.
-  ["src/lib/seo/settings.ts", ["src/lib/seo/crawlerPolicy.ts", "src/lib/seo/robots.ts"]],
+  ["src/lib/seo/settings.ts", ["src/lib/seo/robots.ts"]],
   ["src/lib/builder/globalWidgets.ts", ["src/lib/builder/globalWidgetsAdmin.ts"]],
   ["src/lib/builder/experiments.ts", ["src/lib/builder/experimentsAdmin.ts"]],
   ["src/lib/builder/themed.ts", ["src/lib/builder/themedWrites.ts"]],
