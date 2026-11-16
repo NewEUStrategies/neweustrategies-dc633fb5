@@ -64,20 +64,23 @@ export type TocDefaults = z.infer<typeof TocDefaultsSchema>;
 export const TOC_DEFAULTS: TocDefaults = TocDefaultsSchema.parse({});
 export const TOC_SETTING_KEY = "toc_defaults";
 
-/** Nadpisanie per wpis/strona. `null` = użyj globalnych. */
-export const TocOverrideSchema = z
-  .object({
-    enabled: z.boolean().nullable().default(null),
-    layout: z.enum(TOC_LAYOUTS).nullable().default(null),
-    columns: z.enum(TOC_COLUMNS).nullable().default(null),
-    position: z.number().int().min(-1).max(20).nullable().default(null),
-    showInBody: z.boolean().nullable().default(null),
-    sticky: z.boolean().nullable().default(null),
-  })
-  .partial()
-  .nullable();
-
-export type TocOverride = z.infer<typeof TocOverrideSchema>;
+/**
+ * Nadpisanie per wpis/strona. `null` = użyj globalnych.
+ *
+ * TYP, NIE SCHEMAT ZOD: dawny `TocOverrideSchema` nie miał ani jednego
+ * wywołania (służył tylko za źródło `z.infer`), a bundler zostawiał jego
+ * budowę w chunku ustawień klienta jako gołe wywołanie. Alias niżej jest
+ * dokładnie tym, co dawało `z.infer` (pola częściowe i nullowalne, całość
+ * nullowalna).
+ */
+export type TocOverride = {
+  enabled?: boolean | null;
+  layout?: TocLayout | null;
+  columns?: TocColumns | null;
+  position?: number | null;
+  showInBody?: boolean | null;
+  sticky?: boolean | null;
+} | null;
 
 /** Scala globalne z per-wpis override. */
 export function mergeTocSettings(
