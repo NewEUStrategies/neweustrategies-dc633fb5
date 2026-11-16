@@ -1278,10 +1278,14 @@ describe("extractSeamFacts - fakty wstrzymane w przeglądzie (SEAM_FACTS_WITHHEL
     expect(facts({ [FILE]: CODE }).tables).toHaveLength(4);
   });
 
-  it("wpis, który nie trafia w dokładnie jeden fakt, czerwieni zasięg (inna lista kolumn, rola, funkcja, plik; dwa trafienia)", () => {
+  it("wpis, który nie trafia w dokładnie jeden fakt, czerwieni zasięg (inna lista kolumn, tabela, operacja, rola, funkcja, plik; dwa trafienia)", () => {
     const reviewed = { [LOCAL_SITE]: [1, "powód"] } as const;
     for (const entry of [
       { ...ENTRY, columns: ["id"] },
+      // Ta sama funkcja, rola i kolumny - inna tabela albo operacja to inny
+      // fakt: wpis nie może wstrzymać odczytu `user_reports` pod cudzym kluczem.
+      { ...ENTRY, table: "user_reports_other" },
+      { ...ENTRY, op: "update" as const },
       { ...ENTRY, role: "service_role" as const },
       { ...ENTRY, fn: "other" },
       { ...ENTRY, fn: "exportMyData.inner" },
