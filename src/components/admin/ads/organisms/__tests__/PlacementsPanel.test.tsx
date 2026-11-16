@@ -29,7 +29,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { axeViolations, summarize } from "@/test/axe";
-import { AD_SLOT_PICKER_COLUMNS, type AdPlacement, type AdSlot } from "@/lib/ads/types";
+import type { AdPlacement, AdSlot } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS } from "@/lib/ads/adminFields";
 
 /** Ksztalt pytania, ktore panel zadaje przed usunieciem (patrz `@/lib/appDialogs`). */
 type ConfirmDialogOptions = {

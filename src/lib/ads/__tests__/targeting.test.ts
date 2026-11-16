@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  adTargetingToJson,
-  hasContentTargeting,
-  matchesAdTargeting,
-  parseAdTargeting,
-} from "../types";
+import { adTargetingToJson } from "../adminFields";
+import { hasContentTargeting, matchesAdTargeting, parseAdTargeting } from "../types";
 
 const ctx = (over: Partial<Parameters<typeof matchesAdTargeting>[1]> = {}) => ({
   categorySlugs: [] as string[],

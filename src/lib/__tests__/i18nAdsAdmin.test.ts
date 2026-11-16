@@ -13,7 +13,7 @@ import {
   AD_PAGE_TYPE_LABEL_KEYS,
   AD_POSITION_LABEL_KEYS,
   AD_SLOT_KIND_LABEL_KEYS,
-} from "@/lib/ads/types";
+} from "@/lib/ads/adminFields";
 
 type Tree = { [key: string]: string | Tree };
 

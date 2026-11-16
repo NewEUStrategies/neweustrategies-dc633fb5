@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-ads-admin";
 import { supabase } from "@/integrations/supabase/client";
-import { AD_SLOT_PICKER_COLUMNS, type AdSlotPickerRow } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS, type AdSlotPickerRow } from "@/lib/ads/adminFields";
 
 // Impressions / clicks / CTR per slot. Reads ad_events via the staff-read RLS
 // (tenant-scoped); table not in generated types yet -> cast. A handful of slots,

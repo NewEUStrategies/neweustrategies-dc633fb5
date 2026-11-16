@@ -21,7 +21,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { fail, ok, okCount, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
 import { axeViolations, summarize } from "@/test/axe";
-import { AD_SLOT_PICKER_COLUMNS, type AdSlot } from "@/lib/ads/types";
+import type { AdSlot } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS } from "@/lib/ads/adminFields";
 
 const h = vi.hoisted(() => ({ from: null as unknown }));
 
