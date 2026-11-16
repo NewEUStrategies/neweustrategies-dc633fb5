@@ -1402,28 +1402,6 @@ function boundChains(top: ts.CallExpression): ts.CallExpression[][] {
 // nieczytelna (`looseTable(context, view)`): bez faktu, a każdy `select` na
 // tym budowniczym trafia do `uncheckedSelects` (zapadka listy przejrzanej).
 
-/**
- * Pliki, w których `looseTable` ŚWIADOMIE nie daje faktów (klucz: ścieżka,
- * wartość: defekt i warunek zdjęcia). Reguła odsłoniła tam odczyty BEZ grantu
- * na schemacie po migracjach (sprawdzone lokalnie, has_column_privilege),
- * czyli defekty dla właściciela - ich faktów nie dopisujemy do pgTAP (CI
- * czerwieniłoby się na kodzie sprzed tej zmiany) i nie przepuszczamy po
- * cichu: każdy `select` na `looseTable` tych plików jest pozycją zapadki
- * `UNCHECKED_SELECTS_REVIEWED`. Fakty `.from()` tych plików - jak dotąd.
- * Lista może TYLKO maleć.
- */
-export const LOOSE_TABLE_EXCLUDED_REVIEWED: Readonly<Record<string, string>> = {
-  "src/lib/crm.functions.ts":
-    '`looseTable(context, "profiles").select("avatar_url, email, contact_email")` (awatar profilu w karcie leada) - ' +
-    "`authenticated` nie ma SELECT na profiles.email ani profiles.contact_email, więc zapytanie pada na 42501, a błąd jest " +
-    "ignorowany (awatar zawsze pusty). Do zdjęcia po migracji z grantem albo po przeniesieniu odczytu na RPC/rolę serwisową.",
-  "src/lib/crm-companies.functions.ts":
-    '`looseTable(context, "profiles").select("..., location, ..., contact_email, ...").eq("current_company_id", ...)` ' +
-    "(osoby firmy w CRM) - `authenticated` nie ma SELECT na profiles.location, profiles.contact_email ani " +
-    "profiles.current_company_id (filtr), więc zapytanie pada na 42501. Do zdjęcia po migracji z grantem albo po " +
-    "przeniesieniu odczytu na RPC/rolę serwisową.",
-};
-
 /** Pomocnik i jego moduł (ścieżka repo). */
 export const LOOSE_TABLE = {
   helper: "looseTable",
@@ -1740,7 +1718,6 @@ function visitFile(
   known: ReadonlySet<string>,
   out: Collector,
   flow: FlowEnv,
-  looseExcluded: Readonly<Record<string, string>>,
 ): void {
   const selects: ts.CallExpression[] = [];
   const visit = (node: ts.Node): void => {
@@ -1750,7 +1727,7 @@ function visitFile(
         handleRpc(node, method.receiver, scope, exportsIndex, known, out);
       } else if (method?.name === "from" && node.arguments.length === 1) {
         handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
-      } else if (isLooseTableCall(node, scope, known) && !(scope.file in looseExcluded)) {
+      } else if (isLooseTableCall(node, scope, known)) {
         const role = looseSourceRole(node.arguments[0], scope);
         handleBuilder(node, node.arguments[1], role, false, scope, exportsIndex, known, out, flow);
       } else if (method?.name === "select") {
@@ -1762,9 +1739,8 @@ function visitFile(
   visit(scope.sf);
   // Wszechświat zapadki: KAŻDY `.select` na budowniczym Supabase, którego
   // przebieg wyżej nie obejrzał (budowniczy w `let` przypisywanym inaczej niż
-  // przedłużeniem, `looseTable` z tabelą nieczytelną albo w pliku
-  // z LOOSE_TABLE_EXCLUDED_REVIEWED, nazwa związana z budowniczym w innej
-  // funkcji...), trafia do `uncheckedSelects`.
+  // przedłużeniem, `looseTable` z tabelą nieczytelną, nazwa związana
+  // z budowniczym w innej funkcji...), trafia do `uncheckedSelects`.
   for (const call of selects) {
     if (out.visitedSelects.has(call)) continue;
     const receiver = (call.expression as ts.PropertyAccessExpression).expression;
@@ -2096,6 +2072,51 @@ export const SEAM_FACTS_WITHHELD_REVIEWED: readonly WithheldFactReviewed[] = [
       "`user_reports_self_read` ALBO - zgodnie z projektem RPC-only tej tabeli - funkcja SECURITY DEFINER w rodzaju `my_user_reports` (zgłaszający z `auth.uid()`, " +
       "nie z ładunku), przez którą pójdzie eksport. Zdjęcie wpisu: odczyty eksportu przechodzą na schemacie po migracjach (ten fakt w pgTAP bez wstrzymania).",
   },
+  {
+    file: "src/lib/crm-companies.functions.ts",
+    fn: "getCrmCompany",
+    table: "profiles",
+    op: "select",
+    role: "authenticated",
+    columns: [
+      "avatar_url",
+      "contact_email",
+      "discoverable",
+      "display_name",
+      "first_name",
+      "id",
+      "job_title",
+      "last_name",
+      "location",
+      "slug",
+    ],
+    reason:
+      'Członkowie firmy w karcie firmy CRM: `looseTable(context, "profiles").select("id, display_name, first_name, last_name, avatar_url, job_title, location, slug, contact_email, discoverable")' +
+      '.eq("current_company_id", data.id)` klientem użytkownika. Kolumny `location` i `contact_email` są CELOWO odebrane `authenticated` (poprawka PII P1, ' +
+      "migracja 20260724090100_fix_profiles_authenticated_pii_and_anon_view.sql, pilnuje jej supabase/tests/profiles_pii_grant_test.sql), a filtr `current_company_id` " +
+      "nie ma grantu kolumnowego wcale (kolumna z 20260721200229, sprzed odebrania SELECT tabelowego). Zapytanie pada na 42501, a kod błąd połyka " +
+      "(`rowsOf` na wyniku z błędem daje `[]`), więc lista członków w karcie firmy jest ZAWSZE pusta. NIGDY nie nadawać tych kolumn `authenticated`: " +
+      "odczyt przenieść na ścieżkę roli serwisowej (albo SECURITY DEFINER) ze sprawdzeniem personelu CRM i najemcą z sesji, nie z ładunku " +
+      '(wzór: `listStaffUsers` i `getCrmLeadAvatars` w crm.functions.ts - `requireCrmStaff`, najemca z `resolveCallerTenantId`, `.eq("tenant_id", ...)` ' +
+      "na każdym zapytaniu roli serwisowej). Zdjęcie wpisu: kod przestaje czytać `profiles` klientem użytkownika w tej funkcji.",
+  },
+  {
+    file: "src/lib/crm.functions.ts",
+    fn: "getCrmLead",
+    table: "profiles",
+    op: "select",
+    role: "authenticated",
+    columns: ["avatar_url", "contact_email", "email"],
+    reason:
+      'Awatar członka w karcie leada CRM: `looseTable(context, "profiles").select("avatar_url, email, contact_email")' +
+      '.or("email.ilike.<e-mail leada>,contact_email.ilike.<e-mail leada>")` klientem użytkownika. Kolumny `email` i `contact_email` są CELOWO odebrane ' +
+      "`authenticated` (poprawka PII P1, migracja 20260724090100_fix_profiles_authenticated_pii_and_anon_view.sql, pilnuje jej " +
+      "supabase/tests/profiles_pii_grant_test.sql). Zapytanie pada na 42501, a kod błąd połyka (czyta tylko `data`), więc awatar członka w karcie leada " +
+      "jest ZAWSZE pusty. NIGDY nie nadawać tych kolumn `authenticated`: odczyt przenieść na ścieżkę roli serwisowej (albo SECURITY DEFINER) ze " +
+      "sprawdzeniem personelu CRM i najemcą z sesji, nie z ładunku (wzór: `getCrmLeadAvatars` i `listStaffUsers` w tym pliku - `requireCrmStaff`, najemca " +
+      'z `resolveCallerTenantId`, `.eq("tenant_id", ...)` na każdym zapytaniu roli serwisowej). Zdjęcie wpisu: kod przestaje czytać ' +
+      "`profiles` klientem użytkownika w tej funkcji.",
+  },
 ];
 
 /** Kolumny wpisu i faktu są tą samą listą. */
@@ -2139,7 +2160,6 @@ export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
   withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
-  looseExcluded: Readonly<Record<string, string>> = LOOSE_TABLE_EXCLUDED_REVIEWED,
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
   const scopes = new Map<string, FileScope>();
@@ -2163,7 +2183,7 @@ export function extractSeamFacts(
   };
   const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
   for (const scope of scopes.values()) {
-    visitFile(scope, exportsIndex, known, out, flow, looseExcluded);
+    visitFile(scope, exportsIndex, known, out, flow);
   }
   out.unresolved.push(...flow.unresolved);
   const matched = new Map<string, number>();
@@ -2215,10 +2235,8 @@ const LANG_SUFFIX =
   "kolumny zależne od języka czasu działania (`title_${t}`, `titleCol` z warunku) - dwa warianty, generator nie rozgałęzia";
 const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie rozgałęzia';
 
-const LOOSE_EXCLUDED =
-  "`looseTable` w pliku z LOOSE_TABLE_EXCLUDED_REVIEWED - reguła odsłoniła tam odczyt `profiles` bez grantu dla `authenticated` (defekt dla właściciela), więc fakty pliku czekają na naprawę";
 const LOOSE_VIEW =
-  "tabela z warunku (`view`: `crm_leads` / `crm_leads_all`) - generator nie rozgałęzia; plik i tak w LOOSE_TABLE_EXCLUDED_REVIEWED";
+  "`looseTable(context, view)` z tabelą z warunku (`crm_leads` / `crm_leads_all`) - generator nie rozgałęzia";
 const VIA_CONDITIONAL =
   "RETURNING zapisu na budowniczym przez warunek (`c ? q.is(...) : q.gt(...)`, `(c ? q.eq(...) : q).select(...)`) - generator nie prowadzi łańcucha przez warunek";
 
@@ -2255,106 +2273,14 @@ export const UNCHECKED_SELECTS_REVIEWED: Readonly<
     ],
   'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(subscriptions).select(SUBSCRIPTION_REF_COLUMNS.join(", "))':
     [1, '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej'],
-  'src/lib/crm-companies.functions.ts: createCrmCompany: .from(crm_companies).select("id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm-companies.functions.ts: createCrmCompany: .from(profiles).select("tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm-companies.functions.ts: createCrmContactForCompany: .from(crm_companies).select("tenant_id")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: createCrmContactForCompany: .from(crm_leads).select("id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm-companies.functions.ts: detachCompaniesFromMembers: .from(crm_companies).select("id, tenant_id")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(crm_companies).select("*")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(crm_leads).select("id, email, first_name, last_name, phone, position, stage, tags, score, score_ba)':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: getCrmCompany: .from(profiles).select("id, display_name, first_name, last_name, avatar_url, job_title, location, slug,)':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(audit_log).select("id, action, entity_type, entity_id, metadata, actor_id, created_at")':
-    [2, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(crm_lead_notes).select("id, body, lead_id, author_id, created_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: getCrmCompanyActivity: .from(crm_leads).select("id, email, first_name, last_name, created_at, last_activity_at, stage")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: listCrmCompanies: .from(crm_companies).select("id, name, domain, country, branch, city, website, phone, address, postal_code, )':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm-companies.functions.ts: syncCompanyMembersById: .from(crm_companies).select("tenant_id, name")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: buildLeadTimeline: .from(audit_log).select("id, action, actor_id, metadata, created_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: buildLeadTimeline: .from(contact_messages).select("id, form_name, form_type, subject, message, page_url, lang, created_at")':
-    [1, LOOSE_EXCLUDED],
   "src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_consent_log).select(CONSENT_LOG_TIMELINE_SELECT)":
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_lead_notes).select("id, body, author_id, created_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_leads).select("*")': [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: buildLeadTimeline: .from(newsletter_subscribers).select("id, status, source_form_name, confirmed_at, created_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: bulkUpdateCrmLeads: .from(crm_leads).select("id, tags")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
+    [
+      1,
+      '`CONSENT_LOG_TIMELINE_COLUMNS.join(", ")` (`crm/consentLog.ts`) - napis składany z tablicy; generator nie składa tablic',
+    ],
   'src/lib/crm.functions.ts: exportCrmLeadsCsv: .from(?).select("*")': [1, LOOSE_VIEW],
-  'src/lib/crm.functions.ts: getCrmLead: .from(contact_messages).select("id, form_type, form_id, form_name, subject, message, lang, source, page_url, re)':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLead: .from(crm_consent_log).select("*")': [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLead: .from(crm_lead_notes).select("id, body, author_id, created_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLead: .from(crm_leads).select("*")': [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLead: .from(newsletter_subscribers).select("id, status, source, source_form_id, source_form_name, language, ip, consents, c)':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLead: .from(profiles).select("avatar_url, email, contact_email")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLeadAvatars: .from(crm_leads).select("id, email, email_norm")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: getCrmLeadMembership: .from(crm_leads).select("email, tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: getCrmLeadMonthlyMetering: .from(crm_leads).select("email, tenant_id")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmLeadProfileSync: .from(crm_leads).select("email, tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: getCrmLeadStageHistory: .from(crm_lead_stage_history).select("id, dimension, from_value, to_value, source, actor_id, journey_id, changed_at")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: getCrmScoringSettings: .from(crm_scoring_settings).select("*")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
   'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")': [1, LOOSE_VIEW],
   "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)": [1, LOCAL_CONST],
-  'src/lib/crm.functions.ts: resolveCallerTenantId: .from(profiles).select("tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: updateCrmLead: .from(crm_companies).select("id, tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: updateCrmLead: .from(crm_leads).select("id, tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
-  'src/lib/crm.functions.ts: upsertCrmScoringSettings: .from(crm_scoring_settings).select("tenant_id")':
-    [1, LOOSE_EXCLUDED],
-  'src/lib/crm.functions.ts: upsertCrmScoringSettings: .from(profiles).select("tenant_id")': [
-    1,
-    LOOSE_EXCLUDED,
-  ],
   "src/lib/experts/queries.ts: fetchExpertHubLegacy: .from(profiles_public).select(PROFILE_COLS)": [
     2,
     LOCAL_CONST,

@@ -21,7 +21,6 @@ import {
   COLUMN_FLOW_MAX_DEPTH,
   MAX_UNRESOLVED_SITES,
   LOOSE_TABLE,
-  LOOSE_TABLE_EXCLUDED_REVIEWED,
   SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
@@ -43,13 +42,11 @@ function facts(
   files: Record<string, string>,
   contracts = NO_CONTRACTS,
   withheld: readonly WithheldFactReviewed[] = [],
-  looseExcluded: Readonly<Record<string, string>> = {},
 ) {
   return extractSeamFacts(
     Object.entries(files).map(([file, code]) => ({ file, code })),
     contracts,
     withheld,
-    looseExcluded,
   );
 }
 
@@ -1010,29 +1007,45 @@ describe("extractSeamFacts - wszechświat `select` (każdy `select` na budownicz
     ]);
   });
 
-  it("plik w LOOSE_TABLE_EXCLUDED_REVIEWED: `looseTable` bez faktów, a KAŻDY jego `select` w zapadce; `.from()` pliku - jak dotąd", () => {
+  it("`looseTable` w pliku CRM: wpis wstrzymuje WYŁĄCZNIE odczyt `profiles` z przeglądu; zapisy, literały i inne odczyty `looseTable` idą do pgTAP", () => {
+    // Dawniej rejestr plikowy (LOOSE_TABLE_EXCLUDED_REVIEWED) zdejmował KAŻDY
+    // fakt `looseTable` pliku - weryfikator przepuścił przez CI
+    // `looseTable(context, "profiles").update({ tenant_id })` i zapis
+    // `crm_leads.stage = "not_a_stage"` z nieistniejącą kolumną.
+    const file = "src/lib/crm.functions.ts";
     const code = `${LOOSE}${HEADER}
-      export const get = createServerFn().handler(async ({ context }) => {
+      export const get = createServerFn().handler(async ({ context, data }) => {
         await looseTable(context, "profiles").select("avatar_url, email");
-        await looseTable(context, "crm_tasks").insert({ title: "x" });
+        await looseTable(context, "profiles").select("tenant_id");
+        await looseTable(context, "profiles").update({ tenant_id: data.tenantId }).eq("id", data.id);
+        await looseTable(context, "crm_leads").insert({ stage: "not_a_stage", bogus_col: 1 });
         return supabase.from("posts").select("id");
       });
     `;
-    const files = { ...LOOSE_MODULE, "src/lib/crm.functions.ts": code };
-    const open = facts(files);
-    const cut = facts(files, NO_CONTRACTS, [], {
-      "src/lib/crm.functions.ts": "defekt grantu",
-    });
-    expect(open.tables.map((t) => `${t.table}:${t.op}`)).toEqual([
-      "profiles:select",
-      "crm_tasks:insert",
-      "posts:select",
+    const entry: WithheldFactReviewed = {
+      file,
+      fn: "get",
+      table: "profiles",
+      op: "select",
+      role: "authenticated",
+      columns: ["avatar_url", "email"],
+      reason: "defekt grantu",
+    };
+    const f = facts({ ...LOOSE_MODULE, [file]: code }, NO_CONTRACTS, [entry]);
+    expect(f.withheld.map((w) => `${w.table}:${w.op}:${w.role}:${w.columns.join(",")}`)).toEqual([
+      "profiles:select:authenticated:avatar_url,email",
     ]);
-    expect(open.coverage.uncheckedSelects).toEqual([]);
-    expect(cut.tables.map((t) => `${t.table}:${t.op}`)).toEqual(["posts:select"]);
-    expect(cut.coverage.uncheckedSelects).toEqual([
-      'src/lib/crm.functions.ts: get: .from(profiles).select("avatar_url, email")',
+    expect(f.tables.map((t) => `${t.table}:${t.op}:${t.role}:${t.columns.join(",")}`)).toEqual([
+      "profiles:select:authenticated:tenant_id",
+      "profiles:update:authenticated:tenant_id",
+      "crm_leads:insert:authenticated:bogus_col,stage",
+      "posts:select:authenticated:id",
     ]);
+    expect(f.literals).toEqual([
+      { table: "crm_leads", column: "stage", value: "not_a_stage", file },
+    ]);
+    expect(f.coverage.uncheckedSelects).toEqual([]);
+    expect(seamCoverageProblems(f)).toEqual([]);
   });
 });
 
@@ -1373,13 +1386,17 @@ describe("stan repozytorium", () => {
     // Pełny odcisk: plik, funkcja, operacja, tabela, rola, kolumny. Nowy
     // wstrzymany fakt (albo inna lista kolumn) zmienia ten napis.
     expect(
-      repo.withheld.map(
-        (w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`,
-      ),
+      repo.withheld
+        .map((w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`)
+        .sort(),
     ).toEqual([
+      "src/lib/crm-companies.functions.ts: getCrmCompany: select profiles dla authenticated [avatar_url,contact_email,discoverable,display_name,first_name,id,job_title,last_name,location,slug]",
+      "src/lib/crm.functions.ts: getCrmLead: select profiles dla authenticated [avatar_url,contact_email,email]",
       "src/lib/profile/export.functions.ts: exportMyData: select user_reports dla authenticated [created_at,details,id,reason,reported_id,resolved_at,status]",
     ]);
-    expect(repo.withheld.map((w) => w.key)).toEqual(SEAM_FACTS_WITHHELD_REVIEWED.map(withheldKey));
+    expect(repo.withheld.map((w) => w.key).sort()).toEqual(
+      SEAM_FACTS_WITHHELD_REVIEWED.map(withheldKey).sort(),
+    );
     expect(repo.coverage.withheldReviewed.map((e) => e.matched)).toEqual(
       SEAM_FACTS_WITHHELD_REVIEWED.map(() => 1),
     );
@@ -1413,32 +1430,71 @@ describe("stan repozytorium", () => {
     expect(repo.coverage.uncheckedSelects.filter((site) => site.startsWith(file))).toEqual([]);
   });
 
-  it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; wyłączone pliki to te z odczytem `profiles` bez grantu", () => {
+  it("`looseTable` - nazwa i moduł pomocnika są prawdziwe; w plikach CRM wstrzymane WYŁĄCZNIE dwa odczyty `profiles`, reszta (także zapisy i literały) w pgTAP", () => {
     const source = readFileSync(LOOSE_TABLE.module, "utf8");
     expect(source).toMatch(new RegExp(`export function ${LOOSE_TABLE.helper}\\(`));
-    // Fakty, które wstrzymuje LOOSE_TABLE_EXCLUDED_REVIEWED (sprawdzone
-    // lokalnie: `authenticated` nie ma SELECT na tych kolumnach `profiles`).
-    // Gdy kod przestanie je czytać klientem użytkownika - zdejmij wpis.
-    const files = Object.keys(LOOSE_TABLE_EXCLUDED_REVIEWED).sort();
-    const own = extractSeamFacts(
-      [LOOSE_TABLE.module, ...files].map((file) => ({ file, code: readFileSync(file, "utf8") })),
-      NO_CONTRACTS,
-      [],
-      {},
-    );
-    const withheld = own.tables
-      .filter((t) => t.table === "profiles" && t.role === "authenticated" && t.op === "select")
-      .map((t) => `${t.file}: ${t.columns.filter((c) => /email|location/.test(c)).join(",")}`)
-      .filter((entry) => !entry.endsWith(": "));
-    expect(withheld).toEqual([
-      "src/lib/crm-companies.functions.ts: contact_email,location",
-      "src/lib/crm.functions.ts: contact_email,email",
+    const crm = ["src/lib/crm-companies.functions.ts", "src/lib/crm.functions.ts"];
+    const inCrm = (file: string) => crm.includes(file);
+    // Odczyty `profiles` klientem użytkownika z kolumnami celowo odebranymi
+    // `authenticated` (sprawdzone lokalnie) - wstrzymane, z powodem we wpisie.
+    expect(
+      repo.withheld
+        .filter((w) => inCrm(w.file))
+        .map((w) => `${w.file}: ${w.fn}: ${w.op} ${w.table} dla ${w.role} [${w.columns.join(",")}]`)
+        .sort(),
+    ).toEqual([
+      "src/lib/crm-companies.functions.ts: getCrmCompany: select profiles dla authenticated [avatar_url,contact_email,discoverable,display_name,first_name,id,job_title,last_name,location,slug]",
+      "src/lib/crm.functions.ts: getCrmLead: select profiles dla authenticated [avatar_url,contact_email,email]",
     ]);
-    // Bez wyłączenia te pliki NIE wnoszą `select` do zapadki z `looseTable`.
-    expect(own.coverage.uncheckedSelects.filter((s) => !s.includes("listStaffUsers"))).toEqual([
+    // Pozostałe odczyty `profiles` klientem użytkownika w tych plikach (najemca
+    // wołającego) idą do pgTAP - i nie niosą kolumn PII.
+    expect(
+      repo.tables
+        .filter((t) => inCrm(t.file) && t.table === "profiles" && t.role === "authenticated")
+        .map((t) => `${t.file}: ${t.op} [${t.columns.join(",")}]`)
+        .sort(),
+    ).toEqual([
+      "src/lib/crm-companies.functions.ts: select [tenant_id]",
+      "src/lib/crm.functions.ts: select [tenant_id]",
+      "src/lib/crm.functions.ts: select [tenant_id]",
+    ]);
+    // Zapisy i odczyty `looseTable` tych plików są faktami kontraktu.
+    const ops = new Set(
+      repo.tables
+        .filter((t) => inCrm(t.file) && t.role === "authenticated")
+        .map((t) => `${t.file}: ${t.op} ${t.table}`),
+    );
+    for (const expected of [
+      "src/lib/crm-companies.functions.ts: delete crm_companies",
+      "src/lib/crm-companies.functions.ts: insert audit_log",
+      "src/lib/crm-companies.functions.ts: insert crm_companies",
+      "src/lib/crm-companies.functions.ts: insert crm_leads",
+      "src/lib/crm-companies.functions.ts: select crm_leads",
+      "src/lib/crm.functions.ts: delete crm_lead_notes",
+      "src/lib/crm.functions.ts: delete crm_leads",
+      "src/lib/crm.functions.ts: insert audit_log",
+      "src/lib/crm.functions.ts: insert crm_lead_notes",
+      "src/lib/crm.functions.ts: insert crm_scoring_settings",
+      "src/lib/crm.functions.ts: select crm_leads",
+      "src/lib/crm.functions.ts: update crm_leads",
+    ]) {
+      expect(ops.has(expected), expected).toBe(true);
+    }
+    expect(repo.literals).toContainEqual({
+      table: "crm_leads",
+      column: "stage",
+      value: "new",
+      file: "src/lib/crm-companies.functions.ts",
+    });
+    // Zapadka `select` z tych plików: tylko miejsca, których reguła nie umie
+    // odczytać (tabela z warunku, tablica `join`, stała funkcji).
+    expect(
+      repo.coverage.uncheckedSelects.filter((site) => crm.some((f) => site.startsWith(f))),
+    ).toEqual([
       "src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_consent_log).select(CONSENT_LOG_TIMELINE_SELECT)",
       'src/lib/crm.functions.ts: exportCrmLeadsCsv: .from(?).select("*")',
       'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")',
+      "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)",
     ]);
   });
 
