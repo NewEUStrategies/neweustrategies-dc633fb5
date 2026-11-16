@@ -680,15 +680,64 @@ function readsOfBinding(name: ts.BindingName, use: NamespaceUse): void {
   }
 }
 
-/** Odczyty przez nazwę `id` (parametr, stała, import przestrzeni) w jej funkcji albo pliku. */
-function readsOfIdentifier(id: ts.Identifier, use: NamespaceUse): void {
-  let scope: ts.Node = id.getSourceFile();
-  for (let current = id.parent; current; current = current.parent) {
-    if (ts.isFunctionLike(current) || ts.isSourceFile(current)) {
-      scope = current;
-      break;
+/** Najbliższa funkcja albo plik nad węzłem. */
+function functionScope(node: ts.Node): ts.Node {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current) || ts.isSourceFile(current)) return current;
+  }
+  return node.getSourceFile();
+}
+
+/**
+ * Zasięg LEKSYKALNY wiązania `id` - węzeł, w którym nazwa oznacza to wiązanie:
+ * blok `let`/`const` (także pętla `for` i klauzula `catch`), funkcja dla
+ * parametru i `var`, plik dla importu. Odczyty liczymy wyłącznie w nim.
+ *
+ * Dawniej zasięgiem była zawsze najbliższa funkcja: przy
+ * `if (a) { const m = await import("./a"); m.x(); } return m.T;` - gdzie
+ * zewnętrzne `m` jest wiązane POZA funkcją (import, parametr funkcji
+ * zewnętrznej) - funkcja miała jedno wiązanie `m`, więc `m.T` spoza bloku
+ * uchodził za odczyt `./a` i schemat `T` był fałszywie żywy.
+ */
+function bindingScope(id: ts.Identifier): ts.Node {
+  let decl: ts.Node = id.parent;
+  while (
+    ts.isBindingElement(decl) ||
+    ts.isObjectBindingPattern(decl) ||
+    ts.isArrayBindingPattern(decl)
+  ) {
+    decl = decl.parent;
+  }
+  if (ts.isParameter(decl)) return decl.parent;
+  if (ts.isCatchClause(decl.parent) && decl.parent.variableDeclaration === decl) {
+    return decl.parent;
+  }
+  if (ts.isVariableDeclaration(decl) && ts.isVariableDeclarationList(decl.parent)) {
+    const list = decl.parent;
+    if (!(list.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const))) return functionScope(list);
+    const owner = list.parent;
+    // `for (const m of ...)` - pętla; `const m = ...;` - blok, plik albo `case`.
+    if (ts.isForStatement(owner) || ts.isForOfStatement(owner) || ts.isForInStatement(owner)) {
+      return owner;
+    }
+    for (let current: ts.Node = owner.parent; current; current = current.parent) {
+      if (
+        ts.isBlock(current) ||
+        ts.isSourceFile(current) ||
+        ts.isCaseBlock(current) ||
+        ts.isModuleBlock(current) ||
+        ts.isFunctionLike(current)
+      ) {
+        return current;
+      }
     }
   }
+  return functionScope(id);
+}
+
+/** Odczyty przez nazwę `id` (parametr, stała, import przestrzeni) w zasięgu jej wiązania. */
+function readsOfIdentifier(id: ts.Identifier, use: NamespaceUse): void {
+  const scope = bindingScope(id);
   // Nazwa przesłonięta albo przypisywana: nie wiadomo, który obiekt czyta odczyt.
   if (countBindings(scope, id.text) !== 1 || isWritten(scope, id.text)) {
     escapeAt(id, use);

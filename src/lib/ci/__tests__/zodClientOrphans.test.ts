@@ -356,6 +356,50 @@ describe("findZodClientOrphans - odczyty po nazwie (`import()`, reeksporty, prze
     expect(reviewed.escapes.map((e) => e.reviewed)).toEqual([true, true]);
   });
 
+  it("`const m = await import()` w bloku: odczyt `m.X` POZA blokiem to inne wiązanie, nie odczyt modułu (`var` - cała funkcja)", () => {
+    // Zewnętrzne `m` jest wiązane poza funkcją (parametr funkcji zewnętrznej),
+    // więc w funkcji jest JEDNO wiązanie `m` - dawniej to wystarczało, żeby
+    // `m.TypeOnly` spoza bloku liczył się jako odczyt `@/lib/a`.
+    const report = zodClientReport(
+      Object.entries({
+        "src/router.tsx": `
+          export function outer(m: { TypeOnly: unknown }) {
+            return async function inner(flag: boolean) {
+              if (flag) {
+                const m = await import("@/lib/a");
+                m.Read.parse("");
+              }
+              return m.TypeOnly;
+            };
+          }
+          export async function hoisted(flag: boolean) {
+            if (flag) {
+              var v = await import("@/lib/b");
+            }
+            return v.Hoisted.parse("");
+          }
+          export async function sibling(flag: boolean) {
+            if (flag) {
+              const s = await import("@/lib/c");
+              return s.InBlock.parse("");
+            }
+            return import("@/lib/c").then((s) => s.ViaThen.parse(""));
+          }
+        `,
+        "src/lib/a.ts": `${ZOD}\nexport const Read = z.string();\nexport const TypeOnly = z.string();`,
+        "src/lib/b.ts": `${ZOD}\nexport const Hoisted = z.string();`,
+        "src/lib/c.ts": `${ZOD}\nexport const InBlock = z.string();\nexport const ViaThen = z.string();\nexport const Unread = z.string();`,
+      }).map(([file, code]) => ({ file, code })),
+      ["src/router.tsx"],
+      {},
+    );
+    expect(report.orphans.map((o) => `${o.reason} ${o.file}:${o.name}`)).toEqual([
+      "brak-odczytu src/lib/a.ts:TypeOnly",
+      "brak-odczytu src/lib/c.ts:Unread",
+    ]);
+    expect(report.escapes).toEqual([]);
+  });
+
   it("nazwa przestrzeni przesłonięta albo rozkład `...rest` - ucieczka, nie zgadywanie", () => {
     const report = zodClientReport(
       [
