@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { reasonBadgeKey } from "@/components/readingList/atoms/reasonBadge";
 import { localizedTitle } from "@/components/readingList/atoms/savedTitle";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
 
 /** Wspólny podzbiór kolumn wpisu, jakiego potrzebuje karta. */
 export interface ReadingListCardPost {
@@ -22,6 +23,12 @@ export interface ReadingListCardPost {
   excerpt_pl: string | null;
   excerpt_en: string | null;
   cover_image_url: string | null;
+  /**
+   * Strona-rodzic z osadzenia (tylko zakładka „zapisane": odczyt tabeli
+   * `posts`). Z niej karta liczy adres kanoniczny (`postHref`); wiersze RPC
+   * rekomendacji i feedu go nie niosą, więc zostają przy `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 
 export function ReadingListPostCard({
@@ -41,7 +48,7 @@ export function ReadingListPostCard({
   const badgeKey = reasonBadgeKey(reasons);
   return (
     <article className="group">
-      <Link to="/post/$slug" params={{ slug: post.slug }} className="block">
+      <Link to={postHref(post)} className="block">
         {post.cover_image_url && (
           <div className="aspect-[16/10] overflow-hidden rounded-lg mb-3 bg-muted">
             <img
