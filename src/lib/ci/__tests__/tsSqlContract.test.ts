@@ -327,6 +327,54 @@ describe("extractSeamFacts - readPostsWithParentPage", () => {
     expect(posts).toEqual([]);
   });
 
+  it("parametr przesłonięty WEWNĄTRZ funkcji (blok, `catch`) - brak faktu, a nie fałszywy fakt", () => {
+    // Bez sprawdzenia, że nazwa parametru jest w funkcji wiązana tylko raz,
+    // reguła przypisałaby `.select(columns)` kolumny od pomocnika, choć
+    // zapytanie wysyła wartość wiązaną bliżej - fakt ukryłby kolumnę, którą
+    // zapytanie naprawdę czyta.
+    const { posts } = postFacts(`
+      await readPostsWithParentPage((columns: string) => {
+        { const columns = "id, body_secret"; return supabase.from("posts").select(columns); }
+      }, "id, slug");
+      await readPostsWithParentPage((columns: string) => {
+        try { return load(); } catch (columns) { return supabase.from("posts").select(columns); }
+      }, "id, slug");
+    `);
+    expect(posts).toEqual([]);
+  });
+
+  it("strzałka w nawiasach albo z `as` - nadal oddana pomocnikowi, fakty są", () => {
+    const { posts } = postFacts(`
+      type Read = (columns: string) => unknown;
+      await readPostsWithParentPage(((columns: string) => supabase.from("posts").select(columns)), "id");
+      await readPostsWithParentPage(((columns: string) => supabase.from("posts").select(columns)) as Read, "slug");
+    `);
+    expect(posts.map((p) => p.columns)).toEqual([["id"], ["id"], ["slug"], ["slug"]]);
+  });
+
+  it("inny eksport modułu pomocnika (`readWithPostParentPage`) to nie ten kształt - brak faktu", () => {
+    const { posts } = postFacts(
+      `
+      import { readWithPostParentPage } from "@/lib/routing/postParentPageRead";
+      await readWithPostParentPage((columns: string) => supabase.from("posts").select(columns), "id, slug");
+    `,
+      {
+        [POST_PARENT_PAGE_READ.module]:
+          HELPER_MODULES[POST_PARENT_PAGE_READ.module] +
+          "\nexport function readWithPostParentPage(a, b) {}",
+      },
+    );
+    expect(posts).toEqual([]);
+  });
+
+  it("funkcja w `let` - poza regułą (wiązanie może zmienić wartość), brak faktu", () => {
+    const { posts } = postFacts(`
+      let read = (columns: string) => supabase.from("posts").select(columns);
+      await readPostsWithParentPage(read, "id, slug");
+    `);
+    expect(posts).toEqual([]);
+  });
+
   it("osadzenie nieczytelne: wariant zapasowy zostaje, brak osadzenia widać na liście", () => {
     const f = facts({
       [POST_PARENT_PAGE_READ.module]: HELPER_MODULES[POST_PARENT_PAGE_READ.module],
