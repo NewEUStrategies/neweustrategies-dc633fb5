@@ -152,6 +152,17 @@ describe("contentIcon - kolejność rozstrzygania", () => {
     expect(contentIcon("alarm-clock-check", Fallback, 14)).not.toBe(a);
   });
 
+  it("nazwa wybieraka z odpowiednikiem w shimie - ten sam komponent shimu, bez porcji katalogu", () => {
+    const shim = ShimNamespace as unknown as Record<string, unknown>;
+    expect(contentIcon("send", Fallback, 16)).toBe(shim.Send);
+    expect(contentIcon("trash-2", Fallback, 16)).toBe(shim.Trash2);
+    expect(contentIcon("triangle-alert", null, 14)).toBe(shim.TriangleAlert);
+    // Alias innej ikony w shimie (`Redo2` = `Redo`) - nie skrót, tylko katalog.
+    expect(contentIcon("redo-2", Fallback, 16)).not.toBe(shim.Redo2);
+    expect(contentIcon("redo-2", Fallback, 16)).toBe(contentIcon("redo-2", Fallback, 16));
+    expect(contentIcon("redo-2", Fallback, 16)).not.toBe(Fallback);
+  });
+
   it.each([
     "",
     " ",

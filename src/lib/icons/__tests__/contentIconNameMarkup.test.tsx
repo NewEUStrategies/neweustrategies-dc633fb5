@@ -470,7 +470,7 @@ function describeChanges(siteId: string, changed: Map<string, string>): string {
         ? "brak w katalogu"
         : /<!--\$[!?]?-->/.test(html)
           ? "porcja katalogu (Suspense)"
-          : "zestaw kuratorowany (sync)";
+          : "synchronicznie: zestaw kuratorowany albo eksport shimu";
     byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
   }
   const other = [...changed.keys()].filter((n) => !catalog.has(n)).sort();

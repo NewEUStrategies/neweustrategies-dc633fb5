@@ -21,11 +21,17 @@
 //     i PascalCase) - synchronicznie, bez porcji katalogu (`Bell`, `Flag`,
 //     `star`, `file-text`...);
 //  3. poprawna nazwa wybieraka (małe litery i cyfry rozdzielone pojedynczym
-//     `-`, alfabet katalogu `iconNames.generated.json`) - `DynamicIcon`
+//     `-`, alfabet katalogu `iconNames.generated.json`), której odpowiednik
+//     PascalCase jest eksportem shimu (`send` -> `Send`, `trash-2` -> `Trash2`;
+//     51 nazw; aliasy innych ikon, `redo-2` i `undo-2`, idą do katalogu) - ten
+//     komponent synchronicznie: jest już w chunku startowym,
+//     więc porcja katalogu (22-24 KB gzip w renderze czysto klienckim) byłaby
+//     tylko kosztem (przegląd naprawy);
+//  4. pozostała poprawna nazwa wybieraka - `DynamicIcon`
 //     z pełnym katalogiem: serwer czeka na jedną porcję danych `icons-N`,
 //     przeglądarka przy hydratacji odtwarza SVG z DOM-u serwera (bez porcji),
 //     a porcję pobiera tylko render czysto kliencki (nawigacja SPA, kanwa);
-//  4. zastępnik miejsca - jak dotąd.
+//  5. zastępnik miejsca - jak dotąd.
 //
 // NAZWA WYBIERAKA, KTÓREJ KATALOG NIE ZNA (literówka w polu tekstowym osi
 // czasu, ikona usunięta z lucide): zastępnik miejsca, jak przed naprawą, nie
@@ -53,6 +59,13 @@ const PICKER_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const hasOwn = (target: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(target, key);
+
+/** Nazwa wybieraka -> PascalCase eksportu: `trash-2` -> `Trash2`, `grid-2x2` -> `Grid2x2`. */
+const pickerToPascal = (name: string): string =>
+  name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
 
 // Stała tożsamość komponentu na (zastępnik, pudełko, nazwa): nowy typ przy
 // każdym renderze przemontowywałby ikonę (nowy węzeł SVG, utrata granicy).
@@ -108,6 +121,14 @@ export function contentIcon(
   const Curated = curatedIcon(value);
   if (Curated) return Curated;
   if (PICKER_NAME.test(value) && !hasOwn(Object.prototype, value)) {
+    const pascal = pickerToPascal(value);
+    const ShimByPicker = hasOwn(SHIM, pascal) ? SHIM[pascal] : undefined;
+    // Tylko gdy eksport shimu JEST ikoną lucide tej nazwy (`displayName`
+    // z `createLucideIcon`): shim ma aliasy innych ikon (`Redo2` = `Redo`,
+    // `Undo2` = `Undo`), a nazwa z wybieraka ma rysować glif z katalogu.
+    if (ShimByPicker && (ShimByPicker as { displayName?: string }).displayName === pascal) {
+      return ShimByPicker;
+    }
     return catalogIcon(value, fallback, boxSize);
   }
   return fallback;
