@@ -53,7 +53,7 @@ vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/builder/globalWidgetsAdmin")>();
   return { ...actual, useGlobalWidgets: () => ({ items: [], save: globalSave }) };
 });
-vi.mock("@/lib/builder/experiments", () => ({
+vi.mock("@/lib/builder/experimentsAdmin", () => ({
   useExperimentsAdmin: () => ({
     items: [],
     create: experimentCreate,

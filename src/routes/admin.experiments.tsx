@@ -6,13 +6,13 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FlaskConical, Pause, Play, Trash2 } from "@/lib/lucide-shim";
+import type { BuilderExperiment } from "@/lib/builder/experiments";
 import {
   conversionRate,
   useExperimentsAdmin,
   useExperimentStats,
   zScore,
-  type BuilderExperiment,
-} from "@/lib/builder/experiments";
+} from "@/lib/builder/experimentsAdmin";
 
 import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/experiments")({

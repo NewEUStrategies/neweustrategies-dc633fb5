@@ -128,7 +128,7 @@ vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
     }),
   };
 });
-vi.mock("@/lib/builder/experiments", async (importOriginal) => {
+vi.mock("@/lib/builder/experimentsAdmin", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,

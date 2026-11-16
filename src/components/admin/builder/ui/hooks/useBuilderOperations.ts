@@ -21,7 +21,7 @@ import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import type { GlobalWidget } from "@/lib/builder/globalWidgets";
 import { useGlobalWidgets, makeGlobalInstance } from "@/lib/builder/globalWidgetsAdmin";
-import { useExperimentsAdmin } from "@/lib/builder/experiments";
+import { useExperimentsAdmin } from "@/lib/builder/experimentsAdmin";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import type { StarterTemplate } from "@/lib/builder/starterTemplates";
 import type { GlobalDragPayload } from "../organisms/builder/VisualCanvas";
