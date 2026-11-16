@@ -40,14 +40,12 @@ vi.mock("@/lib/notify", () => ({
 
 import { fail, ok } from "@/test/supabaseChain";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
+import { fontScaleQueryOptions, fontScaleToCss, useFontScale } from "../useFontScale";
 import {
   adminFontScaleQueryOptions,
-  fontScaleQueryOptions,
-  fontScaleToCss,
   useAdminFontScale,
-  useFontScale,
   useSaveFontScale,
-} from "../useFontScale";
+} from "../useFontScaleAdmin";
 
 function db(): SupabaseFromStub {
   if (!h.from) throw new Error("brak atrapy Supabase");
