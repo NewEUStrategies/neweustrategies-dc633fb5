@@ -4,6 +4,8 @@
 // w TRZECH miejscach: `NEWSLETTER_SETTINGS_GROUPS` (klient liczy patch),
 // funkcja `admin_newsletter_settings_patch` (serwer odrzuca kolumnę spoza
 // grupy) i blok komentarza `newsletter-groups` w jej migracji (czytelny kontrakt).
+// Od 20261117204500 funkcja pisze statyczną listą `SET <kol> = v_new.<kol>`
+// (bez dynamicznego SQL), więc ta lista też musi objąć każdą kolumnę edytora.
 // Rozjazd TS → SQL = zapis odrzucony 22023 dopiero na produkcji; nowa kolumna
 // tabeli bez grupy = ustawienie, którego żaden edytor nie zapisze.
 import { readFileSync } from "node:fs";
@@ -12,7 +14,8 @@ import { describe, expect, it } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import { NEWSLETTER_SETTINGS_GROUPS, type NewsletterSettingsColumn } from "../settingsQueries";
 
-const MIGRATION = "supabase/migrations/20261020100100_newsletter_settings_patch.sql";
+/** Najnowsza definicja funkcji - jedyna, którą wykonuje baza. */
+const MIGRATION = "supabase/migrations/20261117204500_newsletter_settings_patch_static_sql.sql";
 /** Kolumny techniczne - pisze je sam serwer, nie edytor. */
 const SYSTEM_COLUMNS = ["tenant_id", "updated_at", "updated_by"] as const;
 
@@ -59,6 +62,30 @@ function codeGroups(sql: string): Record<string, string[]> {
   return out;
 }
 
+/** Ciało funkcji SQL (między `AS $$` a `$$;`), bez nagłówka migracji. */
+function functionBody(sql: string): string {
+  const begin = sql.indexOf("AS $$");
+  const end = sql.indexOf("$$;", begin + 5);
+  expect(begin, "brak ciała funkcji").toBeGreaterThanOrEqual(0);
+  expect(end, "brak końca ciała funkcji").toBeGreaterThan(begin);
+  return sql.slice(begin + 5, end);
+}
+
+/** Statyczna lista zapisu: `<kol> = v_new.<kol>` między znacznikami write-columns. */
+function writeColumns(body: string): string[] {
+  const begin = body.indexOf("-- write-columns:begin");
+  const end = body.indexOf("-- write-columns:end");
+  expect(begin, "brak znacznika write-columns:begin").toBeGreaterThanOrEqual(0);
+  expect(end, "brak znacznika write-columns:end").toBeGreaterThan(begin);
+  const block = body.slice(begin, end);
+  const columns: string[] = [];
+  for (const m of block.matchAll(/\b([a-z0-9_]+) = v_new\.([a-z0-9_]+)\b/g)) {
+    expect(m[2], `kolumna ${m[1]} zapisywana z innej kolumny`).toBe(m[1]);
+    columns.push(m[1]);
+  }
+  return sorted(columns);
+}
+
 /** Kolumny wiersza `newsletter_settings` z typów generowanych (stan bazy). */
 function rowColumns(): string[] {
   const source = readFileSync("src/integrations/supabase/types.ts", "utf8");
@@ -88,6 +115,13 @@ describe("parytet grup NEWSLETTER_SETTINGS_GROUPS", () => {
     expect([...grouped].filter((c) => !columns.includes(c))).toEqual([]);
     // Kanarek parsera: realna tabela ma dziesiątki kolumn.
     expect(columns.length).toBeGreaterThan(40);
+  });
+
+  it("funkcja nie wykonuje dynamicznego SQL, a lista SET = wszystkie kolumny grup", () => {
+    const body = functionBody(readFileSync(MIGRATION, "utf8"));
+    expect(body).not.toMatch(/\bexecute\b/i);
+    const grouped = sorted([...new Set<string>(Object.values(NEWSLETTER_SETTINGS_GROUPS).flat())]);
+    expect(writeColumns(body)).toEqual(grouped);
   });
 
   it("żadna grupa nie dopuszcza kolumn technicznych", () => {

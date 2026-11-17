@@ -1,5 +1,5 @@
 -- pgTAP: zapis ustawień newslettera grupą kolumn + zdarzenia subskrybentów
--- (S1, migracja 20261020100100).
+-- (S1, migracja 20261020100100; statyczny SQL od 20261117204500).
 --
 -- CO PRZYPINA:
 --   * role: autor -> 42501, editor i admin zapisują; ACL (anon bez EXECUTE,
@@ -8,6 +8,8 @@
 --     `column_not_in_group:<kol>` i ZERO zmian; nieznana grupa, patch nie-obiekt,
 --     wartość złego typu -> 22023;
 --   * brak wiersza + token NULL -> INSERT dla najemcy z domyślnymi + patch;
+--   * ciało bez dynamicznego wykonania SQL, a statyczna lista `SET` obejmuje
+--     każdą kolumnę edytora (kolumna bez mapowania = XX000, nie cicha strata);
 --     token NULL przy istniejącym wierszu i stary token -> 40001 `stale_write`;
 --   * sekwencja A (grupa `overview`) -> B (grupa `popup`, token odświeżony):
 --     obie zmiany są w wierszu, B nie nadpisał kolumn A; patch bez zmian nie
@@ -20,7 +22,7 @@
 --
 -- Uruchamianie: PGTAP_DIR=... PGTAP_PORT=... bash scripts/pgtap-local/run.sh test newsletter_settings_patch
 BEGIN;
-SELECT plan(38);
+SELECT plan(40);
 
 -- ── Fixture ──────────────────────────────────────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -72,6 +74,22 @@ CREATE FUNCTION pg_temp.as_user(p_user uuid) RETURNS text LANGUAGE sql AS $$
 $$;
 CREATE TEMP TABLE tok (name text PRIMARY KEY, ts timestamptz) ON COMMIT DROP;
 GRANT SELECT, INSERT ON tok TO authenticated;
+
+-- ── 0. Statyczny SQL ─────────────────────────────────────────────────────────
+-- Funkcja z prawami właściciela nie wykonuje tekstu, na który wpływa wołający.
+SELECT ok(
+  (SELECT prosrc FROM pg_proc
+    WHERE oid = 'public.admin_newsletter_settings_patch(text, jsonb, timestamptz)'::regprocedure)
+    !~* '\mexecute\M',
+  'statyczny SQL: ciało funkcji nie zawiera dynamicznego wykonania');
+SELECT is_empty(
+  $$ SELECT c.column_name::text FROM information_schema.columns c
+      WHERE c.table_schema = 'public' AND c.table_name = 'newsletter_settings'
+        AND c.column_name NOT IN ('tenant_id', 'updated_at', 'updated_by')
+        AND position(format('%s = v_new.%s', c.column_name, c.column_name) IN
+              (SELECT prosrc FROM pg_proc
+                WHERE oid = 'public.admin_newsletter_settings_patch(text, jsonb, timestamptz)'::regprocedure)) = 0 $$,
+  'statyczny SQL: lista SET obejmuje każdą kolumnę edytora');
 
 -- ── 1. Role i ACL ────────────────────────────────────────────────────────────
 SELECT ok(
@@ -136,9 +154,10 @@ SELECT ok(
 SELECT results_eq(
   $$ SELECT payload->>'op', payload->'keys' ? 'mode', payload->'keys' ? 'heading_pl',
             position('Redakcja' IN payload::text) = 0, actor_id
-       FROM pg_temp.ev_take('newsletter_settings.changed.v1') $$,
-  $$ VALUES ('insert', true, true, true, 'c2000000-0000-0000-0000-00000000a002'::uuid) $$,
-  'zdarzenie: INSERT -> jedno newsletter_settings.changed.v1 z nazwami kolumn, bez wartości');
+       FROM pg_temp.ev_take('newsletter_settings.changed.v1') ORDER BY payload->>'op' $$,
+  $$ VALUES ('insert', true, true, true, 'c2000000-0000-0000-0000-00000000a002'::uuid),
+            ('update', true, false, true, 'c2000000-0000-0000-0000-00000000a002'::uuid) $$,
+  'zdarzenie: pierwszy zapis -> insert (kolumny domyślne) + update (tylko kolumny patcha), nazwy bez wartości');
 SELECT throws_ok(
   $$ SELECT public.admin_newsletter_settings_patch('overview', '{"mode":"inline"}', NULL) $$,
   '40001', 'stale_write', 'cas: token NULL przy istniejącym wierszu -> 40001 (ktoś założył wiersz)');
@@ -206,9 +225,10 @@ SELECT results_eq(
             ('c2000000-0000-0000-0000-0000000000b0'::uuid, 'off', 'Zapisz się do newslettera') $$,
   'izolacja: zapis B tylko w wierszu B, wiersz A nietknięty');
 SELECT results_eq(
-  $$ SELECT tenant_id, payload->>'op' FROM pg_temp.ev_take('newsletter_settings.changed.v1') ORDER BY tenant_id $$,
+  $$ SELECT tenant_id, payload->>'op' FROM pg_temp.ev_take('newsletter_settings.changed.v1') ORDER BY tenant_id, payload->>'op' $$,
   $$ VALUES ('c2000000-0000-0000-0000-0000000000a0'::uuid, 'update'),
-            ('c2000000-0000-0000-0000-0000000000b0'::uuid, 'insert') $$,
+            ('c2000000-0000-0000-0000-0000000000b0'::uuid, 'insert'),
+            ('c2000000-0000-0000-0000-0000000000b0'::uuid, 'update') $$,
   'izolacja: zdarzenia przypięte do najemcy wiersza');
 
 -- Kompletność grup: każda kolumna tabeli (poza tenant_id, updated_at,
