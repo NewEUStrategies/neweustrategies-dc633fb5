@@ -4572,3 +4572,130 @@ describe("scalenie pasów ról i sond: widoki naruszeń spójne, klucz sondy syn
     expect(mergeGate).toContain("SELECT 'probe-rpc-synth', s.args,");
   });
 });
+
+describe("scalenie pasów ról i sond: role kandydackie i anon serwera w sondach, wstrzymanie obok łańcucha `.rpc(...)`", () => {
+  it("role kandydackie (S1) i `anon` klienta wykonanego na serwerze (S4) idą tymi samymi tabelami do sond z argumentami syntetycznymi, odczytem `LIMIT 1`, partiami z limitem czasu i do asercji 20", () => {
+    const rows = (table: string): string[] => {
+      const start = mergeGate.indexOf(`INSERT INTO ${table} (`);
+      return start < 0
+        ? []
+        : mergeGate.slice(start, mergeGate.indexOf(";\n", start)).split("\n").slice(1);
+    };
+    // Kandydaci `hostAnonClient(bearer)` - anon i authenticated: RPC i zapis.
+    for (const role of ["anon", "authenticated"]) {
+      expect(
+        rows("ts_obs_rpc").filter((r) =>
+          r.includes(`('event_register', ARRAY['p_payload']::text[], '${role}', 'unknown'`),
+        ),
+      ).toHaveLength(1);
+      expect(
+        rows("ts_obs_stmt").filter((r) =>
+          r.startsWith(`  ('event_registrations', 'insert', '${role}', 'unknown'`),
+        ),
+      ).toHaveLength(1);
+    }
+    // Wołający o różnych rolach - odczyt dla obu.
+    for (const role of ["authenticated", "service_role"]) {
+      expect(
+        rows("ts_obs_stmt").filter((r) =>
+          r.startsWith(`  ('event_rsvps', 'select', '${role}', 'unknown'`),
+        ),
+      ).toHaveLength(1);
+    }
+    // Klient przeglądarki w handlerze serwera - wiersz `anon` gościa (zapis i RPC).
+    expect(
+      rows("ts_obs_stmt").filter(
+        (r) =>
+          r.startsWith("  ('user_bookmarks', 'insert', 'anon', 'authenticated'") &&
+          r.includes(", true, "),
+      ),
+    ).toHaveLength(1);
+    // Sondy czytają te tabele bez filtra kandydata: RPC dwiema sondami (NULL
+    // i syntetyczne) dla anon/authenticated, zapytania - każda rola klienta.
+    const probeStart = mergeGate.indexOf("-- ── Sondy wykonania");
+    const armed = mergeGate.indexOf("SET LOCAL statement_timeout = '10s';");
+    const firstBatch = mergeGate.indexOf(
+      "DO $run$ BEGIN PERFORM pg_temp.ts_probe_run(); END $run$;",
+    );
+    const probes = mergeGate.slice(probeStart, armed);
+    expect(probes).toContain("  FROM ts_obs_stmt s\n");
+    expect(probes).toContain(" WHERE s.role IN ('anon', 'authenticated', 'service_role')\n");
+    expect(probes).toContain("WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 1',");
+    expect(probes).toContain("  FROM ts_obs_rpc r\n");
+    expect(probes).toContain(" WHERE r.role IN ('anon', 'authenticated')\n");
+    expect(probes).toContain(
+      "SELECT 'probe-rpc' AS kind, pg_temp.ts_rpc_args(p.oid, r.keys) AS args, true AS differs",
+    );
+    expect(probes).toContain(
+      "SELECT 'probe-rpc-synth', s.args, s.args <> pg_temp.ts_rpc_args(p.oid, r.keys)",
+    );
+    expect(probes).not.toMatch(/candidate|kandydat/i);
+    // Wszystkie wstawienia sond przed uzbrojeniem limitu i pierwszą partią.
+    expect(probeStart).toBeGreaterThan(0);
+    expect(armed).toBeGreaterThan(probeStart);
+    expect(firstBatch).toBeGreaterThan(armed);
+    expect(mergeGate.lastIndexOf("INSERT INTO ts_probe (")).toBeLessThan(armed);
+    // Asercja 20: zapisy wszystkich ról klienta z ts_obs_stmt (kandydaci i anon serwera).
+    expect(mergeGate).toContain(
+      "JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')",
+    );
+    // Kolumna wyniku RPC klienta przeglądarki - istnienie (asercja 12), bez roli.
+    expect(rows("ts_obs_rpc_col")).toEqual([
+      `  ('resolve_path', ARRAY['_segments']::text[], 'page_id', 'order', '${MERGE_PUBLIC}', '${MERGE_PUBLIC}', 'pub')`,
+    ]);
+  });
+
+  it("wstrzymanie (C1) obejmuje filtry łańcucha tabeli, a łańcuch `.rpc(...)` (S8) w tej samej funkcji zostaje sprawdzany: fakt RPC z rolą, kolumny wyniku bez zmian", () => {
+    const FILE = "src/lib/profile/export.functions.ts";
+    const code = `${AUTH_IMPORT}
+      export const exportMyData = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+        const u = context.userId;
+        const reports = await context.supabase.from("user_reports").select("id, reason").eq("reporter_id", u).order("created_at");
+        const seats = await context.supabase.rpc("admin_event_seating_export", { p_payload: {} }).order("section_sort").eq("seat_id", u);
+        return [reports, seats];
+      });
+    `;
+    const ENTRY: WithheldFactReviewed = {
+      file: FILE,
+      fn: "exportMyData",
+      table: "user_reports",
+      op: "select",
+      role: "authenticated",
+      columns: ["id", "reason"],
+      reason: "test",
+    };
+    const run = (entries: readonly WithheldFactReviewed[]) =>
+      extractSeamFacts([{ file: FILE, code }], NO_CONTRACTS, entries, { observe: true });
+    const plain = run([]);
+    const w = run([ENTRY]);
+    expect(w.withheld).toHaveLength(1);
+    // Filtry łańcucha tabeli - wstrzymane; filtrów wyniku RPC nie ma wśród filtrów tabel.
+    expect(
+      w.observed.filters
+        .map((x) => `${x.table}.${x.column}:${x.method}:${x.withheld === true}`)
+        .sort(),
+    ).toEqual(["user_reports.created_at:order:true", "user_reports.reporter_id:eq:true"]);
+    // Kolumny wyniku RPC - te same z wpisem i bez (wpis dotyczy łańcucha tabeli).
+    expect(w.observed.rpcColumns).toEqual(plain.observed.rpcColumns);
+    expect(w.observed.rpcColumns.map((c) => `${c.name}.${c.column}:${c.method}`)).toEqual([
+      "admin_event_seating_export.section_sort:order",
+      "admin_event_seating_export.seat_id:eq",
+    ]);
+    expect(w.observed.unresolvedFilters).toEqual(plain.observed.unresolvedFilters);
+    const sql = renderContractTest(w);
+    // Filtry wstrzymanego łańcucha - tylko `unknown` (istnienie, asercja 12), bez sond.
+    expect(sql).toContain("('user_reports', 'reporter_id', NULL, 'eq', 'select', 'unknown',");
+    expect(sql).not.toContain(
+      "('user_reports', 'reporter_id', NULL, 'eq', 'select', 'authenticated',",
+    );
+    expect(sql).not.toContain("('user_reports', 'select', 'authenticated',");
+    // Łańcuch RPC: fakt z rolą (EXECUTE, sondy), kolumny wyniku do asercji 12.
+    expect(sql).toContain(
+      "('admin_event_seating_export', ARRAY['p_payload']::text[], 'authenticated', 'authenticated',",
+    );
+    expect(sql).toContain(
+      `('admin_event_seating_export', ARRAY['p_payload']::text[], 'section_sort', 'order', '${FILE}', '${FILE}', 'exportMyData')`,
+    );
+    expect(sql).not.toMatch(/\('admin_event_seating_export', '(section_sort|seat_id)', NULL,/);
+  });
+});
