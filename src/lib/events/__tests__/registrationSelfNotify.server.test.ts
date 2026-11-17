@@ -10,9 +10,9 @@
 //      wysłałby sobie „zgłoszenie zaakceptowane" na miejsce, którego nie ma.
 //   2. NAJEMCA Z ARGUMENTU (REG-17). `event_registration_notify_payload_for_
 //      tenant` (A1, tylko `service_role`) dostaje najemcę jawnie i rozstrzyga
-//      klucz jedną regułą (wygasły / zamknięty nie oddaje adresu). Stara
-//      funkcja (`public_tenant_id()` z nagłówka hosta) jest wołana WYŁĄCZNIE
-//      w oknie wdrożenia, klientem anonimowym z nagłówkiem hosta.
+//      klucz jedną regułą (wygasły / zamknięty nie oddaje adresu). Jej brak
+//      (PGRST202/42883) to odmowa wartością - nigdy stara funkcja
+//      (`public_tenant_id()` z nagłówka hosta) klientem anonimowym.
 //
 // FAIL-SOFT: brak maila nie unieważnia zapisu, więc każda odmowa musi być
 // zwróconą wartością, a nie wyjątkiem lecącym w formularz.
@@ -88,33 +88,16 @@ describe("najemca z argumentu - funkcja tylko dla roli serwisowej", () => {
   });
 
   it.each(["PGRST202", "42883"])(
-    "okno wdrożenia (%s): stara funkcja klientem anonimowym z nagłówkiem hosta",
+    "brak funkcji (%s) to odmowa wartością - bez starej funkcji i bez maila",
     async (code) => {
-      h.anonRpc.mockResolvedValue({
-        data: { email: "a@b.pl", status: "pending", registration_id: REG },
-        error: null,
-      });
-      await run(null, { code, message: "function not found" });
-      expect(h.anonRpc.mock.calls[0]).toEqual([
-        "event_registration_notify_payload",
-        { p_payload: { manage_token: TOKEN } },
-      ]);
-      const [url, key, options] = h.createClient.mock.calls[0] as unknown as [
-        string,
-        string,
-        {
-          global: { fetch: unknown; headers?: unknown };
-          auth: { storage?: unknown; persistSession: boolean };
-        },
-      ];
-      expect(url).toBe("https://przyklad.supabase.co");
-      expect(key).toBe("klucz-publiczny");
-      // Bez tego `fetch` najemca rozwiązałby się do domyślnego.
-      expect(options.global.fetch).toBe(h.tenantFetch);
-      expect(options.global.headers).toBeUndefined();
-      expect(options.auth.persistSession).toBe(false);
-      expect(options.auth.storage).toBeUndefined();
-      expect(h.sendTxEmail).toHaveBeenCalledTimes(1);
+      const result = await run(null, { code, message: "function not found" });
+      expect(result).toEqual({ ok: false, error: "function not found" });
+      expect(h.adminRpc).toHaveBeenCalledTimes(1);
+      expect(h.adminRpc.mock.calls[0]![0]).toBe("event_registration_notify_payload_for_tenant");
+      // Ani `event_registration_notify_payload`, ani klient z nagłówkiem hosta.
+      expect(h.createClient).not.toHaveBeenCalled();
+      expect(h.anonRpc).not.toHaveBeenCalled();
+      expect(h.sendTxEmail).not.toHaveBeenCalled();
     },
   );
 
@@ -131,14 +114,24 @@ describe("najemca z argumentu - funkcja tylko dla roli serwisowej", () => {
     expect(h.sendTxEmail).not.toHaveBeenCalled();
   });
 
-  it("klient z tokenem wołającego niesie nagłówek - bez tokenu go nie ma", async () => {
-    await hostAnonClient("token-wolajacego");
-    const [, , withBearer] = h.createClient.mock.calls[0] as unknown as [
+  it("klient z nagłówkiem hosta: klucz publikowalny, bez tokenu wołającego i bez sesji", async () => {
+    expect(await hostAnonClient()).toEqual({ rpc: h.anonRpc });
+    const [url, key, options] = h.createClient.mock.calls[0] as unknown as [
       string,
       string,
-      { global: { headers?: Record<string, string> } },
+      {
+        global: { fetch: unknown; headers?: unknown };
+        auth: { storage?: unknown; persistSession: boolean; autoRefreshToken: boolean };
+      },
     ];
-    expect(withBearer.global.headers).toEqual({ Authorization: "Bearer token-wolajacego" });
+    expect(url).toBe("https://przyklad.supabase.co");
+    expect(key).toBe("klucz-publiczny");
+    // Bez tego `fetch` najemca rozwiązałby się do domyślnego.
+    expect(options.global.fetch).toBe(h.tenantFetch);
+    expect(options.global.headers).toBeUndefined();
+    expect(options.auth.persistSession).toBe(false);
+    expect(options.auth.autoRefreshToken).toBe(false);
+    expect(options.auth.storage).toBeUndefined();
   });
 
   it("brak konfiguracji to brak klienta, nie wyjątek", async () => {

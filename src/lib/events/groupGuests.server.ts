@@ -20,29 +20,29 @@
 // czas odpowiedzi nie zdradza, czy ktoś został pominięty, a awaria poczty nie
 // zmienia odpowiedzi.
 //
-// OKNO WDROŻENIA („najpierw kod"). Dopóki nowej funkcji nie ma
-// (PGRST202/42883), wołamy starą `event_register_group_guests` klientem z
-// nagłówkiem hosta i tokenem wołającego (stara baza ma jeszcze GRANT
-// authenticated). Jej odmowa może nieść adres gościa w ogonie - oddajemy sam
-// kod. Każdy inny błąd bazy to `unknown` z logiem.
+// BEZ ŚCIEŻKI ZAPASOWEJ. Kod wyszedł przed migracją 20261012180300, więc brak
+// `event_register_group_guests_for_client` (PGRST202/42883) cofał dopisanie do
+// starej `event_register_group_guests` klientem z nagłówkiem hosta i tokenem
+// wołającego. To okno jest zamknięte: typy regenerowane z bazy produkcji przez
+// bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty,
+// których produkcja nie ma, a tę funkcję zostawiły z argumentami, które wysyła
+// ten moduł. Ta sama migracja odbiera `authenticated` EXECUTE starej funkcji,
+// więc na bazie z nią stara ścieżka kończy się 42501 (pomiar kontraktu TS<->SQL
+// na PG16). Brak funkcji to teraz awaria wdrożenia - `unknown` z logiem, jak
+// każdy inny błąd bazy.
 import { getRequest } from "@tanstack/react-start/server";
 
 import type { Json } from "@/integrations/supabase/types";
-import {
-  optionalBearerFromRequest,
-  optionalUserIdFromRequest,
-} from "@/lib/auth/optionalUser.server";
+import { optionalUserIdFromRequest } from "@/lib/auth/optionalUser.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   deliverRegistration,
   parseRegistrationDelivery,
   type RegistrationDelivery,
 } from "@/lib/events/eventRegistration.server";
-import { hostAnonClient } from "@/lib/events/registrationSelfNotify.server";
 
 /**
  * Gość w kształcie ładunku bazy (`guestsToPayload`). Alias typu, nie interfejs:
@@ -95,9 +95,8 @@ function refusal(code: unknown): GroupGuestsClient {
 }
 
 /**
- * `client` z bazy (nowej albo starej) -> odpowiedź dla przeglądarki. Odmowa to
- * SAM kod - ogon (`detail`, adres gościa ze starej bazy) nie wychodzi. Stara
- * baza sprzed 20261012150100 oddawała sukces bez `ok`.
+ * `client` z bazy -> odpowiedź dla przeglądarki. Odmowa to SAM kod - ogon
+ * (`detail`, np. adres gościa) nie wychodzi.
  */
 function clientOf(value: Json | undefined): GroupGuestsClient {
   const bag = bagOf(value);
@@ -118,21 +117,6 @@ function noticesOf(value: Json | undefined): RegistrationDelivery[] {
     .filter(
       (delivery): delivery is RegistrationDelivery => delivery?.kind === "already_registered",
     );
-}
-
-/** Stara funkcja (okno wdrożenia) - token wołającego, najemca z nagłówka hosta. */
-async function legacyRegisterGuests(input: GroupGuestsRequest): Promise<GroupGuestsClient> {
-  const legacy = await hostAnonClient(await optionalBearerFromRequest());
-  if (legacy === null) return UNKNOWN;
-  const { data, error } = await legacy.rpc("event_register_group_guests", {
-    p_lead_registration_id: input.leadRegistrationId,
-    p_guests: input.guests,
-  });
-  if (error) {
-    const separator = error.message.indexOf(":");
-    return refusal((separator === -1 ? error.message : error.message.slice(0, separator)).trim());
-  }
-  return clientOf(data);
 }
 
 /** Wiadomości do pominiętych - każda osobno, żadna awaria nie wychodzi wyżej. */
@@ -168,12 +152,10 @@ export async function registerEventGroupGuestsForRequest(
     p_guests: input.guests,
   });
 
+  // Każdy błąd bazy, także brak funkcji (PGRST202/42883), to `unknown` z logiem.
   if (error) {
-    if (!isMigrationPending(error)) {
-      console.error("[events] group guests rpc failed", error.code ?? "", error.message);
-      return UNKNOWN;
-    }
-    return legacyRegisterGuests(input);
+    console.error("[events] group guests rpc failed", error.code ?? "", error.message);
+    return UNKNOWN;
   }
 
   const bag = bagOf(data);

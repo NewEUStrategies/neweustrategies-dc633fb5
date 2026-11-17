@@ -76,7 +76,7 @@ const {
   SEATS_UNAVAILABLE,
 } = await import("@/lib/billing/eventTicketPricing.server");
 
-type Client = Parameters<typeof applyEventTicketCoupon>[0];
+type Client = Parameters<typeof priceEventTicket>[0];
 
 let rpcCalls: { fn: string; args: Record<string, unknown> }[];
 let rpcResponses: Map<string, unknown>;
@@ -131,7 +131,7 @@ describe("applyEventTicketCoupon - tożsamość sondy kodu (20261007120600)", ()
   it("kod idzie rolą serwisową z kontem z sesji, najemcą hosta i skrótem adresu", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok(null));
 
-    await applyEventTicketCoupon(client(), couponInput());
+    await applyEventTicketCoupon(couponInput());
 
     const call = rpcCalls.find((c) => c.fn === "validate_event_ticket_coupon_for_user");
     expect(call?.args).toMatchObject({
@@ -151,7 +151,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   it("pusta odpowiedź (`null`) to odmowa `not_found`", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok(null));
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -160,7 +160,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   it("odmowa bez powodu schodzi na `not_found`, a nie na pusty napis", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok([{ ok: false, error: null }]));
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -169,7 +169,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   it("BŁĄD walidacji kodu jest zgłaszany, a nie zamieniany na „kod nieważny”", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", fail("permission denied"));
 
-    await expect(applyEventTicketCoupon(client(), couponInput())).rejects.toMatchObject({
+    await expect(applyEventTicketCoupon(couponInput())).rejects.toMatchObject({
       message: "permission denied",
     });
   });
@@ -182,9 +182,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
       fail("rate_limited: too many code attempts, try again later"),
     );
 
-    const thrown = await applyEventTicketCoupon(client(), couponInput()).catch(
-      (error: unknown) => error,
-    );
+    const thrown = await applyEventTicketCoupon(couponInput()).catch((error: unknown) => error);
     expect(thrown).toBeInstanceOf(Error);
     expect(thrown).toMatchObject({
       message: "rate_limited: too many code attempts, try again later",
@@ -206,7 +204,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
       ]),
     );
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: true,
       couponId: COUPON_ID,
       kind: "percent",
@@ -233,7 +231,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
       ]),
     );
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toMatchObject({
+    expect(await applyEventTicketCoupon(couponInput())).toMatchObject({
       kind: "percent",
       percent: 7,
       discountCents: 2000,
@@ -255,7 +253,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
         },
       ]),
     );
-    expect((await applyEventTicketCoupon(client(), couponInput())).ok).toBe(true);
+    expect((await applyEventTicketCoupon(couponInput())).ok).toBe(true);
 
     rpcResponses.set(
       "validate_event_ticket_coupon_for_user",
@@ -270,7 +268,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
         },
       ]),
     );
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "final_amount_too_low",
     });
@@ -293,9 +291,9 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
 
   it("kod kwotowy jako obiekt: to samo rozbicie na miejsca co przy wierszu", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok(FIXED));
-    const fromObject = await applyEventTicketCoupon(client(), couponInput());
+    const fromObject = await applyEventTicketCoupon(couponInput());
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok([FIXED]));
-    const fromRow = await applyEventTicketCoupon(client(), couponInput());
+    const fromRow = await applyEventTicketCoupon(couponInput());
 
     // Trzy miejsca po 100 zł, kod 20 zł zdejmuje się z KAŻDEGO miejsca.
     expect(fromObject).toEqual({
@@ -323,7 +321,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       }),
     );
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: true,
       couponId: COUPON_ID,
       kind: "percent",
@@ -340,13 +338,13 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       "validate_event_ticket_coupon_for_user",
       ok({ ok: false, error: "expired", coupon_id: null, discount_cents: 0, final_cents: 0 }),
     );
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "expired",
     });
 
     rpcResponses.set("validate_event_ticket_coupon_for_user", ok({ ok: false, error: null }));
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -368,7 +366,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       ok(shape === "obiekt" ? verdict : [verdict]),
     );
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+    expect(await applyEventTicketCoupon(couponInput())).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -594,7 +592,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 50 };
 
     expect(
-      await applyEventTicketCoupon(client(), couponInput({ listCents: 36000, promoActive: true })),
+      await applyEventTicketCoupon(couponInput({ listCents: 36000, promoActive: true })),
     ).toEqual({
       ok: true,
       couponId: COUPON_ID,
@@ -623,7 +621,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     );
     couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 25 };
 
-    expect(await applyEventTicketCoupon(client(), couponInput())).toMatchObject({
+    expect(await applyEventTicketCoupon(couponInput())).toMatchObject({
       ok: true,
       discountCents: 7500,
       finalCents: 22500,

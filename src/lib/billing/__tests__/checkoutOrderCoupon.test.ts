@@ -367,32 +367,22 @@ describe("createCheckoutOrder - kupon ważny", () => {
     expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
   });
 
-  it("OKNO WDROŻENIA: bez funkcji serwerowych (PGRST202) kasa woła stare RPC klientem kupującego", async () => {
-    rpcResponses.set(
-      "validate_b2b_coupon_for_user",
-      fail("Could not find the function public.validate_b2b_coupon_for_user", "PGRST202"),
-    );
-    rpcResponses.set(
-      "redeem_b2b_coupon_for_user",
-      fail("Could not find the function public.redeem_b2b_coupon_for_user", "PGRST202"),
-    );
-    rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
-    rpcResponses.set("redeem_b2b_coupon", ok(true));
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji serwerowej (%s) to awaria kasy - bez starego RPC i bez zamówienia",
+    async (code) => {
+      // Dawniej okno wdrożenia: kasa wracała do `validate_b2b_coupon` klientem
+      // kupującego. Produkcja ma funkcje `*_for_user`, a stara ścieżka po
+      // migracji i tak kończyła się 42501 - brak funkcji to dziś incydent.
+      rpcResponses.set(
+        "validate_b2b_coupon_for_user",
+        fail("Could not find the function public.validate_b2b_coupon_for_user", code),
+      );
 
-    const result = await call(planPayload());
-
-    expect(result.ok).toBe(true);
-    expect(rpcArgs("validate_b2b_coupon")).toEqual({
-      _code: "PARTNER-CEE",
-      _plan_id: PLAN_ID,
-      _amount_cents: 4900,
-      _currency: "PLN",
-    });
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
-      _coupon_id: COUPON_ID,
-      _order_id: "order-1",
-    });
-  });
+      await expect(call(planPayload())).rejects.toThrow("validate_b2b_coupon_for_user");
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
+      expect(insertedOrder()).toBeUndefined();
+    },
+  );
 
   it("bez kodu kuponu nie ma ani walidacji, ani rezerwacji, ani metadanych", async () => {
     await call(planPayload({ coupon_code: undefined }));

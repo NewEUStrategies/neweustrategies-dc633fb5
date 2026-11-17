@@ -152,7 +152,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       // Kwota walidacji to BRUTTO z wyceny (ilość, próg wolumenowy), nie
       // `price_cents` - kupon procentowy na pięć miejsc liczy się od pięciu.
       const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.server");
-      const { data: rows, error: validateErr } = await validatePlanCouponForUser(supabase, {
+      const { data: rows, error: validateErr } = await validatePlanCouponForUser({
         userId,
         code: normalizedCode,
         planId: data.planId,
@@ -235,7 +235,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       // w `b2b_coupons_analytics` i w `monetization_dashboard` był zawyżony
       // dokładnie o udzielony rabat - i to tylko dla zamówień z TEGO silnika.
       const { redeemCouponForUser } = await import("@/lib/billing/couponRpc.server");
-      const { data: redeemed, error: redeemErr } = await redeemCouponForUser(supabase, {
+      const { data: redeemed, error: redeemErr } = await redeemCouponForUser({
         tenantId: order.tenant_id,
         userId,
         couponId,
@@ -261,7 +261,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
       if (couponId) {
         const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-        const { error: releaseErr } = await releaseCouponForUser(supabase, {
+        const { error: releaseErr } = await releaseCouponForUser({
           tenantId: order.tenant_id,
           userId,
           couponId,

@@ -7,14 +7,14 @@
 //      adresem wraca do zgadywania bez sufitu.
 //   2. SUROWY ADRES I SZCZEGÓŁY BŁĘDU - do bazy idzie wyłącznie skrót, a do
 //      przeglądarki wyłącznie treść i kod błędu (bez `details`/`hint`).
-//   3. ZŁE OKNO WDROŻENIA - stara ścieżka JWT kupującego tylko przy braku
-//      funkcji (PGRST202/42883); odmowa zakupu czy limit prób to wynik.
+//   3. CICHA STARA ŚCIEŻKA - nie ma już powrotu do starego RPC z JWT
+//      kupującego: brak funkcji (PGRST202/42883) to awaria wdrożenia i idzie
+//      do wołającego jako błąd; odmowa zakupu czy limit prób to wynik.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   tenant: "aaaaaaaa-0000-4000-8000-00000000000a" as string | null,
   admin: vi.fn(),
-  user: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start/server", () => ({
@@ -36,7 +36,6 @@ const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.serv
 
 const USER = "dddddddd-0000-4000-8000-00000000000d";
 const PACKAGE = "9a1b0000-0000-4000-8000-000000000101";
-const userClient = { rpc: (...args: unknown[]) => h.user(...args) } as never;
 
 const quotePayload = { package_id: PACKAGE, coupon_code: "PARTNER2026" };
 const purchasePayload = { package_id: PACKAGE, buyer_name: "Zofia W.", coupon_code: "PARTNER2026" };
@@ -44,9 +43,7 @@ const purchasePayload = { package_id: PACKAGE, buyer_name: "Zofia W.", coupon_co
 beforeEach(() => {
   h.tenant = "aaaaaaaa-0000-4000-8000-00000000000a";
   h.admin.mockReset();
-  h.user.mockReset();
   h.admin.mockResolvedValue({ data: { ok: true }, error: null });
-  h.user.mockResolvedValue({ data: { ok: true }, error: null });
 });
 
 describe.each([
@@ -54,7 +51,7 @@ describe.each([
   ["zakup pakietu", purchasePackageForUser, "event_package_purchase", purchasePayload],
 ] as const)("%s", (_label, call, rpcName, payload) => {
   it("woła wersję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
-    expect(await call(userClient, USER, payload)).toEqual({ data: { ok: true }, error: null });
+    expect(await call(USER, payload)).toEqual({ data: { ok: true }, error: null });
 
     expect(h.admin).toHaveBeenCalledWith(`${rpcName}_for_user`, {
       _tenant_id: "aaaaaaaa-0000-4000-8000-00000000000a",
@@ -63,12 +60,11 @@ describe.each([
       p_payload: payload,
     });
     expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("203.0.113.41");
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it("ten sam podmiot adresu co walidacja kodu planu - jeden kubełek adresu", async () => {
-    await call(userClient, USER, payload);
-    await validatePlanCouponForUser(userClient, {
+    await call(USER, payload);
+    await validatePlanCouponForUser({
       userId: USER,
       code: "PARTNER2026",
       planId: "cccccccc-0000-4000-8000-00000000000c",
@@ -84,25 +80,27 @@ describe.each([
 
   it("host bez najemcy: awaria bez pytania bazy", async () => {
     h.tenant = null;
-    const result = await call(userClient, USER, payload);
+    const result = await call(USER, payload);
 
     expect(result.data).toBeNull();
     expect(result.error?.message).toMatch(/^tenant_unresolved/);
     expect(h.admin).not.toHaveBeenCalled();
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it.each(["PGRST202", "42883"])(
-    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego, ten sam ładunek",
+    "brak funkcji serwerowej (%s) to błąd dla wołającego - bez starej funkcji",
     async (code) => {
-      h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
-      h.user.mockResolvedValue({ data: { ok: false, reason: "coupon_unknown" }, error: null });
-
-      expect(await call(userClient, USER, payload)).toEqual({
-        data: { ok: false, reason: "coupon_unknown" },
-        error: null,
+      h.admin.mockResolvedValue({
+        data: null,
+        error: { code, message: "Could not find the function", hint: "wewnętrzna podpowiedź" },
       });
-      expect(h.user).toHaveBeenCalledWith(rpcName, { p_payload: payload });
+
+      expect(await call(USER, payload)).toEqual({
+        data: null,
+        error: { code, message: "Could not find the function" },
+      });
+      expect(h.admin).toHaveBeenCalledTimes(1);
+      expect(h.admin).not.toHaveBeenCalledWith(rpcName, expect.anything());
     },
   );
 
@@ -117,11 +115,11 @@ describe.each([
       },
     });
 
-    expect(await call(userClient, USER, payload)).toEqual({
+    expect(await call(USER, payload)).toEqual({
       data: null,
       error: { code: "P0001", message: "rate_limited: too many code attempts, try again later" },
     });
-    expect(h.user).not.toHaveBeenCalled();
+    expect(h.admin).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -132,7 +130,7 @@ describe("wycena wejściówki (kod dostępu)", () => {
   const TICKET = "cccccccc-0000-4000-8000-000000000003";
 
   it("woła wersję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
-    await quoteTicketCheckoutForUser(userClient, USER, {
+    await quoteTicketCheckoutForUser(USER, {
       ticketTypeId: TICKET,
       accessCode: "PRESS",
     });
@@ -145,31 +143,27 @@ describe("wycena wejściówki (kod dostępu)", () => {
       p_access_code: "PRESS",
     });
     expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("203.0.113.41");
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it("pusty kod nie jedzie do bazy jako pusty napis", async () => {
-    await quoteTicketCheckoutForUser(userClient, USER, { ticketTypeId: TICKET, accessCode: "" });
+    await quoteTicketCheckoutForUser(USER, { ticketTypeId: TICKET, accessCode: "" });
 
     expect(h.admin.mock.lastCall?.[1]).toMatchObject({ p_access_code: undefined });
   });
 
   it.each(["PGRST202", "42883"])(
-    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego",
+    "brak funkcji serwerowej (%s) to błąd dla wołającego - bez starej funkcji",
     async (code) => {
       h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
-      h.user.mockResolvedValue({ data: { amount_cents: 100 }, error: null });
 
       expect(
-        await quoteTicketCheckoutForUser(userClient, USER, {
+        await quoteTicketCheckoutForUser(USER, {
           ticketTypeId: TICKET,
           accessCode: "PRESS",
         }),
-      ).toEqual({ data: { amount_cents: 100 }, error: null });
-      expect(h.user).toHaveBeenCalledWith("event_ticket_checkout_quote", {
-        p_ticket_type_id: TICKET,
-        p_access_code: "PRESS",
-      });
+      ).toEqual({ data: null, error: { code, message: "no function" } });
+      expect(h.admin).toHaveBeenCalledTimes(1);
+      expect(h.admin).not.toHaveBeenCalledWith("event_ticket_checkout_quote", expect.anything());
     },
   );
 
@@ -179,8 +173,8 @@ describe("wycena wejściówki (kod dostępu)", () => {
       error: { code: "P0001", message: "rate_limited: too many code attempts, try again later" },
     });
 
-    const result = await quoteTicketCheckoutForUser(userClient, USER, { ticketTypeId: TICKET });
+    const result = await quoteTicketCheckoutForUser(USER, { ticketTypeId: TICKET });
     expect(result.error?.message).toMatch(/^rate_limited/);
-    expect(h.user).not.toHaveBeenCalled();
+    expect(h.admin).toHaveBeenCalledTimes(1);
   });
 });

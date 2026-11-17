@@ -183,17 +183,19 @@ describe("SlotsPanel - lista", () => {
     ).toBe(false);
   });
 
-  it("OKNO WDROZENIA: bez funkcji w bazie (PGRST202) panel czyta tabele jak dawniej", async () => {
-    // Kod wychodzi przed migracja; do jej wejscia tabela ma jeszcze SELECT
-    // tabelowy, wiec stara sciezka dziala - i tylko w tym jednym przypadku.
+  it("brak funkcji w bazie (PGRST202) to komunikat, NIE cichy powrot do tabeli", async () => {
+    // Dawniej okno wdrozenia: panel czytal wtedy `select("*")`. Produkcja ma
+    // funkcje, a po migracji tabela nie ma SELECT tabelowego - brak funkcji
+    // to dzis awaria wdrozenia, ktora redaktor ma zobaczyc.
     rpc().setError(LIST_RPC, "Could not find the function public.admin_list_ad_slots", "PGRST202");
-    db().setResponse("ad_slots", ok([SLOT_A]));
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
-    expect(await screen.findByText("Baner glowny")).toBeInTheDocument();
-    const chain = db().lastChain("ad_slots");
-    expect(chain?.argsOf("select")).toEqual(["*"]);
-    expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        "Could not find the function public.admin_list_ad_slots",
+      ),
+    );
+    expect(db().chainsFor("ad_slots").length).toBe(0);
   });
 
   it("wiersz pokazuje nazwe, rodzaj, status, zgode i podsumowanie targetingu", async () => {
@@ -231,7 +233,7 @@ describe("SlotsPanel - lista", () => {
         "forbidden: ad slots are managed by admins and editors",
       ),
     );
-    // Odmowa uprawnien to NIE okno wdrozenia - bez cichego powrotu do tabeli.
+    // Odmowa uprawnien idzie do redaktora - bez cichego powrotu do tabeli.
     expect(db().chainsFor("ad_slots").length).toBe(0);
   });
 });

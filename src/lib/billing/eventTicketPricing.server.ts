@@ -214,14 +214,10 @@ export async function priceEventTicket(
   // Kod dostępu to sonda - wycena idzie funkcją serwerową z kubełkiem pudeł
   // konta, adresu i biletu (`quoteTicketCheckoutForUser`, 20261007140400).
   const { quoteTicketCheckoutForUser } = await import("@/lib/events/admissionRpc.server");
-  const { data: quote, error: quoteErr } = await quoteTicketCheckoutForUser(
-    supabase,
-    input.userId,
-    {
-      ticketTypeId: input.ticketTypeId,
-      accessCode: input.accessCode,
-    },
-  );
+  const { data: quote, error: quoteErr } = await quoteTicketCheckoutForUser(input.userId, {
+    ticketTypeId: input.ticketTypeId,
+    accessCode: input.accessCode,
+  });
   if (quoteErr) throw new Error(quoteErr.message);
   const parsed = objectOf(quote);
   if (parsed === null) throw new Error("ticket_not_available");
@@ -436,12 +432,10 @@ export type EventTicketCouponResult =
  * poniżej minimum operatora (`final_amount_too_low`).
  */
 export async function applyEventTicketCoupon(
-  supabase: Client,
   input: EventTicketCouponInput,
 ): Promise<EventTicketCouponResult> {
-  // Rola serwisowa z jawnym kontem i skrótem adresu (20261007120600); przed
-  // migracją - stare wywołanie JWT kupującego (`couponRpc.server.ts`).
-  const { data: rows, error } = await validateEventTicketCouponForUser(supabase, {
+  // Rola serwisowa z jawnym kontem i skrótem adresu (20261007120600).
+  const { data: rows, error } = await validateEventTicketCouponForUser({
     userId: input.userId,
     code: input.code,
     eventId: input.eventId,
@@ -587,7 +581,7 @@ export async function quoteEventTicketOrder(
   // Bilet z planu nie ma kwoty, z której kod mógłby zejść - kodu nie
   // sprawdzamy (ani nie przyjmujemy, ani nie odrzucamy).
   if (code === "" || base.planRedemption) return base;
-  const applied = await applyEventTicketCoupon(supabase, {
+  const applied = await applyEventTicketCoupon({
     userId: input.userId,
     code,
     eventId: input.eventId,

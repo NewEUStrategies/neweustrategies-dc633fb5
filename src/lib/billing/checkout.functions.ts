@@ -340,7 +340,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // (kody tworzone w studiu wydarzenia), a kod kwotowy schodzi z KAŻDEGO
         // miejsca - ta sama funkcja liczy podgląd kasy.
         const { applyEventTicketCoupon } = await import("@/lib/billing/eventTicketPricing.server");
-        const applied = await applyEventTicketCoupon(supabase, {
+        const applied = await applyEventTicketCoupon({
           userId,
           code: normalizedCode,
           eventId: ticketMeta.eventId,
@@ -366,7 +366,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // serwisowa z jawnym najemcą, kontem i skrótem adresu - baza liczy
         // pudła kasy także po adresie (20261007120200, audyt ed13 D-13-1).
         const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.server");
-        const { data: rows, error: validateErr } = await validatePlanCouponForUser(supabase, {
+        const { data: rows, error: validateErr } = await validatePlanCouponForUser({
           userId,
           code: normalizedCode,
           planId: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
@@ -542,7 +542,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // rezerwacji na zamówieniu innego konta albo najemcy.
     if (couponId) {
       const { redeemCouponForUser } = await import("@/lib/billing/couponRpc.server");
-      const { data: redeemed, error: redeemErr } = await redeemCouponForUser(supabase, {
+      const { data: redeemed, error: redeemErr } = await redeemCouponForUser({
         tenantId: order.tenant_id,
         userId,
         couponId,
@@ -627,7 +627,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
         if (couponId) {
           const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-          const { error: releaseErr } = await releaseCouponForUser(supabase, {
+          const { error: releaseErr } = await releaseCouponForUser({
             tenantId: order.tenant_id,
             userId,
             couponId,

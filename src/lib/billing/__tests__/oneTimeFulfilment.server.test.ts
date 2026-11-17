@@ -84,7 +84,7 @@ const h = vi.hoisted(() => ({
   /** Zwolnienia rezerwacji kuponu (`release_b2b_coupon_for_user`). */
   couponReleases: [] as Array<Record<string, unknown>>,
   couponReleaseReply: { data: true, error: null } as RpcReply,
-  /** Stara ścieżka zwolnienia (`release_b2b_coupon`) - okno wdrożenia przy PGRST202. */
+  /** Stara ścieżka zwolnienia (`release_b2b_coupon`) - bez ścieżki zapasowej nigdy wołana. */
   legacyCouponReleases: [] as Array<Record<string, unknown>>,
   legacyCouponReleaseReply: { data: true, error: null } as RpcReply,
   /** Dzwonki administratorów najemcy (`enqueue_notification`). */
@@ -2040,6 +2040,23 @@ describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
     );
   });
 
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji zwolnienia (%s) RZUCA jak każda awaria - bez starej `release_b2b_coupon`",
+    async (code) => {
+      givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "processing" }));
+      h.couponReleaseReply = {
+        data: null,
+        error: { code, message: "Could not find the function" },
+      };
+
+      await expect(expireCheckoutOrder(expired(), "sandbox")).rejects.toThrow(
+        `expire: coupon release failed (${ORDER_ID}): Could not find the function`,
+      );
+      expect(h.couponReleases).toHaveLength(1);
+      expect(h.legacyCouponReleases).toEqual([]);
+    },
+  );
+
   it("nieudane zamknięcie statusu RZUCA przed zwolnieniem kuponu", async () => {
     givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "processing" }));
     paidFlipResponse = fail("zapis odrzucony");
@@ -2718,24 +2735,33 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
     return insert?.argsOf("insert")?.[0] as Record<string, unknown> | undefined;
   }
 
-  it("pełna sala bez funkcji `_for_user` (pas produkcyjny przed 0305): kod wraca starą ścieżką, nie przepada", async () => {
-    // Gołe RPC bez powrotu do starej funkcji kończyło się PGRST202 połkniętym
-    // w logu - anulowanego zamówienia nic już nie rozlicza ponownie.
-    givenOrder(freeOrder());
-    h.seat = "full";
-    h.couponReleaseReply = {
-      data: null,
-      error: { code: "PGRST202", message: "Could not find the function" },
-    };
+  it.each(["PGRST202", "42883"])(
+    "pełna sala, brak funkcji zwolnienia (%s): błąd w logu, bez starej `release_b2b_coupon` - kupujący nie słyszy, że kod wrócił",
+    async (code) => {
+      givenOrder(freeOrder());
+      h.seat = "full";
+      h.couponReleaseReply = {
+        data: null,
+        error: { code, message: "Could not find the function" },
+      };
 
-    await settleFreeTicketOrder(ORDER_ID);
-
-    expect(h.couponReleases).toHaveLength(1);
-    expect(h.legacyCouponReleases).toEqual([{ _coupon_id: COUPON, _order_id: ORDER_ID }]);
-    expect(buyerNotice()?.["body_pl"]).toBe(
-      "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli.",
-    );
-  });
+      expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({
+        outcome: "oversold_refunded",
+        seated: false,
+      });
+      expect(h.couponReleases).toHaveLength(1);
+      expect(h.legacyCouponReleases).toEqual([]);
+      expect(h.log).not.toContain("coupon:legacy-release");
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[payments] free order coupon release failed",
+        ORDER_ID,
+        "Could not find the function",
+      );
+      expect(buyerNotice()?.["body_pl"]).toBe(
+        "Ostatnie miejsce zajęto, zanim bilet został wydany. Zamówienie zostało anulowane.",
+      );
+    },
+  );
 
   it("pełna sala, a baza NIE oddała kodu: zamówienie anulowane, kupujący nie słyszy, że kod wrócił", async () => {
     givenOrder(freeOrder());

@@ -2,12 +2,13 @@
 //
 // `ad_slots.notes` nie jest czytelne wprost dla `authenticated` (migracja
 // 20261007120100), więc jedyna droga do notatek operatora to
-// `admin_list_ad_slots()`. Stara ścieżka `select("*")` wolno użyć WYŁĄCZNIE
-// przed migracją - po niej skończyłaby się odmową uprawnień.
+// `admin_list_ad_slots()`. Starej ścieżki `select("*")` już nie ma: po
+// migracji kończyła się odmową uprawnień, a brak funkcji to dziś awaria
+// wdrożenia, którą panel ma pokazać - nigdy cicho obejść.
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { fetchAdminAdSlots } from "@/lib/ads/adminSlots";
-import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
+import { supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 
 const SLOT = {
@@ -46,23 +47,16 @@ describe("fetchAdminAdSlots", () => {
     expect(from.chainsFor("ad_slots")).toHaveLength(0);
   });
 
-  it("OKNO WDROŻENIA (PGRST202): tabela jak dawniej, od najnowszych", async () => {
-    rpc.setError("admin_list_ad_slots", "Could not find the function", "PGRST202");
-    from.setResponse("ad_slots", ok([SLOT]));
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji (%s) wraca do panelu jako błąd - bez powrotu do tabeli",
+    async (code) => {
+      rpc.setError("admin_list_ad_slots", "Could not find the function", code);
 
-    expect(await fetchAdminAdSlots(client())).toEqual({ slots: [SLOT], error: null });
-    const chain = from.lastChain("ad_slots");
-    expect(chain?.argsOf("select")).toEqual(["*"]);
-    expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
-  });
+      const result = await fetchAdminAdSlots(client());
 
-  it("okno wdrożenia z błędem tabeli zwraca ten błąd", async () => {
-    rpc.setError("admin_list_ad_slots", "Could not find the function", "PGRST202");
-    from.setResponse("ad_slots", fail("timeout"));
-
-    const result = await fetchAdminAdSlots(client());
-
-    expect(result.slots).toEqual([]);
-    expect(result.error?.message).toBe("timeout");
-  });
+      expect(result.slots).toEqual([]);
+      expect(result.error?.message).toBe("Could not find the function");
+      expect(from.chainsFor("ad_slots")).toHaveLength(0);
+    },
+  );
 });

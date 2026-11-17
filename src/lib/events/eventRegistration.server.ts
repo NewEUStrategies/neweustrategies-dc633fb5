@@ -38,21 +38,22 @@
 // ekran potwierdzenia nie rysuje kodu z odpowiedzi zapisu (bilet otwiera się
 // z maila, `ticketLinkPath`), a cron i tak zrotowałby go w ciągu minuty.
 //
-// OKNO WDROŻENIA („najpierw kod"). Dopóki funkcji `event_register_for_client`
-// nie ma (PGRST202/42883), wołamy starą `event_register` klientem anonimowym
-// z nagłówkiem hosta i tokenem wołającego, a jej odpowiedź mapujemy na nowy
-// kształt (`registered` + dostawa „utworzono"). Stara funkcja nie zna
-// weryfikacji adresu, więc w tym oknie wynik idzie do przeglądarki jak dotąd -
-// znika razem z migracją. Każdy inny błąd bazy to `unknown` z logiem.
+// BEZ ŚCIEŻKI ZAPASOWEJ. Kod wyszedł przed migracją 20261012140100, więc brak
+// `event_register_for_client` (PGRST202/42883) cofał zapis do starej
+// `event_register` klientem anonimowym z nagłówkiem hosta i tokenem wołającego.
+// To okno jest zamknięte: typy regenerowane z bazy produkcji przez bota Lovable
+// (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty, których
+// produkcja nie ma, a `event_register_for_client` zostawiły z argumentami, które
+// wysyła ten moduł. Ta sama migracja odbiera `anon` i `authenticated` EXECUTE
+// starej funkcji, więc na bazie z nią stara ścieżka kończy się 42501 (pomiar
+// kontraktu TS<->SQL na PG16). Brak funkcji to teraz awaria wdrożenia - `unknown`
+// z logiem, jak każdy inny błąd bazy.
 import { getRequest } from "@tanstack/react-start/server";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
-import {
-  optionalBearerFromRequest,
-  optionalUserIdFromRequest,
-} from "@/lib/auth/optionalUser.server";
+import { optionalUserIdFromRequest } from "@/lib/auth/optionalUser.server";
 import {
   EVENT_CONSENT_PURPOSE_COPY,
   txCopy,
@@ -64,15 +65,12 @@ import { currentTenantHost } from "@/lib/http/requestHost";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { requestRateSubject, hashedRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   registrationPayload,
   UNKNOWN_REGISTRATION_REFUSAL,
   type EventRegisterClient,
   type EventRegistrationRequest,
   type RegistrationAttribution,
-  type RegistrationPayload,
-  type RegistrationRefusalClient,
 } from "@/lib/events/registrationPayload";
 import { hostAnonClient } from "@/lib/events/registrationSelfNotify.server";
 
@@ -166,17 +164,6 @@ async function requestTenantId(): Promise<string | null> {
   }
 }
 
-/** Odmowa z komunikatu `RAISE EXCEPTION 'kod: ogon'` - kształt wartości z bazy. */
-function refusalFromMessage(message: string): RegistrationRefusalClient {
-  const separator = message.indexOf(":");
-  const head = (separator === -1 ? message : message.slice(0, separator)).trim();
-  if (!CODE_RE.test(head)) return UNKNOWN_REGISTRATION_REFUSAL;
-  const tail = separator === -1 ? "" : message.slice(separator + 1).trim();
-  return DETAIL_CODES.has(head) && tail !== ""
-    ? { ok: false, error: head, detail: tail }
-    : { ok: false, error: head };
-}
-
 /**
  * `client` z bazy -> odpowiedź dla przeglądarki. Odmowa niesie tylko kod (i ogon
  * trzech kodów z listami), odpowiedź neutralna jest STAŁĄ, a zapis
@@ -253,42 +240,6 @@ export function parseRegistrationDelivery(value: Json | undefined): Registration
 }
 
 /**
- * Stara `event_register` (okno wdrożenia) -> nowy kształt. Konto idzie dalej
- * tokenem wołającego TYLKO wtedy, gdy serwer go zweryfikował - nieważny token
- * dałby 401 zamiast zapisu gościa.
- */
-async function legacyRegister(
-  payload: RegistrationPayload,
-  userId: string | null,
-): Promise<RegisterOutcome> {
-  const bearer = userId === null ? null : await optionalBearerFromRequest();
-  const legacy = await hostAnonClient(bearer);
-  if (legacy === null) return { client: UNKNOWN_REGISTRATION_REFUSAL, delivery: null };
-  const { data, error } = await legacy.rpc("event_register", { p_payload: payload });
-  if (error) return { client: refusalFromMessage(error.message), delivery: null };
-
-  const bag = bagOf(data);
-  if (bag !== null && bag.ok === false) return { client: clientOf(bag), delivery: null };
-  const registrationId = bag === null ? null : text(bag.registration_id);
-  if (bag === null || registrationId === null) {
-    return { client: UNKNOWN_REGISTRATION_REFUSAL, delivery: null };
-  }
-  return {
-    client: { ...bag, ok: true, outcome: "registered" },
-    delivery: {
-      kind: "created",
-      registrationId,
-      manageToken: text(bag.manage_token),
-      qrToken: text(bag.qr_token),
-      status: text(bag.status),
-      recipient: null,
-      event: null,
-      consentConfirmation: null,
-    },
-  };
-}
-
-/**
  * Zapis z tożsamością z serwera. Zwraca WYŁĄCZNIE odpowiedź dla przeglądarki;
  * dostawa (maile, bilet, atrybucja) biegnie po odpowiedzi.
  */
@@ -314,25 +265,24 @@ export async function submitEventRegistrationForRequest(
     _tenant_id: tenantId,
     // NULL jest tu POPRAWNĄ wartością (gość, brak nagłówka) - wygenerowany typ
     // argumentu jej nie zna, więc zawężamy jawnie, jak `club_set_cover`.
-    // Pominięcie klucza znaczyłoby inną sygnaturę (PGRST202), a to byłoby
-    // fałszywe „okno wdrożenia".
+    // Pominięcie klucza znaczyłoby inną sygnaturę (PGRST202), a ta jest awarią
+    // (`unknown`), nie zapisem.
     _user_id: userId as RegisterArgs["_user_id"],
     _ip_subject: ipSubject,
     _user_agent: userAgent as RegisterArgs["_user_agent"],
     p_payload: payload,
   });
 
-  let outcome: RegisterOutcome;
+  // Każdy błąd bazy, także brak funkcji (PGRST202/42883), to `unknown` z logiem.
   if (error) {
-    if (!isMigrationPending(error)) {
-      console.error("[events] registration rpc failed", error.code ?? "", error.message);
-      return UNKNOWN_REGISTRATION_REFUSAL;
-    }
-    outcome = await legacyRegister(payload, userId);
-  } else {
-    const bag = bagOf(data);
-    outcome = { client: clientOf(bag?.client), delivery: parseRegistrationDelivery(bag?.delivery) };
+    console.error("[events] registration rpc failed", error.code ?? "", error.message);
+    return UNKNOWN_REGISTRATION_REFUSAL;
   }
+  const bag = bagOf(data);
+  const outcome: RegisterOutcome = {
+    client: clientOf(bag?.client),
+    delivery: parseRegistrationDelivery(bag?.delivery),
+  };
 
   // Baza zamienia nieoczekiwany wyjątek rdzenia na `unknown` (z RAISE WARNING) -
   // bez tego śladu po stronie serwera awaria wyglądałaby jak odmowa.

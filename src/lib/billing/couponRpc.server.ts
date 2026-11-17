@@ -19,19 +19,24 @@
 //   * konto - sesja z `requireSupabaseAuth` (wołający podaje `userId`);
 //   * adres - `requestRateSubject` (solony skrót, nigdy surowy adres).
 //
-// OKNO WDROŻENIA. Kod wychodzi przed migracją: dopóki funkcji `*_for_user`
-// nie ma (PGRST202/42883), wracamy do starego wywołania JWT kupującego, które
-// do wejścia migracji nadal działa. Każdy inny błąd idzie do wołającego.
-import type { SupabaseClient } from "@supabase/supabase-js";
+// BEZ ŚCIEŻKI ZAPASOWEJ (walidacja, rezerwacja i zwolnienie). Kod wyszedł
+// przed migracją, więc brak funkcji `*_for_user` (PGRST202/42883) cofał
+// wywołanie do starego RPC klientem wołającego (JWT kupującego, przy
+// zwolnieniu także rolą serwisową realizacji). To okno jest zamknięte:
+// produkcja ma wszystkie funkcje `*_for_user` z 20261007120200,
+// 20261007120600 i 20261007140200 - typy regenerowane z bazy produkcji przez
+// bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty,
+// których produkcja nie ma, a te zostawiły z argumentami, które wysyła ten
+// moduł. Stara ścieżka i tak nie miała czego ratować: te same migracje
+// odbierają `authenticated` EXECUTE starych funkcji, więc na bazie z nimi
+// klient kupującego dostaje 42501 (pomiar kontraktu TS<->SQL na PG16). Brak
+// funkcji to teraz awaria wdrożenia - idzie do wołającego jak każdy inny błąd,
+// nigdy po cichu starą drogą.
 import { getRequest } from "@tanstack/react-start/server";
 
-import type { Database } from "@/integrations/supabase/types";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
-
-type UserClient = SupabaseClient<Database>;
 
 /** Odpowiedź RPC w kształcie, który czytają `parseCouponVerdict` i kasa. */
 export interface CouponRpcResult {
@@ -111,7 +116,6 @@ export async function requestProbeIdentity(): Promise<{
 
 /** Werdykt `validate_b2b_coupon_for_user` dla konta z sesji (skalar jsonb). */
 export async function validatePlanCouponForUser(
-  userClient: UserClient,
   input: PlanCouponValidation,
 ): Promise<CouponRpcResult> {
   const tenantId = await requestTenantId();
@@ -128,15 +132,7 @@ export async function validatePlanCouponForUser(
     _amount_cents: input.amountCents,
     _currency: input.currency,
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const legacy = await userClient.rpc("validate_b2b_coupon", {
-    _code: input.code,
-    _plan_id: input.planId,
-    _amount_cents: input.amountCents,
-    _currency: input.currency,
-  });
-  return { data: legacy.data, error: legacy.error };
+  return { data, error };
 }
 
 /**
@@ -145,7 +141,6 @@ export async function validatePlanCouponForUser(
  * kody planu, więc zmiana ścieżki nie daje nowych prób.
  */
 export async function validateEventTicketCouponForUser(
-  userClient: UserClient,
   input: EventTicketCouponValidation,
 ): Promise<CouponRpcResult> {
   const tenantId = await requestTenantId();
@@ -162,23 +157,11 @@ export async function validateEventTicketCouponForUser(
     _amount_cents: input.amountCents,
     _currency: input.currency,
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const legacy = await userClient.rpc("validate_event_ticket_coupon", {
-    _code: input.code,
-    _event_id: input.eventId,
-    _ticket_type_id: input.ticketTypeId,
-    _amount_cents: input.amountCents,
-    _currency: input.currency,
-  });
-  return { data: legacy.data, error: legacy.error };
+  return { data, error };
 }
 
 /** Atomowa rezerwacja użycia kodu na zamówieniu tego konta (`true` = zajęte). */
-export async function redeemCouponForUser(
-  userClient: UserClient,
-  input: CouponRedemption,
-): Promise<CouponRpcResult> {
+export async function redeemCouponForUser(input: CouponRedemption): Promise<CouponRpcResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("redeem_b2b_coupon_for_user", {
     _tenant_id: input.tenantId,
@@ -189,16 +172,7 @@ export async function redeemCouponForUser(
     _original_cents: input.originalCents,
     _currency: input.currency,
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const legacy = await userClient.rpc("redeem_b2b_coupon", {
-    _coupon_id: input.couponId,
-    _order_id: input.orderId,
-    _applied_cents: input.appliedCents,
-    _original_cents: input.originalCents,
-    _currency: input.currency,
-  });
-  return { data: legacy.data, error: legacy.error };
+  return { data, error };
 }
 
 /**
@@ -208,10 +182,7 @@ export async function redeemCouponForUser(
  * zalogowany zwalniał realizację także opłaconego zamówienia i kod
  * jednorazowy był znów ważny.
  */
-export async function releaseCouponForUser(
-  userClient: UserClient,
-  input: CouponRelease,
-): Promise<CouponRpcResult> {
+export async function releaseCouponForUser(input: CouponRelease): Promise<CouponRpcResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
     _tenant_id: input.tenantId,
@@ -219,13 +190,7 @@ export async function releaseCouponForUser(
     _coupon_id: input.couponId,
     _order_id: input.orderId,
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const legacy = await userClient.rpc("release_b2b_coupon", {
-    _coupon_id: input.couponId,
-    _order_id: input.orderId,
-  });
-  return { data: legacy.data, error: legacy.error };
+  return { data, error };
 }
 
 /**
