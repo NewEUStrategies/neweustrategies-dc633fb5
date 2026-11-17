@@ -57,7 +57,10 @@ export function OAuthConsentError({ message }: ConsentErrorProps) {
         <TriangleAlert className="h-6 w-6 text-destructive" aria-hidden="true" />
         <h1 className="text-lg font-semibold">{t("oauthConsent.errors.title")}</h1>
         <p className="text-sm text-muted-foreground">{message}</p>
-        <a href="/" className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <a
+          href="/"
+          className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
           {t("oauthConsent.errors.backHome")}
         </a>
       </div>
@@ -148,7 +151,10 @@ export function OAuthConsentPanel({
               ))}
               {scopes.other.map((scope) => (
                 <li key={scope} className="flex items-start gap-2">
-                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <TriangleAlert
+                    className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                   <span className="break-all">{t("oauthConsent.scopes.other", { scope })}</span>
                 </li>
               ))}
@@ -159,7 +165,10 @@ export function OAuthConsentPanel({
       </div>
 
       {error && (
-        <p role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+        >
           {error}
         </p>
       )}
@@ -169,7 +178,11 @@ export function OAuthConsentPanel({
           {pending === "deny" && <Loader2 className="animate-spin" aria-hidden="true" />}
           {t("oauthConsent.deny")}
         </Button>
-        <Button disabled={busy} onClick={() => onDecide("approve")} aria-busy={pending === "approve"}>
+        <Button
+          disabled={busy}
+          onClick={() => onDecide("approve")}
+          aria-busy={pending === "approve"}
+        >
           {pending === "approve" && <Loader2 className="animate-spin" aria-hidden="true" />}
           {t("oauthConsent.approve")}
         </Button>

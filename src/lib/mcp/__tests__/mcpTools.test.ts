@@ -217,7 +217,13 @@ describe("list_recent_posts", () => {
     const result = await listRecentPosts.handler({ lang: "en", limit: 10 }, callerContext());
     await assertToolResult(result, { outputSchema: listRecentPosts.outputSchema });
     expect(result.structuredContent).toEqual({
-      results: [summarySchema.parse({ ...postRow(), title: "Treaty on tariffs", excerpt: "Excerpt in English" })],
+      results: [
+        summarySchema.parse({
+          ...postRow(),
+          title: "Treaty on tariffs",
+          excerpt: "Excerpt in English",
+        }),
+      ],
     });
     expect(JSON.parse(textOf(result))).toEqual(
       z.object({ results: z.array(summarySchema) }).parse(result.structuredContent).results,
@@ -263,7 +269,9 @@ describe("get_post", () => {
   it("oddaje metadane i ciało z bramkowanego RPC dla wołającego z dostępem", async () => {
     h.db!.setResponse("posts", ok(postRow()));
     h.rpcResults.set("get_entity_content", {
-      data: [{ content_pl: "<p>Treść</p>", content_en: null, builder_data: null, blocks_data: null }],
+      data: [
+        { content_pl: "<p>Treść</p>", content_en: null, builder_data: null, blocks_data: null },
+      ],
       error: null,
     });
     const result = await getPost.handler({ slug: "traktat-o-cle", lang: "en" }, callerContext());
@@ -274,7 +282,12 @@ describe("get_post", () => {
       args: { _entity_type: "post", _entity_id: "11111111-1111-4111-8111-111111111111" },
     });
     expect(result.structuredContent).toMatchObject({
-      post: { slug: "traktat-o-cle", title: "Treaty on tariffs", body: "<p>Treść</p>", body_available: true },
+      post: {
+        slug: "traktat-o-cle",
+        title: "Treaty on tariffs",
+        body: "<p>Treść</p>",
+        body_available: true,
+      },
     });
   });
 

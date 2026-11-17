@@ -32,7 +32,10 @@ describe("trasy /mcp", () => {
     const response = await handleMcpRequest({
       request: platformRequest("/mcp", {
         method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     });
@@ -76,19 +79,28 @@ describe("trasy /mcp", () => {
 
 describe("protokół MCP (w procesie, bez warstwy OAuth)", () => {
   async function openClient() {
-    const [{ defineMcp }, { createTanStackMcpHandler }, { withMcpClient }, definition] =
-      await Promise.all([
-        import("@lovable.dev/mcp-js"),
-        import("@lovable.dev/mcp-js/stacks/tanstack"),
-        import("@lovable.dev/mcp-js/testing/server"),
-        import("@/lib/mcp/index"),
-      ]);
+    const [
+      { defineMcp },
+      { createTanStackMcpHandler },
+      { withMcpClient },
+      { default: listRecentPosts },
+      { default: searchPosts },
+      { default: getPost },
+    ] = await Promise.all([
+      import("@lovable.dev/mcp-js"),
+      import("@lovable.dev/mcp-js/stacks/tanstack"),
+      import("@lovable.dev/mcp-js/testing/server"),
+      import("@/lib/mcp/tools/list-recent-posts"),
+      import("@/lib/mcp/tools/search-posts"),
+      import("@/lib/mcp/tools/get-post"),
+    ]);
     // Te same narzędzia bez `auth` - sprawdzamy kontrakt protokołu, nie OAuth.
     const unauthenticated = defineMcp({
       name: "protocol-test",
       title: "Protocol test",
+      instructions: "Protocol test server.",
       version: "0.0.0",
-      tools: [...definition.default.tools],
+      tools: [listRecentPosts, searchPosts, getPost],
     });
     const handler = createTanStackMcpHandler(unauthenticated);
     return <T>(run: Parameters<typeof withMcpClient<T>>[1]) =>

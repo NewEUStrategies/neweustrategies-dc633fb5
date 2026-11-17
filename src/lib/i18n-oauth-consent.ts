@@ -24,15 +24,18 @@ export const oauthConsentPl = {
       phone: "Numer telefonu",
       other: "Dodatkowe uprawnienie: {{scope}}",
     },
-    boundary: "Połączenie nie omija uprawnień konta ani zasad dostępu platformy. Możesz je wycofać w każdej chwili.",
+    boundary:
+      "Połączenie nie omija uprawnień konta ani zasad dostępu platformy. Możesz je wycofać w każdej chwili.",
     approve: "Zezwól",
     deny: "Anuluj połączenie",
     working: "Przetwarzanie...",
     errors: {
       missing: "Link autoryzacji jest niepełny. Wróć do aplikacji i rozpocznij łączenie ponownie.",
-      expired: "To żądanie autoryzacji wygasło lub zostało już użyte. Wróć do aplikacji i spróbuj ponownie.",
+      expired:
+        "To żądanie autoryzacji wygasło lub zostało już użyte. Wróć do aplikacji i spróbuj ponownie.",
       failed: "Nie udało się zapisać decyzji. Spróbuj ponownie.",
-      noRedirect: "Serwer autoryzacji nie zwrócił adresu powrotu. Wróć do aplikacji i spróbuj ponownie.",
+      noRedirect:
+        "Serwer autoryzacji nie zwrócił adresu powrotu. Wróć do aplikacji i spróbuj ponownie.",
       title: "Nie można dokończyć łączenia",
       backHome: "Wróć na stronę główną",
     },
@@ -61,15 +64,19 @@ export const oauthConsentEn = {
       phone: "Phone number",
       other: "Additional permission: {{scope}}",
     },
-    boundary: "This connection does not bypass your account permissions or the platform's access rules. You can revoke it at any time.",
+    boundary:
+      "This connection does not bypass your account permissions or the platform's access rules. You can revoke it at any time.",
     approve: "Allow",
     deny: "Cancel connection",
     working: "Processing...",
     errors: {
-      missing: "This authorization link is incomplete. Return to the app and start connecting again.",
-      expired: "This authorization request has expired or was already used. Return to the app and try again.",
+      missing:
+        "This authorization link is incomplete. Return to the app and start connecting again.",
+      expired:
+        "This authorization request has expired or was already used. Return to the app and try again.",
       failed: "Your decision could not be saved. Please try again.",
-      noRedirect: "The authorization server returned no return address. Return to the app and try again.",
+      noRedirect:
+        "The authorization server returned no return address. Return to the app and try again.",
       title: "The connection could not be completed",
       backHome: "Back to the homepage",
     },

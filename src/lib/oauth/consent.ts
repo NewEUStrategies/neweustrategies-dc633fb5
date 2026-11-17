@@ -5,10 +5,7 @@
 // zalogowanego użytkownika o zgodę: pobiera szczegóły żądania po
 // `authorization_id`, pokazuje klienta i zakresy, a po decyzji przekierowuje
 // na adres zwrócony przez serwer autoryzacji.
-import type {
-  OAuthAuthorizationDetails,
-  OAuthRedirect,
-} from "@supabase/supabase-js";
+import type { OAuthAuthorizationDetails, OAuthRedirect } from "@supabase/supabase-js";
 
 /** Identyfikator żądania autoryzacji: UUID wydany przez serwer autoryzacji. */
 const AUTHORIZATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +20,8 @@ export interface ConsentSearch {
 export function parseConsentSearch(search: Record<string, unknown>): ConsentSearch {
   const raw = search.authorization_id;
   return {
-    authorization_id: typeof raw === "string" && AUTHORIZATION_ID.test(raw.trim()) ? raw.trim() : "",
+    authorization_id:
+      typeof raw === "string" && AUTHORIZATION_ID.test(raw.trim()) ? raw.trim() : "",
   };
 }
 
@@ -39,22 +37,46 @@ export function needsConsent(
   return "authorization_id" in data;
 }
 
-/**
- * Adres powrotu do klienta OAuth - wyłącznie `https:` albo `http:` na
- * pętli zwrotnej (klienci CLI i desktopowi). Inny schemat (`javascript:`,
- * `data:`) nie jest przekierowaniem, tylko wektorem ataku.
- */
-export function safeClientRedirect(raw: string | null | undefined): string | null {
+/** Schematy, które w `location.assign` wykonują kod albo czytają lokalne zasoby. */
+const UNSAFE_SCHEMES: ReadonlySet<string> = new Set([
+  "javascript:",
+  "data:",
+  "vbscript:",
+  "file:",
+  "blob:",
+  "about:",
+  "filesystem:",
+]);
+
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+function parseUrl(raw: string | null | undefined): URL | null {
   if (!raw) return null;
-  let url: URL;
   try {
-    url = new URL(raw);
+    return new URL(raw);
   } catch {
     return null;
   }
-  if (url.protocol === "https:") return url.href;
-  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-  return url.protocol === "http:" && loopback ? url.href : null;
+}
+
+/**
+ * Adres powrotu do klienta OAuth (z odpowiedzi serwera autoryzacji, który
+ * sprawdził go z zarejestrowanymi adresami klienta). Dozwolone: `https:`,
+ * `http:` wyłącznie na pętli zwrotnej (klienci CLI) i własne schematy
+ * aplikacji natywnych (RFC 8252, np. edytory kodu). Odrzucane: schematy
+ * wykonujące kod (`javascript:`, `data:`) i `http:` do sieci.
+ */
+export function safeClientRedirect(raw: string | null | undefined): string | null {
+  const url = parseUrl(raw);
+  if (!url || UNSAFE_SCHEMES.has(url.protocol)) return null;
+  if (url.protocol === "http:") return LOOPBACK_HOSTS.has(url.hostname) ? url.href : null;
+  return url.href;
+}
+
+/** Logo klienta - tylko `https:`, żeby strona zgody nie ładowała treści mieszanej. */
+export function safeLogoUri(raw: string | null | undefined): string | null {
+  const url = parseUrl(raw);
+  return url?.protocol === "https:" ? url.href : null;
 }
 
 export type ScopeKey = "openid" | "email" | "profile" | "phone";

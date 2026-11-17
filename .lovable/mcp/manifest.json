@@ -5,22 +5,111 @@
   "auth": {
     "type": "oauth",
     "issuer": "https://unnltowbgszpdzwpawdu.supabase.co/auth/v1",
-    "resource_name": "NEW EU Strategies MCP",
+    "resource_name": "New European Strategies",
+    "require_oauth_client_claim": true,
     "accepted_audiences": [
       "authenticated"
-    ]
+    ],
+    "jwks_uri": "https://unnltowbgszpdzwpawdu.supabase.co/auth/v1/.well-known/jwks.json"
   },
   "mcp": {
     "server": {
-      "name": "neweustrategies-mcp",
-      "version": "0.1.0",
-      "title": "NEW EU Strategies"
+      "name": "new-european-strategies",
+      "version": "1.0.0",
+      "title": "New European Strategies"
     },
     "tools": [
       {
+        "name": "list_recent_posts",
+        "title": "List recent posts",
+        "description": "List the most recently published New European Strategies articles, newest first.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "lang": {
+              "type": "string",
+              "enum": [
+                "pl",
+                "en"
+              ],
+              "default": "pl",
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "description": "Maximum posts to return (1-50)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "excerpt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cover_image_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "published_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "post_format": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "slug",
+                  "title",
+                  "excerpt",
+                  "cover_image_url",
+                  "published_at",
+                  "post_format"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "results"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+      },
+      {
         "name": "search_posts",
         "title": "Search posts",
-        "description": "Search published posts by keyword across titles and excerpts. Returns slug, title, excerpt, publish date and cover image.",
+        "description": "Search published New European Strategies articles by keyword in titles and excerpts of the chosen language. Returns slug, title, excerpt, publish date, format and cover image.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -32,6 +121,7 @@
             "query": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 200,
               "description": "Search phrase."
             },
             "lang": {
@@ -41,14 +131,14 @@
                 "en"
               ],
               "default": "pl",
-              "description": "Language variant to search."
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
             },
             "limit": {
               "type": "integer",
               "minimum": 1,
               "maximum": 50,
               "default": 10,
-              "description": "Maximum posts to return."
+              "description": "Maximum posts to return (1-50)."
             }
           },
           "required": [
@@ -57,12 +147,65 @@
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
-        "outputSchema": null
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "excerpt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cover_image_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "published_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "post_format": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "slug",
+                  "title",
+                  "excerpt",
+                  "cover_image_url",
+                  "published_at",
+                  "post_format"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "results"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        }
       },
       {
         "name": "get_post",
         "title": "Get post by slug",
-        "description": "Fetch a single published post by its slug, including body content.",
+        "description": "Fetch one published New European Strategies article by its slug, including the full body when the signed-in account has access to it.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,
@@ -74,6 +217,7 @@
             "slug": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 200,
               "description": "Post slug."
             },
             "lang": {
@@ -83,7 +227,7 @@
                 "en"
               ],
               "default": "pl",
-              "description": "Language variant."
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
             }
           },
           "required": [
@@ -92,41 +236,75 @@
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
-        "outputSchema": null
-      },
-      {
-        "name": "list_recent_posts",
-        "title": "List recent posts",
-        "description": "List the most recently published posts.",
-        "annotations": {
-          "readOnlyHint": true,
-          "idempotentHint": true,
-          "openWorldHint": false
-        },
-        "inputSchema": {
+        "outputSchema": {
           "type": "object",
           "properties": {
-            "lang": {
-              "type": "string",
-              "enum": [
-                "pl",
-                "en"
-              ],
-              "default": "pl",
-              "description": "Language variant."
-            },
-            "limit": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 50,
-              "default": 10,
-              "description": "Maximum posts to return."
+            "post": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "excerpt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cover_image_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "published_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "post_format": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "body_available": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "title",
+                    "excerpt",
+                    "cover_image_url",
+                    "published_at",
+                    "post_format",
+                    "body",
+                    "body_available"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
+          "required": [
+            "post"
+          ],
           "additionalProperties": false,
           "$schema": "http://json-schema.org/draft-07/schema#"
-        },
-        "outputSchema": null
+        }
       }
     ]
   }

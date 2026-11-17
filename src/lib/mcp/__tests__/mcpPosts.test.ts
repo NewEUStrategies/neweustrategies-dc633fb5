@@ -2,7 +2,12 @@
 // frazy wyszukiwania.
 import { describe, expect, it } from "vitest";
 
-import { pickLocalized, toIlikePattern, toPostSummaryJson, type PostSummaryRow } from "@/lib/mcp/posts";
+import {
+  pickLocalized,
+  toIlikePattern,
+  toPostSummaryJson,
+  type PostSummaryRow,
+} from "@/lib/mcp/posts";
 
 const ROW: PostSummaryRow = {
   id: "11111111-1111-4111-8111-111111111111",

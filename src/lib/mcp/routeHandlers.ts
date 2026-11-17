@@ -62,9 +62,8 @@ export const handleMcpRequest = lazyRouteHandler(async () => {
 });
 
 export const handleProtectedResourceMetadataRequest = lazyRouteHandler(async () => {
-  const { createTanStackOAuthProtectedResourceMetadataHandler } = await import(
-    "@lovable.dev/mcp-js/stacks/tanstack"
-  );
+  const { createTanStackOAuthProtectedResourceMetadataHandler } =
+    await import("@lovable.dev/mcp-js/stacks/tanstack");
   return createTanStackOAuthProtectedResourceMetadataHandler(loadDefinition, {
     ...MCP_ROUTE_OPTIONS,
     // To samo poświadczenie, które wtyczka Vite SDK ustawia na trasie metadanych

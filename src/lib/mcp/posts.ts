@@ -67,11 +67,7 @@ export const postSummaryOutput = z.object({
 });
 
 /** Tekst w żądanym języku, a gdy go brak - w drugim; pusty napis to brak. */
-export function pickLocalized(
-  pl: string | null,
-  en: string | null,
-  lang: McpLang,
-): string | null {
+export function pickLocalized(pl: string | null, en: string | null, lang: McpLang): string | null {
   const [primary, secondary] = lang === "en" ? [en, pl] : [pl, en];
   const first = primary?.trim() ? primary : null;
   if (first) return first;

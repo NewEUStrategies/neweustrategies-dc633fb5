@@ -5,8 +5,8 @@
 //
 // `ssr: false`: sesja żyje w przeglądarce - SSR nie widziałby zalogowanego
 // użytkownika i odsyłałby go do logowania. Niezalogowany trafia na `/login`
-// z `next` = ten adres; portal logowania zachowuje go przy logowaniu hasłem,
-// rejestracji i logowaniu Google (`/auth/callback?next=`).
+// z `next` = ten adres; portal logowania zachowuje go przy logowaniu hasłem
+// i przy potwierdzeniu rejestracji z e-maila (`/auth/callback?next=`).
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,6 +25,7 @@ import {
   needsConsent,
   parseConsentSearch,
   safeClientRedirect,
+  safeLogoUri,
 } from "@/lib/oauth/consent";
 
 type ConsentLoaderData =
@@ -89,7 +90,7 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
       userEmail: userData.user?.email ?? data.user.email ?? null,
       client: {
         name: data.client.name,
-        logoUri: safeClientRedirect(data.client.logo_uri),
+        logoUri: safeLogoUri(data.client.logo_uri),
         redirectUri: data.redirect_uri,
         scope: data.scope,
       },
@@ -121,8 +122,10 @@ function ConsentPage() {
   const [pending, setPending] = useState<"approve" | "deny" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (data.state === "missing") return <OAuthConsentError message={t("oauthConsent.errors.missing")} />;
-  if (data.state === "expired") return <OAuthConsentError message={t("oauthConsent.errors.expired")} />;
+  if (data.state === "missing")
+    return <OAuthConsentError message={t("oauthConsent.errors.missing")} />;
+  if (data.state === "expired")
+    return <OAuthConsentError message={t("oauthConsent.errors.expired")} />;
   if (data.state === "redirecting") return <ConsentPending />;
 
   const { authorizationId } = data;

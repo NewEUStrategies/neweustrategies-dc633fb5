@@ -1,5 +1,13 @@
 # Roadmap
 
+## Serwer narzędzi AI (MCP) 3.5 i zgoda OAuth (2026-11-17)
+
+- [x] SDK 3.5.0; trzy narzędzia (najnowsze, wyszukiwanie, pojedynczy wpis) z typowanym wyjściem, wyłącznie opublikowane wpisy najemcy, treść przez bramkowane RPC, token wołającego bez anonimowego obejścia.
+- [x] Adresy: `/mcp` (pełny protokół, zastępuje `/.mcp/list-tools` i `/.mcp/invoke-tool`) i metadane OAuth; SDK ładowane leniwie, 503 i ponowienie przy błędzie ładowania.
+- [x] Strona zgody `/.lovable/oauth/consent` PL/EN z powrotem po logowaniu; bezpieczne adresy powrotu i logo.
+- [x] Testy: 909 w obszarze (MCP, zgoda, logowanie, kontrakt SQL, cache) - 2 niezależne, wcześniej istniejące błędy w `documentCompletenessPipeline`; tsgo i lint czyste; manifest odświeżony.
+- [ ] Sprawdzenie w przeglądarce i pełne połączenie klienta AI: BLOKADA - podgląd developerski ma wcześniejszy błąd bundlera (import serwerowy `ssrTiming.server` w grafie klienta przez `src/start.ts`), więc strony bez SSR nie startują; po publikacji podłączyć klienta MCP do `/mcp` i przejść logowanie + zgodę.
+
 ## Formularze bez pola pomiaru i naprawa wydania (2026-10-26)
 
 - [x] Usunięto pole i deklarację pomiaru z NewsletterForm, PopupSignupForm, JoinUsForm, ContactFormView, AuthFormBlocks, ClubAccessGate i NewsletterDocRenderer PL/EN. Newsletter i prywatność zachowane; brak automatycznego opt-in pomiaru, newsletter podczas tworzenia konta pozostaje opcjonalny i niezaznaczony.
