@@ -25,7 +25,8 @@
  * sortowania i upsertu, zasoby osadzone, zapytania do sond wykonania i wiersze
  * gościa (`anon`) faktów klienta przeglądarki w plikach osiągalnych dla
  * gościa (`src/lib/ci/guestReach.ts`). `--check` (bez bazy) pilnuje list
- * przejrzanych (`UNKNOWN_ROLE_REVIEWED`, `GUEST_LOGIN_ONLY_REVIEWED`) i zapadek
+ * przejrzanych (`UNKNOWN_ROLE_REVIEWED`, `GUEST_LOGIN_ONLY_REVIEWED`,
+ * `GATED_ROUTES_REVIEWED` - trasy z bramką sesji, `src/lib/ci/guestReach.ts`) i zapadek
  * filtrów nieczytelnych.
  *
  * `--guest-gaps` drukuje zwykły SQL (nie pgTAP) z tymi samymi tabelami,
@@ -58,7 +59,7 @@
  * `session-gate`/`admin` - za logowaniem, `none` - bez ścieżki z trasy.
  */
 import { writeFileSync } from "node:fs";
-import { guestReach } from "../src/lib/ci/guestReach";
+import { gatedRouteProblems, guestReach } from "../src/lib/ci/guestReach";
 import {
   checkedRoles,
   extractSeamFacts,
@@ -172,7 +173,12 @@ function main(): void {
     `(bez kandydata roli: ${[...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length}) ` +
     `(${c.files} plików, ${c.parseErrors.length} z błędami składni, ${elapsed})`;
 
-  const problems = seamCoverageProblems(facts, undefined, { reach });
+  // Trasy z bramką sesji zwalniają poddrzewo z wierszy gościa - lista
+  // przejrzana (`GATED_ROUTES_REVIEWED`) musi być równa bramkom w kodzie.
+  const problems = [
+    ...seamCoverageProblems(facts, undefined, { reach }),
+    ...gatedRouteProblems(sources),
+  ];
   if (process.argv.includes("--check")) {
     if (problems.length > 0) {
       console.error(`✗ ${summary}\n${problems.map((p) => `    • ${p}`).join("\n")}`);
