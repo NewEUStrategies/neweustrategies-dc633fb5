@@ -6430,18 +6430,20 @@ SELECT DISTINCT f.site, f.func,
                  AND a.attnum > 0 AND NOT a.attisdropped)));
 
 -- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
--- w UPDATE i DELETE).
+-- w UPDATE i DELETE). Kolumna przez zlaczenie z pg_attribute, uprawnienie po
+-- numerze kolumny: \`AND EXISTS (...)\` nie gwarantuje kolejnosci, a
+-- has_column_privilege po NAZWIE kolumny, ktorej nie ma, przerywa caly plik
+-- (42703) - brak kolumny zglasza asercja 12.
 CREATE TEMP VIEW ts_v_filter_denied AS
 SELECT DISTINCT f.guest, f.site, f.func,
        format('%s: %s: %s.%s dla %s: brak SELECT (%s%s, %s%s)', f.site, f.func, f.rel, f.col, f.role,
               f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
               CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END) AS msg
   FROM ts_obs_filter_cols f
- WHERE f.role IN ${roles} AND f.col IS NOT NULL AND ${rel("f.rel")} IS NOT NULL
-   AND EXISTS (SELECT 1 FROM pg_attribute a
-                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
-                  AND a.attnum > 0 AND NOT a.attisdropped)
-   AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT');
+  JOIN pg_attribute a ON a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                     AND a.attnum > 0 AND NOT a.attisdropped
+ WHERE f.role IN ${roles}
+   AND NOT has_column_privilege(f.role, a.attrelid, a.attnum, 'SELECT');
 
 -- Osadzenia: relacja (tabela, widok, klucz obcy albo jego kolumna) i kolumny
 -- istnieja. Relacja nadrzedna bez kluczy obcych w katalogu (widok) -
@@ -6893,7 +6895,11 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                       WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (f.role IN ${roles}
-          AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT'))
+          AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute a
+                                 WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                                   AND a.attnum > 0 AND NOT a.attisdropped)
+                   THEN NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT')
+                   ELSE false END)
   UNION ALL
   SELECT 'embed-column', m.site, m.func, c.relname::text, col.col, m.role, m.enforced,
          CASE WHEN NOT EXISTS (SELECT 1 FROM pg_attribute a
