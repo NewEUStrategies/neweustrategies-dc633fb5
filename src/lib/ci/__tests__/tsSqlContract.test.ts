@@ -2625,6 +2625,8 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
           await supabaseAdmin.from("prefs").upsert({ user_id: u, theme: "d" }, { onConflict: "user_id" });
           await supabaseAdmin.from("prefs").upsert({ user_id: u }, { ignoreDuplicates: true });
           await supabaseAdmin.from("prefs").upsert({ user_id: u }, { onConflict: target });
+          await supabaseAdmin.from("prefs").upsert(rows).select("id");
+          await supabaseAdmin.from("prefs").upsert(rows, { onConflict: "user_id" }).select("id");
         }
       `,
     });
@@ -2636,6 +2638,9 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
       `upsert_ignore prefs [] ładunek(user_id) where() conflict(${PRIMARY_KEY_COLUMNS}) service_role write`,
       // Cel nieczytelny - pusty, nie klucz główny (sonda: `ON CONFLICT DO NOTHING`).
       "upsert prefs [] ładunek(user_id) where() conflict() service_role write",
+      // Ładunek nieczytelny - bez faktu zapisu; zostaje odczyt RETURNING, a cel
+      // `ON CONFLICT` (także znacznik klucza głównego) to nie WHERE.
+      "select prefs [id] ładunek() where() service_role write",
     ]);
   });
 

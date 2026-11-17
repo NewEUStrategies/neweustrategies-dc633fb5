@@ -4226,6 +4226,9 @@ function handleBuilder(
   }
 }
 
+/** Metody faktów filtra upsertu: cel `ON CONFLICT` i kolumny `EXCLUDED`. */
+const UPSERT_FILTER_METHODS: ReadonlySet<string> = new Set(["onConflict", "upsert(EXCLUDED)"]);
+
 /**
  * Zapytania łańcuchów jednego budowniczego do sond wykonania. Zapytanie to
  * łańcuch wprost (indeks 0, gdy niepusty) razem z JEDNYM łańcuchem użycia
@@ -4253,9 +4256,15 @@ function observeStatements(
     const gFilters = filters.filter((f) => inGroup.has(f.chain)).map((f) => f.filter);
     const fn = gFacts[0]?.fn ?? gFilters[0]?.fn;
     if (fn === undefined) continue;
-    // Filtry tabeli łańcucha (osadzenia - osobne sondy kolumn filtra). Przy
-    // upsercie to cel `ON CONFLICT` i kolumny `EXCLUDED` - WHERE ich nie bierze.
-    const where = unique(gFilters.filter((f) => f.embed === null).map((f) => f.column));
+    // Filtry tabeli łańcucha (osadzenia - osobne sondy kolumn filtra). Cel
+    // `ON CONFLICT` (także znacznik klucza głównego) i kolumny `EXCLUDED` to
+    // nie WHERE - także w upsercie z ładunkiem nieczytelnym (bez faktu zapisu,
+    // zostaje sam odczyt RETURNING); mają własne sondy kolumn filtra.
+    const where = unique(
+      gFilters
+        .filter((f) => f.embed === null && !UPSERT_FILTER_METHODS.has(f.method))
+        .map((f) => f.column),
+    );
     const target = unique(gFilters.filter((f) => f.method === "onConflict").map((f) => f.column));
     const selects = gFacts.filter((f) => f.op === "select");
     const columns = unique(selects.flatMap((f) => f.columns));
