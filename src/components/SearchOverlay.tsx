@@ -32,8 +32,10 @@ import {
   emptyOverlayResults,
   firstNonEmptyTab,
   overlaySearchQueryOptions,
+  overlayTabsFor,
   type OverlayTab,
 } from "@/lib/search/overlayTabs";
+import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
@@ -136,8 +138,14 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   const debouncedQ = useDebouncedValue(q.trim(), 220);
   const enabled = open && liveResults && debouncedQ.length >= 2;
   const perTab = Math.max(1, Math.min(limit, 20));
+  // Katalog osób jest tylko dla sesji (anon bez EXECUTE na `search_people`):
+  // gość nie wysyła tego RPC i nie widzi zakładki, która zawsze byłaby pusta.
+  // Overlay montuje się dopiero po kliknięciu lupki - bez wpływu na SSR.
+  const { session } = useAuth();
+  const viewer = { signedIn: session !== null };
+  const visibleTabs = overlayTabsFor(viewer);
   const grouped = useQuery({
-    ...overlaySearchQueryOptions(debouncedQ, lang, perTab),
+    ...overlaySearchQueryOptions(debouncedQ, lang, perTab, viewer),
     enabled,
   });
   const results = useMemo(
@@ -243,7 +251,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
             aria-label={t("searchOverlay.tabs.ariaLabel") as string}
             className="flex items-center gap-1 overflow-x-auto border-b border-border/60 px-2 py-1"
           >
-            {OVERLAY_TABS.map((key) => {
+            {visibleTabs.map((key) => {
               const Icon = TAB_ICON[key];
               const isActive = key === tab;
               const count = results[key].length;
