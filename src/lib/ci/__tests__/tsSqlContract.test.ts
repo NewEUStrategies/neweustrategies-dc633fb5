@@ -4361,3 +4361,214 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(all.filter((x) => x.guest).length).toBeGreaterThan(1000);
   });
 });
+
+// ── Złożenie pasów ról (S1, S4, C1) i sond (C2, S3, S7, S8) ─────────────────
+// Oba pasy zmieniały te same widoki naruszeń: pas ról dodał kolumnę `call`
+// (klucz listy gościa dla `--guest-gaps`), pas sond - gałęzie UNION sondy
+// pustej. Scalenie bez konfliktu tekstowego dało widok `ts_v_probe` z gałęziami
+// o różnej liczbie kolumn, a plik pgTAP padał na 9. asercji (plan 20, ran 9).
+
+/**
+ * Instrukcje najwyższego poziomu SQL bez komentarzy `--`: średnik poza
+ * nawiasem, literałem `'...'` i ciałem `$tag$ ... $tag$`.
+ */
+function sqlStatements(sql: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let i = 0;
+  while (i < sql.length) {
+    const ch = sql[i];
+    if (ch === "-" && sql[i + 1] === "-") {
+      const end = sql.indexOf("\n", i);
+      i = end === -1 ? sql.length : end;
+      continue;
+    }
+    if (ch === "'") {
+      const end = sql.indexOf("'", i + 1);
+      cur += sql.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+    const tag = ch === "$" ? /^\$[A-Za-z_]*\$/.exec(sql.slice(i, i + 40)) : null;
+    if (tag !== null) {
+      const end = sql.indexOf(tag[0], i + tag[0].length) + tag[0].length;
+      cur += sql.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === "(") depth += 1;
+    if (ch === ")") depth -= 1;
+    if (ch === ";" && depth === 0) {
+      if (cur.trim() !== "") out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+    i += 1;
+  }
+  if (cur.trim() !== "") out.push(cur.trim());
+  return out;
+}
+
+/** Tekst z literałami i zawartością nawiasów zamienionymi na spacje (te same indeksy). */
+function topLevelMask(text: string): string {
+  let out = "";
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      quoted = ch !== "'";
+      out += " ";
+    } else if (ch === "'") {
+      quoted = true;
+      out += " ";
+    } else if (ch === "(" || ch === ")") {
+      depth += ch === "(" ? 1 : -1;
+      out += " ";
+    } else {
+      out += depth > 0 ? " " : ch;
+    }
+  }
+  return out;
+}
+
+/** Gałęzie UNION zapytania: nazwy kolumn listy SELECT każdej gałęzi. */
+function unionBranches(query: string): string[][] {
+  const mask = topLevelMask(query);
+  const cuts = [...mask.matchAll(/\bUNION(?:\s+ALL)?\b/g)];
+  const bounds = [0, ...cuts.flatMap((m) => [m.index, m.index + m[0].length]), query.length];
+  const branches: string[][] = [];
+  for (let b = 0; b < bounds.length; b += 2) {
+    const text = query.slice(bounds[b], bounds[b + 1]);
+    const m = topLevelMask(text);
+    const select = /\bSELECT\b(?:\s+DISTINCT\b)?/.exec(m);
+    if (select === null) throw new Error(`gałąź bez SELECT: ${text.slice(0, 80)}`);
+    const from = /\bFROM\b/.exec(m.slice(select.index));
+    const end = from === null ? text.length : select.index + from.index;
+    const start = select.index + select[0].length;
+    const items: string[] = [];
+    let last = start;
+    for (let i = start; i <= end; i += 1) {
+      if (i === end || m[i] === ",") {
+        items.push(text.slice(last, i).trim());
+        last = i + 1;
+      }
+    }
+    branches.push(items.map((item) => /(\w+)\s*$/.exec(item)?.[1] ?? item));
+  }
+  return branches;
+}
+
+/**
+ * Zapytania z UNION: widoki `CREATE TEMP VIEW`, instrukcje SELECT/WITH
+ * i `CREATE TEMP TABLE ... AS`, a w nich podzapytania w nawiasach
+ * (`FROM (... UNION ALL ...) v`, LATERAL). Ciała funkcji i bloki DO - pominięte.
+ */
+function unionQueries(sql: string): Map<string, string[][]> {
+  const out = new Map<string, string[][]>();
+  const add = (name: string, query: string): void => {
+    if (/^\s*(SELECT|WITH)\b/.test(query) && /\bUNION\b/.test(topLevelMask(query))) {
+      out.set(name, unionBranches(query.trim()));
+    }
+  };
+  for (const s of sqlStatements(sql)) {
+    if (/^(CREATE FUNCTION|DO)\b/.test(s)) continue;
+    const head = /^CREATE TEMP (?:VIEW (\w+)|TABLE (\w+)[^(]*?) AS\s+/.exec(s);
+    const name = head === null ? s.slice(0, 60) : (head[1] ?? head[2]);
+    add(name, head === null ? s : s.slice(head[0].length));
+    const open: number[] = [];
+    let quoted = false;
+    for (let i = 0; i < s.length; i += 1) {
+      if (quoted) quoted = s[i] !== "'";
+      else if (s[i] === "'") quoted = true;
+      else if (s[i] === "(") open.push(i);
+      else if (s[i] === ")") {
+        const start = open.pop() ?? 0;
+        const inner = s.slice(start + 1, i);
+        add(`${name} > (${inner.trim().slice(0, 50)}`, inner);
+      }
+    }
+  }
+  return out;
+}
+
+// Wspólne źródła: pomocnik `hostAnonClient(bearer)` (kandydaci anon i authenticated),
+// pomocnik z wołającymi o różnych rolach, klient przeglądarki w handlerze serwera
+// i łańcuch `.rpc(...)` z sortowaniem wyniku.
+const MERGE_SERVER = "src/lib/e/host.server.ts";
+const MERGE_HOST = `
+  export async function hostAnonClient(bearer: string | null = null) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return null;
+    const [{ createClient }] = await Promise.all([import("@supabase/supabase-js")]);
+    return createClient(url, key, {
+      global: bearer === null ? {} : { headers: { Authorization: \`Bearer \${bearer}\` } },
+    });
+  }
+  export async function legacyRegister(bearer) {
+    const legacy = await hostAnonClient(bearer);
+    await legacy.from("event_registrations").insert({ event_id: 1, email: "x" });
+    return legacy.rpc("event_register", { p_payload: {} });
+  }
+`;
+const MERGE_PUBLIC = "src/lib/queries/srv.ts";
+const mergeFacts = observed({
+  [MERGE_SERVER]: MERGE_HOST,
+  "src/lib/seats.server.ts": `${ADMIN_FILE}
+    ${AUTH_IMPORT}
+    async function count(client) { return client.from("event_rsvps").select("id").eq("event_id", 1); }
+    export const a = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => count(context.supabase));
+    export async function b() { return count(supabaseAdmin); }
+  `,
+  [MERGE_PUBLIC]: `${BROWSER_IMPORT}
+    export const save = createServerFn().handler(async () => supabase.from("user_bookmarks").insert({ entity_id: 1 }));
+    export async function pub() { return supabase.rpc("resolve_path", { _segments: [] }).order("page_id"); }
+  `,
+});
+const mergeReach: ReadonlyMap<string, SiteReach> = new Map([
+  [MERGE_PUBLIC, { cls: "public", entry: "/x", path: [] }],
+]);
+const mergeGate = renderContractTest(mergeFacts, {}, { reach: mergeReach, guestLoginOnly: {} });
+const mergeOutputs = [
+  ["pgTAP", mergeGate],
+  ["--guest-gaps", renderGuestGaps(mergeFacts, { reach: mergeReach })],
+  ["--measure", renderObservedQueries(mergeFacts)],
+] as const;
+
+describe("scalenie pasów ról i sond: widoki naruszeń spójne, klucz sondy syntetycznej", () => {
+  it("każda gałąź UNION widoków naruszeń i zapytań raportu ma tyle samo kolumn; widoki czytane przez `--guest-gaps` niosą `call`", () => {
+    for (const [label, sql] of mergeOutputs) {
+      const queries = unionQueries(sql);
+      expect(queries.size, label).toBeGreaterThan(0);
+      for (const [name, branches] of queries) {
+        expect(
+          branches.map((b) => b.length),
+          `${label}: ${name}`,
+        ).toEqual(branches.map(() => branches[0].length));
+      }
+    }
+    const views = unionQueries(mergeGate);
+    // Widok sond: odmowa/brak obiektu/limit czasu, sonda pusta, wpis nieaktualny.
+    expect(views.get("ts_v_probe")?.length).toBe(3);
+    expect(views.get("ts_v_fact")?.[0]).toEqual(["kind", "guest", "site", "func", "call", "msg"]);
+    expect(views.get("ts_v_probe")?.[0]).toEqual(["guest", "site", "func", "call", "msg"]);
+    for (const name of ["ts_v_filter_denied", "ts_v_embed_denied"]) {
+      const view = sqlStatements(mergeGate).find((s) =>
+        s.startsWith(`CREATE TEMP VIEW ${name} AS`),
+      );
+      expect(view, name).toContain(" AS call,");
+    }
+  });
+
+  it("sonda RPC syntetyczna (`probe-rpc-synth`) ma w `--guest-gaps` klucz `.rpc(funkcja)` jak sonda z NULL-ami", () => {
+    const probe = sqlStatements(mergeGate).find((s) =>
+      s.startsWith("CREATE TEMP VIEW ts_v_probe AS"),
+    );
+    expect(probe).toContain("CASE WHEN p.kind LIKE 'probe-rpc%' THEN '.rpc(' || p.rel || ')'");
+    expect(probe).not.toContain("p.kind = 'probe-rpc'");
+    expect(mergeGate).toContain("SELECT 'probe-rpc-synth', s.args,");
+  });
+});

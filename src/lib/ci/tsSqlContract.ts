@@ -7704,7 +7704,7 @@ SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz
 -- (limit czasu albo blokada, sonda nieuruchomiona w zadnej partii).
 CREATE TEMP VIEW ts_v_probe AS
 SELECT DISTINCT p.guest, p.site, p.func,
-       CASE WHEN p.kind = 'probe-rpc' THEN '.rpc(' || p.rel || ')'
+       CASE WHEN p.kind LIKE 'probe-rpc%' THEN '.rpc(' || p.rel || ')'
             WHEN p.kind = 'probe-embed' THEN '.from(' || coalesce((
               SELECT min(m.tbl) FROM ts_obs_embed m
                WHERE m.site = p.site AND m.func = p.func
@@ -7722,7 +7722,7 @@ SELECT DISTINCT p.guest, p.site, p.func,
 UNION
 -- Sonda RPC pusta: wszystkie sondy funkcji tego miejsca i roli (argumenty NULL
 -- i syntetyczne) bez bledu i bez odczytu zadnej relacji - cialo niesprawdzone.
-SELECT p.guest, p.site, p.func,
+SELECT p.guest, p.site, p.func, '.rpc(' || p.rel || ')',
        format('%s: %s: probe-rpc %s [%s] jako %s: sonda pusta - argumenty NULL i syntetyczne bez bledu i bez odczytu zadnej relacji (cialo funkcji niesprawdzone; RPC_PROBE_VACUOUS_REVIEWED)',
               p.site, p.func, p.rel, p.cols, p.role)
   FROM ts_probe p
@@ -7730,7 +7730,7 @@ SELECT p.guest, p.site, p.func,
  GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
 HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
 UNION
-SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn,
+SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn, '.rpc(' || r.fn || ')',
        format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
   FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
  WHERE current_setting('track_counts')::boolean
