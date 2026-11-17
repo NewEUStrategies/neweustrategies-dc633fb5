@@ -160,7 +160,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   // Sesja w postaci bezpiecznej dla SSR: `false` na serwerze i w pierwszym
   // renderze klienta, nawet gdy leniwa trasa hydratuje się PO rozstrzygnięciu
   // sesji. Rozstrzyga o tym, co MONTUJEMY tylko dla zalogowanego (panele
-  // ludzi w szynie) - ich RPC są dla `anon` zamknięte.
+  // ludzi w szynie, docenienie wpisu) - ich RPC są dla `anon` zamknięte.
   const viewerSignedIn = useClubViewer() === "signedIn";
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -796,11 +796,18 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                     topicsCatalog={topicsCatalog}
                     activeTopic={topic}
                     onTopicSelect={(next) => applyThreadFilter(() => setTopic(next), next !== null)}
-                    onPostLike={(postId) => {
-                      toggleLike.mutate(postId, {
-                        onSuccess: () => void postsQ.refetch(),
-                      });
-                    }}
+                    // `club_post_toggle_like` jest dla `anon` zamknięte - gość
+                    // dostawał aktywny przycisk, animację i cichą porażkę.
+                    // Bez handlera karta wyłącza „Lubię to” (licznik zostaje).
+                    onPostLike={
+                      viewerSignedIn
+                        ? (postId) => {
+                            toggleLike.mutate(postId, {
+                              onSuccess: () => void postsQ.refetch(),
+                            });
+                          }
+                        : undefined
+                    }
                     onPostDelete={(postId) => deletePost.mutate(postId)}
                     threadReactions={threadReactionsQ.data}
                     threadReactionActors={threadActorsQ.data}

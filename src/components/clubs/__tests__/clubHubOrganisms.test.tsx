@@ -38,7 +38,7 @@
 //     Tablica, skład i „poznaj członka” czytają RPC w ogóle zamknięte dla
 //     `anon`, więc gość ich NIE MONTUJE (dowód na prawdziwych panelach:
 //     `clubHubGuestGates.test.tsx`), a zalogowany dostaje je z prawami
-//     z wiersza klubu.
+//     z wiersza klubu. Gość nie dostaje też akcji polubienia wpisu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //  - `buildClubFeed`: przeplot kart kontekstowych ma pełną tabelę przypadków
@@ -485,6 +485,7 @@ vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
     onThreadReact?: (threadId: string, kind: ClubReactionKind, active: boolean) => void;
   }) => {
     h.feedItem = {
+      hasLike: props.onPostLike !== undefined,
       canReact: props.canReact,
       reactionsPending: props.reactionsPending,
       hasReactions: props.threadReactions !== undefined,
@@ -1244,6 +1245,23 @@ describe("ClubHub - ściana i reakcje", () => {
 
     expect(h.likeMutate).toHaveBeenCalledWith("post-1", expect.anything());
     expect(h.refetchPosts).toHaveBeenCalledTimes(1);
+  });
+
+  it("gość nie dostaje akcji polubienia - `club_post_toggle_like` jest dla `anon` zamknięte", () => {
+    // Bez handlera `ClubPostCard` wyłącza „Lubię to” (osobny test karty).
+    // Dotąd gość miał aktywny przycisk, animację i cichą porażkę RPC.
+    fullData();
+    h.session = null;
+    mount();
+
+    expect(h.feedItem?.hasLike).toBe(false);
+    fireEvent.click(screen.getAllByTestId("feed-like")[0]);
+    expect(h.likeMutate).not.toHaveBeenCalled();
+
+    cleanup();
+    h.session = { user: { id: "user-me" } };
+    mount();
+    expect(h.feedItem?.hasLike).toBe(true);
   });
 
   it("usunięcie wpisu woła mutację usuwania", () => {
