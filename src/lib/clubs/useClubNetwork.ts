@@ -10,6 +10,12 @@
 //
 // Wyjatkiem jest prosba o zdanie: dotyczy JEDNEGO watku i nie zmienia niczego
 // w klubie, wiec unieważnia wylacznie galaz tego watku.
+//
+// WYŁĄCZNIK CZYTELNIKA (`enabled`). Odczyty tablicy, ekspertów i „poznaj
+// członka” to RPC zamknięte dla `anon`. Trasy tych ekranów montują je PRZED
+// rozstrzygnięciem sesji z wyłącznikiem (szkielet, ten sam co w HTML-u
+// serwera, bez żądania), a gościowi pokazują kartę zamiast ekranu - patrz
+// `useClubViewer`. Domyślnie `true`: pozostali wołający pytają jak dotąd.
 import {
   useMutation,
   useQuery,
@@ -82,14 +88,24 @@ export function useClubBoardNotices(params: {
   limit?: number;
   offset?: number;
   scope?: ClubBoardScope;
+  /** Wyłącznik czytelnika - patrz nagłówek pliku (WYŁĄCZNIK CZYTELNIKA). */
+  enabled?: boolean;
 }): UseQueryResult<ClubBoardPage, Error> {
-  const { clubId, kind = null, topic = null, limit = 8, offset = 0, scope = "open" } = params;
+  const {
+    clubId,
+    kind = null,
+    topic = null,
+    limit = 8,
+    offset = 0,
+    scope = "open",
+    enabled = true,
+  } = params;
   const flags = scopeFlags(scope);
   return useQuery({
     queryKey: clubKeys.board(clubId ?? "none", kind, topic, scope, offset, limit),
     queryFn: () =>
       fetchClubBoardNotices({ clubId: clubId ?? "", kind, topic, limit, offset, ...flags }),
-    enabled: clubId !== undefined && clubId !== "",
+    enabled: enabled && clubId !== undefined && clubId !== "",
     // Krotko, bo tablica ogloszen jest powierzchnia, na ktorej swiezosc JEST
     // trescia: ogloszenie sprzed godziny i sprzed tygodnia to dwie rozne
     // wiadomosci o tym samym klubie.
@@ -210,11 +226,13 @@ export function useClubRosterSignal(params: {
 
 export function useClubSpotlight(
   clubId: string | undefined,
+  /** Wyłącznik czytelnika - patrz nagłówek pliku (WYŁĄCZNIK CZYTELNIKA). */
+  enabled = true,
 ): UseQueryResult<ClubSpotlightRow | null, Error> {
   return useQuery({
     queryKey: clubKeys.spotlight(clubId ?? "none"),
     queryFn: () => fetchClubSpotlight(clubId ?? ""),
-    enabled: clubId !== undefined && clubId !== "",
+    enabled: enabled && clubId !== undefined && clubId !== "",
     // Rotacja jest TYGODNIOWA - odpytywanie czesciej niz raz na kwadrans nie
     // ma prawa oddac innej osoby.
     staleTime: 15 * 60_000,
@@ -231,23 +249,27 @@ export function useClubExperts(params: {
   search?: string;
   limit?: number;
   offset?: number;
+  /** Wyłącznik czytelnika - patrz nagłówek pliku (WYŁĄCZNIK CZYTELNIKA). */
+  enabled?: boolean;
 }): UseQueryResult<ClubExpertsPage, Error> {
-  const { clubId, topic = null, search = "", limit = 24, offset = 0 } = params;
+  const { clubId, topic = null, search = "", limit = 24, offset = 0, enabled = true } = params;
   return useQuery({
     queryKey: clubKeys.experts(clubId ?? "none", topic, search.trim(), offset),
     queryFn: () => fetchClubExperts({ clubId: clubId ?? "", topic, search, limit, offset }),
-    enabled: clubId !== undefined && clubId !== "",
+    enabled: enabled && clubId !== undefined && clubId !== "",
     staleTime: 60_000,
   });
 }
 
 export function useClubExpertiseAreas(
   clubId: string | undefined,
+  /** Wyłącznik czytelnika - patrz nagłówek pliku (WYŁĄCZNIK CZYTELNIKA). */
+  enabled = true,
 ): UseQueryResult<ClubExpertiseArea[], Error> {
   return useQuery({
     queryKey: clubKeys.expertiseAreas(clubId ?? "none"),
     queryFn: () => fetchClubExpertiseAreas(clubId ?? ""),
-    enabled: clubId !== undefined && clubId !== "",
+    enabled: enabled && clubId !== undefined && clubId !== "",
     staleTime: 5 * 60_000,
   });
 }
@@ -276,12 +298,14 @@ export function useClubEvent(params: {
 export function useClubSpotlightHistory(params: {
   clubId: string | undefined;
   limit?: number;
+  /** Wyłącznik czytelnika - patrz nagłówek pliku (WYŁĄCZNIK CZYTELNIKA). */
+  enabled?: boolean;
 }): UseQueryResult<ClubSpotlightHistoryRow[], Error> {
-  const { clubId, limit = 12 } = params;
+  const { clubId, limit = 12, enabled = true } = params;
   return useQuery({
     queryKey: clubKeys.spotlightHistory(clubId ?? "none"),
     queryFn: () => fetchClubSpotlightHistory(clubId ?? "", limit),
-    enabled: clubId !== undefined && clubId !== "",
+    enabled: enabled && clubId !== undefined && clubId !== "",
     staleTime: 5 * 60_000,
   });
 }

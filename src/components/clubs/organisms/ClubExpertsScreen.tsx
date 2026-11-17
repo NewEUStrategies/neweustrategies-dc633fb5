@@ -38,10 +38,13 @@ export function ClubExpertsScreen({
   clubId,
   canDeclare,
   locale,
+  enabled = true,
 }: {
   clubId: string;
   canDeclare: boolean;
   locale: string;
+  /** `false` = szkielet bez żądania, dopóki trasa nie wie, kto czyta. */
+  enabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
@@ -52,13 +55,14 @@ export function ClubExpertsScreen({
   const [page, setPage] = useState(0);
 
   const debouncedSearch = useDebouncedValue(search, 250);
-  const areasQ = useClubExpertiseAreas(clubId);
+  const areasQ = useClubExpertiseAreas(clubId, enabled);
   const query = useClubExperts({
     clubId,
     topic,
     search: debouncedSearch,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
+    enabled,
   });
 
   const areas = areasQ.data ?? [];

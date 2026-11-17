@@ -36,6 +36,7 @@ import {
 } from "@/components/clubs/atoms/ClubNetworkPrimitives";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubEnumSelect } from "@/components/clubs/molecules/ClubEnumSelect";
+import { ClubRosterHiddenCard } from "@/components/clubs/molecules/ClubGuestCards";
 import { useAuth } from "@/hooks/useAuth";
 import {
   activeMemberIds,
@@ -218,11 +219,7 @@ function ClubMembersRoute() {
           pokazywać składu, a czytelnik ma prawo wiedzieć, że to decyzja
           klubu, a nie awaria. */}
       {!canSee ? (
-        <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            {t("club.roster.hidden")}
-          </CardContent>
-        </Card>
+        <ClubRosterHiddenCard />
       ) : membersQ.isError ? (
         <ClubErrorNotice onRetry={() => void membersQ.refetch()} />
       ) : membersQ.isPending ? (
