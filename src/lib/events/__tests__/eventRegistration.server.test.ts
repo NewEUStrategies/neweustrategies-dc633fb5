@@ -11,8 +11,9 @@
 //      zapisany, a klucz daje obcemu władzę nad cudzym zgłoszeniem.
 //   4. ZGUBIONY MAIL - po zapisie przez serwer przeglądarka nie wysyła już
 //      potwierdzenia; bez dostawy serwera uczestnik nie dostaje NIC.
-//   5. FAŁSZYWE OKNO WDROŻENIA - pominięty argument `_user_id` to inna
-//      sygnatura (PGRST202) i cichy powrót do starej, dziurawej funkcji.
+//   5. CICHA STARA ŚCIEŻKA - brak funkcji (PGRST202/42883, także od
+//      pominiętego argumentu `_user_id`) to awaria `unknown`, nigdy powrót do
+//      starej, dziurawej `event_register` klientem z nagłówkiem hosta.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE: żądanie, sesję, host, katalog najemców,
 // klienta serwisowego, pocztę, licznik, wydanie biletu i `waitUntil`.
@@ -38,13 +39,13 @@ const SPOOF_IP = "203.0.113.99";
 const h = vi.hoisted(() => ({
   request: null as Request | null,
   userId: null as string | null,
-  bearer: null as string | null,
   tenant: "aaaaaaaa-0000-4000-8000-00000000000a" as string | null,
   tenantThrows: false,
   hosts: [] as (string | null)[],
   rpc: vi.fn(),
   hostRpc: vi.fn(),
-  hostBearers: [] as (string | null)[],
+  /** Argumenty każdego `hostAnonClient(...)` - klient bez tokenu to `[]`. */
+  hostCalls: [] as unknown[][],
   background: [] as Promise<unknown>[],
   notice: vi.fn(),
   issue: vi.fn(),
@@ -63,7 +64,6 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 vi.mock("@/lib/auth/optionalUser.server", () => ({
   optionalUserIdFromRequest: async () => h.userId,
-  optionalBearerFromRequest: async () => h.bearer,
 }));
 vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => "nes.example" }));
 vi.mock("@/lib/server/tenant.server", () => ({
@@ -80,8 +80,8 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
   },
 }));
 vi.mock("@/lib/events/registrationSelfNotify.server", () => ({
-  hostAnonClient: async (bearer: string | null = null) => {
-    h.hostBearers.push(bearer);
+  hostAnonClient: async (...args: unknown[]) => {
+    h.hostCalls.push(args);
     return { rpc: h.hostRpc };
   },
   sendRegistrationNoticeForManageToken: (tenantId: string, token: string) =>
@@ -187,14 +187,13 @@ let errorSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   h.request = request();
   h.userId = null;
-  h.bearer = null;
   h.tenant = TENANT;
   h.tenantThrows = false;
   h.hosts = [];
   h.rpc.mockReset();
   h.hostRpc.mockReset();
   h.hostRpc.mockResolvedValue({ data: { ok: true }, error: null });
-  h.hostBearers = [];
+  h.hostCalls = [];
   h.background = [];
   h.notice.mockReset();
   h.notice.mockResolvedValue({ ok: true });
@@ -406,7 +405,7 @@ describe("odpowiedź - do przeglądarki wraca wyłącznie `client`", () => {
     const logged = errorSpy.mock.calls.map((call: unknown[]) => String(call[0]));
     expect(logged).toContain("[events] registration refused as unknown");
     expect(logged).toContain("[events] registration rpc failed");
-    // Odmowa bazy NIE uruchamia starej funkcji - to nie jest okno wdrożenia.
+    // Odmowa bazy nie sięga po klienta z nagłówkiem hosta.
     expect(h.hostRpc).not.toHaveBeenCalled();
   });
 });
@@ -439,7 +438,7 @@ describe("dostawa po odpowiedzi", () => {
       p_payload: { manage_token: MANAGE, ...attribution },
     });
     // Atrybucja idzie klientem anonimowym z nagłówkiem hosta - bez tokenu.
-    expect(h.hostBearers).toEqual([null]);
+    expect(h.hostCalls).toEqual([[]]);
     // Zgłoszenie oczekujące nie dostaje biletu ani maila o zajętym adresie.
     expect(h.issue).not.toHaveBeenCalled();
     expect(txCalls("event_registration_already_registered")).toEqual([]);
@@ -613,75 +612,35 @@ describe("dostawa po odpowiedzi", () => {
   });
 });
 
-describe("okno wdrożenia - stara `event_register` tylko na PGRST202/42883", () => {
+describe("brak funkcji serwerowej - awaria, bez starej `event_register`", () => {
   it.each(["PGRST202", "42883"])(
-    "%s: stary zapis klientem z hostem, mapowany na nowy kształt",
+    "%s: `unknown` z logiem, jedno wywołanie, żadnej dostawy - gość i konto",
     async (code) => {
-      h.rpc.mockResolvedValue({ data: null, error: { code, message: "function not found" } });
-      h.hostRpc.mockResolvedValue({
-        data: {
-          registration_id: REG,
-          status: "approved",
-          manage_token: MANAGE,
-          qr_token: QR,
-          payment_required: false,
-        },
-        error: null,
-      });
-      const result = await submitEventRegistrationForRequest(input());
-      expect(h.hostRpc.mock.calls[0]![0]).toBe("event_register");
-      const legacyPayload = (h.hostRpc.mock.calls[0]![1] as { p_payload: Record<string, unknown> })
-        .p_payload;
-      expect(legacyPayload.email).toBe("anna@example.com");
-      expect(result).toMatchObject({ ok: true, outcome: "registered", registration_id: REG });
-      // Dostawa „utworzono" także w oknie wdrożenia - przeglądarka już nie wysyła maili.
-      await drain();
-      expect(h.notice).toHaveBeenCalledWith(TENANT, MANAGE);
-      expect(h.issue).toHaveBeenCalledWith(REG);
+      for (const userId of [null, USER]) {
+        h.userId = userId;
+        h.rpc.mockResolvedValue({ data: null, error: { code, message: "function not found" } });
+
+        expect(await submitEventRegistrationForRequest(input())).toEqual({
+          ok: false,
+          error: "unknown",
+        });
+      }
+      expect(h.rpc).toHaveBeenCalledTimes(2);
+      expect(h.rpc.mock.calls.map(([name]) => name)).toEqual([
+        "event_register_for_client",
+        "event_register_for_client",
+      ]);
+      // Ani stara funkcja, ani klient z nagłówkiem hosta i tokenem wołającego.
+      expect(h.hostCalls).toEqual([]);
+      expect(h.hostRpc).not.toHaveBeenCalled();
+      expect(h.background).toEqual([]);
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[events] registration rpc failed",
+        code,
+        "function not found",
+      );
     },
   );
-
-  it("token wołającego jedzie dalej TYLKO przy zweryfikowanym koncie", async () => {
-    h.rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "x" } });
-    h.hostRpc.mockResolvedValue({ data: { registration_id: REG, status: "pending" }, error: null });
-    h.bearer = "nieważny-token";
-    await submitEventRegistrationForRequest(input());
-    h.userId = USER;
-    h.bearer = "ważny-token";
-    await submitEventRegistrationForRequest(input());
-    // Pierwszy (gość) - bez tokenu; drugi - z tokenem. Atrybucji nie było.
-    expect(h.hostBearers).toEqual([null, "ważny-token"]);
-  });
-
-  it("stara odmowa wyjątkiem wraca kodem z ogonem list, a obcy błąd - `unknown`", async () => {
-    h.rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "x" } });
-    h.hostRpc.mockResolvedValue({
-      data: null,
-      error: { message: "missing_required_fields: diet,vat" },
-    });
-    expect(await submitEventRegistrationForRequest(input())).toEqual({
-      ok: false,
-      error: "missing_required_fields",
-      detail: "diet,vat",
-    });
-    h.hostRpc.mockResolvedValue({
-      data: null,
-      error: { message: "already_registered: anna@example.com" },
-    });
-    expect(await submitEventRegistrationForRequest(input())).toEqual({
-      ok: false,
-      error: "already_registered",
-    });
-    h.hostRpc.mockResolvedValue({
-      data: null,
-      error: { message: 'violates check constraint "x"' },
-    });
-    expect(await submitEventRegistrationForRequest(input())).toEqual({
-      ok: false,
-      error: "unknown",
-    });
-    expect(h.background).toEqual([]);
-  });
 });
 
 describe("submitEventRegistration (deklaracja)", () => {
