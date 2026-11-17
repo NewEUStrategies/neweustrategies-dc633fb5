@@ -98,7 +98,13 @@ ani czteroargumentowy dziennik) oraz zbiorcze wycofanie zgody marketingowej
 w CRM (`crm_leads_marketing_consent_withdraw`, `20261012180900`, dziennik 0252;
 bez łatki `marketing_consent = false` bez śladu w rejestrze zgód); brak funkcji
 to teraz błąd zwracany wołającemu, więc kolumna „Kolejność” opisuje stan sprzed
-tej zmiany. Dowód: typy regenerowane z bazy produkcji przez bota Lovable
+tej zmiany. Wyjątek to portfel: oba jego RPC są best-effort, więc brak funkcji
+(np. PGRST202 przy nieaktualnej pamięci schematu PostgREST) to tylko
+ostrzeżenie w logu (`[wallet] google pass state failed`,
+`[wallet] <platforma> issue log failed`), a przepustka jest wydawana jak przy
+każdej innej awarii tych RPC (HTTP 200, Google zapisuje obiekt z kodem).
+Wołający nie dostaje błędu, a brakujący wpis dziennika wydań widać tylko po
+tych ostrzeżeniach. Dowód: typy regenerowane z bazy produkcji przez bota Lovable
 (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty, których
 produkcja nie miała, a wszystkie te funkcje zostawiły z wpisem identycznym jak
 w HEAD. Nagłówek migracji `20261007120400` nadal mówi, że kod wraca do starej
