@@ -172,8 +172,12 @@ function statusOf(source: Bag): RegistrationResultStatus {
  *
  * KLUCZ BILETU Z LINKU (`?ticket=`) jedzie do bazy: od REG-05 formularz nie
  * oddaje biletów ukrytych, z wyjątkiem biletu za kodem dostępu wskazanego tym
- * kluczem. Baza sprzed migracji nie zna argumentu (PGRST202/42883) - wtedy
- * pytamy ją po staremu, a ona i tak oddaje bilety ukryte na liście.
+ * kluczem. BEZ ŚCIEŻKI ZAPASOWEJ: brak funkcji z kluczem (PGRST202/42883) to
+ * błąd wołającego, nie drugie pytanie bez klucza. Typy regenerowane z bazy
+ * produkcji przez bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026)
+ * mają tylko `event_registration_form(p_event_slug, p_ticket_key?)`, a migracja
+ * 20261012140100 (dziennik 0231) usuwa przeciążenie `(text)`. Wywołanie bez
+ * klucza to zwykła ścieżka formularza bez `?ticket=`.
  */
 export async function fetchRegistrationForm(
   eventSlug: string,
@@ -185,8 +189,8 @@ export async function fetchRegistrationForm(
       p_event_slug: eventSlug,
       p_ticket_key: key,
     });
-    if (!error) return parseRegistrationForm(data);
-    if (!isMigrationPending(error)) throw error;
+    if (error) throw error;
+    return parseRegistrationForm(data);
   }
   const { data, error } = await supabase.rpc("event_registration_form", {
     p_event_slug: eventSlug,

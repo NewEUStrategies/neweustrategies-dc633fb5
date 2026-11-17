@@ -1523,29 +1523,35 @@ describe("PublicRegistrationForm - klucz biletu z linku", () => {
     expect(stub().lastCall(FORM_RPC)?.arg("p_event_slug")).toBe(SLUG);
   });
 
-  it("bez klucza odczyt nie wysyla `p_ticket_key` - stara sygnatura dziala dalej", async () => {
+  it("bez klucza odczyt nie wysyla `p_ticket_key` - parametr bierze wartosc domyslna", async () => {
     renderForm();
     await screen.findByLabelText(label("firstName"));
 
     expect(stub().lastCall(FORM_RPC)?.has("p_ticket_key")).toBe(false);
   });
 
-  it("baza bez nowej sygnatury (PGRST202) - formularz czyta sie stara sygnatura", async () => {
-    window.history.replaceState(null, "", `/events/${SLUG}/register?ticket=partner-vip`);
-    stub().setResponse(FORM_RPC, (call) =>
-      call.has("p_ticket_key")
-        ? fail("Could not find the function", "PGRST202")
-        : { data: formPayload(), error: null },
-    );
-    renderForm();
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji z kluczem (%s) to stan bledu - bez cichego formularza bez biletu z linku",
+    async (code) => {
+      window.history.replaceState(null, "", `/events/${SLUG}/register?ticket=partner-vip`);
+      // Odczyt bez klucza by sie udal: powrot do niego pokazalby formularz,
+      // w ktorym brakuje biletu wskazanego linkiem.
+      stub().setResponse(FORM_RPC, (call) =>
+        call.has("p_ticket_key")
+          ? fail("Could not find the function", code)
+          : { data: formPayload(), error: null },
+      );
+      renderForm();
 
-    expect(await screen.findByLabelText(label("firstName"))).toBeInTheDocument();
-    expect(
-      stub()
-        .callsFor(FORM_RPC)
-        .map((call) => call.has("p_ticket_key")),
-    ).toEqual([true, false]);
-  });
+      expect(await screen.findByText("eventRegistration.closed.title")).toBeInTheDocument();
+      expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
+      expect(
+        stub()
+          .callsFor(FORM_RPC)
+          .map((call) => call.has("p_ticket_key")),
+      ).toEqual([true]);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

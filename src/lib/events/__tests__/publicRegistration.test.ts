@@ -443,26 +443,31 @@ describe("publicRegistrationApi", () => {
     expect(result.promotedFromWaitlist).toBe(1);
   });
 
-  it("klucz biletu z linku jedzie do formularza; stara baza bez argumentu dostaje pytanie po staremu", async () => {
+  it("klucz biletu z linku jedzie do formularza (po przycięciu)", async () => {
     await api.fetchRegistrationForm("kongres", " vip ");
     expect(h.rpc?.lastCall("event_registration_form")?.args).toEqual({
       p_event_slug: "kongres",
       p_ticket_key: "vip",
     });
-
-    h.rpc = supabaseRpcStub();
-    h.rpc.setResponse("event_registration_form", (call) =>
-      call.has("p_ticket_key")
-        ? fail("function not found", "PGRST202")
-        : { data: formPayload, error: null },
-    );
-    const form = await api.fetchRegistrationForm("kongres", "vip");
-    expect(form.event?.id).toBe(EVENT);
-    expect(h.rpc.callsFor("event_registration_form").map((call) => call.keys())).toEqual([
-      ["p_event_slug", "p_ticket_key"],
-      ["p_event_slug"],
-    ]);
   });
+
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji z kluczem (%s) to błąd - bez drugiego pytania bez klucza",
+    async (code) => {
+      // Pytanie bez klucza by się udało: gdyby kod znów po nie sięgnął,
+      // formularz przyszedłby po cichu bez biletu wskazanego linkiem.
+      h.rpc = supabaseRpcStub();
+      h.rpc.setResponse("event_registration_form", (call) =>
+        call.has("p_ticket_key")
+          ? fail("function not found", code)
+          : { data: formPayload, error: null },
+      );
+      await expect(api.fetchRegistrationForm("kongres", "vip")).rejects.toMatchObject({ code });
+      expect(h.rpc.callsFor("event_registration_form").map((call) => call.keys())).toEqual([
+        ["p_event_slug", "p_ticket_key"],
+      ]);
+    },
+  );
 
   it("inny błąd formularza z kluczem NIE jest powodem do ponowienia bez klucza", async () => {
     h.rpc?.setError("event_registration_form", "rate_limited: za dużo prób", "P0001");
