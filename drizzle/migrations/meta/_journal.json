@@ -2892,6 +2892,13 @@
       "when": 1794209632123,
       "tag": "0412_crm_companies_aggregates_definer",
       "breakpoints": true
+    },
+    {
+      "idx": 413,
+      "version": "7",
+      "when": 1794940878182,
+      "tag": "0413_pr542_deployment_completion",
+      "breakpoints": true
     }
   ]
 }
