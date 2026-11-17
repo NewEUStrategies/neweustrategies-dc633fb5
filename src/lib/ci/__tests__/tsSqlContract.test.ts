@@ -3285,6 +3285,83 @@ describe("bramka z miary: fakty listopadowych defektów idą do pgTAP z rolą", 
   });
 });
 
+describe("bramka z miary: fakt wstrzymany - filtry i osadzenia jego łańcucha tylko z istnieniem", () => {
+  // Kształt historycznego wpisu (`export.functions.ts`): brakujący grant był
+  // na KOLUMNIE FILTRA `reporter_id` - bez przeniesienia wstrzymania na
+  // filtry i osadzenia łańcucha przejrzany defekt czerwieniłby asercje 13/16.
+  const code = `${AUTH_IMPORT}
+    export const exportMyData = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+      const u = context.userId;
+      const reports = await context.supabase.from("user_reports").select("id, reason, reporter:profiles(display_name)").eq("reporter_id", u).order("created_at");
+      const own = await context.supabase.from("user_reports").select("id").eq("reporter_id", u);
+      return [reports, own];
+    });
+  `;
+  const FILE = "src/lib/profile/export.functions.ts";
+  const ENTRY: WithheldFactReviewed = {
+    file: FILE,
+    fn: "exportMyData",
+    table: "user_reports",
+    op: "select",
+    role: "authenticated",
+    columns: ["id", "reason"],
+    reason: "test",
+  };
+  const withheld = (entries: readonly WithheldFactReviewed[]) =>
+    extractSeamFacts([{ file: FILE, code }], NO_CONTRACTS, entries, { observe: true });
+
+  it("filtr `.eq`, sortowanie i osadzenie wstrzymanego łańcucha - wiersz `unknown` (asercje 12 i 14), bez SELECT roli, gościa i sondy; łańcuch obok sprawdzany", () => {
+    const w = withheld([ENTRY]);
+    expect(w.withheld).toHaveLength(1);
+    expect(
+      w.observed.filters.map((f) => `${f.column}:${f.method}:${f.withheld === true}`).sort(),
+    ).toEqual(["created_at:order:true", "reporter_id:eq:false", "reporter_id:eq:true"]);
+    expect(w.observed.embeds.map((e) => `${e.rel}:${e.withheld === true}`)).toEqual([
+      "profiles:true",
+    ]);
+    const sql = renderContractTest(w);
+    // Istnienie - wiersze z rolą `unknown`.
+    expect(sql).toContain(
+      `('user_reports', 'reporter_id', NULL, 'eq', 'select', 'unknown', 'authenticated', false, '${FILE}', '${FILE}', 'exportMyData')`,
+    );
+    expect(sql).toContain(
+      `('user_reports', 'created_at', NULL, 'order', 'select', 'unknown', 'authenticated', false, '${FILE}', '${FILE}', 'exportMyData')`,
+    );
+    expect(sql).toContain(
+      `(0, NULL, 'user_reports', 'reporter', 'profiles', NULL, ARRAY['display_name']::text[], false, 'unknown', 'authenticated', false, '${FILE}', '${FILE}', 'exportMyData')`,
+    );
+    // Bez roli z sesją dla wstrzymanego sortowania i osadzenia (SELECT roli i sonda).
+    expect(sql).not.toContain(
+      "('user_reports', 'created_at', NULL, 'order', 'select', 'authenticated'",
+    );
+    expect(sql).not.toContain(
+      "'profiles', NULL, ARRAY['display_name']::text[], false, 'authenticated'",
+    );
+    // Ten sam filtr w łańcuchu bez faktu wstrzymanego - sprawdzany rolą.
+    expect(sql).toContain(
+      `('user_reports', 'reporter_id', NULL, 'eq', 'select', 'authenticated', 'authenticated', false, '${FILE}', '${FILE}', 'exportMyData')`,
+    );
+    // Zapytanie sondy - tylko łańcuch niewstrzymany.
+    expect(sql).toContain(
+      `('user_reports', 'select', 'authenticated', 'authenticated', ARRAY['id']::text[], false, '{}'::text[], ARRAY['reporter_id']::text[], NULL::text[], false, '${FILE}', 'exportMyData')`,
+    );
+    expect(sql).not.toContain("ARRAY['id', 'reason']::text[], false, '{}'::text[]");
+  });
+
+  it("bez wpisu - te same filtry i osadzenie z rolą łańcucha (wstrzymanie nie przecieka)", () => {
+    const w = withheld([]);
+    expect(w.observed.filters.every((f) => f.withheld === undefined)).toBe(true);
+    expect(w.observed.embeds.every((e) => e.withheld === undefined)).toBe(true);
+    const sql = renderContractTest(w);
+    expect(sql).toContain(
+      "('user_reports', 'created_at', NULL, 'order', 'select', 'authenticated', 'authenticated', false,",
+    );
+    expect(sql).toContain(
+      "(0, NULL, 'user_reports', 'reporter', 'profiles', NULL, ARRAY['display_name']::text[], false, 'authenticated', 'authenticated', false,",
+    );
+  });
+});
+
 describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUEST_LOGIN_ONLY_REVIEWED", () => {
   const f = observed({
     "src/lib/queries/archives.ts": NOVEMBER["src/lib/queries/archives.ts"],

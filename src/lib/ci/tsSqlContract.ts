@@ -303,6 +303,11 @@ export interface FilterSite extends ObservedCommon {
    * Budowniczy przez wartość - rola bramki odbiorcy jego `.from()`.
    */
   readonly gateRole: ClientRole;
+  /**
+   * Filtr łańcucha, którego fakty wstrzymuje wpis `SEAM_FACTS_WITHHELD_REVIEWED`
+   * - tylko istnienie kolumny (asercja 12), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
@@ -334,6 +339,11 @@ export interface ObservedEmbed extends ObservedCommon {
   readonly file: string;
   /** Rola bramki dla klienta łańcucha (osadzeń bramka nie sprawdza - `enforcedRole` `unknown`). */
   readonly gateRole: ClientRole;
+  /**
+   * Każdy odczyt z tym osadzeniem to fakt wstrzymany w przeglądzie - tylko
+   * istnienie relacji i kolumn (asercja 14), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
@@ -3995,6 +4005,8 @@ interface Collector {
     embeds: ObservedEmbed[];
     /** Klucz osadzenia (z kluczem rodzica) -> `id` - to samo osadzenie tylko raz. */
     embedKeys: Map<string, number>;
+    /** `id` osadzenia -> ile odczytów je niesie i ile z nich to fakty wstrzymane. */
+    embedUses: Map<number, { total: number; withheld: number }>;
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
@@ -4441,9 +4453,9 @@ function handleBuilder(
   // Łańcuch (indeks w `chains`) każdego faktu miary - do zapytań sond.
   const chainFacts: { readonly fact: ObservedTable; readonly chain: number }[] = [];
   let chainIndex = 0;
-  const fact = (f: TableSite, call: ts.CallExpression): void => {
+  const fact = (f: TableSite, call: ts.CallExpression): boolean => {
     const withheld = pushTableFact(out, f, call, scope);
-    if (measure === null) return;
+    if (measure === null) return withheld;
     const observedFact: ObservedTable = {
       ...f,
       role: measure.role.role,
@@ -4457,14 +4469,23 @@ function handleBuilder(
     };
     out.observed.tables.push(observedFact);
     chainFacts.push({ fact: observedFact, chain: chainIndex });
+    return withheld;
   };
   const site = (
     call: ts.CallExpression,
     op: TableOp,
     columns: readonly string[],
     star: boolean,
-  ): void => {
-    fact({ table, op, columns, star, role, file: scope.file }, call);
+  ): boolean => fact({ table, op, columns, star, role, file: scope.file }, call);
+  // Osadzenia odczytu niosą jego wstrzymanie (fakt bez kolumn - odczyt
+  // nie jest wstrzymany).
+  const embedUse = (ids: readonly number[], withheld: boolean): void => {
+    for (const id of ids) {
+      const use = out.observed.embedUses.get(id) ?? { total: 0, withheld: 0 };
+      use.total += 1;
+      if (withheld) use.withheld += 1;
+      out.observed.embedUses.set(id, use);
+    }
   };
 
   for (const [index, chain] of chains.entries()) {
@@ -4505,12 +4526,14 @@ function handleBuilder(
             ? resolveString(arg, scope, exportsIndex, known)
             : null;
         for (const value of flowed ?? []) {
-          if (measure !== null) {
-            observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(value.text);
+          let withheld = false;
           if (parsed.star || parsed.columns.length > 0) {
-            fact(
+            withheld = fact(
               {
                 table,
                 op: "select",
@@ -4522,6 +4545,7 @@ function handleBuilder(
               call,
             );
           }
+          embedUse(ids, withheld);
           if (hasRuntimeColumn(value.text)) {
             flow.unresolved.add(
               `${scope.file}: .select(${arg.getText(scope.sf).slice(0, 60)}) <- ${value.file}: kolumna z wartości czasu działania`,
@@ -4529,13 +4553,16 @@ function handleBuilder(
           }
         }
         for (const select of viaHelper ?? (text === null ? [] : [text])) {
-          if (measure !== null) {
-            observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(select);
-          if (parsed.star || parsed.columns.length > 0) {
-            site(call, "select", parsed.columns, parsed.star);
-          }
+          embedUse(
+            ids,
+            (parsed.star || parsed.columns.length > 0) &&
+              site(call, "select", parsed.columns, parsed.star),
+          );
         }
         // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
         // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
@@ -4594,6 +4621,30 @@ function handleBuilder(
       out,
       measure,
     );
+    // Filtry łańcucha z faktem wstrzymanym: zapytanie (łańcuch wprost razem
+    // z łańcuchem użycia - grupy jak w `observeStatements`) niesie defekt
+    // przejrzany, więc jego filtry - tylko istnienie. Filtr łańcucha wprost
+    // wspólny z niewstrzymanym użyciem zostaje sprawdzany.
+    const withheldChains = new Set(chainFacts.filter((f) => f.fact.withheld).map((f) => f.chain));
+    if (withheldChains.size > 0) {
+      const hasDirect = direct.length > 0;
+      const bound = Array.from(
+        { length: Math.max(0, chains.length - (hasDirect ? 1 : 0)) },
+        (_, i) => (hasDirect ? 1 : 0) + i,
+      );
+      const groups = bound.length === 0 ? [[0]] : bound.map((i) => (hasDirect ? [0, i] : [i]));
+      const held = (chain: number): boolean => {
+        const mine = groups.filter((g) => g.includes(chain));
+        return mine.length > 0 && mine.every((g) => g.some((c) => withheldChains.has(c)));
+      };
+      for (const [i, entry] of chainFilters.entries()) {
+        if (!held(entry.chain)) continue;
+        const filter: FilterSite = { ...entry.filter, withheld: true };
+        const at = out.observed.filters.lastIndexOf(entry.filter);
+        if (at !== -1) out.observed.filters[at] = filter;
+        chainFilters[i] = { filter, chain: entry.chain };
+      }
+    }
     observeStatements(
       chains.length,
       direct.length > 0,
@@ -4649,8 +4700,9 @@ function observeEmbeds(
   call: ts.CallExpression,
   scope: FileScope,
   out: Collector,
-): void {
+): number[] {
   const fn = enclosingFunctionPath(call);
+  const ids: number[] = [];
   const walk = (list: string, parentId: number | null, prefix: string | null, depth: number) => {
     if (depth > 8) return;
     for (const raw of splitTopLevel(list)) {
@@ -4701,10 +4753,12 @@ function observeEmbeds(
           fn,
         });
       }
+      ids.push(id);
       walk(item.inner, id, path, depth + 1);
     }
   };
   walk(select, null, null, 0);
+  return ids;
 }
 
 /** Metody faktów filtra upsertu: cel `ON CONFLICT` i kolumny `EXCLUDED`. */
@@ -5144,6 +5198,7 @@ export function extractSeamFacts(
       filters: [],
       embeds: [],
       embedKeys: new Map(),
+      embedUses: new Map(),
       statements: [],
       statementKeys: new Set(),
       unresolvedFilters: [],
@@ -5205,7 +5260,13 @@ export function extractSeamFacts(
       rpcs: out.observed.rpcs,
       tables: out.observed.tables,
       filters: out.observed.filters,
-      embeds: out.observed.embeds,
+      // Osadzenie wstrzymane: KAŻDY odczyt, który je niesie, to fakt wstrzymany.
+      embeds: out.observed.embeds.map((e) => {
+        const use = out.observed.embedUses.get(e.id);
+        return use !== undefined && use.total > 0 && use.withheld === use.total
+          ? { ...e, withheld: true as const }
+          : e;
+      }),
       statements: out.observed.statements,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
@@ -5875,7 +5936,7 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
   const unknown = unknownRoleDrift(facts, input.unknownRole);
   if (unknown.fresh.length > 0) {
     problems.push(
-      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z powodem:\n` +
+      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną bez kandydata (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED albo z kształtem innym niż przejrzany - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z liczbą, kształtem i powodem:\n` +
         unknown.fresh.map((x) => `        ${x}`).join("\n"),
     );
   }
@@ -6406,6 +6467,8 @@ interface GateFact {
   readonly candidates?: readonly RoleCandidate[];
   readonly site: string;
   readonly fn: string;
+  /** Fakt wstrzymany w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`) - tylko istnienie. */
+  readonly withheld?: boolean;
 }
 
 /**
@@ -6451,7 +6514,10 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
    * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
    * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
    * sprawdzany, wiersz `anon`; bez kandydatów - jeden wiersz `unknown`
-   * (gdy `own` go chce: istnienie kolumn filtra i osadzenia).
+   * (gdy `own` go chce: istnienie kolumn filtra i osadzenia). Fakt
+   * wstrzymany w przeglądzie (filtr i osadzenie łańcucha z faktem
+   * wstrzymanym) - wyłącznie wiersz `unknown`: istnienie, bez uprawnień,
+   * gościa i sondy.
    */
   const rows = <T extends GateFact>(
     xs: readonly T[],
@@ -6459,6 +6525,9 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     render: (x: T, role: MeasuredRole, guest: boolean, via: string) => string,
   ): string[] =>
     xs.flatMap((x) => {
+      if (x.withheld === true) {
+        return own(x, "unknown") ? [render(x, "unknown", false, x.via)] : [];
+      }
       const roles = checkedRoles(x);
       if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
       return roles.flatMap((c) => [
@@ -6582,6 +6651,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
   const guestKeys = new Map<string, string>();
   for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if ("withheld" in x && x.withheld === true) continue;
     if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
     const key = guestKey(x.site, x.fn);
     const cls = clsOf(x.site);
