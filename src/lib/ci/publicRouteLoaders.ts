@@ -1481,7 +1481,16 @@ export interface RouteTreeEntry {
  * spisu SSR: `ssr: false` nie zasłania tu bramki sesji, bo miara gościa pyta
  * o to, kto trasę OTWIERA, a nie o SSR-owy HTML.
  */
-export function routeTreeEntries(input: PublicRouteLoaderInput): RouteTreeEntry[] {
+export function routeTreeEntries(
+  input: PublicRouteLoaderInput,
+  /** Własna bramka pliku trasy (miara gościa podaje węższą, przejrzaną - `guestReach.ts`). */
+  ownGate: (file: string, source: string) => boolean = (_file, source) => hasSessionGate(source),
+  /**
+   * Bramka przodka obejmująca trasy POTOMNE (`<Outlet />` za bramką); domyślnie
+   * ta sama co własna.
+   */
+  childGate: (file: string, source: string) => boolean = ownGate,
+): RouteTreeEntry[] {
   const { routeTree, sources } = input;
   const fileByImportIdent = new Map<string, string>();
   for (const match of routeTree.matchAll(IMPORT_RE)) {
@@ -1508,10 +1517,10 @@ export function routeTreeEntries(input: PublicRouteLoaderInput): RouteTreeEntry[
     fullPathOf.set(ident, value);
     return value;
   };
-  const gated = (ident: string): boolean => {
+  const gated = (ident: string, own: boolean): boolean => {
     const file = fileByImportIdent.get(nodes.get(ident)?.importIdent ?? "");
     const source = file === undefined ? undefined : sources.get(file);
-    return source !== undefined && hasSessionGate(source);
+    return file !== undefined && source !== undefined && (own ? ownGate : childGate)(file, source);
   };
   const out: RouteTreeEntry[] = [];
   for (const node of nodes.values()) {
@@ -1523,7 +1532,7 @@ export function routeTreeEntries(input: PublicRouteLoaderInput): RouteTreeEntry[
     for (let cursor: string | undefined = node.ident; cursor !== undefined && nodes.has(cursor);) {
       if (seen.has(cursor)) throw new Error(`Cykl w drzewie tras: ${cursor}`);
       seen.add(cursor);
-      if (gated(cursor)) {
+      if (gated(cursor, cursor === node.ident)) {
         gateFrom = fullPath(cursor);
         break;
       }

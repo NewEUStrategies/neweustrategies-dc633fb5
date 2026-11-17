@@ -58,26 +58,39 @@
 // nigdy pliku ani pomocnika. Dziś lista jest pusta - każdy fakt idzie do
 // pgTAP z rolą klienta.
 //
-// MIARA POZA BRAMKĄ (`SeamFacts.observed`, `renderObservedQueries`,
-// `generate:ts-sql-contract --measure`). Dwie luki tej bramki są dziś
-// MIERZONE, a nie egzekwowane - wynik nie trafia do pgTAP ani do
-// `check:ts-sql-contract`:
-//   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...).
-//     Postgres wymaga SELECT na kolumnie z WHERE/ORDER BY także w UPDATE
-//     i DELETE, więc filtr po kolumnie bez grantu daje 42501 tak samo jak
-//     odczyt (listopad 2026: `user_reports.reporter_id` w eksporcie RODO,
-//     `profiles.current_company_id` w karcie firmy CRM);
+// MIARA W BRAMCE (`SeamFacts.observed`). Do listopada 2026 dwie luki tej
+// bramki były tylko MIERZONE (`generate:ts-sql-contract --measure`) - i to
+// miara, nie CI, złapała defekty tego miesiąca. Teraz fakty miary idą do
+// pgTAP (asercje 10-20, sekcja „Bramka z miary" niżej):
+//   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...)
+//     i celu upsertu - istnienie i SELECT roli. Postgres wymaga SELECT na
+//     kolumnie z WHERE/ORDER BY także w UPDATE i DELETE, więc filtr po kolumnie
+//     bez grantu daje 42501 tak samo jak odczyt;
 //   * rola klienta szerzej niż reguły bramki: fabryki klienta serwisowego
 //     (`await admin()`), `createClient(…, klucz)`, `const x = ...`
 //     i parametr klienta - przez WSZYSTKIE wywołania funkcji (inaczej
-//     `unknown`; nigdy zgadywanie).
-// Fakt bramki zachowuje swoją rolę (`enforcedRole`), więc wygenerowany
-// pgTAP jest bajt w bajt ten sam co bez miary.
+//     `unknown`; nigdy zgadywanie). Rola nieustalona z WIDOCZNYMI kandydatami
+//     (wołający o różnych rolach, widoczne wywołania funkcji przekazywanej
+//     dalej, `Authorization` z warunku) - uprawnienia i sondy dla każdego
+//     kandydata; bez kandydata albo z wartością bez widocznej roli obok
+//     kandydata - także wpis `UNKNOWN_ROLE_REVIEWED`;
+//   * zasoby osadzone list `select`, sondy wykonania (widok
+//     `security_invoker`, funkcja SECURITY INVOKER) i gość (`anon`) klienta
+//     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`);
+//   * funkcje SECURITY INVOKER, których sondy nie wykonują w całości
+//     (asercja 20): wyzwalacze zapisów klienta (także z ładunkiem
+//     nieczytelnym) z przeglądem domknięcia, ciała RPC i funkcje wierszy
+//     widoków i polityk - statycznie (domknięcie bez blokad albo przegląd).
+// Fakt bramki zachowuje swoją rolę (`enforcedRole`): asercje 1-9 i ich
+// tabele są te same co przed miarą, a rola zmierzona sprawdzana jest tam,
+// gdzie się od niej różni.
 //
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
 // wycinkami kodu.
 import ts from "typescript";
+
+import { guardAt, inSpans, queryOptionsFactoryOf } from "./sessionGuard";
 
 // ── Fakty szwu ──────────────────────────────────────────────────────────────
 
@@ -196,11 +209,14 @@ export interface SeamFacts {
      */
     readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
-  /** Miara poza bramką (filtry, rola szerzej) - nie wpływa na pgTAP ani na zasięg. */
+  /**
+   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-20 pgTAP i listy
+   * `check:ts-sql-contract`; bez `observe` puste.
+   */
   readonly observed: ObservedFacts;
 }
 
-// ── Miara poza bramką: typy ─────────────────────────────────────────────────
+// ── Miara (asercje 10-20): typy ─────────────────────────────────────────────
 
 /** Rola zmierzona: jak `ClientRole`, plus `anon` z klienta z kluczem publicznym. */
 export type MeasuredRole = ClientRole | "anon";
@@ -222,11 +238,54 @@ export interface RoleResolution {
    * sprawdza wtedy OBIE role: wiersz z rolą zmierzoną i drugi z `anon`.
    */
   readonly guest?: boolean;
+  /**
+   * Rola `unknown`: role, które miara WIDZI wśród wartości (wywołania
+   * pomocnika z różnymi klientami, widoczne wywołania funkcji, której nie
+   * każde odwołanie jest wywołaniem, `createClient` z warunkowym
+   * `Authorization`). Każda to prawdziwa ścieżka wykonania, więc bramka
+   * sprawdza uprawnienia i sondy DLA KAŻDEJ; bez kandydatów (`[]` albo brak)
+   * fakt sprawdza tylko istnienie i musi być na liście UNKNOWN_ROLE_REVIEWED.
+   */
+  readonly candidates?: readonly RoleCandidate[];
+  /**
+   * Rola `unknown` Z kandydatami, ale nie wszystkie wartości mają widoczną
+   * rolę: odwołanie do funkcji, które nie jest wywołaniem (tablica źródeł,
+   * callback, obiekt pomocników), klient bez roli (pole obiektu, pamięć
+   * modułu, `let`), rozkład argumentów, cięcie głębokości. Kandydaci są
+   * sprawdzani, ale tych ścieżek nikt nie sprawdził - fakt zostaje we
+   * wszechświecie UNKNOWN_ROLE_REVIEWED (pierwszy powód; kandydaci w kształcie).
+   */
+  readonly residual?: string;
+  /**
+   * Klient przeglądarki (`guest`) wykonywany także NA SERWERZE: droga do
+   * kontekstu serwera (handler `createServerFn`, middleware, moduł
+   * `*.server.ts`, handler trasy serwerowej, `loader`/`beforeLoad` trasy
+   * z SSR, kod modułu). Na serwerze klient nie ma sesji, więc jego wiersz
+   * `anon` sprawdza bramka ZAWSZE - bez zwolnienia klasy pliku i bez wpisu
+   * GUEST_LOGIN_ONLY_REVIEWED.
+   */
+  readonly server?: string;
+}
+
+/** Widoczna rola wartości o roli `unknown` (`RoleResolution.candidates`). */
+export interface RoleCandidate {
+  readonly role: Exclude<MeasuredRole, "unknown">;
+  readonly via: string;
+  /** Klient przeglądarki - z sesją, a bez niej jako gość (`anon`). */
+  readonly guest: boolean;
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
 }
 
 interface ObservedCommon {
   readonly role: MeasuredRole;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości (`RoleResolution.candidates`), posortowane. */
+  readonly candidates?: readonly RoleCandidate[];
+  /** Kandydaci nie wyczerpują wartości (`RoleResolution.residual`) - fakt na liście przejrzanej. */
+  readonly residual?: string;
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
   readonly enforcedRole: ClientRole;
   /** Klient przeglądarki: miara sprawdza też `anon` (`RoleResolution.guest`). */
@@ -249,6 +308,16 @@ export interface ObservedTable extends ObservedCommon {
   readonly columns: readonly string[];
   readonly star: boolean;
   readonly file: string;
+  /**
+   * Fakt wstrzymany wpisem `SEAM_FACTS_WITHHELD_REVIEWED`: jego uprawnień
+   * kontrakt nie sprawdza - ani rolą bramki, ani zmierzoną, ani gościa.
+   */
+  readonly withheld: boolean;
+  /**
+   * Odczyt `head: true` (sama liczba wierszy) - fakt WYŁĄCZNIE miary, bez
+   * lustra w bramce: PostgREST czyta relację i kolumny listy pod `count(...)`.
+   */
+  readonly head?: true;
 }
 
 /** Kolumna filtra albo sortowania: rola potrzebuje SELECT na `table.column`. */
@@ -270,6 +339,11 @@ export interface FilterSite extends ObservedCommon {
    * Budowniczy przez wartość - rola bramki odbiorcy jego `.from()`.
    */
   readonly gateRole: ClientRole;
+  /**
+   * Filtr łańcucha, którego fakty wstrzymuje wpis `SEAM_FACTS_WITHHELD_REVIEWED`
+   * - tylko istnienie kolumny (asercja 12), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
@@ -301,15 +375,20 @@ export interface ObservedEmbed extends ObservedCommon {
   readonly file: string;
   /** Rola bramki dla klienta łańcucha (osadzeń bramka nie sprawdza - `enforcedRole` `unknown`). */
   readonly gateRole: ClientRole;
+  /**
+   * Każdy odczyt z tym osadzeniem to fakt wstrzymany w przeglądzie - tylko
+   * istnienie relacji i kolumn (asercja 14), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
  * Zapytanie jednego łańcucha budowniczego (łańcuch wprost i - gdy budowniczy
  * trafia do zmiennej - każde jej użycie) do SONDY WYKONANIA miary: sonda
- * wykonuje je jako rola zmierzona (`SELECT … LIMIT 0`, zapis jako `EXPLAIN`),
+ * wykonuje je jako rola zmierzona (`SELECT … LIMIT 1`, zapis jako `EXPLAIN`),
  * więc łapie odmowę uprawnień WEWNĄTRZ relacji (widok `security_invoker`,
- * podzapytanie polityki RLS), której `has_column_privilege` na samej relacji
- * nie widzi.
+ * podzapytanie polityki RLS, funkcja w kolumnie widoku liczona dla wiersza),
+ * której `has_column_privilege` na samej relacji nie widzi.
  */
 export interface ObservedStatement {
   readonly table: string;
@@ -320,6 +399,12 @@ export interface ObservedStatement {
   /** Klient przeglądarki: sonda także jako `anon`. */
   readonly guest: boolean;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości - sonda jako każda z nich. */
+  readonly candidates?: readonly RoleCandidate[];
+  /** Kandydaci nie wyczerpują wartości (`RoleResolution.residual`). */
+  readonly residual?: string;
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   readonly site: string;
   readonly fn: string;
   /** Kolumny `select` - przy zapisie lista RETURNING; `star` - `*`. */
@@ -334,6 +419,48 @@ export interface ObservedStatement {
    * nieczytelny); `null` - nie upsert.
    */
   readonly conflict: readonly string[] | null;
+  /** Zapytanie niesie fakt wstrzymany w przeglądzie - bez sondy wykonania. */
+  readonly withheld: boolean;
+}
+
+/**
+ * Kolumna WYNIKU funkcji w filtrze, sortowaniu albo liście `select` łańcucha
+ * `.rpc(...)` (`.rpc("f").order("x")`): PostgREST składa z niej WHERE/ORDER BY
+ * na wyniku funkcji, więc kolumna musi być w TABLE/OUT funkcji albo atrybutach
+ * zwracanego typu złożonego - inaczej 42703 w czasie działania. Uprawnień
+ * kolumn wynik funkcji nie ma, sprawdzane jest samo istnienie (asercja 12).
+ */
+export interface ObservedRpcColumn {
+  readonly name: string;
+  /** Klucze argumentów wywołania (przeciążenie); `null` - nieczytelne. */
+  readonly keys: readonly string[] | null;
+  readonly column: string;
+  /** Metoda łańcucha (`eq`, `order`, `select`, ...). */
+  readonly method: string;
+  /** Plik, w którym rozwiązał się literał kolumny. */
+  readonly file: string;
+  readonly site: string;
+  readonly fn: string;
+}
+
+/**
+ * Zapis klienta z ŁADUNKIEM NIECZYTELNYM (`.insert(row)`, `.update(patch)`,
+ * `.upsert(payload)` - obiekt spoza literału): kolumn nie widać, więc nie ma
+ * faktu zapisu ani sondy, ale wyzwalacze tabeli odpalają się tak samo -
+ * asercja 20 traktuje ładunek jak WSZYSTKIE kolumny (`UPDATE OF` też), a liczba
+ * takich miejsc ma zapadkę (`MAX_DYNAMIC_PAYLOAD_WRITES`).
+ */
+export interface ObservedDynamicWrite {
+  readonly table: string;
+  readonly op: TableOp;
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly guest: boolean;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly residual?: string;
+  readonly server?: string;
+  readonly site: string;
+  readonly fn: string;
 }
 
 export interface ObservedFacts {
@@ -346,6 +473,10 @@ export interface ObservedFacts {
   readonly embeds: readonly ObservedEmbed[];
   /** Zapytania łańcuchów `.from()`/`looseTable` do sond wykonania (bez powtórzeń). */
   readonly statements: readonly ObservedStatement[];
+  /** Kolumny wyniku funkcji w łańcuchach `.rpc(...)` (filtry, sortowanie, `select`). */
+  readonly rpcColumns: readonly ObservedRpcColumn[];
+  /** Zapisy z ładunkiem nieczytelnym (wyzwalacze - asercja 20; zapadka). */
+  readonly dynamicWrites: readonly ObservedDynamicWrite[];
   /**
    * Filtry na rozpoznanym budowniczym, których kolumny (albo tabeli
    * osadzenia) nie da się ustalić statycznie, oraz filtry budowniczego
@@ -1810,7 +1941,7 @@ function builderTable(
   }
 }
 
-// ── Miara poza bramką: rola klienta szerzej ─────────────────────────────────
+// ── Miara: rola klienta szerzej ─────────────────────────────────────────────
 //
 // Reguły bramki (`receiverRole`) rozstrzygają rolę po NAZWIE odbiorcy; reszta
 // (535 faktów w listopadzie 2026: parametr `supabase: SupabaseClient`,
@@ -1883,14 +2014,112 @@ interface RoleEnv {
   moduleRefs: Map<string, ModuleRef[]> | null;
   readonly memo: Map<string, RoleResolution>;
   readonly sites: Map<ts.Node, readonly CallSite[] | null>;
+  /** Wywołania widoczne funkcji, której nie każde odwołanie jest wywołaniem (`visibleCallSitesOf`). */
+  readonly visibleSites: Map<ts.Node, readonly CallSite[]>;
   /** Licznik cięć głębokości - wynik z cięciem nie trafia do `memo`. */
   depthCuts: number;
+  /**
+   * Węzeł, którego kontekst wykonania mówi, gdzie działa klient przeglądarki:
+   * ostatnie wyrażenie przepływu roli wewnątrz funkcji (użycie aliasu
+   * `const db = supabase` w handlerze, argument w wywołaniu pomocnika).
+   */
+  anchor: ts.Node | null;
+  /** Funkcja najbardziej zewnętrzna -> droga do kontekstu serwera (`null` - brak). */
+  readonly serverPaths: Map<ts.Node, string | null>;
+  /** Funkcje, których drogę właśnie liczymy (cykl odwołań). */
+  readonly serverPathsPending: Set<ts.Node>;
+  /** Cięcia przepływu kontekstu (cykl, głębokość) - wynik z cięciem nie trafia do `serverPaths`. */
+  serverCuts: number;
 }
 
 const MAX_VIA = 400;
 
-function unknownRole(via: string): RoleResolution {
-  return { role: "unknown", via: via.slice(0, MAX_VIA) };
+function unknownRole(
+  via: string,
+  candidates: readonly RoleCandidate[] = [],
+  residual?: string,
+): RoleResolution {
+  const merged = mergeCandidates(candidates);
+  if (merged.length === 0) return { role: "unknown", via: via.slice(0, MAX_VIA) };
+  return residual === undefined
+    ? { role: "unknown", via: via.slice(0, MAX_VIA), candidates: merged }
+    : {
+        role: "unknown",
+        via: via.slice(0, MAX_VIA),
+        candidates: merged,
+        residual: residual.slice(0, MAX_VIA),
+      };
+}
+
+/** Widoczne role wartości: ustalona rola albo kandydaci roli `unknown`. */
+function candidatesOf(r: RoleResolution): readonly RoleCandidate[] {
+  return r.role === "unknown"
+    ? (r.candidates ?? [])
+    : [{ role: r.role, via: r.via, guest: r.guest === true, ...serverField(r.server) }];
+}
+
+/**
+ * Ścieżka wartości BEZ widocznej roli: rola `unknown` bez kandydatów (cała
+ * wartość nieustalona - powód `via`) albo z kandydatami niewyczerpującymi
+ * (`residual`); `undefined` - każda ścieżka ma widoczną rolę.
+ */
+function residualOf(r: RoleResolution): string | undefined {
+  if (r.role !== "unknown" || r.absent === true) return undefined;
+  return r.candidates !== undefined && r.candidates.length > 0 ? r.residual : r.via;
+}
+
+function serverField(server: string | undefined): { readonly server?: string } {
+  return server === undefined ? {} : { server };
+}
+
+/** Pierwsza (leksykograficznie) droga do serwera - wynik niezależny od kolejności plików. */
+function firstServer(xs: readonly (string | undefined)[]): string | undefined {
+  return xs.reduce<string | undefined>(
+    (best, x) => (x !== undefined && (best === undefined || x < best) ? x : best),
+    undefined,
+  );
+}
+
+/**
+ * Kandydaci bez powtórzeń (rola, gość), posortowani; z kilku dróg do tej
+ * samej pary - leksykograficznie pierwsza (wynik nie zależy od kolejności
+ * plików wejścia).
+ */
+function mergeCandidates(xs: readonly RoleCandidate[]): RoleCandidate[] {
+  const best = new Map<string, RoleCandidate>();
+  for (const x of xs) {
+    const key = `${x.role}|${x.guest}`;
+    const via = x.via.slice(0, MAX_VIA);
+    const known = best.get(key);
+    const server = firstServer([known?.server, x.server]);
+    if (known === undefined || via < known.via) {
+      best.set(key, { role: x.role, via, guest: x.guest, ...serverField(server) });
+    } else {
+      best.set(key, { ...known, ...serverField(server) });
+    }
+  }
+  return [...best.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => c);
+}
+
+/**
+ * Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi
+ * kandydatami (z resztą `residual`, gdy kandydaci nie wyczerpują wartości).
+ */
+function candidateField(r: RoleResolution): {
+  readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
+  readonly residual?: string;
+} {
+  if (r.role !== "unknown") return serverField(r.server);
+  if (r.candidates === undefined || r.candidates.length === 0) return {};
+  return r.residual === undefined
+    ? { candidates: r.candidates }
+    : { candidates: r.candidates, residual: r.residual };
+}
+
+/** Kandydaci z przedrostkiem drogi (`etykieta <- droga kandydata`). */
+function labelled(label: string, xs: readonly RoleCandidate[]): RoleCandidate[] {
+  return xs.map((c) => ({ ...c, via: `${label} <- ${c.via}` }));
 }
 
 function compactText(node: ts.Node, scope: FileScope, max = 60): string {
@@ -1920,15 +2149,26 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
   const distinct = [...new Set(roles.map((r) => r.role))];
   if (distinct.length !== 1 || distinct[0] === "unknown") {
     const first = roles.find((r) => r.role === "unknown");
+    // Każda widoczna wartość to ścieżka wykonania - jej rola zostaje
+    // kandydatem (sprawdzanym), nawet gdy inne wartości są nieustalone;
+    // wartość BEZ widocznej roli zostaje resztą (`residual`) - fakt nie
+    // opuszcza listy przejrzanej przez to, że inna wartość ma kandydata.
+    const rest = roles.map(residualOf).find((x) => x !== undefined);
     return unknownRole(
       `${label}: role [${distinct.join(", ")}]${first === undefined ? "" : ` - ${first.via}`}`,
+      labelled(label, roles.flatMap(candidatesOf)),
+      rest === undefined ? undefined : `${label}: ${rest}`,
     );
   }
   const vias = [...new Set(roles.map((r) => r.via))];
   // Klient przeglądarki w KTÓRYMKOLWIEK wywołaniu - zapytanie idzie też jako
   // gość (`anon`); to suma wartości, nie zgadywanie.
   return withGuest(
-    { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) },
+    {
+      role: distinct[0],
+      via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA),
+      ...serverField(firstServer(roles.map((r) => r.server))),
+    },
     roles.some((r) => r.guest === true),
   );
 }
@@ -1942,8 +2182,28 @@ function withGuest(role: RoleResolution, guest: boolean | undefined): RoleResolu
   return guest === true ? { ...role, guest: true } : role;
 }
 
-/** Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary. */
+/**
+ * Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary.
+ * Wyrażenie wewnątrz funkcji staje się kotwicą kontekstu wykonania
+ * (`RoleEnv.anchor`) dla klienta przeglądarki rozstrzygniętego głębiej
+ * (alias modułu, import).
+ */
 function measuredRole(
+  expr: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const saved = env.anchor;
+  if (saved === null || enclosingFunction(expr) !== null) env.anchor = expr;
+  try {
+    return measuredRoleAt(expr, scope, env, depth);
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+function measuredRoleAt(
   expr: ts.Expression,
   scope: FileScope,
   env: RoleEnv,
@@ -1978,7 +2238,11 @@ function measuredRole(
         }
         if (imported.role === legacy) {
           return withGuest(
-            { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+            {
+              role: legacy,
+              via: `bramka: ${legacyRoleVia(expr, scope)}`,
+              ...serverField(imported.server),
+            },
             imported.guest,
           );
         }
@@ -1995,7 +2259,11 @@ function measuredRole(
         if (bound.role === "unknown") {
           return bound.absent === true
             ? bound
-            : unknownRole(`reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`);
+            : unknownRole(
+                `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
+                bound.candidates,
+                bound.residual,
+              );
         }
         if (bound.role !== legacy) {
           return {
@@ -2007,7 +2275,52 @@ function measuredRole(
           };
         }
         return withGuest(
-          { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+          {
+            role: legacy,
+            via: `bramka: ${legacyRoleVia(expr, scope)}`,
+            ...serverField(bound.server),
+          },
+          bound.guest,
+        );
+      }
+    }
+    // `context.supabase` / `ctx.supabase`: ta sama kolejność co dla nazwy
+    // `supabase` - reguła nazwy (klient z sesją z `requireSupabaseAuth`, jedynego
+    // middleware z `supabase` w kontekście) tylko dla kontekstu handlera funkcji
+    // serwera albo middleware; parametr innej funkcji i zmienna lokalna -
+    // wiązanie (wywołania: obiekt `{ supabase }` z klientem przeglądarki albo
+    // kluczem publicznym to inna rola i gość).
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "supabase") {
+      const base = unwrap(node.expression);
+      const bound =
+        ts.isIdentifier(base) && (base.text === "context" || base.text === "ctx")
+          ? contextClientRole(base, scope, env, depth)
+          : null;
+      if (bound !== null) {
+        if (bound.role === "unknown") {
+          return bound.absent === true
+            ? bound
+            : unknownRole(
+                `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
+                bound.candidates,
+                bound.residual,
+              );
+        }
+        if (bound.role !== legacy) {
+          return {
+            ...bound,
+            via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${bound.via}`.slice(
+              0,
+              MAX_VIA,
+            ),
+          };
+        }
+        return withGuest(
+          {
+            role: legacy,
+            via: `bramka: ${legacyRoleVia(expr, scope)}`,
+            ...serverField(bound.server),
+          },
           bound.guest,
         );
       }
@@ -2015,13 +2328,16 @@ function measuredRole(
     // Reguła nazwy bez wiązania w pliku: `supabase` w pliku z importem klienta
     // przeglądarki to ten klient (gość - `anon`); sam `requireSupabaseAuth`
     // to klient z sesją z żądania.
-    return withGuest(
-      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+    const browser =
       ts.isIdentifier(node) &&
-        node.text === "supabase" &&
-        !scope.adminAliases.has("supabase") &&
-        scope.browserClient,
+      node.text === "supabase" &&
+      !scope.adminAliases.has("supabase") &&
+      scope.browserClient;
+    const named = withGuest(
+      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+      browser,
     );
+    return browser ? browserOnServer(named, env) : named;
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -2040,6 +2356,379 @@ function measuredRole(
     );
   }
   return unknownRole(`wyrażenie ${compactText(node, scope)}`);
+}
+
+/**
+ * Wartość wyliczona przy kotwicy `node`: argument wywołania pomocnika
+ * wykonuje się w kontekście TEGO wywołania (wołającego), nie miejsca faktu.
+ */
+function atAnchor<T>(env: RoleEnv, node: ts.Node, f: () => T): T {
+  const saved = env.anchor;
+  env.anchor = node;
+  try {
+    return f();
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+/**
+ * Klient przeglądarki przy kotwicy kontekstu: wykonany (także) na serwerze -
+ * flaga `server` z drogą; tam nie ma sesji, więc idzie jako `anon` dla
+ * każdego, także zalogowanego i obsługi panelu.
+ */
+function browserOnServer(role: RoleResolution, env: RoleEnv): RoleResolution {
+  const path = env.anchor === null ? null : serverPathOf(env.anchor, env, 0);
+  return path === null ? role : { ...role, server: path.slice(0, MAX_VIA) };
+}
+
+/** Moduł wyłącznie serwerowy (TanStack Start nie wpuszcza go do przeglądarki). */
+const SERVER_MODULE_RE = /\.server\.tsx?$/;
+/** Budowniczowie funkcji serwera i ich metody z ciałem wykonywanym na serwerze. */
+const SERVER_BUILDER_METHODS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["createServerFn", new Set(["handler", "validator", "inputValidator"])],
+  ["createMiddleware", new Set(["server"])],
+  ["createIsomorphicFn", new Set(["server"])],
+]);
+/** Wywołania tworzące trasę - `loader` i `beforeLoad` ich opcji działają w SSR. */
+const ROUTE_BUILDERS: ReadonlySet<string> = new Set([
+  "createFileRoute",
+  "createRoute",
+  "createRootRoute",
+  "createRootRouteWithContext",
+]);
+const HTTP_METHODS: ReadonlySet<string> = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+  "ALL",
+]);
+
+/**
+ * Nazwa funkcji u korzenia łańcucha wywołań budowniczego
+ * (`createServerFn({...}).middleware([...])` -> `createServerFn`,
+ * `createFileRoute("/x")` -> `createFileRoute`); import pod inną nazwą
+ * (`import { createServerFn as f }`) - nazwa eksportu.
+ */
+function builderRootName(expr: ts.Expression): string | null {
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node)) node = unwrap(node.expression);
+    else if (ts.isPropertyAccessExpression(node)) node = unwrap(node.expression);
+    else break;
+  }
+  if (!ts.isIdentifier(node)) return null;
+  const binding = bindingOf(node, null);
+  return binding.kind === "import" ? binding.name : node.text;
+}
+
+/**
+ * Funkcja wykonywana na serwerze z samego miejsca w kodzie: handler
+ * i walidator `createServerFn`, `.server(...)` middleware'u
+ * i `createIsomorphicFn`, `createServerOnlyFn(...)`, `loader`/`beforeLoad`
+ * opcji trasy (SSR; `ssr: false` - tylko przeglądarka) i handler metody HTTP
+ * trasy serwerowej (`server: { handlers: { GET } }`). `null` - inna.
+ */
+function serverFunctionKind(fn: ts.SignatureDeclaration | ts.Expression): string | null {
+  const outer: ts.Node = ts.isMethodDeclaration(fn) ? fn : outermostWrapper(fn as ts.Expression);
+  const parent = outer.parent;
+  if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === outer)) {
+    const callee = unwrap(parent.expression);
+    if (ts.isIdentifier(callee) && builderRootName(callee) === "createServerOnlyFn") {
+      return "createServerOnlyFn";
+    }
+    if (ts.isPropertyAccessExpression(callee)) {
+      const root = builderRootName(callee.expression);
+      if (root !== null && SERVER_BUILDER_METHODS.get(root)?.has(callee.name.text) === true) {
+        return `${root}().${callee.name.text}`;
+      }
+    }
+    return null;
+  }
+  const prop = ts.isMethodDeclaration(fn)
+    ? fn
+    : ts.isPropertyAssignment(parent) && parent.initializer === outer
+      ? parent
+      : null;
+  if (prop === null || !ts.isObjectLiteralExpression(prop.parent)) return null;
+  const name = propName(prop.name);
+  const obj = prop.parent;
+  const holder = outermostWrapper(obj).parent;
+  if (name === "loader" || name === "beforeLoad") {
+    const ssrOff = obj.properties.some(
+      (p) =>
+        ts.isPropertyAssignment(p) &&
+        propName(p.name) === "ssr" &&
+        p.initializer.kind === ts.SyntaxKind.FalseKeyword,
+    );
+    return ts.isCallExpression(holder) &&
+      ROUTE_BUILDERS.has(builderRootName(holder.expression) ?? "") &&
+      !ssrOff
+      ? `${name} trasy`
+      : null;
+  }
+  if (name !== null && HTTP_METHODS.has(name)) {
+    if (ts.isPropertyAssignment(holder) && propName(holder.name) === "handlers") {
+      return `handler ${name} trasy serwerowej`;
+    }
+    const callee = ts.isCallExpression(holder) ? unwrap(holder.expression) : null;
+    if (
+      callee !== null &&
+      ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === "methods"
+    ) {
+      return `handler ${name} trasy serwerowej`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Nazwa, pod którą żyje funkcja najbardziej zewnętrzna (deklaracja,
+ * `const f = () => ...`, callback we właściwości obiektu przypisanego do
+ * stałej - także przez owijkę `queryOptions({ queryFn })`, metoda klasy -
+ * nazwa klasy). `member` - funkcja jest właściwością obiektu albo metodą
+ * klasy (przestrzeń nazw, nie komponent ani hook). `null` - funkcja bez
+ * nazwy (callback oddany wywołaniu, eksport domyślny).
+ */
+function functionHolder(fn: ts.SignatureDeclaration): {
+  readonly name: ts.Identifier;
+  readonly statement: ts.Statement;
+  readonly member: boolean;
+} | null {
+  if (ts.isFunctionDeclaration(fn)) {
+    return fn.name === undefined ? null : { name: fn.name, statement: fn, member: false };
+  }
+  let node: ts.Node =
+    ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) ? outermostWrapper(fn) : fn;
+  let member = false;
+  for (let hops = 0; hops < 8; hops += 1) {
+    const parent: ts.Node = node.parent;
+    if (ts.isVariableDeclaration(parent) && parent.initializer === node) {
+      return ts.isIdentifier(parent.name) &&
+        ts.isVariableDeclarationList(parent.parent) &&
+        parent.parent.flags & ts.NodeFlags.Const &&
+        ts.isVariableStatement(parent.parent.parent)
+        ? { name: parent.name, statement: parent.parent.parent, member }
+        : null;
+    }
+    if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(parent)) {
+      member = true;
+      node = outermostWrapper(parent);
+    } else if (
+      ts.isPropertyAssignment(parent) &&
+      parent.initializer === node &&
+      ts.isObjectLiteralExpression(parent.parent)
+    ) {
+      member = true;
+      node = outermostWrapper(parent.parent);
+    } else if (
+      ts.isClassElement(node) &&
+      (ts.isClassDeclaration(parent) || ts.isClassExpression(parent))
+    ) {
+      // Metoda, konstruktor albo akcesor klasy: odwołania do KLASY (`new X()`,
+      // `X.metoda()`) to drogi wykonania jej metod.
+      member = true;
+      if (ts.isClassDeclaration(parent)) {
+        return parent.name === undefined ? null : { name: parent.name, statement: parent, member };
+      }
+      node = outermostWrapper(parent);
+    } else if (
+      ts.isPropertyDeclaration(parent) &&
+      parent.initializer === node &&
+      (ts.isClassDeclaration(parent.parent) || ts.isClassExpression(parent.parent))
+    ) {
+      // Pole klasy z funkcją strzałkową (`load = async () => ...`).
+      node = parent;
+    } else if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === node)) {
+      // Owijka `queryOptions({ ... })` - obiekt jako argument wywołania,
+      // które samo jest wartością stałej.
+      node = outermostWrapper(parent);
+    } else {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Czy funkcja wygląda na komponent React: zawiera element JSX albo woła hook
+ * (`useX(...)`, `React.useX(...)` - reguły hooków: wyłącznie komponent albo
+ * hook, poza renderem pada).
+ */
+function componentBody(fn: ts.Node): boolean {
+  return (
+    containsNodeOf(fn, (n) => {
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) return true;
+      if (!ts.isCallExpression(n)) return false;
+      const callee = unwrap(n.expression);
+      const name = ts.isIdentifier(callee)
+        ? callee.text
+        : ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : "";
+      return /^use[A-Z0-9]/.test(name);
+    }) !== null
+  );
+}
+
+function containsNodeOf(root: ts.Node, test: (node: ts.Node) => boolean): ts.Node | null {
+  let found: ts.Node | null = null;
+  const visit = (node: ts.Node): void => {
+    if (found !== null) return;
+    if (test(node)) found = node;
+    else ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return found;
+}
+
+/**
+ * Kontekst wyłącznie przeglądarki: komponent (nazwa wielką literą, funkcja
+ * związana wprost z nazwą - nie właściwość obiektu ani metoda klasy - z JSX
+ * albo wywołaniem hooka w ciele) albo hook (`useX` związany wprost).
+ * Przestrzeń nazw `Api = { f }`, klasa i funkcja `Nazwa()` bez JSX i hooków -
+ * nie: ich odwołania się śledzi.
+ */
+function browserOnlyHolder(
+  holder: { readonly name: ts.Identifier; readonly member: boolean },
+  fn: ts.SignatureDeclaration,
+): boolean {
+  if (holder.member) return false;
+  if (/^use[A-Z0-9]/.test(holder.name.text)) return true;
+  return /^[A-Z]/.test(holder.name.text) && componentBody(fn);
+}
+
+/**
+ * WIDOCZNE odwołania do nazwy (wywołania i wartości): w jej zasięgu
+ * i - eksport - w plikach importujących (import nazwany, rozkład `import()`
+ * także w `Promise.all`, `(await import(...)).nazwa`). Odwołanie w kodzie,
+ * którego reguła nie widzi, po prostu nie trafia na listę.
+ */
+function visibleReferencesOf(
+  name: ts.Identifier,
+  statement: ts.Statement,
+  scope: FileScope,
+  env: RoleEnv,
+): { readonly node: ts.Node; readonly scope: FileScope }[] {
+  const out: { node: ts.Node; scope: FileScope }[] = [];
+  const collect = (root: ts.Node, local: string, decl: ts.Node | null, at: FileScope): void => {
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        if (node.text === local && node !== decl && isValueReference(node)) {
+          out.push({ node, scope: at });
+        }
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+  };
+  const container = statement.parent;
+  if (bindingCount(container, name.text) === 1) collect(container, name.text, name, scope);
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return out;
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name.text || bindingCount(imp.scope.sf, imp.local) !== 0) continue;
+    collect(imp.scope.sf, imp.local, null, imp.scope);
+  }
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    if (!ts.isCallExpression(ref.node)) continue;
+    const outer = outermostAwaited(ref.node);
+    if (ts.isPropertyAccessExpression(outer.parent) && outer.parent.name.text === name.text) {
+      out.push({ node: outer.parent, scope: ref.scope });
+      continue;
+    }
+    const direct =
+      ts.isVariableDeclaration(outer.parent) && ts.isObjectBindingPattern(outer.parent.name)
+        ? { pattern: outer.parent.name, decl: outer.parent }
+        : promiseAllImportPattern(ref.node);
+    if (direct === null) continue;
+    const block = direct.decl.parent.parent?.parent;
+    for (const el of direct.pattern.elements) {
+      const source = el.propertyName
+        ? propName(el.propertyName)
+        : ts.isIdentifier(el.name)
+          ? el.name.text
+          : null;
+      if (source !== name.text || !ts.isIdentifier(el.name) || block === undefined) continue;
+      if (bindingCount(block, el.name.text) === 1) collect(block, el.name.text, el.name, ref.scope);
+    }
+  }
+  return out;
+}
+
+/**
+ * Droga do kontekstu SERWERA dla węzła: moduł `*.server.ts`, funkcja serwera
+ * nad węzłem (`serverFunctionKind`), kod modułu (wykonuje się przy imporcie,
+ * także w SSR), a dla funkcji bez takiego kontekstu - jej widoczne
+ * odwołania (wywołanie w `loader`, `queryFn` opcji zapytania rozgrzewanych
+ * w `loader`, pomocnik wołany z handlera). `null` - żadna widoczna droga
+ * (komponent, hook, handler zdarzenia - wyłącznie przeglądarka).
+ */
+function serverPathOf(
+  node: ts.Node,
+  env: RoleEnv,
+  depth: number,
+  reference = false,
+): string | null {
+  const scope = env.flow.scopes.get(node.getSourceFile().fileName);
+  if (scope === undefined) return null;
+  if (SERVER_MODULE_RE.test(scope.file)) return `moduł ${scope.file}`;
+  let outermost: ts.SignatureDeclaration | null = null;
+  for (let current = node.parent; current; current = current.parent) {
+    if (!ts.isFunctionLike(current)) continue;
+    const kind = serverFunctionKind(current);
+    if (kind !== null) return `${kind} (${scope.file})`;
+    outermost = current;
+  }
+  if (outermost === null) {
+    if (!reference) return `kod modułu ${scope.file} (import także w SSR)`;
+    // Odwołanie na poziomie modułu WYKONUJE funkcję tylko jako wywołanie
+    // (`f()` przy imporcie) albo jako ciało funkcji serwera / `loader`
+    // (`.handler(f)`, `loader: f`); `component: F`, eksport, mapa - nie.
+    const outer = outermostWrapper(node as ts.Expression);
+    if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
+      return `wywołanie w kodzie modułu ${scope.file} (import także w SSR)`;
+    }
+    const kind = ts.isExpression(node) ? serverFunctionKind(node) : null;
+    return kind === null ? null : `${kind} (${scope.file})`;
+  }
+  if (env.serverPaths.has(outermost)) {
+    const known = env.serverPaths.get(outermost) ?? null;
+    if (known === null && env.serverPathsPending.has(outermost)) env.serverCuts += 1;
+    return known;
+  }
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.serverCuts += 1;
+    return null;
+  }
+  const holder = functionHolder(outermost);
+  // Komponent (`Nazwa` z JSX) i hook (`useX`) to konteksty wyłącznie
+  // przeglądarki: render w SSR nie uruchamia `queryFn`/efektów, a odwołanie
+  // do komponentu (`component: X`, `.server(() => X)`) nie wykonuje jego
+  // zapytań. Przestrzeń nazw i klasa (`RevApi.read()`, `new Reader()`) - nie:
+  // ich odwołania prowadzą do handlera serwera tak samo jak `api.read()`.
+  if (holder === null || browserOnlyHolder(holder, outermost)) return null;
+  env.serverPaths.set(outermost, null);
+  env.serverPathsPending.add(outermost);
+  const cutsBefore = env.serverCuts;
+  const paths: string[] = [];
+  for (const ref of visibleReferencesOf(holder.name, holder.statement, scope, env)) {
+    if (within(ref.node, outermost)) continue;
+    const path = serverPathOf(ref.node, env, depth + 1, true);
+    if (path !== null) paths.push(`${holder.name.text} <- ${path}`.slice(0, MAX_VIA));
+  }
+  env.serverPathsPending.delete(outermost);
+  const found = paths.length === 0 ? null : paths.reduce((a, b) => (b < a ? b : a));
+  if (env.serverCuts === cutsBefore) env.serverPaths.set(outermost, found);
+  else env.serverPaths.delete(outermost);
+  return found;
 }
 
 type Binding =
@@ -2312,6 +3001,39 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
   if (ts.isBindingElement(decl)) {
     const pattern = decl.parent;
     const vd = pattern.parent;
+    // `const [{ createClient }, { x }] = await Promise.all([import("m"), ...])`
+    // - element tablicy to przestrzeń nazw modułu, jak `const { x } = await import("m")`.
+    if (ts.isObjectBindingPattern(pattern) && ts.isBindingElement(vd)) {
+      const list = vd.parent;
+      const all = list.parent;
+      const init =
+        ts.isArrayBindingPattern(list) && ts.isVariableDeclaration(all) && all.initializer
+          ? unwrap(all.initializer)
+          : null;
+      const items =
+        init !== null && ts.isCallExpression(init) && init.arguments.length === 1
+          ? unwrap(init.arguments[0])
+          : null;
+      const item =
+        items !== null && ts.isArrayLiteralExpression(items)
+          ? items.elements[(list as ts.ArrayBindingPattern).elements.indexOf(vd)]
+          : undefined;
+      const spec = item === undefined ? null : dynamicImportSpec(item);
+      const viaAll = spec === null ? null : promiseAllImportPattern(unwrap(item as ts.Expression));
+      const prop = decl.propertyName ? propName(decl.propertyName) : name;
+      if (
+        spec !== null &&
+        viaAll?.pattern === pattern &&
+        prop !== null &&
+        decl.dotDotDotToken === undefined &&
+        decl.initializer === undefined &&
+        ts.isVariableDeclarationList(viaAll.decl.parent) &&
+        viaAll.decl.parent.flags & ts.NodeFlags.Const
+      ) {
+        return { kind: "import", module: spec, name: prop };
+      }
+      return noBinding(`${name}: element rozkładu poza regułą`);
+    }
     if (
       !ts.isObjectBindingPattern(pattern) ||
       !ts.isVariableDeclaration(vd) ||
@@ -2338,7 +3060,7 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
  * (albo funkcja - parametry), który deklaruje nazwę WPROST. Parametr
  * przypisywany, `var`, zmienna pętli albo `catch` - poza regułą.
  */
-function bindingOf(id: ts.Identifier, _scope: FileScope): Binding {
+function bindingOf(id: ts.Identifier, _scope: FileScope | null): Binding {
   const name = id.text;
   for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
     const parent = node.parent;
@@ -2441,7 +3163,8 @@ function importRole(
   const target = resolveModule(scope.file, spec, env.flow.known);
   const knownExport = KNOWN_CLIENT_EXPORTS.find((k) => k.module === target && k.name === name);
   if (knownExport !== undefined) {
-    return withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    const known = withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    return knownExport.guest ? browserOnServer(known, env) : known;
   }
   const exported = moduleExport(spec, name, scope, env);
   if (exported === null || exported.binding.kind !== "local" || exported.binding.prop !== null) {
@@ -2502,7 +3225,12 @@ function memberRole(
     ts.isIdentifier(node) &&
     (node.text === "context" || node.text === "ctx")
   ) {
-    return { role: "authenticated", via: `bramka: ${node.text}.supabase` };
+    return (
+      contextClientRole(node, scope, env, depth) ?? {
+        role: "authenticated",
+        via: `bramka: ${node.text}.supabase`,
+      }
+    );
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -2532,6 +3260,83 @@ function memberRole(
     );
   }
   return unknownRole(`.${prop} na ${compactText(node, scope)}`);
+}
+
+/**
+ * Funkcja przekazana WPROST do `.handler(...)` (funkcja serwera) albo
+ * `.server(...)` (middleware) - jej pierwszy argument niesie `context`
+ * z middleware (`requireSupabaseAuth` - jedyny, który wkłada tam `supabase`).
+ */
+function isServerFnCallback(fn: ts.SignatureDeclaration): boolean {
+  const call = fn.parent;
+  if (call === undefined || !ts.isCallExpression(call) || !call.arguments.some((a) => a === fn)) {
+    return false;
+  }
+  const callee = unwrap(call.expression);
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    (callee.name.text === "handler" || callee.name.text === "server")
+  );
+}
+
+/**
+ * Rola `context.supabase` / `ctx.supabase` z WIĄZANIA nazwy: `null` - reguła
+ * nazwy (kontekst handlera funkcji serwera albo middleware, rozkładany
+ * `{ context }`; nazwa bez deklaracji w pliku); parametr innej funkcji -
+ * `.supabase` argumentu każdego wywołania (`paramRole`), zmienna lokalna -
+ * jej inicjalizatora; inne wiązanie - nieustalona (bez zgadywania).
+ */
+function contextClientRole(
+  base: ts.Identifier,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution | null {
+  const binding = bindingOf(base, scope);
+  // Ścieżka bez widocznej roli: reguła nazwy zostaje KANDYDATEM (uprawnienia
+  // `authenticated` sprawdzane jak dotąd), a fakt - na liście przejrzanej.
+  const unresolved = (r: RoleResolution): RoleResolution =>
+    r.role !== "unknown" || (r.candidates?.length ?? 0) > 0 || r.absent === true
+      ? r
+      : unknownRole(
+          r.via,
+          [{ role: "authenticated", via: `reguła nazwy ${base.text}.supabase`, guest: false }],
+          r.via,
+        );
+  if (binding.kind === "none") {
+    return declaringScope(base) === null ? null : unresolved(unknownRole(binding.why));
+  }
+  if (binding.kind === "param") {
+    if (binding.prop === "context") {
+      // `{ context }` handlera albo funkcji, której KAŻDE wywołanie dostaje
+      // argument handlera (`.handler((ctx) => f(ctx))`).
+      if (binding.index === 0 && isServerFnCallback(binding.fn)) return null;
+      const sites = callSitesOf(binding.fn, scope, env);
+      if (
+        sites !== null &&
+        sites.length > 0 &&
+        sites.every((site) => {
+          const arg = argumentAt(site.call, binding.index);
+          if (arg === undefined || arg === "spread") return false;
+          const node = unwrap(arg);
+          if (!ts.isIdentifier(node)) return false;
+          const b = bindingOf(node, site.scope);
+          return b.kind === "param" && b.index === 0 && b.prop === null && isServerFnCallback(b.fn);
+        })
+      ) {
+        return null;
+      }
+      return unresolved(unknownRole(`${base.text}.supabase: { context } parametru poza handlerem`));
+    }
+    if (binding.prop === null) {
+      return unresolved(paramRole(binding.fn, binding.index, "supabase", scope, env, depth));
+    }
+    return unresolved(unknownRole(`${base.text}.supabase: element ${binding.prop} parametru`));
+  }
+  if (binding.kind === "local" && binding.prop === null) {
+    return unresolved(memberRole(binding.init, "supabase", scope, env, depth + 1));
+  }
+  return unresolved(unknownRole(`${base.text}.supabase: wiązanie ${binding.kind}`));
 }
 
 /** Rola źródła `looseTable(źródło, t)` / `looseClient(źródło)` - czyli `źródło.supabase`. */
@@ -2581,20 +3386,27 @@ function envKeyOf(expr: ts.Expression | undefined, scope: FileScope, depth = 0):
   return null;
 }
 
-/** Czy opcje `createClient` mogą nieść nagłówek `Authorization`; `null` - nie wiadomo. */
+/**
+ * Czy opcje `createClient` niosą nagłówek `Authorization`: `always`, `never`,
+ * `maybe` (zależnie od warunku - np. `bearer === null ? {...} : { headers }`);
+ * `null` - nie wiadomo.
+ */
 function mayCarryAuthorization(
   expr: ts.Expression | undefined,
   path: readonly string[],
-): boolean | null {
-  if (expr === undefined) return false;
+): "always" | "never" | "maybe" | null {
+  if (expr === undefined) return "never";
   const node = unwrap(expr);
   if (ts.isConditionalExpression(node)) {
     const a = mayCarryAuthorization(node.whenTrue, path);
     const b = mayCarryAuthorization(node.whenFalse, path);
-    return a === null || b === null ? null : a || b;
+    return a === null || b === null ? null : a === b ? a : "maybe";
   }
   if (!ts.isObjectLiteralExpression(node)) return null;
-  let carries = false;
+  let carries: "always" | "never" | "maybe" = "never";
+  const add = (x: "always" | "never" | "maybe"): void => {
+    if (x === "always" || (x === "maybe" && carries === "never")) carries = x;
+  };
   for (const p of node.properties) {
     if (ts.isSpreadAssignment(p)) return null;
     const key = p.name === undefined ? null : propName(p.name as ts.PropertyName);
@@ -2604,14 +3416,14 @@ function mayCarryAuthorization(
     }
     if (path.length === 0) {
       // `accessToken` (funkcja tokenu) na najwyższym poziomie opcji.
-      if (key === "accessToken") carries = true;
+      if (key === "accessToken") add("always");
     }
-    if (path.length === 2 && key.toLowerCase() === "authorization") carries = true;
+    if (path.length === 2 && key.toLowerCase() === "authorization") add("always");
     const next = ["global", "headers"][path.length];
     if (key === next && ts.isPropertyAssignment(p)) {
       const inner = mayCarryAuthorization(p.initializer, [...path, key]);
       if (inner === null) return null;
-      carries ||= inner;
+      add(inner);
     }
   }
   return carries;
@@ -2634,9 +3446,21 @@ function createClientRole(call: ts.CallExpression, scope: FileScope): RoleResolu
   if (/PUBLISHABLE|ANON/.test(key)) {
     const auth = mayCarryAuthorization(call.arguments[2], []);
     if (auth === null) return unknownRole(`createClient(…, ${key}): opcje nieczytelne`);
-    return auth
-      ? { role: "authenticated", via: `createClient(…, ${key}) z nagłówkiem Authorization` }
-      : { role: "anon", via: `createClient(…, ${key})` };
+    const withHeader: RoleResolution = {
+      role: "authenticated",
+      via: `createClient(…, ${key}) z nagłówkiem Authorization`,
+    };
+    const without: RoleResolution = { role: "anon", via: `createClient(…, ${key})` };
+    // Nagłówek z warunku (token wołającego albo gość) - obie role to ścieżki
+    // wykonania: kandydaci, nie zgadywanie jednej.
+    return auth === "always"
+      ? withHeader
+      : auth === "never"
+        ? without
+        : unknownRole(`createClient(…, ${key}): nagłówek Authorization z warunku`, [
+            { role: "anon", via: `${without.via} bez nagłówka`, guest: false },
+            { role: "authenticated", via: withHeader.via, guest: false },
+          ]);
   }
   return unknownRole(`createClient: klucz ${key}`);
 }
@@ -2743,9 +3567,11 @@ function callRole(
       if (arg === undefined) continue;
       const member = prop ?? ref.prop;
       roles.push(
-        member === null
-          ? measuredRole(arg, scope, env, depth + 1)
-          : memberRole(arg, member, scope, env, depth + 1),
+        atAnchor(env, call, () =>
+          member === null
+            ? measuredRole(arg, scope, env, depth + 1)
+            : memberRole(arg, member, scope, env, depth + 1),
+        ),
       );
       continue;
     }
@@ -2825,11 +3651,16 @@ function isValueReference(id: ts.Identifier): boolean {
   return true;
 }
 
-/** Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem wprost; inaczej `null`. */
+/**
+ * Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem
+ * wprost; inaczej `null`. `partial` - same wywołania widoczne, odwołania inne
+ * niż wywołanie (wartość, callback) pominięte.
+ */
 function directCallReferences(
   root: ts.Node,
   name: string,
   declaration: ts.Node | null,
+  partial = false,
 ): ts.CallExpression[] | null {
   const calls: ts.CallExpression[] = [];
   let complete = true;
@@ -2840,7 +3671,7 @@ function directCallReferences(
         const outer = outermostWrapper(node);
         if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
           calls.push(outer.parent);
-        } else complete = false;
+        } else if (!partial) complete = false;
       }
       return;
     }
@@ -2850,10 +3681,9 @@ function directCallReferences(
   return complete ? calls : null;
 }
 
-/** Wywołania przez `import()`: rozkład `const { f } = await import(...)` albo `(await import(...)).f(...)`. */
-function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
-  if (!ts.isCallExpression(ref.node)) return null; // przestrzeń nazw, reeksport
-  let outer: ts.Node = ref.node;
+/** Wyrażenie razem z owijkami `await`, nawiasy, `as`, `!` nad nim. */
+function outermostAwaited(node: ts.Node): ts.Node {
+  let outer = node;
   while (
     (ts.isAwaitExpression(outer.parent) ||
       ts.isParenthesizedExpression(outer.parent) ||
@@ -2863,42 +3693,120 @@ function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
   ) {
     outer = outer.parent;
   }
+  return outer;
+}
+
+/**
+ * Wzorzec rozkładu przestrzeni nazw modułu z `import()` w `Promise.all`:
+ * `const [{ a }, { b }] = await Promise.all([import("x"), import("y")])` -
+ * dla elementu `import("y")` wzorzec `{ b }` i deklaracja; `null` - inny kształt.
+ */
+function promiseAllImportPattern(
+  importCall: ts.Node,
+): { readonly pattern: ts.ObjectBindingPattern; readonly decl: ts.VariableDeclaration } | null {
+  const item = outermostWrapper(importCall as ts.Expression);
+  const list = item.parent;
+  if (!ts.isArrayLiteralExpression(list)) return null;
+  const index = list.elements.indexOf(item);
+  if (index === -1 || list.elements.slice(0, index + 1).some(ts.isSpreadElement)) return null;
+  const all = outermostWrapper(list).parent;
+  if (!ts.isCallExpression(all) || all.arguments.length !== 1) return null;
+  const callee = unwrap(all.expression);
+  if (
+    !ts.isPropertyAccessExpression(callee) ||
+    callee.name.text !== "all" ||
+    !ts.isIdentifier(callee.expression) ||
+    callee.expression.text !== "Promise"
+  ) {
+    return null;
+  }
+  const decl = outermostAwaited(all).parent;
+  if (
+    !ts.isVariableDeclaration(decl) ||
+    decl.initializer === undefined ||
+    unwrap(decl.initializer) !== all ||
+    !ts.isArrayBindingPattern(decl.name)
+  ) {
+    return null;
+  }
+  const el = decl.name.elements[index];
+  return el !== undefined &&
+    ts.isBindingElement(el) &&
+    el.dotDotDotToken === undefined &&
+    el.initializer === undefined &&
+    ts.isObjectBindingPattern(el.name) &&
+    decl.name.elements.slice(0, index).every((e) => !ts.isBindingElement(e) || !e.dotDotDotToken)
+    ? { pattern: el.name, decl }
+    : null;
+}
+
+/**
+ * Wywołania przez `import()`: rozkład `const { f } = await import(...)`
+ * (także element `await Promise.all([import(...), ...])`) albo
+ * `(await import(...)).f(...)`. `partial` - kształt nieczytelny i odwołania
+ * inne niż wywołanie pominięte zamiast `null`.
+ */
+function dynamicImportCalls(ref: ModuleRef, name: string, partial = false): CallSite[] | null {
+  const none = partial ? [] : null;
+  if (!ts.isCallExpression(ref.node)) return none; // przestrzeń nazw, reeksport
+  const outer = outermostAwaited(ref.node);
   const parent = outer.parent;
   if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) {
     if (parent.name.text !== name) return [];
     const wrapped = outermostWrapper(parent);
     return ts.isCallExpression(wrapped.parent) && wrapped.parent.expression === wrapped
       ? [{ call: wrapped.parent, scope: ref.scope }]
-      : null;
+      : none;
   }
+  let pattern: ts.ObjectBindingPattern | null = null;
+  let decl: ts.VariableDeclaration | null = null;
   if (
     ts.isVariableDeclaration(parent) &&
     parent.initializer === outer &&
-    ts.isObjectBindingPattern(parent.name) &&
-    ts.isVariableDeclarationList(parent.parent) &&
-    parent.parent.flags & ts.NodeFlags.Const &&
-    ts.isVariableStatement(parent.parent.parent)
+    ts.isObjectBindingPattern(parent.name)
   ) {
-    const block = parent.parent.parent.parent;
-    const sites: CallSite[] = [];
-    for (const el of parent.name.elements) {
-      if (el.dotDotDotToken) return null;
-      const source = el.propertyName
-        ? propName(el.propertyName)
-        : ts.isIdentifier(el.name)
-          ? el.name.text
-          : null;
-      if (source !== name) continue;
-      if (!ts.isIdentifier(el.name)) return null;
-      const local = el.name.text;
-      if (bindingCount(block, local) !== 1 || isAssigned(block, local)) return null;
-      const calls = directCallReferences(block, local, el.name);
-      if (calls === null) return null;
-      sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
-    }
-    return sites;
+    pattern = parent.name;
+    decl = parent;
+  } else {
+    const viaAll = promiseAllImportPattern(ref.node);
+    if (viaAll !== null) ({ pattern, decl } = viaAll);
   }
-  return null;
+  if (
+    pattern === null ||
+    decl === null ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent)
+  ) {
+    return none;
+  }
+  const block = decl.parent.parent.parent;
+  const sites: CallSite[] = [];
+  for (const el of pattern.elements) {
+    if (el.dotDotDotToken) {
+      if (partial) continue;
+      return null;
+    }
+    const source = el.propertyName
+      ? propName(el.propertyName)
+      : ts.isIdentifier(el.name)
+        ? el.name.text
+        : null;
+    if (source !== name) continue;
+    if (!ts.isIdentifier(el.name)) {
+      if (partial) continue;
+      return null;
+    }
+    const local = el.name.text;
+    if (bindingCount(block, local) !== 1 || isAssigned(block, local)) {
+      if (partial) continue;
+      return null;
+    }
+    const calls = directCallReferences(block, local, el.name, partial);
+    if (calls === null) return null;
+    sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
+  }
+  return sites;
 }
 
 /**
@@ -2912,83 +3820,113 @@ function callSitesOf(
   env: RoleEnv,
 ): readonly CallSite[] | null {
   if (env.sites.has(fn)) return env.sites.get(fn) ?? null;
-  const compute = (): CallSite[] | null => {
-    let name: string;
-    let statement: ts.Statement;
-    let declaration: ts.Node;
-    if (ts.isFunctionDeclaration(fn)) {
-      if (fn.name === undefined || fn.body === undefined) return null;
-      name = fn.name.text;
-      statement = fn;
-      declaration = fn.name;
-    } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
-      const outer = outermostWrapper(fn);
-      const decl = outer.parent;
-      // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
-      // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
-      // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
-      if (ts.isCallExpression(decl) && decl.expression !== outer) {
-        const k = decl.arguments.indexOf(outer);
-        const callee = unwrap(decl.expression);
-        if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return null;
-        const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
-        const param = target?.fn.parameters[k];
-        if (
-          target == null ||
-          param === undefined ||
-          !ts.isIdentifier(param.name) ||
-          param.dotDotDotToken !== undefined ||
-          param.initializer !== undefined ||
-          isAssigned(target.fn, param.name.text)
-        ) {
-          return null;
-        }
-        const invocations = directCallReferences(target.fn, param.name.text, param.name);
-        return invocations === null
-          ? null
-          : invocations.map((call) => ({ call, scope: target.scope }));
-      }
+  const sites = collectCallSites(fn, scope, env, false);
+  env.sites.set(fn, sites);
+  return sites;
+}
+
+/**
+ * Wywołania funkcji WIDOCZNE w źródłach - także gdy nie każde odwołanie jest
+ * wywołaniem (`callSitesOf` daje wtedy `null`). Każde to prawdziwa ścieżka
+ * wykonania: rola jego argumentu jest kandydatem roli parametru.
+ */
+function visibleCallSitesOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+): readonly CallSite[] {
+  const all = callSitesOf(fn, scope, env);
+  if (all !== null) return all;
+  let visible = env.visibleSites.get(fn);
+  if (visible === undefined) {
+    visible = collectCallSites(fn, scope, env, true) ?? [];
+    env.visibleSites.set(fn, visible);
+  }
+  return visible;
+}
+
+function collectCallSites(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+  partial: boolean,
+): CallSite[] | null {
+  const none = partial ? [] : null;
+  let name: string;
+  let statement: ts.Statement;
+  let declaration: ts.Node;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined || fn.body === undefined) return none;
+    name = fn.name.text;
+    statement = fn;
+    declaration = fn.name;
+  } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+    const outer = outermostWrapper(fn);
+    const decl = outer.parent;
+    // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
+    // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
+    // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
+    if (ts.isCallExpression(decl) && decl.expression !== outer) {
+      const k = decl.arguments.indexOf(outer);
+      const callee = unwrap(decl.expression);
+      if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return none;
+      const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
+      const param = target?.fn.parameters[k];
       if (
-        !ts.isVariableDeclaration(decl) ||
-        decl.initializer !== outer ||
-        !ts.isIdentifier(decl.name) ||
-        !ts.isVariableDeclarationList(decl.parent) ||
-        !(decl.parent.flags & ts.NodeFlags.Const) ||
-        !ts.isVariableStatement(decl.parent.parent)
+        target == null ||
+        param === undefined ||
+        !ts.isIdentifier(param.name) ||
+        param.dotDotDotToken !== undefined ||
+        param.initializer !== undefined ||
+        isAssigned(target.fn, param.name.text)
       ) {
-        return null;
+        return none;
       }
-      name = decl.name.text;
-      statement = decl.parent.parent;
-      declaration = decl.name;
-    } else {
+      const invocations = directCallReferences(target.fn, param.name.text, param.name, partial);
+      return invocations === null
+        ? null
+        : invocations.map((call) => ({ call, scope: target.scope }));
+    }
+    if (
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== outer ||
+      !ts.isIdentifier(decl.name) ||
+      !ts.isVariableDeclarationList(decl.parent) ||
+      !(decl.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(decl.parent.parent)
+    ) {
+      return none;
+    }
+    name = decl.name.text;
+    statement = decl.parent.parent;
+    declaration = decl.name;
+  } else {
+    return none;
+  }
+  const container = statement.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return none;
+  const own = directCallReferences(container, name, declaration, partial);
+  if (own === null) return null;
+  const sites: CallSite[] = own.map((call) => ({ call, scope }));
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return sites;
+  }
+  if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return partial ? sites : null;
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    const more = dynamicImportCalls(ref, name, partial);
+    if (more === null) return null;
+    sites.push(...more);
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name) continue;
+    if (bindingCount(imp.scope.sf, imp.local) !== 0) {
+      if (partial) continue;
       return null;
     }
-    const container = statement.parent;
-    if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return null;
-    const own = directCallReferences(container, name, declaration);
-    if (own === null) return null;
-    const sites: CallSite[] = own.map((call) => ({ call, scope }));
-    if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
-      return sites;
-    }
-    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return null;
-    for (const ref of moduleRefsOf(scope.file, env)) {
-      const more = dynamicImportCalls(ref, name);
-      if (more === null) return null;
-      sites.push(...more);
-    }
-    for (const imp of importersOf(scope.file, env.flow)) {
-      if (imp.imported !== name) continue;
-      if (bindingCount(imp.scope.sf, imp.local) !== 0) return null;
-      const more = directCallReferences(imp.scope.sf, imp.local, null);
-      if (more === null) return null;
-      sites.push(...more.map((call) => ({ call, scope: imp.scope })));
-    }
-    return sites;
-  };
-  const sites = compute();
-  env.sites.set(fn, sites);
+    const more = directCallReferences(imp.scope.sf, imp.local, null, partial);
+    if (more === null) return null;
+    sites.push(...more.map((call) => ({ call, scope: imp.scope })));
+  }
   return sites;
 }
 
@@ -3014,7 +3952,28 @@ function paramRole(
   const sites = callSitesOf(fn, scope, env);
   let result: RoleResolution;
   if (sites === null) {
-    result = unknownRole(`${label}: nie każde odwołanie do funkcji to widoczne wywołanie`);
+    // Rola parametru nieustalona (nie każdy wołający widoczny), ale każde
+    // WIDOCZNE wywołanie to ścieżka wykonania - jego rola jest kandydatem.
+    const visible = visibleCallSitesOf(fn, scope, env);
+    const roles: RoleResolution[] = [];
+    for (const site of visible) {
+      const arg = argumentAt(site.call, index);
+      if (arg === "spread" || arg === undefined) continue;
+      roles.push(
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
+      );
+    }
+    // Odwołanie, które nie jest wywołaniem (tablica, callback, obiekt), to
+    // ścieżka BEZ widocznej roli - reszta zostaje na liście przejrzanej.
+    result = unknownRole(
+      `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
+      labelled(`${label} (widoczne: ${visible.length})`, roles.flatMap(candidatesOf)),
+      `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
+    );
   } else {
     const roles: RoleResolution[] = [];
     let spread = false;
@@ -3026,9 +3985,11 @@ function paramRole(
       }
       if (arg === undefined) continue;
       roles.push(
-        prop === null
-          ? measuredRole(arg, site.scope, env, depth + 1)
-          : memberRole(arg, prop, site.scope, env, depth + 1),
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
       );
     }
     result = spread
@@ -3067,7 +4028,7 @@ function defaultedParamRole(
   ]);
 }
 
-// ── Miara poza bramką: kolumny filtrów i sortowania ─────────────────────────
+// ── Miara: kolumny filtrów i sortowania ─────────────────────────────────────
 //
 // Postgres wymaga SELECT na kolumnie użytej w WHERE i ORDER BY - także
 // w UPDATE i DELETE - oraz na kolumnach celu `ON CONFLICT (...)`, a przy
@@ -3704,6 +4665,19 @@ function filterChainRoot(expr: ts.Expression): ts.Expression {
 
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
+/**
+ * Miejsce wywołania faktu miary (przesunięcie w pliku `site`): dowód bramki
+ * wpisu GUEST_LOGIN_ONLY_REVIEWED musi OBEJMOWAĆ każde wywołanie pod kluczem
+ * (`guestLoginOnlyDrift`). Poza obiektem faktu - fakty, ich klucze
+ * i wyrenderowany SQL zostają bez zmian.
+ */
+const FACT_AT = new WeakMap<object, number>();
+
+function placed<T extends object>(fact: T, node: ts.Node): T {
+  FACT_AT.set(fact, node.getStart(node.getSourceFile()));
+  return fact;
+}
+
 interface Collector {
   rpcs: RpcSite[];
   tables: TableSite[];
@@ -3724,7 +4698,7 @@ interface Collector {
    * `select` na budowniczym Supabase trafia do `uncheckedSelects`.
    */
   visitedSelects: Set<ts.CallExpression>;
-  /** Miara poza bramką (`SeamFacts.observed`). */
+  /** Miara (`SeamFacts.observed`). */
   observed: {
     rpcs: ObservedRpc[];
     tables: ObservedTable[];
@@ -3732,9 +4706,13 @@ interface Collector {
     embeds: ObservedEmbed[];
     /** Klucz osadzenia (z kluczem rodzica) -> `id` - to samo osadzenie tylko raz. */
     embedKeys: Map<string, number>;
+    /** `id` osadzenia -> ile odczytów je niesie i ile z nich to fakty wstrzymane. */
+    embedUses: Map<number, { total: number; withheld: number }>;
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
+    dynamicWrites: ObservedDynamicWrite[];
+    rpcColumns: ObservedRpcColumn[];
     unresolvedFilters: string[];
     filtersOutsideChains: string[];
     /** Wywołania filtra obejrzane na rozpoznanym budowniczym (fakt albo miejsce nieczytelne). */
@@ -3968,10 +4946,13 @@ function visitFile(
     const root = filterChainRoot(receiver);
     // `Object.is(a, b)`, `Array.from(...)` - konstruktory globalne, nie klient.
     if (ts.isIdentifier(root) && /^[A-Z]/.test(root.text)) continue;
-    // Filtr i sortowanie wyniku `.rpc(...)` to kolumny wyniku funkcji, nie
-    // tabeli - uprawnień kolumn nie wymagają.
-    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") continue;
     const where = `${scope.file}: ${enclosingFunctionPath(call)}: .${method}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)})`;
+    // Filtr wyniku `.rpc(...)` poza obejrzanym łańcuchem (`observeRpcChain`):
+    // kolumny wyniku funkcji, których miara nie wiąże - miejsce nieczytelne.
+    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") {
+      out.observed.unresolvedFilters.push(`${where}: wynik .rpc() poza obejrzanym łańcuchem`);
+      continue;
+    }
     // Budowniczy przez wartość: parametr pomocnika (`applyFilters(q)`),
     // funkcja zwracająca budowniczego, `let` przedłużany samym sobą.
     const builders = builderOf(receiver, scope, measure, exportsIndex, known, 0, {
@@ -3999,21 +4980,27 @@ function visitFile(
             }
             rel = embedded;
           }
-          out.observed.filters.push({
-            table: rel,
-            column: column.column,
-            embed: column.embed.length > 0 ? column.embed.join(".") : null,
-            method,
-            op: builder.op,
-            role: builder.role.role,
-            via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
-            enforcedRole: "unknown",
-            guest: builder.role.guest === true,
-            gateRole: builder.gate,
-            file: column.file,
-            site: scope.file,
-            fn: enclosingFunctionPath(call),
-          });
+          out.observed.filters.push(
+            placed(
+              {
+                table: rel,
+                column: column.column,
+                embed: column.embed.length > 0 ? column.embed.join(".") : null,
+                method,
+                op: builder.op,
+                role: builder.role.role,
+                via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
+                enforcedRole: "unknown",
+                guest: builder.role.guest === true,
+                ...candidateField(builder.role),
+                gateRole: builder.gate,
+                file: column.file,
+                site: scope.file,
+                fn: enclosingFunctionPath(call),
+              },
+              call,
+            ),
+          );
         }
       }
       continue;
@@ -4067,17 +5054,90 @@ function handleRpc(
   out.rpcs.push({ name, keys, role, file: scope.file });
   if (measure === null) return;
   const measured = measuredRole(receiver, scope, measure.roles, 0);
-  out.observed.rpcs.push({
-    name,
-    keys,
-    role: measured.role,
-    via: measured.via,
-    enforcedRole: role,
-    guest: measured.guest === true,
-    file: scope.file,
-    site: scope.file,
-    fn: enclosingFunctionPath(node),
-  });
+  out.observed.rpcs.push(
+    placed(
+      {
+        name,
+        keys,
+        role: measured.role,
+        via: measured.via,
+        enforcedRole: role,
+        guest: measured.guest === true,
+        ...candidateField(measured),
+        file: scope.file,
+        site: scope.file,
+        fn: enclosingFunctionPath(node),
+      },
+      node,
+    ),
+  );
+  observeRpcChain(node, name, keys, scope, exportsIndex, known, out, measure);
+}
+
+/**
+ * Miara: kolumny wyniku funkcji w łańcuchu `.rpc(...)` - wprost i przez
+ * zmienną z wywołaniem (jak łańcuchy budowniczego). Kolumna nieczytelna,
+ * osadzenie na wyniku albo lista `select` z wartości czasu działania - miejsce
+ * nieczytelne (zapadka `MAX_UNRESOLVED_FILTER_SITES`).
+ */
+function observeRpcChain(
+  node: ts.CallExpression,
+  name: string,
+  keys: readonly string[] | null,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  measure: MeasureEnv,
+): void {
+  const direct = chainAbove(node);
+  const top = direct.length > 0 ? direct[direct.length - 1] : node;
+  const chains = [...(direct.length > 0 ? [direct] : []), ...boundChains(top)];
+  for (const chain of chains) {
+    for (const call of chain) {
+      const method = callMethod(call)?.name ?? "";
+      const fn = enclosingFunctionPath(call);
+      const where = `${scope.file}: ${fn}: .rpc(${name}).${method}`;
+      const push = (column: string, file: string): void => {
+        out.observed.rpcColumns.push({ name, keys, column, method, file, site: scope.file, fn });
+      };
+      if (method === "select") {
+        const arg = call.arguments[0];
+        if (arg === undefined) continue;
+        const text = resolveString(arg, scope, exportsIndex, known);
+        if (text === null) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): lista \`select\` wyniku nieczytelna`,
+          );
+          continue;
+        }
+        if (splitTopLevel(text).some((item) => selectEmbedItem(item) !== null)) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): osadzenie na wyniku funkcji`,
+          );
+        }
+        for (const column of parseSelectColumns(text).columns) push(column, scope.file);
+        continue;
+      }
+      if (!FILTER_METHODS.has(method)) continue;
+      out.observed.visitedFilters.add(call);
+      const found = filterCallColumns(call, method, scope, exportsIndex, known, measure.filters);
+      for (const why of found.unresolved) {
+        out.observed.unresolvedFilters.push(
+          `${where}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)}): ${why}`,
+        );
+      }
+      for (const column of found.columns) {
+        if (column.embed.length > 0) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${column.embed.join(".")}.${column.column}): osadzenie na wyniku funkcji`,
+          );
+          continue;
+        }
+        push(column.column, column.file);
+      }
+    }
+  }
 }
 
 function handleFrom(
@@ -4176,28 +5236,71 @@ function handleBuilder(
   // Łańcuch (indeks w `chains`) każdego faktu miary - do zapytań sond.
   const chainFacts: { readonly fact: ObservedTable; readonly chain: number }[] = [];
   let chainIndex = 0;
-  const fact = (f: TableSite, call: ts.CallExpression): void => {
+  const fact = (f: TableSite, call: ts.CallExpression): boolean => {
     const withheld = pushTableFact(out, f, call, scope);
-    if (measure === null) return;
-    const observedFact: ObservedTable = {
-      ...f,
-      role: measure.role.role,
-      via: measure.role.via,
-      enforcedRole: withheld ? "unknown" : f.role,
-      guest: measure.role.guest === true,
-      site: scope.file,
-      fn: enclosingFunctionPath(call),
-    };
+    if (measure === null) return withheld;
+    const observedFact: ObservedTable = placed(
+      {
+        ...f,
+        role: measure.role.role,
+        via: measure.role.via,
+        enforcedRole: withheld ? "unknown" : f.role,
+        withheld,
+        guest: measure.role.guest === true,
+        ...candidateField(measure.role),
+        site: scope.file,
+        fn: enclosingFunctionPath(call),
+      },
+      call,
+    );
     out.observed.tables.push(observedFact);
     chainFacts.push({ fact: observedFact, chain: chainIndex });
+    return withheld;
   };
   const site = (
     call: ts.CallExpression,
     op: TableOp,
     columns: readonly string[],
     star: boolean,
-  ): void => {
-    fact({ table, op, columns, star, role, file: scope.file }, call);
+  ): boolean => fact({ table, op, columns, star, role, file: scope.file }, call);
+  // Odczyt `head: true` (sama liczba wierszy): PostgREST i tak czyta relację
+  // i kolumny listy `select` (CTE `pgrst_source` pod `count(...)`), więc 42501
+  // i 42P01 są te same co przy zwykłym odczycie - fakt MIARY (istnienie,
+  // uprawnienia kolumn, gość, sonda odczytu), bez faktu bramki (asercje 1-9
+  // bez zmian). Lista nieczytelna - fakt bez kolumn (relacja, sonda).
+  const headFact = (call: ts.CallExpression, columns: readonly string[], star: boolean): void => {
+    if (measure === null) return;
+    const observedFact: ObservedTable = placed(
+      {
+        table,
+        op: "select",
+        columns,
+        star,
+        file: scope.file,
+        role: measure.role.role,
+        via: measure.role.via,
+        enforcedRole: role,
+        withheld: false,
+        head: true,
+        guest: measure.role.guest === true,
+        ...candidateField(measure.role),
+        site: scope.file,
+        fn: enclosingFunctionPath(call),
+      },
+      call,
+    );
+    out.observed.tables.push(observedFact);
+    chainFacts.push({ fact: observedFact, chain: chainIndex });
+  };
+  // Osadzenia odczytu niosą jego wstrzymanie (fakt bez kolumn - odczyt
+  // nie jest wstrzymany).
+  const embedUse = (ids: readonly number[], withheld: boolean): void => {
+    for (const id of ids) {
+      const use = out.observed.embedUses.get(id) ?? { total: 0, withheld: 0 };
+      use.total += 1;
+      if (withheld) use.withheld += 1;
+      out.observed.embedUses.set(id, use);
+    }
   };
 
   for (const [index, chain] of chains.entries()) {
@@ -4210,7 +5313,8 @@ function handleBuilder(
         out.visitedSelects.add(call);
         const arg = call.arguments[0];
         const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-        // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
+        // `head: true` - sama liczba wierszy; PostgREST nie zwraca kolumn, ale
+        // je czyta (`headFact`).
         const head =
           opts !== null &&
           ts.isObjectLiteralExpression(opts) &&
@@ -4220,7 +5324,12 @@ function handleBuilder(
               propName(p.name) === "head" &&
               p.initializer.kind === ts.SyntaxKind.TrueKeyword,
           );
-        if (head) continue;
+        if (head) {
+          const text = arg === undefined ? "*" : resolveString(arg, scope, exportsIndex, known);
+          const parsed = text === null ? { columns: [], star: false } : parseSelectColumns(text);
+          headFact(call, parsed.columns, parsed.star);
+          continue;
+        }
         if (arg === undefined) {
           site(call, "select", [], true);
           continue;
@@ -4238,12 +5347,14 @@ function handleBuilder(
             ? resolveString(arg, scope, exportsIndex, known)
             : null;
         for (const value of flowed ?? []) {
-          if (measure !== null) {
-            observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(value.text);
+          let withheld = false;
           if (parsed.star || parsed.columns.length > 0) {
-            fact(
+            withheld = fact(
               {
                 table,
                 op: "select",
@@ -4255,6 +5366,7 @@ function handleBuilder(
               call,
             );
           }
+          embedUse(ids, withheld);
           if (hasRuntimeColumn(value.text)) {
             flow.unresolved.add(
               `${scope.file}: .select(${arg.getText(scope.sf).slice(0, 60)}) <- ${value.file}: kolumna z wartości czasu działania`,
@@ -4262,13 +5374,16 @@ function handleBuilder(
           }
         }
         for (const select of viaHelper ?? (text === null ? [] : [text])) {
-          if (measure !== null) {
-            observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(select);
-          if (parsed.star || parsed.columns.length > 0) {
-            site(call, "select", parsed.columns, parsed.star);
-          }
+          embedUse(
+            ids,
+            (parsed.star || parsed.columns.length > 0) &&
+              site(call, "select", parsed.columns, parsed.star),
+          );
         }
         // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
         // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
@@ -4304,7 +5419,26 @@ function handleBuilder(
             }
           }
         }
-        if (objects === null) continue;
+        if (objects === null) {
+          if (measure !== null) {
+            out.observed.dynamicWrites.push(
+              placed(
+                {
+                  table,
+                  op: kind,
+                  role: measure.role.role,
+                  via: measure.role.via,
+                  guest: measure.role.guest === true,
+                  ...candidateField(measure.role),
+                  site: scope.file,
+                  fn: enclosingFunctionPath(call),
+                },
+                call,
+              ),
+            );
+          }
+          continue;
+        }
         const shape = objectShape(objects, scope, exportsIndex, known);
         site(call, kind, shape.keys, false);
         for (const lit of shape.literals) {
@@ -4327,6 +5461,32 @@ function handleBuilder(
       out,
       measure,
     );
+    // Filtry łańcucha z faktem wstrzymanym: zapytanie (łańcuch wprost razem
+    // z łańcuchem użycia - grupy jak w `observeStatements`) niesie defekt
+    // przejrzany, więc jego filtry - tylko istnienie. Filtr łańcucha wprost
+    // wspólny z niewstrzymanym użyciem zostaje sprawdzany.
+    const withheldChains = new Set(chainFacts.filter((f) => f.fact.withheld).map((f) => f.chain));
+    if (withheldChains.size > 0) {
+      const hasDirect = direct.length > 0;
+      const bound = Array.from(
+        { length: Math.max(0, chains.length - (hasDirect ? 1 : 0)) },
+        (_, i) => (hasDirect ? 1 : 0) + i,
+      );
+      const groups = bound.length === 0 ? [[0]] : bound.map((i) => (hasDirect ? [0, i] : [i]));
+      const held = (chain: number): boolean => {
+        const mine = groups.filter((g) => g.includes(chain));
+        return mine.length > 0 && mine.every((g) => g.some((c) => withheldChains.has(c)));
+      };
+      for (const [i, entry] of chainFilters.entries()) {
+        if (!held(entry.chain)) continue;
+        const filter: FilterSite = { ...entry.filter, withheld: true };
+        const position = FACT_AT.get(entry.filter);
+        if (position !== undefined) FACT_AT.set(filter, position);
+        const at = out.observed.filters.lastIndexOf(entry.filter);
+        if (at !== -1) out.observed.filters[at] = filter;
+        chainFilters[i] = { filter, chain: entry.chain };
+      }
+    }
     observeStatements(
       chains.length,
       direct.length > 0,
@@ -4382,8 +5542,9 @@ function observeEmbeds(
   call: ts.CallExpression,
   scope: FileScope,
   out: Collector,
-): void {
+): number[] {
   const fn = enclosingFunctionPath(call);
+  const ids: number[] = [];
   const walk = (list: string, parentId: number | null, prefix: string | null, depth: number) => {
     if (depth > 8) return;
     for (const raw of splitTopLevel(list)) {
@@ -4405,6 +5566,8 @@ function observeEmbeds(
         role.role,
         role.guest === true,
         role.via,
+        role.candidates ?? [],
+        role.residual ?? null,
         gateRole,
         file,
       ]);
@@ -4412,30 +5575,38 @@ function observeEmbeds(
       if (id === undefined) {
         id = out.observed.embeds.length;
         out.observed.embedKeys.set(key, id);
-        out.observed.embeds.push({
-          id,
-          parentId,
-          table,
-          path,
-          rel: item.rel,
-          hint: item.hint,
-          columns,
-          star: parsed.star,
-          op: "select",
-          role: role.role,
-          via: role.via,
-          enforcedRole: "unknown",
-          guest: role.guest === true,
-          gateRole,
-          file,
-          site: scope.file,
-          fn,
-        });
+        out.observed.embeds.push(
+          placed(
+            {
+              id,
+              parentId,
+              table,
+              path,
+              rel: item.rel,
+              hint: item.hint,
+              columns,
+              star: parsed.star,
+              op: "select",
+              role: role.role,
+              via: role.via,
+              enforcedRole: "unknown",
+              guest: role.guest === true,
+              ...candidateField(role),
+              gateRole,
+              file,
+              site: scope.file,
+              fn,
+            },
+            call,
+          ),
+        );
       }
+      ids.push(id);
       walk(item.inner, id, path, depth + 1);
     }
   };
   walk(select, null, null, 0);
+  return ids;
 }
 
 /** Metody faktów filtra upsertu: cel `ON CONFLICT` i kolumny `EXCLUDED`. */
@@ -4502,6 +5673,7 @@ function observeStatements(
                 role: role.role,
                 enforcedRole: enforcedOf(selects),
                 guest,
+                ...candidateField(role),
                 via: role.via,
                 site,
                 fn,
@@ -4510,6 +5682,7 @@ function observeStatements(
                 payload: [],
                 where,
                 conflict: null,
+                withheld: selects.some((f) => f.withheld),
               },
             ]
         : writes.map((w) => {
@@ -4520,6 +5693,7 @@ function observeStatements(
               role: role.role,
               enforcedRole: enforcedOf([w, ...selects]),
               guest,
+              ...candidateField(role),
               via: role.via,
               site,
               fn: w.fn,
@@ -4529,12 +5703,17 @@ function observeStatements(
               where: w.op === "update" || w.op === "delete" ? where : [],
               // Cel nieczytelny (`[]`) - sonda bez celu (`ON CONFLICT DO NOTHING`), nie zgadujemy klucza.
               conflict: upsert ? target : null,
+              withheld: [w, ...selects].some((f) => f.withheld),
             };
           });
+    // Miejsce zapytania - miejsce pierwszego faktu albo filtra jego łańcuchów.
+    const first: object | undefined = gFacts[0] ?? gFilters[0];
+    const anchor = first === undefined ? undefined : FACT_AT.get(first);
     for (const statement of statements) {
       const key = JSON.stringify(statement);
       if (out.observed.statementKeys.has(key)) continue;
       out.observed.statementKeys.add(key);
+      if (anchor !== undefined) FACT_AT.set(statement, anchor);
       out.observed.statements.push(statement);
     }
   }
@@ -4607,12 +5786,13 @@ function observeChainFilters(
           via: measure.role.via,
           enforcedRole: "unknown",
           guest: measure.role.guest === true,
+          ...candidateField(measure.role),
           gateRole,
           file: column.file,
           site: scope.file,
           fn: enclosingFunctionPath(call),
         };
-        out.observed.filters.push(filter);
+        out.observed.filters.push(placed(filter, call));
         pushed.push({ filter, chain: chainIndex });
       };
       if (method === "upsert") {
@@ -4838,8 +6018,9 @@ export function extractSeamFacts(
   withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
   options: {
     /**
-     * Miara poza bramką (`observed`): kolumny filtrów i rola szerzej. Bez niej
-     * (bramka CI) `observed` jest puste, a ekstrakcja - ta sama co przed miarą.
+     * Miara (`observed`): kolumny filtrów, rola szerzej, osadzenia, zapytania
+     * sond. Bramka CI (`generate:ts-sql-contract`, `--check`) liczy ją zawsze;
+     * bez niej `observed` jest puste, a fakty bramki - te same.
      */
     readonly observe?: boolean;
   } = {},
@@ -4869,8 +6050,11 @@ export function extractSeamFacts(
       filters: [],
       embeds: [],
       embedKeys: new Map(),
+      embedUses: new Map(),
       statements: [],
       statementKeys: new Set(),
+      dynamicWrites: [],
+      rpcColumns: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
       visitedFilters: new Set(),
@@ -4892,7 +6076,12 @@ export function extractSeamFacts(
             moduleRefs: null,
             memo: new Map(),
             sites: new Map(),
+            visibleSites: new Map(),
             depthCuts: 0,
+            anchor: null,
+            serverPaths: new Map(),
+            serverPathsPending: new Set(),
+            serverCuts: 0,
           },
           filters: measureFlow,
         }
@@ -4929,8 +6118,16 @@ export function extractSeamFacts(
       rpcs: out.observed.rpcs,
       tables: out.observed.tables,
       filters: out.observed.filters,
-      embeds: out.observed.embeds,
+      // Osadzenie wstrzymane: KAŻDY odczyt, który je niesie, to fakt wstrzymany.
+      embeds: out.observed.embeds.map((e) => {
+        const use = out.observed.embedUses.get(e.id);
+        return use !== undefined && use.total > 0 && use.withheld === use.total
+          ? { ...e, withheld: true as const }
+          : e;
+      }),
       statements: out.observed.statements,
+      rpcColumns: out.observed.rpcColumns,
+      dynamicWrites: out.observed.dynamicWrites,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
       unresolvedFilters: [
@@ -5080,6 +6277,12 @@ export function seamCoverageProblems(
   reviewedUnchecked: Readonly<
     Record<string, readonly [number, string]>
   > = UNCHECKED_SELECTS_REVIEWED,
+  /**
+   * Sprawdzenia miary w bramce (lista ról nieustalonych, lista gościa,
+   * zapadki filtrów) - wymagają faktów z `observe: true`. Pominięte - tylko
+   * zasięg ekstrakcji (testy jednostkowe na wycinkach kodu).
+   */
+  observed?: ObservedCoverage,
 ): string[] {
   const problems: string[] = [];
   // Bez wyjątków: drzewo pliku z błędem składni jest od pierwszego błędu
@@ -5122,6 +6325,7 @@ export function seamCoverageProblems(
         fresh.map((site) => `        ${site}`).join("\n"),
     );
   }
+  if (observed !== undefined) problems.push(...observedCoverageProblems(facts, observed));
   return problems;
 }
 
@@ -5149,6 +6353,1149 @@ export const PAYLOAD_IDENTITY_REVIEWED: Readonly<Record<string, string>> = {
  * (limit prób po adresie żył tylko w TS, PostgREST wprost go omijał).
  */
 export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
+
+// ── Bramka z miary: rola zmierzona, filtry, osadzenia, sondy i gość ─────────
+//
+// Do listopada 2026 miara (`observed`) była poza bramką i to ona - nie CI -
+// złapała całą klasę defektów tego miesiąca: `.order("views_count")` na
+// nieistniejącej kolumnie archiwum, `profiles.email` czytane klientem
+// użytkownika w zamówieniach biletowych i w „moim bilecie" (rola klienta
+// nieznana bramce: parametr pomocnika), `builder_templates` i osadzenie
+// `profiles(...)` czytane klientem przeglądarki przez GOŚCIA, widoki
+// `security_invoker` i funkcje SECURITY INVOKER czytające kolumny bez grantu
+// (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
+// wykonania). Teraz te fakty idą do pgTAP (asercje 10-20, `renderContractTest`):
+//   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
+//     `unknown` - tam, gdzie się różni od roli bramki; rola wciąż
+//     nieustalona - KAŻDA widoczna rola-kandydat (`checkedRoles`), a fakty
+//     bez kandydata wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`
+//     (z kształtem przejrzanym),
+//   * kolumny filtrów, sortowania i celu upsertu oraz zasoby osadzone list
+//     `select` - istnienie i SELECT roli,
+//   * sondy wykonania (zapytanie jako rola w podtransakcji, wycofane),
+//   * gość (`anon`) - każdy fakt klienta przeglądarki w pliku osiągalnym dla
+//     gościa (`guestReach`: klasa `public` albo `none`); `admin`
+//     i `session-gate` wyłączone strukturalnie, `public` tylko po zalogowaniu -
+//     WYŁĄCZNIE wpisem `GUEST_LOGIN_ONLY_REVIEWED` z dowodem bramki.
+// Miejsca, których miara nie umie przeczytać (filtry nieczytelne, filtry poza
+// rozpoznanym budowniczym), mają zapadki - ich liczba nie rośnie po cichu.
+
+/** Role klienta, których uprawnienia sprawdza Postgres (`unknown` - tylko istnienie). */
+const CLIENT_ROLES: ReadonlySet<MeasuredRole> = new Set(["anon", "authenticated", "service_role"]);
+
+/**
+ * Zapadka filtrów nieczytelnych (`observed.unresolvedFilters`): kolumna,
+ * tabela albo osadzenie filtra znane dopiero w czasie działania (`.order(col)`
+ * z parametru, `.or(warunek)` składany w pętli, `.from(table)` z wyboru) -
+ * kolumn takiego filtra kontrakt nie sprawdza. Liczba może TYLKO maleć: nowe
+ * takie miejsce czerwieni `check:ts-sql-contract`. Naprawa: kolumna w literale
+ * (albo stałej modułu); gdy się nie da - podniesienie zapadki w przeglądzie.
+ */
+export const MAX_UNRESOLVED_FILTER_SITES = 64;
+
+/**
+ * Zapadka wywołań w kształcie filtra PostgREST na odbiorcy, którego ekstrakcja
+ * nie wiąże z budowniczym (`observed.filtersOutsideChains`: parametr
+ * pomocnika bez widocznych wywołań, wynik funkcji spoza reguł) - szacunek luki
+ * po samym kształcie wywołania. Liczba może TYLKO maleć.
+ */
+export const MAX_FILTERS_OUTSIDE_CHAINS = 8;
+
+/**
+ * Zapadka zapisów klienta z ładunkiem nieczytelnym (`observed.dynamicWrites`:
+ * `.insert(row)`, `.update(patch)`, `.upsert(payload)` z obiektem spoza
+ * literału): kolumn zapisu nie sprawdza żadna asercja uprawnień (2, 5, 11)
+ * ani sonda - widzi je tylko asercja 20 (wyzwalacze). Liczba może TYLKO
+ * maleć; naprawa: ładunek w literale obiektu (kolumny widać) albo obniżenie.
+ */
+export const MAX_DYNAMIC_PAYLOAD_WRITES = 135;
+
+/** Klucz listy ról nieustalonych: plik wywołania, ścieżka funkcji, `.rpc(fn)` albo `.from(tabela)`. */
+export function unknownRoleKey(site: string, fn: string, call: string): string {
+  return `${site}: ${fn}: ${call}`;
+}
+
+/** Fakt miary z kluczem listy (plik wywołania, ścieżka funkcji, relacja łańcucha). */
+type KeyedFact =
+  | ({ readonly kind: "rpc" } & ObservedRpc)
+  | ({ readonly kind: "table" } & ObservedTable)
+  | ({ readonly kind: "filter" } & FilterSite)
+  | ({ readonly kind: "embed" } & ObservedEmbed)
+  | ({ readonly kind: "statement" } & ObservedStatement)
+  | ({ readonly kind: "dynwrite" } & ObservedDynamicWrite);
+
+/**
+ * Fakty pod kluczami list. Zapisy z ładunkiem nieczytelnym (`dynamic`) -
+ * tylko we wszechświecie gościa: ich wiersz `anon` (uprawnienie do zapisu
+ * którejkolwiek kolumny) zdejmuje wpis GUEST_LOGIN_ONLY_REVIEWED pod kluczem.
+ */
+function keyedFacts(o: ObservedFacts, dynamic = false): KeyedFact[] {
+  return [
+    ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x })),
+    ...o.tables.map((x) => ({ kind: "table" as const, ...x })),
+    ...o.filters.map((x) => ({ kind: "filter" as const, ...x })),
+    ...o.embeds.map((x) => ({ kind: "embed" as const, ...x })),
+    ...o.statements.map((x) => ({ kind: "statement" as const, ...x })),
+    ...(dynamic ? o.dynamicWrites.map((x) => ({ kind: "dynwrite" as const, ...x })) : []),
+  ];
+}
+
+/**
+ * Wywołanie łańcucha faktu w kluczach list (`.rpc(fn)` / `.from(tabela)`):
+ * filtr osadzenia (`rel.kolumna`) - pod tabelą łańcucha swojego osadzenia
+ * (ta sama ścieżka w funkcji - leksykograficznie pierwsza tabela, jak w SQL
+ * `--guest-gaps`); bez osadzenia - pod własną tabelą.
+ */
+function factCallOf(o: ObservedFacts): (x: KeyedFact) => string {
+  const chainOf = new Map<string, string>();
+  for (const e of o.embeds) {
+    const key = `${e.site}|${e.fn}|${e.path}`;
+    const known = chainOf.get(key);
+    if (known === undefined || e.table < known) chainOf.set(key, e.table);
+  }
+  return (x) => {
+    switch (x.kind) {
+      case "rpc":
+        return `.rpc(${x.name})`;
+      case "filter":
+        return `.from(${x.embed === null ? x.table : (chainOf.get(`${x.site}|${x.fn}|${x.embed}`) ?? x.table)})`;
+      default:
+        return `.from(${x.table})`;
+    }
+  };
+}
+
+/**
+ * Klucze list (plik, funkcja, relacja) wybranych faktów z liczbą faktów RPC
+ * i tabel (łańcuch bez faktu - 0) i KSZTAŁTEM: operacja i kolumny faktów,
+ * klucze RPC, kolumny filtrów, sortowania i celu upsertu (także osadzeń)
+ * i osadzenia z kolumnami - posortowane. Kształt jest odciskiem tego, co
+ * wpis zwalnia: dopisana kolumna, filtr albo zamieniony łańcuch go zmienia.
+ */
+function shapeUniverse(
+  o: ObservedFacts,
+  pick: (x: KeyedFact) => boolean,
+  withCandidates = false,
+  dynamic = false,
+): Map<string, { count: number; shape: string }> {
+  const callOf = factCallOf(o);
+  const acc = new Map<string, { count: number; parts: Set<string> }>();
+  const cols = (columns: readonly string[], star: boolean): string =>
+    [...columns, ...(star ? ["*"] : [])].join(",");
+  for (const x of keyedFacts(o, dynamic)) {
+    if (!pick(x)) continue;
+    // Kolumny `EXCLUDED` upsertu to jego ładunek - już w kształcie faktu zapisu.
+    if (x.kind === "filter" && x.method === "upsert(EXCLUDED)") continue;
+    const key = unknownRoleKey(x.site, x.fn, callOf(x));
+    const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
+    // Role sprawdzane faktu z resztą (`residual`) - wpis przegląda też je:
+    // zmiana widocznego wołającego to ponowny przegląd.
+    const checked = withCandidates ? checkedRoles(x) : [];
+    if (checked.length > 0) {
+      at.parts.add(
+        `kandydaci(${[...new Set(checked.map((c) => (c.guest ? `${c.role}+anon` : c.role)))].sort().join(",")})`,
+      );
+    }
+    if (x.kind === "rpc") {
+      at.count += 1;
+      at.parts.add(`rpc(${x.keys?.join(",") ?? "?"})`);
+    } else if (x.kind === "table") {
+      at.count += 1;
+      at.parts.add(`${x.op}[${cols(x.columns, x.star)}]`);
+    } else if (x.kind === "dynwrite") {
+      at.count += 1;
+      at.parts.add(`${x.op}[?]`);
+    } else if (x.kind === "filter") {
+      at.parts.add(`${x.method}(${x.embed === null ? "" : `${x.embed}.`}${x.column})`);
+    } else if (x.kind === "embed") {
+      at.parts.add(
+        `${x.path}:${x.rel}${x.hint === null ? "" : `!${x.hint}`}(${cols(x.columns, x.star)})`,
+      );
+    }
+    acc.set(key, at);
+  }
+  return new Map(
+    [...acc].map(([key, { count, parts }]) => [key, { count, shape: [...parts].sort().join(" ") }]),
+  );
+}
+
+/**
+ * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
+ * (`checkedRoles` puste) albo z kandydatami, które nie wyczerpują wartości
+ * (`residual`: wołający niewidoczny obok widocznego - jego ścieżki nikt nie
+ * sprawdził; liczone) oraz łańcuchy z taką rolą bez faktu tabeli (sam filtr,
+ * zapytanie sondy, osadzenie) - klucz musi być na liście, liczba faktów może
+ * być 0. Kształt - `shapeUniverse`, z rolami sprawdzanych kandydatów
+ * (`kandydaci(...)`).
+ */
+function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(
+    facts.observed,
+    (x) => checkedRoles(x).length === 0 || x.residual !== undefined,
+    true,
+  );
+}
+
+/**
+ * Wpis UNKNOWN_ROLE_REVIEWED: liczba faktów RPC i tabel, kształt przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny faktów, klucze RPC, kolumny
+ * filtrów i osadzeń - posortowane) i powód.
+ */
+export type UnknownRoleEntry = readonly [count: number, shape: string, reason: string];
+
+const NOT_EVERY_REFERENCE =
+  "klient z parametru funkcji bez ŻADNEGO widocznego wywołania (funkcja w tablicy źródeł albo obiekcie pomocników, callback wołany dynamicznie) - nie ma kandydata roli do sprawdzenia, a rola faktu byłaby zgadywaniem";
+const MEMO_CLIENT =
+  "klient z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`, `let cachedPublicClient`), także przez parametr pomocnika albo wartość domyślną - wiązanie przypisywane, reguła roli go nie śledzi";
+const LET_CLIENT =
+  "klient w `let` ustawianym w gałęziach (`let admin` / `let client` przypisywane warunkowo) - reguła roli śledzi tylko `const` i pojedyncze `=`";
+const MEMBER_CLIENT =
+  "klient z pola obiektu albo instancji (`this.supabase`, `.client` wyniku `callerSupabase()`, element rozkładu `Promise.all`) - reguła roli nie czyta pól wyniku funkcji";
+// Reszta (`residual`): rola widocznego wołającego (`kandydaci(...)` w kształcie)
+// jest sprawdzana, ale obok niej jest ścieżka bez widocznej roli.
+const REST_REFERENCE =
+  "kandydat z widocznych wywołań sprawdzany, ale nie każde odwołanie do funkcji jest wywołaniem (`const [{ f }] = await Promise.all([import(...)])`, funkcja w obiekcie pomocników) - klienta pozostałych ścieżek reguła roli nie widzi";
+const REST_MEMO =
+  "kandydat sprawdzany (świeży klient `createClient(…, SERVICE_ROLE)`), ale ta sama wartość bywa klientem z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`) - wiązanie przypisywane, reguła roli go nie śledzi";
+// Recenzja r2 (`ctx.supabase` z wiązania, nie z nazwy): parametr `ctx` ma
+// kandydata z reguły nazwy, ale wartość to wynik funkcji.
+const REST_GATEWAY_CTX =
+  "kandydat sprawdzany (reguła nazwy `ctx.supabase` - klient z sesją), ale `ctx` to wynik `toAnalyticsGatewayCtx(context)` (obiekt z opakowaniem `context.supabase`); każde z 4 wywołań (status.functions, semantic/snapshot.functions, ga4.functions x2) podaje kontekst handlera funkcji serwera z `requireSupabaseAuth` - reguła roli nie czyta pól wyniku funkcji";
+const REST_MEMBER =
+  "kandydat sprawdzany (`supabase` handlera z sesją), ale logger importu woła ten sam pomocnik z `this.supabase` (pole instancji) - reguła roli nie czyta pól";
+
+/**
+ * Fakty, których rola klienta jest NIEUSTALONA także dla miary i które nie
+ * mają ŻADNEJ widocznej roli-kandydata (klient z pamięci modułu, pole obiektu,
+ * `let` z mutacją, funkcja bez widocznych wywołań) - pgTAP sprawdza ich
+ * istnienie, a uprawnienia wyłącznie wtedy, gdy rolę dała reguła bramki
+ * (asercje 2 i 5). Fakt z kandydatami (wołający o różnych rolach, widoczne
+ * wywołania funkcji przekazywanej dalej, `createClient` z `Authorization`
+ * z warunku) idzie do pgTAP z KAŻDĄ widoczną rolą; wpisu nie potrzebuje
+ * wyłącznie wtedy, gdy kandydaci wyczerpują wartości. Gdy obok widocznego
+ * wołającego jest ścieżka bez roli (`RoleResolution.residual`: odwołanie,
+ * które nie jest wywołaniem, klient z pamięci modułu albo pola) - wpis
+ * zostaje, a kształt niesie sprawdzane role (`kandydaci(...)`).
+ * Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`;
+ * wartość: ile faktów RPC i tabel (łańcuch bez faktu - 0), KSZTAŁT przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny, klucze RPC, kolumny filtrów
+ * i osadzeń) i dlaczego. Lista może TYLKO maleć: nowy fakt bez roli, nowy
+ * w znanym kluczu albo zmiana kształtu (dopisana kolumna, filtr, zamieniony
+ * łańcuch) czerwieni `check:ts-sql-contract`, a wpis, któremu ubyło faktów -
+ * też (zdejmij go albo zmniejsz licznik). Naprawa: klient wprost
+ * (`supabaseAdmin`, klient przeglądarki, `context.supabase`) albo parametr
+ * z jedną rolą we wszystkich wywołaniach.
+ */
+export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> = {
+  "src/lib/analytics/gateway.server.ts: readStoredAnalyticsSettings: .from(site_settings)": [
+    1,
+    "eq(key) kandydaci(authenticated) select[value]",
+    REST_GATEWAY_CTX,
+  ],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: clubs: .rpc(admin_revenue_clubs_summary)":
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: email: .rpc(admin_revenue_email_health)":
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: events: .rpc(admin_revenue_events_summary)":
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: funnel: .rpc(admin_revenue_funnel)": [
+    1,
+    "rpc(p_segment,p_since,p_track,p_until)",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: snapshot: .rpc(admin_revenue_semantic_snapshot)":
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
+  "src/lib/billing/catalogAutoSync.server.ts: recordManualSync: .from(payment_integration_state)": [
+    1,
+    "onConflict(environment) upsert[catalog_fingerprint,environment,fingerprint,last_error,last_reason,last_report,last_status,last_synced_at]",
+    MEMBER_CLIENT,
+  ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(name_dictionary)": [
+    1,
+    "kandydaci(service_role) or(key) or(name_normalized) select[gender,vocative_pl]",
+    REST_MEMO,
+  ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(newsletter_subscribers)": [
+    1,
+    "ilike(email) kandydaci(service_role) order(created_at) select[display_name,first_name]",
+    REST_MEMO,
+  ],
+  "src/lib/email/suppression.server.ts: applyDeliveryEvent: .rpc(email_apply_delivery_event)": [
+    1,
+    "kandydaci(service_role) rpc(p_bounce_class,p_campaign_hint,p_diagnostic,p_email,p_event_id,p_event_type,p_kind,p_occurred_at,p_payload,p_provider,p_provider_message_id,p_subscriber_hint,p_tenant_hint)",
+    REST_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: fetchSuppressedEmails: .rpc(email_filter_suppressed)": [
+    1,
+    "kandydaci(service_role) rpc(p_emails,p_tenant)",
+    REST_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: isEmailSuppressed: .rpc(email_is_suppressed)": [
+    1,
+    "rpc(p_email,p_tenant)",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: recordSuppression: .rpc(email_record_suppression)": [
+    1,
+    "rpc(p_campaign,p_diagnostic,p_email,p_event_id,p_meta,p_provider,p_provider_message_id,p_reason,p_source,p_subscriber,p_tenant)",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: releaseUnsubscribeOnOptIn: .from(email_suppressions)": [
+    1,
+    "eq(email_norm) eq(reason) eq(tenant_id) is(released_at) kandydaci(service_role) update[expires_at,released_at]",
+    REST_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: resolveAccountTenantForAddress: .rpc(email_account_tenant_for_address)":
+    [1, "kandydaci(service_role) rpc(p_email)", REST_REFERENCE],
+  "src/lib/email/suppression.server.ts: resolveTenantForAddress: .rpc(email_resolve_tenant_for_address)":
+    [1, "kandydaci(service_role) rpc(p_email)", REST_REFERENCE],
+  "src/lib/email/suppression.server.ts: unsubscribeByToken.call: .rpc(email_unsubscribe_by_token)":
+    [1, "kandydaci(service_role) rpc(p_token)", REST_REFERENCE],
+  "src/lib/email/transactional.server.ts: alreadyHandled: .from(email_send_log)": [
+    1,
+    "eq(message_id) in(status) kandydaci(service_role) select[id]",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .from(email_send_log)": [
+    2,
+    "insert[error_message,message_id,recipient_email,status,template_name] insert[message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .rpc(enqueue_email)": [
+    1,
+    "kandydaci(service_role) rpc(payload,queue_name)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .from(email_send_log)": [
+    2,
+    "insert[error_message,message_id,recipient_email,status,template_name] insert[message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .rpc(enqueue_email)": [
+    1,
+    "kandydaci(service_role) rpc(payload,queue_name)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: suppressionGate: .from(email_send_log)": [
+    1,
+    "insert[error_message,message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/txOverrides.server.ts: loadTxOverrides: .from(site_settings)": [
+    1,
+    "eq(key) eq(tenant_id) kandydaci(authenticated,service_role) select[value]",
+    REST_MEMO,
+  ],
+  "src/lib/email/unsubscribeToken.server.ts: ensureUnsubscribeToken: .from(email_unsubscribe_tokens)":
+    [
+      4,
+      "eq(email) kandydaci(service_role) onConflict(email) select[token,used_at] select[token] update[token,used_at] upsert_ignore[email,token]",
+      REST_MEMO,
+    ],
+  "src/lib/events/eventConsent.server.ts: listMyEventConsentsForCaller: .rpc(event_my_consent_state)":
+    [1, "rpc()", MEMBER_CLIENT],
+  "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_issue_ticket_codes)":
+    [1, "rpc(p_registration_id)", LET_CLIENT],
+  "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_ticket_code_confirm)":
+    [1, "rpc(?)", LET_CLIENT],
+  "src/lib/events/wallet/walletRoutes.server.ts: loadTicket: .rpc(event_ticket_wallet_payload)": [
+    1,
+    "rpc(p_payload)",
+    LET_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [
+    1,
+    "in(id) in(slug) or(id) or(slug) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [
+    1,
+    "rpc(_page_ids)",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [
+    1,
+    "in(id) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [
+    1,
+    "in(slug) select[parent_id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(author_profiles)": [
+    1,
+    "eq(tenant_id) in(user_id) order(id) select[is_public,user_id]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profile_badges)": [
+    1,
+    "eq(badge) eq(tenant_id) order(id) select[user_id]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [
+    1,
+    "eq(tenant_id) in(id) order(id) select[id,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcast_shows)": [
+    1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [
+    1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) select[parent_page_id,published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: programs: .from(research_programs)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [
+    1,
+    "eq(tenant_id) neq(status) order(id) select[opens_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: readHomepageReading.work: .from(site_settings)": [
+    1,
+    "eq(key) eq(tenant_id) select[value]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,kind,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) post_categories:post_categories(category_id) post_tags:post_tags(tag_id) select[id,published_at,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: tracker: .from(eu_policy_items)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [
+    1,
+    "eq(id) select[log]",
+    MEMBER_CLIENT,
+  ],
+  "src/lib/wordpress-import.functions.ts: patchJob: .from(wp_import_jobs)": [
+    0,
+    "eq(id) kandydaci(authenticated)",
+    REST_MEMBER,
+  ],
+};
+
+/**
+ * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy,
+ * z większą liczbą faktów albo z INNYM kształtem niż przejrzany (nowa
+ * kolumna, filtr, osadzenie, zamiana łańcucha - wpis przegląda się na nowo);
+ * `stale` - klucz z mniejszą liczbą albo bez faktu bez widocznej roli
+ * (naprawiony - zdejmij). Oba czerwienią bramkę.
+ */
+export function unknownRoleDrift(
+  facts: SeamFacts,
+  reviewed: Readonly<Record<string, UnknownRoleEntry>> = UNKNOWN_ROLE_REVIEWED,
+): { fresh: string[]; stale: string[] } {
+  const universe = unknownRoleUniverse(facts);
+  const fresh: string[] = [];
+  const stale: string[] = [];
+  for (const [key, { count, shape }] of universe) {
+    const entry = reviewed[key];
+    if (entry === undefined || count > entry[0]) {
+      fresh.push(`${key} (${count}, kształt "${shape}", przejrzanych: ${entry?.[0] ?? "-"})`);
+    } else if (entry[1] !== shape) {
+      fresh.push(`${key} (kształt "${shape}", przejrzany "${entry[1]}")`);
+    }
+  }
+  for (const [key, [allowed]] of Object.entries(reviewed)) {
+    const count = universe.get(key)?.count;
+    if (count === undefined || count < allowed) {
+      stale.push(`${key} (${count ?? "brak faktu z rolą nieustaloną"}, przejrzanych: ${allowed})`);
+    }
+  }
+  return { fresh: fresh.sort(), stale: stale.sort() };
+}
+
+/**
+ * Klasy osiągalności (`guestReach`) WYŁĄCZONE strukturalnie z wierszy gościa:
+ * plik wywołania osiągalny wyłącznie z panelu (`/admin`, przekierowanie bez
+ * `isStaff`) albo spod bramki sesji. `public` i `none` (plik bez ścieżki
+ * z trasy - niepewne, więc sprawdzany) - wiersze `anon` idą do pgTAP.
+ * Zwolnienie dotyczy WYŁĄCZNIE wykonania w przeglądarce: klient przeglądarki
+ * wykonany na serwerze (`RoleResolution.server` - handler i middleware
+ * funkcji serwera, moduł `*.server.ts`, handler trasy serwerowej,
+ * `loader`/`beforeLoad` trasy z SSR, także przez pomocniki) nie ma sesji dla
+ * nikogo, więc jego wiersz `anon` idzie zawsze.
+ */
+export const GUEST_EXEMPT_CLASSES: ReadonlySet<string> = new Set(["admin", "session-gate"]);
+
+/** Para (plik wywołania, ścieżka funkcji) - nagłówek pliku pgTAP i raport `--guest-gaps`. */
+export function guestKey(site: string, fn: string): string {
+  return `${site}: ${fn}`;
+}
+
+/**
+ * Wpis GUEST_LOGIN_ONLY_REVIEWED: liczba faktów RPC i tabel gościa pod
+ * kluczem, kształt przejrzany (jak w UNKNOWN_ROLE_REVIEWED: operacja
+ * i kolumny, klucze RPC, kolumny filtrów i osadzeń) i dowód bramki -
+ * fragment warunku bramki sesji w odwrotnych apostrofach (`guardEvidenceProblem`).
+ */
+export type GuestLoginOnlyEntry = readonly [count: number, shape: string, evidence: string];
+
+/**
+ * Fakty w plikach klasy `public` (osiągalnych z trasy publicznej), które
+ * mimo to wykonują się WYŁĄCZNIE z sesją: zapytanie z `enabled: !!user`,
+ * komponent renderowany pod `{user && ...}`, handler za `requireSupabaseAuth`.
+ * Klasa `public` jest górnym oszacowaniem (`guestReach.ts`), więc takie
+ * miejsce czerwieniłoby pgTAP jako gość bez defektu - wpis zdejmuje wiersze
+ * `anon` faktów POD KLUCZEM, nic poza nimi (rola z sesją zostaje
+ * sprawdzana). Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` /
+ * `.from(tabela)` - ten sam kształt co w UNKNOWN_ROLE_REVIEWED, bo ścieżka
+ * funkcji bywa wspólna dla rodzeństwa (`queryFn` kilku `queryOptions`
+ * w module, kilka `useQuery` w komponencie). Wartość: liczba faktów, kształt
+ * i dowód bramki - fragment jej warunku w odwrotnych apostrofach (np.
+ * `` `enabled: !!user` - dzwonek tylko z sesją ``), szukany w pliku klucza bez
+ * numeru linii. `check:ts-sql-contract` czerwieni wpis: bez faktu gościa pod
+ * kluczem w pliku `public`, z innym kształtem albo liczbą (dopisane zapytanie
+ * pod tym samym kluczem), z dowodem, którego fragmentu nie ma w pliku klucza
+ * w WARUNKU bramki sesji (`enabled:` opcji zapytania, `user && ...`, `?:`,
+ * `if (!user) return`, `<AuthGate>`; `typeof window`, `user?.id` w kluczu
+ * zapytania - nie), albo z bramką, której region nie obejmuje KAŻDEGO
+ * wywołania pod kluczem. Recenzja r2: wartość warunku musi pochodzić ze
+ * źródła sesji (`useAuth()`, `auth.getSession()`/`getUser()`, `context`
+ * handlera), nie tylko nazywać się `user`/`userId`; `enabled:` w
+ * `queryOptions(...)` liczy się tylko, gdy opcje trafiają wyłącznie do
+ * `useQuery`/`useInfiniteQuery`/`useQueries` (`prefetchQuery`, `fetchQuery`,
+ * `ensureQueryData`, `useSuspenseQuery` tej flagi nie znają). Fakt klienta wykonanego na serwerze (`server`) jest
+ * anonimowy dla każdego - wpis go nie zdejmuje. Listę wypełnia przegląd
+ * wyniku `bun run generate:ts-sql-contract --guest-gaps` (gotowe klucze,
+ * liczby i kształty tego, co jako gość pada na bazie po migracjach).
+ */
+export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, GuestLoginOnlyEntry>> = {};
+
+/** Odwołania do pliku źródeł w dowodzie (linia opcjonalna - nie jest sprawdzana). */
+const EVIDENCE_FILE_RE = /(?:^|[\s('"])([\w@.\-/$]+\.tsx?)(?::\d+)?/g;
+
+/** Wyrażenie regularne fragmentu dowodu - białe znaki dowolne. */
+function snippetRe(snippet: string): RegExp {
+  const tokens = snippet
+    .trim()
+    .replace(/[,;]+$/, "")
+    .split(/\s+/)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(tokens.join("\\s*"), "g");
+}
+
+/**
+ * Problem dowodu bramki wpisu gościa (`null` - dowód sprawdzony w źródłach).
+ * Dowód to fragment(y) kodu bramki w odwrotnych apostrofach
+ * (`` `enabled: !!user` ``), szukany w PLIKU KLUCZA bez numeru linii (edycja
+ * nad bramką nie psuje wpisu). Fragment musi leżeć w warunku bramki SESJI
+ * (`guardRegion`), a jej region - obejmować KAŻDE wywołanie faktu pod kluczem
+ * (`positions`). Plik wskazany w dowodzie musi istnieć i być plikiem klucza
+ * (bramka u wołającego komponent w innym pliku nie obejmuje innych miejsc
+ * renderu - nie jest dowodem).
+ */
+function guardEvidenceProblem(
+  site: string,
+  evidence: string,
+  sources: ReadonlyMap<string, string> | undefined,
+  positions: readonly number[],
+): string | null {
+  for (const [, file] of evidence.replace(/`[^`]*`/g, " ").matchAll(EVIDENCE_FILE_RE)) {
+    if (sources?.get(file) === undefined) return `${file} - pliku nie ma w źródłach`;
+    if (file !== site) {
+      return `${file} - dowód spoza pliku wywołania ${site} (bramka musi obejmować wywołanie w pliku klucza)`;
+    }
+  }
+  const snippets = [...evidence.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  if (snippets.length === 0) return "powód bez fragmentu bramki w `...` (np. `enabled: !!user`)";
+  const code = sources?.get(site);
+  if (code === undefined) return `${site} - pliku nie ma w źródłach`;
+  const sf = ts.createSourceFile(site, code, ts.ScriptTarget.Latest, true, scriptKindOf(site));
+  const regions: (readonly [number, number])[] = [];
+  for (const snippet of snippets) {
+    const found = [...code.matchAll(snippetRe(snippet))]
+      .map((m) => guardAt(sf, m.index ?? 0, (m.index ?? 0) + m[0].length))
+      .filter((r) => r !== null);
+    if (found.length === 0) {
+      return `\`${snippet}\` - w ${site} nie ma takiego warunku bramki sesji (enabled: z sesją ze źródła sesji - useAuth(), auth.getSession() - w opcjach zapytania, user && ..., warunek ?:, if (!user) return, <AuthGate>)`;
+    }
+    for (const g of found) {
+      const factory = queryOptionsFactoryOf(g.node);
+      const bypass = factory === null ? null : queryOptionsBypass(factory, site, sources);
+      if (bypass !== null) return `\`${snippet}\` - ${bypass}`;
+      regions.push(g.region);
+    }
+  }
+  for (const at of positions) {
+    if (!regions.some(([a, b]) => a <= at && at < b)) {
+      const line = sf.getLineAndCharacterOfPosition(at).line + 1;
+      return `wywołanie ${site}:${line} poza regionem bramki z dowodu`;
+    }
+  }
+  return null;
+}
+
+/** Wywołania, które respektują `enabled` opcji zapytania. */
+const ENABLED_HONORING: ReadonlySet<string> = new Set([
+  "useQuery",
+  "useInfiniteQuery",
+  "useQueries",
+]);
+
+/** Nazwa wywoływanej funkcji (`f(...)`, `x.f(...)`). */
+function calleeName(call: ts.CallExpression): string {
+  const callee = unwrap(call.expression);
+  return ts.isIdentifier(callee)
+    ? callee.text
+    : ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : "";
+}
+
+/**
+ * Odwołanie do opcji zapytania w pozycji, która respektuje `enabled`:
+ * argument `useQuery`/`useInfiniteQuery`/`useQueries` (wprost, rozłożony
+ * w obiekcie, w tablicy `queries` albo w `.map(...)` tej tablicy) albo
+ * `.queryKey` (klucz bez pobrania).
+ */
+function honorsEnabled(ref: ts.Node): boolean {
+  let e: ts.Node = ref;
+  if (e.parent !== undefined && ts.isCallExpression(e.parent) && e.parent.expression === e) {
+    e = e.parent;
+  }
+  if (
+    e.parent !== undefined &&
+    ts.isPropertyAccessExpression(e.parent) &&
+    e.parent.expression === e &&
+    e.parent.name.text === "queryKey"
+  ) {
+    return true;
+  }
+  for (let at: ts.Node = e; at.parent !== undefined; at = at.parent) {
+    const parent = at.parent;
+    if (ts.isCallExpression(parent)) {
+      if (ENABLED_HONORING.has(calleeName(parent)) && parent.arguments.some((a) => a === at)) {
+        return true;
+      }
+      // `ids.map((id) => opts(id))` w tablicy `queries` - dalej w górę.
+      if (calleeName(parent) === "map" && parent.arguments.some((a) => a === at)) continue;
+      return false;
+    }
+    if (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isSpreadAssignment(parent) ||
+      ts.isSpreadElement(parent) ||
+      ts.isObjectLiteralExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      (ts.isPropertyAssignment(parent) && parent.initializer === at) ||
+      (ts.isArrowFunction(parent) && parent.body === at)
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Opcje zapytania z bramką `enabled:` (`queryOptions(...)`), które trafiają
+ * do wywołania NIEZNAJĄCEGO tej flagi (`prefetchQuery`, `fetchQuery`,
+ * `ensureQueryData`, `useSuspenseQuery`, zmienna przekazana dalej) - opis
+ * miejsca; `null` - każde odwołanie do opcji to `useQuery`/`useInfiniteQuery`/
+ * `useQueries` albo `.queryKey`. Opcje bez nazwy poza takim wywołaniem - problem.
+ */
+function queryOptionsBypass(
+  factory: ts.CallExpression,
+  site: string,
+  sources: ReadonlyMap<string, string> | undefined,
+): string | null {
+  let at: ts.Node = factory;
+  while (
+    at.parent !== undefined &&
+    (ts.isParenthesizedExpression(at.parent) ||
+      ts.isAsExpression(at.parent) ||
+      ts.isSatisfiesExpression(at.parent))
+  ) {
+    at = at.parent;
+  }
+  const parent = at.parent;
+  let holder: string | null = null;
+  if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) holder = parent.name.text;
+  else {
+    const fn =
+      ts.isArrowFunction(parent) && parent.body === at
+        ? parent
+        : ts.isReturnStatement(parent)
+          ? ts.findAncestor(parent, ts.isFunctionLike)
+          : undefined;
+    if (fn !== undefined && ts.isFunctionDeclaration(fn) && fn.name !== undefined) {
+      holder = fn.name.text;
+    } else if (
+      fn !== undefined &&
+      (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) &&
+      ts.isVariableDeclaration(fn.parent) &&
+      ts.isIdentifier(fn.parent.name)
+    ) {
+      holder = fn.parent.name.text;
+    }
+  }
+  if (holder === null) {
+    return honorsEnabled(at)
+      ? null
+      : "opcje zapytania bez nazwy poza useQuery - prefetchQuery/fetchQuery/ensureQueryData/useSuspenseQuery nie znają enabled";
+  }
+  for (const [file, code] of sources ?? []) {
+    if (!code.includes(holder)) continue;
+    const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, scriptKindOf(file));
+    // Nazwy lokalne opcji: w pliku deklaracji - sama nazwa, gdzie indziej -
+    // import (także pod aliasem); `x.holder` (przestrzeń nazw) - zawsze.
+    const names = new Set<string>(file === site ? [holder] : []);
+    const visitImports = (node: ts.Node): void => {
+      if (ts.isImportSpecifier(node) && (node.propertyName ?? node.name).text === holder) {
+        names.add(node.name.text);
+      }
+      ts.forEachChild(node, visitImports);
+    };
+    visitImports(sf);
+    let problem: string | null = null;
+    const visit = (node: ts.Node): void => {
+      if (problem !== null) return;
+      const ref =
+        ts.isIdentifier(node) &&
+        names.has(node.text) &&
+        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+          ? node
+          : ts.isPropertyAccessExpression(node) && node.name.text === holder
+            ? node
+            : null;
+      if (ref !== null) {
+        const p = ref.parent;
+        const declaration =
+          (ts.isVariableDeclaration(p) && p.name === ref) ||
+          (ts.isFunctionDeclaration(p) && p.name === ref) ||
+          ts.isImportSpecifier(p) ||
+          ts.isExportSpecifier(p) ||
+          ts.isImportClause(p);
+        if (!declaration && !honorsEnabled(ref)) {
+          const line = sf.getLineAndCharacterOfPosition(ref.getStart(sf)).line + 1;
+          problem = `opcje ${holder} trafiają w ${file}:${line} poza useQuery/useInfiniteQuery/useQueries (prefetchQuery, fetchQuery, ensureQueryData i useSuspenseQuery nie znają enabled - gość wykonuje zapytanie)`;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    if (problem !== null) return problem;
+  }
+  return null;
+}
+
+/** Fakt gościa, który wpis listy MOŻE zdjąć: klient przeglądarki wykonywany wyłącznie w przeglądarce. */
+function exemptableGuest(
+  x: Parameters<typeof checkedRoles>[0] & { readonly withheld?: boolean },
+): boolean {
+  return (
+    x.withheld !== true &&
+    checkedRoles(x).some((c) => c.guest && c.role === "authenticated" && c.server === undefined)
+  );
+}
+
+/**
+ * Rozjazd listy gościa: `stale` - wpis bez faktu gościa pod kluczem w pliku
+ * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę) albo
+ * z mniejszą liczbą faktów - zdejmij lub zmniejsz; `fresh` - pod kluczem
+ * przybyło faktów albo zmienił się kształt (przegląd od nowa); `invalid` -
+ * dowód bez fragmentu bramki, z plikiem spoza źródeł albo innym niż plik
+ * klucza, fragment poza warunkiem bramki sesji albo bramka nieobejmująca
+ * któregoś wywołania (`guardEvidenceProblem`).
+ */
+export function guestLoginOnlyDrift(
+  facts: SeamFacts,
+  reach: ReadonlyMap<string, SiteReach>,
+  reviewed: Readonly<Record<string, GuestLoginOnlyEntry>> = GUEST_LOGIN_ONLY_REVIEWED,
+  sources?: ReadonlyMap<string, string>,
+): { stale: string[]; fresh: string[]; invalid: string[] } {
+  const universe = shapeUniverse(facts.observed, exemptableGuest, false, true);
+  // Miejsca wywołań faktów, które wpis zdejmuje - każde musi być pod bramką dowodu.
+  const callOf = factCallOf(facts.observed);
+  const positions = new Map<string, number[]>();
+  const o = facts.observed;
+  // Zapytania sond pochodzą z faktów i filtrów tych samych łańcuchów - ich
+  // miejsca to miejsca tamtych.
+  const placedFacts: KeyedFact[] = [
+    ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x, source: x })),
+    ...o.tables.map((x) => ({ kind: "table" as const, ...x, source: x })),
+    ...o.filters.map((x) => ({ kind: "filter" as const, ...x, source: x })),
+    ...o.embeds.map((x) => ({ kind: "embed" as const, ...x, source: x })),
+    ...o.dynamicWrites.map((x) => ({ kind: "dynwrite" as const, ...x, source: x })),
+  ];
+  for (const x of placedFacts as (KeyedFact & { readonly source: object })[]) {
+    if (!exemptableGuest(x)) continue;
+    const key = unknownRoleKey(x.site, x.fn, callOf(x));
+    const list = positions.get(key) ?? [];
+    // Fakt bez miejsca (zbudowany poza ekstrakcją) - nic go nie obejmuje.
+    list.push(FACT_AT.get(x.source) ?? -1);
+    positions.set(key, list);
+  }
+  const stale: string[] = [];
+  const fresh: string[] = [];
+  const invalid: string[] = [];
+  for (const [key, [count, shape, evidence]] of Object.entries(reviewed)) {
+    const site = key.slice(0, key.indexOf(": "));
+    const cls = reach.get(site)?.cls ?? "none";
+    const now = universe.get(key);
+    if (now === undefined) {
+      stale.push(`${key} (brak faktu klienta przeglądarki pod tym kluczem)`);
+    } else if (cls !== "public") {
+      stale.push(`${key} (klasa pliku ${cls}, wpis tylko dla public)`);
+    } else if (now.count < count) {
+      stale.push(`${key} (${now.count}, przejrzanych: ${count})`);
+    } else if (now.count > count || now.shape !== shape) {
+      fresh.push(`${key} (${now.count}, kształt "${now.shape}"; przejrzany: ${count}, "${shape}")`);
+    }
+    const problem = guardEvidenceProblem(site, evidence, sources, positions.get(key) ?? []);
+    if (problem !== null) invalid.push(`${key} (${problem})`);
+  }
+  return { stale: stale.sort(), fresh: fresh.sort(), invalid: invalid.sort() };
+}
+
+/**
+ * Klucze faktów gościa, które wpis mógłby zdjąć (`--guest-gaps`): klucz,
+ * liczba faktów i kształt - gotowy szkielet wpisu (dowód dopisuje przegląd).
+ */
+export function guestLoginOnlyCandidates(
+  facts: SeamFacts,
+): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(facts.observed, exemptableGuest, false, true);
+}
+
+/**
+ * Funkcje wyłączone z sond RPC (nazwa -> powód). Sonda woła funkcję SECURITY
+ * INVOKER z NULL-ami i drugi raz z argumentami syntetycznymi (stałe wartości
+ * typów) jako rola klienta w podtransakcji wycofywanej
+ * wartownikiem - zapisy, `pg_net` (kolejka w tabeli) i powiadomienia cofają
+ * się z nią, ale synchroniczne wywołanie zewnętrzne (rozszerzenie `http`,
+ * `dblink`) już nie. Przegląd listopad 2026: migracje nie instalują `http`
+ * ani `dblink` (`dblink` występuje wyłącznie w komentarzach o harnessie
+ * wyścigów), a `net.http_post` z `pg_net` tylko kolejkuje - lista jest pusta.
+ * Funkcja z takim wywołaniem trafia tu z powodem, zanim pojawi się w kodzie.
+ */
+export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
+
+/**
+ * Wpis przeglądu funkcji SECURITY INVOKER: md5 DOMKNIĘCIA z przeglądu
+ * (`ts_closure_md5`: ciało i funkcje `public` wołane z ciała, rekurencyjnie
+ * przez INVOKER - zmiana funkcji wołanej to ponowny przegląd) i powód.
+ */
+export interface InvokerTriggerReviewed {
+  readonly md5: string;
+  readonly reason: string;
+  /**
+   * Blokady domknięcia (`ts_closure_blockers`: kolumna bez uprawnienia roli,
+   * funkcja bez EXECUTE, dynamiczny SQL) przejrzane jako nieosiągalne albo
+   * bezpieczne - dokładny tekst. Blokady liczone przy KAŻDYM przebiegu (granty
+   * zmieniają się bez zmiany md5), więc blokada spoza listy czerwieni asercję
+   * 20 także przy zgodnym md5. Bez pola - domknięcie bez blokad.
+   */
+  readonly blockers?: readonly string[];
+}
+
+/**
+ * Funkcje wyzwalaczy SECURITY INVOKER odpalanych zapisem klienta (`schemat.nazwa`
+ * -> md5 ciała i powód). Sondy zapisu to `EXPLAIN` - planowanie nie wykonuje
+ * wyzwalaczy, więc funkcja wyzwalacza czytająca (albo zapisująca) kolumnę bez
+ * grantu roli klienta psuje KAŻDY taki zapis 42501, a sondy tego nie widzą.
+ * Asercja 20 wymaga dla każdego wyzwalacza (wierszowego i instrukcji, BEFORE,
+ * AFTER), który odpala INSERT/UPDATE/upsert/DELETE faktu zapisu `anon` albo
+ * `authenticated` (UPDATE OF kolumny - tylko gdy ładunek je zawiera; zapis
+ * z ładunkiem nieczytelnym - wszystkie kolumny): funkcji SECURITY DEFINER albo
+ * wpisu tutaj z md5 bieżącego DOMKNIĘCIA (ciało i funkcje `public` wołane
+ * z ciała) - zmiana ciała albo funkcji wołanej to ponowny przegląd, a wpis
+ * bez takiego wyzwalacza to diagnostyka pgTAP (nieaktualny), nie niepowodzenie.
+ * Zapis to także zapis z domknięcia funkcji SECURITY INVOKER wykonywanej jako
+ * klient (RPC, polityka, DEFAULT...). Niezależnie od md5 każdy przebieg liczy
+ * blokady domknięcia (`ts_closure_blockers`) dla roli z uprawnieniem do zapisu:
+ * md5 przypina treść, a REVOKE na funkcji wołanej albo kolumnie czytanej przez
+ * wyzwalacz (zwykła poprawka z doradcy Supabase) zmienia tylko granty - blokada
+ * spoza `blockers` wpisu czerwieni asercję 20 przy zgodnym md5.
+ *
+ * Wykonanie prawdziwego INSERT w podtransakcji (BEFORE ROW przed RLS
+ * i ograniczeniami) sprawdzone na PG16 z seedem: 127 zapisów klienta bez
+ * nowej odmowy uprawnień i bez przesunięcia sekwencji, ale odpala tylko
+ * wyzwalacze INSERT (13 z 59), a UPDATE/DELETE potrzebują istniejącego wiersza
+ * (dane ma 67 z 381 tabel) - stąd przegląd, nie sonda.
+ */
+// Przegląd listopad 2026 (10a7ea59, PG16 po wszystkich migracjach): ciało
+// każdej funkcji przeczytane; funkcje wołane z ciała - EXECUTE sprawdzony
+// `has_function_privilege` dla anon i authenticated (EXECUTE samej funkcji
+// wyzwalacza Postgres sprawdza tylko przy CREATE TRIGGER). Recenzja r1: md5
+// to odcisk domknięcia (`ts_closure_md5` na tej samej bazie - treść bez zmian),
+// a pięć wyzwalaczy tabel zapisywanych wyłącznie ładunkiem nieczytelnym
+// (`.upsert(payload)`, `.update(patch)`) przejrzanych od nowa; `ts_closure_blockers`
+// bez blokad dla authenticated (anon: brak UPDATE `post_sidebar_layouts`
+// i EXECUTE `is_service_role_caller` - zapis anon pada wcześniej na grancie tabeli).
+// Recenzja r2: odcisk bez funkcji SECURITY DEFINER wołanych z ciała (ich EXECUTE
+// sprawdzają blokady) i z przeciążeniem dobranym po liczbie argumentów - trzy
+// odciski przeliczone na tej samej bazie (pages/posts_search_vector_refresh:
+// bez `unaccent(regdictionary, text)`, którego ciało nie woła; profiles_pin_tenant:
+// bez `has_role`/`is_service_role_caller`); stary odcisk był zgodny tuż przed
+// zmianą, więc treść funkcji bez zmian od przeglądu. Blokady domknięcia
+// (`ts_closure_blockers`, kolumnowo) dla roli z uprawnieniem do zapisu - puste.
+const TOUCH_ONLY = "tylko `NEW.updated_at := now()` - bez odczytu relacji i bez innych funkcji";
+const NEW_OLD_ONLY = "pola NEW/OLD i `now()` - bez odczytu relacji i bez innych funkcji";
+
+export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {
+  "public._tg_touch_updated_at": { md5: "187c3e01006da42a451b40528fdb731c", reason: TOUCH_ONLY },
+  "public.check_page_parent_no_cycle": {
+    md5: "9603d3e95380bacfafaf7128de59c9a4",
+    reason:
+      "czyta wyłącznie `pages.parent_id` i `pages.id` (pętla po przodkach) - SELECT obu kolumn mają anon i authenticated; RLS ogranicza widoczne strony, a niewidoczny przodek kończy pętlę bez błędu",
+  },
+  "public.crm_leads_sync_phone_norm": {
+    md5: "dd29d59a64a3f7c423faf91570484a3e",
+    reason:
+      "woła `crm_normalize_phone(text)` (SQL IMMUTABLE, operacje na tekście, bez relacji; EXECUTE anon i authenticated)",
+  },
+  "public.nes_messages_search_vector": {
+    md5: "48172a186400c5b66794f45da2979827",
+    reason:
+      "`to_tsvector('public.nes_polish', ...)` na polach NEW - konfiguracja wyszukiwania nie ma uprawnień, bez odczytu relacji",
+  },
+  "public.pages_search_vector_refresh": {
+    md5: "23f3d170613dde523ccf9ac60a73f214",
+    reason:
+      "woła `nes_pages_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.pages_validate_takeaways": {
+    md5: "08557f6c61d7c397aed3716b069b27f1",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.post_sidebar_layouts_enforce_default": {
+    md5: "1cb41928714f9a12d3ceab29cca7004c",
+    reason:
+      "przy `NEW.is_default` UPDATE `post_sidebar_layouts.is_default` po `tenant_id`, `id`, `is_default` - authenticated ma UPDATE(is_default) i SELECT tych kolumn, a zapis klienta (SidebarBuilderPane) działa na tej samej tabeli pod tymi samymi politykami RLS",
+  },
+  "public.posts_search_vector_refresh": {
+    md5: "494c9021c68b2dca704b27cac9b21312",
+    reason:
+      "woła `nes_posts_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.posts_validate_takeaways": {
+    md5: "4ffab09c24e0205f42994b57f675d1b4",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decided_at_pin": {
+    md5: "ceb9cf3ea6497f0ebf6576b039b06cd0",
+    reason: "`NEW.discoverable_decided_at := OLD.discoverable_decided_at` - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decision_stamp": {
+    md5: "f585c6131b9113753c063c250bf63f18",
+    reason:
+      "pola NEW, `now()` i `auth.uid()` (SQL na `current_setting`; EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.profiles_mirror_bio": {
+    md5: "08a17e7c8f5dcab5e8ca887ee7a58b55",
+    reason: "`btrim`/`NULLIF` na polach NEW - bez odczytu relacji",
+  },
+  "public.profiles_pin_tenant": {
+    md5: "1b5f6bf7b1890a96b7ed98bfd089f5ea",
+    reason:
+      "przy zmianie `tenant_id` woła `is_service_role_caller()` i `has_role(...)` (obie SECURITY DEFINER; authenticated ma EXECUTE obu). anon nie ma EXECUTE `is_service_role_caller`, ale nie ma też UPDATE na profiles - zapis profilu jako anon pada na uprawnieniu tabeli przed wyzwalaczem (asercje 17/19)",
+  },
+  "public.saved_searches_alert_defaults": {
+    md5: "a886958c9bc4b1c94e1520a603edbd00",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.set_updated_at": { md5: "3d4d1916c6c7ceb45278184b27b9406b", reason: TOUCH_ONLY },
+  "public.tg_crm_scoring_settings_touch": {
+    md5: "5d9fa885f86883bf68f5bea79622fe68",
+    reason: "`now()` i `auth.uid()` (EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.tg_crm_tasks_normalize": {
+    md5: "b4268425a0ed289772aac390477354cc",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle": {
+    md5: "36904d5aaab86bce78184f60b481b372",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle_insert": {
+    md5: "509e0bae0121193466113370df7bb296",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_notification_preferences_touch": {
+    md5: "dc5b9ac60bc85f087ad1aaa47474808e",
+    reason: TOUCH_ONLY,
+  },
+  "public.tg_payment_orders_stamp_retention": {
+    md5: "5bad83936696ee5b4fcb8c27ee786f55",
+    reason:
+      "woła `accounting_retention_until(timestamptz)` (SQL IMMUTABLE, `make_date`/`EXTRACT` - bez relacji; EXECUTE anon i authenticated)",
+  },
+  "public._tg_events_discussion_club_cleared": {
+    md5: "727c0f9d639dd9a0dfb7c2b9e982a10e",
+    reason: "`NEW.discussion_group_id := NULL` - bez odczytu relacji i bez innych funkcji",
+  },
+  "public.career_cv_path_guard": {
+    md5: "efdbba5cbe706c72cfd258005344d7c5",
+    reason:
+      "pola NEW/OLD (`custom ->> 'cv_path'`, `tenant_id`) i `career_cv_path_tenant(text)` (SQL IMMUTABLE, wyrażenie regularne na tekście - bez relacji; EXECUTE anon i authenticated); RAISE check_violation przy obcym najemcy",
+  },
+  "public.set_archive_layout_settings_updated_at": {
+    md5: "519f61d12d55a2667a4a6118d06caf25",
+    reason: TOUCH_ONLY,
+  },
+  "public.set_updated_at_now": { md5: "1aa84e8b3b676aec778c326cc53ea8ce", reason: TOUCH_ONLY },
+  "public.tg_programs_status_active_sync": {
+    md5: "39b05743e94d16ca8ca2fdc6d66bba58",
+    reason: NEW_OLD_ONLY,
+  },
+};
+
+/**
+ * Funkcje SECURITY INVOKER wykonywane jako rola klienta POZA wyzwalaczami
+ * (RPC `anon`/`authenticated`; przy dostępie do relacji - funkcje widoków,
+ * polityki RLS relacji i relacji bazowych widoków security_invoker, a przy
+ * zapisie DEFAULT, CHECK i ograniczenia domen kolumn; to samo dla relacji,
+ * do których sięga domknięcie takiej funkcji), których domknięcie ma blokadę
+ * (`ts_closure_blockers`: kolumna czytana albo zapisywana bez uprawnienia roli,
+ * także kolumna bazowa widoku security_invoker, funkcja bez EXECUTE, dynamiczny
+ * SQL) - `schemat.nazwa` -> md5 domknięcia, przejrzane blokady (`blockers`)
+ * i powód: przegląd potwierdza, że gałąź z blokadą jest nieosiągalna albo
+ * bezpieczna. Blokada spoza wpisu (np. po REVOKE) albo inny md5 - naruszenie.
+ * Sondy wykonują jedną ścieżkę ciała (argumenty NULL i syntetyczne), a funkcję
+ * wiersza widoku, polityki albo DEFAULT - tylko dla istniejącego wiersza albo
+ * wcale (zapis to EXPLAIN), więc to przegląd, nie sonda. Na 10a7ea59 żadne
+ * domknięcie nie ma blokady - lista pusta; wpis bez blokady to diagnostyka
+ * (nieaktualny).
+ */
+export const INVOKER_FUNCTIONS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {};
+
+/**
+ * Funkcje RPC, których sondy (argumenty NULL i syntetyczne) kończą się bez
+ * błędu i bez odczytu ŻADNEJ relacji (liczniki `pg_stat_get_xact_*` sesji) -
+ * nazwa -> powód. Taka sonda nie sprawdziła ciała (strażnik argumentu,
+ * wczesny RETURN), więc bez wpisu to naruszenie asercji 16/19; wpis tylko dla
+ * funkcji, która z natury nie czyta relacji. Na 10a7ea59 żadna sonda nie jest
+ * pusta - lista pusta; wpis funkcji, której sonda pusta nie jest, czerwieni
+ * asercję 16 (nieaktualny).
+ */
+export const RPC_PROBE_VACUOUS_REVIEWED: Readonly<Record<string, string>> = {};
+
+/** Wejście bramki z miary (`renderContractTest`, `renderGuestGaps`). */
+export interface ContractEnforcement {
+  /**
+   * Osiągalność pliku wywołania dla gościa (`guestReach`). Plik spoza mapy -
+   * klasa `none`: wiersze gościa sprawdzane (niepewne nie jest zwolnieniem).
+   */
+  readonly reach: ReadonlyMap<string, SiteReach>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
+  readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
+  /** Funkcje z pustą sondą RPC przejrzane; domyślnie `RPC_PROBE_VACUOUS_REVIEWED`. */
+  readonly rpcProbeVacuous?: Readonly<Record<string, string>>;
+  /** Wyzwalacze SECURITY INVOKER przejrzane; domyślnie `INVOKER_TRIGGERS_REVIEWED`. */
+  readonly invokerTriggers?: Readonly<Record<string, InvokerTriggerReviewed>>;
+  /** Funkcje SECURITY INVOKER (RPC, widok, polityka) przejrzane; domyślnie `INVOKER_FUNCTIONS_REVIEWED`. */
+  readonly invokerFunctions?: Readonly<Record<string, InvokerTriggerReviewed>>;
+}
+
+/** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
+export interface ObservedCoverage {
+  readonly reach: ReadonlyMap<string, SiteReach>;
+  readonly unknownRole?: Readonly<Record<string, UnknownRoleEntry>>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
+  /**
+   * Źródła (plik -> kod) do sprawdzenia dowodów bramki listy gościa;
+   * bez nich każdy wpis listy jest nie do sprawdzenia (czerwono).
+   */
+  readonly sources?: ReadonlyMap<string, string>;
+}
+
+/** Problemy zasięgu miary w bramce - lista ról nieustalonych, lista gościa, zapadki filtrów. */
+function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): string[] {
+  const problems: string[] = [];
+  const o = facts.observed;
+  // Bez miary (`extractSeamFacts` bez `observe`) każda lista byłaby
+  // „nieaktualna", a pgTAP - bez asercji miary: to błąd wywołania, nie kodu.
+  if (o.rpcs.length !== facts.rpcs.length || o.tables.length < facts.tables.length) {
+    problems.push(
+      "miara nie uruchomiona (`extractSeamFacts(..., { observe: true })`) - role zmierzone, filtry, osadzenia i sondy nie trafią do pgTAP",
+    );
+    return problems;
+  }
+  const unknown = unknownRoleDrift(facts, input.unknownRole);
+  if (unknown.fresh.length > 0) {
+    problems.push(
+      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną bez kandydata albo ze ścieżką bez widocznej roli obok kandydata (tej ścieżki uprawnień nikt nie sprawdza) spoza listy UNKNOWN_ROLE_REVIEWED albo z kształtem innym niż przejrzany - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z liczbą, kształtem i powodem:\n` +
+        unknown.fresh.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (unknown.stale.length > 0) {
+    problems.push(
+      `${unknown.stale.length} wpisów UNKNOWN_ROLE_REVIEWED nieaktualnych (rola już ustalona albo mniej faktów - zdejmij wpis lub zmniejsz licznik):\n` +
+        unknown.stale.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly, input.sources);
+  const guestIssues = [...guest.stale, ...guest.fresh, ...guest.invalid];
+  if (guestIssues.length > 0) {
+    problems.push(
+      `${guestIssues.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla klucza plik/funkcja/relacja z faktem gościa w pliku klasy public, z liczbą i kształtem jak w kodzie i z fragmentem warunku bramki sesji w pliku klucza, którego region obejmuje każde wywołanie):\n` +
+        guestIssues.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.unresolvedFilters.length > MAX_UNRESOLVED_FILTER_SITES) {
+    problems.push(
+      `${o.unresolvedFilters.length} miejsc filtrów nieczytelnych - kolumn kontrakt nie sprawdza (zapadka MAX_UNRESOLVED_FILTER_SITES: ${MAX_UNRESOLVED_FILTER_SITES}):\n` +
+        o.unresolvedFilters.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.filtersOutsideChains.length > MAX_FILTERS_OUTSIDE_CHAINS) {
+    problems.push(
+      `${o.filtersOutsideChains.length} wywołań filtra poza rozpoznanym budowniczym (zapadka MAX_FILTERS_OUTSIDE_CHAINS: ${MAX_FILTERS_OUTSIDE_CHAINS}):\n` +
+        o.filtersOutsideChains.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.dynamicWrites.length > MAX_DYNAMIC_PAYLOAD_WRITES) {
+    problems.push(
+      `${o.dynamicWrites.length} zapisów klienta z ładunkiem nieczytelnym - kolumn nie sprawdza asercja uprawnień ani sonda (zapadka MAX_DYNAMIC_PAYLOAD_WRITES: ${MAX_DYNAMIC_PAYLOAD_WRITES}); ładunek w literale obiektu:\n` +
+        o.dynamicWrites
+          .map((w) => `        ${w.site}: ${w.fn}: .from(${w.table}).${w.op}(…)`)
+          .sort()
+          .join("\n"),
+    );
+  }
+  return problems;
+}
 
 // ── Render testu pgTAP ──────────────────────────────────────────────────────
 
@@ -5269,7 +7616,13 @@ export function renderContractTest(
     readonly payloadIdentity?: Readonly<Record<string, string>>;
     readonly serverOnlyRpc?: Readonly<Record<string, string>>;
   } = {},
+  /**
+   * Wejście asercji miary (10-20). Domyślnie bez mapy osiągalności: każdy
+   * plik to `none`, więc wiersze gościa są sprawdzane wszędzie.
+   */
+  enforcement: ContractEnforcement = { reach: new Map() },
 ): string {
+  const gate = observedGate(facts, enforcement);
   const payloadReviewed = Object.keys(reviewed.payloadIdentity ?? PAYLOAD_IDENTITY_REVIEWED).sort();
   const serverOnlyReviewed = Object.keys(reviewed.serverOnlyRpc ?? SERVER_ONLY_RPC_REVIEWED).sort();
 
@@ -5366,10 +7719,11 @@ export function renderContractTest(
 --
 -- Zasieg: ${facts.coverage.files} plikow, ${facts.coverage.rpcCalls} wywolan .rpc (nazwa nieczytelna:
 -- ${facts.coverage.rpcCallsWithUnknownName}), ${facts.coverage.tableChains} lancuchow .from (tabela nieczytelna: ${facts.coverage.tableChainsWithUnknownTable}).
--- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza.
--- ============================================================================
+-- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza
+-- (asercje 10-20 - z plikiem i funkcja wywolania).
+${gate.header}-- ============================================================================
 BEGIN;
-SELECT plan(9);
+SELECT plan(${9 + OBSERVED_ASSERTIONS});
 
 CREATE TEMP TABLE ts_rpc (fn text, keys text[], role text, sites text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_table (rel text, op text, role text, cols text[], star boolean, sites text) ON COMMIT DROP;
@@ -5615,16 +7969,934 @@ SELECT is(
   ARRAY[]::text[],
   'Ladunek: SECURITY DEFINER dla klienta nie czyta klucza tozsamosci z jsonb bez bramki redakcji');
 
+${gate.setup}${OBSERVED_ASSERTIONS_SQL}
 SELECT * FROM finish();
 ROLLBACK;
 `;
 }
 
-// ── Render miary poza bramką ────────────────────────────────────────────────
+// ── Render bramki z miary (asercje 10-20 i raport `--guest-gaps`) ───────────
+
+/** Asercje pgTAP bramki z miary - plan pliku to 9 + tyle. */
+const OBSERVED_ASSERTIONS = 11;
+
+/**
+ * Klasyfikacja wyniku sondy bramki: odmowa uprawnień, brak obiektu i limit
+ * czasu (sonda bez werdyktu) - naruszenie; inne błędy (P0001, P0004 `ASSERT`
+ * funkcji dla syntetycznych argumentów, 23502 po wyzwalaczach BEFORE) - nie.
+ */
+const GATE_PROBE_OUTCOME = `      v_outcome := CASE WHEN v_state = '00000' THEN 'ok'
+                        WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                        WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'
+                        WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                        WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'
+                        ELSE 'inny blad ' || v_state END;
+`;
+
+/** Fakt miary w wierszach bramki (RPC, tabela, filtr, osadzenie, zapytanie sondy). */
+interface GateFact {
+  readonly guest: boolean;
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly site: string;
+  readonly fn: string;
+  /** Fakt wstrzymany w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`) - tylko istnienie. */
+  readonly withheld?: boolean;
+  readonly server?: string;
+}
+
+/**
+ * Role, z którymi bramka sprawdza fakt miary: rola zmierzona, a przy
+ * `unknown` - każdy widoczny kandydat (`RoleResolution.candidates`). Pusta
+ * lista - tylko istnienie (fakt na liście UNKNOWN_ROLE_REVIEWED).
+ */
+export function checkedRoles(x: {
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly guest: boolean;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
+}): readonly RoleCandidate[] {
+  return x.role === "unknown"
+    ? (x.candidates ?? [])
+    : [{ role: x.role, via: x.via, guest: x.guest, ...serverField(x.server) }];
+}
+
+/** Opis drogi wiersza `anon` klienta przeglądarki wykonanego na serwerze (bez zwolnień). */
+export const SERVER_GUEST_VIA = "na serwerze, bez sesji (bez zwolnień)";
+
+interface ObservedGate {
+  /** Nagłówek (komentarz SQL) z liczbami wierszy i zwolnień gościa. */
+  readonly header: string;
+  /** Tabele faktów, relacje osadzeń, sondy i widoki naruszeń `ts_v_*`. */
+  readonly setup: string;
+}
+
+/**
+ * Wiersze faktów miary w bramce. Rola zmierzona (`role`), rola bramki
+ * (`enforced`) i flaga wiersza gościa (`guest`): fakt klienta przeglądarki
+ * w pliku osiągalnym dla gościa ma DRUGI wiersz z rolą `anon`. Fakty
+ * wstrzymane w przeglądzie - bez wierszy uprawnień i bez sond.
+ */
+function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): ObservedGate {
+  const o = facts.observed;
+  const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
+  const callOf = factCallOf(o);
+  const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
+  const reviewedRow = ([fn, entry]: [string, InvokerTriggerReviewed]): string =>
+    [sqlString(fn), sqlString(entry.md5), sqlTextArray([...(entry.blockers ?? [])].sort())].join(
+      ", ",
+    );
+  const triggerRows = Object.entries(enforcement.invokerTriggers ?? INVOKER_TRIGGERS_REVIEWED)
+    .map(reviewedRow)
+    .sort();
+  const functionRows = Object.entries(enforcement.invokerFunctions ?? INVOKER_FUNCTIONS_REVIEWED)
+    .map(reviewedRow)
+    .sort();
+  const vacuousReviewed = Object.keys(
+    enforcement.rpcProbeVacuous ?? RPC_PROBE_VACUOUS_REVIEWED,
+  ).sort();
+  const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
+  // Klasa miejsca faktu: plik trasy z bramką w drzewie komponentu zwalnia
+  // tylko fakty w zakresach za bramką (`SiteReach.gated`), reszta - `public`.
+  const factCls = (x: { readonly site: string }): string => {
+    const r = enforcement.reach.get(x.site);
+    if (r?.gated === undefined) return r?.cls ?? "none";
+    const at = FACT_AT.get(x);
+    return at !== undefined && inSpans(at, r.gated) ? r.cls : "public";
+  };
+  // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
+  // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
+  // Wpis listy zdejmuje wiersz gościa faktu POD SWOIM KLUCZEM (plik,
+  // funkcja, relacja łańcucha) - nie rodzeństwa o tej samej ścieżce funkcji.
+  const guestOn = (x: GateFact, c: RoleCandidate, call: string): boolean =>
+    c.guest &&
+    c.role === "authenticated" &&
+    (c.server !== undefined ||
+      (!GUEST_EXEMPT_CLASSES.has(factCls(x)) &&
+        reviewed[unknownRoleKey(x.site, x.fn, call)] === undefined));
+  /**
+   * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
+   * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
+   * sprawdzany, wiersz `anon`; bez kandydatów - jeden wiersz `unknown`
+   * (gdy `own` go chce: istnienie kolumn filtra i osadzenia). Fakt
+   * wstrzymany w przeglądzie (filtr i osadzenie łańcucha z faktem
+   * wstrzymanym) - wyłącznie wiersz `unknown`: istnienie, bez uprawnień,
+   * gościa i sondy.
+   */
+  const rows = <T extends GateFact>(
+    xs: readonly T[],
+    kind: KeyedFact["kind"],
+    own: (x: T, role: MeasuredRole) => boolean,
+    render: (x: T, role: MeasuredRole, guest: boolean, via: string) => string,
+  ): string[] =>
+    xs.flatMap((x) => {
+      if (x.withheld === true) {
+        return own(x, "unknown") ? [render(x, "unknown", false, x.via)] : [];
+      }
+      const roles = checkedRoles(x);
+      if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
+      return roles.flatMap((c) => [
+        ...(own(x, c.role) ? [render(x, c.role, false, c.via)] : []),
+        ...(guestOn(x, c, callOf({ kind, ...x } as unknown as KeyedFact))
+          ? [
+              render(
+                x,
+                "anon",
+                true,
+                c.server === undefined ? c.via : `${SERVER_GUEST_VIA}: ${c.server} <- ${c.via}`,
+              ),
+            ]
+          : []),
+      ]);
+    });
+  const sorted = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
+  const guestVia = (via: string, guest: boolean): string =>
+    guest ? `${GUEST_VIA} <- ${via}`.slice(0, MAX_VIA) : via;
+
+  const rpcRows = sorted(
+    rows(
+      o.rpcs,
+      "rpc",
+      (_r, role) => CLIENT_ROLES.has(role),
+      (r, role, guest, via) =>
+        [
+          sqlString(r.name),
+          sqlTextArray(r.keys),
+          sqlString(role),
+          sqlString(r.enforcedRole),
+          sqlString(guestVia(via, guest)),
+          guest ? "true" : "false",
+          sqlString(r.site),
+          sqlString(r.fn),
+        ].join(", "),
+    ),
+  );
+  // Fakty tabel: rola zmierzona tylko tam, gdzie różni się od roli bramki
+  // (tę samą rolę sprawdza już asercja 5).
+  const tableRows = sorted(
+    rows(
+      o.tables.filter((t) => !t.withheld),
+      "table",
+      (t, role) => CLIENT_ROLES.has(role) && role !== t.enforcedRole,
+      (t, role, guest, via) =>
+        [
+          sqlString(t.table),
+          sqlString(t.op),
+          sqlString(role),
+          sqlString(t.enforcedRole),
+          sqlTextArray(t.columns),
+          t.star ? "true" : "false",
+          sqlString(guestVia(via, guest)),
+          guest ? "true" : "false",
+          sqlString(t.file),
+          sqlString(t.site),
+          sqlString(t.fn),
+        ].join(", "),
+    ),
+  );
+  // Filtry i osadzenia: także z rolą nieustaloną (istnienie kolumn).
+  const filterRows = sorted(
+    rows(
+      o.filters,
+      "filter",
+      () => true,
+      (f, role, guest) =>
+        [
+          sqlString(f.table),
+          f.column === PRIMARY_KEY_COLUMNS ? "NULL" : sqlString(f.column),
+          f.embed === null ? "NULL" : sqlString(f.embed),
+          sqlString(f.method),
+          sqlString(f.op),
+          sqlString(role),
+          sqlString(f.gateRole),
+          guest ? "true" : "false",
+          sqlString(f.file),
+          sqlString(f.site),
+          sqlString(f.fn),
+        ].join(", "),
+    ),
+  );
+  // Osadzenia w kolejności `id` (rodzic przed dzieckiem; ekstrakcja jest
+  // deterministyczna), wiersz gościa zaraz za swoim.
+  const embedRows = [
+    ...new Set(
+      rows(
+        o.embeds,
+        "embed",
+        () => true,
+        (e, role, guest) =>
+          [
+            String(e.id),
+            e.parentId === null ? "NULL" : String(e.parentId),
+            sqlString(e.table),
+            sqlString(e.path),
+            sqlString(e.rel),
+            e.hint === null ? "NULL" : sqlString(e.hint),
+            sqlTextArray(e.columns),
+            e.star ? "true" : "false",
+            sqlString(role),
+            sqlString(e.gateRole),
+            guest ? "true" : "false",
+            sqlString(e.file),
+            sqlString(e.site),
+            sqlString(e.fn),
+          ].join(", "),
+      ),
+    ),
+  ];
+  // Kolumny wyniku RPC: bez roli (wynik funkcji nie ma uprawnień kolumn).
+  const rpcColumnRows = sorted(
+    o.rpcColumns.map((c) =>
+      [
+        sqlString(c.name),
+        sqlTextArray(c.keys),
+        sqlString(c.column),
+        sqlString(c.method),
+        sqlString(c.file),
+        sqlString(c.site),
+        sqlString(c.fn),
+      ].join(", "),
+    ),
+  );
+  const statementRows = sorted(
+    rows(
+      o.statements.filter((s) => !s.withheld),
+      "statement",
+      (_s, role) => CLIENT_ROLES.has(role),
+      (s, role, guest) =>
+        [
+          sqlString(s.table),
+          sqlString(s.op),
+          sqlString(role),
+          sqlString(s.enforcedRole),
+          sqlTextArray(s.columns),
+          s.star ? "true" : "false",
+          sqlTextArray(s.payload),
+          sqlTextArray(s.where),
+          sqlTextArray(s.conflict),
+          guest ? "true" : "false",
+          sqlString(s.site),
+          sqlString(s.fn),
+        ].join(", "),
+    ),
+  );
+  // Zapisy z ładunkiem nieczytelnym: rola i - gdy gość sprawdzany - `anon`,
+  // tylko do asercji 20 (wyzwalacze, ładunek = wszystkie kolumny).
+  const dynamicWriteRows = sorted(
+    o.dynamicWrites.flatMap((w) =>
+      checkedRoles(w).flatMap((c) =>
+        [
+          ...(c.role === "anon" || c.role === "authenticated" ? [[c.role, "false"]] : []),
+          ...(guestOn(w, c, `.from(${w.table})`) ? [["anon", "true"]] : []),
+        ].map(([role, guest]) =>
+          [
+            sqlString(w.table),
+            sqlString(w.op),
+            sqlString(role),
+            guest,
+            sqlString(w.site),
+            sqlString(w.fn),
+          ].join(", "),
+        ),
+      ),
+    ),
+  );
+
+  // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
+  const guestKeys = new Map<string, string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if ("withheld" in x && x.withheld === true) continue;
+    if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
+    const key = guestKey(x.site, x.fn);
+    const cls = factCls(x);
+    guestKeys.set(key, GUEST_EXEMPT_CLASSES.has(cls) ? cls : `sprawdzane ${cls}`);
+  }
+  // Klucze listy, które zdejmują wiersze gościa (fakt pod kluczem w pliku public).
+  const exemptable = shapeUniverse(o, exemptableGuest, false, true);
+  const reviewedApplied = Object.keys(reviewed).filter(
+    (k) => exemptable.has(k) && clsOf(k.slice(0, k.indexOf(": "))) === "public",
+  ).length;
+  const byClass = (label: string): number =>
+    [...guestKeys.values()].filter((v) => v === label).length;
+  // Pary z klientem przeglądarki wykonanym na serwerze - sprawdzane jako anon
+  // niezależnie od klasy pliku i listy.
+  const serverKeys = new Set<string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if ("withheld" in x && x.withheld === true) continue;
+    if (checkedRoles(x).some((c) => c.guest && c.server !== undefined)) {
+      serverKeys.add(guestKey(x.site, x.fn));
+    }
+  }
+  const serverExempted = [...serverKeys].filter((k) => {
+    const v = guestKeys.get(k);
+    return v !== undefined && !v.startsWith("sprawdzane");
+  }).length;
+  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length;
+  const residualFacts = [...o.rpcs, ...o.tables].filter((x) => x.residual !== undefined).length;
+  const candidateFacts = [...o.rpcs, ...o.tables].filter(
+    (x) => x.role === "unknown" && checkedRoles(x).length > 0,
+  ).length;
+  const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
+  const roles = "('anon', 'authenticated', 'service_role')";
+
+  const header = `--
+-- Asercje 10-20 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
+-- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
+-- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
+-- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
+-- Rola nieustalona z widocznymi kandydatami (wolajacy o roznych rolach, widoczne
+-- wywolania, naglowek Authorization z warunku): ${candidateFacts} faktow RPC i tabel -
+-- uprawnienia i sondy dla KAZDEJ widocznej roli.
+-- Rola nieustalona bez kandydatow: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
+-- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract); z kandydatami, ale ze
+-- sciezka bez widocznej roli: ${residualFacts} - kandydaci sprawdzani, klucz takze na liscie.
+-- Gosc (anon): ${guestKeys.size} par (plik wywolania, funkcja) z faktami klienta przegladarki.
+--   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.
+--   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
+--   bramki sesji - guestReach): admin ${byClass("admin")}, session-gate ${byClass("session-gate")}.
+--   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${reviewedApplied} kluczy (plik, funkcja, relacja).
+--   Klient przegladarki wykonany NA SERWERZE (handler i middleware funkcji serwera,
+--   modul .server, handler trasy serwerowej, loader/beforeLoad trasy z SSR, kod
+--   modulu - takze przez wywolania pomocnikow): ${serverKeys.size} par, anon sprawdzany zawsze,
+--   w tym ${serverExempted} w plikach admin i session-gate (bez tego zwolnionych).
+-- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
+-- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
+-- Sonda pada na 42501 "permission denied for ...", brak obiektu (42703, 42P01,
+-- 42883) i brak werdyktu (limit czasu 57014 albo blokady 55P03, sonda
+-- nieuruchomiona); inny blad (np. P0001 albo ASSERT P0004 funkcji) przechodzi.
+-- Odczyt to SELECT ... LIMIT 1 (wiersz z danych liczy kolumny widoku i funkcje
+-- wiersza); RPC dwie sondy - argumenty NULL i syntetyczne (cialo za straznikiem
+-- NULL); obie bez bledu i bez odczytu zadnej relacji - sonda pusta, naruszenie
+-- (przejrzane RPC_PROBE_VACUOUS_REVIEWED: ${vacuousReviewed.length === 0 ? "brak" : vacuousReviewed.join(", ")}).
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (takze ${o.dynamicWrites.length} zapisow z ladunkiem
+-- nieczytelnym - wszystkie kolumny) - sondy zapisu (EXPLAIN) ich nie wykonuja:
+-- asercja 20, md5 domkniecia (cialo i funkcje wolane), przejrzane
+-- INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}, a przy kazdym przebiegu domkniecie bez blokad
+-- uprawnien roli z grantem zapisu. RPC, funkcje widokow, polityk (takze relacji bazowych
+-- widokow security_invoker), DEFAULT/CHECK/domen zapisu - dla relacji klienta i relacji
+-- domkniecia: domkniecie bez blokad (kolumna bez uprawnienia roli, takze przez widok
+-- security_invoker, funkcja bez EXECUTE, dynamiczny SQL) albo wpis
+-- INVOKER_FUNCTIONS_REVIEWED: ${functionRows.length}. Wpis bez przedmiotu - diag.
+`;
+
+  const setup = `-- ── Fakty miary (asercje 10-20) ─────────────────────────────────────────────
+CREATE TEMP TABLE ts_obs_rpc (fn text, keys text[], role text, enforced text, via text, guest boolean, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, guest boolean, file text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], guest boolean, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
+-- Zapisy z ladunkiem nieczytelnym (.insert(rows), .update(patch)): istnienie
+-- relacji (asercja 12), uprawnienie do operacji na KTOREJKOLWIEK kolumnie
+-- (11/17) i wyzwalacze (20) - ladunek = wszystkie kolumny.
+CREATE TEMP TABLE ts_obs_dynwrite (rel text, op text, role text, guest boolean, site text, func text) ON COMMIT DROP;
+
+${valuesBlock("ts_obs_rpc", "fn, keys, role, enforced, via, guest, site, func", rpcRows)}
+${valuesBlock("ts_obs_table", "rel, op, role, enforced, cols, star, via, guest, file, site, func", tableRows)}
+${valuesBlock("ts_obs_filter", "rel, col, embed, method, op, role, enforced, guest, file, site, func", filterRows)}
+${valuesBlock("ts_obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, guest, site, func", statementRows)}
+${valuesBlock("ts_obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, guest, file, site, func", embedRows)}
+${valuesBlock("ts_obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
+${valuesBlock("ts_obs_dynwrite", "rel, op, role, guest, site, func", dynamicWriteRows)}
+${RESULT_COLUMNS_SQL}
+-- Relacje osadzen (tabela ts_obs_embed_rel: id, rodzic, relacja, klucz obcy).
+${EMBED_FUNCTIONS_SQL}
+${embedRelSql("ts_obs_embed", "ts_obs_embed_rel")}
+-- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
+CREATE TEMP VIEW ts_obs_filter_cols AS
+SELECT f.rel, coalesce(f.col, pk.col) AS col, f.embed, f.method, f.op, f.role, f.enforced, f.via,
+       f.guest, f.file, f.site, f.func
+  FROM ts_obs_filter f
+  LEFT JOIN LATERAL (
+    SELECT a.attname::text AS col
+      FROM pg_index i
+      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey::int2[])
+     WHERE i.indrelid = ${rel("f.rel")} AND i.indisprimary
+  ) pk ON f.col IS NULL;
+
+${probeSql({
+  probe: "ts_probe",
+  stmt: "ts_obs_stmt",
+  filterCols: "ts_obs_filter_cols",
+  rpc: "ts_obs_rpc",
+  embed: "ts_obs_embed",
+  embedRel: "ts_obs_embed_rel",
+  guest: true,
+  rpcExcluded: excluded,
+  outcome: GATE_PROBE_OUTCOME,
+})}
+-- ── Naruszenia (kind, guest, site, func, msg): asercje 10-20 i --guest-gaps ──
+-- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
+-- asercje 2 i 5) oraz wiersze goscia.
+CREATE TEMP VIEW ts_v_fact AS
+SELECT 'rpc' AS kind, r.guest, r.site, r.func, '.rpc(' || r.fn || ')' AS call,
+       format('%s: %s: %s(%s) dla %s: brak EXECUTE (rola: %s)', r.site, r.func, r.fn,
+              coalesce(array_to_string(r.keys, ','), '?'), r.role, r.via) AS msg
+  FROM ts_obs_rpc r
+ WHERE (r.guest OR r.role IS DISTINCT FROM r.enforced)
+   AND ((r.keys IS NOT NULL AND pg_temp.ts_rpc_match(r.fn, r.keys) IS NOT NULL
+         AND NOT has_function_privilege(r.role, pg_temp.ts_rpc_match(r.fn, r.keys), 'EXECUTE'))
+        OR (r.keys IS NULL AND EXISTS (
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+               WHERE n.nspname = 'public' AND p.proname = r.fn)
+            AND NOT EXISTS (
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+               WHERE n.nspname = 'public' AND p.proname = r.fn
+                 AND has_function_privilege(r.role, p.oid, 'EXECUTE'))))
+UNION ALL
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
+       format('%s: %s: %s.%s %s dla %s: brak %s (rola: %s%s)', t.site, t.func, t.rel, c.col, t.op,
+              t.role, priv, t.via, CASE WHEN t.file <> t.site THEN '; kolumny z ' || t.file ELSE '' END)
+  FROM ts_obs_table t
+  CROSS JOIN LATERAL (
+    SELECT a.attname::text AS col FROM pg_attribute a
+     WHERE a.attrelid = ${rel("t.rel")} AND a.attnum > 0 AND NOT a.attisdropped
+       AND (t.star OR a.attname = ANY (t.cols))
+  ) c
+  CROSS JOIN LATERAL unnest(CASE t.op
+      WHEN 'select' THEN ARRAY['SELECT']
+      WHEN 'insert' THEN ARRAY['INSERT']
+      WHEN 'update' THEN ARRAY['UPDATE']
+      WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']
+      WHEN 'upsert_ignore' THEN ARRAY['INSERT']
+      ELSE ARRAY[]::text[] END) AS priv
+ WHERE (t.guest OR t.role IS DISTINCT FROM t.enforced)
+   AND NOT has_column_privilege(t.role, ${rel("t.rel")}, c.col, priv)
+UNION ALL
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
+       format('%s: %s: %s delete dla %s: brak DELETE (rola: %s)', t.site, t.func, t.rel, t.role, t.via)
+  FROM ts_obs_table t
+ WHERE t.op = 'delete' AND (t.guest OR t.role IS DISTINCT FROM t.enforced)
+   AND ${rel("t.rel")} IS NOT NULL
+   AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE')
+UNION ALL
+-- Ladunek nieczytelny: kolumn nie znamy, wiec uprawnienie do operacji na
+-- KTOREJKOLWIEK kolumnie (bez niego zapis pada 42501 zawsze); bramka 1-9
+-- tych zapisow nie ma.
+SELECT 'table', w.guest, w.site, w.func, '.from(' || w.rel || ')',
+       format('%s: %s: %s %s dla %s: brak %s na zadnej kolumnie (ladunek nieczytelny)', w.site, w.func,
+              w.rel, w.op, w.role, priv)
+  FROM ts_obs_dynwrite w
+  CROSS JOIN LATERAL unnest(CASE w.op
+      WHEN 'insert' THEN ARRAY['INSERT']
+      WHEN 'update' THEN ARRAY['UPDATE']
+      WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']
+      WHEN 'upsert_ignore' THEN ARRAY['INSERT']
+      ELSE ARRAY[]::text[] END) AS priv
+ WHERE ${rel("w.rel")} IS NOT NULL
+   AND NOT has_any_column_privilege(w.role, ${rel("w.rel")}, priv);
+
+-- Kolumny filtrow: istnienie (relacja, kolumna, klucz glowny celu bez onConflict).
+-- Relacja filtra osadzenia nieczytelna jako tabela (osadzenie po nazwie klucza
+-- obcego) - pomijana tu; relacje osadzen sprawdza asercja 14.
+CREATE TEMP VIEW ts_v_filter_missing AS
+SELECT DISTINCT f.site, f.func,
+       format('%s: %s: %s.%s (%s%s, %s%s): %s', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny)'),
+              f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
+              CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END,
+              CASE WHEN ${rel("f.rel")} IS NULL THEN 'relacja nie istnieje'
+                   WHEN f.col IS NULL THEN 'brak klucza glownego'
+                   ELSE 'kolumna nie istnieje' END) AS msg
+  FROM ts_obs_filter_cols f
+ WHERE (${rel("f.rel")} IS NULL AND f.embed IS NULL)
+    OR (${rel("f.rel")} IS NOT NULL
+        AND (f.col IS NULL OR NOT EXISTS (
+              SELECT 1 FROM pg_attribute a
+               WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                 AND a.attnum > 0 AND NOT a.attisdropped)))
+UNION
+${rpcResultMissingSql("ts_obs_rpc_col")}
+UNION
+-- Relacja faktu miary (odczyt \`head: true\` bez faktu bramki) i zapisu
+-- z ladunkiem nieczytelnym istnieje (42P01; sondy sa tylko dla istniejacych).
+SELECT DISTINCT t.site, t.func,
+       format('%s: %s: %s (%s%s): relacja nie istnieje', t.site, t.func, t.rel, t.op,
+              CASE WHEN t.file <> t.site THEN ', literal w ' || t.file ELSE '' END)
+  FROM ts_obs_table t
+ WHERE ${rel("t.rel")} IS NULL
+UNION
+SELECT DISTINCT w.site, w.func,
+       format('%s: %s: %s (%s, ladunek nieczytelny): relacja nie istnieje', w.site, w.func, w.rel, w.op)
+  FROM ts_obs_dynwrite w
+ WHERE ${rel("w.rel")} IS NULL;
+
+-- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
+-- w UPDATE i DELETE). Kolumna przez zlaczenie z pg_attribute, uprawnienie po
+-- numerze kolumny: \`AND EXISTS (...)\` nie gwarantuje kolejnosci, a
+-- has_column_privilege po NAZWIE kolumny, ktorej nie ma, przerywa caly plik
+-- (42703) - brak kolumny zglasza asercja 12.
+CREATE TEMP VIEW ts_v_filter_denied AS
+SELECT DISTINCT f.guest, f.site, f.func, '.from(' || coalesce(ch.tbl, f.rel) || ')' AS call,
+       format('%s: %s: %s.%s dla %s: brak SELECT (%s%s, %s%s)', f.site, f.func, f.rel, f.col, f.role,
+              f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
+              CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END) AS msg
+  FROM ts_obs_filter_cols f
+  JOIN pg_attribute a ON a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                     AND a.attnum > 0 AND NOT a.attisdropped
+  -- Filtr osadzenia - klucz listy gościa pod tabelą łańcucha osadzenia.
+  LEFT JOIN LATERAL (SELECT min(m.tbl) AS tbl FROM ts_obs_embed m
+                      WHERE f.embed IS NOT NULL AND m.site = f.site AND m.func = f.func
+                        AND m.path = f.embed) ch ON true
+ WHERE f.role IN ${roles}
+   AND NOT has_column_privilege(f.role, a.attrelid, a.attnum, 'SELECT');
+
+-- Osadzenia: relacja (tabela, widok, klucz obcy albo jego kolumna) i kolumny
+-- istnieja. Relacja nadrzedna bez kluczy obcych w katalogu (widok) -
+-- PostgREST rozwiazuje ja z zaleznosci widoku, wiec brak relacji tylko pod tabela.
+CREATE TEMP VIEW ts_v_embed_missing AS
+SELECT DISTINCT m.site, m.func,
+       format('%s: %s: osadzenie %s (%s) w %s: relacja osadzenia nie istnieje (ani relacja public, ani klucz obcy)',
+              m.site, m.func, m.path, m.rel, m.tbl) AS msg
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id
+  JOIN pg_class pc ON pc.oid = x.parent
+ WHERE x.target IS NULL AND pc.relkind IN ('r', 'p')
+UNION
+SELECT DISTINCT m.site, m.func,
+       format('%s: %s: %s.%s (osadzenie %s w %s%s): kolumna nie istnieje', m.site, m.func, c.relname, col,
+              m.path, m.tbl, CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END)
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id AND x.target IS NOT NULL
+  JOIN pg_class c ON c.oid = x.target
+  CROSS JOIN LATERAL unnest(m.cols) AS col
+ WHERE NOT EXISTS (SELECT 1 FROM pg_attribute a
+                    WHERE a.attrelid = x.target AND a.attname = col
+                      AND a.attnum > 0 AND NOT a.attisdropped);
+
+-- Osadzenia: SELECT roli na kolumnach relacji osadzonej (kolumny zlaczenia
+-- sprawdza sonda osadzenia).
+CREATE TEMP VIEW ts_v_embed_denied AS
+SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
+       format('%s: %s: %s.%s dla %s: brak SELECT (osadzenie %s w %s%s)', m.site, m.func, c.relname,
+              col.col, m.role, m.path, m.tbl,
+              CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END) AS msg
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id AND x.target IS NOT NULL
+  JOIN pg_class c ON c.oid = x.target
+  CROSS JOIN LATERAL (
+    SELECT a.attname::text AS col FROM pg_attribute a
+     WHERE a.attrelid = x.target AND a.attnum > 0 AND NOT a.attisdropped
+       AND (m.star OR a.attname = ANY (m.cols))
+  ) col
+ WHERE m.role IN ${roles}
+   AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
+
+${INVOKER_CLOSURE_SQL}
+CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text, blockers text[]) ON COMMIT DROP;
+${valuesBlock("ts_trigger_reviewed", "fn, md5, blockers", triggerRows)}
+CREATE TEMP TABLE ts_invoker_reviewed (fn text, md5 text, blockers text[]) ON COMMIT DROP;
+${valuesBlock("ts_invoker_reviewed", "fn, md5, blockers", functionRows)}
+
+-- Dostep klienta do relacji (rola, relacja, operacja) z faktow zapytan.
+CREATE TEMP TABLE ts_client_access ON COMMIT DROP AS
+SELECT s.role, ${rel("s.rel")} AS rel, s.op, min(s.site) AS site, min(s.func) AS func
+  FROM (SELECT rel, op, role, site, func FROM ts_obs_stmt
+        UNION ALL SELECT rel, op, role, site, func FROM ts_obs_table
+        UNION ALL SELECT rel, op, role, site, func FROM ts_obs_dynwrite
+        UNION ALL SELECT pc.relname::text, 'select', m.role, m.site, m.func
+                    FROM ts_obs_embed m JOIN ts_obs_embed_rel x ON x.id = m.id
+                    JOIN pg_class pc ON pc.oid = x.target) s
+ WHERE s.role IN ('anon', 'authenticated') AND ${rel("s.rel")} IS NOT NULL
+ GROUP BY s.role, ${rel("s.rel")}, s.op;
+
+-- Funkcje SECURITY INVOKER wykonywane jako rola klienta poza wyzwalaczami:
+-- RPC (anon/authenticated z EXECUTE) oraz funkcje wykonywane przy dostepie do
+-- relacji (ts_access_roots: funkcje widokow, takze zagniezdzonych - liczone dla
+-- KAZDEGO wiersza jako wywolujacy, takze w widoku definera; polityki RLS
+-- relacji i relacji bazowych widokow security_invoker; przy zapisie DEFAULT,
+-- CHECK i ograniczenia domen kolumn) - dostepu klienta i dostepu z domkniecia
+-- korzenia (do trzech poziomow). Tylko funkcje public (migracje) - auth.uid()
+-- itp. to platforma. Sondy wykonuja tylko jedna sciezke ciala (RPC: argumenty
+-- NULL i syntetyczne), zapis planuja (EXPLAIN) albo nie widza wiersza (relacja
+-- bez danych), wiec domkniecie sprawdza sie statycznie (ts_closure_blockers);
+-- z blokada - wpis INVOKER_FUNCTIONS_REVIEWED z md5 domkniecia i przejrzanymi
+-- blokadami albo naprawa.
+CREATE TEMP TABLE ts_invoker_root ON COMMIT DROP AS
+WITH RECURSIVE r(site, func, via, role, oid, lvl) AS (
+  SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn, r.role, p.oid, 0
+    FROM ts_obs_rpc r
+    CROSS JOIN LATERAL (
+           SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
+           UNION ALL
+           SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
+            WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
+    JOIN pg_proc p ON p.oid = o.oid
+   WHERE r.role IN ('anon', 'authenticated')
+     AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
+     AND has_function_privilege(r.role, p.oid, 'EXECUTE')
+  UNION
+  SELECT a.site, a.func, x.via, a.role, x.oid, 0
+    FROM ts_client_access a
+    CROSS JOIN LATERAL pg_temp.ts_access_roots(a.role, a.rel, a.op) x
+  UNION
+  SELECT r.site, r.func, x.via || ' (z ' || r.oid::regprocedure::text || ')', r.role, x.oid, r.lvl + 1
+    FROM r
+    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a
+    CROSS JOIN LATERAL pg_temp.ts_access_roots(r.role, a.rel, a.op) x
+   WHERE r.lvl < 3
+)
+SELECT DISTINCT site, func, via, role, oid FROM r;
+CREATE TEMP TABLE ts_invoker_check ON COMMIT DROP AS
+SELECT x.oid, x.role, pg_namespace.nspname || '.' || pg_proc.proname AS fn,
+       pg_temp.ts_closure_md5(x.oid) AS md5,
+       ARRAY(SELECT pg_temp.ts_closure_blockers(x.oid, x.role) ORDER BY 1) AS blockers
+  FROM (SELECT DISTINCT oid, role FROM ts_invoker_root) x
+  JOIN pg_proc ON pg_proc.oid = x.oid
+  JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace;
+CREATE TEMP VIEW ts_v_invoker AS
+SELECT DISTINCT format('%s: %s: %s jako %s -> %s() SECURITY INVOKER: %s - %s', r.site, r.func, r.via, r.role, k.fn,
+         array_to_string(ARRAY(SELECT b FROM unnest(k.blockers) b
+                                WHERE e.fn IS NULL OR e.md5 IS DISTINCT FROM k.md5 OR b <> ALL (e.blockers)
+                                ORDER BY 1), '; '),
+         CASE WHEN e.fn IS NULL THEN 'brak wpisu INVOKER_FUNCTIONS_REVIEWED (md5 domkniecia ' || k.md5 || ')'
+              WHEN e.md5 IS DISTINCT FROM k.md5 THEN format('domkniecie zmienione od przegladu (md5 %s, wpis %s)', k.md5, e.md5)
+              ELSE 'blokady spoza przegladu INVOKER_FUNCTIONS_REVIEWED (uprawnienia roli zmienione)' END) AS msg
+  FROM ts_invoker_root r
+  JOIN ts_invoker_check k ON k.oid = r.oid AND k.role = r.role
+  LEFT JOIN ts_invoker_reviewed e ON e.fn = k.fn
+ WHERE cardinality(k.blockers) > 0
+   AND (e.md5 IS DISTINCT FROM k.md5 OR NOT (k.blockers <@ e.blockers));
+
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem jako rola klienta (anon/authenticated)
+-- - zapisem klienta i zapisem z domkniecia korzenia: INSERT - insert/upsert,
+-- UPDATE - update/upsert (UPDATE OF kolumny tylko gdy ladunek je zawiera;
+-- ladunek nieczytelny - wszystkie kolumny), DELETE - delete. Sondy zapisu
+-- (EXPLAIN) ich nie wykonuja, wiec funkcja: SECURITY DEFINER albo wpis
+-- INVOKER_TRIGGERS_REVIEWED z md5 biezacego DOMKNIECIA (cialo i funkcje
+-- wolane z ciala - ts_closure_md5), a przy kazdym przebiegu - domkniecie bez
+-- blokad dla roli z uprawnieniem do zapisu (granty mogly sie zmienic od
+-- przegladu; rola bez uprawnienia pada wczesniej - asercje 11/17).
+CREATE TEMP TABLE ts_trigger_fired ON COMMIT DROP AS
+WITH t AS (
+  SELECT n.nspname || '.' || p.proname AS fn, c.relname::text AS rel,
+         tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
+         ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
+                 JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols,
+         p.oid AS foid, c.oid AS relid
+    FROM pg_trigger tg
+    JOIN pg_class c ON c.oid = tg.tgrelid
+    JOIN pg_proc p ON p.oid = tg.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
+     AND tg.tgenabled <> 'D' AND NOT p.prosecdef
+), w AS (
+  SELECT rel, op, role, site, func, payload, NULL::text AS via FROM ts_obs_stmt
+  UNION ALL
+  SELECT rel, op, role, site, func, NULL::text[], NULL FROM ts_obs_dynwrite
+  UNION ALL
+  SELECT k.relname::text, a.op, r.role, r.site, r.func,
+         CASE WHEN bool_and(a.col IS NOT NULL) THEN array_agg(DISTINCT a.col ORDER BY a.col) END,
+         min(r.via || ' -> ' || a.fn::regprocedure::text)
+    FROM ts_invoker_root r
+    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a
+    JOIN pg_class k ON k.oid = a.rel AND k.relnamespace = 'public'::regnamespace
+   WHERE a.op IN ('insert', 'update', 'delete')
+   GROUP BY k.relname, a.op, r.role, r.site, r.func
+), x AS MATERIALIZED (
+  SELECT t.*, w.op, w.role, w.site, w.func, w.via,
+         CASE w.op WHEN 'delete' THEN has_table_privilege(w.role, t.relid, 'DELETE')
+                   WHEN 'update' THEN has_any_column_privilege(w.role, t.relid, 'UPDATE')
+                   WHEN 'upsert' THEN has_any_column_privilege(w.role, t.relid, 'INSERT')
+                                      AND has_any_column_privilege(w.role, t.relid, 'UPDATE')
+                   ELSE has_any_column_privilege(w.role, t.relid, 'INSERT') END AS priv
+    FROM t
+    JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')
+   WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))
+      OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')
+          AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))
+      OR ((t.tgtype & 8) <> 0 AND w.op = 'delete')
+), m AS MATERIALIZED (
+  SELECT d.foid, pg_temp.ts_closure_md5(d.foid) AS md5 FROM (SELECT DISTINCT foid FROM x) d
+)
+SELECT x.*, m.md5 FROM x JOIN m ON m.foid = x.foid;
+CREATE TEMP TABLE ts_trigger_check ON COMMIT DROP AS
+SELECT f.foid, f.role, ARRAY(SELECT pg_temp.ts_closure_blockers(f.foid, f.role) ORDER BY 1) AS blockers
+  FROM (SELECT DISTINCT foid, role FROM ts_trigger_fired WHERE priv) f;
+CREATE TEMP VIEW ts_v_trigger AS
+SELECT DISTINCT format('%s: %s: %s %s%s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
+         f.site, f.func, f.rel, f.op, coalesce(' (' || f.via || ')', ''), f.role, f.tgname,
+         CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
+         concat_ws('/', CASE WHEN (f.tgtype & 4) <> 0 THEN 'INSERT' END,
+                        CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
+                        CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
+         CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
+         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'
+              ELSE format('domkniecie zmienione od przegladu (cialo albo funkcja wolana; md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
+  FROM ts_trigger_fired f
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE r.md5 IS DISTINCT FROM f.md5
+UNION
+SELECT DISTINCT format('%s: %s: %s %s%s jako %s -> wyzwalacz %s -> %s() SECURITY INVOKER: domkniecie z blokada uprawnien roli: %s',
+         f.site, f.func, f.rel, f.op, coalesce(' (' || f.via || ')', ''), f.role, f.tgname, f.fn,
+         array_to_string(ARRAY(SELECT b FROM unnest(k.blockers) b
+                                WHERE b <> ALL (coalesce(r.blockers, '{}'::text[])) ORDER BY 1), '; '))
+  FROM ts_trigger_fired f
+  JOIN ts_trigger_check k ON k.foid = f.foid AND k.role = f.role
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE f.priv AND NOT (k.blockers <@ coalesce(r.blockers, '{}'::text[]));
+
+-- Wpisy przejrzane bez przedmiotu (zapis klienta zniknal, funkcja bez blokady,
+-- sonda juz nie pusta): diagnostyka pgTAP, NIE niepowodzenie - zaleza od kodu
+-- TS, a sam ich brak nie jest bledem schematu (zdejmij wpis w przegladzie).
+CREATE TEMP VIEW ts_v_stale AS
+SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)', r.fn) AS msg
+  FROM ts_trigger_reviewed r
+ WHERE NOT EXISTS (SELECT 1 FROM ts_trigger_fired f WHERE f.fn = r.fn)
+UNION
+SELECT format('INVOKER_FUNCTIONS_REVIEWED: %s - wpis nieaktualny (funkcja nie jest wykonywana przez klienta albo jej domkniecie nie ma blokad)', e.fn)
+  FROM ts_invoker_reviewed e
+ WHERE NOT EXISTS (SELECT 1 FROM ts_invoker_check k WHERE k.fn = e.fn AND cardinality(k.blockers) > 0)
+UNION
+SELECT format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
+  FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
+ WHERE current_setting('track_counts')::boolean
+   AND NOT EXISTS (SELECT 1 FROM ts_probe p
+                    WHERE p.kind LIKE 'probe-rpc%' AND p.rel = r.fn
+                    GROUP BY p.site, p.func, p.role
+                   HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0);
+
+-- Sondy wykonania: odmowa uprawnien, brak obiektu i sonda bez werdyktu
+-- (limit czasu albo blokada, sonda nieuruchomiona w zadnej partii).
+CREATE TEMP VIEW ts_v_probe AS
+SELECT DISTINCT p.guest, p.site, p.func,
+       CASE WHEN p.kind LIKE 'probe-rpc%' THEN '.rpc(' || p.rel || ')'
+            WHEN p.kind = 'probe-embed' THEN '.from(' || coalesce((
+              SELECT min(m.tbl) FROM ts_obs_embed m
+               WHERE m.site = p.site AND m.func = p.func
+                 AND m.path = split_part(p.cols, '(', 1)), p.rel) || ')'
+            WHEN p.kind = 'probe-filter' THEN '.from(' || coalesce((
+              SELECT min(coalesce(m.tbl, f.rel)) FROM ts_obs_filter f
+                LEFT JOIN ts_obs_embed m ON f.embed IS NOT NULL AND m.site = f.site
+                                        AND m.func = f.func AND m.path = f.embed
+               WHERE f.site = p.site AND f.func = p.func AND f.rel = p.rel AND f.col = p.cols), p.rel) || ')'
+            ELSE '.from(' || p.rel || ')' END AS call,
+       format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
+              coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg
+  FROM ts_probe p
+ WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona')
+UNION
+-- Sonda RPC pusta: wszystkie sondy funkcji tego miejsca i roli (argumenty NULL
+-- i syntetyczne) bez bledu i bez odczytu zadnej relacji - cialo niesprawdzone.
+SELECT p.guest, p.site, p.func, '.rpc(' || p.rel || ')',
+       format('%s: %s: probe-rpc %s [%s] jako %s: sonda pusta - argumenty NULL i syntetyczne bez bledu i bez odczytu zadnej relacji (cialo funkcji niesprawdzone; RPC_PROBE_VACUOUS_REVIEWED)',
+              p.site, p.func, p.rel, p.cols, p.role)
+  FROM ts_probe p
+ WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (${sqlTextArray(vacuousReviewed)})
+ GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
+HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
+   -- Gosc: wczesne wyjscie bez sesji (auth.uid() IS NULL ...) to sciezka goscia,
+   -- nie cialo niesprawdzone - gdy domkniecie rozgalezia sie na sesji, a sonda
+   -- authenticated tej funkcji czyta relacje (cialo dalej sprawdzone).
+   AND NOT (p.role = 'anon' AND pg_temp.ts_session_branch(p.rel)
+            AND EXISTS (SELECT 1 FROM ts_probe a
+                         WHERE a.kind LIKE 'probe-rpc%' AND a.rel = p.rel
+                           AND a.role = 'authenticated' AND a.touched > 0));
+`;
+  return { header, setup };
+}
+
+const OBSERVED_ASSERTIONS_SQL = `
+-- 10. Rola zmierzona: RPC (rola bramki unknown albo inna) - EXECUTE.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE kind = 'rpc' AND NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'RPC z TS: rola zmierzona klienta (inna niz rola bramki) ma EXECUTE na wybranym przeciazeniu');
+
+-- 11. Rola zmierzona: tabele - uprawnienie do operacji na kazdej kolumnie.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE kind = 'table' AND NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Tabele z TS: rola zmierzona klienta (inna niz rola bramki) ma uprawnienie do operacji na kazdej kolumnie');
+
+-- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST), takze
+--     kolumny wyniku funkcji w lancuchu .rpc(...).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_filter_missing ORDER BY 1),
+  ARRAY[]::text[],
+  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu, klucz glowny celu i kolumna wyniku RPC istnieja');
+
+-- 13. Kolumny filtrow: rola ma SELECT (42501 takze w UPDATE/DELETE).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_filter_denied WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Filtry z TS: rola klienta ma SELECT na kazdej kolumnie filtra, sortowania i celu upsertu');
+
+-- 14. Zasoby osadzone: relacja i kolumny istnieja (PGRST200 / 42703).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_embed_missing ORDER BY 1),
+  ARRAY[]::text[],
+  'Osadzenia z TS: relacja osadzona i kazda jej kolumna istnieja');
+
+-- 15. Zasoby osadzone: rola ma SELECT na kolumnach relacji osadzonej.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_embed_denied WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Osadzenia z TS: rola klienta ma SELECT na kolumnach relacji osadzonej');
+
+-- 16. Sondy wykonania (widok security_invoker, funkcja SECURITY INVOKER, RLS).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Sondy wykonania: zapytanie, filtr, osadzenie i RPC jako rola klienta bez odmowy uprawnien i bez braku obiektu');
+
+-- 17. Gosc (anon): RPC i tabele klienta przegladarki w pliku osiagalnym dla goscia.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): RPC i tabele klienta przegladarki maja EXECUTE i uprawnienia kolumn');
+
+-- 18. Gosc (anon): kolumny filtrow i osadzen.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM (
+          SELECT msg FROM ts_v_filter_denied WHERE guest
+          UNION ALL
+          SELECT msg FROM ts_v_embed_denied WHERE guest) g
+        ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): SELECT na kolumnach filtrow i osadzen klienta przegladarki');
+
+-- 19. Gosc (anon): sondy wykonania.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): sondy wykonania klienta przegladarki bez odmowy uprawnien i bez braku obiektu');
+
+-- 20. Funkcje SECURITY INVOKER wykonywane jako klient poza zasiegiem sond:
+--     wyzwalacze zapisow klienta (takze z ladunkiem nieczytelnym) - wpis z md5
+--     domkniecia; RPC, funkcje widokow i polityk - domkniecie bez blokad albo wpis.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM (SELECT msg FROM ts_v_trigger UNION ALL SELECT msg FROM ts_v_invoker) m ORDER BY 1),
+  ARRAY[]::text[],
+  'Funkcje SECURITY INVOKER klienta poza sondami: wyzwalacz z wpisem INVOKER_TRIGGERS_REVIEWED (md5 domkniecia), RPC/widok/polityka bez blokad albo z wpisem INVOKER_FUNCTIONS_REVIEWED');
+
+-- Wpisy przejrzane bez przedmiotu - diagnostyka, nie niepowodzenie.
+SELECT diag(msg) FROM ts_v_stale ORDER BY 1;
+`;
+
+/**
+ * Raport `generate:ts-sql-contract --guest-gaps`: zwykły SQL (nie pgTAP) do
+ * uruchomienia na bazie JEDNORAZOWEJ po migracjach - te same tabele, sondy
+ * i widoki naruszeń co pgTAP bramki, a wynik to klucze (plik, funkcja,
+ * relacja), które jako gość (`anon`) padają, z liczbą naruszeń i pierwszym
+ * z nich. Kolumna `key` to klucz `GUEST_LOGIN_ONLY_REVIEWED`, a `entry` -
+ * szkielet wpisu z liczbą faktów i kształtem (dowód - fragment warunku
+ * bramki sesji w pliku klucza - dopisuje przegląd); wpis dostaje WYŁĄCZNIE miejsce tylko po zalogowaniu.
+ * Klucz bez szkieletu (fakt wykonywany na serwerze, plik spoza `public`) to
+ * defekt do naprawy w kodzie albo w grantach - wpis by go nie zdjął.
+ */
+export function renderGuestGaps(facts: SeamFacts, enforcement: ContractEnforcement): string {
+  const gate = observedGate(facts, enforcement);
+  const candidates = [...guestLoginOnlyCandidates(facts)]
+    .filter(
+      ([key]) =>
+        (enforcement.reach.get(key.slice(0, key.indexOf(": ")))?.cls ?? "none") === "public",
+    )
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, { count, shape }]) => [sqlString(key), String(count), sqlString(shape)].join(", "));
+  return `-- ============================================================================
+-- WYGENEROWANE - \`bun run generate:ts-sql-contract --guest-gaps\`. Zwykly SQL, nie
+-- pgTAP: klucze (plik wywolania, funkcja, relacja), ktorych fakty klienta
+-- przegladarki padaja jako gosc (anon) - te same wiersze, sondy i widoki co
+-- asercje 17-19 pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach
+-- (sondy RPC wykonuja ciala funkcji; calosc w ROLLBACK).
+${gate.header}-- ============================================================================
+BEGIN;
+${RPC_MATCH_SQL}
+${gate.setup}
+-- Klucze, ktore wpis GUEST_LOGIN_ONLY_REVIEWED moze zdjac (plik public, klient
+-- wykonywany wylacznie w przegladarce): liczba faktow i ksztalt.
+CREATE TEMP TABLE ts_guest_key (key text, n int, shape text) ON COMMIT DROP;
+${valuesBlock("ts_guest_key", "key, n, shape", candidates)}
+SELECT v.site || ': ' || v.func || ': ' || v.call AS key, v.site, v.func, v.call,
+       count(*) AS violations, min(v.msg) AS first_violation,
+       coalesce(format('[%s, %s, "\`<fragment warunku bramki>\` - <powód>"]', k.n, to_json(k.shape)),
+                'brak - fakt wykonywany na serwerze albo plik spoza public: napraw kod albo grant')
+         AS entry
+  FROM (
+    SELECT site, func, call, msg FROM ts_v_fact WHERE guest
+    UNION ALL
+    SELECT site, func, call, msg FROM ts_v_filter_denied WHERE guest
+    UNION ALL
+    SELECT site, func, call, msg FROM ts_v_embed_denied WHERE guest
+    UNION ALL
+    SELECT site, func, call, msg FROM ts_v_probe WHERE guest
+  ) v
+  LEFT JOIN ts_guest_key k ON k.key = v.site || ': ' || v.func || ': ' || v.call
+ GROUP BY v.site, v.func, v.call, k.n, k.shape
+ ORDER BY v.site, v.func, v.call;
+ROLLBACK;
+`;
+}
+
+// ── Render pełnej miary (narzędzie przeglądu) ───────────────────────────────
 
 /**
  * Zapytania miary (`generate:ts-sql-contract --measure`): zwykły SQL, nie
- * pgTAP - NIE trafia do `supabase/tests` ani do CI. Na bazie po wszystkich
+ * pgTAP - narzędzie przeglądu (te same fakty sprawdza pgTAP bramki w asercjach
+ * 10-20, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
+ * Na bazie po wszystkich
  * migracjach zwraca listę naruszeń (rodzaj, plik, funkcja, relacja, kolumna,
  * rola zmierzona i rola bramki, problem, droga ustalenia roli) dla:
  *   * RPC i faktów tabel z rolą zmierzoną (także `anon`),
@@ -5639,15 +8911,18 @@ ROLLBACK;
  * zapytanie łańcucha (`observed.statements`) i każda kolumna filtra idą
  * w podtransakcji JAKO rola zmierzona z wiarygodnymi roszczeniami JWT
  * (administrator z seeda, nagłówek hosta najemcy): odczyt
- * `SELECT kolumny FROM rel WHERE filtr IS NULL LIMIT 0`, zapis jako `EXPLAIN`
- * tej samej instrukcji (ładunek `DEFAULT`, WHERE, RETURNING, `ON CONFLICT`)
- * - planowanie sprawdza uprawnienia każdej relacji po rozwinięciu widoków
- * i polityk, a nic nie jest zapisywane. RPC funkcji `SECURITY INVOKER`
- * wołane przez `anon`/`authenticated` (z EXECUTE) - wywołanie z NULL-ami
- * w podtransakcji. Każda sonda kończy się wycofaniem podtransakcji (wyjątek
- * wartownika), a całość - `ROLLBACK`. Naruszenie to wyłącznie 42501
- * „permission denied for …"; 42501 z własnym komunikatem (autoryzacja
- * funkcji) i inne błędy (walidacja wejścia) liczy podsumowanie sond.
+ * `SELECT kolumny FROM rel WHERE (filtr IS NULL) OR true LIMIT 1` (kolumny
+ * widoku i funkcje wiersza liczone dla jednego wiersza, gdy relacja ma
+ * dane), zapis jako `EXPLAIN` tej samej instrukcji (ładunek `DEFAULT`,
+ * WHERE, RETURNING, `ON CONFLICT`) - planowanie sprawdza uprawnienia każdej
+ * relacji po rozwinięciu widoków i polityk, a nic nie jest zapisywane. RPC
+ * funkcji `SECURITY INVOKER` wołane przez `anon`/`authenticated` (z EXECUTE)
+ * - wywołanie z NULL-ami i z argumentami syntetycznymi w podtransakcji. Każda
+ * sonda kończy się wycofaniem podtransakcji (wyjątek wartownika), a całość -
+ * `ROLLBACK`; limit czasu instrukcji obejmuje partię sond (`probeSql`).
+ * Naruszenie to wyłącznie 42501 „permission denied for …"; 42501 z własnym
+ * komunikatem (autoryzacja funkcji), inne błędy (walidacja wejścia) i limit
+ * czasu liczy podsumowanie sond.
  */
 /** Opis drogi roli w wierszu gościa (klient przeglądarki bez sesji). */
 export const GUEST_VIA = "gość bez sesji: klient przeglądarki z kluczem publicznym";
@@ -5667,7 +8942,7 @@ export function withGuestRows<
 }
 
 /**
- * Osiągalność pliku wywołania dla gościa (`scripts/lib/guestReach.ts`):
+ * Osiągalność pliku wywołania dla gościa (`src/lib/ci/guestReach.ts`):
  * klasa wejścia (`public`, `session-gate`, `admin`, `none`), URL wejścia
  * i najkrótsza ścieżka importów - kolumna `reach` naruszeń miary.
  */
@@ -5675,6 +8950,12 @@ export interface SiteReach {
   readonly cls: string;
   readonly entry: string | null;
   readonly path: readonly string[];
+  /**
+   * Plik trasy z własną bramką w drzewie komponentu (`guestReach.ts`): klasa
+   * obejmuje wyłącznie te zakresy kodu; fakt poza nimi (komponent obok
+   * `<AuthGate>`, hook przed bramką) jest `public`.
+   */
+  readonly gated?: readonly (readonly [number, number])[];
 }
 
 export function renderObservedQueries(
@@ -5756,6 +9037,17 @@ export function renderObservedQueries(
       sqlString(e.fn),
     ].join(", "),
   );
+  const rpcColumnRows = o.rpcColumns.map((c) =>
+    [
+      sqlString(c.name),
+      sqlTextArray(c.keys),
+      sqlString(c.column),
+      sqlString(c.method),
+      sqlString(c.file),
+      sqlString(c.site),
+      sqlString(c.fn),
+    ].join(", "),
+  );
   const sites = [
     ...new Set(
       [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements].map((x) => x.site),
@@ -5810,6 +9102,7 @@ CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op te
 CREATE TEMP TABLE obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_reach (site text PRIMARY KEY, cls text, entry text, path text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
 ${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
@@ -5817,7 +9110,9 @@ ${valuesBlock("obs_filter", "rel, col, embed, method, op, role, enforced, via, f
 ${valuesBlock("obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
 ${valuesBlock("obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, via, file, site, func", embedRows)}
 ${valuesBlock("obs_reach", "site, cls, entry, path", reachRows)}
+${valuesBlock("obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
 ${RPC_MATCH_SQL}
+${RESULT_COLUMNS_SQL}
 ${EMBED_SQL}
 -- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
 CREATE TEMP VIEW obs_filter_cols AS
@@ -5913,7 +9208,11 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                       WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (f.role IN ${roles}
-          AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT'))
+          AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute a
+                                 WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                                   AND a.attnum > 0 AND NOT a.attisdropped)
+                   THEN NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT')
+                   ELSE false END)
   UNION ALL
   SELECT 'embed-column', m.site, m.func, c.relname::text, col.col, m.role, m.enforced,
          CASE WHEN NOT EXISTS (SELECT 1 FROM pg_attribute a
@@ -5938,6 +9237,9 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (m.role IN ${roles}
           AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))
+  UNION ALL
+  SELECT 'rpc-result-column', r.site, r.func, NULL, NULL, NULL, NULL, r.msg, '-'
+    FROM (${rpcResultMissingSql("obs_rpc_col")}) r
 ) v;
 ${PROBE_SQL}
 SELECT p.kind, coalesce(p.outcome, 'nie uruchomiona') AS outcome, count(*) AS probes
@@ -5967,6 +9269,566 @@ ROLLBACK;
 }
 
 /**
+ * Kolumny wyniku funkcji (filtry, sortowanie i `select` łańcucha `.rpc(...)`):
+ * nazwy parametrów TABLE/OUT/INOUT, a bez nich atrybuty zwracanego typu
+ * złożonego (`SETOF tabela`); `NULL` - wynik bez kolumn (skalar, json).
+ */
+/**
+ * Domknięcie funkcji SECURITY INVOKER (asercja 20): ciało, funkcje `public`
+ * wołane z ciała (nazwa przed `(` w `prosrc` albo ciele SQL standardowym -
+ * nadzbiór: każde przeciążenie), rekurencyjnie przez funkcje INVOKER (definer
+ * działa jako właściciel - liczy się tylko jego nagłówek), do głębokości 6.
+ * Funkcje spoza `public` (`auth.uid()`, `extensions.unaccent`) należą do
+ * platformy, nie do migracji - lokalny harness ma ich zaślepki, więc ich ciała
+ * zmieniałyby odcisk między bazą lokalną a CI. `ts_closure_md5` - odcisk domknięcia (nazwa z typami,
+ * `prosecdef`, `proconfig`, md5 ciała), stały między bazami (`search_path`
+ * pusty w funkcji: nazwy zawsze ze schematem). `ts_closure_blockers` - powody,
+ * dla których rola wykonująca ciało może dostać 42501, a sonda tego nie
+ * zobaczy: relacja (słowo równe nazwie relacji `public`, `schemat.relacja`)
+ * bez PEŁNEGO SELECT roli (granty kolumnowe - przegląd), sekwencja bez USAGE,
+ * zapis (`INSERT INTO`, `UPDATE`, `DELETE FROM`) bez uprawnienia tabeli,
+ * funkcja wołana bez EXECUTE roli, dynamiczny SQL (`EXECUTE` w PL/pgSQL). Skan słów jest nadzbiorem (słowo
+ * w komentarzu też blokuje) - fałszywa blokada to wpis z powodem, nie luka.
+ */
+const INVOKER_CLOSURE_SQL = `-- Domkniecie funkcji SECURITY INVOKER (asercja 20).
+CREATE FUNCTION pg_temp.ts_fn_body(p_oid oid) RETURNS text LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN (
+  SELECT coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid), '') FROM pg_proc p WHERE p.oid = p_oid);
+END
+$f$;
+
+-- Cialo bez komentarzy i literalow napisowych, malymi literami: nazwa relacji
+-- w komentarzu albo w napisie nie jest odczytem.
+CREATE FUNCTION pg_temp.ts_fn_clean(p_oid oid) RETURNS text LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN (
+  SELECT lower(regexp_replace(pg_temp.ts_fn_body(p_oid),
+                              '--[^\\n]*|/\\*([^*]|\\*+[^*/])*\\*+/|''([^'']|'''')*''', ' ', 'g')));
+END
+$f$;
+
+-- Wywolania w ciele: nazwa i liczba argumentow (przecinki na glebokosci
+-- nawiasu wywolania; nawiasy i [] zagniezdzone pomijane).
+CREATE FUNCTION pg_temp.ts_calls(p_oid oid) RETURNS TABLE(name text, nargs int) LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+DECLARE
+  c text[] := regexp_split_to_array(pg_temp.ts_fn_clean(p_oid), '');
+  n int := coalesce(array_length(c, 1), 0);
+  i int := 1;
+  j int;
+  k int;
+  ch text;
+  ident text := NULL;
+  fr text[] := '{}';
+  cnt int[] := '{}';
+  ne boolean[] := '{}';
+BEGIN
+  WHILE i <= n LOOP
+    ch := c[i];
+    k := coalesce(array_length(fr, 1), 0);
+    IF ch ~ '[a-z_]' THEN
+      j := i;
+      WHILE j < n AND c[j + 1] ~ '[a-z0-9_$]' LOOP j := j + 1; END LOOP;
+      ident := array_to_string(c[i:j], '');
+      IF k > 0 THEN ne[k] := true; END IF;
+      i := j + 1;
+      CONTINUE;
+    ELSIF ch = '(' OR ch = '[' THEN
+      IF k > 0 THEN ne[k] := true; END IF;
+      fr := fr || CASE WHEN ch = '(' THEN coalesce(ident, '') ELSE '' END;
+      cnt := cnt || 0;
+      ne := ne || false;
+      ident := NULL;
+    ELSIF ch = ')' OR ch = ']' THEN
+      IF k > 0 THEN
+        IF fr[k] <> '' THEN
+          name := fr[k];
+          nargs := CASE WHEN ne[k] THEN cnt[k] + 1 ELSE 0 END;
+          RETURN NEXT;
+        END IF;
+        fr := fr[1:k - 1];
+        cnt := cnt[1:k - 1];
+        ne := ne[1:k - 1];
+      END IF;
+      ident := NULL;
+    ELSIF ch = ',' THEN
+      IF k > 0 THEN cnt[k] := cnt[k] + 1; ne[k] := true; END IF;
+      ident := NULL;
+    ELSIF ch !~ '\\s' THEN
+      IF k > 0 THEN ne[k] := true; END IF;
+      ident := NULL;
+    END IF;
+    i := i + 1;
+  END LOOP;
+END
+$f$;
+
+-- Funkcje public wolane z ciala: przeciazenie o tej nazwie, ktore przyjmuje
+-- tyle argumentow (domyslne, VARIADIC); zadne nie pasuje - wszystkie o tej nazwie.
+CREATE FUNCTION pg_temp.ts_callees_scan(p_oid oid) RETURNS SETOF oid LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  WITH k AS (SELECT DISTINCT name, nargs FROM pg_temp.ts_calls(p_oid)),
+  c AS (SELECT k.name, k.nargs, q.oid,
+               (k.nargs BETWEEN q.pronargs - q.pronargdefaults AND q.pronargs
+                OR (q.provariadic <> 0 AND k.nargs >= q.pronargs - 1)) AS fits
+          FROM k JOIN pg_proc q ON q.proname = k.name AND q.pronamespace = 'public'::regnamespace)
+  SELECT DISTINCT c.oid FROM c
+   WHERE c.fits OR NOT EXISTS (SELECT 1 FROM c x WHERE x.name = c.name AND x.nargs = c.nargs AND x.fits);
+END
+$f$;
+
+-- Pamiec podreczna analizy ciala (wywolania, dostep) i domkniecia - funkcje
+-- wspolne dla wielu korzeni i wyzwalaczy licza sie raz na przebieg.
+CREATE TEMP TABLE ts_memo_fn (fn oid PRIMARY KEY) ON COMMIT DROP;
+CREATE TEMP TABLE ts_memo_callee (fn oid, callee oid) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_callee (fn);
+CREATE TEMP TABLE ts_memo_access (fn oid, rel oid, op text, col text, star boolean) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_access (fn);
+CREATE TEMP TABLE ts_memo_root (root oid PRIMARY KEY) ON COMMIT DROP;
+CREATE TEMP TABLE ts_memo_closure (root oid, oid oid, depth int) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_closure (root);
+
+CREATE FUNCTION pg_temp.ts_fn_memo(p_oid oid) RETURNS void LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_temp.ts_memo_fn WHERE fn = p_oid) THEN
+    INSERT INTO pg_temp.ts_memo_callee SELECT p_oid, x FROM pg_temp.ts_callees_scan(p_oid) x;
+    INSERT INTO pg_temp.ts_memo_access SELECT p_oid, a.rel, a.op, a.col, a.star FROM pg_temp.ts_fn_access_scan(p_oid) a;
+    INSERT INTO pg_temp.ts_memo_fn VALUES (p_oid);
+  END IF;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_callees(p_oid oid) RETURNS SETOF oid LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  PERFORM pg_temp.ts_fn_memo(p_oid);
+  RETURN QUERY SELECT m.callee FROM pg_temp.ts_memo_callee m WHERE m.fn = p_oid;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_fn_access(p_oid oid) RETURNS TABLE(rel oid, op text, col text, star boolean) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  PERFORM pg_temp.ts_fn_memo(p_oid);
+  RETURN QUERY SELECT m.rel, m.op, m.col, m.star FROM pg_temp.ts_memo_access m WHERE m.fn = p_oid;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_closure(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_temp.ts_memo_root WHERE root = p_root) THEN
+    INSERT INTO pg_temp.ts_memo_closure SELECT p_root, c.oid, c.depth FROM pg_temp.ts_closure_scan(p_root) c;
+    INSERT INTO pg_temp.ts_memo_root VALUES (p_root);
+  END IF;
+  RETURN QUERY SELECT m.oid, m.depth FROM pg_temp.ts_memo_closure m WHERE m.root = p_root;
+END
+$f$;
+
+-- Domkniecie: korzen i funkcje wolane rekurencyjnie przez SECURITY INVOKER
+-- (funkcja SECURITY DEFINER to lisc - jej cialo dziala jako wlasciciel).
+CREATE FUNCTION pg_temp.ts_closure_scan(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  WITH RECURSIVE c(oid, depth) AS (
+    SELECT p_root, 0
+    UNION
+    SELECT q.oid, c.depth + 1
+      FROM c
+      JOIN pg_proc p ON p.oid = c.oid
+      CROSS JOIN LATERAL pg_temp.ts_callees(p.oid) q(oid)
+     WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid
+       AND p.prolang IN (SELECT l.oid FROM pg_language l WHERE l.lanname IN ('sql', 'plpgsql'))
+  )
+  SELECT c.oid, min(c.depth)::int FROM c GROUP BY c.oid;
+END
+$f$;
+
+-- Odcisk domkniecia: sygnatura, konfiguracja i cialo kazdej funkcji
+-- wykonywanej jako wywolujacy (korzen i wolane SECURITY INVOKER); funkcja
+-- SECURITY DEFINER wolana z ciala - poza odciskiem (jej EXECUTE sprawdza
+-- ts_closure_blockers, a nowe przeciazenie nie zmienia tego, co sie wykonuje).
+CREATE FUNCTION pg_temp.ts_closure_md5(p_root oid) RETURNS text LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN (
+  SELECT md5(string_agg(format('%s|%s|%s|%s', p.oid::regprocedure, p.prosecdef,
+                               coalesce(array_to_string(p.proconfig, ','), ''), md5(pg_temp.ts_fn_body(p.oid))),
+                        E'\\n' ORDER BY p.oid::regprocedure::text))
+    FROM pg_temp.ts_closure(p_root) c JOIN pg_proc p ON p.oid = c.oid
+   WHERE c.depth = 0 OR NOT p.prosecdef);
+END
+$f$;
+
+-- Kolumny (attnum; 0 - relacja) relacji czytanych JAKO WYWOLUJACY przez widok
+-- security_invoker (start): reguly widoku i rekurencyjnie zagniezdzonych widokow
+-- security_invoker (pg_depend reguly - te kolumny sprawdza Postgres przy kazdym
+-- odczycie widoku, takze bez wierszy); via - widok, ktorego regula czyta.
+CREATE TEMP TABLE ts_view_ref ON COMMIT DROP AS
+WITH RECURSIVE iv AS (
+  SELECT k.oid FROM pg_class k CROSS JOIN LATERAL unnest(k.reloptions) o
+   WHERE k.relkind = 'v'
+     AND lower(o) IN ('security_invoker=true', 'security_invoker=on', 'security_invoker=1', 'security_invoker=yes')
+), v(start, rel) AS (
+  SELECT oid, oid FROM iv
+  UNION
+  SELECT v.start, d.refobjid
+    FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
+   WHERE d.refobjid IN (SELECT oid FROM iv)
+)
+SELECT DISTINCT v.start, v.rel AS via, d.refobjid AS rel, d.refobjsubid AS attnum
+  FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+  JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                  AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
+  JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('r', 'p', 'f', 'v', 'm');
+
+CREATE FUNCTION pg_temp.ts_view_refs(p_rel oid) RETURNS TABLE(via oid, rel oid, attnum int) LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY SELECT r.via, r.rel, r.attnum FROM pg_temp.ts_view_ref r WHERE r.start = p_rel;
+END
+$f$;
+
+-- Funkcje public SECURITY INVOKER wykonywane jako rola przy dostepie do relacji
+-- (rel): funkcje widoku i widokow zagniezdzonych (view; liczone dla kazdego
+-- wiersza jako wywolujacy, takze w widoku definera), polityki RLS (policy,
+-- role polityki), DEFAULT (default; generated - kolumna generowana, takze
+-- UPDATE), CHECK (check) i ograniczenia domen kolumn (domain).
+CREATE TEMP TABLE ts_rel_fn ON COMMIT DROP AS
+WITH RECURSIVE vs(start, rel) AS (
+  SELECT k.oid, k.oid FROM pg_class k WHERE k.relkind IN ('v', 'm')
+  UNION
+  SELECT vs.start, d.refobjid
+    FROM vs JOIN pg_rewrite rw ON rw.ev_class = vs.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> vs.rel
+    JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('v', 'm')
+), f(rel, kind, roles, oid, via) AS (
+  SELECT vs.start, 'view', NULL::oid[], d.refobjid, 'widok ' || vs.rel::regclass::text
+    FROM vs JOIN pg_rewrite rw ON rw.ev_class = vs.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT pol.polrelid, 'policy', pol.polroles, d.refobjid, 'polityka ' || pol.polname || ' na ' || pol.polrelid::regclass::text
+    FROM pg_policy pol
+    JOIN pg_depend d ON d.classid = 'pg_policy'::regclass AND d.objid = pol.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT ad.adrelid, CASE WHEN att.attgenerated <> '' THEN 'generated' ELSE 'default' END, NULL::oid[], d.refobjid,
+         'DEFAULT ' || ad.adrelid::regclass::text || '.' || quote_ident(att.attname)
+    FROM pg_attrdef ad
+    JOIN pg_attribute att ON att.attrelid = ad.adrelid AND att.attnum = ad.adnum AND NOT att.attisdropped
+    JOIN pg_depend d ON d.classid = 'pg_attrdef'::regclass AND d.objid = ad.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT con.conrelid, 'check', NULL::oid[], d.refobjid, 'CHECK ' || con.conname || ' na ' || con.conrelid::regclass::text
+    FROM pg_constraint con
+    JOIN pg_depend d ON d.classid = 'pg_constraint'::regclass AND d.objid = con.oid AND d.refclassid = 'pg_proc'::regclass
+   WHERE con.contype = 'c' AND con.conrelid <> 0
+  UNION
+  SELECT att.attrelid, 'domain', NULL::oid[], d.refobjid,
+         'domena ' || t.oid::regtype::text || ' (' || att.attrelid::regclass::text || '.' || quote_ident(att.attname) || ')'
+    FROM pg_attribute att
+    JOIN pg_class k ON k.oid = att.attrelid AND k.relkind IN ('r', 'p', 'f')
+    JOIN pg_type t ON t.oid = att.atttypid AND t.typtype = 'd'
+    JOIN pg_constraint con ON con.contypid = t.oid
+    JOIN pg_depend d ON d.classid = 'pg_constraint'::regclass AND d.objid = con.oid AND d.refclassid = 'pg_proc'::regclass
+   WHERE att.attnum > 0 AND NOT att.attisdropped
+)
+SELECT DISTINCT f.rel, f.kind, f.roles, f.oid, f.via
+  FROM f JOIN pg_proc p ON p.oid = f.oid AND NOT p.prosecdef
+  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public';
+
+-- Dostep ciala do relacji (instrukcja po instrukcji): odczyt relacji (kolumna
+-- NULL - dowolna kolumna), kolumny kwalifikowane aliasem albo nazwa relacji,
+-- kolumny bez kwalifikatora (relacja instrukcji z ta kolumna; kilka - te bez
+-- aliasu), * i alias.*; zapis INSERT (lista kolumn), UPDATE (lewe strony SET,
+-- takze ON CONFLICT DO UPDATE), DELETE (cala relacja). Cel zapisu i lewa
+-- strona SET nie sa odczytem; argument plpgsql nie jest kolumna.
+CREATE FUNCTION pg_temp.ts_fn_access_scan(p_oid oid) RETURNS TABLE(rel oid, op text, col text, star boolean)
+LANGUAGE plpgsql STABLE SET search_path = pg_catalog AS $f$
+DECLARE
+  v_args text[];
+  v_kw text[] := '{where,join,inner,left,right,full,outer,cross,natural,on,using,set,group,order,limit,offset,union,except,intersect,returning,values,select,from,lateral,window,having,for,into,default,and,or,not,then,else,end,loop,when,as,with,do,is,in,tablesample,only,fetch,if,case,between,like,ilike,similar,asc,desc,nulls,by,all,any,some,exists,update,insert,delete,conflict,nothing,strict,perform,return,raise,exception,elsif,while,foreach,exit,continue,begin,declare,execute,open,close,get,"null",true,false}';
+  v_ident constant text := '[a-z_][a-z0-9_$]*';
+  s text;
+  v_read text;
+  m text[];
+BEGIN
+  SELECT CASE WHEN l.lanname = 'plpgsql' THEN coalesce(p.proargnames, '{}') ELSE '{}' END
+    INTO v_args FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang WHERE p.oid = p_oid;
+  -- Sekwencje z literalu nextval/currval/setval (literal zdejmuje ts_fn_clean).
+  RETURN QUERY
+  SELECT DISTINCT k.oid, 'select', NULL::text, false
+    FROM regexp_matches(lower(pg_temp.ts_fn_body(p_oid)),
+                        '\\m(?:nextval|currval|setval)\\s*\\(\\s*''(?:public\\.)?([a-z_][a-z0-9_$]*)''', 'g') x
+    JOIN pg_class k ON k.relname = x[1] AND k.relnamespace = 'public'::regnamespace AND k.relkind = 'S';
+  FOR s IN SELECT t FROM regexp_split_to_table(pg_temp.ts_fn_clean(p_oid), ';') t WHERE t ~ '[a-z]' LOOP
+    -- Tekst odczytu: bez celow zapisu (INSERT INTO t (kolumny), UPDATE t, DELETE FROM t)
+    -- i bez lewych stron SET (kolumna przypisana nie jest czytana).
+    v_read := s;
+    m := regexp_match(v_read, '^(.*?\\mset\\M)(.*?)(\\m(?:where|from|returning)\\M.*)?$');
+    IF m IS NOT NULL AND v_read ~ '\\mupdate\\M' THEN
+      v_read := m[1] || regexp_replace(m[2], '(^|,)(\\s*)[a-z_][a-z0-9_$]*(\\s*=)(?![=>])', '\\1\\2\\3', 'g') || coalesce(m[3], '');
+    END IF;
+    v_read := regexp_replace(v_read,
+      '\\minsert\\s+into\\s+(?:only\\s+)?(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?[a-z_][a-z0-9_$]*(?:\\s+as\\s+[a-z_][a-z0-9_$]*)?\\s*(?:\\([^()]*\\))?', ' ', 'g');
+    v_read := regexp_replace(v_read,
+      '\\m(?:delete\\s+from|update)\\s+(?:only\\s+)?(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?[a-z_][a-z0-9_$]*', ' ', 'g');
+    RETURN QUERY
+    WITH tok AS (
+      SELECT x[1] AS a, x[2] AS b, coalesce(x[3], '') AS nx, src
+        FROM (VALUES ('all', s), ('read', v_read)) z(src, txt)
+        CROSS JOIN LATERAL regexp_matches(z.txt, '([a-z_][a-z0-9_$]*)(?:\\s*\\.\\s*([a-z_][a-z0-9_$]*|\\*))?(\\s*\\(|\\s*:=)?', 'g') x
+    ), relt AS (
+      SELECT DISTINCT t.src, k.oid
+        FROM tok t
+        JOIN pg_class k ON k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+                       AND ((t.b IS NULL AND k.relname = t.a AND k.relnamespace = 'public'::regnamespace)
+                            OR (t.a = 'public' AND k.relname = t.b AND k.relnamespace = 'public'::regnamespace)
+                            OR (t.a NOT IN ('public', 'pg_catalog', 'information_schema') AND k.relname = t.b
+                                AND k.relnamespace = (SELECT n.oid FROM pg_namespace n WHERE n.nspname = t.a)))
+       WHERE t.nx NOT LIKE '%('
+    ), rels AS (
+      SELECT DISTINCT r.oid, k.relname::text AS relname FROM relt r JOIN pg_class k ON k.oid = r.oid
+    ), occ AS (
+      -- Wystapienia relacji: alias (slowo po nazwie, nie slowo kluczowe) albo bez aliasu.
+      SELECT r.oid, nullif(regexp_replace(btrim(o[1]), '^as\\s+', ''), '') AS alias
+        FROM rels r
+        CROSS JOIN LATERAL regexp_matches(s,
+          '(?:^|[^a-z0-9_$.])(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?' || regexp_replace(r.relname, '([$])', '\\\\\\1', 'g')
+          || '(?![a-z0-9_$]|\\s*[.(])(\\s+(?:as\\s+)?[a-z_][a-z0-9_$]*)?', 'g') o
+    ), al AS (
+      SELECT DISTINCT oid, alias FROM occ WHERE alias IS NOT NULL AND alias <> ALL (v_kw)
+      UNION
+      SELECT oid, relname FROM rels
+    ), bare AS (
+      SELECT DISTINCT oid FROM occ WHERE alias IS NULL OR alias = ANY (v_kw)
+    ), cols AS (
+      SELECT r.oid, a.attname::text AS col
+        FROM rels r JOIN pg_attribute a ON a.attrelid = r.oid AND a.attnum > 0 AND NOT a.attisdropped
+    ), q AS (
+      -- Kolumny kwalifikowane aliasem albo nazwa relacji (alias.* - wszystkie).
+      SELECT DISTINCT al.oid, CASE WHEN t.b = '*' THEN NULL ELSE t.b END AS col, t.b = '*' AS star
+        FROM tok t JOIN al ON al.alias = t.a
+       WHERE t.src = 'read' AND t.b IS NOT NULL AND t.nx NOT LIKE '%('
+         AND (t.b = '*' OR EXISTS (SELECT 1 FROM cols c WHERE c.oid = al.oid AND c.col = t.b))
+    ), u AS (
+      -- Kolumny bez kwalifikatora: relacja instrukcji z ta kolumna; kilka - te bez
+      -- aliasu (wszystkie, gdy kazda ma alias).
+      SELECT DISTINCT c.oid, c.col
+        FROM (SELECT DISTINCT a FROM tok WHERE src = 'read' AND b IS NULL AND nx = '' AND a <> ALL (v_args)) t
+        JOIN cols c ON c.col = t.a
+       WHERE (SELECT count(*) FROM cols x WHERE x.col = t.a) = 1
+          OR c.oid IN (SELECT oid FROM bare)
+          OR NOT EXISTS (SELECT 1 FROM cols x WHERE x.col = t.a AND x.oid IN (SELECT oid FROM bare))
+    )
+    SELECT r.oid, 'select', NULL::text, false FROM relt r WHERE r.src = 'read'
+    UNION
+    SELECT q.oid, 'select', q.col, q.star FROM q
+    UNION
+    SELECT u.oid, 'select', u.col, false FROM u
+    UNION
+    SELECT r.oid, 'select', NULL::text, true FROM relt r
+     WHERE r.src = 'read' AND s ~ '\\mselect\\s+(?:distinct\\s+)?\\*';
+    -- Zapisy: INSERT INTO t [(kolumny)], ON CONFLICT DO UPDATE SET, UPDATE t SET, DELETE FROM t.
+    RETURN QUERY
+    WITH w AS (
+      SELECT 'insert' AS op, x[1] AS nsp, x[2] AS rel, x[3] AS list
+        FROM regexp_matches(s, '\\minsert\\s+into\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)(?:\\s+as\\s+[a-z_][a-z0-9_$]*)?\\s*(?:\\(([^()]*)\\))?', 'g') x
+      UNION ALL
+      SELECT 'delete', x[1], x[2], NULL
+        FROM regexp_matches(s, '\\mdelete\\s+from\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') x
+      UNION ALL
+      SELECT 'update', x[1], x[2],
+             (SELECT string_agg(y[1], ',') FROM regexp_matches(coalesce(m[2], ''), '(?:^|,)\\s*([a-z_][a-z0-9_$]*)\\s*=(?![=>])', 'g') y)
+        FROM regexp_matches(s, '\\mupdate\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') x
+       WHERE x[2] <> 'set'
+      UNION ALL
+      SELECT 'update', i[1], i[2],
+             (SELECT string_agg(y[1], ',') FROM regexp_matches(coalesce(m[2], ''), '(?:^|,)\\s*([a-z_][a-z0-9_$]*)\\s*=(?![=>])', 'g') y)
+        FROM regexp_matches(s, '\\minsert\\s+into\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') i
+       WHERE s ~ '\\mdo\\s+update\\s+set\\M'
+    ), wr AS (
+      SELECT w.op, k.oid, w.list
+        FROM w JOIN pg_class k ON k.relname = w.rel AND k.relkind IN ('r', 'p', 'f', 'v')
+                              AND k.relnamespace = coalesce((SELECT n.oid FROM pg_namespace n WHERE n.nspname = w.nsp), 'public'::regnamespace)
+    )
+    SELECT wr.oid, wr.op, NULL::text, false FROM wr WHERE wr.list IS NULL OR btrim(wr.list) = '' OR wr.op = 'delete'
+    UNION
+    SELECT wr.oid, wr.op, btrim(c), false FROM wr CROSS JOIN LATERAL unnest(string_to_array(wr.list, ',')) c
+     WHERE wr.op <> 'delete' AND btrim(c) ~ '^[a-z_][a-z0-9_$]*$';
+  END LOOP;
+END
+$f$;
+
+-- Dostep funkcji domkniecia wykonywanych jako wywolujacy.
+CREATE FUNCTION pg_temp.ts_closure_access(p_root oid) RETURNS TABLE(fn oid, rel oid, op text, col text, star boolean)
+LANGUAGE plpgsql SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT x.oid, a.rel, a.op, a.col, a.star
+    FROM pg_temp.ts_closure(p_root) x
+    JOIN pg_proc p ON p.oid = x.oid
+    JOIN pg_language l ON l.oid = p.prolang AND l.lanname IN ('sql', 'plpgsql')
+    CROSS JOIN LATERAL pg_temp.ts_fn_access(x.oid) a
+   WHERE x.depth = 0 OR NOT p.prosecdef;
+END
+$f$;
+
+-- Blokady domkniecia dla roli: kolumna czytana bez SELECT (takze kolumny
+-- bazowe widoku security_invoker), relacja bez SELECT zadnej kolumny,
+-- kolumna zapisywana bez INSERT/UPDATE, DELETE bez uprawnienia, sekwencja bez
+-- USAGE, dynamiczny SQL, wolana funkcja bez EXECUTE.
+CREATE FUNCTION pg_temp.ts_closure_blockers(p_root oid, p_role text) RETURNS SETOF text LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  WITH a AS (
+    SELECT * FROM pg_temp.ts_closure_access(p_root)
+  ), r AS (
+    SELECT a.fn, a.rel, a.col, a.star, NULL::oid AS via FROM a WHERE a.op = 'select'
+    UNION
+    SELECT a.fn, v.rel, att.attname::text, false, v.via
+      FROM a CROSS JOIN LATERAL pg_temp.ts_view_refs(a.rel) v
+      LEFT JOIN pg_attribute att ON att.attrelid = v.rel AND att.attnum = v.attnum AND v.attnum > 0
+     WHERE a.op = 'select'
+  ), w AS (
+    SELECT a.fn, a.rel, a.col, upper(a.op) AS priv FROM a WHERE a.op IN ('insert', 'update', 'delete')
+  )
+  SELECT format('%s czyta %s bez %s%s', r.fn::regprocedure, r.rel::regclass,
+                CASE k.relkind WHEN 'S' THEN 'USAGE' ELSE 'SELECT' END,
+                CASE WHEN r.via IS NOT NULL THEN ' (widok security_invoker ' || r.via::regclass || ')' ELSE '' END)
+    FROM r JOIN pg_class k ON k.oid = r.rel
+   WHERE r.col IS NULL AND NOT r.star
+     AND CASE k.relkind WHEN 'S' THEN NOT has_sequence_privilege(p_role, r.rel, 'USAGE')
+                        ELSE NOT has_any_column_privilege(p_role, r.rel, 'SELECT') END
+  UNION
+  SELECT format('%s czyta %s.%s bez SELECT%s', r.fn::regprocedure, r.rel::regclass, quote_ident(att.attname),
+                CASE WHEN r.via IS NOT NULL THEN ' (widok security_invoker ' || r.via::regclass || ')' ELSE '' END)
+    FROM r JOIN pg_attribute att ON att.attrelid = r.rel AND att.attname = r.col AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE NOT has_column_privilege(p_role, r.rel, att.attnum, 'SELECT')
+  UNION
+  SELECT format('%s czyta %s.* bez SELECT (%s)', r.fn::regprocedure, r.rel::regclass,
+                string_agg(quote_ident(att.attname), ', ' ORDER BY att.attnum))
+    FROM r JOIN pg_attribute att ON att.attrelid = r.rel AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE r.star AND NOT has_column_privilege(p_role, r.rel, att.attnum, 'SELECT')
+   GROUP BY r.fn, r.rel
+  UNION
+  SELECT format('%s zapisuje %s.%s bez %s', w.fn::regprocedure, w.rel::regclass, quote_ident(att.attname), w.priv)
+    FROM w JOIN pg_attribute att ON att.attrelid = w.rel AND att.attname = w.col AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE NOT has_column_privilege(p_role, w.rel, att.attnum, w.priv)
+  UNION
+  SELECT format('%s zapisuje %s bez %s', w.fn::regprocedure, w.rel::regclass, w.priv)
+    FROM w
+   WHERE w.col IS NULL AND NOT has_table_privilege(p_role, w.rel, w.priv)
+  UNION
+  SELECT format('%s wykonuje dynamiczny SQL (EXECUTE)', x.oid::regprocedure)
+    FROM pg_temp.ts_closure(p_root) x
+    JOIN pg_proc p ON p.oid = x.oid
+    JOIN pg_language l ON l.oid = p.prolang AND l.lanname = 'plpgsql'
+   WHERE (x.depth = 0 OR NOT p.prosecdef)
+     AND pg_temp.ts_fn_clean(x.oid) ~ '\\mexecute\\M(?!\\s+(function|procedure)\\M)'
+  UNION
+  SELECT format('wola %s bez EXECUTE', x.oid::regprocedure)
+    FROM pg_temp.ts_closure(p_root) x
+   WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE');
+END
+$f$;
+
+-- Funkcje wykonywane jako rola p_role przy dostepie p_op do relacji p_rel:
+-- funkcje widokow relacji, polityki RLS roli na relacji i na relacjach bazowych
+-- widoku security_invoker, a przy zapisie DEFAULT (INSERT; generowane takze
+-- UPDATE), CHECK i ograniczenia domen kolumn.
+CREATE FUNCTION pg_temp.ts_access_roots(p_role text, p_rel oid, p_op text) RETURNS TABLE(oid oid, via text)
+LANGUAGE plpgsql SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT f.oid, f.via
+    FROM pg_temp.ts_rel_fn f
+   WHERE CASE f.kind
+           WHEN 'policy' THEN (f.rel = p_rel OR f.rel IN (SELECT r.rel FROM pg_temp.ts_view_ref r WHERE r.start = p_rel))
+                              AND (0 = ANY (f.roles) OR to_regrole(p_role)::oid = ANY (f.roles))
+           WHEN 'view' THEN f.rel = p_rel
+           WHEN 'default' THEN f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore')
+           ELSE f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore', 'update') END;
+END
+$f$;
+
+-- Rozgalezienie na sesji w domknieciu funkcji o tej nazwie (auth.uid(),
+-- auth.role(), auth.jwt(), request.jwt) - takze w wolanej SECURITY DEFINER.
+CREATE FUNCTION pg_temp.ts_session_branch(p_fn text) RETURNS boolean LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM pg_proc q
+     CROSS JOIN LATERAL pg_temp.ts_closure(q.oid) x
+     WHERE q.proname = p_fn AND q.pronamespace = 'public'::regnamespace
+       AND (pg_temp.ts_fn_clean(x.oid) ~ '\\mauth\\s*\\.\\s*(uid|role|jwt)\\s*\\(\\s*\\)'
+            OR pg_temp.ts_fn_body(x.oid) ~* 'request\\.jwt'));
+END
+$f$;
+`;
+
+const RESULT_COLUMNS_SQL = `-- Kolumny wyniku funkcji: TABLE/OUT/INOUT albo atrybuty zwracanego typu zlozonego;
+-- NULL - wynik bez kolumn (skalar, json).
+CREATE FUNCTION pg_temp.ts_result_cols(p_oid oid)
+RETURNS text[] LANGUAGE sql STABLE AS $f$
+  SELECT coalesce(
+    (SELECT array_agg(a.name ORDER BY a.o)
+       FROM pg_proc p
+       CROSS JOIN LATERAL unnest(p.proargnames, p.proargmodes::text[]) WITH ORDINALITY a(name, mode, o)
+      WHERE p.oid = p_oid AND a.mode IN ('o', 'b', 't')),
+    (SELECT array_agg(a.attname::text ORDER BY a.attnum)
+       FROM pg_proc p
+       JOIN pg_type t ON t.oid = p.prorettype
+       JOIN pg_attribute a ON a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped
+      WHERE p.oid = p_oid AND t.typtype = 'c'))
+$f$;
+`;
+
+/**
+ * Naruszenia kolumn wyniku RPC (site, func, msg): kolumna spoza wyniku
+ * przeciążenia, które PostgREST wybierze (klucze nieczytelne - którekolwiek
+ * przeciążenie o tej nazwie), albo wynik bez kolumn. Funkcji bez przeciążenia
+ * nie ma tu - brak funkcji zgłasza asercja 2.
+ */
+function rpcResultMissingSql(source: string): string {
+  return `SELECT c.site, c.func,
+       format('%s: %s: %s(%s).%s (%s, wynik funkcji%s): %s', c.site, c.func, c.fn,
+              coalesce(array_to_string(c.keys, ','), '?'), c.col, c.method,
+              CASE WHEN c.file <> c.site THEN ', literal w ' || c.file ELSE '' END,
+              CASE WHEN r.has_cols THEN 'kolumna wyniku nie istnieje'
+                   ELSE 'wynik bez kolumn (skalar, json) - kolumny nie da sie sprawdzic' END) AS msg
+  FROM ${source} c
+  CROSS JOIN LATERAL (
+    SELECT bool_or(x.cols IS NOT NULL) AS has_cols, bool_or(c.col = ANY (x.cols)) AS found
+      FROM (SELECT pg_temp.ts_rpc_match(c.fn, c.keys) AS oid WHERE c.keys IS NOT NULL
+            UNION ALL
+            SELECT q.oid FROM pg_proc q
+             WHERE c.keys IS NULL AND q.pronamespace = 'public'::regnamespace AND q.proname = c.fn) o
+      CROSS JOIN LATERAL (SELECT pg_temp.ts_result_cols(o.oid) AS cols) x
+     WHERE o.oid IS NOT NULL) r
+ WHERE r.has_cols IS NOT NULL AND NOT coalesce(r.found, false)`;
+}
+
+/**
  * Relacje osadzeń miary, jak rozwiązuje je PostgREST: nazwa relacji z listy
  * `select`, a bez takiej relacji - nazwa klucza obcego albo kolumny z kluczem
  * obcym relacji nadrzędnej. Klucz złączenia to JEDYNY klucz obcy między
@@ -5974,8 +9836,7 @@ ROLLBACK;
  * złączenia). Relacja spoza `public` nie jest wystawiona przez PostgREST -
  * nieczytelna. Zagnieżdżenia rozwiązuje rekurencja od tabeli łańcucha.
  */
-const EMBED_SQL = `-- Relacje osadzen (tabela obs_embed_rel: id, rodzic, relacja, klucz obcy).
-CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)
+const EMBED_FUNCTIONS_SQL = `CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)
 LANGUAGE plpgsql STABLE AS $f$
 DECLARE
   v_fks oid[];
@@ -6021,9 +9882,12 @@ RETURNS text LANGUAGE sql STABLE AS $f$
     JOIN pg_attribute b ON b.attrelid = c.confrelid AND b.attnum = k.dst
    WHERE c.oid = p_fk
 $f$;
+`;
 
-CREATE TEMP TABLE obs_embed_rel ON COMMIT DROP AS
-WITH RECURSIVE e AS (SELECT DISTINCT id, parent_id, tbl, rel, hint FROM obs_embed),
+/** Tabela relacji osadzeń `target` (id, rodzic, relacja, klucz obcy) z faktów osadzeń `source`. */
+function embedRelSql(source: string, target: string): string {
+  return `CREATE TEMP TABLE ${target} ON COMMIT DROP AS
+WITH RECURSIVE e AS (SELECT DISTINCT id, parent_id, tbl, rel, hint FROM ${source}),
 r AS (
   SELECT e.id, to_regclass('public.' || quote_ident(e.tbl))::oid AS parent, x.target, x.fk
     FROM e CROSS JOIN LATERAL pg_temp.ts_embed(to_regclass('public.' || quote_ident(e.tbl)), e.rel, e.hint) x
@@ -6035,19 +9899,47 @@ r AS (
 )
 SELECT id, parent, target, fk FROM r;
 `;
+}
+
+const EMBED_SQL = `-- Relacje osadzen (tabela obs_embed_rel: id, rodzic, relacja, klucz obcy).
+${EMBED_FUNCTIONS_SQL}
+${embedRelSql("obs_embed", "obs_embed_rel")}`;
 
 /**
  * Sondy wykonania miary (opis w `renderObservedQueries`): tabela `obs_probe`
  * z instrukcją każdej sondy, jej wykonanie jako rola zmierzona w podtransakcji
  * kończonej wyjątkiem wartownika i klasyfikacja wyniku.
  */
-const PROBE_SQL = `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
-CREATE TEMP TABLE obs_probe (
-  id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
-  role text, enforced text, via text, sql text, state text, msg text, ctx text, outcome text
-) ON COMMIT DROP;
+/** Nazwy tabel sond wykonania: miara (`obs_*`) albo bramka pgTAP (`ts_obs_*`). */
+interface ProbeSqlNames {
+  readonly probe: string;
+  readonly stmt: string;
+  readonly filterCols: string;
+  readonly rpc: string;
+  readonly embed: string;
+  readonly embedRel: string;
+  /** Kolumna `guest` (wiersz gościa) w tabelach źródłowych i w tabeli sond - bramka. */
+  readonly guest: boolean;
+  /** Funkcje wyłączone z sond RPC (bramka: `RPC_PROBE_EXCLUDED`); `null` - bez listy (miara). */
+  readonly rpcExcluded: readonly string[] | null;
+  /** Przypisanie `v_outcome := CASE ...` klasyfikacji wyniku sondy (PL/pgSQL). */
+  readonly outcome: string;
+}
 
--- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
+/** Klasyfikacja wyniku sondy miary: naruszenie to wyłącznie 42501 „permission denied for …". */
+const MEASURE_PROBE_OUTCOME = `      v_outcome := CASE WHEN v_state = '00000' THEN 'ok'
+                        WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                        WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                        WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'
+                        ELSE 'inny blad ' || v_state END;
+`;
+
+/**
+ * Funkcje pomocnicze sond (lista identyfikatorów, klucz główny, wartość
+ * syntetyczna typu, argumenty RPC z NULL-ami albo syntetyczne) - wspólne dla
+ * miary i bramki, żeby obie budowały TE SAME sondy.
+ */
+const PROBE_HELPERS_SQL = `-- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
 CREATE FUNCTION pg_temp.ts_list(p_items text[], p_fmt text, p_sep text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $f$
   SELECT string_agg(format(p_fmt, x), p_sep ORDER BY o) FROM unnest(p_items) WITH ORDINALITY u(x, o)
@@ -6062,10 +9954,56 @@ RETURNS text[] LANGUAGE sql STABLE AS $f$
    WHERE i.indrelid = to_regclass('public.' || quote_ident(p_rel)) AND i.indisprimary
 $f$;
 
--- Argumenty wywolania RPC z NULL-ami: klucze z kodu (nazwane), a gdy kluczy nie
--- da sie ustalic - kazdy parametr bez DEFAULT; jedyny nienazwany parametr
--- (json PostgREST) - pozycyjnie.
-CREATE FUNCTION pg_temp.ts_rpc_args(p_oid oid, p_keys text[])
+-- Wartosc syntetyczna typu (druga sonda RPC: cialo za straznikiem argumentu
+-- NULL tez sie wykonuje). Stala, bez losowosci: uuid ...0aa, 'x', 1, false,
+-- '{}', 2026-01-01, przedzial pusty, tablica jednego elementu, pierwsza
+-- etykieta enuma, domena - wartosc typu bazowego, typ zlozony - ROW(...);
+-- typ bez reguly (i zagniezdzenie ponad 3) - NULL tego typu.
+CREATE FUNCTION pg_temp.ts_synth(p_type oid, p_depth int DEFAULT 0)
+RETURNS text LANGUAGE plpgsql STABLE AS $f$
+DECLARE
+  t record;
+  v text;
+  v_name text := format_type(p_type, NULL);
+BEGIN
+  SELECT typtype, typcategory, typelem, typbasetype, typrelid INTO t FROM pg_type WHERE oid = p_type;
+  IF NOT FOUND OR p_depth > 3 THEN
+    RETURN format('NULL::%s', v_name);
+  ELSIF t.typtype = 'd' THEN
+    RETURN format('(%s)::%s', pg_temp.ts_synth(t.typbasetype, p_depth + 1), v_name);
+  ELSIF t.typtype = 'e' THEN
+    SELECT format('%L::%s', e.enumlabel, v_name) INTO v
+      FROM pg_enum e WHERE e.enumtypid = p_type ORDER BY e.enumsortorder LIMIT 1;
+  ELSIF t.typtype = 'c' THEN
+    SELECT format('ROW(%s)::%s', string_agg(pg_temp.ts_synth(a.atttypid, p_depth + 1), ', ' ORDER BY a.attnum), v_name)
+      INTO v
+      FROM pg_attribute a WHERE a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped;
+  ELSIF t.typcategory = 'A' AND t.typelem <> 0 THEN
+    RETURN format('ARRAY[%s]::%s', pg_temp.ts_synth(t.typelem, p_depth + 1), v_name);
+  ELSIF t.typtype IN ('r', 'm') THEN
+    v := format('%L::%s', CASE t.typtype WHEN 'r' THEN 'empty' ELSE '{}' END, v_name);
+  ELSE
+    v := CASE
+           WHEN p_type = 'uuid'::regtype THEN '00000000-0000-4000-8000-0000000000aa'
+           WHEN p_type IN ('json'::regtype, 'jsonb'::regtype) THEN '{}'
+           WHEN p_type = 'bool'::regtype THEN 'false'
+           WHEN p_type = 'date'::regtype THEN '2026-01-01'
+           WHEN p_type IN ('timestamp'::regtype, 'timestamptz'::regtype) THEN '2026-01-01 00:00:00+00'
+           WHEN p_type IN ('time'::regtype, 'timetz'::regtype) THEN '00:00:00+00'
+           WHEN p_type = 'interval'::regtype THEN '1 day'
+           WHEN p_type IN ('inet'::regtype, 'cidr'::regtype) THEN '127.0.0.1'
+           WHEN t.typcategory = 'N' THEN '1'
+           WHEN t.typcategory = 'S' THEN 'x'
+         END;
+    IF v IS NOT NULL THEN v := format('%L::%s', v, v_name); END IF;
+  END IF;
+  RETURN coalesce(v, format('NULL::%s', v_name));
+END $f$;
+
+-- Argumenty wywolania RPC z NULL-ami (\`p_synth\` - z wartosciami syntetycznymi):
+-- klucze z kodu (nazwane), a gdy kluczy nie da sie ustalic - kazdy parametr
+-- bez DEFAULT; jedyny nienazwany parametr (json PostgREST) - pozycyjnie.
+CREATE FUNCTION pg_temp.ts_rpc_args(p_oid oid, p_keys text[], p_synth boolean DEFAULT false)
 RETURNS text LANGUAGE plpgsql STABLE AS $f$
 DECLARE
   p pg_proc;
@@ -6086,27 +10024,69 @@ BEGIN
     v_pos := v_pos + 1;
     IF coalesce(v_names[i], '') = '' THEN
       CONTINUE WHEN v_pos > p.pronargs - p.pronargdefaults;
-      v_out := v_out || format('NULL::%s', format_type(v_types[i], NULL));
+      v_out := v_out || CASE WHEN p_synth THEN pg_temp.ts_synth(v_types[i])
+                             ELSE format('NULL::%s', format_type(v_types[i], NULL)) END;
     ELSIF (p_keys IS NOT NULL AND v_names[i] = ANY (p_keys))
        OR (p_keys IS NULL AND v_pos <= p.pronargs - p.pronargdefaults) THEN
-      v_out := v_out || format('%s%I => NULL::%s', CASE WHEN v_modes[i] = 'v' THEN 'VARIADIC ' ELSE '' END,
-                               v_names[i], format_type(v_types[i], NULL));
+      v_out := v_out || format('%s%I => %s', CASE WHEN v_modes[i] = 'v' THEN 'VARIADIC ' ELSE '' END,
+                               v_names[i],
+                               CASE WHEN p_synth THEN pg_temp.ts_synth(v_types[i])
+                                    ELSE format('NULL::%s', format_type(v_types[i], NULL)) END);
     END IF;
   END LOOP;
   RETURN array_to_string(v_out, ', ');
 END $f$;
 
--- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 0, zapis jako EXPLAIN.
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
+`;
+
+/**
+ * Limity czasu sond. Postgres uzbraja `statement_timeout` WYŁĄCZNIE na
+ * początku instrukcji najwyższego poziomu: `set_config('statement_timeout',
+ * ..., true)` wewnątrz bloku DO nie przerywa bieżącej instrukcji (PG16: 200 ms
+ * ustawione w DO, `pg_sleep(1)` doszedł do końca). Dlatego sondy wykonuje
+ * funkcja wołana z kolejnych instrukcji DO (partie): każda instrukcja dostaje
+ * własny limit `PROBE_STATEMENT_TIMEOUT`, a partia sama kończy się po
+ * `PROBE_BATCH_BUDGET`, więc KAŻDA sonda ma co najmniej różnicę obu (8 s).
+ * `lock_timeout` działa w trakcie instrukcji - ustawiany na sondę w jej
+ * podtransakcji (`set_config(..., true)`, cofany razem z nią).
+ */
+const PROBE_STATEMENT_TIMEOUT = "10s";
+const PROBE_BATCH_BUDGET = "2s";
+const PROBE_LOCK_TIMEOUT = "5s";
+/** Partie sond: lokalnie wystarczają 2-3 (~4 s sond), puste wracają od razu. */
+const PROBE_BATCHES = 30;
+
+function probeSql(n: ProbeSqlNames): string {
+  const g = (expr: string): string => (n.guest ? ` ${expr},` : "");
+  const run = `pg_temp.${n.probe}_run`;
+  // 57014 po limicie instrukcji (a nie anulowanie z zewnątrz): od początku
+  // instrukcji minął limit; bez zależności od języka komunikatu.
+  const timedOut = `clock_timestamp() - statement_timestamp() >= interval '${PROBE_STATEMENT_TIMEOUT}' - interval '1 s'`;
+  const batches = Array.from(
+    { length: PROBE_BATCHES },
+    () => `DO $run$ BEGIN PERFORM ${run}(); END $run$;`,
+  ).join("\n");
+  return `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
+CREATE TEMP TABLE ${n.probe} (
+  id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
+  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text,
+  touched bigint
+) ON COMMIT DROP;
+
+${PROBE_HELPERS_SQL}-- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 1 - kolumny widoku i funkcje
+-- wiersza licza sie dla jednego wiersza (jest, gdy relacja ma dane); kolumny
+-- filtrow zostaja w WHERE (uprawnienia sprawdza start wykonania), \`OR true\`
+-- nie odrzuca wiersza. Zapis jako EXPLAIN.
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
 SELECT 'probe-' || s.op, s.site, s.func, s.rel,
        concat_ws(' ', CASE WHEN s.star THEN '*' ELSE array_to_string(s.cols, ',') END,
                  nullif('ladunek(' || array_to_string(s.payload, ',') || ')', 'ladunek()'),
                  nullif('where(' || array_to_string(s.where_cols, ',') || ')', 'where()')),
-       s.role, s.enforced, s.via,
+       s.role, s.enforced, s.via,${g("s.guest")}
        CASE s.op
-         WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 0',
+         WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 1',
            CASE WHEN s.star THEN '*' ELSE coalesce(pg_temp.ts_list(s.cols, '%I', ', '), '') END,
-           s.rel, w.clause)
+           s.rel, ws.clause)
          WHEN 'delete' THEN format('EXPLAIN DELETE FROM public.%I%s%s', s.rel, w.clause, r.clause)
          WHEN 'update' THEN format('EXPLAIN UPDATE public.%I SET %s%s%s', s.rel,
            pg_temp.ts_list(s.payload, '%I = DEFAULT', ', '), w.clause, r.clause)
@@ -6122,8 +10102,9 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
                             pg_temp.ts_list(s.payload, '%1$I = EXCLUDED.%1$I', ', ')) END,
            r.clause)
        END
-  FROM obs_stmt s
+  FROM ${n.stmt} s
   CROSS JOIN LATERAL (SELECT coalesce(' WHERE ' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND '), '') AS clause) w
+  CROSS JOIN LATERAL (SELECT coalesce(' WHERE (' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND ') || ') OR true', '') AS clause) ws
   CROSS JOIN LATERAL (SELECT CASE WHEN s.star THEN ' RETURNING *'
                                   ELSE coalesce(' RETURNING ' || pg_temp.ts_list(s.cols, '%I', ', '), '') END AS clause) r
   CROSS JOIN LATERAL (SELECT pg_temp.ts_list(CASE WHEN s.conflict = ARRAY['${PRIMARY_KEY_COLUMNS}']
@@ -6132,58 +10113,93 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
  WHERE s.role IN ('anon', 'authenticated', 'service_role')
    AND to_regclass('public.' || quote_ident(s.rel)) IS NOT NULL;
 
--- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
-SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,
-       format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)
-  FROM obs_filter_cols f
+-- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc);
+-- LIMIT 1 - kolumna widoku liczona funkcja liczy sie w WHERE.
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
+SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,${g("f.guest")}
+       format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 1', f.rel, f.col)
+  FROM ${n.filterCols} f
  WHERE f.role IN ('anon', 'authenticated', 'service_role') AND f.col IS NOT NULL
    AND to_regclass('public.' || quote_ident(f.rel)) IS NOT NULL;
 
 -- RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated, z EXECUTE
--- (brak EXECUTE zglasza juz sprawdzenie uprawnien).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
-SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
-       r.role, r.enforced, r.via, format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
-  FROM obs_rpc r
-  JOIN pg_proc p ON p.oid IN (
-         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) WHERE r.keys IS NOT NULL
+-- (brak EXECUTE zglasza juz sprawdzenie uprawnien). Dwie sondy: argumenty NULL
+-- (\`probe-rpc\`) i syntetyczne (\`probe-rpc-synth\`, pg_temp.ts_synth) - cialo za
+-- straznikiem \`IF arg IS NULL THEN RETURN\` tez sie wykonuje; funkcja bez
+-- argumentow - jedna sonda.
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
+SELECT DISTINCT a.kind, r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
+       r.role, r.enforced, r.via,${g("r.guest")} format('SELECT public.%I(%s)', p.proname, a.args)
+  FROM ${n.rpc} r
+  -- Przeciazenie liczone RAZ na wiersz (LATERAL): \`p.oid IN (podzapytanie)\`
+  -- liczylo ts_rpc_match dla kazdej pary (wiersz, funkcja z pg_proc) - minuta.
+  CROSS JOIN LATERAL (
+         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
          UNION ALL
          SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
-          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn)
+          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
+  JOIN pg_proc p ON p.oid = o.oid
+  CROSS JOIN LATERAL (
+         SELECT 'probe-rpc' AS kind, pg_temp.ts_rpc_args(p.oid, r.keys) AS args, true AS differs
+         UNION ALL
+         SELECT 'probe-rpc-synth', s.args, s.args <> pg_temp.ts_rpc_args(p.oid, r.keys)
+           FROM (SELECT pg_temp.ts_rpc_args(p.oid, r.keys, true) AS args) s) a
  WHERE r.role IN ('anon', 'authenticated')
    AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
-   AND has_function_privilege(r.role, p.oid, 'EXECUTE');
+   AND has_function_privilege(r.role, p.oid, 'EXECUTE')${n.rpcExcluded === null ? "" : `\n   AND p.proname <> ALL (${sqlTextArray(n.rpcExcluded)})`}
+   AND a.differs;
 
 -- Osadzenia: kolumny relacji osadzonej ZE zlaczeniem po kluczu obcym (SELECT
--- na kolumnach klucza po obu stronach); bez jednoznacznego klucza - sama
--- relacja; relacja nieczytelna - tylko w podsumowaniu.
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql, outcome)
+-- na kolumnach klucza po obu stronach, LIMIT 1 - kolumny widoku dla wiersza);
+-- bez jednoznacznego klucza - sama relacja; relacja nieczytelna - tylko
+-- w podsumowaniu.
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql, outcome)
 SELECT DISTINCT 'probe-embed', m.site, m.func, coalesce(c.relname::text, m.rel),
        m.path || '(' || CASE WHEN m.star THEN '*' ELSE array_to_string(m.cols, ',') END || ')',
-       m.role, m.enforced, m.via,
+       m.role, m.enforced, m.via,${g("m.guest")}
        CASE WHEN x.target IS NULL THEN NULL
-            WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 0', tc.list, c.relname)
-            ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,
+            WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 1', tc.list, c.relname)
+            ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 1', tc.list,
                         pc.relname, c.relname, pg_temp.ts_fk_join(x.fk, x.parent)) END,
        CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END
-  FROM obs_embed m
-  JOIN obs_embed_rel x ON x.id = m.id
+  FROM ${n.embed} m
+  JOIN ${n.embedRel} x ON x.id = m.id
   LEFT JOIN pg_class c ON c.oid = x.target
   LEFT JOIN pg_class pc ON pc.oid = x.parent
   CROSS JOIN LATERAL (SELECT CASE WHEN m.star THEN 't.*'
                                   ELSE coalesce(pg_temp.ts_list(m.cols, 't.%I', ', '), '') END AS list) tc
  WHERE m.role IN ('anon', 'authenticated', 'service_role');
 
-DO $probe$
+-- Wykonanie sond: funkcja wolana z kolejnych instrukcji DO (partie). Limit
+-- instrukcji (${PROBE_STATEMENT_TIMEOUT}) Postgres uzbraja tylko na poczatku instrukcji najwyzszego
+-- poziomu, wiec partia konczy sie sama po ${PROBE_BATCH_BUDGET}, a nastepna DO uzbraja go od
+-- nowa. Sonda przerwana limitem (57014) albo blokada (55P03, lock_timeout
+-- ${PROBE_LOCK_TIMEOUT} w podtransakcji sondy) i sonda bez wyniku po ostatniej partii to
+-- naruszenie z plikiem i funkcja; ASSERT funkcji (P0004) i inne bledy - wynik
+-- sondy, nie przerwanie pliku.
+CREATE FUNCTION ${run}() RETURNS void LANGUAGE plpgsql AS $run$
 DECLARE
-  r record;
+  v_ids int[];
+  v_roles text[];
+  v_sqls text[];
+  v_rpc boolean[];
+  v_rels oid[];
+  v_before bigint;
+  v_touched bigint[] := '{}';
+  v_done int[] := '{}';
+  v_states text[] := '{}';
+  v_msgs text[] := '{}';
+  v_ctxs text[] := '{}';
+  v_outcomes text[] := '{}';
   v_state text;
   v_msg text;
   v_ctx text;
+  v_outcome text;
   v_sub text;
   v_email text;
   v_host text;
+  v_stop boolean := false;
+  i int;
 BEGIN
   -- Wiarygodne roszczenia: administrator z seeda (najdalej w kod funkcji),
   -- inaczej pierwszy uzytkownik; host domyslnego najemcy dla anon.
@@ -6200,32 +10216,109 @@ BEGIN
   IF to_regclass('public.tenants') IS NOT NULL THEN
     EXECUTE $q$SELECT domain FROM public.tenants ORDER BY is_default DESC NULLS LAST, created_at LIMIT 1$q$ INTO v_host;
   END IF;
-  FOR r IN SELECT id, role, sql FROM obs_probe WHERE sql IS NOT NULL ORDER BY id LOOP
+  -- Ta sama instrukcja tej samej roli (inne miejsce wywolania) wykonuje sie
+  -- RAZ - wynik dostaja wszystkie jej wiersze (kazda sonda jest wycofywana,
+  -- wiec stan bazy miedzy sondami sie nie zmienia).
+  SELECT array_agg(g.id ORDER BY g.id), array_agg(g.role ORDER BY g.id), array_agg(g.sql ORDER BY g.id),
+         array_agg(g.rpc ORDER BY g.id)
+    INTO v_ids, v_roles, v_sqls, v_rpc
+    FROM (SELECT min(id) AS id, role, sql, bool_or(kind LIKE 'probe-rpc%') AS rpc FROM ${n.probe}
+           WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;
+  -- Relacje poza katalogiem: liczniki odczytow tej sesji (pg_stat_get_xact_*,
+  -- nietransakcyjne - przezywaja wycofanie sondy) mowia, czy cialo RPC
+  -- przeczytalo cokolwiek; NULL przy track_counts = off.
+  IF current_setting('track_counts')::boolean THEN
+    SELECT array_agg(c.oid ORDER BY c.oid) INTO v_rels
+      FROM pg_class c JOIN pg_namespace s ON s.oid = c.relnamespace
+     WHERE c.relkind IN ('r', 'p', 'm', 'i')
+       AND s.nspname NOT IN ('pg_catalog', 'information_schema') AND s.nspname !~ '^pg_(toast|temp)';
+  END IF;
+  FOR i IN 1 .. coalesce(cardinality(v_ids), 0) LOOP
+    -- Oslona: limit instrukcji trafiajacy MIEDZY sondami nie przerywa pliku -
+    -- sonda zostaje bez wyniku dla nastepnej partii.
     BEGIN
-      PERFORM set_config('request.jwt.claims',
-        CASE WHEN r.role = 'authenticated'
-             THEN json_build_object('sub', v_sub, 'role', r.role, 'aud', 'authenticated', 'email', v_email)
-             ELSE json_build_object('role', r.role) END::text, true);
-      PERFORM set_config('request.jwt.claim.sub', CASE WHEN r.role = 'authenticated' THEN v_sub ELSE '' END, true);
-      PERFORM set_config('request.jwt.claim.role', r.role, true);
-      PERFORM set_config('request.headers', json_build_object('x-tenant-host', v_host)::text, true);
-      PERFORM set_config('role', r.role, true);
-      EXECUTE r.sql;
-      -- Wartownik: wycofuje podtransakcje (zapisy funkcji, role, roszczenia).
-      RAISE SQLSTATE 'PRB00';
-    EXCEPTION
-      WHEN SQLSTATE 'PRB00' THEN
-        v_state := '00000'; v_msg := NULL; v_ctx := NULL;
-      WHEN OTHERS THEN
-        GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+      EXIT WHEN clock_timestamp() - statement_timestamp() > interval '${PROBE_BATCH_BUDGET}';
+      BEGIN
+        PERFORM set_config('lock_timeout', '${PROBE_LOCK_TIMEOUT}', true);
+        PERFORM set_config('request.jwt.claims',
+          CASE WHEN v_roles[i] = 'authenticated'
+               THEN json_build_object('sub', v_sub, 'role', v_roles[i], 'aud', 'authenticated', 'email', v_email)
+               ELSE json_build_object('role', v_roles[i]) END::text, true);
+        PERFORM set_config('request.jwt.claim.sub', CASE WHEN v_roles[i] = 'authenticated' THEN v_sub ELSE '' END, true);
+        PERFORM set_config('request.jwt.claim.role', v_roles[i], true);
+        PERFORM set_config('request.headers', json_build_object('x-tenant-host', v_host)::text, true);
+        PERFORM set_config('role', v_roles[i], true);
+        IF v_rpc[i] THEN
+          SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                     + pg_stat_get_xact_tuples_fetched(o))
+            INTO v_before FROM unnest(v_rels) o;
+        END IF;
+        EXECUTE v_sqls[i];
+        -- Wartownik: wycofuje podtransakcje (zapisy funkcji, role, roszczenia, lock_timeout).
+        RAISE SQLSTATE 'PRB00';
+      EXCEPTION
+        WHEN SQLSTATE 'PRB00' THEN
+          v_state := '00000'; v_msg := NULL; v_ctx := NULL;
+        -- WHEN OTHERS nie lapie ASSERT (P0004) ani anulowania (57014).
+        WHEN assert_failure OR query_canceled THEN
+          GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+          -- Anulowanie z zewnatrz (nie limit instrukcji) przerywa plik.
+          IF v_state = '57014' AND NOT (${timedOut}) THEN
+            RAISE;
+          END IF;
+        WHEN OTHERS THEN
+          GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+      END;
+${n.outcome}      v_done := v_done || v_ids[i];
+      v_states := v_states || v_state;
+      v_msgs := v_msgs || v_msg;
+      v_ctxs := v_ctxs || left(v_ctx, 400);
+      v_outcomes := v_outcomes || v_outcome;
+      v_touched := v_touched || CASE WHEN v_rpc[i] THEN
+        (SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                    + pg_stat_get_xact_tuples_fetched(o)) FROM unnest(v_rels) o) - v_before END;
+      -- Limit tej instrukcji zuzyty - dalsze sondy w nastepnej partii.
+      v_stop := v_state = '57014';
+    EXCEPTION WHEN query_canceled THEN
+      IF NOT (${timedOut}) THEN
+        RAISE;
+      END IF;
+      v_stop := true;
     END;
-    UPDATE obs_probe SET state = v_state, msg = v_msg, ctx = left(v_ctx, 400),
-           outcome = CASE WHEN v_state = '00000' THEN 'ok'
-                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
-                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
-                          ELSE 'inny blad ' || v_state END
-     WHERE id = r.id;
+    EXIT WHEN v_stop;
   END LOOP;
-END
-$probe$;
+  -- Wyniki partii jednym UPDATE (podtransakcje sond bez wlasnych zapisow),
+  -- na kazdy wiersz tej samej roli i instrukcji.
+  BEGIN
+    UPDATE ${n.probe} p SET state = x.state, msg = x.msg, ctx = x.ctx, outcome = x.outcome, touched = x.touched
+      FROM unnest(v_done, v_states, v_msgs, v_ctxs, v_outcomes, v_touched) AS x(id, state, msg, ctx, outcome, touched)
+      JOIN ${n.probe} d ON d.id = x.id
+     WHERE p.role = d.role AND p.sql = d.sql AND p.state IS NULL;
+  EXCEPTION WHEN query_canceled THEN
+    -- Limit w trakcie zapisu wynikow: partia przepada, nastepna wykona ja od nowa.
+    IF NOT (${timedOut}) THEN
+      RAISE;
+    END IF;
+  END;
+END $run$;
+
+CREATE TEMP TABLE ${n.probe}_guc ON COMMIT DROP AS SELECT current_setting('statement_timeout') AS statement_timeout;
+SET LOCAL statement_timeout = '${PROBE_STATEMENT_TIMEOUT}';
+${batches}
+-- Limit instrukcji wraca do wartosci sprzed sond (SET LOCAL i tak cofa ROLLBACK).
+DO $run$ BEGIN PERFORM set_config('statement_timeout', (SELECT statement_timeout FROM ${n.probe}_guc), true); END $run$;
+UPDATE ${n.probe} SET outcome = 'nie uruchomiona' WHERE sql IS NOT NULL AND state IS NULL;
 `;
+}
+
+const PROBE_SQL = probeSql({
+  probe: "obs_probe",
+  stmt: "obs_stmt",
+  filterCols: "obs_filter_cols",
+  rpc: "obs_rpc",
+  embed: "obs_embed",
+  embedRel: "obs_embed_rel",
+  guest: false,
+  rpcExcluded: null,
+  outcome: MEASURE_PROBE_OUTCOME,
+});

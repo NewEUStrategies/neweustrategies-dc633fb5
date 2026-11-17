@@ -3,8 +3,16 @@
 // w postaci najkrótszej ścieżki importów od pliku trasy.
 import { describe, expect, it } from "vitest";
 
-import { guestReach } from "../../../../scripts/lib/guestReach";
+import {
+  GATED_ROUTES_REVIEWED,
+  gatedRouteDrift,
+  gatedRouteProblems,
+  guestReach,
+  routeGateAnalysis,
+  routeSessionGate,
+} from "@/lib/ci/guestReach";
 import { routeTreeEntries } from "@/lib/ci/publicRouteLoaders";
+import { loadProductionSources } from "../../../../scripts/lib/onConflictArbitersInputs";
 
 const ROUTE_TREE = `
 import { Route as rootRouteImport } from './routes/__root'
@@ -69,6 +77,7 @@ const SOURCES: Record<string, string> = {
   // Bramka sesji na rodzicu obejmuje dziecko.
   "src/routes/profile.tsx": `
     import { AuthGate } from "@/components/AuthGate";
+    export const Route = createFileRoute("/profile")({ component: L });
     function L() { return <AuthGate><Outlet /></AuthGate>; }`,
   "src/routes/profile.account.tsx": `import { acc } from "@/lib/account"; import { shared } from "@/lib/shared";`,
   "src/components/AuthGate.tsx": `export function AuthGate() {}`,
@@ -104,8 +113,11 @@ describe("bramki tras dla miary gościa (`routeTreeEntries`)", () => {
   });
 });
 
+/** Lista tras z bramką fikstury (ta sama ścieżka co w repozytorium, inny powód). */
+const GATED = { "src/routes/profile.tsx": "fikstura: <AuthGate> wokół <Outlet />" };
+
 describe("osiągalność pliku dla gościa (`guestReach`)", () => {
-  const reach = guestReach(sources);
+  const reach = guestReach(sources, GATED);
   const show = (file: string): string => {
     const r = reach.get(file);
     return r === undefined ? "?" : `${r.cls} ${r.entry} ${r.path.join(" > ")}`;
@@ -146,5 +158,238 @@ describe("osiągalność pliku dla gościa (`guestReach`)", () => {
     expect(show("src/routes/admin.users.tsx")).toBe(
       "admin /admin/users src/routes/admin.users.tsx",
     );
+  });
+});
+
+describe("bramka sesji trasy (`routeSessionGate`) i lista GATED_ROUTES_REVIEWED", () => {
+  const route = (body: string, extra = ""): string => `
+    import { AuthGate } from "@/components/profile/AuthGate";
+    export const Route = createFileRoute("/x")({ ${extra} component: Page });
+    ${body}`;
+
+  it("bramka TRASY: `<AuthGate>` obejmuje drzewo komponentu, `useEffect` z nawigacją na `/login`, `throw redirect` w `beforeLoad`; statyczny komunikat obok bramki", () => {
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route("function Page() { return <main><AuthGate><Inner /></AuthGate></main>; }"),
+      ),
+    ).toBe("<AuthGate> obejmuje drzewo komponentu trasy (src/routes/x.tsx:4)");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { const m = useModules(); if (!m.on) return <CommunityDisabled />; return (<AuthGate><Inner /></AuthGate>); }",
+        ),
+      ),
+    ).toContain("<AuthGate> obejmuje drzewo komponentu trasy");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { const navigate = useNavigate(); useEffect(() => { if (!user) void navigate({ to: "/login", replace: true }); }, [user]); return <div />; }',
+        ),
+      ),
+    ).toBe("nawigacja na /login w useEffect komponentu trasy (src/routes/x.tsx:4)");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { return <div />; }",
+          'beforeLoad: ({ context }) => { if (!context.user) throw redirect({ to: "/login" }); },',
+        ),
+      ),
+    ).toBe("throw redirect na /login w beforeLoad (src/routes/x.tsx:3)");
+  });
+
+  it("NIE bramka trasy: przycisk logowania w handlerze (recenzja S5), bramka wokół jednego widżetu albo tylko w jednej gałęzi, `<AuthGate>` poza komponentem trasy", () => {
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { return <main><Public /></main>; }\nfunction __LoginCta() { const navigate = useNavigate(); return () => navigate({ to: "/login" }); }',
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { return <main><Public />{user && <AuthGate><Bell /></AuthGate>}</main>; }",
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { if (mode) return <Public />; return <AuthGate><Inner /></AuthGate>; }",
+        ),
+      ),
+    ).toBeNull();
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { return <Public />; }\nfunction Other() { return <AuthGate><Inner /></AuthGate>; }",
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  it('refaktory bez zmiany dostępu gościa zostają bramką (r1 CI-1): drzewo w stałej lokalnej, wczesny `return` statycznego znacznika, `if (!user) return <Navigate to="/login" />`', () => {
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { const content = (<main><AuthGate><Inner /></AuthGate></main>); return content; }",
+        ),
+      ),
+    ).toBe("<AuthGate> obejmuje drzewo komponentu trasy (src/routes/x.tsx:4)");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { const { t } = useT(); if (!t) return <div aria-busy className="p-4">{t("x")}</div>; return (<AuthGate><Inner /></AuthGate>); }',
+        ),
+      ),
+    ).toContain("<AuthGate> obejmuje drzewo komponentu trasy");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { const { user } = useAuth(); if (!user) return <Navigate to="/login" />; return <main><Inner /></main>; }',
+        ),
+      ),
+    ).toBe("wczesne wyjście bez sesji w komponencie trasy (src/routes/x.tsx:4)");
+    // Nadal NIE bramka: wczesny `return` komponentu (dane gościa), znacznik
+    // z handlerem albo wywołaniem, wyjście na warunku bez sesji.
+    for (const body of [
+      "function Page() { if (!t) return <Spinner />; return (<AuthGate><Inner /></AuthGate>); }",
+      "function Page() { if (!t) return <div onClick={() => load()} />; return (<AuthGate><Inner /></AuthGate>); }",
+      "function Page() { if (!t) return <div>{renderTeaser()}</div>; return (<AuthGate><Inner /></AuthGate>); }",
+      'function Page() { if (!ready) return <Navigate to="/login" />; return <main><Inner /></main>; }',
+    ]) {
+      expect(routeSessionGate("src/routes/x.tsx", route(body))).toBeNull();
+    }
+  });
+
+  it("zakresy za bramką (r1 F5): komponent OBOK `<AuthGate>`, hook przed nią i `head` - kod gościa; dzieci bramki i funkcje wołane wyłącznie z nich - za bramką", () => {
+    const code = `
+      import { AuthGate } from "@/components/profile/AuthGate";
+      import { MemberProfileTeaser } from "@/components/people/MemberProfileTeaser";
+      import { memberProfileQueryOptions } from "@/lib/profile/memberProfile";
+      import { useT } from "@/lib/i18n";
+      import { SITE } from "@/lib/seo/meta";
+      export const Route = createFileRoute("/people/$slug")({ head: () => ({ title: SITE }), component: Page });
+      function Page() {
+        const { t } = useT();
+        return (
+          <main>
+            <MemberProfileTeaser />
+            <AuthGate fallbackTitle={t("x")}><Body /></AuthGate>
+          </main>
+        );
+      }
+      function Body() { const q = useQuery(memberProfileQueryOptions()); return <p>{q.data}</p>; }
+    `;
+    const a = routeGateAnalysis("src/routes/people.$slug.tsx", code);
+    expect(a?.gate).toContain("<AuthGate> obejmuje drzewo komponentu trasy");
+    expect([...(a?.publicImports ?? [])].sort()).toEqual([
+      "@/components/people/MemberProfileTeaser",
+      "@/components/profile/AuthGate",
+      "@/lib/i18n",
+      "@/lib/seo/meta",
+    ]);
+    const spans = a?.gated ?? [];
+    const at = (needle: string): number => code.indexOf(needle);
+    const inside = (needle: string): boolean =>
+      spans.some(([x, y]) => x <= at(needle) && at(needle) < y);
+    expect(inside("<Body />")).toBe(true);
+    expect(inside("useQuery(memberProfileQueryOptions())")).toBe(true);
+    expect(inside("<MemberProfileTeaser />")).toBe(false);
+    expect(inside("useT();")).toBe(false);
+    // `throw redirect` w `beforeLoad` - cały plik za bramką.
+    expect(
+      routeGateAnalysis(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { return <div />; }",
+          'beforeLoad: ({ context }) => { if (!context.user) throw redirect({ to: "/login" }); },',
+        ),
+      )?.gated,
+    ).toBeNull();
+  });
+
+  it("osiągalność: import użyty poza bramką trasy jest wejściem gościa; `<Outlet />` poza bramką - potomkowie bez bramki (r1 F5)", () => {
+    const teaser = sources.map((x) =>
+      x.file === "src/routes/profile.tsx"
+        ? {
+            file: x.file,
+            code: `
+    import { AuthGate } from "@/components/AuthGate";
+    import { Teaser } from "@/components/Teaser";
+    export const Route = createFileRoute("/profile")({ component: L });
+    function L() { return <main><Teaser /><AuthGate><Outlet /></AuthGate></main>; }`,
+          }
+        : x,
+    );
+    teaser.push({
+      file: "src/components/Teaser.tsx",
+      code: `import { q } from "@/lib/teaserQuery";`,
+    });
+    teaser.push({ file: "src/lib/teaserQuery.ts", code: "export const q = 1;" });
+    const r = guestReach(teaser, GATED);
+    expect(r.get("src/lib/teaserQuery.ts")).toEqual({
+      cls: "public",
+      entry: "/profile (poza bramką)",
+      path: ["src/routes/profile.tsx", "src/components/Teaser.tsx", "src/lib/teaserQuery.ts"],
+    });
+    expect(r.get("src/routes/profile.tsx")?.cls).toBe("session-gate");
+    expect(r.get("src/routes/profile.tsx")?.gated?.length).toBeGreaterThan(0);
+    // Dziecko pod `<Outlet />` za bramką - nadal za bramką.
+    expect(r.get("src/lib/account.ts")?.cls).toBe("session-gate");
+    const outside = teaser.map((x) =>
+      x.file === "src/routes/profile.tsx"
+        ? {
+            file: x.file,
+            code: x.code.replace(
+              "<AuthGate><Outlet /></AuthGate>",
+              "<AuthGate><Teaser /></AuthGate><Outlet />",
+            ),
+          }
+        : x,
+    );
+    expect(guestReach(outside, GATED).get("src/lib/account.ts")?.cls).toBe("public");
+  });
+
+  it("zwolnienie poddrzewa wymaga bramki w kodzie I wpisu; rozjazd w obie strony czerwieni `check:ts-sql-contract`", () => {
+    // Bramka bez wpisu - poddrzewo zostaje publiczne, a rozjazd zgłasza trasę.
+    expect(guestReach(sources, {}).get("src/lib/account.ts")?.cls).toBe("public");
+    expect(gatedRouteDrift(sources, {})).toEqual({
+      fresh: [
+        "src/routes/profile.tsx (/profile): <AuthGate> obejmuje drzewo komponentu trasy (src/routes/profile.tsx:4)",
+      ],
+      stale: [],
+    });
+    // Wpis bez bramki w kodzie - nie zwalnia i jest nieaktualny.
+    const ungated = sources.map((x) =>
+      x.file === "src/routes/profile.tsx"
+        ? { file: x.file, code: x.code.replace("<AuthGate><Outlet /></AuthGate>", "<Outlet />") }
+        : x,
+    );
+    expect(guestReach(ungated, GATED).get("src/lib/account.ts")?.cls).toBe("public");
+    expect(gatedRouteDrift(ungated, GATED)).toEqual({
+      fresh: [],
+      stale: ["src/routes/profile.tsx (brak bramki trasy w kodzie)"],
+    });
+    expect(gatedRouteProblems(sources, GATED)).toEqual([]);
+    expect(gatedRouteProblems(sources, {})[0]).toContain("spoza GATED_ROUTES_REVIEWED");
+    expect(gatedRouteProblems(ungated, GATED)[0]).toContain("bez bramki trasy w kodzie");
+  });
+
+  it("stan repozytorium: lista równa bramkom tras w kodzie, każdy wpis z powodem", () => {
+    const production = loadProductionSources();
+    expect(gatedRouteDrift(production)).toEqual({ fresh: [], stale: [] });
+    expect(Object.values(GATED_ROUTES_REVIEWED).every((reason) => reason.length > 20)).toBe(true);
   });
 });
