@@ -30,7 +30,8 @@
 //      wyróżnienie) dostaje KARTĘ, a nie ekran - ekran pytał bazę i kończył
 //      komunikatem awarii. Dopóki nie wiadomo, kto czyta (przed hydratacją,
 //      sesja w drodze), stoi ekran z WYŁĄCZONYM zapytaniem (szkielet z HTML-u
-//      serwera), a nie karta - członek nie widzi mignięcia odmowy.
+//      serwera), a nie karta - członek nie widzi mignięcia odmowy. Kalendarz
+//      daje obecność wyłącznie zalogowanemu (`club_event_rsvp`).
 //
 // JAK, ŻEBY TO NIE BYŁA FARMA POKRYCIA. Asercje nagłówka idą PRZECIW
 // `buildClubHead` wywołanemu wprost na tych samych danych - nie przeciw
@@ -783,5 +784,23 @@ describe("gość - karta zamiast ekranu, którego RPC odmawia `anon`", () => {
     const link = screen.getByRole("link", { name: "club.signIn" });
     expect(link.getAttribute("href")).toContain("/login");
     expect(link.getAttribute("href")).toContain("mode=signin");
+  });
+});
+
+describe("kalendarz - obecność tylko dla zalogowanego (`club_event_rsvp` zamknięte dla `anon`)", () => {
+  it("zalogowany dostaje `canRsvp`, gość nie", async () => {
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(true);
+    cleanup();
+
+    h.session = null;
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(false);
+  });
+
+  it("przed hydratacją `canRsvp` jest `false` także z rozstrzygniętą sesją", async () => {
+    h.hydrated = false;
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(false);
   });
 });

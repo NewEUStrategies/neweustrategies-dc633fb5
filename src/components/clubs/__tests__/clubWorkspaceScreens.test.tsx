@@ -47,7 +47,7 @@
 // react-query go używa.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { workspaceApiMock, resetWorkspaceApiMock } from "@/test/clubs/workspaceApiMock";
 import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
 import { CLUB_BASE_DAY, clubEventRow, clubMilestoneRow } from "@/test/clubs/hubFixtures";
@@ -484,7 +484,8 @@ describe("ClubCalendar - agenda i postacie terminu", () => {
         rsvp_enabled: false,
       }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    // `canRsvp`: pasek ma zniknąć przez `rsvp_enabled: false`, nie przez gościa.
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     await waitFor(() => expect(screen.getAllByTestId("club-event-card")).toHaveLength(1));
     expect(screen.queryByText("club.calendar.join")).toBeNull();
@@ -544,7 +545,9 @@ describe("ClubCalendar - agenda i postacie terminu", () => {
         rsvp_enabled: true,
       }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    // `canRsvp` (zalogowany): bez niego pasek znika z innego powodu i test
+    // nie dowodziłby reguły odwołanego terminu.
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     await waitFor(() =>
       expect(screen.getByText("club.calendar.status.cancelled")).toBeInTheDocument(),
@@ -554,11 +557,40 @@ describe("ClubCalendar - agenda i postacie terminu", () => {
 });
 
 describe("ClubCalendar - obecność", () => {
+  // Pasek obecności dostaje WYŁĄCZNIE zalogowany (`canRsvp`, trasa liczy go
+  // z `useClubViewer`): `club_event_rsvp` nie ma EXECUTE dla `anon`. Testy
+  // zachowania paska renderują więc zalogowanego; gość ma własne testy niżej.
+  it("gość (domyślnie `canRsvp = false`) nie dostaje paska obecności i nie woła RPC", async () => {
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([
+      clubEventRow({ id: "e-gosc", starts_at: clubIsoOffset(1440), rsvp_enabled: true }),
+    ]);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+
+    await waitFor(() => expect(screen.getAllByTestId("club-event-card")).toHaveLength(1));
+    expect(screen.queryByRole("group", { name: "club.calendar.rsvpLabel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "club.calendar.rsvp.going" })).toBeNull();
+    // Licznik obecnych zostaje - to informacja, nie akcja.
+    expect(screen.getByText("club.calendar.goingCount(count=2)")).toBeInTheDocument();
+    expect(workspaceApiMock.setClubEventRsvp).not.toHaveBeenCalled();
+  });
+
+  it("zalogowany (`canRsvp`) dostaje trzy przyciski obecności", async () => {
+    workspaceApiMock.fetchClubEvents.mockResolvedValue([
+      clubEventRow({ id: "e-czlonek", starts_at: clubIsoOffset(1440), rsvp_enabled: true }),
+    ]);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
+
+    const group = await waitFor(() =>
+      screen.getByRole("group", { name: "club.calendar.rsvpLabel" }),
+    );
+    expect(within(group).getAllByRole("button")).toHaveLength(3);
+  });
+
   it("klik w stan obecności wysyła dokładnie ten stan dla tego wydarzenia", async () => {
     workspaceApiMock.fetchClubEvents.mockResolvedValue([
       clubEventRow({ id: "e-rsvp", starts_at: clubIsoOffset(1440), my_rsvp: "maybe" }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     const maybe = await waitFor(() =>
       screen.getByRole("button", { name: "club.calendar.rsvp.maybe" }),
@@ -577,7 +609,7 @@ describe("ClubCalendar - obecność", () => {
     workspaceApiMock.fetchClubEvents.mockResolvedValue([
       clubEventRow({ id: "e-rsvp", starts_at: clubIsoOffset(1440) }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     const declined = await waitFor(() =>
       screen.getByRole("button", { name: "club.calendar.rsvp.declined" }),
@@ -599,7 +631,7 @@ describe("ClubCalendar - obecność", () => {
         my_rsvp: null,
       }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     await waitFor(() => expect(screen.getByText("club.calendar.full")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "club.calendar.rsvp.going" })).toBeDisabled();
@@ -616,7 +648,7 @@ describe("ClubCalendar - obecność", () => {
         my_rsvp: "going",
       }),
     ]);
-    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} />);
+    renderWithQueryClient(<ClubCalendar clubId={CLUB_IDS.club} clubSlug={SLUG} canRsvp />);
 
     const going = await waitFor(() =>
       screen.getByRole("button", { name: "club.calendar.rsvp.going" }),
