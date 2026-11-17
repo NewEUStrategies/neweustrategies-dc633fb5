@@ -194,8 +194,11 @@ export type FunnelStats = {
 // DLACZEGO NIE `crm_funnel_stats`. Funkcja jest SECURITY INVOKER nad widokiem,
 // więc pod klientem staff dziedziczyła 42501 z `profiles.email` (patrz nagłówek
 // pliku), a pod service-role policzyłaby WSZYSTKICH najemców - nie ma
-// parametru najemcy ani filtra w ciele. Zapytania niżej niosą
-// `.eq("tenant_id", <tenant z sesji>)` każde z osobna.
+// parametru najemcy ani filtra w ciele. Migracja 20261117014500 odbiera jej
+// EXECUTE wszystkim rolom aplikacji (pgTAP `crm_funnel_stats_revoked_test`).
+// Zapytania niżej niosą `.eq("tenant_id", <tenant z sesji>)` każde z osobna;
+// granicę najemcy złączeń widoku przypina
+// `lib/crm/__tests__/funnelViewTenantAnchors.gate.test.ts`.
 export const funnelStats = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }): Promise<FunnelStats> => {
