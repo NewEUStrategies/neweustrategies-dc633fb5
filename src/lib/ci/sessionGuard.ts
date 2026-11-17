@@ -8,8 +8,10 @@
 // `<AuthGate>` (dzieci, nie `fallback*`). Komentarz z tekstem bramki,
 // `typeof window`, `user?.id` w kluczu zapytania i `enabled: !user` - nie.
 // Wartość warunku ze ŹRÓDŁA sesji (`useAuth()`, `auth.getSession()`/`getUser()`,
-// `context` handlera funkcji serwera), nie z samej nazwy: `userId` autora
-// z adresu strony albo `user` z właściwości komponentu to nie sesja.
+// pomocniki `currentUserFromSession()`/`currentUserIdFromSession()` importowane
+// z `@/lib/auth/currentUser`, `context` handlera funkcji serwera), nie z samej
+// nazwy: `userId` autora z adresu strony albo `user` z właściwości komponentu
+// to nie sesja.
 import ts from "typescript";
 
 function unwrap(node: ts.Expression): ts.Expression {
@@ -50,12 +52,72 @@ const SESSION_NAME_RE =
 /** Hooki zwracające sesję zalogowanego (jedyny `AuthProvider` - `useAuth()`). */
 const SESSION_HOOKS: ReadonlySet<string> = new Set(["useAuth", "useSession"]);
 
-/** `useAuth()`, `supabase.auth.getSession()` / `.getUser()` (także `await`). */
+/**
+ * Pomocniki sesji poza Reactem (`src/lib/auth/currentUser.ts`): czytają
+ * `supabase.auth.getSession()` bez round-tripu do Auth API i są regułą
+ * projektu dla funkcji danych i mutacji zamiast `auth.getUser()`.
+ */
+const SESSION_HELPERS_MODULE = "@/lib/auth/currentUser";
+const SESSION_HELPERS: ReadonlySet<string> = new Set([
+  "currentUserFromSession",
+  "currentUserIdFromSession",
+]);
+
+/** Deklaracja funkcji o tej nazwie w bloku otaczającym wywołanie. */
+function shadowedByFunction(id: ts.Identifier): boolean {
+  for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
+    const scope = node.parent;
+    if (ts.isBlock(scope) || ts.isModuleBlock(scope)) {
+      if (scope.statements.some((s) => ts.isFunctionDeclaration(s) && s.name?.text === id.text)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * `currentUserFromSession()` / `currentUserIdFromSession()` - tylko import
+ * z modułu pomocników (także pod aliasem); funkcja lokalna o tej samej
+ * nazwie albo import z innego modułu to nie źródło sesji.
+ */
+function sessionHelperCall(callee: ts.Identifier): boolean {
+  const sf = callee.getSourceFile();
+  for (const stmt of sf.statements) {
+    if (
+      !ts.isImportDeclaration(stmt) ||
+      !ts.isStringLiteral(stmt.moduleSpecifier) ||
+      stmt.moduleSpecifier.text !== SESSION_HELPERS_MODULE ||
+      stmt.importClause?.isTypeOnly === true
+    ) {
+      continue;
+    }
+    const named = stmt.importClause?.namedBindings;
+    if (named === undefined || !ts.isNamedImports(named)) continue;
+    for (const el of named.elements) {
+      if (
+        !el.isTypeOnly &&
+        el.name.text === callee.text &&
+        SESSION_HELPERS.has((el.propertyName ?? el.name).text)
+      ) {
+        // Nazwa przesłonięta wiązaniem w zasięgu wywołania (zmienna,
+        // parametr, funkcja zagnieżdżona) - nie import.
+        return declarationOf(callee) === null && !shadowedByFunction(callee);
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * `useAuth()`, `supabase.auth.getSession()` / `.getUser()` (także `await`)
+ * i pomocniki `currentUserFromSession()` / `currentUserIdFromSession()`.
+ */
 function sessionSourceCall(e: ts.Expression): boolean {
   const node = unwrap(e);
   if (!ts.isCallExpression(node)) return false;
   const callee = unwrap(node.expression);
-  if (ts.isIdentifier(callee)) return SESSION_HOOKS.has(callee.text);
+  if (ts.isIdentifier(callee)) return SESSION_HOOKS.has(callee.text) || sessionHelperCall(callee);
   if (!ts.isPropertyAccessExpression(callee)) return false;
   const owner = unwrap(callee.expression);
   return (

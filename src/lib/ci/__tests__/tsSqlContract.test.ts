@@ -5472,6 +5472,80 @@ describe("recenzja r2: `context.supabase` z wiązania, dowód bramki ze źródł
     ).toContain("nie ma takiego warunku bramki sesji");
   });
 
+  it("E: pomocniki `currentUserFromSession()` / `currentUserIdFromSession()` z `@/lib/auth/currentUser` są źródłem sesji (także pod aliasem); funkcja lokalna o tej nazwie, import z innego modułu i przesłonięcie - nie", () => {
+    const check = (code: string, evidence: string) => {
+      const g = observed({ [PUBLIC]: code });
+      const [key, v] = [...guestLoginOnlyCandidates(g)][0];
+      return guestLoginOnlyDrift(
+        g,
+        reach,
+        { [key]: [v.count, v.shape, evidence] },
+        new Map([[PUBLIC, code]]),
+      ).invalid;
+    };
+    const fetcher = (imports: string, prelude = "") => `${BROWSER_IMPORT}
+      ${imports}
+      export async function zqFetch() {
+        ${prelude}
+        const userId = await currentUserIdFromSession();
+        if (!userId) throw new Error("auth_required");
+        return supabase.from("builder_templates").select("id").eq("owner", userId);
+      }`;
+    const helper = `import { currentUserIdFromSession } from "@/lib/auth/currentUser";`;
+    expect(check(fetcher(helper), "`if (!userId) throw`")).toEqual([]);
+    // Alias importu - ta sama funkcja pomocnika.
+    expect(
+      check(
+        fetcher(
+          `import { currentUserIdFromSession as sessionUserId } from "@/lib/auth/currentUser";`,
+        ).replace("await currentUserIdFromSession()", "await sessionUserId()"),
+        "`if (!userId) throw`",
+      ),
+    ).toEqual([]);
+    // Obiekt użytkownika z pomocnika - pole `id` też jest wartością sesji.
+    expect(
+      check(
+        `${BROWSER_IMPORT}
+        import { currentUserFromSession } from "@/lib/auth/currentUser";
+        export async function zqFetch() {
+          const user = await currentUserFromSession();
+          if (!user) return [];
+          return supabase.from("builder_templates").select("id").eq("owner", user.id);
+        }`,
+        "`if (!user) return []`",
+      ),
+    ).toEqual([]);
+    const notGate = "nie ma takiego warunku bramki sesji";
+    // Ta sama nazwa z innego modułu albo bez importu - nie sesja.
+    expect(
+      check(
+        fetcher(`import { currentUserIdFromSession } from "@/lib/zq/fake";`),
+        "`if (!userId) throw`",
+      )[0],
+    ).toContain(notGate);
+    expect(check(fetcher(""), "`if (!userId) throw`")[0]).toContain(notGate);
+    // Import tylko typu - nie wartość.
+    expect(
+      check(
+        fetcher(`import type { currentUserIdFromSession } from "@/lib/auth/currentUser";`),
+        "`if (!userId) throw`",
+      )[0],
+    ).toContain(notGate);
+    // Przesłonięcie w zasięgu wywołania: stała i funkcja zagnieżdżona.
+    expect(
+      check(
+        fetcher(helper, 'const currentUserIdFromSession = async () => "x";'),
+        "`if (!userId) throw`",
+      )[0],
+    ).toContain(notGate);
+    expect(
+      check(
+        fetcher(helper, 'async function currentUserIdFromSession() { return "x"; }'),
+        "`if (!userId) throw`",
+      )[0],
+    ).toContain(notGate);
+  });
+
   it("E: `enabled:` opcji `queryOptions(...)` jest bramką tylko, gdy KAŻDE odwołanie do opcji to `useQuery`/`useInfiniteQuery`/`useQueries` albo `.queryKey` - `prefetchQuery`, `fetchQuery`, `ensureQueryData` i `useSuspenseQuery` tej flagi nie znają", () => {
     const OTHER = "src/components/zq/Card.tsx";
     const base = `${BROWSER_IMPORT}

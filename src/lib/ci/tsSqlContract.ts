@@ -6887,8 +6887,10 @@ export type GuestLoginOnlyEntry = readonly [count: number, shape: string, eviden
  * `if (!user) return`, `<AuthGate>`; `typeof window`, `user?.id` w kluczu
  * zapytania - nie), albo z bramką, której region nie obejmuje KAŻDEGO
  * wywołania pod kluczem. Recenzja r2: wartość warunku musi pochodzić ze
- * źródła sesji (`useAuth()`, `auth.getSession()`/`getUser()`, `context`
- * handlera), nie tylko nazywać się `user`/`userId`; `enabled:` w
+ * źródła sesji (`useAuth()`, `auth.getSession()`/`getUser()`, pomocniki
+ * `currentUserFromSession()`/`currentUserIdFromSession()` z
+ * `@/lib/auth/currentUser`, `context` handlera), nie tylko nazywać się
+ * `user`/`userId`; `enabled:` w
  * `queryOptions(...)` liczy się tylko, gdy opcje trafiają wyłącznie do
  * `useQuery`/`useInfiniteQuery`/`useQueries` (`prefetchQuery`, `fetchQuery`,
  * `ensureQueryData`, `useSuspenseQuery` tej flagi nie znają). Fakt klienta wykonanego na serwerze (`server`) jest
