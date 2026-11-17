@@ -1238,9 +1238,16 @@ const LEAD_AVATAR_CHUNK = 100;
 // Filtr `contact_email` (`or=(...)` z liśćmi `ilike`) po kodowaniu URL. Domyślny
 // limit linii żądania popularnych proxy to 8 KB (nginx
 // `large_client_header_buffers 4 8k`); reszta adresu (ścieżka, `select`,
-// tenant, `not`, `order`) to ~200 znaków. Najdroższy klucz (adres 320 znaków
-// - górna granica `crm_leads.email_norm` - z samych `\`) kosztuje ~3,9 tys.,
-// więc każdy klucz mieści się sam.
+// tenant, `not`, `order`) to ~200 znaków.
+//
+// Schemat NIE ogranicza długości `crm_leads.email` ani `profiles.contact_email`
+// (tylko CHECK formatu kontaktu). Granice dają walidatory aplikacji - formularze
+// 254 znaki, import leadów 320 (`LEAD_IMPORT_VALUE_MAX.email`) - a nie każda
+// ścieżka zapisu leada przez nie przechodzi. Adres 320 znaków z samych `\`
+// kosztuje ~3,8 tys., ale z jedną literą spoza ASCII idzie w DWÓCH postaciach
+// (klucz JS i zapis leada) - ponad 7 tys. Klucz droższy niż budżet
+// `avatarLookupChunks` więc pomija (lead bez zdjęcia), zamiast wysłać
+// zapytanie, które proxy odrzuci razem z lookupem całej strony.
 const LEAD_AVATAR_FILTER_URL_BUDGET = 6000;
 
 export const getCrmLeadAvatars = createServerFn({ method: "POST" })

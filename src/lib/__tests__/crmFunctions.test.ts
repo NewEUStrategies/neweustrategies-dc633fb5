@@ -1528,6 +1528,36 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
     expect(await servedForCard("izmir@firma.test")).toEqual([23]);
   });
 
+  it("adres droższy niż budżet URL: lead bez zdjęcia (lista i karta), reszta strony działa", async () => {
+    // 305 znaków - w limicie importu (320). `İ` daje dwie postaci, `\` po
+    // kodowaniu to 12 znaków każdy: jeden klucz to ponad 7 tys. znaków filtra.
+    const oversized = `İ${"\\".repeat(299)}@firma.test`;
+    const members = [member(40, oversized), member(41, "Anna@Firma.test")];
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, members)));
+    const row = (id: string, email: string) => ({ id, email, email_norm: email.toLowerCase() });
+    const big = row(lid(300), oversized);
+    const anna = row(lid(301), "anna@firma.test");
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok([big, anna]));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [big.id, anna.id] },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    expect(result.avatars).toEqual([{ lead_id: anna.id, avatar_url: "https://cdn.test/41.png" }]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
+    for (const chain of chains) {
+      const param = new URLSearchParams([["or", `(${String(chain.argsOf("or")?.[0])})`]]);
+      expect(param.toString().length - "or=".length).toBeLessThanOrEqual(6000);
+    }
+
+    admin.reset();
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, members)));
+    expect(await cardAvatar({ ...big, tenant_id: TENANT })).toBeNull();
+    // Karta nie wysyła zapytania, którego proxy by nie przyjęło.
+    expect(admin.chainsFor("profiles")).toEqual([]);
+  });
+
   it("strona w kilku porcjach: wybór zdjęcia w obrębie porcji leada, jak na karcie", async () => {
     // Lead `İzmir@` (klucz JS `i̇zmir@`) pasuje do dwóch członków: p30
     // (`İzmir@` rozłożone, I + U+0307 - liść klucza) i p31 (`İzmir@` - liść

@@ -190,7 +190,12 @@ export function avatarLookupKeyCost(key: AvatarLookupKey): number {
  * może mieć kilka liści, więc sam limit liczby wartości nie trzyma długości
  * adresu. Ta sama porcja idzie do obu zapytań - lista `email.in.(...)` jest
  * zawsze krótsza niż filtr kontaktowy (klucz jest pierwszą postacią).
- * Klucz droższy niż limit dostaje porcję dla siebie (nie znika z lookupu).
+ *
+ * Klucz droższy niż `maxEncodedLength` jest POMIJANY - lead zostaje bez
+ * zdjęcia na liście i na karcie. Wysłany nawet sam przekroczyłby limit linii
+ * żądania, a odrzucone zapytanie wywróciłoby lookup całej strony (lista -
+ * błąd, karta - log). Taki adres nie jest poprawnym e-mailem (RFC 5321: 254
+ * znaki); schemat bazy długości adresu nie ogranicza, więc limit trzymamy tu.
  */
 export function avatarLookupChunks(
   keys: readonly AvatarLookupKey[],
@@ -201,6 +206,7 @@ export function avatarLookupChunks(
   let used = 0;
   for (const key of keys) {
     const cost = avatarLookupKeyCost(key);
+    if (cost > limits.maxEncodedLength) continue;
     if (
       current.length > 0 &&
       (current.length >= limits.maxItems || used + cost > limits.maxEncodedLength)

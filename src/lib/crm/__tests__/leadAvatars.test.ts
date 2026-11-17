@@ -188,10 +188,29 @@ describe("avatarLookupChunks", () => {
     }
   });
 
-  it("klucz droższy niż limit dostaje porcję dla siebie, nie znika", () => {
-    const keys = keysFor(3);
-    const parts = avatarLookupChunks(keys, { maxItems: 100, maxEncodedLength: 1 });
-    expect(parts).toEqual([[keys[0]], [keys[1]], [keys[2]]]);
+  it("klucz droższy niż limit jest pomijany - reszta idzie, każda porcja w limicie", () => {
+    // Adres 305 znaków (mieści się w limicie importu 320): `İ` daje dwie
+    // postaci (klucz JS i zapis), `\` - 12 znaków każdy po kodowaniu.
+    const oversized = `İ${"\\".repeat(299)}@x.pl`;
+    const keys = avatarLookupKeys([
+      lead("l1", "anna@example.test"),
+      lead("l2", oversized),
+      lead("l3", "bartek@example.test"),
+    ]);
+    const budget = 6000;
+    expect(avatarLookupKeyCost(keys[1] as (typeof keys)[number])).toBeGreaterThan(budget);
+    const parts = avatarLookupChunks(keys, { maxItems: 100, maxEncodedLength: budget });
+    expect(parts).toEqual([[keys[0], keys[2]]]);
+    // Sam za drogi klucz: żadnej porcji, czyli żadnego zapytania.
+    expect(
+      avatarLookupChunks([keys[1] as (typeof keys)[number]], {
+        maxItems: 100,
+        maxEncodedLength: budget,
+      }),
+    ).toEqual([]);
+    // Każdy klucz w limicie mieści się sam - nic poza za drogimi nie znika.
+    const tight = avatarLookupChunks(keysFor(3), { maxItems: 100, maxEncodedLength: 60 });
+    expect(tight.flat()).toEqual(keysFor(3));
   });
 
   it("pusta lista to brak porcji (bez pustego zapytania)", () => {
