@@ -1852,15 +1852,45 @@ function measuredRole(
   if (legacy !== "unknown") {
     const node = unwrap(expr);
     // Reguła NAZWY `supabase` (plik z klientem przeglądarki albo
-    // z `requireSupabaseAuth`) nie patrzy na wiązanie: parametr albo stała
-    // o tej nazwie może nieść innego klienta. Wiązanie z ustaloną INNĄ rolą
-    // wygrywa (i jest widoczne jako rozjazd z `enforcedRole`); nieustalone -
-    // zostaje reguła bramki.
+    // z `requireSupabaseAuth`) nie patrzy na wiązanie: parametr albo zmienna
+    // lokalna o tej nazwie może nieść innego klienta (menu: parametr
+    // z domyślnym `serverPublicClient()` - klucz publiczny, czyli `anon`).
+    // Nazwa zadeklarowana w pliku (parametr - także z wartością domyślną,
+    // rozkładany, element rozkładu - `const`, `let`, `var`, zmienna pętli
+    // albo `catch`) - rozstrzyga wiązanie: INNA rola wygrywa (rozjazd
+    // z `enforcedRole`), a nieustalona daje `unknown`, bo reguła nazwy to
+    // wtedy zgadywanie. Import (także `import("m").then(({ supabase }) => ...)`)
+    // z ustaloną INNĄ rolą modułu wygrywa; nieustalony i nazwa bez deklaracji -
+    // reguła bramki.
     if (ts.isIdentifier(node) && node.text === "supabase" && !scope.adminAliases.has("supabase")) {
       const binding = bindingOf(node, scope);
-      if (binding.kind === "param" || binding.kind === "local") {
+      if (binding.kind === "import") {
+        const imported = identifierRole(node, scope, env, depth);
+        if (imported.role !== "unknown" && imported.role !== legacy) {
+          return {
+            role: imported.role,
+            via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${imported.via}`.slice(
+              0,
+              MAX_VIA,
+            ),
+          };
+        }
+      }
+      const declaredInFile =
+        binding.kind === "param" ||
+        binding.kind === "defaulted" ||
+        binding.kind === "local" ||
+        binding.kind === "reassigned" ||
+        binding.kind === "function" ||
+        (binding.kind === "none" && declaringScope(node) !== null);
+      if (declaredInFile) {
         const bound = identifierRole(node, scope, env, depth);
-        if (bound.role !== "unknown" && bound.role !== legacy) {
+        if (bound.role === "unknown") {
+          return bound.absent === true
+            ? bound
+            : unknownRole(`reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`);
+        }
+        if (bound.role !== legacy) {
           return {
             role: bound.role,
             via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${bound.via}`.slice(
@@ -1899,6 +1929,16 @@ type Binding =
       readonly index: number;
       readonly prop: string | null;
     }
+  | {
+      /**
+       * Parametr-identyfikator z wartością domyślną: wartość domyślna działa,
+       * gdy argument pominięto (albo podano `undefined`).
+       */
+      readonly kind: "defaulted";
+      readonly fn: ts.SignatureDeclaration;
+      readonly index: number;
+      readonly init: ts.Expression;
+    }
   | { readonly kind: "local"; readonly init: ts.Expression; readonly prop: string | null }
   | {
       /** `let` przypisywany wyłącznie `nazwa = E`: inicjalizator i każda prawa strona. */
@@ -1926,6 +1966,18 @@ function dynamicImportSpec(expr: ts.Expression): string | null {
     return node.arguments[0].text;
   }
   return null;
+}
+
+/** Callback `import("spec").then(cb)` (pierwszy argument) - specyfikator albo `null`. */
+function dynamicImportThenSpec(fn: ts.Node): string | null {
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return null;
+  const outer = outermostWrapper(fn);
+  const call = outer.parent;
+  if (!ts.isCallExpression(call) || call.arguments[0] !== outer) return null;
+  const callee = unwrap(call.expression);
+  return ts.isPropertyAccessExpression(callee) && callee.name.text === "then"
+    ? dynamicImportSpec(callee.expression)
+    : null;
 }
 
 /** Czy wzorzec rozkładu wiąże nazwę (na dowolnej głębokości). */
@@ -2185,20 +2237,29 @@ function bindingOf(id: ts.Identifier, _scope: FileScope): Binding {
         if (!patternBinds(p.name, name)) continue;
         if (isAssigned(parent, name)) return noBinding(`${name}: parametr przypisywany`);
         if (ts.isIdentifier(p.name)) {
-          return p.dotDotDotToken || p.initializer
-            ? noBinding(`${name}: parametr rozkładany albo z wartością domyślną`)
+          if (p.dotDotDotToken) return noBinding(`${name}: parametr rozkładany`);
+          return p.initializer
+            ? { kind: "defaulted", fn: parent, index, init: p.initializer }
             : { kind: "param", fn: parent, index, prop: null };
         }
         const el = ts.isObjectBindingPattern(p.name)
           ? p.name.elements.find((e) => ts.isIdentifier(e.name) && e.name.text === name)
           : undefined;
         const prop = el === undefined ? null : el.propertyName ? propName(el.propertyName) : name;
-        return el === undefined ||
+        if (
+          el === undefined ||
           prop === null ||
           el.dotDotDotToken ||
           el.initializer ||
           p.dotDotDotToken
-          ? noBinding(`${name}: element parametru poza regułą`)
+        ) {
+          return noBinding(`${name}: element parametru poza regułą`);
+        }
+        // `import("m").then(({ x }) => ...)` - parametr to przestrzeń nazw
+        // modułu, jak `const { x } = await import("m")`.
+        const spec = index === 0 ? dynamicImportThenSpec(parent) : null;
+        return spec !== null
+          ? { kind: "import", module: spec, name: prop }
           : { kind: "param", fn: parent, index, prop };
       }
       if (ts.isFunctionExpression(parent) && parent.name?.text === name) {
@@ -2280,6 +2341,8 @@ function identifierRole(
   switch (binding.kind) {
     case "param":
       return paramRole(binding.fn, binding.index, binding.prop, scope, env, depth);
+    case "defaulted":
+      return defaultedParamRole(binding.fn, binding.index, binding.init, scope, env, depth);
     case "local": {
       const inner =
         binding.prop === null
@@ -2857,6 +2920,31 @@ function paramRole(
   if (env.depthCuts === cutsBefore) env.memo.set(key, result);
   else env.memo.delete(key);
   return result;
+}
+
+/**
+ * Rola parametru z wartością domyślną: wartość domyślna (wykonuje się, gdy
+ * wołający pominie argument albo poda `undefined`) i KAŻDY podany argument
+ * muszą dać tę samą rolę. Domyślna liczy się zawsze - także gdy dziś żaden
+ * wołający jej nie pomija: to nadzbiór wartości, nigdy zgadywanie.
+ * Argument nieobecny (opcjonalny parametr wołającego, pomijany przez
+ * wszystkich) nie niesie klienta - działa wtedy wartość domyślna.
+ */
+function defaultedParamRole(
+  fn: ts.SignatureDeclaration,
+  index: number,
+  init: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const label = `parametr ${index + 1} funkcji ${functionName(fn) ?? "<anonimowa>"} z wartością domyślną`;
+  const fallback = measuredRole(init, scope, env, depth + 1);
+  const passed = paramRole(fn, index, null, scope, env, depth);
+  return agreeingRole(label, [
+    { ...fallback, via: `domyślna ${fallback.via}`.slice(0, MAX_VIA) },
+    passed,
+  ]);
 }
 
 // ── Miara poza bramką: kolumny filtrów i sortowania ─────────────────────────

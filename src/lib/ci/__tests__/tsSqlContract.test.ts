@@ -1886,6 +1886,24 @@ describe("miara: kolumny filtrów i sortowania (SELECT także w UPDATE/DELETE)",
     expect(new Set(f.observed.filters.map((x) => x.enforcedRole))).toEqual(new Set(["unknown"]));
   });
 
+  it("`.containedBy`, `.contains` i `.overlaps` - kolumna w pierwszym argumencie to fakt filtra (także w UPDATE)", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function f() {
+          await supabaseAdmin.from("events").select("id").containedBy("tags", ["a", "b"]);
+          await supabaseAdmin.from("events").update({ status: "x" }).contains("roles", ["admin"])
+            .overlaps("during", "[2026-01-01,2026-02-01)");
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "events.tags:containedBy:select:service_role",
+      "events.roles:contains:update:service_role",
+      "events.during:overlaps:update:service_role",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([]);
+  });
+
   it("`or`: literał, szablon z kolumną w literale, `xs.map(cb).join`; kolumna z parametru bez wywołań - nieczytelna", () => {
     const f = observed({
       "src/b.tsx": `
@@ -2383,6 +2401,172 @@ describe("miara: rola klienta ustalona szerzej (nigdy zgadywana)", () => {
     expect(f.observed.tables[0].via).toContain("wiązanie zamiast reguły nazwy");
   });
 
+  it("parametr z wartością domyślną: domyślna (argument pominięty) i KAŻDY podany argument muszą się zgadzać; reguła nazwy nie wygrywa", () => {
+    const f = observed({
+      "src/lib/k/menu.functions.ts": `
+        import { createClient } from "@supabase/supabase-js";
+        import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+        let cached: ReturnType<typeof make> | undefined;
+        function make() {
+          return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+            auth: { persistSession: false },
+          });
+        }
+        function publicClient() {
+          cached ??= make();
+          return cached;
+        }
+        export async function readOmitted(supabase = publicClient()) {
+          await supabase.from("t_omitted").select("id");
+        }
+        export async function readMixed(supabase = publicClient()) {
+          await supabase.from("t_mixed").select("id");
+        }
+        export async function readPassed(supabase = publicClient()) {
+          await supabase.from("t_passed").select("id");
+        }
+        export async function readDeep(key: string, supabase = publicClient()) {
+          await supabase.from("t_deep").select("id").eq("key", key);
+        }
+        export async function readWire(key: string, supabase?: unknown) {
+          await readDeep(key, supabase);
+        }
+        export async function readHidden(supabase = publicClient()) {
+          await supabase.from("t_hidden").select("id");
+        }
+        export const handlers = [readHidden];
+        export const f = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+          await readOmitted();
+          await readMixed();
+          await readMixed(context.supabase);
+          await readPassed(context.supabase);
+          await readWire("main");
+        });
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_omitted: authenticated -> anon",
+      "select t_mixed: authenticated -> unknown",
+      "select t_passed: authenticated -> unknown",
+      "select t_deep: authenticated -> anon",
+      "select t_hidden: authenticated -> unknown",
+    ]);
+    // Bramka bez zmian: reguła nazwy `supabase` w pliku z `requireSupabaseAuth`.
+    expect(f.tables.map((t) => t.role)).toEqual(Array(5).fill("authenticated"));
+    const [omitted, mixed, passed, deep, hidden] = f.observed.tables;
+    expect(omitted.via).toContain("wiązanie zamiast reguły nazwy (bramka: authenticated)");
+    expect(omitted.via).toContain("domyślna publicClient()");
+    expect(omitted.via).toContain("createClient(…, SUPABASE_PUBLISHABLE_KEY)");
+    expect(mixed.via).toContain("role [anon, authenticated]");
+    // Domyślna liczy się także wtedy, gdy dziś każdy wołający podaje argument.
+    expect(passed.via).toContain("role [anon, authenticated]");
+    // Argument opcjonalny wołającego, pomijany przez wszystkich - działa domyślna.
+    expect(deep.via).toContain("parametr 2 funkcji readDeep z wartością domyślną <- domyślna");
+    expect(hidden.via).toContain("reguła nazwy nie zgaduje (bramka: authenticated)");
+    expect(hidden.via).toContain("nie każde odwołanie do funkcji to widoczne wywołanie");
+    expect(filterKeys(f)).toEqual(["t_deep.key:eq:select:anon"]);
+  });
+
+  it("reguła nazwy `supabase` przy wiązaniu nieczytelnym (zmienna pętli, `var`, callback bez widocznych wywołań) - `unknown`; import i `import().then(({ supabase }))` - rola modułu", () => {
+    const f = observed({
+      "src/integrations/supabase/client.ts": "export const supabase = createBrowserClient();",
+      "src/integrations/supabase/client.server.ts":
+        "export const supabaseAdmin = new Proxy({}, {});",
+      "src/components/k/Panel.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function viaImport() { await supabase.from("t_import").select("id"); }
+        export async function viaLoop(clients: unknown[]) {
+          for (const supabase of clients) await supabase.from("t_loop").select("id");
+        }
+        export async function viaVar() {
+          var supabase = pick();
+          await supabase.from("t_var").select("id");
+        }
+        export function viaCallback(p: Promise<{ supabase: unknown }>) {
+          void p.then(async ({ supabase }) => { await supabase.from("t_promise").select("id"); });
+        }
+        export function viaThen() {
+          void import("@/integrations/supabase/client").then(async ({ supabase }) => {
+            await supabase.from("t_then").select("id");
+          });
+          void import("@/integrations/supabase/client.server").then(({ supabaseAdmin: supabase }) =>
+            supabase.from("t_then_admin").select("id"),
+          );
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_import: authenticated -> authenticated",
+      "select t_loop: authenticated -> unknown",
+      "select t_var: authenticated -> unknown",
+      "select t_promise: authenticated -> unknown",
+      "select t_then: authenticated -> authenticated",
+      "select t_then_admin: authenticated -> service_role",
+    ]);
+    const via = f.observed.tables.map((t) => t.via);
+    expect(via[1]).toBe(
+      "reguła nazwy nie zgaduje (bramka: authenticated): supabase: zmienna pętli",
+    );
+    expect(via[2]).toBe("reguła nazwy nie zgaduje (bramka: authenticated): supabase: var");
+    expect(via[3]).toContain(
+      "reguła nazwy nie zgaduje (bramka: authenticated): parametr 1.supabase",
+    );
+    expect(via[0]).toBe("bramka: klient przeglądarki");
+    expect(via[4]).toBe("bramka: klient przeglądarki");
+    expect(via[5]).toBe(
+      "wiązanie zamiast reguły nazwy (bramka: authenticated): import supabaseAdmin",
+    );
+  });
+
+  it("klient z warunku o różnych rolach (`flag ? supabaseAdmin : context.supabase`) - `unknown`; ta sama rola w obu gałęziach - ta rola", () => {
+    const f = observed({
+      "src/lib/k/pick.functions.ts": `
+        export const f = createServerFn().handler(async ({ context, data }) => {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const c = data.flag ? supabaseAdmin : context.supabase;
+          await c.from("t_cond").select("id").eq("owner_id", data.id);
+          await (data.flag ? context.supabase : context.supabase).rpc("fn_same");
+        });
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "rpc fn_same: unknown -> authenticated",
+      "select t_cond: unknown -> unknown",
+    ]);
+    expect(f.observed.tables[0].via).toContain("role [service_role, authenticated]");
+    expect(filterKeys(f)).toEqual(["t_cond.owner_id:eq:select:unknown"]);
+  });
+
+  it("`createClient` z kluczem publicznym i opcją `accessToken` (funkcja albo metoda) - `authenticated`; bez niej - `anon`", () => {
+    const f = observed({
+      "src/lib/k/token.server.ts": `
+        import { createClient } from "@supabase/supabase-js";
+        export async function h(token: string) {
+          const fnToken = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+            accessToken: async () => token,
+          });
+          const methodToken = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+            async accessToken() { return token; },
+          });
+          const plain = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+            auth: { persistSession: false },
+          });
+          await fnToken.from("t_fn").select("id");
+          await methodToken.from("t_method").select("id");
+          await plain.from("t_plain").select("id");
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_fn: unknown -> authenticated",
+      "select t_method: unknown -> authenticated",
+      "select t_plain: unknown -> anon",
+    ]);
+    expect(f.observed.tables[0].via).toBe(
+      "const fnToken <- createClient(…, SUPABASE_PUBLISHABLE_KEY) z nagłówkiem Authorization",
+    );
+  });
+
   it("cykl wywołań i parametr przypisywany - `unknown`, przebieg się kończy", () => {
     const f = observed({
       "src/lib/m/cycle.server.ts": `
@@ -2465,7 +2649,7 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(renderContractTest(measured)).toBe(renderContractTest(plain));
   });
 
-  it("każdy fakt bramki ma lustro w mierze z tą samą rolą bramki; miara tylko DOPOWIADA rolę `unknown`", () => {
+  it("każdy fakt bramki ma lustro w mierze z tą samą rolą bramki; miara DOPOWIADA rolę `unknown`, a rolę reguły nazwy zmienia DOKŁADNIE tam, gdzie wiązanie daje inną", () => {
     const o = measured.observed;
     expect(o.rpcs.map((r) => [r.name, r.enforcedRole, r.site])).toEqual(
       measured.rpcs.map((r) => [r.name, r.role, r.file]),
@@ -2473,12 +2657,23 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(o.tables.filter((t) => t.enforcedRole !== "unknown").length).toBe(
       measured.tables.filter((t) => t.role !== "unknown").length,
     );
-    // Rola bramki rozstrzygnięta - miara jej nie zmienia (rozjazd byłby
-    // błędem reguły nazwy, do przeglądu).
-    const conflicts = [...o.rpcs, ...o.tables].filter(
-      (x) => x.enforcedRole !== "unknown" && x.role !== x.enforcedRole,
-    );
-    expect(conflicts).toEqual([]);
+    // Rola bramki rozstrzygnięta - miara zmienia ją WYŁĄCZNIE tam, gdzie
+    // reguła nazwy `supabase` zgaduje, a wiązanie mówi co innego: parametr
+    // z domyślnym klientem z kluczem publicznym (`serverPublicClient()` -
+    // bez `Authorization`, czyli `anon`). Każdy nowy rozjazd (także
+    // `unknown`: reguła nazwy przy wiązaniu nieczytelnym) to błąd reguły
+    // nazwy albo kodu - do przeglądu, nie do dopisania bez czytania.
+    const conflicts = [...o.rpcs, ...o.tables]
+      .filter((x) => x.enforcedRole !== "unknown" && x.role !== x.enforcedRole)
+      .map(
+        (x) =>
+          `${x.site} ${x.fn} ${"table" in x ? x.table : x.name}: ${x.enforcedRole} -> ${x.role}`,
+      );
+    expect(conflicts).toEqual([
+      "src/lib/menus/menu.functions.ts listMenuSummaries menus: authenticated -> anon",
+      "src/lib/menus/menu.functions.ts fetchMenuWithItems menus: authenticated -> anon",
+      "src/lib/mobileDrawer.functions.ts readMobileDrawerConfig mobile_drawer_configs: authenticated -> anon",
+    ]);
     const unknownBefore = [...o.rpcs, ...o.tables].filter((x) => x.enforcedRole === "unknown");
     const unknownAfter = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown");
     expect(unknownAfter.length).toBeLessThan(unknownBefore.length / 4);
