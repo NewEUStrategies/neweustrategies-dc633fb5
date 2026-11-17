@@ -61,7 +61,7 @@
 // MIARA W BRAMCE (`SeamFacts.observed`). Do listopada 2026 dwie luki tej
 // bramki były tylko MIERZONE (`generate:ts-sql-contract --measure`) - i to
 // miara, nie CI, złapała defekty tego miesiąca. Teraz fakty miary idą do
-// pgTAP (asercje 10-19, sekcja „Bramka z miary" niżej):
+// pgTAP (asercje 10-20, sekcja „Bramka z miary" niżej):
 //   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...)
 //     i celu upsertu - istnienie i SELECT roli. Postgres wymaga SELECT na
 //     kolumnie z WHERE/ORDER BY także w UPDATE i DELETE, więc filtr po kolumnie
@@ -203,13 +203,13 @@ export interface SeamFacts {
     readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
   /**
-   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-19 pgTAP i listy
+   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-20 pgTAP i listy
    * `check:ts-sql-contract`; bez `observe` puste.
    */
   readonly observed: ObservedFacts;
 }
 
-// ── Miara (asercje 10-19): typy ─────────────────────────────────────────────
+// ── Miara (asercje 10-20): typy ─────────────────────────────────────────────
 
 /** Rola zmierzona: jak `ClientRole`, plus `anon` z klienta z kluczem publicznym. */
 export type MeasuredRole = ClientRole | "anon";
@@ -362,10 +362,10 @@ export interface ObservedEmbed extends ObservedCommon {
 /**
  * Zapytanie jednego łańcucha budowniczego (łańcuch wprost i - gdy budowniczy
  * trafia do zmiennej - każde jej użycie) do SONDY WYKONANIA miary: sonda
- * wykonuje je jako rola zmierzona (`SELECT … LIMIT 0`, zapis jako `EXPLAIN`),
+ * wykonuje je jako rola zmierzona (`SELECT … LIMIT 1`, zapis jako `EXPLAIN`),
  * więc łapie odmowę uprawnień WEWNĄTRZ relacji (widok `security_invoker`,
- * podzapytanie polityki RLS), której `has_column_privilege` na samej relacji
- * nie widzi.
+ * podzapytanie polityki RLS, funkcja w kolumnie widoku liczona dla wiersza),
+ * której `has_column_privilege` na samej relacji nie widzi.
  */
 export interface ObservedStatement {
   readonly table: string;
@@ -398,6 +398,26 @@ export interface ObservedStatement {
   readonly withheld: boolean;
 }
 
+/**
+ * Kolumna WYNIKU funkcji w filtrze, sortowaniu albo liście `select` łańcucha
+ * `.rpc(...)` (`.rpc("f").order("x")`): PostgREST składa z niej WHERE/ORDER BY
+ * na wyniku funkcji, więc kolumna musi być w TABLE/OUT funkcji albo atrybutach
+ * zwracanego typu złożonego - inaczej 42703 w czasie działania. Uprawnień
+ * kolumn wynik funkcji nie ma, sprawdzane jest samo istnienie (asercja 12).
+ */
+export interface ObservedRpcColumn {
+  readonly name: string;
+  /** Klucze argumentów wywołania (przeciążenie); `null` - nieczytelne. */
+  readonly keys: readonly string[] | null;
+  readonly column: string;
+  /** Metoda łańcucha (`eq`, `order`, `select`, ...). */
+  readonly method: string;
+  /** Plik, w którym rozwiązał się literał kolumny. */
+  readonly file: string;
+  readonly site: string;
+  readonly fn: string;
+}
+
 export interface ObservedFacts {
   /** Każdy fakt RPC bramki z rolą zmierzoną (ta sama kolejność co `rpcs`). */
   readonly rpcs: readonly ObservedRpc[];
@@ -408,6 +428,8 @@ export interface ObservedFacts {
   readonly embeds: readonly ObservedEmbed[];
   /** Zapytania łańcuchów `.from()`/`looseTable` do sond wykonania (bez powtórzeń). */
   readonly statements: readonly ObservedStatement[];
+  /** Kolumny wyniku funkcji w łańcuchach `.rpc(...)` (filtry, sortowanie, `select`). */
+  readonly rpcColumns: readonly ObservedRpcColumn[];
   /**
    * Filtry na rozpoznanym budowniczym, których kolumny (albo tabeli
    * osadzenia) nie da się ustalić statycznie, oraz filtry budowniczego
@@ -4396,6 +4418,7 @@ interface Collector {
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
+    rpcColumns: ObservedRpcColumn[];
     unresolvedFilters: string[];
     filtersOutsideChains: string[];
     /** Wywołania filtra obejrzane na rozpoznanym budowniczym (fakt albo miejsce nieczytelne). */
@@ -4629,10 +4652,13 @@ function visitFile(
     const root = filterChainRoot(receiver);
     // `Object.is(a, b)`, `Array.from(...)` - konstruktory globalne, nie klient.
     if (ts.isIdentifier(root) && /^[A-Z]/.test(root.text)) continue;
-    // Filtr i sortowanie wyniku `.rpc(...)` to kolumny wyniku funkcji, nie
-    // tabeli - uprawnień kolumn nie wymagają.
-    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") continue;
     const where = `${scope.file}: ${enclosingFunctionPath(call)}: .${method}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)})`;
+    // Filtr wyniku `.rpc(...)` poza obejrzanym łańcuchem (`observeRpcChain`):
+    // kolumny wyniku funkcji, których miara nie wiąże - miejsce nieczytelne.
+    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") {
+      out.observed.unresolvedFilters.push(`${where}: wynik .rpc() poza obejrzanym łańcuchem`);
+      continue;
+    }
     // Budowniczy przez wartość: parametr pomocnika (`applyFilters(q)`),
     // funkcja zwracająca budowniczego, `let` przedłużany samym sobą.
     const builders = builderOf(receiver, scope, measure, exportsIndex, known, 0, {
@@ -4741,6 +4767,73 @@ function handleRpc(
     site: scope.file,
     fn: enclosingFunctionPath(node),
   });
+  observeRpcChain(node, name, keys, scope, exportsIndex, known, out, measure);
+}
+
+/**
+ * Miara: kolumny wyniku funkcji w łańcuchu `.rpc(...)` - wprost i przez
+ * zmienną z wywołaniem (jak łańcuchy budowniczego). Kolumna nieczytelna,
+ * osadzenie na wyniku albo lista `select` z wartości czasu działania - miejsce
+ * nieczytelne (zapadka `MAX_UNRESOLVED_FILTER_SITES`).
+ */
+function observeRpcChain(
+  node: ts.CallExpression,
+  name: string,
+  keys: readonly string[] | null,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  measure: MeasureEnv,
+): void {
+  const direct = chainAbove(node);
+  const top = direct.length > 0 ? direct[direct.length - 1] : node;
+  const chains = [...(direct.length > 0 ? [direct] : []), ...boundChains(top)];
+  for (const chain of chains) {
+    for (const call of chain) {
+      const method = callMethod(call)?.name ?? "";
+      const fn = enclosingFunctionPath(call);
+      const where = `${scope.file}: ${fn}: .rpc(${name}).${method}`;
+      const push = (column: string, file: string): void => {
+        out.observed.rpcColumns.push({ name, keys, column, method, file, site: scope.file, fn });
+      };
+      if (method === "select") {
+        const arg = call.arguments[0];
+        if (arg === undefined) continue;
+        const text = resolveString(arg, scope, exportsIndex, known);
+        if (text === null) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): lista \`select\` wyniku nieczytelna`,
+          );
+          continue;
+        }
+        if (splitTopLevel(text).some((item) => selectEmbedItem(item) !== null)) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): osadzenie na wyniku funkcji`,
+          );
+        }
+        for (const column of parseSelectColumns(text).columns) push(column, scope.file);
+        continue;
+      }
+      if (!FILTER_METHODS.has(method)) continue;
+      out.observed.visitedFilters.add(call);
+      const found = filterCallColumns(call, method, scope, exportsIndex, known, measure.filters);
+      for (const why of found.unresolved) {
+        out.observed.unresolvedFilters.push(
+          `${where}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)}): ${why}`,
+        );
+      }
+      for (const column of found.columns) {
+        if (column.embed.length > 0) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${column.embed.join(".")}.${column.column}): osadzenie na wyniku funkcji`,
+          );
+          continue;
+        }
+        push(column.column, column.file);
+      }
+    }
+  }
 }
 
 function handleFrom(
@@ -5587,6 +5680,7 @@ export function extractSeamFacts(
       embedUses: new Map(),
       statements: [],
       statementKeys: new Set(),
+      rpcColumns: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
       visitedFilters: new Set(),
@@ -5658,6 +5752,7 @@ export function extractSeamFacts(
           : e;
       }),
       statements: out.observed.statements,
+      rpcColumns: out.observed.rpcColumns,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
       unresolvedFilters: [
@@ -5894,7 +5989,7 @@ export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
 // `profiles(...)` czytane klientem przeglądarki przez GOŚCIA, widoki
 // `security_invoker` i funkcje SECURITY INVOKER czytające kolumny bez grantu
 // (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
-// wykonania). Teraz te fakty idą do pgTAP (asercje 10-19, `renderContractTest`):
+// wykonania). Teraz te fakty idą do pgTAP (asercje 10-20, `renderContractTest`):
 //   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
 //     `unknown` - tam, gdzie się różni od roli bramki; rola wciąż
 //     nieustalona - KAŻDA widoczna rola-kandydat (`checkedRoles`), a fakty
@@ -6376,7 +6471,8 @@ export function guestLoginOnlyCandidates(
 
 /**
  * Funkcje wyłączone z sond RPC (nazwa -> powód). Sonda woła funkcję SECURITY
- * INVOKER z NULL-ami jako rola klienta w podtransakcji wycofywanej
+ * INVOKER z NULL-ami i drugi raz z argumentami syntetycznymi (stałe wartości
+ * typów) jako rola klienta w podtransakcji wycofywanej
  * wartownikiem - zapisy, `pg_net` (kolejka w tabeli) i powiadomienia cofają
  * się z nią, ale synchroniczne wywołanie zewnętrzne (rozszerzenie `http`,
  * `dblink`) już nie. Przegląd listopad 2026: migracje nie instalują `http`
@@ -6385,6 +6481,137 @@ export function guestLoginOnlyCandidates(
  * Funkcja z takim wywołaniem trafia tu z powodem, zanim pojawi się w kodzie.
  */
 export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
+
+/** Wpis przeglądu wyzwalacza SECURITY INVOKER: md5 `prosrc` z przeglądu i powód. */
+export interface InvokerTriggerReviewed {
+  readonly md5: string;
+  readonly reason: string;
+}
+
+/**
+ * Funkcje wyzwalaczy SECURITY INVOKER odpalanych zapisem klienta (`schemat.nazwa`
+ * -> md5 ciała i powód). Sondy zapisu to `EXPLAIN` - planowanie nie wykonuje
+ * wyzwalaczy, więc funkcja wyzwalacza czytająca (albo zapisująca) kolumnę bez
+ * grantu roli klienta psuje KAŻDY taki zapis 42501, a sondy tego nie widzą.
+ * Asercja 20 wymaga dla każdego wyzwalacza (wierszowego i instrukcji, BEFORE,
+ * AFTER), który odpala INSERT/UPDATE/upsert/DELETE faktu zapisu `anon` albo
+ * `authenticated` (UPDATE OF kolumny - tylko gdy ładunek je zawiera): funkcji
+ * SECURITY DEFINER albo wpisu tutaj z md5 bieżącego ciała - zmiana ciała to
+ * ponowny przegląd, a wpis bez takiego wyzwalacza jest nieaktualny.
+ *
+ * Wykonanie prawdziwego INSERT w podtransakcji (BEFORE ROW przed RLS
+ * i ograniczeniami) sprawdzone na PG16 z seedem: 127 zapisów klienta bez
+ * nowej odmowy uprawnień i bez przesunięcia sekwencji, ale odpala tylko
+ * wyzwalacze INSERT (13 z 59), a UPDATE/DELETE potrzebują istniejącego wiersza
+ * (dane ma 67 z 381 tabel) - stąd przegląd, nie sonda.
+ */
+// Przegląd listopad 2026 (10a7ea59, PG16 po wszystkich migracjach): ciało
+// każdej funkcji przeczytane; funkcje wołane z ciała - EXECUTE sprawdzony
+// `has_function_privilege` dla anon i authenticated (EXECUTE samej funkcji
+// wyzwalacza Postgres sprawdza tylko przy CREATE TRIGGER).
+const TOUCH_ONLY = "tylko `NEW.updated_at := now()` - bez odczytu relacji i bez innych funkcji";
+const NEW_OLD_ONLY = "pola NEW/OLD i `now()` - bez odczytu relacji i bez innych funkcji";
+
+export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {
+  "public._tg_touch_updated_at": { md5: "d649a110c6bbd423f02e7d4c848573a9", reason: TOUCH_ONLY },
+  "public.check_page_parent_no_cycle": {
+    md5: "eb0e2ea48f838a1974f2fecd0faf6e36",
+    reason:
+      "czyta wyłącznie `pages.parent_id` i `pages.id` (pętla po przodkach) - SELECT obu kolumn mają anon i authenticated; RLS ogranicza widoczne strony, a niewidoczny przodek kończy pętlę bez błędu",
+  },
+  "public.crm_leads_sync_phone_norm": {
+    md5: "a22fede17786433ff68e03026b4a8e9a",
+    reason:
+      "woła `crm_normalize_phone(text)` (SQL IMMUTABLE, operacje na tekście, bez relacji; EXECUTE anon i authenticated)",
+  },
+  "public.nes_messages_search_vector": {
+    md5: "e2708e4027a89a075b630833e5690175",
+    reason:
+      "`to_tsvector('public.nes_polish', ...)` na polach NEW - konfiguracja wyszukiwania nie ma uprawnień, bez odczytu relacji",
+  },
+  "public.pages_search_vector_refresh": {
+    md5: "2d9b5c9548124bca2ba4526e6c28577e",
+    reason:
+      "woła `nes_pages_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.pages_validate_takeaways": {
+    md5: "904c446040b8462df52c3558f1cb3af0",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.post_sidebar_layouts_enforce_default": {
+    md5: "cddf64708a5640370d283a699b9f224c",
+    reason:
+      "przy `NEW.is_default` UPDATE `post_sidebar_layouts.is_default` po `tenant_id`, `id`, `is_default` - authenticated ma UPDATE(is_default) i SELECT tych kolumn, a zapis klienta (SidebarBuilderPane) działa na tej samej tabeli pod tymi samymi politykami RLS",
+  },
+  "public.posts_search_vector_refresh": {
+    md5: "42be6881709f0f4ff943894498d4e4c4",
+    reason:
+      "woła `nes_posts_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.posts_validate_takeaways": {
+    md5: "904c446040b8462df52c3558f1cb3af0",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decided_at_pin": {
+    md5: "97aedf893d97674eeab283fb4e58a225",
+    reason: "`NEW.discoverable_decided_at := OLD.discoverable_decided_at` - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decision_stamp": {
+    md5: "39f0fbd4335def0922ca7e15ab190d57",
+    reason:
+      "pola NEW, `now()` i `auth.uid()` (SQL na `current_setting`; EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.profiles_mirror_bio": {
+    md5: "b825457aae90e5e772d2efac9d6ee9c0",
+    reason: "`btrim`/`NULLIF` na polach NEW - bez odczytu relacji",
+  },
+  "public.profiles_pin_tenant": {
+    md5: "8b5c406f3fda297cf67911db8d3b824d",
+    reason:
+      "przy zmianie `tenant_id` woła `is_service_role_caller()` i `has_role(...)` (obie SECURITY DEFINER; authenticated ma EXECUTE obu). anon nie ma EXECUTE `is_service_role_caller`, ale nie ma też UPDATE na profiles - zapis profilu jako anon pada na uprawnieniu tabeli przed wyzwalaczem (asercje 17/19)",
+  },
+  "public.saved_searches_alert_defaults": {
+    md5: "99d894bfb66c2dd054f4b7d0172a2110",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.set_updated_at": { md5: "301a884953d37769916294bb60562e05", reason: TOUCH_ONLY },
+  "public.tg_crm_scoring_settings_touch": {
+    md5: "db79ec82248998564a64ee07f421b3da",
+    reason: "`now()` i `auth.uid()` (EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.tg_crm_tasks_normalize": {
+    md5: "fac8dfea8acb21625cd1ed066b8d3725",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle": {
+    md5: "f18b7e727b25bdab3e26dcb7aa2fc6d0",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle_insert": {
+    md5: "8aa7542eb68118827ea75c75669a3d2c",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_notification_preferences_touch": {
+    md5: "5b733ab523bad442e4b10f836de9e4ba",
+    reason: TOUCH_ONLY,
+  },
+  "public.tg_payment_orders_stamp_retention": {
+    md5: "c2e88776bfa1746564b0620032a493f5",
+    reason:
+      "woła `accounting_retention_until(timestamptz)` (SQL IMMUTABLE, `make_date`/`EXTRACT` - bez relacji; EXECUTE anon i authenticated)",
+  },
+};
+
+/**
+ * Funkcje RPC, których sondy (argumenty NULL i syntetyczne) kończą się bez
+ * błędu i bez odczytu ŻADNEJ relacji (liczniki `pg_stat_get_xact_*` sesji) -
+ * nazwa -> powód. Taka sonda nie sprawdziła ciała (strażnik argumentu,
+ * wczesny RETURN), więc bez wpisu to naruszenie asercji 16/19; wpis tylko dla
+ * funkcji, która z natury nie czyta relacji. Na 10a7ea59 żadna sonda nie jest
+ * pusta - lista pusta; wpis funkcji, której sonda pusta nie jest, czerwieni
+ * asercję 16 (nieaktualny).
+ */
+export const RPC_PROBE_VACUOUS_REVIEWED: Readonly<Record<string, string>> = {};
 
 /** Wejście bramki z miary (`renderContractTest`, `renderGuestGaps`). */
 export interface ContractEnforcement {
@@ -6395,6 +6622,10 @@ export interface ContractEnforcement {
   readonly reach: ReadonlyMap<string, SiteReach>;
   readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
   readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
+  /** Funkcje z pustą sondą RPC przejrzane; domyślnie `RPC_PROBE_VACUOUS_REVIEWED`. */
+  readonly rpcProbeVacuous?: Readonly<Record<string, string>>;
+  /** Wyzwalacze SECURITY INVOKER przejrzane; domyślnie `INVOKER_TRIGGERS_REVIEWED`. */
+  readonly invokerTriggers?: Readonly<Record<string, InvokerTriggerReviewed>>;
 }
 
 /** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
@@ -6577,7 +6808,7 @@ export function renderContractTest(
     readonly serverOnlyRpc?: Readonly<Record<string, string>>;
   } = {},
   /**
-   * Wejście asercji miary (10-19). Domyślnie bez mapy osiągalności: każdy
+   * Wejście asercji miary (10-20). Domyślnie bez mapy osiągalności: każdy
    * plik to `none`, więc wiersze gościa są sprawdzane wszędzie.
    */
   enforcement: ContractEnforcement = { reach: new Map() },
@@ -6680,7 +6911,7 @@ export function renderContractTest(
 -- Zasieg: ${facts.coverage.files} plikow, ${facts.coverage.rpcCalls} wywolan .rpc (nazwa nieczytelna:
 -- ${facts.coverage.rpcCallsWithUnknownName}), ${facts.coverage.tableChains} lancuchow .from (tabela nieczytelna: ${facts.coverage.tableChainsWithUnknownTable}).
 -- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza
--- (asercje 10-19 - z plikiem i funkcja wywolania).
+-- (asercje 10-20 - z plikiem i funkcja wywolania).
 ${gate.header}-- ============================================================================
 BEGIN;
 SELECT plan(${9 + OBSERVED_ASSERTIONS});
@@ -6935,17 +7166,22 @@ ROLLBACK;
 `;
 }
 
-// ── Render bramki z miary (asercje 10-19 i raport `--guest-gaps`) ───────────
+// ── Render bramki z miary (asercje 10-20 i raport `--guest-gaps`) ───────────
 
 /** Asercje pgTAP bramki z miary - plan pliku to 9 + tyle. */
-const OBSERVED_ASSERTIONS = 10;
+const OBSERVED_ASSERTIONS = 11;
 
-/** Klasyfikacja wyniku sondy bramki: odmowa uprawnień i brak obiektu - naruszenie. */
-const GATE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THEN 'ok'
-                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
-                          WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'
-                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
-                          ELSE 'inny blad ' || v_state END
+/**
+ * Klasyfikacja wyniku sondy bramki: odmowa uprawnień, brak obiektu i limit
+ * czasu (sonda bez werdyktu) - naruszenie; inne błędy (P0001, P0004 `ASSERT`
+ * funkcji dla syntetycznych argumentów, 23502 po wyzwalaczach BEFORE) - nie.
+ */
+const GATE_PROBE_OUTCOME = `      v_outcome := CASE WHEN v_state = '00000' THEN 'ok'
+                        WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                        WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'
+                        WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                        WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'
+                        ELSE 'inny blad ' || v_state END;
 `;
 
 /** Fakt miary w wierszach bramki (RPC, tabela, filtr, osadzenie, zapytanie sondy). */
@@ -6999,6 +7235,12 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
   const callOf = factCallOf(o);
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
+  const triggerRows = Object.entries(enforcement.invokerTriggers ?? INVOKER_TRIGGERS_REVIEWED)
+    .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
+    .sort();
+  const vacuousReviewed = Object.keys(
+    enforcement.rpcProbeVacuous ?? RPC_PROBE_VACUOUS_REVIEWED,
+  ).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
   // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
   // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
@@ -7140,6 +7382,20 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
       ),
     ),
   ];
+  // Kolumny wyniku RPC: bez roli (wynik funkcji nie ma uprawnień kolumn).
+  const rpcColumnRows = sorted(
+    o.rpcColumns.map((c) =>
+      [
+        sqlString(c.name),
+        sqlTextArray(c.keys),
+        sqlString(c.column),
+        sqlString(c.method),
+        sqlString(c.file),
+        sqlString(c.site),
+        sqlString(c.fn),
+      ].join(", "),
+    ),
+  );
   const statementRows = sorted(
     rows(
       o.statements.filter((s) => !s.withheld),
@@ -7200,7 +7456,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const roles = "('anon', 'authenticated', 'service_role')";
 
   const header = `--
--- Asercje 10-19 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
+-- Asercje 10-20 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
 -- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
 -- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
 -- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
@@ -7220,22 +7476,32 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 --   w tym ${serverExempted} w plikach admin i session-gate (bez tego zwolnionych).
 -- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
 -- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
--- Sonda pada WYLACZNIE na 42501 "permission denied for ..." i brak obiektu
--- (42703, 42P01, 42883); inny blad (np. P0001 funkcji dla argumentow NULL) przechodzi.
+-- Sonda pada na 42501 "permission denied for ...", brak obiektu (42703, 42P01,
+-- 42883) i brak werdyktu (limit czasu 57014 albo blokady 55P03, sonda
+-- nieuruchomiona); inny blad (np. P0001 albo ASSERT P0004 funkcji) przechodzi.
+-- Odczyt to SELECT ... LIMIT 1 (wiersz z danych liczy kolumny widoku i funkcje
+-- wiersza); RPC dwie sondy - argumenty NULL i syntetyczne (cialo za straznikiem
+-- NULL); obie bez bledu i bez odczytu zadnej relacji - sonda pusta, naruszenie
+-- (przejrzane RPC_PROBE_VACUOUS_REVIEWED: ${vacuousReviewed.length === 0 ? "brak" : vacuousReviewed.join(", ")}).
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta - sondy zapisu (EXPLAIN)
+-- ich nie wykonuja: asercja 20, przejrzane INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}.
 `;
 
-  const setup = `-- ── Fakty miary (asercje 10-19) ─────────────────────────────────────────────
+  const setup = `-- ── Fakty miary (asercje 10-20) ─────────────────────────────────────────────
 CREATE TEMP TABLE ts_obs_rpc (fn text, keys text[], role text, enforced text, via text, guest boolean, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, guest boolean, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], guest boolean, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("ts_obs_rpc", "fn, keys, role, enforced, via, guest, site, func", rpcRows)}
 ${valuesBlock("ts_obs_table", "rel, op, role, enforced, cols, star, via, guest, file, site, func", tableRows)}
 ${valuesBlock("ts_obs_filter", "rel, col, embed, method, op, role, enforced, guest, file, site, func", filterRows)}
 ${valuesBlock("ts_obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, guest, site, func", statementRows)}
 ${valuesBlock("ts_obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, guest, file, site, func", embedRows)}
+${valuesBlock("ts_obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
+${RESULT_COLUMNS_SQL}
 -- Relacje osadzen (tabela ts_obs_embed_rel: id, rodzic, relacja, klucz obcy).
 ${EMBED_FUNCTIONS_SQL}
 ${embedRelSql("ts_obs_embed", "ts_obs_embed_rel")}
@@ -7262,7 +7528,7 @@ ${probeSql({
   rpcExcluded: excluded,
   outcome: GATE_PROBE_OUTCOME,
 })}
--- ── Naruszenia (kind, guest, site, func, msg): asercje 10-19 i --guest-gaps ──
+-- ── Naruszenia (kind, guest, site, func, msg): asercje 10-20 i --guest-gaps ──
 -- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
 -- asercje 2 i 5) oraz wiersze goscia.
 CREATE TEMP VIEW ts_v_fact AS
@@ -7324,7 +7590,9 @@ SELECT DISTINCT f.site, f.func,
         AND (f.col IS NULL OR NOT EXISTS (
               SELECT 1 FROM pg_attribute a
                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
-                 AND a.attnum > 0 AND NOT a.attisdropped)));
+                 AND a.attnum > 0 AND NOT a.attisdropped)))
+UNION
+${rpcResultMissingSql("ts_obs_rpc_col")};
 
 -- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
 -- w UPDATE i DELETE). Kolumna przez zlaczenie z pg_attribute, uprawnienie po
@@ -7387,7 +7655,53 @@ SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
  WHERE m.role IN ${roles}
    AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
 
--- Sondy wykonania: odmowa uprawnien i brak obiektu.
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (anon/authenticated):
+-- INSERT - insert/upsert, UPDATE - update/upsert (UPDATE OF kolumny tylko gdy
+-- ladunek je zawiera), DELETE - delete. Sondy zapisu (EXPLAIN) ich nie
+-- wykonuja, wiec funkcja: SECURITY DEFINER albo wpis INVOKER_TRIGGERS_REVIEWED
+-- z md5 biezacego ciala; wpis bez takiego wyzwalacza - nieaktualny.
+CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text) ON COMMIT DROP;
+${valuesBlock("ts_trigger_reviewed", "fn, md5", triggerRows)}
+CREATE TEMP VIEW ts_v_trigger AS
+WITH t AS (
+  SELECT n.nspname || '.' || p.proname AS fn, md5(p.prosrc) AS md5, c.relname::text AS rel,
+         tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
+         ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
+                 JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols
+    FROM pg_trigger tg
+    JOIN pg_class c ON c.oid = tg.tgrelid
+    JOIN pg_proc p ON p.oid = tg.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
+     AND tg.tgenabled <> 'D' AND NOT p.prosecdef
+), fired AS (
+  SELECT t.*, s.op, s.role, s.site, s.func
+    FROM t
+    JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')
+   WHERE ((t.tgtype & 4) <> 0 AND s.op IN ('insert', 'upsert', 'upsert_ignore'))
+      OR ((t.tgtype & 16) <> 0 AND s.op IN ('update', 'upsert')
+          AND (cardinality(t.cols) = 0 OR t.cols && s.payload))
+      OR ((t.tgtype & 8) <> 0 AND s.op = 'delete')
+)
+SELECT DISTINCT format('%s: %s: %s %s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
+         f.site, f.func, f.rel, f.op, f.role, f.tgname,
+         CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
+         concat_ws('/', CASE WHEN (f.tgtype & 4) <> 0 THEN 'INSERT' END,
+                        CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
+                        CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
+         CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
+         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 ' || f.md5 || ')'
+              ELSE format('cialo zmienione od przegladu (md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
+  FROM fired f
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE r.md5 IS DISTINCT FROM f.md5
+UNION
+SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)', r.fn)
+  FROM ts_trigger_reviewed r
+ WHERE NOT EXISTS (SELECT 1 FROM fired f WHERE f.fn = r.fn);
+
+-- Sondy wykonania: odmowa uprawnien, brak obiektu i sonda bez werdyktu
+-- (limit czasu albo blokada, sonda nieuruchomiona w zadnej partii).
 CREATE TEMP VIEW ts_v_probe AS
 SELECT DISTINCT p.guest, p.site, p.func,
        CASE WHEN p.kind = 'probe-rpc' THEN '.rpc(' || p.rel || ')'
@@ -7402,9 +7716,28 @@ SELECT DISTINCT p.guest, p.site, p.func,
                WHERE f.site = p.site AND f.func = p.func AND f.rel = p.rel AND f.col = p.cols), p.rel) || ')'
             ELSE '.from(' || p.rel || ')' END AS call,
        format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
-              p.state, p.msg) AS msg
+              coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg
   FROM ts_probe p
- WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu');
+ WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona')
+UNION
+-- Sonda RPC pusta: wszystkie sondy funkcji tego miejsca i roli (argumenty NULL
+-- i syntetyczne) bez bledu i bez odczytu zadnej relacji - cialo niesprawdzone.
+SELECT p.guest, p.site, p.func,
+       format('%s: %s: probe-rpc %s [%s] jako %s: sonda pusta - argumenty NULL i syntetyczne bez bledu i bez odczytu zadnej relacji (cialo funkcji niesprawdzone; RPC_PROBE_VACUOUS_REVIEWED)',
+              p.site, p.func, p.rel, p.cols, p.role)
+  FROM ts_probe p
+ WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (${sqlTextArray(vacuousReviewed)})
+ GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
+HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
+UNION
+SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn,
+       format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
+  FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
+ WHERE current_setting('track_counts')::boolean
+   AND NOT EXISTS (SELECT 1 FROM ts_probe p
+                    WHERE p.kind LIKE 'probe-rpc%' AND p.rel = r.fn
+                    GROUP BY p.site, p.func, p.role
+                   HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0);
 `;
   return { header, setup };
 }
@@ -7422,11 +7755,12 @@ SELECT is(
   ARRAY[]::text[],
   'Tabele z TS: rola zmierzona klienta (inna niz rola bramki) ma uprawnienie do operacji na kazdej kolumnie');
 
--- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST).
+-- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST), takze
+--     kolumny wyniku funkcji w lancuchu .rpc(...).
 SELECT is(
   ARRAY(SELECT DISTINCT msg FROM ts_v_filter_missing ORDER BY 1),
   ARRAY[]::text[],
-  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu i klucz glowny celu istnieja');
+  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu, klucz glowny celu i kolumna wyniku RPC istnieja');
 
 -- 13. Kolumny filtrow: rola ma SELECT (42501 takze w UPDATE/DELETE).
 SELECT is(
@@ -7473,6 +7807,12 @@ SELECT is(
   ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE guest ORDER BY 1),
   ARRAY[]::text[],
   'Gosc (anon): sondy wykonania klienta przegladarki bez odmowy uprawnien i bez braku obiektu');
+
+-- 20. Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (sondy ich nie wykonuja).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_trigger ORDER BY 1),
+  ARRAY[]::text[],
+  'Wyzwalacze SECURITY INVOKER zapisow klienta: wpis INVOKER_TRIGGERS_REVIEWED z md5 biezacego ciala albo SECURITY DEFINER');
 `;
 
 /**
@@ -7535,7 +7875,7 @@ ROLLBACK;
 /**
  * Zapytania miary (`generate:ts-sql-contract --measure`): zwykły SQL, nie
  * pgTAP - narzędzie przeglądu (te same fakty sprawdza pgTAP bramki w asercjach
- * 10-19, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
+ * 10-20, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
  * Na bazie po wszystkich
  * migracjach zwraca listę naruszeń (rodzaj, plik, funkcja, relacja, kolumna,
  * rola zmierzona i rola bramki, problem, droga ustalenia roli) dla:
@@ -7551,15 +7891,18 @@ ROLLBACK;
  * zapytanie łańcucha (`observed.statements`) i każda kolumna filtra idą
  * w podtransakcji JAKO rola zmierzona z wiarygodnymi roszczeniami JWT
  * (administrator z seeda, nagłówek hosta najemcy): odczyt
- * `SELECT kolumny FROM rel WHERE filtr IS NULL LIMIT 0`, zapis jako `EXPLAIN`
- * tej samej instrukcji (ładunek `DEFAULT`, WHERE, RETURNING, `ON CONFLICT`)
- * - planowanie sprawdza uprawnienia każdej relacji po rozwinięciu widoków
- * i polityk, a nic nie jest zapisywane. RPC funkcji `SECURITY INVOKER`
- * wołane przez `anon`/`authenticated` (z EXECUTE) - wywołanie z NULL-ami
- * w podtransakcji. Każda sonda kończy się wycofaniem podtransakcji (wyjątek
- * wartownika), a całość - `ROLLBACK`. Naruszenie to wyłącznie 42501
- * „permission denied for …"; 42501 z własnym komunikatem (autoryzacja
- * funkcji) i inne błędy (walidacja wejścia) liczy podsumowanie sond.
+ * `SELECT kolumny FROM rel WHERE (filtr IS NULL) OR true LIMIT 1` (kolumny
+ * widoku i funkcje wiersza liczone dla jednego wiersza, gdy relacja ma
+ * dane), zapis jako `EXPLAIN` tej samej instrukcji (ładunek `DEFAULT`,
+ * WHERE, RETURNING, `ON CONFLICT`) - planowanie sprawdza uprawnienia każdej
+ * relacji po rozwinięciu widoków i polityk, a nic nie jest zapisywane. RPC
+ * funkcji `SECURITY INVOKER` wołane przez `anon`/`authenticated` (z EXECUTE)
+ * - wywołanie z NULL-ami i z argumentami syntetycznymi w podtransakcji. Każda
+ * sonda kończy się wycofaniem podtransakcji (wyjątek wartownika), a całość -
+ * `ROLLBACK`; limit czasu instrukcji obejmuje partię sond (`probeSql`).
+ * Naruszenie to wyłącznie 42501 „permission denied for …"; 42501 z własnym
+ * komunikatem (autoryzacja funkcji), inne błędy (walidacja wejścia) i limit
+ * czasu liczy podsumowanie sond.
  */
 /** Opis drogi roli w wierszu gościa (klient przeglądarki bez sesji). */
 export const GUEST_VIA = "gość bez sesji: klient przeglądarki z kluczem publicznym";
@@ -7668,6 +8011,17 @@ export function renderObservedQueries(
       sqlString(e.fn),
     ].join(", "),
   );
+  const rpcColumnRows = o.rpcColumns.map((c) =>
+    [
+      sqlString(c.name),
+      sqlTextArray(c.keys),
+      sqlString(c.column),
+      sqlString(c.method),
+      sqlString(c.file),
+      sqlString(c.site),
+      sqlString(c.fn),
+    ].join(", "),
+  );
   const sites = [
     ...new Set(
       [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements].map((x) => x.site),
@@ -7722,6 +8076,7 @@ CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op te
 CREATE TEMP TABLE obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_reach (site text PRIMARY KEY, cls text, entry text, path text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
 ${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
@@ -7729,7 +8084,9 @@ ${valuesBlock("obs_filter", "rel, col, embed, method, op, role, enforced, via, f
 ${valuesBlock("obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
 ${valuesBlock("obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, via, file, site, func", embedRows)}
 ${valuesBlock("obs_reach", "site, cls, entry, path", reachRows)}
+${valuesBlock("obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
 ${RPC_MATCH_SQL}
+${RESULT_COLUMNS_SQL}
 ${EMBED_SQL}
 -- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
 CREATE TEMP VIEW obs_filter_cols AS
@@ -7854,6 +8211,9 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (m.role IN ${roles}
           AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))
+  UNION ALL
+  SELECT 'rpc-result-column', r.site, r.func, NULL, NULL, NULL, NULL, r.msg, '-'
+    FROM (${rpcResultMissingSql("obs_rpc_col")}) r
 ) v;
 ${PROBE_SQL}
 SELECT p.kind, coalesce(p.outcome, 'nie uruchomiona') AS outcome, count(*) AS probes
@@ -7880,6 +8240,53 @@ LEFT JOIN obs_reach r ON r.site = x.site
 ORDER BY x.caught_by DESC, x.kind, x.site, x.func, x.rel, x.col, x.role;
 ROLLBACK;
 `;
+}
+
+/**
+ * Kolumny wyniku funkcji (filtry, sortowanie i `select` łańcucha `.rpc(...)`):
+ * nazwy parametrów TABLE/OUT/INOUT, a bez nich atrybuty zwracanego typu
+ * złożonego (`SETOF tabela`); `NULL` - wynik bez kolumn (skalar, json).
+ */
+const RESULT_COLUMNS_SQL = `-- Kolumny wyniku funkcji: TABLE/OUT/INOUT albo atrybuty zwracanego typu zlozonego;
+-- NULL - wynik bez kolumn (skalar, json).
+CREATE FUNCTION pg_temp.ts_result_cols(p_oid oid)
+RETURNS text[] LANGUAGE sql STABLE AS $f$
+  SELECT coalesce(
+    (SELECT array_agg(a.name ORDER BY a.o)
+       FROM pg_proc p
+       CROSS JOIN LATERAL unnest(p.proargnames, p.proargmodes::text[]) WITH ORDINALITY a(name, mode, o)
+      WHERE p.oid = p_oid AND a.mode IN ('o', 'b', 't')),
+    (SELECT array_agg(a.attname::text ORDER BY a.attnum)
+       FROM pg_proc p
+       JOIN pg_type t ON t.oid = p.prorettype
+       JOIN pg_attribute a ON a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped
+      WHERE p.oid = p_oid AND t.typtype = 'c'))
+$f$;
+`;
+
+/**
+ * Naruszenia kolumn wyniku RPC (site, func, msg): kolumna spoza wyniku
+ * przeciążenia, które PostgREST wybierze (klucze nieczytelne - którekolwiek
+ * przeciążenie o tej nazwie), albo wynik bez kolumn. Funkcji bez przeciążenia
+ * nie ma tu - brak funkcji zgłasza asercja 2.
+ */
+function rpcResultMissingSql(source: string): string {
+  return `SELECT c.site, c.func,
+       format('%s: %s: %s(%s).%s (%s, wynik funkcji%s): %s', c.site, c.func, c.fn,
+              coalesce(array_to_string(c.keys, ','), '?'), c.col, c.method,
+              CASE WHEN c.file <> c.site THEN ', literal w ' || c.file ELSE '' END,
+              CASE WHEN r.has_cols THEN 'kolumna wyniku nie istnieje'
+                   ELSE 'wynik bez kolumn (skalar, json) - kolumny nie da sie sprawdzic' END) AS msg
+  FROM ${source} c
+  CROSS JOIN LATERAL (
+    SELECT bool_or(x.cols IS NOT NULL) AS has_cols, bool_or(c.col = ANY (x.cols)) AS found
+      FROM (SELECT pg_temp.ts_rpc_match(c.fn, c.keys) AS oid WHERE c.keys IS NOT NULL
+            UNION ALL
+            SELECT q.oid FROM pg_proc q
+             WHERE c.keys IS NULL AND q.pronamespace = 'public'::regnamespace AND q.proname = c.fn) o
+      CROSS JOIN LATERAL (SELECT pg_temp.ts_result_cols(o.oid) AS cols) x
+     WHERE o.oid IS NOT NULL) r
+ WHERE r.has_cols IS NOT NULL AND NOT coalesce(r.found, false)`;
 }
 
 /**
@@ -7976,20 +8383,22 @@ interface ProbeSqlNames {
   readonly guest: boolean;
   /** Funkcje wyłączone z sond RPC (bramka: `RPC_PROBE_EXCLUDED`); `null` - bez listy (miara). */
   readonly rpcExcluded: readonly string[] | null;
-  /** Wyrażenie `outcome = CASE ...` klasyfikacji wyniku sondy. */
+  /** Przypisanie `v_outcome := CASE ...` klasyfikacji wyniku sondy (PL/pgSQL). */
   readonly outcome: string;
 }
 
 /** Klasyfikacja wyniku sondy miary: naruszenie to wyłącznie 42501 „permission denied for …". */
-const MEASURE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THEN 'ok'
-                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
-                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
-                          ELSE 'inny blad ' || v_state END
+const MEASURE_PROBE_OUTCOME = `      v_outcome := CASE WHEN v_state = '00000' THEN 'ok'
+                        WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                        WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                        WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'
+                        ELSE 'inny blad ' || v_state END;
 `;
 
 /**
- * Funkcje pomocnicze sond (lista identyfikatorów, klucz główny, argumenty RPC
- * z NULL-ami) - wspólne dla miary i bramki, żeby obie budowały TE SAME sondy.
+ * Funkcje pomocnicze sond (lista identyfikatorów, klucz główny, wartość
+ * syntetyczna typu, argumenty RPC z NULL-ami albo syntetyczne) - wspólne dla
+ * miary i bramki, żeby obie budowały TE SAME sondy.
  */
 const PROBE_HELPERS_SQL = `-- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
 CREATE FUNCTION pg_temp.ts_list(p_items text[], p_fmt text, p_sep text)
@@ -8006,10 +8415,56 @@ RETURNS text[] LANGUAGE sql STABLE AS $f$
    WHERE i.indrelid = to_regclass('public.' || quote_ident(p_rel)) AND i.indisprimary
 $f$;
 
--- Argumenty wywolania RPC z NULL-ami: klucze z kodu (nazwane), a gdy kluczy nie
--- da sie ustalic - kazdy parametr bez DEFAULT; jedyny nienazwany parametr
--- (json PostgREST) - pozycyjnie.
-CREATE FUNCTION pg_temp.ts_rpc_args(p_oid oid, p_keys text[])
+-- Wartosc syntetyczna typu (druga sonda RPC: cialo za straznikiem argumentu
+-- NULL tez sie wykonuje). Stala, bez losowosci: uuid ...0aa, 'x', 1, false,
+-- '{}', 2026-01-01, przedzial pusty, tablica jednego elementu, pierwsza
+-- etykieta enuma, domena - wartosc typu bazowego, typ zlozony - ROW(...);
+-- typ bez reguly (i zagniezdzenie ponad 3) - NULL tego typu.
+CREATE FUNCTION pg_temp.ts_synth(p_type oid, p_depth int DEFAULT 0)
+RETURNS text LANGUAGE plpgsql STABLE AS $f$
+DECLARE
+  t record;
+  v text;
+  v_name text := format_type(p_type, NULL);
+BEGIN
+  SELECT typtype, typcategory, typelem, typbasetype, typrelid INTO t FROM pg_type WHERE oid = p_type;
+  IF NOT FOUND OR p_depth > 3 THEN
+    RETURN format('NULL::%s', v_name);
+  ELSIF t.typtype = 'd' THEN
+    RETURN format('(%s)::%s', pg_temp.ts_synth(t.typbasetype, p_depth + 1), v_name);
+  ELSIF t.typtype = 'e' THEN
+    SELECT format('%L::%s', e.enumlabel, v_name) INTO v
+      FROM pg_enum e WHERE e.enumtypid = p_type ORDER BY e.enumsortorder LIMIT 1;
+  ELSIF t.typtype = 'c' THEN
+    SELECT format('ROW(%s)::%s', string_agg(pg_temp.ts_synth(a.atttypid, p_depth + 1), ', ' ORDER BY a.attnum), v_name)
+      INTO v
+      FROM pg_attribute a WHERE a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped;
+  ELSIF t.typcategory = 'A' AND t.typelem <> 0 THEN
+    RETURN format('ARRAY[%s]::%s', pg_temp.ts_synth(t.typelem, p_depth + 1), v_name);
+  ELSIF t.typtype IN ('r', 'm') THEN
+    v := format('%L::%s', CASE t.typtype WHEN 'r' THEN 'empty' ELSE '{}' END, v_name);
+  ELSE
+    v := CASE
+           WHEN p_type = 'uuid'::regtype THEN '00000000-0000-4000-8000-0000000000aa'
+           WHEN p_type IN ('json'::regtype, 'jsonb'::regtype) THEN '{}'
+           WHEN p_type = 'bool'::regtype THEN 'false'
+           WHEN p_type = 'date'::regtype THEN '2026-01-01'
+           WHEN p_type IN ('timestamp'::regtype, 'timestamptz'::regtype) THEN '2026-01-01 00:00:00+00'
+           WHEN p_type IN ('time'::regtype, 'timetz'::regtype) THEN '00:00:00+00'
+           WHEN p_type = 'interval'::regtype THEN '1 day'
+           WHEN p_type IN ('inet'::regtype, 'cidr'::regtype) THEN '127.0.0.1'
+           WHEN t.typcategory = 'N' THEN '1'
+           WHEN t.typcategory = 'S' THEN 'x'
+         END;
+    IF v IS NOT NULL THEN v := format('%L::%s', v, v_name); END IF;
+  END IF;
+  RETURN coalesce(v, format('NULL::%s', v_name));
+END $f$;
+
+-- Argumenty wywolania RPC z NULL-ami (\`p_synth\` - z wartosciami syntetycznymi):
+-- klucze z kodu (nazwane), a gdy kluczy nie da sie ustalic - kazdy parametr
+-- bez DEFAULT; jedyny nienazwany parametr (json PostgREST) - pozycyjnie.
+CREATE FUNCTION pg_temp.ts_rpc_args(p_oid oid, p_keys text[], p_synth boolean DEFAULT false)
 RETURNS text LANGUAGE plpgsql STABLE AS $f$
 DECLARE
   p pg_proc;
@@ -8030,11 +8485,14 @@ BEGIN
     v_pos := v_pos + 1;
     IF coalesce(v_names[i], '') = '' THEN
       CONTINUE WHEN v_pos > p.pronargs - p.pronargdefaults;
-      v_out := v_out || format('NULL::%s', format_type(v_types[i], NULL));
+      v_out := v_out || CASE WHEN p_synth THEN pg_temp.ts_synth(v_types[i])
+                             ELSE format('NULL::%s', format_type(v_types[i], NULL)) END;
     ELSIF (p_keys IS NOT NULL AND v_names[i] = ANY (p_keys))
        OR (p_keys IS NULL AND v_pos <= p.pronargs - p.pronargdefaults) THEN
-      v_out := v_out || format('%s%I => NULL::%s', CASE WHEN v_modes[i] = 'v' THEN 'VARIADIC ' ELSE '' END,
-                               v_names[i], format_type(v_types[i], NULL));
+      v_out := v_out || format('%s%I => %s', CASE WHEN v_modes[i] = 'v' THEN 'VARIADIC ' ELSE '' END,
+                               v_names[i],
+                               CASE WHEN p_synth THEN pg_temp.ts_synth(v_types[i])
+                                    ELSE format('NULL::%s', format_type(v_types[i], NULL)) END);
     END IF;
   END LOOP;
   RETURN array_to_string(v_out, ', ');
@@ -8042,15 +8500,44 @@ END $f$;
 
 `;
 
+/**
+ * Limity czasu sond. Postgres uzbraja `statement_timeout` WYŁĄCZNIE na
+ * początku instrukcji najwyższego poziomu: `set_config('statement_timeout',
+ * ..., true)` wewnątrz bloku DO nie przerywa bieżącej instrukcji (PG16: 200 ms
+ * ustawione w DO, `pg_sleep(1)` doszedł do końca). Dlatego sondy wykonuje
+ * funkcja wołana z kolejnych instrukcji DO (partie): każda instrukcja dostaje
+ * własny limit `PROBE_STATEMENT_TIMEOUT`, a partia sama kończy się po
+ * `PROBE_BATCH_BUDGET`, więc KAŻDA sonda ma co najmniej różnicę obu (8 s).
+ * `lock_timeout` działa w trakcie instrukcji - ustawiany na sondę w jej
+ * podtransakcji (`set_config(..., true)`, cofany razem z nią).
+ */
+const PROBE_STATEMENT_TIMEOUT = "10s";
+const PROBE_BATCH_BUDGET = "2s";
+const PROBE_LOCK_TIMEOUT = "5s";
+/** Partie sond: lokalnie wystarczają 2-3 (~4 s sond), puste wracają od razu. */
+const PROBE_BATCHES = 30;
+
 function probeSql(n: ProbeSqlNames): string {
   const g = (expr: string): string => (n.guest ? ` ${expr},` : "");
+  const run = `pg_temp.${n.probe}_run`;
+  // 57014 po limicie instrukcji (a nie anulowanie z zewnątrz): od początku
+  // instrukcji minął limit; bez zależności od języka komunikatu.
+  const timedOut = `clock_timestamp() - statement_timestamp() >= interval '${PROBE_STATEMENT_TIMEOUT}' - interval '1 s'`;
+  const batches = Array.from(
+    { length: PROBE_BATCHES },
+    () => `DO $run$ BEGIN PERFORM ${run}(); END $run$;`,
+  ).join("\n");
   return `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
 CREATE TEMP TABLE ${n.probe} (
   id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
-  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text
+  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text,
+  touched bigint
 ) ON COMMIT DROP;
 
-${PROBE_HELPERS_SQL}-- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 0, zapis jako EXPLAIN.
+${PROBE_HELPERS_SQL}-- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 1 - kolumny widoku i funkcje
+-- wiersza licza sie dla jednego wiersza (jest, gdy relacja ma dane); kolumny
+-- filtrow zostaja w WHERE (uprawnienia sprawdza start wykonania), \`OR true\`
+-- nie odrzuca wiersza. Zapis jako EXPLAIN.
 INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
 SELECT 'probe-' || s.op, s.site, s.func, s.rel,
        concat_ws(' ', CASE WHEN s.star THEN '*' ELSE array_to_string(s.cols, ',') END,
@@ -8058,9 +8545,9 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
                  nullif('where(' || array_to_string(s.where_cols, ',') || ')', 'where()')),
        s.role, s.enforced, s.via,${g("s.guest")}
        CASE s.op
-         WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 0',
+         WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 1',
            CASE WHEN s.star THEN '*' ELSE coalesce(pg_temp.ts_list(s.cols, '%I', ', '), '') END,
-           s.rel, w.clause)
+           s.rel, ws.clause)
          WHEN 'delete' THEN format('EXPLAIN DELETE FROM public.%I%s%s', s.rel, w.clause, r.clause)
          WHEN 'update' THEN format('EXPLAIN UPDATE public.%I SET %s%s%s', s.rel,
            pg_temp.ts_list(s.payload, '%I = DEFAULT', ', '), w.clause, r.clause)
@@ -8078,6 +8565,7 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
        END
   FROM ${n.stmt} s
   CROSS JOIN LATERAL (SELECT coalesce(' WHERE ' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND '), '') AS clause) w
+  CROSS JOIN LATERAL (SELECT coalesce(' WHERE (' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND ') || ') OR true', '') AS clause) ws
   CROSS JOIN LATERAL (SELECT CASE WHEN s.star THEN ' RETURNING *'
                                   ELSE coalesce(' RETURNING ' || pg_temp.ts_list(s.cols, '%I', ', '), '') END AS clause) r
   CROSS JOIN LATERAL (SELECT pg_temp.ts_list(CASE WHEN s.conflict = ARRAY['${PRIMARY_KEY_COLUMNS}']
@@ -8086,19 +8574,23 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
  WHERE s.role IN ('anon', 'authenticated', 'service_role')
    AND to_regclass('public.' || quote_ident(s.rel)) IS NOT NULL;
 
--- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc).
+-- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc);
+-- LIMIT 1 - kolumna widoku liczona funkcja liczy sie w WHERE.
 INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
 SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,${g("f.guest")}
-       format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)
+       format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 1', f.rel, f.col)
   FROM ${n.filterCols} f
  WHERE f.role IN ('anon', 'authenticated', 'service_role') AND f.col IS NOT NULL
    AND to_regclass('public.' || quote_ident(f.rel)) IS NOT NULL;
 
 -- RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated, z EXECUTE
--- (brak EXECUTE zglasza juz sprawdzenie uprawnien).
+-- (brak EXECUTE zglasza juz sprawdzenie uprawnien). Dwie sondy: argumenty NULL
+-- (\`probe-rpc\`) i syntetyczne (\`probe-rpc-synth\`, pg_temp.ts_synth) - cialo za
+-- straznikiem \`IF arg IS NULL THEN RETURN\` tez sie wykonuje; funkcja bez
+-- argumentow - jedna sonda.
 INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
-SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
-       r.role, r.enforced, r.via,${g("r.guest")} format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
+SELECT DISTINCT a.kind, r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
+       r.role, r.enforced, r.via,${g("r.guest")} format('SELECT public.%I(%s)', p.proname, a.args)
   FROM ${n.rpc} r
   -- Przeciazenie liczone RAZ na wiersz (LATERAL): \`p.oid IN (podzapytanie)\`
   -- liczylo ts_rpc_match dla kazdej pary (wiersz, funkcja z pg_proc) - minuta.
@@ -8108,20 +8600,27 @@ SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.ke
          SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
           WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
   JOIN pg_proc p ON p.oid = o.oid
+  CROSS JOIN LATERAL (
+         SELECT 'probe-rpc' AS kind, pg_temp.ts_rpc_args(p.oid, r.keys) AS args, true AS differs
+         UNION ALL
+         SELECT 'probe-rpc-synth', s.args, s.args <> pg_temp.ts_rpc_args(p.oid, r.keys)
+           FROM (SELECT pg_temp.ts_rpc_args(p.oid, r.keys, true) AS args) s) a
  WHERE r.role IN ('anon', 'authenticated')
    AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
-   AND has_function_privilege(r.role, p.oid, 'EXECUTE')${n.rpcExcluded === null ? "" : `\n   AND p.proname <> ALL (${sqlTextArray(n.rpcExcluded)})`};
+   AND has_function_privilege(r.role, p.oid, 'EXECUTE')${n.rpcExcluded === null ? "" : `\n   AND p.proname <> ALL (${sqlTextArray(n.rpcExcluded)})`}
+   AND a.differs;
 
 -- Osadzenia: kolumny relacji osadzonej ZE zlaczeniem po kluczu obcym (SELECT
--- na kolumnach klucza po obu stronach); bez jednoznacznego klucza - sama
--- relacja; relacja nieczytelna - tylko w podsumowaniu.
+-- na kolumnach klucza po obu stronach, LIMIT 1 - kolumny widoku dla wiersza);
+-- bez jednoznacznego klucza - sama relacja; relacja nieczytelna - tylko
+-- w podsumowaniu.
 INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql, outcome)
 SELECT DISTINCT 'probe-embed', m.site, m.func, coalesce(c.relname::text, m.rel),
        m.path || '(' || CASE WHEN m.star THEN '*' ELSE array_to_string(m.cols, ',') END || ')',
        m.role, m.enforced, m.via,${g("m.guest")}
        CASE WHEN x.target IS NULL THEN NULL
-            WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 0', tc.list, c.relname)
-            ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,
+            WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 1', tc.list, c.relname)
+            ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 1', tc.list,
                         pc.relname, c.relname, pg_temp.ts_fk_join(x.fk, x.parent)) END,
        CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END
   FROM ${n.embed} m
@@ -8132,15 +8631,36 @@ SELECT DISTINCT 'probe-embed', m.site, m.func, coalesce(c.relname::text, m.rel),
                                   ELSE coalesce(pg_temp.ts_list(m.cols, 't.%I', ', '), '') END AS list) tc
  WHERE m.role IN ('anon', 'authenticated', 'service_role');
 
-DO $probe$
+-- Wykonanie sond: funkcja wolana z kolejnych instrukcji DO (partie). Limit
+-- instrukcji (${PROBE_STATEMENT_TIMEOUT}) Postgres uzbraja tylko na poczatku instrukcji najwyzszego
+-- poziomu, wiec partia konczy sie sama po ${PROBE_BATCH_BUDGET}, a nastepna DO uzbraja go od
+-- nowa. Sonda przerwana limitem (57014) albo blokada (55P03, lock_timeout
+-- ${PROBE_LOCK_TIMEOUT} w podtransakcji sondy) i sonda bez wyniku po ostatniej partii to
+-- naruszenie z plikiem i funkcja; ASSERT funkcji (P0004) i inne bledy - wynik
+-- sondy, nie przerwanie pliku.
+CREATE FUNCTION ${run}() RETURNS void LANGUAGE plpgsql AS $run$
 DECLARE
-  r record;
+  v_ids int[];
+  v_roles text[];
+  v_sqls text[];
+  v_rpc boolean[];
+  v_rels oid[];
+  v_before bigint;
+  v_touched bigint[] := '{}';
+  v_done int[] := '{}';
+  v_states text[] := '{}';
+  v_msgs text[] := '{}';
+  v_ctxs text[] := '{}';
+  v_outcomes text[] := '{}';
   v_state text;
   v_msg text;
   v_ctx text;
+  v_outcome text;
   v_sub text;
   v_email text;
   v_host text;
+  v_stop boolean := false;
+  i int;
 BEGIN
   -- Wiarygodne roszczenia: administrator z seeda (najdalej w kod funkcji),
   -- inaczej pierwszy uzytkownik; host domyslnego najemcy dla anon.
@@ -8157,30 +8677,98 @@ BEGIN
   IF to_regclass('public.tenants') IS NOT NULL THEN
     EXECUTE $q$SELECT domain FROM public.tenants ORDER BY is_default DESC NULLS LAST, created_at LIMIT 1$q$ INTO v_host;
   END IF;
-  FOR r IN SELECT id, role, sql FROM ${n.probe} WHERE sql IS NOT NULL ORDER BY id LOOP
+  -- Ta sama instrukcja tej samej roli (inne miejsce wywolania) wykonuje sie
+  -- RAZ - wynik dostaja wszystkie jej wiersze (kazda sonda jest wycofywana,
+  -- wiec stan bazy miedzy sondami sie nie zmienia).
+  SELECT array_agg(g.id ORDER BY g.id), array_agg(g.role ORDER BY g.id), array_agg(g.sql ORDER BY g.id),
+         array_agg(g.rpc ORDER BY g.id)
+    INTO v_ids, v_roles, v_sqls, v_rpc
+    FROM (SELECT min(id) AS id, role, sql, bool_or(kind LIKE 'probe-rpc%') AS rpc FROM ${n.probe}
+           WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;
+  -- Relacje poza katalogiem: liczniki odczytow tej sesji (pg_stat_get_xact_*,
+  -- nietransakcyjne - przezywaja wycofanie sondy) mowia, czy cialo RPC
+  -- przeczytalo cokolwiek; NULL przy track_counts = off.
+  IF current_setting('track_counts')::boolean THEN
+    SELECT array_agg(c.oid ORDER BY c.oid) INTO v_rels
+      FROM pg_class c JOIN pg_namespace s ON s.oid = c.relnamespace
+     WHERE c.relkind IN ('r', 'p', 'm', 'i')
+       AND s.nspname NOT IN ('pg_catalog', 'information_schema') AND s.nspname !~ '^pg_(toast|temp)';
+  END IF;
+  FOR i IN 1 .. coalesce(cardinality(v_ids), 0) LOOP
+    -- Oslona: limit instrukcji trafiajacy MIEDZY sondami nie przerywa pliku -
+    -- sonda zostaje bez wyniku dla nastepnej partii.
     BEGIN
-      PERFORM set_config('request.jwt.claims',
-        CASE WHEN r.role = 'authenticated'
-             THEN json_build_object('sub', v_sub, 'role', r.role, 'aud', 'authenticated', 'email', v_email)
-             ELSE json_build_object('role', r.role) END::text, true);
-      PERFORM set_config('request.jwt.claim.sub', CASE WHEN r.role = 'authenticated' THEN v_sub ELSE '' END, true);
-      PERFORM set_config('request.jwt.claim.role', r.role, true);
-      PERFORM set_config('request.headers', json_build_object('x-tenant-host', v_host)::text, true);
-      PERFORM set_config('role', r.role, true);
-      EXECUTE r.sql;
-      -- Wartownik: wycofuje podtransakcje (zapisy funkcji, role, roszczenia).
-      RAISE SQLSTATE 'PRB00';
-    EXCEPTION
-      WHEN SQLSTATE 'PRB00' THEN
-        v_state := '00000'; v_msg := NULL; v_ctx := NULL;
-      WHEN OTHERS THEN
-        GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+      EXIT WHEN clock_timestamp() - statement_timestamp() > interval '${PROBE_BATCH_BUDGET}';
+      BEGIN
+        PERFORM set_config('lock_timeout', '${PROBE_LOCK_TIMEOUT}', true);
+        PERFORM set_config('request.jwt.claims',
+          CASE WHEN v_roles[i] = 'authenticated'
+               THEN json_build_object('sub', v_sub, 'role', v_roles[i], 'aud', 'authenticated', 'email', v_email)
+               ELSE json_build_object('role', v_roles[i]) END::text, true);
+        PERFORM set_config('request.jwt.claim.sub', CASE WHEN v_roles[i] = 'authenticated' THEN v_sub ELSE '' END, true);
+        PERFORM set_config('request.jwt.claim.role', v_roles[i], true);
+        PERFORM set_config('request.headers', json_build_object('x-tenant-host', v_host)::text, true);
+        PERFORM set_config('role', v_roles[i], true);
+        IF v_rpc[i] THEN
+          SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                     + pg_stat_get_xact_tuples_fetched(o))
+            INTO v_before FROM unnest(v_rels) o;
+        END IF;
+        EXECUTE v_sqls[i];
+        -- Wartownik: wycofuje podtransakcje (zapisy funkcji, role, roszczenia, lock_timeout).
+        RAISE SQLSTATE 'PRB00';
+      EXCEPTION
+        WHEN SQLSTATE 'PRB00' THEN
+          v_state := '00000'; v_msg := NULL; v_ctx := NULL;
+        -- WHEN OTHERS nie lapie ASSERT (P0004) ani anulowania (57014).
+        WHEN assert_failure OR query_canceled THEN
+          GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+          -- Anulowanie z zewnatrz (nie limit instrukcji) przerywa plik.
+          IF v_state = '57014' AND NOT (${timedOut}) THEN
+            RAISE;
+          END IF;
+        WHEN OTHERS THEN
+          GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
+      END;
+${n.outcome}      v_done := v_done || v_ids[i];
+      v_states := v_states || v_state;
+      v_msgs := v_msgs || v_msg;
+      v_ctxs := v_ctxs || left(v_ctx, 400);
+      v_outcomes := v_outcomes || v_outcome;
+      v_touched := v_touched || CASE WHEN v_rpc[i] THEN
+        (SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                    + pg_stat_get_xact_tuples_fetched(o)) FROM unnest(v_rels) o) - v_before END;
+      -- Limit tej instrukcji zuzyty - dalsze sondy w nastepnej partii.
+      v_stop := v_state = '57014';
+    EXCEPTION WHEN query_canceled THEN
+      IF NOT (${timedOut}) THEN
+        RAISE;
+      END IF;
+      v_stop := true;
     END;
-    UPDATE ${n.probe} SET state = v_state, msg = v_msg, ctx = left(v_ctx, 400),
-${n.outcome}     WHERE id = r.id;
+    EXIT WHEN v_stop;
   END LOOP;
-END
-$probe$;
+  -- Wyniki partii jednym UPDATE (podtransakcje sond bez wlasnych zapisow),
+  -- na kazdy wiersz tej samej roli i instrukcji.
+  BEGIN
+    UPDATE ${n.probe} p SET state = x.state, msg = x.msg, ctx = x.ctx, outcome = x.outcome, touched = x.touched
+      FROM unnest(v_done, v_states, v_msgs, v_ctxs, v_outcomes, v_touched) AS x(id, state, msg, ctx, outcome, touched)
+      JOIN ${n.probe} d ON d.id = x.id
+     WHERE p.role = d.role AND p.sql = d.sql AND p.state IS NULL;
+  EXCEPTION WHEN query_canceled THEN
+    -- Limit w trakcie zapisu wynikow: partia przepada, nastepna wykona ja od nowa.
+    IF NOT (${timedOut}) THEN
+      RAISE;
+    END IF;
+  END;
+END $run$;
+
+CREATE TEMP TABLE ${n.probe}_guc ON COMMIT DROP AS SELECT current_setting('statement_timeout') AS statement_timeout;
+SET LOCAL statement_timeout = '${PROBE_STATEMENT_TIMEOUT}';
+${batches}
+-- Limit instrukcji wraca do wartosci sprzed sond (SET LOCAL i tak cofa ROLLBACK).
+DO $run$ BEGIN PERFORM set_config('statement_timeout', (SELECT statement_timeout FROM ${n.probe}_guc), true); END $run$;
+UPDATE ${n.probe} SET outcome = 'nie uruchomiona' WHERE sql IS NOT NULL AND state IS NULL;
 `;
 }
 
