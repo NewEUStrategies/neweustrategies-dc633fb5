@@ -5,7 +5,8 @@
 -- check:migration-lanes pilnuje, ze jego SQL wykonywalny == zrodlo.
 
 -- Firmy CRM: liczniki listy (`crm_companies_aggregates`) jako SECURITY DEFINER
--- z bramka staffu i najemca z sesji.
+-- z bramka staffu i najemca z sesji. Druga, osobna czesc pliku (na koncu):
+-- wycofanie nieuzywanej `crm_funnel_stats()` - zero EXECUTE poza wlascicielem.
 --
 -- PRZYCZYNA. `listCrmCompanies` (src/lib/crm-companies.functions.ts) wola
 -- `crm_companies_aggregates(_company_ids)` klientem staffu CRM. Funkcja byla
@@ -44,8 +45,8 @@
 --
 -- Sygnatura i ksztalt wyniku bez zmian (`CREATE OR REPLACE`), wiec
 -- wygenerowane typy i wywolanie w kodzie zostaja. Bezpieczna do ponownego
--- wykonania: CREATE OR REPLACE i granty bez zalozen o stanie. Nie dotyka
--- tabel ani danych.
+-- wykonania: CREATE OR REPLACE, granty i REVOKE bez zalozen o stanie. Nie
+-- dotyka tabel ani danych.
 
 CREATE OR REPLACE FUNCTION public.crm_companies_aggregates(_company_ids uuid[])
 RETURNS TABLE (
@@ -114,3 +115,34 @@ GRANT EXECUTE ON FUNCTION public.crm_companies_aggregates(uuid[]) TO authenticat
 
 COMMENT ON FUNCTION public.crm_companies_aggregates(uuid[]) IS
   'Liczniki listy firm CRM: leady (liczba, ostatnia aktywnosc) i kontakty (profile z current_company_id) dla firm NAJEMCY WOLAJACEGO. SECURITY DEFINER, bo profiles.current_company_id nie ma grantu dla authenticated; bramka admin/editor/super_admin (has_role w current_tenant_id()), najemca wylacznie z sesji, leady i profile tylko z tego samego najemcy. Firmy spoza najemcy wypadaja z wyniku.';
+
+-- ===========================================================================
+-- `crm_funnel_stats()` - WYCOFANA: bez EXECUTE dla PUBLIC, anon, authenticated
+-- i service_role.
+--
+-- PRZYCZYNA. Funkcja (20260802130000, blizniak 20260802153008) to SQL
+-- SECURITY INVOKER bez filtra najemcy i bez parametru najemcy: liczy
+-- `COUNT(*) FILTER` nad CALYM `crm_funnel_view`. Granice najemcy dawal jej
+-- wylacznie RLS wolajacego - a pod service-role (RLS wylaczone) zliczylaby
+-- subskrybentow WSZYSTKICH najemcow. Jej komentarz reklamowal ja przy tym
+-- jako agregat KPI lejka, wiec kazdy, kto szukal „gotowego RPC do licznikow",
+-- trafial wlasnie na nia. Klientem staffu (authenticated) i tak padala 42501
+-- (widok laczy `profiles.email` bez grantu - poprawka PII 20260724090100).
+--
+-- Od 17.11.2026 aplikacja jej NIE WOLA: liczniki lejka liczy `funnelStats`
+-- (src/lib/crm-funnel.functions.ts) szescioma zapytaniami `head: true` nad
+-- `crm_funnel_view` spod service-role, kazde z `.eq("tenant_id", <najemca
+-- z sesji>)`. Pozostawiony EXECUTE byl wiec wylacznie powierzchnia ataku
+-- i pulapka dla nastepnego autora.
+--
+-- DLACZEGO REVOKE, A NIE DROP. Funkcja jest w wygenerowanych typach
+-- (`src/integrations/supabase/types.ts`, generowane z produkcji), a DROP to
+-- zmiana niekompatybilna wstecz w kanale wdrozen Lovable. REVOKE ALL zamyka
+-- ja dla kazdej roli aplikacji (zostaje wlasciciel), nie zmienia schematu ani
+-- typow i jest bezpieczne do ponownego wykonania. Funkcja istnieje na
+-- produkcji od sierpnia (jest w typach); brak funkcji dalby 42883 i wycofal
+-- cala partie - kontrola przed wdrozeniem w opisie PR (zapytanie wlasciciela).
+REVOKE ALL ON FUNCTION public.crm_funnel_stats() FROM PUBLIC, anon, authenticated, service_role;
+
+COMMENT ON FUNCTION public.crm_funnel_stats() IS
+  'WYCOFANA 2026-11-17 - nie wolac. SECURITY INVOKER bez filtra najemcy: pod service-role liczylaby subskrybentow wszystkich najemcow, a klientem staffu pada 42501 (profiles.email w crm_funnel_view). Bez EXECUTE dla PUBLIC, anon, authenticated i service_role. Liczniki lejka: funnelStats (src/lib/crm-funnel.functions.ts) - zapytania head:true nad crm_funnel_view spod service-role z tenant_id z sesji.';
