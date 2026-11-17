@@ -10,8 +10,9 @@
 //   3. KUBEŁEK ADRESU OBCHODZONY - surowy adres w bazie albo kubełek kluczowany
 //      nagłówkiem, który klient podrabia (`x-forwarded-for`).
 //   4. TOŻSAMOŚĆ Z CIAŁA ŻĄDANIA - najemca albo konto z ładunku.
-//   5. FAŁSZYWE OKNO WDROŻENIA - stara funkcja wołana przy KAŻDYM błędzie,
-//      a nie tylko przy PGRST202/42883.
+//   5. CICHA STARA ŚCIEŻKA - brak funkcji (PGRST202/42883) to awaria
+//      `unknown`, nigdy powrót do starej `event_register_group_guests` klientem
+//      z nagłówkiem hosta i tokenem wołającego.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE: żądanie, sesję, host, katalog najemców, klienta
 // serwisowego, klienta z nagłówkiem hosta, pocztę i `waitUntil`.
@@ -33,12 +34,12 @@ const SPOOF_IP = "203.0.113.99";
 const h = vi.hoisted(() => ({
   request: null as Request | null,
   userId: null as string | null,
-  bearer: null as string | null,
   tenant: "aaaaaaaa-0000-4000-8000-00000000000a" as string | null,
   hosts: [] as (string | null)[],
   rpc: vi.fn(),
   hostRpc: vi.fn(),
-  hostBearers: [] as (string | null)[],
+  /** Argumenty każdego `hostAnonClient(...)`. */
+  hostCalls: [] as unknown[][],
   background: [] as Promise<unknown>[],
   sendTxEmail: vi.fn(),
 }));
@@ -54,7 +55,6 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 vi.mock("@/lib/auth/optionalUser.server", () => ({
   optionalUserIdFromRequest: async () => h.userId,
-  optionalBearerFromRequest: async () => h.bearer,
 }));
 vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => "nes.example" }));
 vi.mock("@/lib/server/tenant.server", () => ({
@@ -70,8 +70,8 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
   },
 }));
 vi.mock("@/lib/events/registrationSelfNotify.server", () => ({
-  hostAnonClient: async (bearer: string | null = null) => {
-    h.hostBearers.push(bearer);
+  hostAnonClient: async (...args: unknown[]) => {
+    h.hostCalls.push(args);
     return { rpc: h.hostRpc };
   },
   sendRegistrationNoticeForManageToken: vi.fn(),
@@ -148,12 +148,11 @@ function duplicateNotices(): Record<string, unknown>[] {
 beforeEach(() => {
   h.request = request();
   h.userId = USER;
-  h.bearer = "user-jwt";
   h.tenant = TENANT;
   h.hosts = [];
   h.rpc.mockReset();
   h.hostRpc.mockReset();
-  h.hostBearers = [];
+  h.hostCalls = [];
   h.background = [];
   h.sendTxEmail.mockReset();
   h.sendTxEmail.mockResolvedValue({ ok: true });
@@ -280,34 +279,25 @@ describe("odpowiedź bez wyroczni członkostwa (R38)", () => {
   });
 });
 
-describe("okno wdrożenia - stara funkcja tylko przy PGRST202/42883", () => {
+describe("brak funkcji serwerowej - awaria, bez starej `event_register_group_guests`", () => {
   for (const code of ["PGRST202", "42883"]) {
-    it(`${code}: stara funkcja z tokenem wołającego; jej adres z ogona nie wychodzi`, async () => {
+    it(`${code}: \`unknown\` z logiem, jedno wywołanie, żadnej wiadomości`, async () => {
       h.rpc.mockResolvedValue({ data: null, error: { code, message: "missing" } });
-      h.hostRpc.mockResolvedValueOnce({
-        data: null,
-        error: { message: `already_registered: ${MEMBER_EMAIL}` },
-      });
 
-      const client = await registerEventGroupGuestsForRequest({
-        leadRegistrationId: LEAD,
-        guests: GUESTS,
-      });
-
-      expect(client).toEqual({ ok: false, error: "already_registered" });
-      expect(h.hostBearers).toEqual(["user-jwt"]);
-      expect(h.hostRpc).toHaveBeenCalledWith("event_register_group_guests", {
-        p_lead_registration_id: LEAD,
-        p_guests: GUESTS,
-      });
-
-      h.hostRpc.mockResolvedValueOnce({
-        data: { ok: true, added: 2, registration_ids: ["r-1", "r-2"] },
-        error: null,
-      });
       expect(
         await registerEventGroupGuestsForRequest({ leadRegistrationId: LEAD, guests: GUESTS }),
-      ).toEqual({ ok: true, added: 2 });
+      ).toEqual({ ok: false, error: "unknown" });
+      expect(h.rpc).toHaveBeenCalledTimes(1);
+      expect(h.rpc.mock.calls[0]![0]).toBe("event_register_group_guests_for_client");
+      // Ani stara funkcja, ani klient z nagłówkiem hosta i tokenem wołającego.
+      expect(h.hostCalls).toEqual([]);
+      expect(h.hostRpc).not.toHaveBeenCalled();
+      expect(h.background).toEqual([]);
+      expect(console.error).toHaveBeenCalledWith(
+        "[events] group guests rpc failed",
+        code,
+        "missing",
+      );
     });
   }
 

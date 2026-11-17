@@ -37,16 +37,12 @@ interface PayloadResult {
 
 /**
  * Klient z kluczem PUBLIKOWALNYM i nagłówkiem hosta (`fetchWithTenantHost`) -
- * dla funkcji, które ustalają najemcę przez `public_tenant_id()`: starych
- * funkcji w oknie wdrożenia i przypięcia atrybucji kluczem samoobsługi.
- * Klucz serwisowy nagłówka hosta nie niesie i trafiłby w najemcę domyślnego.
- *
- * `bearer` - token wołającego, przekazany dalej BEZ interpretacji (podpis
- * sprawdza PostgREST); `null` = gość. Brak konfiguracji = `null`.
+ * dla funkcji, które ustalają najemcę przez `public_tenant_id()`, np.
+ * przypięcia atrybucji kluczem samoobsługi. Rola `anon`, bez tokenu
+ * wołającego. Klucz serwisowy nagłówka hosta nie niesie i trafiłby w najemcę
+ * domyślnego. Brak konfiguracji = `null`.
  */
-export async function hostAnonClient(
-  bearer: string | null = null,
-): Promise<SupabaseClient<Database> | null> {
+export async function hostAnonClient(): Promise<SupabaseClient<Database> | null> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
@@ -58,10 +54,7 @@ export async function hostAnonClient(
     // Proces serwerowy obsługuje wielu gości naraz - sesja nie może się
     // utrwalić ani przeciec między żądaniami.
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-    global:
-      bearer === null
-        ? { fetch: fetchWithTenantHost }
-        : { fetch: fetchWithTenantHost, headers: { Authorization: `Bearer ${bearer}` } },
+    global: { fetch: fetchWithTenantHost },
   });
 }
 

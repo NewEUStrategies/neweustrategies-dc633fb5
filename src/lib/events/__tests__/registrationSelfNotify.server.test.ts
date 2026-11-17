@@ -131,14 +131,24 @@ describe("najemca z argumentu - funkcja tylko dla roli serwisowej", () => {
     expect(h.sendTxEmail).not.toHaveBeenCalled();
   });
 
-  it("klient z tokenem wołającego niesie nagłówek - bez tokenu go nie ma", async () => {
-    await hostAnonClient("token-wolajacego");
-    const [, , withBearer] = h.createClient.mock.calls[0] as unknown as [
+  it("klient z nagłówkiem hosta: klucz publikowalny, bez tokenu wołającego i bez sesji", async () => {
+    expect(await hostAnonClient()).toEqual({ rpc: h.anonRpc });
+    const [url, key, options] = h.createClient.mock.calls[0] as unknown as [
       string,
       string,
-      { global: { headers?: Record<string, string> } },
+      {
+        global: { fetch: unknown; headers?: unknown };
+        auth: { storage?: unknown; persistSession: boolean; autoRefreshToken: boolean };
+      },
     ];
-    expect(withBearer.global.headers).toEqual({ Authorization: "Bearer token-wolajacego" });
+    expect(url).toBe("https://przyklad.supabase.co");
+    expect(key).toBe("klucz-publiczny");
+    // Bez tego `fetch` najemca rozwiązałby się do domyślnego.
+    expect(options.global.fetch).toBe(h.tenantFetch);
+    expect(options.global.headers).toBeUndefined();
+    expect(options.auth.persistSession).toBe(false);
+    expect(options.auth.autoRefreshToken).toBe(false);
+    expect(options.auth.storage).toBeUndefined();
   });
 
   it("brak konfiguracji to brak klienta, nie wyjątek", async () => {
