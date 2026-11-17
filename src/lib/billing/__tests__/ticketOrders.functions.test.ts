@@ -71,6 +71,9 @@ function zamowienie(over: Record<string, unknown> = {}): Record<string, unknown>
     paid_at: "2026-08-20T10:05:00.000Z",
     created_at: "2026-08-20T10:00:00.000Z",
     metadata: { event_id: WYDARZENIE, quantity: 2, coupon_code: "WCZESNY" },
+    // Adres kupującego jedzie z zamówienia - `profiles.email` nie ma grantu
+    // SELECT dla `authenticated` (20260724090100).
+    receipt_email: "uczestnik@example.com",
     ...over,
   };
 }
@@ -214,7 +217,6 @@ describe("lista zamówień - co handler robi z argumentami", () => {
           display_name: "Uczestnik Testowy",
           first_name: "Uczestnik",
           last_name: "Testowy",
-          email: "uczestnik@example.com",
         },
       ]),
     );

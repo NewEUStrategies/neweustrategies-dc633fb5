@@ -24,6 +24,11 @@ export interface TicketOrderRow {
   /** `null` = konto kupującego usunięte; zamówienie żyje jako dowód księgowy. */
   buyerId: string | null;
   buyerName: string | null;
+  /**
+   * Adres z ZAMÓWIENIA (`payment_orders.receipt_email` - ten, na który poszło
+   * potwierdzenie zakupu), nie z profilu: `profiles.email` nie ma grantu
+   * SELECT dla `authenticated` (poprawka PII 20260724090100).
+   */
   buyerEmail: string | null;
   /** Zamówienie po anonimizacji (RODO) - panel pokazuje etykietę zamiast danych. */
   buyerAnonymized: boolean;
@@ -64,6 +69,7 @@ type OrderRecord = Pick<
   | "paid_at"
   | "created_at"
   | "metadata"
+  | "receipt_email"
 >;
 
 /**
@@ -127,6 +133,18 @@ function positiveInt(source: Json, key: string): number {
  * Lista zamówień biletowych tenanta, najnowsze pierwsze, wraz z danymi
  * wydarzenia i kupującego. Braki w słownikach (usunięte wydarzenie, profil bez
  * nazwy) degradują się do `null` zamiast wywalać całą listę.
+ *
+ * KUPUJĄCY: ADRES Z ZAMÓWIENIA, NAZWA Z PROFILU. Do 17.11.2026 słownik
+ * kupujących pytał `profiles` o `email`. Ta kolumna nie ma grantu SELECT dla
+ * `authenticated` (poprawka PII 20260724090100, pgTAP
+ * `profiles_pii_grant_test`), więc PostgREST odrzucał CAŁE zapytanie (42501),
+ * błąd nie był sprawdzany, a `buyerName` i `buyerEmail` były `null` przy
+ * KAŻDYM zamówieniu. Grantu nie otwieramy: adres jest już na zamówieniu
+ * (`receipt_email`, zapisywany przy kasie i przez webhook operatora, zerowany
+ * przez anonimizację RODO), a profil podaje wyłącznie kolumny z grantem.
+ *
+ * Awaria słownika NADAL nie wywraca listy (dowód zapłaty jest ważniejszy niż
+ * etykieta), ale nie znika już po cichu - trafia do logu serwera.
  */
 export async function loadTicketOrders(
   supabase: SupabaseClient,
@@ -135,7 +153,7 @@ export async function loadTicketOrders(
   const { data, error } = await supabase
     .from("payment_orders")
     .select(
-      "id,user_id,anonymized_at,status,provider,provider_intent_id,amount_cents,currency,paid_at,created_at,metadata",
+      "id,user_id,anonymized_at,status,provider,provider_intent_id,amount_cents,currency,paid_at,created_at,metadata,receipt_email",
     )
     .eq("kind", "one_time")
     // Bilet rozpoznajemy po metadanych - te same, które czyta webhook.
@@ -165,11 +183,20 @@ export async function loadTicketOrders(
 
   const [eventsRes, profilesRes] = await Promise.all([
     supabase.from("events").select("id,slug,title_pl,title_en,starts_at").in("id", eventIds),
-    supabase
-      .from("profiles")
-      .select("id,display_name,first_name,last_name,email")
-      .in("id", buyerIds),
+    supabase.from("profiles").select("id,display_name,first_name,last_name").in("id", buyerIds),
   ]);
+  if (eventsRes.error) {
+    console.error("[billing] ticket orders: events lookup failed", {
+      message: eventsRes.error.message,
+      code: eventsRes.error.code,
+    });
+  }
+  if (profilesRes.error) {
+    console.error("[billing] ticket orders: buyer profiles lookup failed", {
+      message: profilesRes.error.message,
+      code: profilesRes.error.code,
+    });
+  }
 
   const eventById = new Map(
     (eventsRes.data ?? []).map((e) => [
@@ -191,7 +218,6 @@ export async function loadTicketOrders(
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
-        email: string | null;
       },
     ]),
   );
@@ -205,6 +231,11 @@ export async function loadTicketOrders(
       profile?.display_name?.trim() ||
       [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
       null;
+    // Anonimizacja zeruje `receipt_email` w bazie; warunek tutaj to druga linia
+    // obrony - zamówienie po RODO nie może pokazać adresu, nawet gdyby
+    // anonimizacja zostawiła go na wierszu.
+    const anonymized = order.anonymized_at !== null;
+    const buyerEmail = anonymized ? null : order.receipt_email?.trim() || null;
 
     return [
       {
@@ -220,8 +251,8 @@ export async function loadTicketOrders(
         couponCode: str(order.metadata, "coupon_code"),
         buyerId: order.user_id,
         buyerName,
-        buyerEmail: profile?.email ?? null,
-        buyerAnonymized: order.anonymized_at !== null,
+        buyerEmail,
+        buyerAnonymized: anonymized,
         eventId,
         eventTitlePl: event?.title_pl ?? null,
         eventTitleEn: event?.title_en ?? null,
