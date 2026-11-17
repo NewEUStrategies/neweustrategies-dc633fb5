@@ -347,7 +347,7 @@ describe("znaczniki zgody i pól (Nu Html Checker)", () => {
     const row = label.parentElement!;
     expect(consent().parentElement).toBe(row);
     expect(row.className).toBe(
-      "flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground",
+      "flex items-center gap-2 font-sans leading-relaxed text-muted-foreground",
     );
     expect(label.getAttribute("data-edit-target")).toBe("consentSize");
   });

@@ -615,7 +615,7 @@ export function PopupSignupForm({
           kontrolkę (Nu Html Checker). */}
       <div className="space-y-2 pt-2.5">
         {showNewsletter && (
-          <div className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
               id={`${boxId}-nl`}
               checked={v.newsletter}
@@ -639,7 +639,7 @@ export function PopupSignupForm({
         )}
 
         {requirePrivacy && privacyHtml && (
-          <div className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
               id={`${boxId}-privacy`}
               checked={v.privacy}
@@ -656,7 +656,7 @@ export function PopupSignupForm({
         )}
 
         {requireTerms && (
-          <div className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
               id={`${boxId}-terms`}
               checked={v.terms}

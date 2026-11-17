@@ -162,10 +162,10 @@ describe("powiadomienia: nakładka nie podmienia polskiego rdzenia", () => {
   });
 });
 
-describe("nav.account i builder.sectionLoading: właścicielem jest rdzeń", () => {
+describe("nav.account: właścicielem jest rdzeń", () => {
   it("publiczni czytelnicy mają napis bez żadnej nakładki, a panel/builder go nie podmienia", async () => {
-    // `AccountMenuWidget` i `sectionStreaming` renderują się na stronach
-    // PUBLICZNYCH bez własnej nakładki. Gdy te dwa klucze żyły tylko
+    // `AccountMenuWidget` renderuje się na stronach PUBLICZNYCH bez własnej
+    // nakładki. Gdy ten klucz (i dawny `builder.sectionLoading`) żył tylko
     // w admin-extras/builderze, publiczne strony czytały goły klucz, a /profile
     // dostawał napis przypadkiem (import słownika panelu z dialogu firmy).
     // `coreValue` czyta zdjęcie rdzenia sprzed rejestracji nakładek, więc
@@ -173,15 +173,13 @@ describe("nav.account i builder.sectionLoading: właścicielem jest rdzeń", () 
     // `i18n-builder` niżej by tego nie wykryło (stąd kolejność).
     expect(coreValue("pl", "nav.account")).toBe("Menu konta");
     expect(coreValue("en", "nav.account")).toBe("Account menu");
-    expect(coreValue("pl", "builder.sectionLoading")).toBe("Wczytywanie sekcji…");
-    expect(coreValue("en", "builder.sectionLoading")).toBe("Loading the section…");
 
     await import("@/lib/i18n-builder");
     const before = {
       pl: i18n.getFixedT("pl"),
       en: i18n.getFixedT("en"),
     };
-    const snapshot = ["nav.account", "builder.sectionLoading", "linkPicker.newTab"].flatMap((key) =>
+    const snapshot = ["nav.account", "linkPicker.newTab"].flatMap((key) =>
       (["pl", "en"] as const).map((lang) => [lang, key, before[lang](key)] as const),
     );
 

@@ -4,6 +4,8 @@
 import type { Json, WidgetType } from "./types";
 import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
+// Próg czytelności zgód (RODO art. 7 ust. 2) - to samo minimum co edytor rozmiarów.
+import { CONSENT_MIN_FONT_PX } from "@/lib/forms/consentTypography";
 import { MAP_REGION_OPTIONS } from "./dataVizSchemas/shared";
 import { CHART_WIDGET_SCHEMA } from "./dataVizSchemas/chart";
 import { DATA_MAP_WIDGET_SCHEMA } from "./dataVizSchemas/dataMap";
@@ -3325,7 +3327,13 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       max: 24,
     },
     { key: "buttonSize", type: "number", label: "Rozmiar przycisku (px)", min: 8, max: 28 },
-    { key: "consentSize", type: "number", label: "Rozmiar zgód / stopki (px)", min: 8, max: 20 },
+    {
+      key: "consentSize",
+      type: "number",
+      label: "Rozmiar zgód / stopki (px)",
+      min: CONSENT_MIN_FONT_PX,
+      max: 20,
+    },
   ],
 
   "customize-interests": [
@@ -3650,7 +3658,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       key: "consentSize",
       type: "number",
       label: "Rozmiar zgód / newsletter (px)",
-      min: 8,
+      min: CONSENT_MIN_FONT_PX,
       max: 20,
     },
   ],

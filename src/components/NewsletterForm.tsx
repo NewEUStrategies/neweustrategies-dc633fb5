@@ -717,7 +717,7 @@ function ConsentCheckboxField({
   const boxId = useId();
   return (
     <div className="sm:col-span-2">
-      <div className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
+      <div className="widget-align-row nl-fineprint flex items-center gap-2">
         <Checkbox
           id={boxId}
           checked={checked}

@@ -929,7 +929,7 @@ export function JoinUsForm({
           go odziedziczyć z wiersza. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground">
+          <div className="flex items-center gap-2 font-sans leading-relaxed text-muted-foreground">
             <Checkbox
               id={consentId}
               checked={consentAccepted}

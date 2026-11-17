@@ -642,7 +642,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               const boxId = `${formId}-cf${index}`;
               return (
                 <div key={f.id} className={span}>
-                  <div className="widget-align-row flex items-start gap-2 text-xs opacity-90 cursor-pointer">
+                  <div className="widget-align-row flex items-start gap-2 text-xs opacity-90">
                     <Checkbox id={boxId} name={name} className="mt-0.5 shrink-0" />
                     <label htmlFor={boxId}>{label}</label>
                   </div>
@@ -746,7 +746,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             requireConsent || showNewsletter ? (
               <div className="space-y-1.5">
                 {requireConsent && (
-                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80">
                     <Checkbox
                       id={`${formId}-c`}
                       name="consent"
@@ -773,7 +773,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 )}
 
                 {showNewsletter && (
-                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80">
                     <Checkbox
                       id={`${formId}-n`}
                       name="newsletter_optin"
