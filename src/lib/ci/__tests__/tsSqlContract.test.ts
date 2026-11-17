@@ -1506,7 +1506,10 @@ describe("stan repozytorium", () => {
     // Plik literału -> [liczba faktów `posts.select`, kolumny]. Odczyt przez
     // pomocnik ma dwa warianty, `postsNarrowedToTaxonomy` - dwa `select`
     // (kategoria, tag). `blocks.ts`: 2 + 4 z przepływu i 1 bezpośredni
-    // `.select(POST_SELECT)` (sąsiad wpisu); `archives.ts`: 2 z przepływu.
+    // `.select(POST_SELECT)` (sąsiad wpisu); `archives.ts`: 6 z przepływu -
+    // trzy wywołania pomocnika (strona od najnowszych/najstarszych oraz
+    // czołówka i ogon „popularnych”, 17.11.2026), każde z tymi samymi
+    // kolumnami `POST_COLS`.
     const expected: Record<string, readonly [number, string]> = {
       "src/lib/queries/megaMenu.ts": [4, "cover_image_url,id,published_at,slug,title_en,title_pl"],
       "src/lib/queries/blocks.ts": [
@@ -1514,7 +1517,7 @@ describe("stan repozytorium", () => {
         "cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
       ],
       "src/lib/queries/archives.ts": [
-        2,
+        6,
         "author_id,cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
       ],
       "src/lib/builder/postListQuery.ts": [
