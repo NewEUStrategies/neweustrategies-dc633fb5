@@ -336,6 +336,12 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
     expect(phraseInput()).toHaveAttribute("aria-controls", "search-autosuggest-listbox");
     expect(phraseInput()).toHaveAttribute("aria-autocomplete", "list");
+    // `role="combobox"` wolno nadać `type="text"`, nie `type="search"` bez `list`
+    // (ARIA in HTML); klawisz „Szukaj" dają `inputmode` i `enterkeyhint`.
+    expect(phraseInput()).toHaveAttribute("type", "text");
+    expect(phraseInput()).toHaveAttribute("inputmode", "search");
+    expect(phraseInput()).toHaveAttribute("enterkeyhint", "search");
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
   it("STRZAŁKA W DÓŁ ogłasza aktywną opcję przez aria-activedescendant", async () => {
@@ -377,6 +383,29 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     fireEvent.keyDown(phraseInput(), { key: "Escape" });
     await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
     expect(phraseInput()).toHaveValue("ra");
+  });
+
+  it("drugi ESCAPE (lista już zamknięta) czyści frazę - jak dawne pole type=search", async () => {
+    // Chromium/WebKit czyściły `type="search"` Escape'em natywnie; pole jest
+    // teraz `type="text"`, więc zachowanie odtwarza `onInputKeyDown` (APG):
+    // pierwszy Escape zamyka listę, kolejny czyści frazę.
+    await openSuggest();
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.keyDown(phraseInput(), { key: "Escape" });
+    await waitFor(() => expect(phraseInput()).toHaveAttribute("aria-expanded", "false"));
+    expect(phraseInput()).toHaveValue("ra");
+    fireEvent.keyDown(phraseInput(), { key: "Escape" });
+    expect(phraseInput()).toHaveValue("");
+  });
+
+  it("ESCAPE przy zamkniętej liście czyści POLE, ale nie adres wyników", async () => {
+    const view = await mount("/search?q=raport");
+    expect(phraseInput()).toHaveValue("raport");
+    fireEvent.keyDown(phraseInput(), { key: "Escape", isComposing: true });
+    expect(phraseInput()).toHaveValue("raport");
+    fireEvent.keyDown(phraseInput(), { key: "Escape" });
+    expect(phraseInput()).toHaveValue("");
+    expect(view.search().q).toBe("raport");
   });
 
   it("KLIK POZA formularzem zamyka listę", async () => {

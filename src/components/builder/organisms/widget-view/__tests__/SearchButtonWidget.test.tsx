@@ -194,7 +194,14 @@ describe("SearchButtonWidget", () => {
   it("identyfikuje pole jako wyszukiwanie i blokuje menedżery autofill", () => {
     const { container } = renderWidget();
     const input = container.querySelector("input[data-mobile-search-input]");
-    expect(input).toHaveAttribute("type", "search");
+    // `role="combobox"` jest dozwolona na `type="text"`, nie na `type="search"`
+    // bez `list` (ARIA in HTML, walidator HTML). Klawisz „Szukaj" na
+    // klawiaturach ekranowych niosą `inputmode` i `enterkeyhint`.
+    expect(input).toHaveAttribute("type", "text");
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(screen.getByRole("combobox")).toBe(input);
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(input).toHaveAttribute("enterkeyhint", "search");
     expect(input).toHaveAttribute("name", "site_search_query");
     expect(input).toHaveAttribute("autocomplete", "one-time-code");
     expect(input).toHaveAttribute("inputmode", "search");

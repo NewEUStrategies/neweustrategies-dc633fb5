@@ -203,6 +203,8 @@ function VoiceSearchBridge({
 //    intentionally lock compact metadata and operators.
 //  - Klasyczny floating label: unosi się na górną krawędź inputa.
 //  - Cieńsze obramowanie w spoczynku, brak drop shadowa na focus.
+//  - Bez reguł `::-webkit-search-*`: pole jest `type="text"` (combobox), więc
+//    tych pseudo-elementów nie ma - reguła byłaby martwym bajtem w HTML.
 const SEARCH_WIDGET_CSS = /* @nes-static-css */ `
 [data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
@@ -213,13 +215,6 @@ const SEARCH_WIDGET_CSS = /* @nes-static-css */ `
 }
 .builder-search-widget .input-group {
   overflow: visible !important;
-}
-.builder-search-widget input::-webkit-search-decoration,
-.builder-search-widget input::-webkit-search-cancel-button,
-.builder-search-widget input::-webkit-search-results-button,
-.builder-search-widget input::-webkit-search-results-decoration {
-  display: none;
-  -webkit-appearance: none;
 }
 .builder-search-widget input::-ms-clear,
 .builder-search-widget input::-ms-reveal {
@@ -748,9 +743,13 @@ export function SearchButtonWidget({
         className="input-group"
         style={{ height: `${h}px`, minHeight: `${h}px`, overflow: "visible" }}
       >
+        {/* `type="text"`, nie `search`: ARIA in HTML dopuszcza na `type="search"`
+            (bez `list`) wyłącznie rolę `searchbox`, a to pole jest comboboxem.
+            Klawisz „Szukaj" na klawiaturach ekranowych dają `inputMode` i
+            `enterKeyHint`; Escape obsługuje nasłuch okna (zamknięcie + blur). */}
         <input
           ref={inputRef}
-          type="search"
+          type="text"
           role="combobox"
           aria-expanded={showPopover}
           aria-controls={listboxId}
@@ -761,6 +760,7 @@ export function SearchButtonWidget({
           autoCapitalize="none"
           spellCheck={false}
           inputMode="search"
+          enterKeyHint="search"
           name="site_search_query"
           data-mobile-search-input=""
           data-1p-ignore="true"

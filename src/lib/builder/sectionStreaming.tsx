@@ -5,7 +5,6 @@
 // hydrated client disagree with the HTML and rebuild the section.
 import { Suspense, type ReactElement, type ReactNode } from "react";
 import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 import type { Device, SectionNode } from "@/lib/builder/types";
 import { useAccessContext } from "@/lib/builder/accessControl";
 import { collectRenderableSectionWidgets } from "@/lib/builder/sectionVisibility";
@@ -166,21 +165,20 @@ export function ServerSectionGate({
  * bez sekcji - `StreamingSection` liczy wysokość z jej konfiguracji
  * (`estimateSectionHeight`), bo stałe 280 px wobec sekcji 400-900 px zamieniało
  * każde dostrumieniowanie w przesunięcie układu.
+ *
+ * Szkielet jest NIEMY dla czytników: `aria-label` na generycznym `<div>` bez roli
+ * jest zabroniony (WAI-ARIA 1.2, naming prohibited - walidator HTML) i ignorowany,
+ * a `aria-busy` bez nazwanego regionu i przy treści `aria-hidden` nic nie znaczy.
+ * Kilka szkieletów naraz ogłaszałoby zresztą szum. `data-section-stream-skeleton`
+ * zostaje bez zmian - wyłącza na nim połysk `styles.css` i pilnują go testy.
  */
 export function SectionStreamSkeleton({
   minHeight = SECTION_STREAM_MIN_HEIGHT,
 }: {
   minHeight?: number;
 }): ReactElement {
-  const { t } = useTranslation();
   return (
-    <div
-      data-section-stream-skeleton
-      aria-busy="true"
-      aria-label={t("builder.sectionLoading")}
-      className="w-full"
-      style={{ minHeight }}
-    >
+    <div data-section-stream-skeleton className="w-full" style={{ minHeight }}>
       <div
         className="mx-auto flex max-w-[1200px] flex-col gap-4 px-4 py-10 lg:px-8"
         aria-hidden="true"

@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Suspense } from "react";
 import { render, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, type QueryKey } from "@tanstack/react-query";
-// Initialize the shared i18n instance so useTranslation resolves in the skeleton.
-import "@/lib/i18n";
 import type { Device, SectionNode, WidgetNode } from "@/lib/builder/types";
 import {
   SERVER_SECTION_STREAM_BUDGET_MS,
@@ -50,12 +48,20 @@ function wrapper(qc: QueryClient) {
 }
 
 describe("SectionStreamSkeleton", () => {
-  it("exposes a busy, labelled placeholder with shimmer blocks", () => {
+  it("renderuje NIEMY placeholder z blokami połysku (bez nazwy na generycznym div)", () => {
+    // `aria-label` na `<div>` bez roli to błąd walidatora (naming prohibited,
+    // WAI-ARIA 1.2) i czytniki go ignorują; treść jest `aria-hidden`, więc
+    // `aria-busy` też nic nie niesie. Znacznik `data-section-stream-skeleton`
+    // musi zostać - wyłącza na nim połysk styles.css.
     const { container } = render(<SectionStreamSkeleton />);
     const root = container.querySelector("[data-section-stream-skeleton]");
     expect(root).not.toBeNull();
-    expect(root?.getAttribute("aria-busy")).toBe("true");
-    expect(root?.getAttribute("aria-label")?.length).toBeGreaterThan(0);
+    expect(root?.tagName).toBe("DIV");
+    expect(root?.hasAttribute("aria-label")).toBe(false);
+    expect(root?.hasAttribute("aria-busy")).toBe(false);
+    expect(root?.hasAttribute("role")).toBe(false);
+    expect(root?.getAttribute("class")).toBe("w-full");
+    expect(root?.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
     expect(container.querySelectorAll(".skeleton-shimmer").length).toBeGreaterThan(0);
   });
 
