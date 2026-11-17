@@ -91,17 +91,19 @@ usunięcia osobną migracją), formularz z kluczem biletu z linku
 klucza to zwykła ścieżka, nie powrót), stan miejsc (`event_seat_state`,
 `20261002210000`, dziennik 0131; bez dawnej reguły puli legacy), miejsce RSVP
 biletu bez zgłoszenia (`_event_rsvp_claim_paid_seat`, `20261012130001`,
-dziennik 0165; bez decyzji o miejscu w TS bez blokady) i portfel Google/Apple
+dziennik 0165; bez decyzji o miejscu w TS bez blokady), portfel Google/Apple
 (`_event_wallet_pass_note` z sześcioma argumentami
 i `_event_wallet_pass_state`, `20261013111600`; ani obiekt w starym kształcie,
-ani czteroargumentowy dziennik); brak funkcji to teraz błąd zwracany
-wołającemu, więc kolumna „Kolejność” opisuje stan sprzed tej zmiany. Dowód:
-typy regenerowane z bazy produkcji przez bota Lovable (68ba76e1 z 22.10.2026,
-bb61b8b7 z 25.10.2026) usuwały obiekty, których produkcja nie miała,
-a wszystkie te funkcje zostawiły z wpisem identycznym jak w HEAD. Nagłówek
-migracji `20261007120400` nadal mówi, że kod wraca do starej funkcji - to zapis
-stanu sprzed tej zmiany; stara `verify_content_password(4)` zostaje w bazie
-(wyłącznie `service_role`) bez wołającego w TS.
+ani czteroargumentowy dziennik) oraz zbiorcze wycofanie zgody marketingowej
+w CRM (`crm_leads_marketing_consent_withdraw`, `20261012180900`, dziennik 0252;
+bez łatki `marketing_consent = false` bez śladu w rejestrze zgód); brak funkcji
+to teraz błąd zwracany wołającemu, więc kolumna „Kolejność” opisuje stan sprzed
+tej zmiany. Dowód: typy regenerowane z bazy produkcji przez bota Lovable
+(68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty, których
+produkcja nie miała, a wszystkie te funkcje zostawiły z wpisem identycznym jak
+w HEAD. Nagłówek migracji `20261007120400` nadal mówi, że kod wraca do starej
+funkcji - to zapis stanu sprzed tej zmiany; stara `verify_content_password(4)`
+zostaje w bazie (wyłącznie `service_role`) bez wołającego w TS.
 
 Runner `bun run test:pgtap-local` odtwarza domyślne EXECUTE platformy na NOWE
 funkcje (jak baza stawiana w CI przez `supabase db start`); tabel i sekwencji
