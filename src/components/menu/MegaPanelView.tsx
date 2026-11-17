@@ -9,6 +9,7 @@ import { safeUrl } from "@/lib/sanitizePure";
 import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { MegaColumn } from "@/lib/menus/types";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
+import { postCanonicalHref } from "@/lib/routing/postHref";
 import {
   megaNavColumns,
   megaPanelCssWidth,
@@ -79,6 +80,14 @@ export function MegaPanelView({
   const featuredExcerpt = featured
     ? pickLocalized(featured.excerpt_pl, featured.excerpt_en, lang)
     : "";
+  // Adres karty: kanoniczny `/<rodzic>/<slug>`, gdy wiersz niesie stronę-rodzica
+  // najwyższego poziomu (osadzenie w `megaFeatured.ts`). Dotychczasowy płaski
+  // `/<slug>` trafia w 404 trasy `/$` i dopiero stamtąd w 301 - a `AppLink`
+  // płaci to już przy najechaniu kursorem. Bez rodzica do policzenia adres
+  // zostaje płaski, jak dotąd.
+  const featuredHref = featured
+    ? safeUrl(postCanonicalHref(featured) ?? `/${featured.slug}`) || "#"
+    : "#";
 
   const formatLabels: Record<string, { pl: string; en: string }> = {
     standard: { pl: "Artykuł", en: "Article" },
@@ -231,11 +240,7 @@ export function MegaPanelView({
                 {eyebrowFallback}
               </span>
             </div>
-            <AppLink
-              href={safeUrl(`/${featured.slug}`) || "#"}
-              className="group block"
-              role="menuitem"
-            >
+            <AppLink href={featuredHref} className="group block" role="menuitem">
               {featured.cover_image_url ? (
                 <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-sm ring-1 ring-border/60">
                   <img
@@ -307,7 +312,7 @@ export function MegaPanelView({
                   );
                 })()
               : null}
-            <AppLink href={safeUrl(`/${featured.slug}`) || "#"} className="group block">
+            <AppLink href={featuredHref} className="group block">
               {featuredExcerpt ? (
                 <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                   {featuredExcerpt}

@@ -45,13 +45,20 @@
 // produkcji to 6 deklaracji na 31 bloków (pomiar HTML-a z 2026-10-03), a
 // szablon ze 140 regułami `:is()` na każdą z nich nie zmieściłby się w
 // budżecie CSS (`check:bundle`, zapas ok. 0,6 KB gzip).
+//
+// NADAWCA podglądu (`broadcastWidgetTypography`, `clearAllLiveWidgetTypography`)
+// mieszka w `liveTypographyBroadcast.ts`: woła go wyłącznie panel, a ten moduł
+// jest w chunku startowym każdej strony. Wspólne z nadawcą i dlatego
+// eksportowane stąd: nazwy kanału, zdarzenia i kluczy, typ ładunku,
+// `storageKey`, `applyLiveTypographyStyle` i stan rewizji `liveStyleRevision`
+// (jeden na dokument). Nie importuj nadawcy tutaj (roadmapa ładowania §9.1 J3).
 import type { Device, Mode, Themed, WidgetTypography } from "./types";
 import { pickShared } from "./themed";
 
-const CHANNEL_NAME = "builder-widget-typography";
-const EVENT_NAME = "builder:widget-typography";
-const STORAGE_PREFIX = "builder:widget-typography:";
-const STYLE_ID_PREFIX = "builder-live-typography-style-";
+export const CHANNEL_NAME = "builder-widget-typography";
+export const EVENT_NAME = "builder:widget-typography";
+export const STORAGE_PREFIX = "builder:widget-typography:";
+export const STYLE_ID_PREFIX = "builder-live-typography-style-";
 
 // ---------- wspólne pomocniki (ramka + generator) ----------
 
@@ -245,7 +252,7 @@ export function cssAttributeValue(value: string): string {
 
 // ---------- podgląd na żywo ----------
 
-interface WidgetTypographyLivePayload {
+export interface WidgetTypographyLivePayload {
   widgetId: string;
   typography: WidgetTypography | undefined;
   updatedAt: number;
@@ -267,7 +274,7 @@ function normalizePayload(value: unknown): WidgetTypographyLivePayload | null {
   };
 }
 
-function storageKey(widgetId: string): string {
+export function storageKey(widgetId: string): string {
   return `${STORAGE_PREFIX}${widgetId}`;
 }
 
@@ -293,7 +300,7 @@ export function buildLiveTypographyVarsCss(widgetId: string, typography: WidgetT
 
 // Kolejny numer zapisu per widget - spóźniony generator (leniwy `import()`)
 // nie nadpisze nowszej typografii starszym CSS-em.
-const liveStyleRevision = new Map<string, number>();
+export const liveStyleRevision = new Map<string, number>();
 
 function writeLiveStyle(widgetId: string, css: string): void {
   const id = styleElementId(widgetId);
@@ -308,7 +315,7 @@ function writeLiveStyle(widgetId: string, css: string): void {
   if (!existing) document.head.appendChild(style);
 }
 
-function applyLiveTypographyStyle(
+export function applyLiveTypographyStyle(
   widgetId: string,
   typography: WidgetTypography | undefined,
 ): void {
@@ -334,72 +341,6 @@ function applyLiveTypographyStyle(
       // Chunk nie dojechał: zostają zmienne i stan Reacta ramki.
     },
   );
-}
-
-export function broadcastWidgetTypography(
-  widgetId: string,
-  typography: WidgetTypography | undefined,
-): void {
-  if (typeof window === "undefined") return;
-  const payload: WidgetTypographyLivePayload = { widgetId, typography, updatedAt: Date.now() };
-
-  applyLiveTypographyStyle(widgetId, typography);
-
-  window.dispatchEvent(
-    new CustomEvent<WidgetTypographyLivePayload>(EVENT_NAME, { detail: payload }),
-  );
-
-  try {
-    if (typography === undefined) window.sessionStorage.removeItem(storageKey(widgetId));
-    else window.sessionStorage.setItem(storageKey(widgetId), JSON.stringify(payload));
-  } catch {
-    // sessionStorage can be disabled - live same-document updates still work.
-  }
-
-  if (typeof BroadcastChannel === "undefined") return;
-  try {
-    const channel = new BroadcastChannel(CHANNEL_NAME);
-    channel.postMessage(payload);
-    channel.close();
-  } catch {
-    // BroadcastChannel is best-effort; React state update remains authoritative.
-  }
-}
-
-/**
- * Drop every live typography override (same-document): removes the injected
- * <style> nodes + sessionStorage snapshots and notifies subscribers with
- * `undefined` so widgets fall back to the DOCUMENT's typography.
- *
- * Needed around undo/redo: the live broadcast otherwise shadows the restored
- * document value and the canvas visibly "ignores" the undo.
- */
-export function clearAllLiveWidgetTypography(): void {
-  if (typeof window === "undefined") return;
-  const widgetIds = new Set<string>();
-  try {
-    for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
-      const key = window.sessionStorage.key(i);
-      if (key && key.startsWith(STORAGE_PREFIX)) {
-        widgetIds.add(key.slice(STORAGE_PREFIX.length));
-        window.sessionStorage.removeItem(key);
-      }
-    }
-  } catch {
-    // sessionStorage can be disabled — style/subscriber cleanup still runs.
-  }
-  if (typeof document !== "undefined") {
-    document.querySelectorAll(`style[id^="${STYLE_ID_PREFIX}"]`).forEach((el) => el.remove());
-  }
-  // Spóźniony generator nie odtworzy usuniętego bloku.
-  liveStyleRevision.clear();
-  widgetIds.forEach((widgetId) => {
-    window.dispatchEvent(
-      new CustomEvent<WidgetTypographyLivePayload>(EVENT_NAME, {
-        detail: { widgetId, typography: undefined, updatedAt: Date.now() },
-      }),
-    );
-  });
 }
 
 export function subscribeWidgetTypography(

@@ -269,12 +269,15 @@ export const exportMyData = createServerFn({ method: "POST" })
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(ROW_LIMIT),
-      user_reports_filed: supabase
-        .from("user_reports")
-        .select("id, reported_id, reason, details, status, created_at, resolved_at")
-        .eq("reporter_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(ROW_LIMIT),
+      // Zgłoszenia są RPC-only: `user_reports` nie ma grantu SELECT dla
+      // `authenticated` (20260717170000), więc dawny odczyt tabeli wprost
+      // kończył się 42501 przy KAŻDYM eksporcie, a polityka RLS dla
+      // zgłaszającego była martwa. SECURITY DEFINER RPC (20261116211500) oddaje
+      // te same siedem kolumn, najnowsze pierwsze, z tym samym sufitem - osoba
+      // z `auth.uid()`, najemca z profilu, bez notatki rozstrzygnięcia
+      // i tożsamości staffu. Przed wdrożeniem migracji brak funkcji to błąd
+      // tej jednej sekcji w `errors`, jak dotąd - reszta paczki jedzie dalej.
+      user_reports_filed: supabase.rpc("user_reports_export_my_data", { p_limit: ROW_LIMIT }),
 
       // ── Sieć kontaktów i reputacja zawodowa ──────────────────────────────
       network_connections: fetchNetworkPages(

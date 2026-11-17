@@ -207,6 +207,25 @@ describe("przejścia do sąsiednich wpisów", () => {
     );
   });
 
+  it("ścieżka zagnieżdżona i trasa /post/ przechodzą do adresu bez zmian", () => {
+    // Trasa wpisu podaje tu albo pełną ścieżkę strony-rodzica (sąsiad pod tą
+    // samą stroną - adres kanoniczny), albo "post" (adres zapasowy, 301).
+    renderFooter({
+      settings: settings({ show_prev_next: true }),
+      prev: { slug: "poprzedni", title: "Poprzedni wpis", parent_path: "analizy/energetyka" },
+      next: { slug: "nastepny", title: "Następny wpis", parent_path: "post" },
+    });
+
+    expect(screen.getByRole("link", { name: /Poprzedni wpis/ })).toHaveAttribute(
+      "href",
+      "/analizy/energetyka/poprzedni",
+    );
+    expect(screen.getByRole("link", { name: /Następny wpis/ })).toHaveAttribute(
+      "href",
+      "/post/nastepny",
+    );
+  });
+
   it("wpis bez gałęzi nadrzędnej trafia prosto pod swój slug", () => {
     renderFooter({
       settings: settings({ show_prev_next: true }),

@@ -30,11 +30,11 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.f
 vi.mock("@/lib/builder/templates", () => ({
   useSectionTemplates: () => ({ items: [], loading: false, save: vi.fn(async () => true) }),
 }));
-vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgets")>();
+vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgetsAdmin")>();
   return { ...actual, useGlobalWidgets: () => ({ items: [], save: vi.fn(async () => "g") }) };
 });
-vi.mock("@/lib/builder/experiments", () => ({
+vi.mock("@/lib/builder/experimentsAdmin", () => ({
   useExperimentsAdmin: () => ({ items: [], create: vi.fn(), setStatus: vi.fn() }),
 }));
 vi.mock("@/components/ui/select", async () => {

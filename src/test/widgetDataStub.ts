@@ -15,13 +15,12 @@
 // Wartości są jawnie testowe ("Stub …") i nie mogą przypominać danych próbki
 // kontekstu wpisu (`PLACEHOLDER_POST_CTX`) - inaczej bramka wycieku próbki
 // zaczęłaby zgłaszać trafienia z własnego stubu.
+import type { ClubCardRow, ClubThreadTeaserRow } from "@/lib/builder/clubsQuery";
 import type {
-  ClubCardRow,
   ClubHubArticleRow,
   ClubHubCommentRow,
   ClubHubMemberRow,
-  ClubThreadTeaserRow,
-} from "@/lib/builder/clubsQuery";
+} from "@/lib/builder/clubHubQuery";
 
 /** Jeden „wiersz wszystkiego”: post, kategoria, tag, wydarzenie, prelegent. */
 export const UNIVERSAL_ROW: Readonly<Record<string, unknown>> = {

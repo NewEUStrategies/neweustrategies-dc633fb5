@@ -93,8 +93,12 @@ export function paymentOrderRow(overrides: Partial<PaymentOrderRow> = {}): Payme
   };
 }
 
+/**
+ * Wiersz `profiles` w kształcie odczytu biletu - BEZ `email`: ta kolumna nie
+ * ma grantu SELECT dla `authenticated` (poprawka PII 20260724090100), więc
+ * adres posiadacza jedzie z sesji, nie z profilu.
+ */
 export interface ProfileRow {
-  email: string | null;
   first_name: string | null;
   last_name: string | null;
   display_name: string | null;
@@ -102,7 +106,6 @@ export interface ProfileRow {
 
 export function profileRow(overrides: Partial<ProfileRow> = {}): ProfileRow {
   return {
-    email: "anna@example.org",
     first_name: "Anna",
     last_name: "Kowalska",
     display_name: "anna.k",

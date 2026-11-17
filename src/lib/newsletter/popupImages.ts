@@ -1,7 +1,8 @@
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
-import { resolvePopupDesign, type PopupGalleryGrid } from "./popupDesign";
+import { type PopupGalleryGrid } from "./popupDesign";
+import { resolvePopupDesign } from "./popupDesignResolve";
 
 export const POPUP_COVER_SIZES = "(max-width: 544px) calc(100vw - 32px), 512px";
 export const POPUP_SIDE_SIZES = "(max-width: 767px) calc(100vw - 32px), 448px";

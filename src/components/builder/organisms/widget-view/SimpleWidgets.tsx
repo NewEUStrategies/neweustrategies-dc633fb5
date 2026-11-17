@@ -4,6 +4,7 @@ import { useEffect, useRef, type CSSProperties, type ReactElement, type ReactNod
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { contentIcon } from "@/lib/icons/contentIcon";
 import { safeUrl, safeImageUrl } from "@/lib/sanitizePure";
 // Type-only z ciężkich modułów wariantów - runtime dociera lazy przez
 // lazyWidgets (slider ~53 KB i animowane nagłówki nie obciążają stron,
@@ -474,11 +475,7 @@ export function renderSimpleWidget(
       }
       if (variant === "icon") {
         const iconName = getStr(c, "iconName") || "Star";
-        const reg = LucideIcons as Record<
-          string,
-          React.ComponentType<{ size?: number; color?: string }> | undefined
-        >;
-        const Icon = reg[iconName] ?? LucideIcons.Star;
+        const Icon = contentIcon(iconName, LucideIcons.Star, 16);
         const lineStyle: CSSProperties = {
           borderTopWidth: thickness,
           borderTopStyle: "solid",
@@ -1451,7 +1448,6 @@ export function renderSimpleWidget(
       return <AccordionWidget content={c} lang={lang} />;
     case "timeline": {
       const entries = objectEntries(c.entries);
-      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
       return (
         <div className="w-full">
@@ -1473,10 +1469,11 @@ export function renderSimpleWidget(
             const iconType = strOf(entry.iconType) || "avatar";
             const avatar = safeImageUrl(strOf(entry.avatar));
             const initials = (strOf(entry.initials) || "?").slice(0, 2).toUpperCase();
+            // Pole tekstowe `TimelineEditor` albo nazwa wybieraka; oba pudełka `size-4`.
             const iconName = strOf(entry.iconName) || "FileText";
-            const IconCmp = Icons[iconName] || Icons.FileText;
+            const IconCmp = contentIcon(iconName, LucideIcons.FileText, 16);
             const titleIconName = strOf(entry.titleIconName);
-            const TitleIcon = titleIconName ? Icons[titleIconName] : undefined;
+            const TitleIcon = titleIconName ? contentIcon(titleIconName, null, 16) : null;
             const actorName = strOf(entry.actorName);
             const actorAvatar = safeImageUrl(strOf(entry.actorAvatar));
             const actorInitials = (strOf(entry.actorInitials) || "?").slice(0, 2).toUpperCase();
@@ -1794,7 +1791,7 @@ export function renderSimpleWidget(
       const href = safeUrl(getStr(c, "href"), "");
       const iconName = getStr(c, "iconName") || "Flame";
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
-      const Icon = Icons[iconName] || Icons.Flame;
+      const Icon = contentIcon(iconName, LucideIcons.Flame, 14);
       const ArrowRight = Icons.ArrowRight;
       const inner = (
         <div className="flex items-center gap-4 text-sm">

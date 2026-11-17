@@ -13,7 +13,12 @@
 //     bez dodatkowego poziomu - selektory `.home-header-grow > div > section`);
 //  5. (P2.2, recenzja P2.3 M1) obrót/rozszerzenie okna W TRAKCIE hydratacji:
 //     zapytanie zaczyna pasować po renderze wyspy, a jego `change` przychodzi
-//     tuż przed założeniem nasłuchu - wyspa i tak się uwadnia.
+//     tuż przed założeniem nasłuchu - wyspa i tak się uwadnia;
+//  6. logo paska mobilnego z naturalnym rozmiarem pliku (`width`/`height` z
+//     `theme_options.logo.intrinsic`, Lighthouse `unsized-images`): atrybuty z
+//     HTML serwera zostają po hydratacji na tym samym węźle, a przy zapisanym
+//     motywie ciemnym hydratacja idzie na jasnym HTML i dopiero potem `src`
+//     oraz rozmiar przechodzą RAZEM na plik ciemny.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot, type Root } from "react-dom/client";
@@ -73,6 +78,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Header } from "@/components/Header";
 import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
 import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
+import { THEME_STORAGE_KEY } from "@/lib/theme/themeChoice";
 
 h.t = (lang) => realT(lang);
 
@@ -152,14 +158,23 @@ interface Mounted {
   readonly container: HTMLDivElement;
   readonly errors: unknown[];
   readonly serverSection: Element;
+  /** Logo paska mobilnego z HTML serwera: węzeł i znacznik sprzed hydratacji. */
+  readonly serverLogo: HTMLImageElement | null;
+  readonly serverLogoTag: string;
   island(): HTMLElement;
 }
 
+/** Logo paska mobilnego (jedyny `<img>` nagłówka przy atrapie renderera buildera). */
+const mobileLogo = (container: HTMLElement) => container.querySelector<HTMLImageElement>("img.h-8");
+
 const roots: Root[] = [];
 
-async function hydrateHeader(): Promise<Mounted> {
+async function hydrateHeader(settings: Record<string, unknown> = {}): Promise<Mounted> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(siteSettingsQueryOptions.queryKey, { header: { builder_data: doc } });
+  client.setQueryData(siteSettingsQueryOptions.queryKey, {
+    header: { builder_data: doc },
+    ...settings,
+  });
   const element = app(client);
   const container = document.createElement("div");
   h.server = true;
@@ -173,6 +188,8 @@ async function hydrateHeader(): Promise<Mounted> {
   document.body.append(container);
   const serverSection = container.querySelector('[data-probe="desktop-section"]');
   if (!serverSection) throw new Error("brak nagłówka desktopowego w HTML serwera");
+  const serverLogo = mobileLogo(container);
+  const serverLogoTag = serverLogo?.outerHTML ?? "";
   const errors: unknown[] = [];
   await act(async () => {
     roots.push(hydrateRoot(container, element, { onRecoverableError: (e) => errors.push(e) }));
@@ -183,7 +200,7 @@ async function hydrateHeader(): Promise<Mounted> {
     if (!found) throw new Error("brak wyspy hdr-desktop");
     return found;
   };
-  return { container, errors, serverSection, island };
+  return { container, errors, serverSection, serverLogo, serverLogoTag, island };
 }
 
 beforeEach(() => {
@@ -292,5 +309,81 @@ describe("Header - ukryty nagłówek desktopowy jako wyspa (P2.3)", () => {
     expect(h.clientBuilderRenders).toBeGreaterThan(0);
     expect(page.container.querySelector('[data-probe="desktop-section"]')).toBe(page.serverSection);
     expect(page.errors).toEqual([]);
+  });
+});
+
+describe("Header - logo paska mobilnego: width/height z HTML serwera po hydratacji", () => {
+  const LIGHT = "https://cdn.example.test/logo-light.svg";
+  const DARK = "https://cdn.example.test/logo-dark.svg";
+  const withLogo = (intrinsic?: [string, string][]) => ({
+    general: { site_name: "NES" },
+    theme_options: { logo: { mobile: LIGHT, mobile_dark: DARK, intrinsic } },
+  });
+  const SIZES: [string, string][] = [
+    [LIGHT, "350x150"],
+    [DARK, "700x300"],
+  ];
+
+  /** Komunikaty Reacta o rozjeździe HTML serwera z hydratacją (idą na console.error). */
+  function spyHydrationMismatch(): () => unknown[] {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    return () =>
+      spy.mock.calls.filter(([first]) => /hydrat|didn't match|did not match/i.test(String(first)));
+  }
+
+  it("motyw jasny: ten sam węzeł i te same atrybuty co w HTML serwera", async () => {
+    installMatchMedia(false);
+    const mismatches = spyHydrationMismatch();
+    const page = await hydrateHeader(withLogo(SIZES));
+
+    expect(page.serverLogoTag).toContain(`src="${LIGHT}" alt="NES" width="350" height="150"`);
+    const logo = mobileLogo(page.container);
+    expect(logo).toBe(page.serverLogo);
+    expect(logo?.outerHTML).toBe(page.serverLogoTag);
+    expect(page.errors).toEqual([]);
+    expect(mismatches()).toEqual([]);
+  });
+
+  it("zapisany motyw ciemny: hydratacja na jasnym HTML, potem `src` i rozmiar przechodzą RAZEM na plik ciemny", async () => {
+    installMatchMedia(false);
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    const mismatches = spyHydrationMismatch();
+    const page = await hydrateHeader(withLogo(SIZES));
+
+    // Serwer nie zna zapisanego wyboru: jasny plik i JEGO rozmiar.
+    expect(page.serverLogoTag).toContain(`src="${LIGHT}" alt="NES" width="350" height="150"`);
+    expect(page.errors).toEqual([]);
+    expect(mismatches()).toEqual([]);
+    // Po montażu lustro motywu przechodzi na ciemny - na tym samym węźle.
+    const logo = mobileLogo(page.container);
+    expect(logo).toBe(page.serverLogo);
+    expect(logo?.getAttribute("src")).toBe(DARK);
+    expect([logo?.getAttribute("width"), logo?.getAttribute("height")]).toEqual(["700", "300"]);
+  });
+
+  it("zapisany motyw ciemny, plik ciemny BEZ wpisu: atrybuty znikają razem ze zmianą `src`", async () => {
+    // Rozmiar jasnego pliku nie może zostać na `<img>` z plikiem ciemnym.
+    installMatchMedia(false);
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    const page = await hydrateHeader(withLogo([[LIGHT, "350x150"]]));
+
+    expect(page.serverLogoTag).toContain(' width="350" height="150"');
+    const logo = mobileLogo(page.container);
+    expect(logo?.getAttribute("src")).toBe(DARK);
+    expect(logo?.hasAttribute("width")).toBe(false);
+    expect(logo?.hasAttribute("height")).toBe(false);
+    expect(page.errors).toEqual([]);
+  });
+
+  it("bez wpisu rozmiaru: znacznik bez width/height przed hydratacją i po niej", async () => {
+    installMatchMedia(false);
+    const mismatches = spyHydrationMismatch();
+    const page = await hydrateHeader(withLogo());
+
+    expect(page.serverLogoTag).toContain(`src="${LIGHT}" alt="NES" class=`);
+    expect(page.serverLogoTag).not.toMatch(/\s(width|height)=/);
+    expect(mobileLogo(page.container)?.outerHTML).toBe(page.serverLogoTag);
+    expect(page.errors).toEqual([]);
+    expect(mismatches()).toEqual([]);
   });
 });

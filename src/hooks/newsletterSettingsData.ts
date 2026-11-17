@@ -16,7 +16,7 @@
 // krawędzią statyczną z chunku wejściowego i wciągnąłby ten moduł z powrotem.
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePopupFields } from "@/lib/newsletter/popupFields";
-import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
+import { resolvePopupDesign } from "@/lib/newsletter/popupDesignResolve";
 import {
   defaultNewsletterSettings,
   projectNewsletterInlineSettings,

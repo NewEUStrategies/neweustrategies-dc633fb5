@@ -13,7 +13,14 @@
 //
 // Dane wyłącznie syntetyczne (domena example.test).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import {
+  ok,
+  fail,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseResult,
+} from "@/test/supabaseChain";
+import { decodeOrParam, runRecordedChain } from "@/test/supabase/postgrestGrammar";
 import {
   callServerFn,
   type ServerFnContext,
@@ -84,6 +91,29 @@ function context(): ServerFnContext {
 }
 
 const parsed = (result: unknown): unknown => JSON.parse((result as { json: string }).json);
+
+/**
+ * Lookup awatara w dwóch zapytaniach na porcję, oba z drzewem `.or(...)`
+ * odczytanym portem parsera PostgREST: adres logowania (jeden liść
+ * `email.in.(...)`) i adres kontaktowy (liście `contact_email.*`).
+ */
+const orLeaves = (chain: RecordedChain) => decodeOrParam(`(${String(chain.argsOf("or")?.[0])})`);
+const avatarChainKind = (chain: RecordedChain): "email" | "contact_email" => {
+  if (chain.has("in") || chain.calls.filter((c) => c.method === "or").length !== 1) {
+    throw new Error("nieznany kształt zapytania o awatar");
+  }
+  const columns = new Set(orLeaves(chain).map((f) => f.column));
+  if (columns.size === 1 && columns.has("email") && orLeaves(chain).length === 1) return "email";
+  if (columns.size === 1 && columns.has("contact_email")) return "contact_email";
+  throw new Error("nieznany kształt zapytania o awatar");
+};
+const contactLeaves = orLeaves;
+/** Wartości listy `email.in.(...)` zapytania o adres logowania. */
+const loginValues = (chain: RecordedChain): string[] => {
+  const [leaf] = orLeaves(chain);
+  if (leaf?.op !== "in" || leaf.column !== "email") throw new Error("oczekiwano email.in");
+  return leaf.values;
+};
 
 beforeEach(() => {
   lead.reset();
@@ -204,15 +234,52 @@ describe("exportCrmLeadsCsv", () => {
 });
 
 describe("getCrmLead", () => {
-  it("składa kartę kontaktu z pięciu źródeł i dokleja avatar profilu", async () => {
-    lead.setResponse("crm_leads", () =>
-      ok({ id: LEAD_ID, email: "a@example.test", tenant_id: TENANT }),
-    );
+  // Zdjęcie członka na karcie kontaktu. Do 2026-11-16 karta pytała `profiles`
+  // o `email`/`contact_email` klientem wołającego - te kolumny nie mają grantu
+  // dla `authenticated` (20260724090100), więc PostgREST odrzucał całe
+  // zapytanie (42501), a pusty `catch` dawał brak zdjęcia na KAŻDEJ karcie.
+  // Atrapa oddawała wtedy wiersz, którego prawdziwa baza nie wyda. Teraz karta
+  // idzie tą samą ścieżką co lista (`getCrmLeadAvatars`): tenant z sesji,
+  // lookup spod service-role zawężony do tego tenanta.
+  const LEAD = {
+    id: LEAD_ID,
+    email: "Anna@Example.test",
+    email_norm: "anna@example.test",
+    tenant_id: TENANT,
+  };
+  const AVATAR = "https://cdn.test/anna.png";
+  const avatarOf = (result: unknown) =>
+    (parsed(result) as { profile_avatar_url: unknown }).profile_avatar_url;
+
+  /** Lead + cztery źródła karty puste + tenant wołającego z jego profilu (RLS). */
+  const planCard = (row: unknown = LEAD, callerTenant: unknown = { tenant_id: TENANT }) => {
+    lead.setResponse("crm_leads", () => ok(row));
+    for (const table of [
+      "contact_messages",
+      "newsletter_subscribers",
+      "crm_consent_log",
+      "crm_lead_notes",
+    ]) {
+      lead.setResponse(table, () => ok([]));
+    }
+    lead.setResponse("profiles", () => ok(callerTenant));
+  };
+
+  it("bramka staffu CRM zostaje na funkcji (lookup spod service-role nie jest publiczny)", () => {
+    expect(serverFnMiddlewareNames(crm.getCrmLead)).toEqual(["requireCrmStaff"]);
+  });
+
+  it("składa kartę kontaktu z pięciu źródeł i dokleja avatar członka o adresie leada", async () => {
+    planCard();
     lead.setResponse("contact_messages", () => ok([{ id: "m1" }]));
     lead.setResponse("newsletter_subscribers", () => ok([{ id: "s1" }]));
     lead.setResponse("crm_consent_log", () => ok([{ id: "c1" }]));
     lead.setResponse("crm_lead_notes", () => ok([{ id: "n1" }]));
-    lead.setResponse("profiles", () => ok({ avatar_url: "https://example.test/a.png" }));
+    admin.setResponse("profiles", (chain) =>
+      avatarChainKind(chain) === "email"
+        ? ok([{ email: "anna@example.test", contact_email: null, avatar_url: AVATAR }])
+        : ok([]),
+    );
 
     const result = await callServerFn(crm.getCrmLead, {
       data: { id: LEAD_ID },
@@ -223,8 +290,107 @@ describe("getCrmLead", () => {
       subscriptions: [{ id: "s1" }],
       consents: [{ id: "c1" }],
       notes: [{ id: "n1" }],
-      profile_avatar_url: "https://example.test/a.png",
+      profile_avatar_url: AVATAR,
     });
+  });
+
+  it("klient wołającego nie pyta o kolumny bez grantu - tylko o własny tenant", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([]));
+
+    await callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() });
+
+    // Jedyny odczyt `profiles` klientem użytkownika: własny wiersz, kolumna z grantem.
+    const own = lead.chainsFor("profiles");
+    expect(own.map((chain) => chain.argsOf("select"))).toEqual([["tenant_id"]]);
+    expect(own[0]?.argsOf("eq")).toEqual(["id", USER_ID]);
+  });
+
+  it("lookup spod service-role stoi na tenancie wołającego, adresy biorą się z leada", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([]));
+
+    await callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() });
+
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
+    for (const chain of chains) {
+      expect(chain.argsOf("select")).toEqual(["email, contact_email, avatar_url"]);
+      expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+      expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
+    }
+    // Adres leada `Anna@Example.test`: logowanie dokładnie (z auth, małymi
+    // literami), kontakt bez wielkości liter - jeden liść `ilike`.
+    const byKind = Object.fromEntries(chains.map((c) => [avatarChainKind(c), c]));
+    expect(loginValues(byKind.email as RecordedChain)).toEqual(["anna@example.test"]);
+    expect(contactLeaves(byKind.contact_email as RecordedChain)).toEqual([
+      { column: "contact_email", negated: false, op: "ilike", value: "anna@example.test" },
+    ]);
+  });
+
+  it("odpowiedź nie niesie adresów profilu - tylko avatar_url", async () => {
+    planCard();
+    admin.setResponse("profiles", () =>
+      ok([{ email: "inny@example.test", contact_email: "Anna@Example.test", avatar_url: AVATAR }]),
+    );
+
+    const result = await callServerFn(crm.getCrmLead, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    expect(avatarOf(result)).toBe(AVATAR);
+    expect(JSON.stringify(result)).not.toContain("inny@example.test");
+  });
+
+  it("lead innego najemcy niż wołający: bez lookupu spod service-role, inicjały", async () => {
+    planCard({ ...LEAD, tenant_id: "66666666-6666-4666-8666-666666666666" });
+
+    const result = await callServerFn(crm.getCrmLead, {
+      data: { id: LEAD_ID },
+      context: context(),
+    });
+    expect(avatarOf(result)).toBeNull();
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("bez tenanta w profilu wołającego: ODMOWA lookupu (bez service-role), karta działa, błąd w logu", async () => {
+    planCard(LEAD, null);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(crm.getCrmLead, {
+        data: { id: LEAD_ID },
+        context: context(),
+      });
+      expect(avatarOf(result)).toBeNull();
+      expect(admin.chains).toHaveLength(0);
+      expect(logged).toHaveBeenCalledWith("[crm] lead avatar lookup failed", {
+        leadId: LEAD_ID,
+        error: "tenant_unresolved",
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("błąd lookupu nie wywraca karty, ale nie znika po cichu - trafia do logu bez adresu", async () => {
+    planCard();
+    admin.setResponse("profiles", () => fail("connection reset", "08006"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(crm.getCrmLead, {
+        data: { id: LEAD_ID },
+        context: context(),
+      });
+      expect(avatarOf(result)).toBeNull();
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledWith("[crm] lead avatar lookup failed", {
+        leadId: LEAD_ID,
+        error: "connection reset",
+      });
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("example.test");
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("brak leada to błąd, a nie pusta karta", async () => {
@@ -232,28 +398,6 @@ describe("getCrmLead", () => {
     await expect(
       callServerFn(crm.getCrmLead, { data: { id: LEAD_ID }, context: context() }),
     ).rejects.toThrow("Lead not found");
-  });
-
-  it("błąd odczytu profilu nie wywraca karty - avatar zostaje pusty", async () => {
-    lead.setResponse("crm_leads", () =>
-      ok({ id: LEAD_ID, email: "a@example.test", tenant_id: TENANT }),
-    );
-    for (const table of [
-      "contact_messages",
-      "newsletter_subscribers",
-      "crm_consent_log",
-      "crm_lead_notes",
-    ]) {
-      lead.setResponse(table, () => ok([]));
-    }
-    lead.setResponse("profiles", () => {
-      throw new Error("RLS");
-    });
-    const result = await callServerFn(crm.getCrmLead, {
-      data: { id: LEAD_ID },
-      context: context(),
-    });
-    expect((parsed(result) as { profile_avatar_url: unknown }).profile_avatar_url).toBeNull();
   });
 
   it("odrzuca identyfikator, który nie jest UUID", async () => {
@@ -986,8 +1130,6 @@ describe("getCrmLeadAvatars", () => {
   // listę bez zdjęć. Teraz lookup idzie tu: service-role, zawężony do tenanta.
   const SECOND_ID = "55555555-5555-4555-8555-555555555555";
   const avatarsOf = (result: unknown) => (result as { avatars: unknown[] }).avatars;
-  const inColumn = (chain: { argsOf(m: string): ReadonlyArray<unknown> | undefined }) =>
-    chain.argsOf("in")?.[0];
 
   const planTenantAndLeads = (leads: unknown[]) => {
     lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
@@ -1000,7 +1142,7 @@ describe("getCrmLeadAvatars", () => {
       { id: SECOND_ID, email: "bartek@example.test", email_norm: "bartek@example.test" },
     ]);
     admin.setResponse("profiles", (chain) =>
-      inColumn(chain) === "email"
+      avatarChainKind(chain) === "email"
         ? ok([
             {
               email: "anna@example.test",
@@ -1041,7 +1183,7 @@ describe("getCrmLeadAvatars", () => {
     expect(leadChain?.argsOf("in")).toEqual(["id", [LEAD_ID]]);
     // Profile: po jednym zapytaniu na kolumnę adresu, każde zawężone do tenanta.
     const profileChains = admin.chainsFor("profiles");
-    expect(profileChains.map(inColumn).sort()).toEqual(["contact_email", "email"]);
+    expect(profileChains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
     for (const chain of profileChains) {
       expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
       expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
@@ -1059,8 +1201,16 @@ describe("getCrmLeadAvatars", () => {
       data: { lead_ids: [LEAD_ID] },
       context: context(),
     });
-    for (const chain of admin.chainsFor("profiles")) {
-      expect(chain.argsOf("in")?.[1]).toEqual(["anna@example.test", "Anna@Example.test"]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains).toHaveLength(2);
+    for (const chain of chains) {
+      if (avatarChainKind(chain) === "email") {
+        expect(loginValues(chain)).toEqual(["anna@example.test"]);
+      } else {
+        expect(contactLeaves(chain).map((f) => (f.op === "ilike" ? f.value : null))).toEqual([
+          "anna@example.test",
+        ]);
+      }
     }
   });
 
@@ -1151,8 +1301,30 @@ describe("getCrmLeadAvatars", () => {
     expect(
       lead.chainsFor("crm_leads").map((c) => (c.argsOf("in")?.[1] as string[]).length),
     ).toEqual([100, 50]);
-    // 150 adresów (już małymi literami) -> 2 porcje x 2 kolumny.
-    expect(admin.chainsFor("profiles")).toHaveLength(4);
+    // Profile: porcje trzymają LICZBĘ adresów (<= 100) i DŁUGOŚĆ filtra
+    // kontaktowego w URL (<= 6000 znaków po kodowaniu, jak w postgrest-js) -
+    // liść `ilike` jest kilka razy dłuższy niż wartość w `.in()`.
+    const chains = admin.chainsFor("profiles");
+    const emailChains = chains.filter((c) => avatarChainKind(c) === "email");
+    const contactChains = chains.filter((c) => avatarChainKind(c) === "contact_email");
+    expect(emailChains.length).toBe(contactChains.length);
+    expect(emailChains.length).toBeGreaterThan(1);
+    for (const chain of emailChains) {
+      expect(loginValues(chain).length).toBeLessThanOrEqual(100);
+    }
+    for (const chain of chains) {
+      const param = new URLSearchParams([["or", `(${String(chain.argsOf("or")?.[0])})`]]);
+      expect(param.toString().length - "or=".length).toBeLessThanOrEqual(6000);
+    }
+    // Każdy adres dokładnie raz w każdej klasie.
+    const expected = ids.map((id) => `${id}@example.test`).sort();
+    expect(emailChains.flatMap(loginValues).sort()).toEqual(expected);
+    expect(
+      contactChains
+        .flatMap(contactLeaves)
+        .map((f) => (f.op === "ilike" ? f.value : ""))
+        .sort(),
+    ).toEqual(expected);
   });
 
   it("walidator odbija id spoza UUID i stronę ponad maksymalny rozmiar", () => {
@@ -1162,6 +1334,359 @@ describe("getCrmLeadAvatars", () => {
         lead_ids: Array.from({ length: 501 }, () => LEAD_ID),
       }),
     ).toThrow();
+  });
+});
+
+describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (lista i karta)", () => {
+  // Członek, którego `contact_email` różni się od adresu leada TYLKO wielkością
+  // liter (lead anna.kowalska@firma.test, kontakt Anna.Kowalska@Firma.TEST,
+  // inny adres logowania), do 2026-11-16 nie dostawał zdjęcia: oba zapytania
+  // szły dokładnym `.in()`. Teraz kontakt idzie `ilike` z wzorcem bez
+  // wieloznaczników.
+  //
+  // Atrapa `profiles` WYKONUJE zapisany łańcuch tak, jak PostgREST (port
+  // parsera drzewa `or=(...)`, cytowanie postgrest-js w `.in()`, zamiana `*`
+  // na `%`, semantyka LIKE/ILIKE z `lower()` bazy - test/supabase/
+  // postgrestGrammar.ts; filtry tego testu dają na PG16 te same wiersze).
+  //
+  // Członkowie „przynęty" (p1-p5, p17, p20) mają MNIEJSZE id niż właściwi, ale
+  // SAME zdjęcia przecieku wieloznacznika nie wykażą: wiersz przypisuje się
+  // leadowi po WŁASNYM adresie (`pgCaseFold`), więc przynęta przyniesiona przez
+  // `_` czy `%` i tak nie dostałaby leada - wynik zdjęć byłby ten sam. Przeciek
+  // filtra łapie test wierszy, które atrapa ODDAJE zapytaniu kontaktowemu
+  // („przynęty nie wracają z bazy").
+  const OTHER_TENANT = "66666666-6666-4666-8666-666666666666";
+  const pid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const member = (
+    n: number,
+    contact_email: string | null,
+    over: { email?: string; tenant_id?: string; avatar_url?: string | null } = {},
+  ) => ({
+    id: pid(n),
+    tenant_id: TENANT,
+    email: `konto${n}@inna.test`,
+    contact_email,
+    avatar_url: `https://cdn.test/${n}.png`,
+    ...over,
+  });
+  // Kolejność w tablicy celowo NIE jest kolejnością id (p14 przed p13).
+  const MEMBERS = [
+    member(0, "Login@Firma.test"),
+    member(1, "janXkowalski@firma.test"),
+    member(2, "100abcpewny@firma.test"),
+    member(3, "ab@firma.test"),
+    member(4, "ktokolwiek@firma.test"),
+    member(5, "aXYZb@firma.test"),
+    member(6, "Anna.Kowalska@Firma.TEST", { tenant_id: OTHER_TENANT }),
+    member(7, "Anna.Kowalska@Firma.TEST"),
+    member(8, "JAN_KOWALSKI@FIRMA.TEST"),
+    member(9, "100%PEWNY@firma.test"),
+    member(10, "A\\B@Firma.test"),
+    member(11, "a*b@firma.test"),
+    member(12, 'O"Neil,(PR):x+1@Firma.test'),
+    member(14, "WSPOLNY@firma.test"),
+    member(13, "wspolny@firma.test"),
+    member(15, null, { email: "login@firma.test" }),
+    member(16, "Bez.Zdjecia@firma.test", { avatar_url: null }),
+    member(18, "X*Y@FIRMA.TEST"),
+    // Poza ASCII baza porównuje SWOIM `lower()` (glibc, znak po znaku), nie
+    // JS `toLowerCase`: `lower('İ')` = `i`, `lower('ΟΔΟΣ')` = `οδοσ` (bez `ς`),
+    // `lower('ẞ')` = `ß`, `lower('ı')` = `ı` - sprawdzone na PG16. Przypisanie
+    // (`pgCaseFold`) idzie za bazą, ale `İ` zostawia sobą: liść `izmir@`
+    // przynosi p23 i p30, a lead z ASCII dostaje p30 (identyczny adres).
+    member(17, "STRASSE@firma.test"), // `ss` to nie `ß` (mniejsze id niż p24)
+    member(19, "ΟΔΟΣ@firma.test"),
+    member(20, "ızmir@firma.test"), // kropka-nie-kropka: `ı` to nie `i` (mniejsze id niż p23)
+    member(21, "οδοΣ@firma.test"),
+    member(23, "İzmir@firma.test"),
+    member(24, "STRAẞE@firma.test"),
+    member(25, "ILGAZ@firma.test"),
+    member(26, "ılgaz@firma.test"),
+    member(30, "IZMIR@firma.test"), // większe id niż p23 `İzmir@`
+  ];
+  const lid = (n: number) => `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const HOSTILE = 'a",contact_email.ilike."%@firma.test';
+  // [adres leada, oczekiwany awatar albo null, opcjonalnie `email_norm` z bazy]
+  const CASES: ReadonlyArray<readonly [string, string | null, string?]> = [
+    ["anna.kowalska@firma.test", "https://cdn.test/7.png"], // tylko wielkość liter
+    ["jan_kowalski@firma.test", "https://cdn.test/8.png"], // `_` nie trafia p1
+    ["100%pewny@firma.test", "https://cdn.test/9.png"], // `%` nie trafia p2
+    ["a\\b@firma.test", "https://cdn.test/10.png"], // `\` nie trafia p3
+    ["A*b@Firma.test", null], // `*`: dokładnie, a p11 ma inną wielkość liter
+    ["a*b@firma.test", "https://cdn.test/11.png"], // `*`: dokładnie, nie trafia p5
+    ["x*y@firma.test", null], // `*` z inną wielkością liter: świadomie bez trafienia
+    ['o"neil,(pr):x+1@firma.test', "https://cdn.test/12.png"], // gramatyka PostgREST
+    ["Wspolny@Firma.test", "https://cdn.test/13.png"], // kilku członków: najmniejsze id
+    ["login@firma.test", "https://cdn.test/15.png"], // logowanie wygrywa z kontaktem p0
+    ["bez.zdjecia@firma.test", null], // członek bez zdjęcia
+    [HOSTILE, null], // cytat nie domyka się w środku adresu
+    // Identyczny adres spoza ASCII. Klucz JS `i̇zmir@` (i + U+0307) w `ILIKE`
+    // nie trafia `İzmir@` w bazie - trafia liść z postacią zapisaną.
+    ["İzmir@firma.test", "https://cdn.test/23.png"],
+    // `email_norm` z `lower(btrim())` bazy (formularze), nie z JS.
+    ["İzmir@firma.test", "https://cdn.test/23.png", "izmir@firma.test"],
+    // Baza zwraca p23 (`lower('İzmir')` = `izmir`) i p30, ale `İ` to nie `I`:
+    // zdjęcie p30 (identyczny adres), nie p23 z mniejszym id; p20 (`ı`) nie.
+    ["IZMIR@firma.test", "https://cdn.test/30.png"],
+    ["izmir@firma.test", "https://cdn.test/30.png"],
+    ["ΟΔΟΣ@firma.test", "https://cdn.test/19.png"], // klucz JS `οδος@` (ς) - liść zapisany
+    ["οδοσ@firma.test", "https://cdn.test/19.png"], // p19 i p21 zrównane, najmniejsze id
+    // `ς` wpisane w leadzie: baza nie zrównuje go z `Σ` -> brak, choć JS
+    // `toLowerCase('ΟΔΟΣ@')` daje dokładnie ten adres.
+    ["οδος@firma.test", null],
+    ["straße@firma.test", "https://cdn.test/24.png"], // `ẞ` -> `ß`; p17 (`SS`) nie
+    ["strasse@firma.test", "https://cdn.test/17.png"], // p24 nie
+    ["ılgaz@firma.test", "https://cdn.test/26.png"], // p25 (`I` -> `i`) nie
+    ["Ilgaz@firma.test", "https://cdn.test/25.png"], // p26 (`ı`) nie
+  ];
+  // Dwa leady z tym samym adresem `*` w różnej wielkości liter mają ten sam
+  // klucz `a*b@firma.test`, a klucz jest postacią KAŻDEGO z nich - lookup
+  // dokładny trafia p11 dla obu (każdy swoją listą, nie listą sąsiada).
+  const LEADS = CASES.map(([email, , norm], i) => ({
+    id: lid(i),
+    email,
+    email_norm: norm ?? email.trim().toLowerCase(),
+    tenant_id: TENANT,
+  }));
+  const expectedFor = (i: number) =>
+    LEADS[i]?.email_norm === "a*b@firma.test" ? "https://cdn.test/11.png" : CASES[i]?.[1];
+
+  /** Członkowie (numer z `avatar_url`), których atrapa oddała zapytaniom kontaktowym. */
+  let servedContact: number[] = [];
+  beforeEach(() => {
+    servedContact = [];
+    admin.setResponse("profiles", (chain) => {
+      const rows = runRecordedChain(chain, MEMBERS);
+      if (avatarChainKind(chain) === "contact_email") {
+        servedContact.push(
+          ...rows.map((r) => Number(/\/(\d+)\.png$/.exec(String(r.avatar_url))?.[1])),
+        );
+      }
+      return ok(rows);
+    });
+  });
+
+  const listAvatars = async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(LEADS.map(({ tenant_id: _t, ...row }) => row)));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: LEADS.map((l) => l.id) },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    return new Map(result.avatars.map((a) => [a.lead_id, a.avatar_url]));
+  };
+
+  const cardAvatar = async (row: (typeof LEADS)[number]) => {
+    lead.setResponse("crm_leads", () => ok(row));
+    for (const table of [
+      "contact_messages",
+      "newsletter_subscribers",
+      "crm_consent_log",
+      "crm_lead_notes",
+    ]) {
+      lead.setResponse(table, () => ok([]));
+    }
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    const result = await callServerFn(crm.getCrmLead, { data: { id: row.id }, context: context() });
+    return (parsed(result) as { profile_avatar_url: string | null }).profile_avatar_url;
+  };
+
+  it("lista: kontakt w innej wielkości liter trafia, wieloznacznik i obcy tenant - nie", async () => {
+    const avatars = await listAvatars();
+    expect(LEADS.map((l) => avatars.get(l.id) ?? null)).toEqual(
+      LEADS.map((_, i) => expectedFor(i) ?? null),
+    );
+  });
+
+  it("karta pokazuje DOKŁADNIE to samo zdjęcie co lista - dla każdego leada", async () => {
+    const avatars = await listAvatars();
+    for (const row of LEADS) {
+      expect(await cardAvatar(row)).toBe(avatars.get(row.id) ?? null);
+    }
+  });
+
+  it("przynęty nie wracają z bazy: filtr kontaktu nie przepuszcza wieloznacznika", async () => {
+    // p1 `janXkowalski` (dla `_`), p2 `100abcpewny` (`%`), p3 `ab` (`\`),
+    // p4 `ktokolwiek` (cytat HOSTILE z `%@firma.test`), p5 `aXYZb` (`*`),
+    // p17 `STRASSE` i p20 `ızmir` - przynęty tylko dla kart `straße@` i `izmir@`
+    // (`ß` to nie `ss`, `ı` to nie `i`); p17 jest właściwy dla `strasse@`.
+    // p23 `İzmir@` wraca karcie `izmir@` zgodnie z PG16 (`lower('İ')` = `i`) -
+    // to nie przeciek filtra, a zdjęcia i tak nie dostaje (przypisanie `İ` ≠ `I`).
+    const DECOYS = [1, 2, 3, 4, 5];
+    await listAvatars();
+    expect(servedContact.filter((n) => DECOYS.includes(n))).toEqual([]);
+    // Dokładnie te wiersze, które ten sam filtr zwraca na PG16 (p16 bez zdjęcia
+    // odpada na `not avatar_url is null`, p6 - na tenancie).
+    expect([...servedContact].sort((a, b) => a - b)).toEqual([
+      0, 7, 8, 9, 10, 11, 12, 13, 14, 17, 19, 21, 23, 24, 25, 26, 30,
+    ]);
+
+    // Karta pojedynczego leada: wyłącznie właściwy członek, przynęta z mniejszym id - nie.
+    const servedForCard = async (email: string) => {
+      servedContact = [];
+      await cardAvatar(LEADS.find((l) => l.email === email) as (typeof LEADS)[number]);
+      return servedContact;
+    };
+    expect(await servedForCard("jan_kowalski@firma.test")).toEqual([8]);
+    expect(await servedForCard("100%pewny@firma.test")).toEqual([9]);
+    expect(await servedForCard("a\\b@firma.test")).toEqual([10]);
+    expect(await servedForCard("a*b@firma.test")).toEqual([11]);
+    expect(await servedForCard(HOSTILE)).toEqual([]);
+    expect(await servedForCard("straße@firma.test")).toEqual([24]);
+    expect(await servedForCard("izmir@firma.test")).toEqual([23, 30]);
+  });
+
+  it("adres droższy niż budżet URL: lead bez zdjęcia (lista i karta), reszta strony działa", async () => {
+    // 305 znaków - w limicie importu (320). `İ` daje dwie postaci, `\` po
+    // kodowaniu to 12 znaków każdy: jeden klucz to ponad 7 tys. znaków filtra.
+    const oversized = `İ${"\\".repeat(299)}@firma.test`;
+    const members = [member(40, oversized), member(41, "Anna@Firma.test")];
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, members)));
+    const row = (id: string, email: string) => ({ id, email, email_norm: email.toLowerCase() });
+    const big = row(lid(300), oversized);
+    const anna = row(lid(301), "anna@firma.test");
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok([big, anna]));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [big.id, anna.id] },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    expect(result.avatars).toEqual([{ lead_id: anna.id, avatar_url: "https://cdn.test/41.png" }]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map(avatarChainKind).sort()).toEqual(["contact_email", "email"]);
+    for (const chain of chains) {
+      const param = new URLSearchParams([["or", `(${String(chain.argsOf("or")?.[0])})`]]);
+      expect(param.toString().length - "or=".length).toBeLessThanOrEqual(6000);
+    }
+
+    admin.reset();
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, members)));
+    expect(await cardAvatar({ ...big, tenant_id: TENANT })).toBeNull();
+    // Karta nie wysyła zapytania, którego proxy by nie przyjęło.
+    expect(admin.chainsFor("profiles")).toEqual([]);
+  });
+
+  it("strona w kilku porcjach: wybór zdjęcia w obrębie porcji leada, jak na karcie", async () => {
+    // Lead `İzmir@` (klucz JS `i̇zmir@`) pasuje do dwóch członków: p30
+    // (`İzmir@` rozłożone, I + U+0307 - liść klucza) i p31 (`İzmir@` - liść
+    // postaci zapisanej). Lead `izmir@` w PIERWSZEJ porcji przynosi z bazy
+    // tylko p31 (`lower('İ')` = `i`) - sam go nie dostaje (`İ` to nie `i`), ale
+    // wiersz jest w wynikach pierwszej porcji. Wybór po połączeniu porcji dałby
+    // leadowi `İzmir@` p31 (wcześniej na liście), karta - p30 (najmniejsze id).
+    const members = [member(30, "I\u0307zmir@firma.test"), member(31, "İzmir@firma.test")];
+    /** Członkowie (numer z `avatar_url`) oddani każdemu zapytaniu kontaktowemu, po kolei. */
+    const servedPerContactChain: number[][] = [];
+    admin.setResponse("profiles", (chain) => {
+      const rows = runRecordedChain(chain, members);
+      if (avatarChainKind(chain) === "contact_email") {
+        servedPerContactChain.push(
+          rows.map((r) => Number(/\/(\d+)\.png$/.exec(String(r.avatar_url))?.[1])),
+        );
+      }
+      return ok(rows);
+    });
+    const row = (id: string, email: string) => ({ id, email, email_norm: email.toLowerCase() });
+    const first = row(lid(100), "izmir@firma.test");
+    const fillers = Array.from({ length: 100 }, (_, i) =>
+      row(lid(200 + i), `wypelniacz${String(i).padStart(3, "0")}@firma.test`),
+    );
+    const last = row(lid(101), "İzmir@firma.test");
+    const page = [first, ...fillers, last];
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(page));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: page.map((l) => l.id) },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    const list = new Map(result.avatars.map((a) => [a.lead_id, a.avatar_url]));
+
+    // Warunek scenariusza: `izmir@` i `İzmir@` w RÓŻNYCH porcjach.
+    const contact = admin
+      .chainsFor("profiles")
+      .filter((c) => avatarChainKind(c) === "contact_email")
+      .map((c) => contactLeaves(c).map((f) => (f.op === "ilike" ? f.value : "")));
+    expect(contact.length).toBeGreaterThan(1);
+    expect(contact.findIndex((v) => v.includes("izmir@firma.test"))).not.toBe(
+      contact.findIndex((v) => v.includes("İzmir@firma.test")),
+    );
+
+    // Pierwsza porcja oddaje p31, druga p30 i p31 - inaczej scenariusz nic nie sprawdza.
+    expect(servedPerContactChain).toEqual([[31], [30, 31]]);
+
+    expect(list.has(first.id)).toBe(false);
+    expect(list.get(last.id)).toBe("https://cdn.test/30.png");
+    expect(await cardAvatar({ ...last, tenant_id: TENANT })).toBe("https://cdn.test/30.png");
+    expect(await cardAvatar({ ...first, tenant_id: TENANT })).toBeNull();
+  });
+
+  it("filtr kontaktu: liść na postać adresu leada, `ilike` bez wieloznaczników, `*` tylko dokładnie", async () => {
+    await listAvatars();
+    const contact = admin
+      .chainsFor("profiles")
+      .filter((c) => avatarChainKind(c) === "contact_email");
+    expect(contact).toHaveLength(1);
+    const leaves = contactLeaves(contact[0] as RecordedChain);
+    expect(leaves.every((f) => f.column === "contact_email" && !f.negated)).toBe(true);
+    for (const leaf of leaves) {
+      if (leaf.op === "ilike") {
+        // Wzorzec nie ma ANI JEDNEGO wieloznacznika bez ucieczki.
+        expect(leaf.value.replace(/\\[\s\S]/g, "")).not.toMatch(/[%_*]/);
+      } else {
+        // Ścieżka dokładna: PostgREST zrobiłby z `*` w ilike wieloznacznik `%`.
+        expect(leaf.op).toBe("in");
+      }
+    }
+    // Wartości po stronie serwera (po zdjęciu cytowania PostgREST), w kolejności
+    // leadów; `in:` - lista dokładna, reszta - wzorce `ilike`. Postaci są
+    // WŁASNE dla leada: `A*b@Firma.test` i `a*b@firma.test` (ten sam klucz)
+    // mają osobne listy, a `οδος@` (lead z `ς`) nie dostaje `ΟΔΟΣ@` sąsiada.
+    expect(leaves.map((f) => (f.op === "in" ? `in:${f.values.join(" | ")}` : f.value))).toEqual([
+      "anna.kowalska@firma.test",
+      "jan\\_kowalski@firma.test",
+      "100\\%pewny@firma.test",
+      "a\\\\b@firma.test",
+      "in:a*b@firma.test | A*b@Firma.test",
+      "in:a*b@firma.test",
+      "in:x*y@firma.test",
+      'o"neil,(pr):x+1@firma.test',
+      "wspolny@firma.test",
+      "login@firma.test",
+      "bez.zdjecia@firma.test",
+      'a",contact\\_email.ilike."\\%@firma.test',
+      // `İzmir@` z kluczem JS: klucz `i̇zmir@` (i + U+0307) i postać zapisana -
+      // `lower()` bazy rozróżnia je, więc dwa liście.
+      "i\u0307zmir@firma.test",
+      "İzmir@firma.test",
+      // `İzmir@` z `email_norm` bazy: liście `izmir@` i `İzmir@` (ten sam wynik
+      // w bazie, ale `pgCaseFold` ich nie zrównuje); `İzmir@` już wyżej, więc
+      // dochodzi `izmir@`. Leady `IZMIR@` i `izmir@` - ten sam wpis, bez liścia.
+      "izmir@firma.test",
+      "οδος@firma.test",
+      "ΟΔΟΣ@firma.test",
+      "οδοσ@firma.test",
+      "straße@firma.test",
+      "strasse@firma.test",
+      "ılgaz@firma.test",
+      "ilgaz@firma.test",
+    ]);
+  });
+
+  it("oba zapytania karty i listy stoją na tenancie wołającego", async () => {
+    await listAvatars();
+    await cardAvatar(LEADS[0] as (typeof LEADS)[number]);
+    const chains = admin.chainsFor("profiles");
+    expect(chains.map(avatarChainKind).sort()).toEqual([
+      "contact_email",
+      "contact_email",
+      "email",
+      "email",
+    ]);
+    for (const chain of chains) {
+      expect(chain.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+        ["tenant_id", TENANT],
+      ]);
+      expect(chain.argsOf("order")).toEqual(["id", { ascending: true }]);
+    }
   });
 });
 

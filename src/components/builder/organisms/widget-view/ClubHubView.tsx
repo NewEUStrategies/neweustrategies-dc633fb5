@@ -22,12 +22,12 @@ import { useQuery } from "@tanstack/react-query";
 import { AppLink } from "@/components/atoms/AppLink";
 import { MessagesSquare, Users, Heart, UserPlus } from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
+import { clubCardQueryOptions } from "@/lib/builder/clubsQuery";
 import {
-  clubCardQueryOptions,
   clubHubArticlesQueryOptions,
   clubHubCommentsQueryOptions,
   clubHubMembersQueryOptions,
-} from "@/lib/builder/clubsQuery";
+} from "@/lib/builder/clubHubQuery";
 import {
   CLUB_HUB_DEFAULTS,
   clubHubDateAttr,

@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Upload, X as XClose, ExternalLink } from "lucide-react";
 import {
   CurrentPostProvider,
-  PLACEHOLDER_POST_CTX,
   type CurrentPostAuthor,
   type CustomAuthorSocial,
 } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
 import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";

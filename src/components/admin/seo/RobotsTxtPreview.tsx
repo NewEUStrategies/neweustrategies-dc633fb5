@@ -18,8 +18,8 @@ import {
   normalizeHost,
   type CrawlHostClass,
 } from "@/lib/http/host";
-import { buildRobotsTxt } from "@/lib/seo/robots";
-import { aiCrawlerGroups, robotsUsagePolicy, type SeoSettings } from "@/lib/seo/settings";
+import { aiCrawlerGroups, buildRobotsTxt, robotsUsagePolicy } from "@/lib/seo/robots";
+import type { SeoSettings } from "@/lib/seo/settings";
 
 /**
  * Origin, którym podgląd się posługuje. Host podglądu/edytora nie jest adresem

@@ -17,17 +17,29 @@ import {
 import type { JourneyLeadEnrollment } from "@/lib/journeys/dto";
 import { parseLeadEnrollments } from "@/lib/journeys/parse";
 import { z } from "zod";
-import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
+import {
+  looseClient,
+  looseTable,
+  rowsOf,
+  fetchRows,
+  type LooseResult,
+} from "@/lib/supabase/looseQuery";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 import { CRM_TAG_MAX, type STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
 import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
+  avatarLookupChunks,
+  avatarLookupKeys,
   chunked,
-  emailLookupValues,
-  matchLeadAvatars,
+  contactFilter,
+  leadAvatarsByKey,
+  matchChunkAvatars,
+  type LeadAvatar,
   type LeadEmailRow,
   type ProfileAvatarRow,
 } from "@/lib/crm/leadAvatars";
+import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
+import { postgrestQuotedList } from "@/lib/supabase/postgrestFilterValue";
 import {
   LeadListFilterSchema,
   ManualLifecycleStageSchema,
@@ -155,23 +167,7 @@ export const getCrmLead = createServerFn({ method: "POST" })
       ),
     ]);
 
-    // Zaczytaj avatar_url z profiles po e-mailu (email lub contact_email),
-    // żeby w widoku szczegółów pokazać zdjęcie profilowe użytkownika.
-    let profile_avatar_url: string | null = null;
-    try {
-      const email = L.email?.toLowerCase() ?? "";
-      if (email) {
-        const { data: prof } = (await looseTable(context, "profiles")
-          .select("avatar_url, email, contact_email")
-          .or(`email.ilike.${email},contact_email.ilike.${email}`)
-          .eq("tenant_id", L.tenant_id)
-          .limit(1)
-          .maybeSingle()) as { data: { avatar_url: string | null } | null };
-        profile_avatar_url = prof?.avatar_url ?? null;
-      }
-    } catch {
-      profile_avatar_url = null;
-    }
+    const profile_avatar_url = await leadCardAvatar(context, lead as LeadCardRow);
 
     return {
       json: j({ lead, messages, subscriptions: subs, consents, notes, profile_avatar_url }),
@@ -694,8 +690,7 @@ export const pushLeadToPartners = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => PushInput.parse(d))
   .handler(async ({ data, context }): Promise<PushLeadResult> => {
-    const rpc = rpcOf(context);
-    const { data: enqueued, error } = await rpc("crm_enqueue_lead_push", {
+    const { data: enqueued, error } = await looseClient(context).rpc("crm_enqueue_lead_push", {
       p_lead_id: data.lead_id,
       p_endpoint_id: data.endpoint_id ?? null,
     });
@@ -922,16 +917,6 @@ const ScoringSettingsInput = z
     message: "thresholds_must_descend",
   });
 
-type RpcFn = (
-  name: string,
-  args?: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
-
-const rpcOf = (context: unknown): RpcFn =>
-  (context as { supabase: { rpc: RpcFn } }).supabase.rpc.bind(
-    (context as { supabase: { rpc: RpcFn } }).supabase,
-  );
-
 // Scoring to konfiguracja/akcje sztabowe - wymuszamy requireCrmStaff (rola +
 // step-up MFA) obok backstopu w RPC/RLS (dwie niezależne warstwy, doktryna repo).
 export const getCrmScoringSettings = createServerFn({ method: "GET" })
@@ -950,9 +935,9 @@ export const upsertCrmScoringSettings = createServerFn({ method: "POST" })
   .validator((d) => ScoringSettingsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const rpc = rpcOf(context);
-    const { data: isAdmin } = await rpc("has_role", { _user_id: userId, _role: "admin" });
-    const { data: isSuper } = await rpc("is_super_admin");
+    const client = looseClient(context);
+    const { data: isAdmin } = await client.rpc("has_role", { _user_id: userId, _role: "admin" });
+    const { data: isSuper } = await client.rpc("is_super_admin");
     if (!isAdmin && !isSuper) throw new Error("Forbidden");
     const { data: tenantRow } = await looseTable(context, "profiles")
       .select("tenant_id")
@@ -992,8 +977,7 @@ export const recomputeLeadScore = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const rpc = rpcOf(context);
-    const { data: result, error } = await rpc("recompute_crm_lead_score", {
+    const { data: result, error } = await looseClient(context).rpc("recompute_crm_lead_score", {
       p_lead_id: data.id,
     });
     if (error) throw new Error(error.message);
@@ -1014,8 +998,7 @@ export const recomputeAllLeadScores = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ processed: number; lastId: string | null; done: boolean }> => {
-      const rpc = rpcOf(context);
-      const { data: result, error } = await rpc("recompute_crm_lead_scores", {
+      const { data: result, error } = await looseClient(context).rpc("recompute_crm_lead_scores", {
         p_limit: data.limit,
         p_after_id: data.after_id ?? null,
       });
@@ -1165,23 +1148,10 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
     return { ok: true, deleted: data.ids.length };
   });
 
-// Tenant wołającego dla zapytań spod service-role: z jego profilu pod RLS, NIE
-// z tokenu (powód niżej, przy listStaffUsers). Wspólny dla listStaffUsers
-// i getCrmLeadAvatars - obie funkcje stawiają na nim jedyną granicę najemcy.
-async function resolveCallerTenantId(context: {
-  readonly supabase: unknown;
-  readonly userId: string;
-}): Promise<string> {
-  const { data: tenantRow, error: tenantErr } = await looseTable(context, "profiles")
-    .select("tenant_id")
-    .eq("id", context.userId)
-    .maybeSingle();
-  if (tenantErr) throw new Error(tenantErr.message);
-  const tenantId = (tenantRow as { tenant_id?: string } | null)?.tenant_id;
-  // Brak tenanta = ODMOWA, nigdy "pokaż wszystko". To jest istota poprawki.
-  if (!tenantId) throw new Error("tenant_unresolved");
-  return tenantId;
-}
+// Tenant wołającego dla zapytań spod service-role (`resolveCallerTenantId`,
+// lib/crm/callerTenant.ts): z jego profilu pod RLS, NIE z tokenu (powód niżej,
+// przy listStaffUsers). Wspólny dla listStaffUsers, getCrmLeadAvatars i karty
+// leada - wszystkie stawiają na nim jedyną granicę najemcy.
 
 // Lista staffu do pickera "właściciela" - profile użytkowników z rolami
 // CRM (admin/editor/super_admin) W TENANCIE WOŁAJĄCEGO.
@@ -1265,6 +1235,28 @@ const LeadAvatarsInput = z.object({
 // Lista w `.in()` jedzie w adresie URL zapytania PostgREST - porcje trzymają go
 // w bezpiecznej długości także przy stronie 200-500 leadów.
 const LEAD_AVATAR_CHUNK = 100;
+// Filtr `contact_email` (`or=(...)` z liśćmi `ilike`) po kodowaniu URL. Domyślny
+// limit linii żądania popularnych proxy to 8 KB (nginx
+// `large_client_header_buffers 4 8k`); reszta adresu (ścieżka, `select`,
+// tenant, `not`, `order`) to ~200 znaków.
+//
+// Schemat NIE ogranicza długości `crm_leads.email` ani `profiles.contact_email`
+// (tylko CHECK formatu kontaktu). Granice dają walidatory aplikacji - formularze
+// 254 znaki, import leadów 320 (`LEAD_IMPORT_VALUE_MAX.email`) - a nie każda
+// ścieżka zapisu leada przez nie przechodzi. Budżet przekracza adres długi
+// I pełen znaków, które liść mnoży - nie sama długość: `\` po ucieczce LIKE,
+// cytowaniu PostgREST i kodowaniu URL to 12 znaków (`%`, `_`, `"` też po
+// kilka), zwykła litera - 1. Adres 320 znaków z samych `\` to ~3,8 tys.
+// w jednym liściu. Drugi liść `ilike` adres dostaje tylko wtedy, gdy zapis
+// leada i jego klucz (`normalizeEmail`) leżą w różnych klasach `pgCaseFold`:
+// `İ`, `Σ` na końcu słowa, wielkie litery spoza zaufanych zakresów - nie `Ł`
+// czy `Ż` (postaci z `*` idą tańszą listą dokładną `in`). Wtedy już 254 znaki
+// (limit formularzy aplikacji, nie RFC 5321 - tam lokalna część ma najwyżej
+// 64 oktety, więc adres zgodny z RFC zostaje poniżej ok. 3 tys.) z `İ` i 248 `\`
+// to ponad 6 tys. Klucz droższy niż budżet
+// `avatarLookupChunks` więc pomija (lead bez zdjęcia), zamiast wysłać
+// zapytanie, które proxy odrzuci razem z lookupem całej strony.
+const LEAD_AVATAR_FILTER_URL_BUDGET = 6000;
 
 export const getCrmLeadAvatars = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -1284,33 +1276,116 @@ export const getCrmLeadAvatars = createServerFn({ method: "POST" })
       if (res.error) throw new Error(res.error.message);
       leads.push(...rowsOf(res));
     }
-    const values = emailLookupValues(leads);
-    if (values.length === 0) return { avatars: [] };
+    return { avatars: await lookupLeadAvatars(tenantId, leads) };
+  });
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const admin = looseClient({ supabase: supabaseAdmin });
-    const lookup = async (column: "email" | "contact_email", part: string[]) => {
-      const res = await admin
+/**
+ * Awatary członków dla leadów JUŻ odczytanych pod RLS - jedna ścieżka dla
+ * listy (`getCrmLeadAvatars`) i karty kontaktu (`getCrmLead`), więc oba
+ * widoki pokazują to samo zdjęcie według tej samej reguły dopasowania
+ * (lib/crm/leadAvatars.ts).
+ *
+ * `tenantId` MUSI pochodzić z `resolveCallerTenantId`: spod service-role
+ * `.eq("tenant_id", tenantId)` jest jedyną granicą najemcy. Adresy biorą się
+ * z leadów, nie z wejścia; z profili wychodzi wyłącznie `avatar_url` (adresy
+ * zostają na serwerze - wynik niesie id leada, nie adres profilu).
+ *
+ * Porównanie: `profiles.email` dokładnie (z auth, małymi literami),
+ * `profiles.contact_email` BEZ wielkości liter - członek wpisuje go ręcznie,
+ * a `Anna.Kowalska@Firma.pl` to ten sam adres co lead `anna.kowalska@firma.pl`.
+ * Do 2026-11-16 oba szły dokładnym `.in()`, więc kontakt zapisany inną
+ * wielkością liter nie dawał zdjęcia ani na liście, ani na karcie. Wielkość
+ * liter rozstrzyga `lower()` bazy (`ILIKE`), a przypisanie wiersza do leada
+ * - `pgCaseFold` z lib/crm/leadAvatars.ts, nigdy JS `toLowerCase`.
+ */
+async function lookupLeadAvatars(
+  tenantId: string,
+  leads: readonly LeadEmailRow[],
+): Promise<LeadAvatar[]> {
+  const keys = avatarLookupKeys(leads);
+  if (keys.length === 0) return [];
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = looseClient({ supabase: supabaseAdmin });
+  const rowsOrThrow = (res: LooseResult<ProfileAvatarRow[] | null>): ProfileAvatarRow[] => {
+    if (res.error) throw new Error(res.error.message);
+    return rowsOf(res);
+  };
+
+  const avatarByKey = new Map<string, string>();
+  const chunks = avatarLookupChunks(keys, {
+    maxItems: LEAD_AVATAR_CHUNK,
+    maxEncodedLength: LEAD_AVATAR_FILTER_URL_BUDGET,
+  });
+  for (const part of chunks) {
+    const [primary, contact] = await Promise.all([
+      // Adres logowania: z auth, małymi literami - DOKŁADNE `in` na kluczu.
+      // Lista jedzie liściem `.or()`, nie `.in()`: postgrest-js `.in()` ujmuje
+      // w cudzysłów wartości z `,()`, ale nie escapuje w nich `"` ani `\`.
+      // Adres `o"neil,(pr)@x.pl` ucinał wtedy listę w połowie (PostgREST
+      // ignoruje resztę parametru), a pozostałe leady strony traciły trafienie
+      // po logowaniu - i dostawały zdjęcie z dopasowania kontaktowego.
+      admin
         .from("profiles")
         .select("email, contact_email, avatar_url")
         .eq("tenant_id", tenantId)
-        .in(column, part)
+        .or(`email.in.(${postgrestQuotedList([...new Set(part.map((k) => k.key))])})`)
         .not("avatar_url", "is", null)
         .order("id", { ascending: true })
-        .returns<ProfileAvatarRow>();
-      if (res.error) throw new Error(res.error.message);
-      return rowsOf(res);
-    };
+        .returns<ProfileAvatarRow>(),
+      // Adres kontaktowy: wpisany ręcznie, dowolną wielkością liter - JEDNO
+      // zapytanie na porcję: `ilike` z wzorcem bez wieloznaczników na każdą
+      // zapisaną postać adresu (klucz i adres z leada - baza porównuje swoim
+      // `lower()`, nie JS-owym) albo (postać z `*`) dokładne `in`. Operandy
+      // są już zacytowane (lib/crm/leadAvatars.ts `contactFilter`).
+      admin
+        .from("profiles")
+        .select("email, contact_email, avatar_url")
+        .eq("tenant_id", tenantId)
+        .or(contactFilter(part))
+        .not("avatar_url", "is", null)
+        .order("id", { ascending: true })
+        .returns<ProfileAvatarRow>(),
+    ]);
+    // Dopasowanie W OBRĘBIE porcji: wiersz z cudzej porcji nie zmienia
+    // wyboru (karta = jeden lead = jedna porcja, ten sam wynik co lista).
+    const matched = matchChunkAvatars(part, rowsOrThrow(primary), rowsOrThrow(contact));
+    for (const [key, avatar] of matched) avatarByKey.set(key, avatar);
+  }
+  return leadAvatarsByKey(leads, avatarByKey);
+}
 
-    const byEmail: ProfileAvatarRow[] = [];
-    const byContactEmail: ProfileAvatarRow[] = [];
-    for (const part of chunked(values, LEAD_AVATAR_CHUNK)) {
-      const [primary, contact] = await Promise.all([
-        lookup("email", part),
-        lookup("contact_email", part),
-      ]);
-      byEmail.push(...primary);
-      byContactEmail.push(...contact);
-    }
-    return { avatars: matchLeadAvatars(leads, byEmail, byContactEmail) };
-  });
+/** Lead karty kontaktu w zakresie potrzebnym do lookupu awatara. */
+type LeadCardRow = LeadEmailRow & { readonly tenant_id: string };
+
+/**
+ * Zdjęcie profilu członka na karcie kontaktu (`getCrmLead`).
+ *
+ * Do 2026-11-16 karta pytała `profiles` o `email`/`contact_email` klientem
+ * wołającego. Te kolumny celowo nie mają grantu dla `authenticated`
+ * (20260724090100, pgTAP `profiles_pii_grant_test`), więc PostgREST odrzucał
+ * całe zapytanie kodem 42501, a pusty `catch` zamieniał to w brak zdjęcia -
+ * na KAŻDEJ karcie. Teraz ta sama ścieżka co lista: tenant z sesji, lookup
+ * spod service-role zawężony do tego tenanta. Lead innego najemcy (zakres
+ * super admina) zostaje z inicjałami - bez lookupu poza tenantem wołającego.
+ *
+ * Zdjęcie jest ozdobą karty, więc awaria lookupu nie wywraca karty - ale nie
+ * znika już po cichu: trafia do logu serwera z id leada (bez adresu).
+ */
+async function leadCardAvatar(
+  context: { readonly supabase: unknown; readonly userId: string },
+  lead: LeadCardRow,
+): Promise<string | null> {
+  try {
+    const tenantId = await resolveCallerTenantId(context);
+    if (lead.tenant_id !== tenantId) return null;
+    const [match] = await lookupLeadAvatars(tenantId, [lead]);
+    return match?.avatar_url ?? null;
+  } catch (err) {
+    console.error("[crm] lead avatar lookup failed", {
+      leadId: lead.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}

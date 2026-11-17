@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
-import { colorLuminance } from "@/lib/newsletter/popupDesign";
+import { colorLuminance } from "@/lib/newsletter/popupDesignResolve";
 
 export function SectionCard({
   title,

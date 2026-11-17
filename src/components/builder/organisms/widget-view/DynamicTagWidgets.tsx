@@ -12,11 +12,8 @@ import { createElement, type ComponentType, type ReactElement, type SVGProps } f
 import { useQuery } from "@tanstack/react-query";
 import { AppLink } from "@/components/atoms/AppLink";
 import type { WidgetNode } from "@/lib/builder/types";
-import {
-  useCurrentPostCtxOrPreview,
-  type CurrentPostAuthor,
-  type CurrentPostCtx,
-} from "@/lib/content-model/postContext";
+import type { CurrentPostAuthor, CurrentPostCtx } from "@/lib/content-model/postContext";
+import { useCurrentPostCtxOrPreview } from "@/lib/content-model/postContextPreview";
 import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
 import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
@@ -137,7 +134,7 @@ function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const linkToPost = asBool(c.linkToPost, false);
   const inner =
     linkToPost && ctx.slug ? (
-      <AppLink href={`/${ctx.slug}`} className="hover:text-brand transition">
+      <AppLink href={ctx.href ?? `/${ctx.slug}`} className="hover:text-brand transition">
         {title}
       </AppLink>
     ) : (

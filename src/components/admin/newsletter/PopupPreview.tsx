@@ -12,7 +12,7 @@ import {
   popupPaletteVars,
   resolvePopupDesign,
   resolvePopupPalette,
-} from "@/lib/newsletter/popupDesign";
+} from "@/lib/newsletter/popupDesignResolve";
 
 export interface PopupPreviewProps {
   settings: NewsletterSettings;

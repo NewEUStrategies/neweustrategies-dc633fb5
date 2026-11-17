@@ -571,6 +571,7 @@ const pl = {
       slotLight: "Obrazek – Light mode",
       slotDark: "Obrazek – Dark mode (opcjonalnie)",
       slotDarkHint: "Jeśli puste – używany jest wariant Light.",
+      sizeNotStored: "Wymiary pliku nie są jeszcze zapisane.",
       width: "Szerokość (px)",
       widthHint:
         "0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje).",
@@ -2190,6 +2191,7 @@ const en: typeof pl = {
       slotLight: "Image – Light mode",
       slotDark: "Image – Dark mode (optional)",
       slotDarkHint: "If empty – the Light variant is used.",
+      sizeNotStored: "The file dimensions are not stored yet.",
       width: "Width (px)",
       widthHint:
         "0 or empty = full container width. Height adjusts automatically (aspect ratio preserved).",

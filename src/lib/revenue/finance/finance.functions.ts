@@ -88,8 +88,15 @@ function asRpc(client: unknown): RpcCallable {
 
 // ── Walidacja wejścia ───────────────────────────────────────────────────────
 
-const Instant = z.string().datetime({ offset: true });
-const MonthStart = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01$/, "month_invalid");
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const Instant = /* @__PURE__ */ (() => z.string().datetime({ offset: true }))();
+const MonthStart = /* @__PURE__ */ (() =>
+  z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-01$/, "month_invalid"))();
 const SegmentFilter = z
   .enum(["all", "b2c_individual", "b2c_reduced", "b2b_institution", "other"])
   .nullable()
@@ -290,38 +297,39 @@ export const getRevenueEconomics = createServerFn({ method: "POST" })
  * wartość spoza zakresu odpada w walidacji (AGENTS: limity = zapis, nigdy
  * `slice`), a SQL powtarza te same reguły (`value_invalid`).
  */
-export const RevenueInputSaveInput = z
-  .object({
-    periodMonth: MonthStart,
-    kind: z.enum(REVENUE_INPUT_KINDS),
-    segment: z.enum(["all", "b2c_individual", "b2c_reduced", "b2b_institution"]).default("all"),
-    currency: z
-      .string()
-      .regex(/^[A-Z]{3}$/)
-      .nullable(),
-    amountMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
-    ratio: z
-      .number()
-      .finite()
-      .min(REVENUE_LIMITS.inputRatioMin)
-      .max(REVENUE_LIMITS.inputRatioMax)
-      .nullable(),
-    // Limit po `btrim`, jak w SQL - inaczej spacje na końcu odrzucałyby
-    // notatkę, którą baza przyjęłaby (i odwrotnie).
-    note: z
-      .string()
-      .refine((n) => n.trim().length <= REVENUE_LIMITS.inputNoteMax, { message: "note_too_long" })
-      .nullable(),
-    /** Surowy `updated_at` z odczytu; `null` = wiersz nowy. */
-    expectedUpdatedAt: Instant.nullable(),
-  })
-  .refine(
-    (v) =>
-      v.kind === "gross_margin_pct" || v.kind === "ebitda_margin_pct"
-        ? v.amountMinor === null && v.currency === null
-        : v.ratio === null && v.currency !== null,
-    { message: "value_invalid" },
-  );
+export const RevenueInputSaveInput = /* @__PURE__ */ (() =>
+  z
+    .object({
+      periodMonth: MonthStart,
+      kind: z.enum(REVENUE_INPUT_KINDS),
+      segment: z.enum(["all", "b2c_individual", "b2c_reduced", "b2b_institution"]).default("all"),
+      currency: z
+        .string()
+        .regex(/^[A-Z]{3}$/)
+        .nullable(),
+      amountMinor: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
+      ratio: z
+        .number()
+        .finite()
+        .min(REVENUE_LIMITS.inputRatioMin)
+        .max(REVENUE_LIMITS.inputRatioMax)
+        .nullable(),
+      // Limit po `btrim`, jak w SQL - inaczej spacje na końcu odrzucałyby
+      // notatkę, którą baza przyjęłaby (i odwrotnie).
+      note: z
+        .string()
+        .refine((n) => n.trim().length <= REVENUE_LIMITS.inputNoteMax, { message: "note_too_long" })
+        .nullable(),
+      /** Surowy `updated_at` z odczytu; `null` = wiersz nowy. */
+      expectedUpdatedAt: Instant.nullable(),
+    })
+    .refine(
+      (v) =>
+        v.kind === "gross_margin_pct" || v.kind === "ebitda_margin_pct"
+          ? v.amountMinor === null && v.currency === null
+          : v.ratio === null && v.currency !== null,
+      { message: "value_invalid" },
+    ))();
 
 export type RevenueInputSaveInput = z.input<typeof RevenueInputSaveInput>;
 

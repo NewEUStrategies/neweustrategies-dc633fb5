@@ -27,7 +27,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { adminToast } from "@/lib/adminToasts";
-import { PODCAST_FIELDS, PODCAST_SHOW_FIELDS } from "@/lib/queries/podcasts";
+import { PODCAST_SHOW_FIELDS } from "@/lib/queries/podcasts";
+import { PODCAST_FIELDS } from "@/lib/queries/podcastsLatest";
 import { summarizeEpisodes, type PodcastEpisodesSummary } from "@/lib/seo/podcastFeedReadiness";
 import type { Podcast, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
 import {

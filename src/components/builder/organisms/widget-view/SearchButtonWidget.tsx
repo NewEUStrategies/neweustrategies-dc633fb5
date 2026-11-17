@@ -302,6 +302,14 @@ interface SuggestionGroups {
   readonly flat: readonly BucketedItem[];
 }
 
+/**
+ * Pole dotyku lupy i mikrofonu: 24 × 24 px (WCAG 2.5.8, audyt Lighthouse
+ * „target-size"), choć ikona ma 18 px. Dopełnienie 3 px znosi równy ujemny
+ * margines, więc miejsce w układzie zostaje 18 × 18 - ikony, separator
+ * i fraza w polu nie przesuwają się ani o piksel.
+ */
+const SEARCH_ICON_TARGET_CLASS = "-m-[3px] p-[3px]";
+
 const NO_SUGGESTIONS: SuggestionGroups = {
   order: [],
   labels: null,
@@ -831,7 +839,7 @@ export function SearchButtonWidget({
                 inputRef.current?.focus();
               }
             }}
-            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+            className={`${SEARCH_ICON_TARGET_CLASS} flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none`}
           >
             <LucideIcons.Search className="w-[18px] h-[18px]" aria-hidden />
           </button>
@@ -867,7 +875,7 @@ export function SearchButtonWidget({
             data-voice-unsupported={voiceSupported ? undefined : ""}
             inert={hideVoice}
             style={hideVoice ? { visibility: "hidden" } : undefined}
-            className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
+            className={`${SEARCH_ICON_TARGET_CLASS} flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none`}
           >
             {voiceListening && voiceKit ? (
               <voiceKit.VoiceListeningIndicator />

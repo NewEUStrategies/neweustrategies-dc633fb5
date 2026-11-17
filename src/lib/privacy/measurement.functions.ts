@@ -52,7 +52,13 @@ function asRpc(client: unknown): RpcCallable {
   return client as RpcCallable;
 }
 
-const ISO = z.string().datetime({ offset: true });
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const ISO = /* @__PURE__ */ (() => z.string().datetime({ offset: true }))();
 
 // ── „Poproś o zgodę na pomiar" ──────────────────────────────────────────────
 
@@ -70,9 +76,8 @@ export const getNewsletterMeasurementPreview = createServerFn({ method: "POST" }
  * potwierdzono = `conflict` (40001 `stale_preview`) - nigdy nie wysyłamy do
  * większej grupy, niż zatwierdzono. Liczba to kandydaci SPOZA listy wyłączeń.
  */
-export const RequestNewsletterMeasurementSchema = z
-  .object({ expected: z.number().int().min(0).max(10_000_000) })
-  .strict();
+export const RequestNewsletterMeasurementSchema = /* @__PURE__ */ (() =>
+  z.object({ expected: z.number().int().min(0).max(10_000_000) }).strict())();
 export type RequestNewsletterMeasurementInput = z.infer<typeof RequestNewsletterMeasurementSchema>;
 
 export const requestNewsletterMeasurement = createServerFn({ method: "POST" })
@@ -149,12 +154,13 @@ export const getNewsletterMeasurementCopy = createServerFn({ method: "POST" })
     }));
   });
 
-export const SaveNewsletterMeasurementCopySchema = z
-  .object({
-    overrides: NewsletterMeasurementCopyOverridesSchema,
-    expectedUpdatedAt: ISO.nullable(),
-  })
-  .strict();
+export const SaveNewsletterMeasurementCopySchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      overrides: NewsletterMeasurementCopyOverridesSchema,
+      expectedUpdatedAt: ISO.nullable(),
+    })
+    .strict())();
 export type SaveNewsletterMeasurementCopyInput = z.infer<
   typeof SaveNewsletterMeasurementCopySchema
 >;
@@ -220,12 +226,13 @@ export const saveNewsletterMeasurementCopy = createServerFn({ method: "POST" })
 /** Imię w podglądzie - zwrot do adresata tak, jak zobaczy go subskrybent. */
 const PREVIEW_FIRST_NAME = "Anna";
 
-export const PreviewNewsletterMeasurementSchema = z
-  .object({
-    lang: z.enum(["pl", "en"]),
-    overrides: NewsletterMeasurementCopyOverridesSchema,
-  })
-  .strict();
+export const PreviewNewsletterMeasurementSchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      lang: z.enum(["pl", "en"]),
+      overrides: NewsletterMeasurementCopyOverridesSchema,
+    })
+    .strict())();
 export type PreviewNewsletterMeasurementInput = z.infer<typeof PreviewNewsletterMeasurementSchema>;
 
 export interface NewsletterMeasurementPreviewMailDto {

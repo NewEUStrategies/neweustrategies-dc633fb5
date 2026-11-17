@@ -24,6 +24,16 @@ vi.mock("@/integrations/supabase/require-staff", () => ({
   requireStaff: { name: "requireStaff" },
 }));
 
+// Klient service-role: domyślnie BEZ odpowiedzi (`null` = `from()` oddaje
+// `undefined`), więc synchronizacje członków spod service-role w testach
+// mutacji kończą się w swoim `catch` jak dotąd. Karta firmy podpina atrapę.
+const h = vi.hoisted(() => ({
+  adminFrom: null as ((table: string) => unknown) | null,
+}));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { from: (table: string) => h.adminFrom?.(table) },
+}));
+
 import * as companies from "@/lib/crm-companies.functions";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
@@ -32,6 +42,7 @@ const TENANT = "33333333-3333-4333-8333-333333333333";
 const USER_ID = "44444444-4444-4444-8444-444444444444";
 
 const db = supabaseFromStub();
+const admin = supabaseFromStub();
 let rpcCalls: Array<{ fn: string; args: unknown }> = [];
 let rpcResults: Record<string, SupabaseResult> = {};
 
@@ -52,6 +63,8 @@ const parsed = (result: unknown): unknown => JSON.parse((result as { json: strin
 
 beforeEach(() => {
   db.reset();
+  admin.reset();
+  h.adminFrom = null;
   rpcCalls = [];
   rpcResults = {};
 });
@@ -115,6 +128,61 @@ describe("listCrmCompanies", () => {
     ]);
   });
 
+  it("agregat woła KLIENT WOŁAJĄCEGO z identyfikatorami wyłącznie z listy pod RLS - nigdy service-role", async () => {
+    // `crm_companies_aggregates` jest SECURITY DEFINER z najemcą z sesji
+    // (migracja 20261117014500). Spod service-role `current_tenant_id()` nie
+    // ma wołającego, a ciało sprzed migracji liczyłoby obce wiersze.
+    db.setResponse("crm_companies", () =>
+      ok([
+        { id: COMPANY_ID, name: "Acme" },
+        { id: OTHER_ID, name: "Beta" },
+      ]),
+    );
+    rpcResults.crm_companies_aggregates = ok([]);
+    const adminTables: string[] = [];
+    h.adminFrom = (table) => {
+      adminTables.push(table);
+      return admin.from(table);
+    };
+    await callServerFn(companies.listCrmCompanies, {
+      data: { _company_ids: ["99999999-9999-4999-8999-999999999999"] } as Record<string, unknown>,
+      context: context(),
+    });
+    expect(rpcCalls).toEqual([
+      { fn: "crm_companies_aggregates", args: { _company_ids: [COMPANY_ID, OTHER_ID] } },
+    ]);
+    expect(adminTables).toEqual([]);
+  });
+
+  it("firma bez wiersza agregatu (spoza najemcy wołającego) dostaje zera, a nie cudze liczby", async () => {
+    db.setResponse("crm_companies", () =>
+      ok([
+        { id: COMPANY_ID, name: "Acme" },
+        { id: OTHER_ID, name: "Beta" },
+      ]),
+    );
+    rpcResults.crm_companies_aggregates = ok([
+      { company_id: COMPANY_ID, leads_count: 2, contacts_count: 1, last_lead_activity_at: null },
+    ]);
+    const result = await callServerFn(companies.listCrmCompanies, { data: {}, context: context() });
+    expect(parsed(result)).toEqual([
+      {
+        id: COMPANY_ID,
+        name: "Acme",
+        leads_count: 2,
+        contacts_count: 1,
+        last_lead_activity_at: null,
+      },
+      {
+        id: OTHER_ID,
+        name: "Beta",
+        leads_count: 0,
+        contacts_count: 0,
+        last_lead_activity_at: null,
+      },
+    ]);
+  });
+
   it("pusta lista firm nie woła agregatu", async () => {
     db.setResponse("crm_companies", () => ok([]));
     const result = await callServerFn(companies.listCrmCompanies, { data: {}, context: context() });
@@ -169,19 +237,134 @@ describe("listCrmCompanies", () => {
 });
 
 describe("getCrmCompany", () => {
-  it("składa kartę firmy z profili i leadów", async () => {
-    db.setResponse("crm_companies", () => ok({ id: COMPANY_ID, name: "Acme" }));
-    db.setResponse("profiles", () => ok([{ id: USER_ID }]));
+  // Lista „Kontakty" (członkowie z `profiles.current_company_id`). Do
+  // 2026-11-16 szła klientem wołającego i prosiła o `location`,
+  // `contact_email` i filtr po `current_company_id` - żadna z tych kolumn nie
+  // ma grantu dla `authenticated` (20260724090100), więc PostgREST odrzucał
+  // zapytanie (42501), a `rowsOf` bez sprawdzenia błędu dawał pustą listę na
+  // KAŻDEJ karcie. Atrapa oddawała wiersze, których baza nie wyda. Teraz:
+  // tenant z sesji, odczyt spod service-role zawężony do tego tenanta.
+  const COMPANY = { id: COMPANY_ID, name: "Acme", tenant_id: TENANT };
+  const MEMBER = {
+    id: USER_ID,
+    display_name: "Anna Kowalska",
+    first_name: "Anna",
+    last_name: "Kowalska",
+    avatar_url: "https://cdn.test/anna.png",
+    job_title: "Dyrektorka",
+    slug: "anna-kowalska",
+  };
+  const MEMBER_COLUMNS = "id, display_name, first_name, last_name, avatar_url, job_title, slug";
+  /** Kolumny `profiles` bez grantu dla `authenticated` (pgTAP profiles_pii_grant_test). */
+  const WITHHELD = ["email", "contact_email", "location", "current_company_id", "phone", "prefs"];
+
+  /** Firma pod RLS + tenant wołającego z jego profilu + leady firmy. */
+  const planCard = (company: unknown = COMPANY, callerTenant: unknown = { tenant_id: TENANT }) => {
+    db.setResponse("crm_companies", () => ok(company));
+    db.setResponse("profiles", () => ok(callerTenant));
     db.setResponse("crm_leads", () => ok([{ id: OTHER_ID, email: "a@example.test" }]));
+    h.adminFrom = admin.from;
+  };
+
+  it("bramka staffu CRM zostaje na funkcji (odczyt spod service-role nie jest publiczny)", () => {
+    expect(serverFnMiddlewareNames(companies.getCrmCompany)).toEqual(["requireCrmStaff"]);
+  });
+
+  it("składa kartę firmy z członków i leadów", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([MEMBER]));
     const result = await callServerFn(companies.getCrmCompany, {
       data: { id: COMPANY_ID },
       context: context(),
     });
     expect(parsed(result)).toMatchObject({
       company: { id: COMPANY_ID },
-      profiles: [{ id: USER_ID }],
+      profiles: [MEMBER],
       leads: [{ id: OTHER_ID }],
     });
+  });
+
+  it("członkowie spod service-role: tenant z sesji, filtr firmy i wyłącznie kolumny z grantem", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([MEMBER]));
+
+    await callServerFn(companies.getCrmCompany, { data: { id: COMPANY_ID }, context: context() });
+
+    const [chain, ...rest] = admin.chainsFor("profiles");
+    expect(rest).toEqual([]);
+    expect(chain?.argsOf("select")).toEqual([MEMBER_COLUMNS]);
+    expect(chain?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["tenant_id", TENANT],
+      ["current_company_id", COMPANY_ID],
+    ]);
+    expect(chain?.argsOf("limit")).toEqual([200]);
+    const selected = MEMBER_COLUMNS.split(",").map((c) => c.trim());
+    expect(selected.filter((c) => WITHHELD.includes(c))).toEqual([]);
+  });
+
+  it("klient wołającego czyta wyłącznie własny tenant - nie dotyka cudzych profili", async () => {
+    planCard();
+    admin.setResponse("profiles", () => ok([]));
+
+    await callServerFn(companies.getCrmCompany, { data: { id: COMPANY_ID }, context: context() });
+
+    const own = db.chainsFor("profiles");
+    expect(own.map((chain) => chain.argsOf("select"))).toEqual([["tenant_id"]]);
+    expect(own[0]?.argsOf("eq")).toEqual(["id", USER_ID]);
+  });
+
+  it("firma innego najemcy niż wołający: pusta lista bez lookupu spod service-role", async () => {
+    planCard({ ...COMPANY, tenant_id: "66666666-6666-4666-8666-666666666666" });
+
+    const result = await callServerFn(companies.getCrmCompany, {
+      data: { id: COMPANY_ID },
+      context: context(),
+    });
+    expect(parsed(result)).toMatchObject({ profiles: [] });
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("bez tenanta w profilu wołającego: ODMOWA lookupu, karta działa, błąd w logu", async () => {
+    planCard(COMPANY, null);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(companies.getCrmCompany, {
+        data: { id: COMPANY_ID },
+        context: context(),
+      });
+      expect(parsed(result)).toMatchObject({ company: { id: COMPANY_ID }, profiles: [] });
+      expect(admin.chains).toHaveLength(0);
+      expect(logged).toHaveBeenCalledWith("[crm] company members lookup failed", {
+        companyId: COMPANY_ID,
+        error: "tenant_unresolved",
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("błąd odczytu członków nie wywraca karty, ale nie znika po cichu - trafia do logu", async () => {
+    planCard();
+    admin.setResponse("profiles", () => fail("permission denied for table profiles", "42501"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await callServerFn(companies.getCrmCompany, {
+        data: { id: COMPANY_ID },
+        context: context(),
+      });
+      expect(parsed(result)).toMatchObject({
+        company: { id: COMPANY_ID },
+        profiles: [],
+        leads: [{ id: OTHER_ID }],
+      });
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledWith("[crm] company members lookup failed", {
+        companyId: COMPANY_ID,
+        error: "permission denied for table profiles",
+      });
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it("nieistniejąca firma to not_found", async () => {

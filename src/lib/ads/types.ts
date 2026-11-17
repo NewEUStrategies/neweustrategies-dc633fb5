@@ -1,4 +1,9 @@
 // Współdzielone typy dla systemu reklamowego (ad_slots + ad_placements).
+//
+// Ten moduł czyta front (rozgrzewka i emisja reklam), więc jest w chunku
+// startowym klienta. Kolumny list wyboru, klucze etykiet i zapis targetingu
+// panelu reklam mieszkają w `adminFields.ts` - nie importuj go stąd
+// (roadmapa ładowania §9.1 J3).
 
 export type AdSlotKind = "html" | "script" | "image";
 type AdSlotStatus = "active" | "paused";
@@ -76,55 +81,9 @@ export type PublicAdSlot = Omit<AdSlot, "notes">;
 export const PUBLIC_AD_SLOT_COLUMNS =
   "id, tenant_id, name, kind, status, html, script, image_url, image_link, image_alt, width, height, requires_consent, targeting, created_at, updated_at";
 
-/**
- * Kolumny slotu dla list wyboru w panelu (zakładki pozycji i statystyk). Te
- * widoki potrzebują nazwy i rodzaju, nie treści kreacji ani `notes` - pełny
- * wiersz z notatkami ma tylko formularz slotu (`fetchAdminAdSlots`).
- */
-export const AD_SLOT_PICKER_COLUMNS = "id, name, kind, status";
-
-/** Wiersz `AD_SLOT_PICKER_COLUMNS`. */
-export type AdSlotPickerRow = Pick<AdSlot, "id" | "name" | "kind" | "status">;
-
 export interface AdPlacementWithSlot extends AdPlacement {
   slot: PublicAdSlot;
 }
-
-// KLUCZE i18n, nie gotowe napisy.
-//
-// Do 12.08 te trzy mapy trzymały polskie etykiety wprost, więc panel reklam był
-// jednojęzyczny bez względu na wybrany język interfejsu - a `Record<Enum, string>`
-// pilnował tylko tego, że każdy wariant enuma MA etykietę, nie że da się ją
-// przetłumaczyć. Teraz mapy wskazują klucze słownika `i18n-ads-admin`, a typ
-// nadal wymusza kompletność: nowy wariant `AdPosition` bez klucza nie skompiluje
-// się, a brak wpisu w słowniku zapali test pokrycia kluczy.
-export const AD_POSITION_LABEL_KEYS: Record<AdPosition, string> = {
-  header_banner: "adsAdmin.positions.headerBanner",
-  top_of_post: "adsAdmin.positions.topOfPost",
-  mid_post: "adsAdmin.positions.midPost",
-  bottom_of_post: "adsAdmin.positions.bottomOfPost",
-  sidebar: "adsAdmin.positions.sidebar",
-  in_feed: "adsAdmin.positions.inFeed",
-  footer_slideup: "adsAdmin.positions.footerSlideup",
-};
-
-export const AD_PAGE_TYPE_LABEL_KEYS: Record<AdPageType, string> = {
-  all: "adsAdmin.pageTypes.all",
-  home: "adsAdmin.pageTypes.home",
-  post: "adsAdmin.pageTypes.post",
-  page: "adsAdmin.pageTypes.page",
-  category: "adsAdmin.pageTypes.category",
-  tag: "adsAdmin.pageTypes.tag",
-  archive: "adsAdmin.pageTypes.archive",
-  search: "adsAdmin.pageTypes.search",
-  event: "adsAdmin.pageTypes.event",
-};
-
-export const AD_SLOT_KIND_LABEL_KEYS: Record<AdSlotKind, string> = {
-  html: "adsAdmin.kinds.html",
-  script: "adsAdmin.kinds.script",
-  image: "adsAdmin.kinds.image",
-};
 
 // ---------------------------------------------------------------------------
 // Targeting slotów (kolumna ad_slots.targeting, jsonb).
@@ -173,15 +132,6 @@ export function parseAdTargeting(json: unknown): AdTargeting {
 
 export function hasContentTargeting(targeting: AdTargeting): boolean {
   return Boolean(targeting.categorySlugs?.length || targeting.tagSlugs?.length);
-}
-
-/** Serializacja do jsonb - tylko niepuste pola, czysty obiekt literalny. */
-export function adTargetingToJson(targeting: AdTargeting): Record<string, unknown> {
-  return {
-    ...(targeting.categorySlugs?.length ? { categorySlugs: targeting.categorySlugs } : {}),
-    ...(targeting.tagSlugs?.length ? { tagSlugs: targeting.tagSlugs } : {}),
-    ...(targeting.languages?.length ? { languages: targeting.languages } : {}),
-  };
 }
 
 export function matchesAdTargeting(targeting: AdTargeting, ctx: AdTargetingContext): boolean {

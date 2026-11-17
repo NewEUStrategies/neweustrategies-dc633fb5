@@ -53,7 +53,7 @@ vi.mock("@/lib/queries/public", async (importOriginal) => {
 });
 
 vi.mock("@/lib/routing/legacyPostPath", () => ({
-  resolveLegacyPostPath: vi.fn(async () => null),
+  fetchLegacyPostPath: vi.fn(async () => null),
 }));
 
 vi.mock("@/lib/http/responseHeaders", () => ({

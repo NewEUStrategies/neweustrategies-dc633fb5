@@ -114,7 +114,8 @@ export const Route = createFileRoute("/tracker/")({
     // żądanie renderuje świeżo zamiast utrwalać mrugnięcie backendu na CDN.
     // Jw. - `resilientCacheControl(degraded)` daje dokładnie te same dwie
     // wartości, a bramka widzi, KTÓRA gałąź jest gałęzią degradacji.
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
 
     // Szczupła projekcja pod head() (ItemList JSON-LD): loaderData jest
     // serializowane do payloadu SSR, a pełne wiersze podróżują już w

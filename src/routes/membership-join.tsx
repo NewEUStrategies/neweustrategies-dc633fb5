@@ -76,7 +76,8 @@ export const Route = createFileRoute("/membership-join")({
     ]);
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała: strona zapisu z PUSTĄ ofertą
     // nie ma prawa zamarznąć na brzegu jako wariant wszystkich czytelników.
-    setCacheControlHeader(resilientCacheControl(anyDegraded(seo, audiences, tiers, plans)));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(anyDegraded(seo, audiences, tiers, plans)));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

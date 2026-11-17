@@ -2733,7 +2733,34 @@ const FROZEN_BUDGET_KB = {
   // przed scaleniem, nie na main. css 100,1 / 101, publicCss 84,1 / 85,
   // chunk 259,6 / 286, boot 473,4 / 579, public 2801,4 / 2881 w progach.
   // Host 5384,3 -> 5385 -> +1.
-  overall: 5386,
+  //
+  // Ratchet 5386 -> 5388 (2026-11-15, PR #542, pozycja A4 roadmapy ładowania -
+  // naturalny rozmiar logo i obrazów jako atrybuty `width`/`height`), decyzją
+  // właściciela z 2026-11-15 („Podnieś próg do 5 388 KB"). Pomiar na jednym
+  // hoście, ten sam `node_modules`:
+  //   d94ec1f3 (gałąź PR przed A4): 5383,9 / public 2801,4 / admin 2582,5
+  //   e69fec57 (A4 z poprawkami):   5387,7 / public 2802,5 / admin 2585,2
+  // Razem +3,8 KB: admin-only +2,7, public +1,1 (w tym `app-initial` +0,3:
+  // pomocnik `intrinsicSize`, prop `intrinsicSize` w `OptimizedImage`, logo
+  // pasków). Admin: nowy chunk `measureIntrinsicSize` +1,8 (pomiar pliku
+  // i pytanie układu strony o proporcję; parser tekstu SVG z pierwszej wersji
+  // poprawek ważył +2,2 i został usunięty), `Builder` +1,0 (pomiar trzymany
+  // przez panel właściwości nad zakładkami, warunek „renderer użyje tej
+  // wartości"), `ThemeOptionsPane` +0,4 (pomiar logo przy zapisie i przy
+  // przywróceniu rewizji), `i18n-builder` < 0,1. Reszta to entropia hashy
+  // i aliasów eksportu w kilkuset chunkach (każdy |Δ| < 0,03 KB).
+  // Odzyskanie bez cofania funkcji niemożliwe: przyrost to kod pomiaru
+  // i jego zabezpieczeń po dwóch rundach przeglądu, bez martwego kodu i bez
+  // nowych zależności. Wcześniej ten sam PR oddał 2,8 KB u źródła (magazyn
+  // `edgeTtlCache` poza bundlem przeglądarki, commit 361b6fe3).
+  // UWAGA: wbrew dotychczasowej konwencji (zaokrąglenie w górę i +1 na
+  // różnicę hostów) próg to zaokrąglenie BEZ dodatku - tak brzmiała decyzja.
+  // Zapas na tym hoście 0,3 KB; jeśli runner CI zmierzy więcej niż 5388,
+  // decyzja wraca do właściciela, próg nie rośnie sam. css 100,1 / 101,
+  // publicCss 84,1 / 85, chunk 261,4 / 286, boot 475,2 / 579, public
+  // 2802,5 / 2881 w zamrożonych progach.
+  // Host 5387,7 -> 5388 -> +0.
+  overall: 5388,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

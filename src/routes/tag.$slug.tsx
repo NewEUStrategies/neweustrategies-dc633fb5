@@ -101,14 +101,16 @@ export const Route = createFileRoute("/tag/$slug")({
     // `category.$slug.tsx`: brak treści/404 -> `no-store`; treść prawdziwa na
     // domyślnym layoucie -> krótka świeżość z rewalidacją (dokument kompletny,
     // więc dzielimy go 30 s zamiast renderować od zera każdemu czytelnikowi
-    // zimnej konfiguracji); render czysty -> polityka treści.
-    setCacheControlHeader(
-      archive.degraded || archive.data === null
-        ? resilientCacheControl(true)
-        : settings.degraded
-          ? chromeDegradedCacheControl()
-          : resilientCacheControl(false),
-    );
+    // zimnej konfiguracji); render czysty -> polityka treści. Padnięty odczyt
+    // sekcji wyróżnionej to stan środkowy (lista prawdziwa, brak dodatku).
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        archive.degraded || archive.data === null
+          ? resilientCacheControl(true)
+          : settings.degraded || archive.data.taxonomy.featured_section_degraded
+            ? chromeDegradedCacheControl()
+            : resilientCacheControl(false),
+      );
     const data = notFoundIfClean(archive);
     if (data === null) {
       return {
@@ -126,8 +128,13 @@ export const Route = createFileRoute("/tag/$slug")({
     }
     // Preload LCP pierwszej okładki (jak w category.$slug): wyłącznie nagłówek
     // HTTP `Link` utrwalany przez NES Edge Cache; `<head>` - preload Reacta 19.
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload =
+      import.meta.env.SSR || import.meta.env.DEV
+        ? archiveFirstCardPreload(data.posts, settings.data.show_featured_top)
+        : null;
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // Treść prawdziwa = strona renderuje się normalnie, także na domyślkach
     // layoutu (`layoutDegraded`).
     return { ...data, degraded: false, layoutDegraded: settings.degraded };

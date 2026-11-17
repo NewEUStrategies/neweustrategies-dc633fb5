@@ -180,12 +180,28 @@ afterEach(cleanup);
 
 describe("krok maila", () => {
   it("to samo okno co kanwa (`journeyStatsWindow`), wszystkie wersje", async () => {
-    mount("m");
-    await screen.findByRole("heading", { name: t("adminJourneys.nodeResults.title") });
-    const window = journeyStatsWindow("month", Date.now());
-    expect(h.stats).toHaveBeenCalledWith({
-      data: { journeyId: J, versionId: null, sinceIso: window.sinceIso, untilIso: window.untilIso },
-    });
+    // Okno kończy się na pełnych 5 minutach. Komponent liczy je przy renderze,
+    // test - po nim, więc render o 20:59:59 i asercja o 21:00:00 dawały różne
+    // `untilIso` (CI 16.11.2026). Zegar `Date` stoi w miejscu na czas testu,
+    // celowo tuż przed granicą przedziału; timery zostają prawdziwe (findBy*).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T20:59:59.900Z"));
+    try {
+      mount("m");
+      await screen.findByRole("heading", { name: t("adminJourneys.nodeResults.title") });
+      const window = journeyStatsWindow("month", Date.now());
+      expect(window.untilIso).toBe("2026-11-16T20:55:00.000Z");
+      expect(h.stats).toHaveBeenCalledWith({
+        data: {
+          journeyId: J,
+          versionId: null,
+          sinceIso: window.sinceIso,
+          untilIso: window.untilIso,
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("liczby kroku, wyniki z etykiet silnika, mail z ocenami i MPP", async () => {

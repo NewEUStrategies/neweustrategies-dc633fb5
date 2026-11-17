@@ -33,14 +33,14 @@ import {
 } from "@/lib/builder/mediaListQuery";
 import { activePlansQueryOptions } from "@/lib/builder/pricingPlansQuery";
 import {
-  RATED_LIST_POST_COLUMNS,
+  RATED_LIST_POST_PLAIN_COLUMNS,
   RATED_LIST_PROFILE_COLUMNS,
   RATED_LIST_STALE_MS,
   ratedListInput,
   ratedListQueryOptions,
   ratedListUsesDynamicSource,
 } from "@/lib/builder/ratedListQuery";
-import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
+import { latestPodcastsQueryOptions } from "@/lib/queries/podcastsLatest";
 import { latestWebStoriesQueryOptions } from "@/lib/queries/webStories";
 import { billingKeys } from "@/lib/billing/keys";
 
@@ -832,9 +832,13 @@ describe("ogon punktu 4 - rated-list w trybie dynamicznym", () => {
     expect(view).not.toContain("queryKey:");
     expect(view).not.toContain("queryFn:");
     expect(view).not.toContain("@/integrations/supabase/client");
-    // Kolumny wiersza są jednym literałem w module danych.
+    // Kolumny wiersza są jednym literałem w module danych. Osadzenia
+    // strony-rodzica moduł NIE powtarza - dokleja je wspólny pomocnik
+    // (`readPostsWithParentPage`), więc drugiego literału kolumn tu nie ma.
     const dataModule = readFileSync(resolve(SRC, "lib/builder/ratedListQuery.ts"), "utf8");
-    expect(dataModule).toContain(`"${RATED_LIST_POST_COLUMNS}"`);
+    expect(dataModule).toContain(`"${RATED_LIST_POST_PLAIN_COLUMNS}"`);
+    expect(dataModule).toContain("readPostsWithParentPage(read, RATED_LIST_POST_PLAIN_COLUMNS)");
+    expect(dataModule).not.toContain("posts_parent_page_id_fkey");
     // IZOLACJA NAJEMCY zostaje na tej samej drodze, co miał widok: publiczna
     // projekcja `profiles_public` (zawężona do `public_tenant_id()`), anonimowy
     // klient `@/integrations/supabase/client`, zero klienta serwisowego.

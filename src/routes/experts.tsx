@@ -47,7 +47,8 @@ export const Route = createFileRoute("/experts")({
       expertsDirectoryQueryOptions(),
       EXPERTS_DIRECTORY_EMPTY,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     // FLAGA JEDZIE DO KOMPONENTU. Wcześniej loader zwracał `null`, więc widok
     // nie miał czym odróżnić awarii backendu od pustego katalogu i blip bazy
     // pokazywał czytelnikowi „Brak ekspertów do wyświetlenia." - zdanie

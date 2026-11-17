@@ -4,7 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   useAdminPostLayoutSettings,
   useSavePostLayoutSettings,
-} from "@/hooks/usePostLayoutSettings";
+} from "@/hooks/usePostLayoutSettingsAdmin";
 import { clampNumber, draftDirty } from "@/lib/admin/panelDraft";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
 import { createContext, useContext, useEffect, useId, useMemo, useState } from "react";

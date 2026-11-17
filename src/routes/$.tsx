@@ -166,6 +166,7 @@ import {
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 import {
+  onResolvedPathHit,
   resolvedContentQueryOptions,
   type PostData,
   type PageData,
@@ -188,17 +189,16 @@ import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
-import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
+import { lookupMissingPath } from "@/lib/routing/missingPathLookups";
+import { postCanonicalHref } from "@/lib/routing/postHref";
+import { completeAfterResponse } from "@/lib/ssrCache";
 import {
   homepageCandidate,
-  legacyLookupSlug,
-  needsTaxonomyLookup,
   planHomepageDuplicate,
   planPublicPath,
   readingSettingsFrom,
   resolveHomepageDuplicate,
   resolveMissingContent,
-  resolveTaxonomyFallback,
   type FeedRedirect,
   type HomepageRivalCheck,
   type TaxonomyRedirect,
@@ -232,7 +232,7 @@ const CONTENT_SSR_BUDGET_MS = 1_500;
 const SECONDARY_PREFETCH_BUDGET_MS = 1_500;
 const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 /**
  * WYJĄTEK OD `NO_STORE`: 301 ze starego kanału WordPressa wynika z SAMEGO
  * adresu (zero zapytań, żadna publikacja go nie zmieni), a czytniki RSS
@@ -240,7 +240,7 @@ const NO_STORE = contentCacheControl({ preview: true });
  * render SSR loaderów korzenia. Ten sam horyzont co 301 z `/feed`
  * (`routes/feed.ts`: doba).
  */
-const LEGACY_FEED_REDIRECT = cacheControlHeader({
+const LEGACY_FEED_REDIRECT = /* @__PURE__ */ cacheControlHeader({
   cacheable: true,
   browserMaxAge: 86_400,
   sharedMaxAge: 86_400,
@@ -322,6 +322,25 @@ function buildCoverPreload(item: PostData, settings: PostLayoutSettings): ImageP
     imageSrcSet: buildImageSrcSet(cover),
     imageSizes: coverImageSizes(preset),
   };
+}
+
+/**
+ * Sloty reklamowe rozgrzewane w SSR dla treści danego rodzaju - JEDNA lista
+ * dla obu miejsc, które ją liczą (start po trafieniu ścieżki i faza wtórna
+ * loadera), bo rozjazd oznaczałby rozgrzany klucz, którego nikt nie czyta.
+ * Uzasadnienie doboru pozycji: komentarz przy fazie wtórnej loadera.
+ */
+function adWarmTargetsFor(url: string, kind: "post" | "page", entityId: string): AdWarmTarget[] {
+  const targets: AdWarmTarget[] = [{ position: "top_of_post", pageId: entityId }];
+  // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
+  // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
+  // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
+  // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
+  // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
+  if (adPageTypeForLocation(splitUrl(url).path, kind) === kind) {
+    targets.push({ position: "header_banner" });
+  }
+  return targets;
 }
 
 /**
@@ -431,15 +450,15 @@ export const Route = createFileRoute("/$")({
     const splat = (params as { _splat?: string })._splat ?? "";
     const plan = planPublicPath(splat);
     if (plan.kind === "not-found") {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     if (plan.kind === "feed-redirect") {
-      setCacheControlHeader(LEGACY_FEED_REDIRECT);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(LEGACY_FEED_REDIRECT);
       throw feedRedirect(plan);
     }
     if (plan.kind === "taxonomy-redirect") {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw taxonomyRedirect(plan);
     }
     const segments = [...plan.segments];
@@ -464,9 +483,51 @@ export const Route = createFileRoute("/$")({
     // sufit równoległych podżądań runtime Workers to 6).
     const layoutWarm = context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions());
     const relatedConfigWarm = context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions());
+    // SLOTY REKLAMOWE RUSZAJĄ PO TRAFIENIU ŚCIEŻKI, NIE PO TREŚCI (roadmapa
+    // ładowania 2026-11-14, B2). Ich zapytanie potrzebuje wyłącznie rodzaju
+    // i id treści, a oba zna już `resolve_path` - falę wcześniej, niż kończy
+    // się rezolucja. Dotąd round-trip reklam stał SZEREGOWO za ostatnią falą
+    // treści i na typowym wpisie był jedyną pracą fazy wtórnej, czyli pełnym
+    // round-tripem doliczonym do pierwszego bajtu. Tylko serwer: w przeglądarce
+    // nie ma pierwszego bajtu do obrony. Adres bez treści (404, przekierowanie
+    // sprzed rezolucji) słuchacza nie budzi; po terminie żądania też nie
+    // startujemy niczego.
+    // Faza wtórna niżej zbiera tę obietnicę i ma drogę zapasową (wynik
+    // z cache'u izolatu nie woła słuchacza). Bramka ze stałą Vite PRZED
+    // `isServer` (ten sam zapis co przy preloadach hero niżej): tylko ona
+    // wycina tę gałąź z bundla przeglądarki.
+    const earlyAds: { warm: Promise<void> | null } = { warm: null };
+    let stopEarlyAds: (() => void) | undefined;
+    if ((import.meta.env.SSR || import.meta.env.DEV) && isServer) {
+      stopEarlyAds = onResolvedPathHit(context.queryClient, ({ kind, id }) => {
+        if (deadlineAt !== undefined && Date.now() >= deadlineAt) return;
+        const warm = prefetchAdPlacementQueries(
+          context.queryClient,
+          adWarmTargetsFor(getRequestUrl() || `/${splat}`, kind, id),
+          kind,
+        );
+        earlyAds.warm = warm;
+        // ZA ODPOWIEDZIĄ (przegląd B2, 2026-11-15). Trafienie ścieżki nie
+        // przesądza, że loader tę obietnicę zbierze: duplikat strony głównej
+        // kończy się 301, a błąd odnogi treści - dokumentem zdegradowanym.
+        // Lot jest wtedy właścicielem single-flightu klucza reklam w izolacie;
+        // bez `waitUntil` workerd mógłby go uciąć razem z odpowiedzią i zostawić
+        // wpis „w locie", do którego dołączałyby kolejne żądania. Obietnica
+        // nigdy nie odrzuca (`prefetchAdPlacementQueries`).
+        completeAfterResponse(warm);
+      });
+    }
     const contentWarm = context.queryClient.ensureQueryData(contentOptions).catch(() => undefined);
     if (deadlineAt === undefined) await contentWarm;
     else await withBudget(contentWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    // Faza pierwotna skończona: słuchacz przestaje istnieć NA KAŻDEJ ścieżce
+    // wyjścia. Treść oddana z pamięci izolatu jako nieświeża odświeża się
+    // w tle fetcherem TEGO żądania - bez wyrejestrowania jej `resolve_path`
+    // budziłby słuchacza po zakończeniu loadera (często po wysłaniu
+    // odpowiedzi) i odtwarzał zapytania reklam na posprzątanym kliencie
+    // z 30-minutowym zegarem gc, którego na Workers nic nie zdejmie
+    // (`src/router.tsx`). Droga zapasowa fazy wtórnej obsługuje ten przypadek.
+    stopEarlyAds?.();
     // DEGRADACJA TO NIE JEST 404 (audyt CWV F07 / W8). Do 2026-09-20 ta gałąź
     // czytała samo `getQueryData`, więc BRAK DANYCH z dowolnego powodu -
     // miniętego budżetu, anulowania przez watchdoga SSR, błędu PostgREST -
@@ -484,41 +545,25 @@ export const Route = createFileRoute("/$")({
       // w dehydratowanym ładunku (zamiatanie cache'u przed serializacją
       // zostawiłoby go jako wiszące zapytanie bez danych).
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return { kind: "degraded" as const, degraded: true, seoSettings: null };
     }
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
-      // Taxonomy fallback: /<slug> may point at a category or tag archive.
-      // Categories/tags live at /category/<slug> and /tag/<slug>; if the bare
-      // slug matches one, redirect there instead of 404-ing.
-      let categorySlug: string | null = null;
-      let tagSlug: string | null = null;
-      if (needsTaxonomyLookup(segments)) {
-        const slug = segments[0];
-        const [{ data: cat }, { data: tag }] = await Promise.all([
-          supabase.from("categories").select("slug").eq("slug", slug).maybeSingle(),
-          supabase.from("tags").select("slug").eq("slug", slug).maybeSingle(),
-        ]);
-        categorySlug = cat?.slug ?? null;
-        tagSlug = tag?.slug ?? null;
-      }
-      // Taksonomia ma pierwszeństwo, więc rozstrzygamy ją PRZED round-tripem
-      // po starym adresie wpisu - inaczej trafiony archiwum płaciłoby
-      // zapytanie, którego wynik i tak zostałby zignorowany.
-      const taxonomy = resolveTaxonomyFallback({ segments, categorySlug, tagSlug });
-      if (taxonomy) {
-        setCacheControlHeader(NO_STORE);
-        throw taxonomyRedirect(taxonomy);
-      }
-      // Stare adresy wpisów: płaskie poWordPressowe (/<slug>) oraz takie z
-      // nieaktualnym rodzicem (/stara-sekcja/<slug>). Slug wpisu jest globalnie
-      // unikalny, więc ostatni segment wystarcza, by wskazać nową, kanoniczną
-      // ścieżkę (pełna ścieżka rodzica + slug) - 301, żeby przekazać link juice.
-      const legacyPostPath = await resolveLegacyPostPath(legacyLookupSlug(segments));
-      const decision = resolveMissingContent({ segments, categorySlug, tagSlug, legacyPostPath });
-      setCacheControlHeader(NO_STORE);
+      // ODCZYTY ZAPASOWE JEDNĄ FALĄ (`lib/routing/missingPathLookups.ts`):
+      // goły slug może wskazywać archiwum kategorii albo tagu (`/category/<slug>`,
+      // `/tag/<slug>`), a ostatni segment - stary adres wpisu (płaski
+      // poWordPressowy albo z nieaktualnym rodzicem; slug wpisu jest globalnie
+      // unikalny, 301 przekazuje moc linków na ścieżkę kanoniczną). Do
+      // 2026-11-14 szły dwiema SZEREGOWYMI falami (taksonomia, potem wpis),
+      // więc każde 404 płaciło trzy fale round-tripów przed pierwszym bajtem.
+      // Pierwszeństwo taksonomii rozstrzyga `resolveMissingContent`, nie
+      // kolejność zapytań.
+      const decision = resolveMissingContent({ segments, ...(await lookupMissingPath(segments)) });
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
+      if (decision.kind === "taxonomy-redirect") throw taxonomyRedirect(decision);
       if (decision.kind === "canonical-redirect") {
         throw redirect({
           to: "/$",
@@ -575,7 +620,7 @@ export const Route = createFileRoute("/$")({
           homepageDecision = rivals ? resolveHomepageDuplicate(reading, current, rivals) : null;
         }
         if (homepageDecision) {
-          setCacheControlHeader(NO_STORE);
+          if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
           throw redirect({ to: "/", search: true, statusCode: homepageDecision.statusCode });
         }
       }
@@ -614,7 +659,7 @@ export const Route = createFileRoute("/$")({
     // Duplikatów z nagłówkiem nie trzeba filtrować: `appendLinkHeader` trzyma
     // wartości w zbiorze per żądanie, a `widgetPreloadHeaders` produkuje dla
     // tego samego chunku identyczny napis.
-    if (isServer && doc.sections.length > 0) {
+    if ((import.meta.env.SSR || import.meta.env.DEV) && isServer && doc.sections.length > 0) {
       for (const hint of widgetPreloadHeaders(doc, 3)) appendLinkHeader(hint);
     }
     // Blocks engine: warm every data query its views will render (latest
@@ -664,15 +709,7 @@ export const Route = createFileRoute("/$")({
     // więc fala wtórna ma 6 odnóg przy sufcie 6 (`check:ssr-budgets`, twardy
     // limit 6 równoległych podżądań runtime Workers), a nie 7.
     const adPageType: AdPageType = data.kind;
-    // Baner nagłówka renderuje POWŁOKA, a ona liczy typ strony z ADRESU
-    // (`SiteChrome` -> `adPageTypeForLocation`). Na ścieżkach, gdzie adres każe
-    // jej co innego niż `kind` treści, rozgrzalibyśmy klucz, którego nikt nie
-    // czyta - a wyrównanie tego drugim zapytaniem kosztowałoby siódme
-    // podżądanie. Wtedy baner zostaje przy fetchu po hydratacji, jak dotąd.
-    const adWarmTargets: AdWarmTarget[] = [{ position: "top_of_post", pageId: data.item.id }];
-    if (adPageTypeForLocation(splitUrl(url).path, data.kind) === adPageType) {
-      adWarmTargets.push({ position: "header_banner" });
-    }
+    const adWarmTargets = adWarmTargetsFor(url, data.kind, data.item.id);
     const secondary: { results: PromiseSettledResult<unknown>[] | null } = { results: null };
     await withBudget(
       Promise.allSettled([
@@ -732,7 +769,14 @@ export const Route = createFileRoute("/$")({
         // NIE wchodzi do `directArmCold` ani do sygnału degradacji: reklama to
         // dekoracja, więc jej brak nie ma prawa zdjąć wspólnego cache'u CAŁEGO
         // dokumentu (ta sama doktryna, co przy `chromeQueryKeys` w korzeniu).
-        prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
+        //
+        // Na serwerze zapytanie zwykle JUŻ BIEGNIE od trafienia ścieżki
+        // (`earlyAds` wyżej) - tu czekamy na jego stan. Wywołanie po nim jest
+        // drogą zapasową i kosztuje zero round-tripów, gdy tamto się udało:
+        // rozgrzewka pyta wyłącznie o cele, których w cache'u nie ma świeżych.
+        (earlyAds.warm ?? Promise.resolve()).then(() =>
+          prefetchAdPlacementQueries(context.queryClient, adWarmTargets, adPageType),
+        ),
       ]).then((results) => {
         secondary.results = results;
       }),
@@ -761,15 +805,19 @@ export const Route = createFileRoute("/$")({
       if (result.status === "rejected") return true;
       return (result.value as { degraded?: boolean } | undefined)?.degraded === true;
     };
-    const directArmCold = [
-      postLayoutSettingsQueryOptions().queryKey,
-      relatedPostsConfigQueryOptions().queryKey,
-      data.kind === "page" && data.item.template_type === "archive_listing"
-        ? archiveListingQueryOptions(data.item.id).queryKey
-        : null,
-    ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const directArmCold =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      [
+        postLayoutSettingsQueryOptions().queryKey,
+        relatedPostsConfigQueryOptions().queryKey,
+        data.kind === "page" && data.item.template_type === "archive_listing"
+          ? archiveListingQueryOptions(data.item.id).queryKey
+          : null,
+      ].some((queryKey) => queryKey !== null && !hasSsrQueryData(context.queryClient, queryKey));
     const secondaryDegraded =
-      secondary.results === null || secondary.results.some(armDegraded) || directArmCold;
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      (secondary.results === null || secondary.results.some(armDegraded) || directArmCold);
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
     // cache; head() is synchronous and cannot fetch on its own. Strony czekały
@@ -787,10 +835,10 @@ export const Route = createFileRoute("/$")({
     // `dataUpdatedAt === 0` i jest degradacją, mimo że wartość „jest".
     // Korzeń stosuje ten sam predykat, ale TYLKO na ścieżce strony głównej
     // (`__root.tsx:357-367`) - na trasie łapiącej wszystko ta dziura została.
-    const settingsDegraded = !hasSsrQueryData(
-      context.queryClient,
-      siteSettingsQueryOptions.queryKey,
-    );
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const settingsDegraded =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      !hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey);
     if (!context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey)) {
       // `updatedAt: 0` - ZASIEW MUSI RODZIĆ SIĘ PRZETERMINOWANY. Bez tego
       // argumentu `setQueryData` stempluje wpis `Date.now()`, a `staleTime`
@@ -805,7 +853,8 @@ export const Route = createFileRoute("/$")({
     }
     // JEDYNE miejsce, w którym ta trasa ogłasza politykę cache'u czystego
     // renderu - po CAŁEJ pracy, która może zdegradować.
-    setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
     const seoSettings: unknown = settingsMap["seo"];
     // Wpisy: deskryptor okładki WYŁĄCZNIE dla nagłówka HTTP `Link` (niżej) -
     // do `<head>` preload wstawia sam React 19 (powód przy `links` w `head()`),
@@ -827,8 +876,9 @@ export const Route = createFileRoute("/$")({
     // (lib/builder/aboveFold.tsx). Obrazy kandydatów LCP strony (P1.4) idą do
     // magazynu żądania (`lib/builder/heroPreloadStore.ts`), nie do danych
     // loadera - klient ich nie czyta, a jechały w `$tsr` (P3.7b, T6).
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
     const coverPreload =
-      data.kind === "post"
+      (import.meta.env.SSR || import.meta.env.DEV) && data.kind === "post"
         ? buildCoverPreload(
             data.item,
             context.queryClient.getQueryData<PostLayoutSettings>(
@@ -850,7 +900,8 @@ export const Route = createFileRoute("/$")({
     // przeglądarka startuje fetch okładki/hero z nagłówków (przed parsowaniem
     // HTML), a NES Edge Cache odtwarza go na HIT/STALE (droga do 103 Early Hints
     // na Cloudflare).
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
@@ -1405,11 +1456,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     ],
   );
 
+  // Pełna ścieżka strony-rodzica BIEŻĄCEGO wpisu (np. `analizy/energetyka`) -
+  // z okruszków, które loader już niesie (`page_breadcrumbs` strony-rodzica),
+  // bez żadnego odczytu. Z niej powstają adresy kanoniczne liczone na stronie
+  // wpisu: własny (`currentPostCtx.href`) i sąsiadów stojących pod TĄ SAMĄ
+  // stroną. `null` (strona albo brak okruszka rodzica) = linki jak dotąd.
+  const postParentPath =
+    (isPost && data.crumbs.find((c) => c.id === data.parentPageId)?.full_path) || null;
+
   // Prev/next footer navigation (show_prev_next). Client-side only and gated:
   // the query fires exclusively when the toggle is effectively on (global
   // setting or per-post override) for a published post, so it costs nothing
-  // otherwise. parent_path="post" routes the links through the dedicated
-  // /post/$slug resolver, which always works regardless of parent page paths.
+  // otherwise.
   const prevNextEnabled = Boolean(
     isPost &&
     post &&
@@ -1427,7 +1485,19 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       ? {
           slug: row.slug,
           title: lang === "en" ? row.title_en || row.title_pl : row.title_pl || row.title_en,
-          parent_path: "post",
+          // Sąsiad pod tą samą stroną-rodzicem ma tę samą ścieżkę co bieżący
+          // wpis: adres kanoniczny bez odczytu, także dla rodzica
+          // zagnieżdżonego. Stopka ładuje oba odnośniki z wyprzedzeniem
+          // (`preload="viewport"`), więc `/post/<slug>` płaciło tu 301 i dwa
+          // odczyty bazy na KAŻDE wyświetlenie wpisu. Inny rodzic: jego slug
+          // z osadzenia w odczycie sąsiada, gdy to strona najwyższego poziomu
+          // (`postCanonicalHref` - ta sama reguła co listy). Rodzic
+          // zagnieżdżony albo brak ścieżki: "post" - trasa /post/$slug
+          // policzy ścieżkę w bazie.
+          parent_path:
+            postParentPath && row.parent_page_id === data.parentPageId
+              ? postParentPath
+              : (postCanonicalHref(row) && row.parent_page?.slug) || "post",
         }
       : null;
   const prevPost = toNeighbor(adjacentPosts?.prev);
@@ -1463,6 +1533,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       kind: isPost ? "post" : "page",
       id: it.id,
       slug: it.slug ?? undefined,
+      href: postParentPath && it.slug ? `/${postParentPath}/${it.slug}` : undefined,
       title_pl: it.title_pl ?? undefined,
       title_en: it.title_en ?? undefined,
       excerpt_pl: post?.excerpt_pl ?? undefined,
@@ -1504,7 +1575,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
       })),
       breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
     }),
-    [isPost, it, post, readMinutes, postAuthor, postTags, postCategories, crumbs, lang],
+    [
+      isPost,
+      it,
+      post,
+      readMinutes,
+      postAuthor,
+      postTags,
+      postCategories,
+      crumbs,
+      lang,
+      postParentPath,
+    ],
   );
 
   // Baner odbiorcy - wylacznie gdy kod byl potrzebny (bez niego trafialby tu

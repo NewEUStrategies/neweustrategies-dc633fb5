@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { GALLERY_BLOCKS, defaultPopupDesign } from "@/lib/newsletter/popupDesign";
 import {
-  GALLERY_BLOCKS,
   colorLuminance,
-  defaultPopupDesign,
   effectivePopupMode,
   galleryBackground,
   isDarkSurface,
@@ -11,7 +10,7 @@ import {
   resolvePopupDesign,
   resolvePopupPalette,
   type PopupColorSource,
-} from "@/lib/newsletter/popupDesign";
+} from "@/lib/newsletter/popupDesignResolve";
 
 const source = (overrides: Partial<PopupColorSource> = {}): PopupColorSource => ({
   popup_bg_color: "#0b0b0f",

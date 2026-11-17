@@ -48,7 +48,8 @@ vi.mock("@/lib/tenant", () => ({
 
 import { fail, ok, okCount, supabaseFromStub } from "@/test/supabase";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
-import { recordExperimentEvent, useExperimentStats, useExperimentsAdmin } from "../experiments";
+import { recordExperimentEvent } from "../experiments";
+import { useExperimentStats, useExperimentsAdmin } from "../experimentsAdmin";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const TABELA = "builder_experiments";

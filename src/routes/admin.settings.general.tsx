@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
 import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
-import { setIconPack, type IconPack } from "@/lib/iconPack";
 
 type ThemeLogo = {
   main?: string;
@@ -26,7 +24,6 @@ type General = {
   date_format: string;
   time_format: string;
   week_starts_on: number;
-  icon_pack: IconPack;
 };
 
 type ContactPrivate = {
@@ -44,7 +41,6 @@ const DEFAULTS: General = {
   date_format: "d.m.Y",
   time_format: "H:i",
   week_starts_on: 1,
-  icon_pack: "lucide",
 };
 
 const CONTACT_DEFAULTS: ContactPrivate = { admin_email: "" };
@@ -61,10 +57,6 @@ function GeneralSettings() {
   const themeLogo = themeOptions.query.data?.logo ?? {};
   const [draft, setDraft] = useDraft(query.data);
   const [contactDraft, setContactDraft] = useDraft(contact.query.data);
-
-  useEffect(() => {
-    if (draft?.icon_pack) setIconPack(draft.icon_pack);
-  }, [draft?.icon_pack]);
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
 
@@ -161,15 +153,6 @@ function GeneralSettings() {
         >
           <option value="1">{t("admin.general.monday")}</option>
           <option value="0">{t("admin.general.sunday")}</option>
-        </Select>
-      </Field>
-      <Field label={t("admin.general.iconPack")} hint={t("admin.general.iconPackHint")}>
-        <Select
-          value={draft.icon_pack}
-          onChange={(e) => set("icon_pack", e.target.value as IconPack)}
-        >
-          <option value="lucide">{t("admin.general.iconLucide")}</option>
-          <option value="fontawesome">{t("admin.general.iconFA")}</option>
         </Select>
       </Field>
 

@@ -17,6 +17,7 @@ import {
   analyzeServerEntryPurity,
   renderServerEntryPurityReport,
   serverEntryPurityFailed,
+  ssrFalseRoutePaths,
   FROZEN_STATIC_IMPORTERS,
   LAZY_ONLY_PACKAGES,
   type ServerChunk,
@@ -75,9 +76,10 @@ function readSources(): SourceFile[] {
 
 function main(): void {
   const { root, chunks } = readServerChunks();
+  const sources = readSources();
   const report = analyzeServerEntryPurity({
     chunks,
-    sources: readSources(),
+    sources,
     lazyOnlyPackages: LAZY_ONLY_PACKAGES,
     frozenRules: FROZEN_STATIC_IMPORTERS,
   });
@@ -92,6 +94,8 @@ function main(): void {
   console.log(rendered);
   console.log(
     `  leniwe wyłącznie: ${LAZY_ONLY_PACKAGES.map((p) => p.chunk).join(", ")}\n` +
+      `  pierwszy dokument: ${report.documentBaselineChunks} plików w statycznym domknięciu loadera wejść\n` +
+      `  zaślepki tras:    ${report.clientOnlyComponents.checked} importerów komponentów, w tym ${ssrFalseRoutePaths(sources).length} tras z \`ssr: false\`\n` +
       `  zamrożony dług:   ${FROZEN_STATIC_IMPORTERS.map((r) => `${r.pkg} (${r.allowed.length})`).join(", ")}`,
   );
 }

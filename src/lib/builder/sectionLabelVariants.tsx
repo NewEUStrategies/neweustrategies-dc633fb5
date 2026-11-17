@@ -354,6 +354,12 @@ export function SectionLabelRender({
   gapY,
 }: RenderProps) {
   const isSm = size === "sm";
+  // Etykieta sekcji jest nagłówkiem drugiego stopnia dla czytników ekranu:
+  // tytuły kart pod nią to `h3`, a bez tego poziomu strona skacze z `h1` na
+  // `h3` (audyt Lighthouse „heading-order"). Rola ARIA zamiast znacznika `h2`,
+  // żeby globalna typografia nagłówków nie zmieniła geometrii wariantów;
+  // miniatury panelu (`sm`) i puste etykiety nagłówkami nie są.
+  const titleHeading = !isSm && label ? ({ role: "heading", "aria-level": 2 } as const) : undefined;
   const textCls = isSm
     ? "text-[9px] font-bold uppercase tracking-wider"
     : "font-display text-[11px] sm:text-xs font-bold uppercase tracking-wider";
@@ -420,7 +426,7 @@ export function SectionLabelRender({
   ) : null;
 
   const labelEl = (
-    <span data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
+    <span {...titleHeading} data-title-root className={`${textCls} min-w-0`} style={labelStyle}>
       {label}
     </span>
   );
@@ -491,7 +497,7 @@ export function SectionLabelRender({
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
           >
-            <span data-title-root className="break-words">
+            <span {...titleHeading} data-title-root className="break-words">
               {label}
             </span>
           </span>
@@ -506,6 +512,7 @@ export function SectionLabelRender({
           <div className="flex items-center justify-center gap-3 min-w-0">
             <span className="flex-1 h-px bg-border min-w-[12px]" />
             <span
+              {...titleHeading}
               data-title-root
               className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`}
               style={labelStyle}
@@ -530,6 +537,7 @@ export function SectionLabelRender({
               style={{ background: accent }}
             />
             <span
+              {...titleHeading}
               data-title-root
               className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`}
               style={labelStyle}
@@ -568,6 +576,7 @@ export function SectionLabelRender({
           style={{ background: accent, color: fg }}
         >
           <span
+            {...titleHeading}
             data-title-root
             className={`${labelCls} min-w-0 flex-1`}
             style={labelSize && !isSm ? { fontSize: labelSize } : undefined}
@@ -606,6 +615,7 @@ export function SectionLabelRender({
       return (
         <div className={`${wrapperBase} ${padY} text-center border-b border-border w-full min-w-0`}>
           <span
+            {...titleHeading}
             data-title-root
             className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight inline-block max-w-full`}
             style={labelStyle}
@@ -644,7 +654,11 @@ export function SectionLabelRender({
                 ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
               }}
             >
-              <span data-title-root className="block break-words whitespace-normal">
+              <span
+                {...titleHeading}
+                data-title-root
+                className="block break-words whitespace-normal"
+              >
                 {label}
               </span>
             </span>
@@ -704,7 +718,7 @@ export function SectionLabelRender({
             style={{ height: 1, background: accent, opacity: 0.85 }}
           />
           <div className={`${padBlock} px-2`}>
-            <span data-title-root className={titleCls} style={labelStyle}>
+            <span {...titleHeading} data-title-root className={titleCls} style={labelStyle}>
               {label}
             </span>
             {ActionEl && (
@@ -757,7 +771,12 @@ export function SectionLabelRender({
               className="shrink-0 self-stretch"
               style={{ width: 1, background: "currentColor", opacity: 0.18 }}
             />
-            <span data-title-root className={`${titleCls} min-w-0 break-words`} style={titleStyle}>
+            <span
+              {...titleHeading}
+              data-title-root
+              className={`${titleCls} min-w-0 break-words`}
+              style={titleStyle}
+            >
               {label}
             </span>
             {ActionEl && <span className="ml-auto shrink-0 pl-2">{ActionEl}</span>}
@@ -806,6 +825,7 @@ export function SectionLabelRender({
                 </div>
               )}
               <div
+                {...titleHeading}
                 data-title-root
                 className={`${titleCls} break-words`}
                 style={{ marginTop: gapYPx, ...titleStyle }}
@@ -842,6 +862,7 @@ export function SectionLabelRender({
                 [
               </span>
               <span
+                {...titleHeading}
                 data-title-root
                 className={`${titleCls} font-semibold min-w-0 break-words`}
                 style={labelStyle}
@@ -895,6 +916,7 @@ export function SectionLabelRender({
               </span>
             )}
             <span
+              {...titleHeading}
               data-title-root
               className={`${titleCls} min-w-0 shrink truncate`}
               style={labelStyle}
@@ -943,6 +965,7 @@ export function SectionLabelRender({
           <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
             <div className="min-w-0">
               <div
+                {...titleHeading}
                 data-title-root
                 className={`${titleCls} font-semibold break-words text-balance`}
                 style={labelStyle}
@@ -994,6 +1017,7 @@ export function SectionLabelRender({
               </span>
             )}
             <span
+              {...titleHeading}
               data-title-root
               className={`${textCls} min-w-0 shrink truncate`}
               style={labelStyle}
@@ -1046,6 +1070,7 @@ export function SectionLabelRender({
                   {num}
                 </div>
                 <div
+                  {...titleHeading}
                   data-title-root
                   className={`${titleCls} font-semibold break-words`}
                   style={{ marginTop: gapYPx, ...labelStyle }}
@@ -1084,7 +1109,12 @@ export function SectionLabelRender({
         <div className={`${wrapperBase} w-full min-w-0 ${padY}`}>
           <div className="flex items-center min-w-0" style={{ gap: gapXPx }}>
             <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
-              <span data-title-root className={`${textCls} min-w-0 truncate`} style={labelStyle}>
+              <span
+                {...titleHeading}
+                data-title-root
+                className={`${textCls} min-w-0 truncate`}
+                style={labelStyle}
+              >
                 {label}
               </span>
               {second && (
@@ -1132,6 +1162,7 @@ export function SectionLabelRender({
           <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
             <TickerStripPulse accent={accent} dot={dot} />
             <span
+              {...titleHeading}
               data-title-root
               className={`${isSm ? "text-[9px]" : "text-[11px] sm:text-xs"} font-bold uppercase tracking-[0.2em] min-w-0 truncate`}
               style={{ color: accent, ...labelStyle }}
@@ -1155,6 +1186,7 @@ export function SectionLabelRender({
           <div className="flex items-end justify-between min-w-0" style={{ gap: gapXPx }}>
             <span className="inline-block min-w-0">
               <span
+                {...titleHeading}
                 data-title-root
                 className={`${titleCls} font-semibold break-words`}
                 style={labelStyle}
@@ -1313,6 +1345,7 @@ export function SectionLabelRender({
               ))}
             </span>
             <span
+              {...titleHeading}
               data-title-root
               className={`${titleCls} min-w-0 whitespace-nowrap`}
               style={labelStyle}

@@ -22,6 +22,7 @@ import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
 import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
+import { serverVendorChunking } from "./scripts/lib/serverVendorChunks.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -96,9 +97,13 @@ const WORKER_FIRST_PATHS = MACHINE_SURFACES.map((surface) => surface.path);
 // daje im wgląd w CSS celów, dzielą stan jednego buildu - stąd JEDEN obiekt dla obu miejsc.
 const clientPreload = clientModulePreload();
 
+// `rolldownConfig`: paczki bazowe każdego dokumentu (`zod`, `unenv`) we własnych chunkach
+// `_libs/`, żeby chunk SDK MCP nie ewaluował się przy każdym zimnym starcie - uzasadnienie
+// i pomiar w nagłówku scripts/lib/serverVendorChunks.ts; ta sama funkcja w vite.smoke.config.ts.
 const nitroOptions = {
   preset: "cloudflare-module",
   minify: true,
+  rolldownConfig: serverVendorChunking(),
   cloudflare: {
     deployConfig: true,
     wrangler: { assets: { run_worker_first: WORKER_FIRST_PATHS } },

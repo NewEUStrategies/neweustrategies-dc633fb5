@@ -9,8 +9,6 @@ import { Eye, LayoutGrid, ListChecks, PanelLeft, Palette, ShieldCheck, Type } fr
 import { PopupPreview } from "@/components/admin/newsletter/PopupPreview";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 import {
-  effectivePopupMode,
-  resolvePopupDesign,
   type PopupColorScheme,
   type PopupControlColors,
   type PopupFormDesign,
@@ -18,6 +16,7 @@ import {
   type PopupPanelDesign,
   type PopupThemeColors,
 } from "@/lib/newsletter/popupDesign";
+import { effectivePopupMode, resolvePopupDesign } from "@/lib/newsletter/popupDesignResolve";
 import { LayoutTab } from "./LayoutTab";
 import { GalleryTab } from "./GalleryTab";
 import { FormTab } from "./FormTab";

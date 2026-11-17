@@ -123,7 +123,8 @@ export const Route = createFileRoute("/qa/$slug")({
     // komentarz wyżej - teraz egzekwowane jednym prymitywem).
     const found = notFoundIfClean(identity);
     if (found === null) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return null;
     }
     const questions = await loadResilient(
@@ -134,7 +135,8 @@ export const Route = createFileRoute("/qa/$slug")({
     );
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała: render bez pytań (albo bez
     // sesji) nie ma prawa utrwalić się na brzegu na dobę okna stale.
-    setCacheControlHeader(resilientCacheControl(anyDegraded(identity, questions)));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(anyDegraded(identity, questions)));
     const answered: QaSessionHeadQuestion[] = questions.data
       .filter((q) => (q.answer_body ?? "").trim().length > 0)
       .slice(0, 20)
@@ -345,7 +347,7 @@ function QaDetail() {
             {t("community.qa.summaryAvailable")}
           </p>
           <Button asChild size="sm" className="mt-3">
-            <Link to="/post/$slug" params={{ slug: summaryQ.data.slug }}>
+            <Link to={summaryQ.data.href}>
               {t("community.qa.summaryRead")}
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Link>

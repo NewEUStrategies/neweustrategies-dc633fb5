@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { RotateCcw, Save } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAdminFontScale, useSaveFontScale } from "@/hooks/useFontScale";
+import { useAdminFontScale, useSaveFontScale } from "@/hooks/useFontScaleAdmin";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { cn } from "@/lib/utils";
 import {

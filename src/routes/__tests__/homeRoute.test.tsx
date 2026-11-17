@@ -59,6 +59,7 @@ import {
   homeSsrDeadline,
 } from "@/lib/ssr/homeSsrBudget";
 import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
+import { WIDGET_CHUNK_URLS } from "@/lib/seo/widgetPreloads";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
@@ -914,6 +915,42 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     const view = await mountHome();
     expect(imagePreload(view.links())).toBeUndefined();
     expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(false);
+  });
+
+  describe("hinty chunków leniwych widgetów nad zgięciem", () => {
+    // Jedyne wywołanie `widgetPreloadHeaders` w trasie głównej stoi za statyczną
+    // bramką serwera. Mapa chunków jest pusta poza buildem serwera (podmienia ją
+    // wtyczka), więc test podstawia jeden wpis na czas przebiegu. Bez tych
+    // hintów `lib/boot/bootSet.server.ts` nie ma czego przenieść do zestawu
+    // bootu, a chunk widgetu przychodzi po wejściu (warunek CLS 0).
+    const HINT = '</assets/widget-image-test.js>; rel="modulepreload"; crossorigin';
+    const chunks = WIDGET_CHUNK_URLS as Record<string, readonly string[]>;
+    const pustaSekcja = (id: string) => ({ id, kind: "section", children: [] });
+
+    beforeEach(() => {
+      chunks.image = ["/assets/widget-image-test.js"];
+    });
+    afterEach(() => {
+      delete chunks.image;
+    });
+
+    it("widget w oknie nad zgięciem: hint `modulepreload` trafia do akumulatora `Link`", async () => {
+      h.homePage = homePageData({ builder_data: heroDoc(hero("kandydat-hint")) });
+      await mountHome();
+      expect(h.linkHeaders).toContain(HINT);
+    });
+
+    it("ten sam widget POZA oknem (czwarta sekcja): hintu nie ma", async () => {
+      h.homePage = homePageData({
+        builder_data: heroDoc(hero("kandydat-poza-oknem"), [
+          pustaSekcja("s-1"),
+          pustaSekcja("s-2"),
+          pustaSekcja("s-3"),
+        ]),
+      });
+      await mountHome();
+      expect(h.linkHeaders).not.toContain(HINT);
+    });
   });
 
   it("obraz poza oknem trzech sekcji nie jest kandydatem i nie dostaje preloadu", async () => {

@@ -210,6 +210,15 @@ describe("Kinetic Signal Notch", () => {
     expect(stylesCss).toContain("color: var(--nes-kinetic-action");
   });
 
+  it("ton akcji na jasnej płycie trzyma kontrast AA na tle strony #f8f7f3", () => {
+    // Pierwsza deklaracja tokenu to motyw jasny. Jasność OKLCH 0.56 dawała na
+    // tle strony 4,34:1 (axe „color-contrast", 2026-11-14); próg 4,5:1 wypada
+    // przy ~0.55, więc sufit 0.545 zostawia zapas na zaokrąglenia.
+    const lightness = /--nes-kinetic-action: oklch\(([\d.]+) /.exec(stylesCss)?.[1];
+    expect(Number(lightness)).toBeGreaterThan(0);
+    expect(Number(lightness)).toBeLessThanOrEqual(0.545);
+  });
+
   it("akcja jest linkiem niosącym akcent w zmiennej --nes-accent", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector<HTMLAnchorElement>("a.nes-kinetic-action");

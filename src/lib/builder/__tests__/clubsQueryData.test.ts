@@ -2,8 +2,8 @@
 //
 // CZEGO TU BRONIMY (i dlaczego akurat gałęzi, a nie linii)
 //
-// `clubsQuery.ts` to pięć fabryk `queryOptions`, w których cała logika siedzi
-// w rozgałęzieniach: `enabled` liczone z pustego adresu, `if (error) throw`,
+// `clubsQuery.ts` i `clubHubQuery.ts` to pięć fabryk `queryOptions`, w których cała
+// logika siedzi w rozgałęzieniach: `enabled` liczone z pustego adresu, `if (error) throw`,
 // `data?.[0]`, `data ?? []`, `retry: false`, `Number(x ?? 0)` i
 // `row.verified === true`. Wywołanie fabryki wykonuje LINIE, ale nie dotyka
 // ANI JEDNEJ z tych gałęzi - dopiero uruchomienie `queryFn` przy podstawionej
@@ -44,16 +44,18 @@ vi.mock("@/integrations/supabase/client", async () => {
 import { fail, ok } from "@/test/supabase";
 import {
   clubCardQueryOptions,
+  clubThreadsQueryOptions,
+  type ClubCardRow,
+  type ClubThreadTeaserRow,
+} from "@/lib/builder/clubsQuery";
+import {
   clubHubArticlesQueryOptions,
   clubHubCommentsQueryOptions,
   clubHubMembersQueryOptions,
-  clubThreadsQueryOptions,
-  type ClubCardRow,
   type ClubHubArticleRow,
   type ClubHubCommentRow,
   type ClubHubMemberRow,
-  type ClubThreadTeaserRow,
-} from "@/lib/builder/clubsQuery";
+} from "@/lib/builder/clubHubQuery";
 
 function rpc(): SupabaseRpcStub {
   if (sb.rpc === null) throw new Error("test: atrapa `rpc` nie zostala utworzona");

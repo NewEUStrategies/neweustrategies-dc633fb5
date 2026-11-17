@@ -6,62 +6,68 @@
 //   cytaty (PodcastQuote), źródła/materiały (PodcastResource), transkrypcja.
 import { z } from "zod";
 
-export const PodcastStatus = z.enum(["draft", "published", "archived"]);
-export type PodcastStatus = z.infer<typeof PodcastStatus>;
+// TYPY WIERSZY, NIE SCHEMATY ZOD. Odcinek, program i ustawienia były dotąd
+// obiektami `z.object(...)`, których nikt nigdy nie wywołał - służyły wyłącznie
+// za źródło `z.infer`. Bundler nie umie dowieść, że budowa schematu nie ma
+// skutków ubocznych, więc po zdjęciu nieużywanej nazwy zostawiał w chunku
+// startowym klienta samo wywołanie (1,6 KB kodu wykonywanego przy każdym
+// starcie strony, którego wyniku nikt nie czytał). Typy niżej są dokładnie
+// tym, co dawało `z.infer` (aliasy obiektów, nie interfejsy - zachowują
+// przypisywalność do `Record<string, unknown>`). Walidację kolumn jsonb robią
+// jak dotąd parsery `parseChapters` / `parseQuotes` / `parseResources`.
+export type PodcastStatus = "draft" | "published" | "archived";
 
-const PodcastSchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
-  slug: z.string().min(1),
-  title_pl: z.string(),
-  title_en: z.string(),
-  excerpt_pl: z.string(),
-  excerpt_en: z.string(),
-  show_notes_pl: z.string(),
-  show_notes_en: z.string(),
-  transcript_pl: z.string(),
-  transcript_en: z.string(),
-  audio_url: z.string().url(),
-  duration_seconds: z.number().int().nonnegative(),
-  episode_number: z.number().int().nullable(),
-  season: z.number().int().nullable(),
-  cover_image_url: z.string().nullable(),
-  status: PodcastStatus,
-  published_at: z.string().nullable(),
-  author_id: z.string().uuid().nullable(),
-  show_id: z.string().uuid().nullable(),
-  category_id: z.string().uuid().nullable(),
+export type Podcast = {
+  id: string;
+  tenant_id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  excerpt_pl: string;
+  excerpt_en: string;
+  show_notes_pl: string;
+  show_notes_en: string;
+  transcript_pl: string;
+  transcript_en: string;
+  audio_url: string;
+  duration_seconds: number;
+  episode_number: number | null;
+  season: number | null;
+  cover_image_url: string | null;
+  status: PodcastStatus;
+  published_at: string | null;
+  author_id: string | null;
+  show_id: string | null;
+  category_id: string | null;
   // Apple Podcasts: <itunes:explicit> i <itunes:episodeType> na elemencie
   // kanału (migracja 20260725090500).
-  explicit: z.boolean().default(false),
-  episode_type: z.enum(["full", "trailer", "bonus"]).default("full"),
+  explicit: boolean;
+  episode_type: PodcastEpisodeType;
   // Kolumny jsonb - kształt egzekwują parsery poniżej, nie rzutowanie z DB.
-  chapters: z.unknown(),
-  quotes: z.unknown(),
-  resources: z.unknown(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-export type Podcast = z.infer<typeof PodcastSchema>;
+  chapters?: unknown;
+  quotes?: unknown;
+  resources?: unknown;
+  created_at: string;
+  updated_at: string;
+};
 
-const PodcastShowSchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
-  slug: z.string().min(1),
-  title_pl: z.string(),
-  title_en: z.string(),
-  description_pl: z.string(),
-  description_en: z.string(),
-  cover_image_url: z.string().nullable(),
-  spotify_url: z.string().nullable(),
-  apple_url: z.string().nullable(),
-  youtube_url: z.string().nullable(),
-  sort_order: z.number().int(),
-  status: PodcastStatus,
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-export type PodcastShow = z.infer<typeof PodcastShowSchema>;
+export type PodcastShow = {
+  id: string;
+  tenant_id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
+  description_pl: string;
+  description_en: string;
+  cover_image_url: string | null;
+  spotify_url: string | null;
+  apple_url: string | null;
+  youtube_url: string | null;
+  sort_order: number;
+  status: PodcastStatus;
+  created_at: string;
+  updated_at: string;
+};
 
 /** Uczestnik odcinka; profile_* dołączane z tabeli profiles, gdy powiązany. */
 export interface PodcastPerson {
@@ -138,29 +144,28 @@ export function parseResources(value: unknown): PodcastResource[] {
   return out;
 }
 
-const PodcastSettingsSchema = z.object({
-  tenant_id: z.string().uuid(),
-  default_player_variant: z.enum(["mini", "full", "sticky"]).default("full"),
-  autoplay_next: z.boolean().default(false),
-  show_speed_control: z.boolean().default(true),
-  spotify_url: z.string().nullable().optional(),
-  apple_url: z.string().nullable().optional(),
-  google_url: z.string().nullable().optional(),
-  rss_url: z.string().nullable().optional(),
+export type PodcastSettings = {
+  tenant_id: string;
+  default_player_variant: "mini" | "full" | "sticky";
+  autoplay_next: boolean;
+  show_speed_control: boolean;
+  spotify_url?: string | null;
+  apple_url?: string | null;
+  google_url?: string | null;
+  rss_url?: string | null;
   // Metadane kanału wymagane przez Apple Podcasts Connect
   // (migracja 20260725090500). Emituje je `buildPodcastRssXml`; program
   // (`podcast_shows`) może każde z nich nadpisać.
-  itunes_author: z.string().nullable().optional(),
-  itunes_owner_name: z.string().nullable().optional(),
-  itunes_owner_email: z.string().nullable().optional(),
-  itunes_category: z.string().nullable().optional(),
-  itunes_subcategory: z.string().nullable().optional(),
-  itunes_explicit: z.boolean().default(false),
-  itunes_type: z.enum(["episodic", "serial"]).default("episodic"),
-  itunes_image_url: z.string().nullable().optional(),
-  itunes_copyright: z.string().nullable().optional(),
-});
-export type PodcastSettings = z.infer<typeof PodcastSettingsSchema>;
+  itunes_author?: string | null;
+  itunes_owner_name?: string | null;
+  itunes_owner_email?: string | null;
+  itunes_category?: string | null;
+  itunes_subcategory?: string | null;
+  itunes_explicit: boolean;
+  itunes_type: PodcastShowType;
+  itunes_image_url?: string | null;
+  itunes_copyright?: string | null;
+};
 
 /**
  * <itunes:type> kanału: "episodic" (najnowszy odcinek pierwszy) albo "serial"

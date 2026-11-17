@@ -34,7 +34,8 @@ export const Route = createFileRoute("/programs/")({
       latestProgramsQueryOptions(PROGRAMS_INDEX_LIMIT),
       NO_PROGRAMS,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     return { degraded };
   },
   head: () => {

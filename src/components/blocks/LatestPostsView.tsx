@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { latestPostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { postHref } from "@/lib/routing/postHref";
 
 interface Props {
   count: number;
@@ -35,6 +36,8 @@ export function LatestPostsView({ count, category, showExcerpt, showImage, layou
       {rows.map((p) => {
         const title = (lang === "pl" ? p.title_pl : p.title_en) ?? p.title_pl ?? p.title_en ?? "";
         const excerpt = (lang === "pl" ? p.excerpt_pl : p.excerpt_en) ?? "";
+        // Adres kanoniczny z rodzica osadzonego w wierszu; bez niego `/post/<slug>`.
+        const href = postHref(p);
         return (
           <article
             key={p.id}
@@ -42,7 +45,7 @@ export function LatestPostsView({ count, category, showExcerpt, showImage, layou
           >
             {showImage && p.cover_image_url && (
               <AppLink
-                href={`/post/${p.slug}`}
+                href={href}
                 className={
                   layout === "grid"
                     ? "block aspect-[4/3] overflow-hidden rounded-md"
@@ -63,10 +66,7 @@ export function LatestPostsView({ count, category, showExcerpt, showImage, layou
               </AppLink>
             )}
             <div className="flex-1 min-w-0">
-              <AppLink
-                href={`/post/${p.slug}`}
-                className="font-serif font-semibold hover:text-primary block"
-              >
+              <AppLink href={href} className="font-serif font-semibold hover:text-primary block">
                 {title}
               </AppLink>
               {showExcerpt && excerpt && (

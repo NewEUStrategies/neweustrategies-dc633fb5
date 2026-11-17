@@ -35,7 +35,8 @@ export const Route = createFileRoute("/polityka-prywatnosci")({
     // Brak nadpisań SEO daje dokument KOMPLETNY dla czytelnika, tylko
     // niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją zamiast
     // `no-store` (różnica wobec `resilientCacheControl`: docblock helpera).
-    setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(staticFallbackCacheControl(seo.degraded));
     return { seo: seo.data };
   },
   head: ({ loaderData }) => {

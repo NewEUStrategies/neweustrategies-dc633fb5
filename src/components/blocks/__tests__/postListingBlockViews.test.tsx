@@ -90,6 +90,24 @@ const post = (over: Record<string, unknown> = {}) => ({
 
 const linkNames = () => screen.queryAllByRole("link").map((a) => a.textContent);
 
+/**
+ * Cztery wpisy w kształcie wiersza z osadzeniem strony-rodzica: pod `/blog`,
+ * pod stroną zagnieżdżoną, pod rodzicem niewidocznym dla gościa i wiersz bez
+ * pola (odczyt zapasowy). Tylko pierwszy ma adres kanoniczny do policzenia.
+ */
+const postsWithParents = () => [
+  post({ id: "p-a", slug: "wpis-a", parent_page: { slug: "blog", parent_id: null } }),
+  post({ id: "p-b", slug: "wpis-b", parent_page: { slug: "energetyka", parent_id: "pg-1" } }),
+  post({ id: "p-c", slug: "wpis-c", parent_page: null }),
+  post({ id: "p-d", slug: "wpis-d" }),
+];
+const POST_HREFS = ["/blog/wpis-a", "/post/wpis-b", "/post/wpis-c", "/post/wpis-d"];
+
+/** Adresy odnośników w kolejności DOM, bez powtórzeń (okładka i tytuł linkują to samo). */
+const uniqueHrefs = (root: ParentNode) => [
+  ...new Set(Array.from(root.querySelectorAll("a"), (a) => a.getAttribute("href") ?? "")),
+];
+
 beforeEach(() => {
   h.nav = [];
   h.neighbor = null;
@@ -218,6 +236,22 @@ describe("QueryLoopView", () => {
     }
   });
 
+  // Karta linkowała `/post/<slug>`, czyli adres odpowiadający 301 i dwoma
+  // odczytami bazy. Wiersz niesie stronę-rodzica z osadzenia - adres liczy
+  // `postHref`, a okładka i tytuł jednej karty muszą linkować TEN SAM adres.
+  it.each(["grid", "list"] as const)(
+    "układ %s: rodzic najwyższego poziomu daje adres kanoniczny, pozostałe zostają przy /post/",
+    async (layout) => {
+      h.loop = postsWithParents();
+      const { container } = view(<QueryLoopView {...base} layout={layout} lang="pl" />);
+      await waitFor(() => expect(container.querySelectorAll("li")).toHaveLength(4));
+      expect(uniqueHrefs(container)).toEqual(POST_HREFS);
+      for (const li of container.querySelectorAll("li")) {
+        expect(uniqueHrefs(li)).toHaveLength(1);
+      }
+    },
+  );
+
   it("przełączniki chowają okładkę, datę i zajawkę (układ listy)", async () => {
     h.loop = [post()];
     const { container } = view(
@@ -294,6 +328,21 @@ describe("LatestPostsView", () => {
     );
     expect(container.textContent).toContain("Zajawka PL");
   });
+
+  it.each(["grid", "list"] as const)(
+    "układ %s: rodzic najwyższego poziomu daje adres kanoniczny, pozostałe zostają przy /post/",
+    async (layout) => {
+      h.latest = postsWithParents();
+      const { container } = view(<LatestPostsView {...base} count={4} layout={layout} />);
+      await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(4));
+      expect(uniqueHrefs(container)).toEqual(POST_HREFS);
+      // Okładka i tytuł jednej karty linkują ten sam adres - nie dwa różne.
+      for (const article of screen.getAllByRole("article")) {
+        expect(article.querySelectorAll("a")).toHaveLength(2);
+        expect(uniqueHrefs(article)).toHaveLength(1);
+      }
+    },
+  );
 
   it("showImage/showExcerpt=false chowają okładkę i zajawkę", async () => {
     h.latest = [post()];

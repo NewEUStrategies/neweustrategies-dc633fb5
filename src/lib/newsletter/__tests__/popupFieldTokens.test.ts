@@ -27,12 +27,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  defaultPopupDesign,
-  popupPaletteVars,
-  resolvePopupPalette,
-} from "@/lib/newsletter/popupDesign";
-import type { PopupColorSource } from "@/lib/newsletter/popupDesign";
+import { defaultPopupDesign } from "@/lib/newsletter/popupDesign";
+import { popupPaletteVars, resolvePopupPalette } from "@/lib/newsletter/popupDesignResolve";
+import type { PopupColorSource } from "@/lib/newsletter/popupDesignResolve";
 
 const CSS = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 

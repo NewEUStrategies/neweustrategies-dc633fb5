@@ -58,7 +58,7 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-import { impersonateUser } from "@/lib/admin/impersonation";
+import { impersonateUser } from "@/lib/admin/impersonationStart";
 import { InviteUserDialog } from "@/components/admin/users/InviteUserDialog";
 import { TeamImportDialog } from "@/components/admin/users/TeamImportDialog";
 import {

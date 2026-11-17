@@ -50,7 +50,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ tenantId: h.tenantId }) }));
-vi.mock("@/lib/theme/customFonts", () => ({ uploadCustomFont: h.upload }));
+vi.mock("@/lib/theme/customFontUpload", () => ({ uploadCustomFont: h.upload }));
 vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError },
   Toaster: () => null,

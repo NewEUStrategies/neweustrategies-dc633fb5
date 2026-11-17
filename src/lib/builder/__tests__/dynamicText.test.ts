@@ -7,13 +7,8 @@
 // decyzja („autor ma zobaczyć literówkę"), a nie brak obsługi błędu - i właśnie
 // dlatego wymaga testu, bo wygląda jak niedokończona implementacja.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import {
-  DYNAMIC_TAG_GROUPS,
-  listDynamicTags,
-  resolveDynamicText,
-  resolveDynamicList,
-  hasDynamicTokens,
-} from "../dynamicText";
+import { DYNAMIC_TAG_GROUPS, listDynamicTags } from "../dynamicTagCatalog";
+import { resolveDynamicText, resolveDynamicList, hasDynamicTokens } from "../dynamicText";
 import type { CurrentPostCtx } from "@/lib/content-model/postContext";
 
 /** Minimalny kontekst wpisu - pola dokładamy per test. */

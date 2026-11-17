@@ -129,7 +129,7 @@ vi.mock("@/lib/archive-layout-settings", async (importOriginal) => ({
   }),
 }));
 
-vi.mock("@/lib/queries/podcasts", () => ({
+vi.mock("@/lib/queries/podcastsByCategory", () => ({
   podcastsByCategoryQueryOptions: (id: string) => ({
     queryKey: ["podcasts", id],
     queryFn: () => Promise.resolve([]),

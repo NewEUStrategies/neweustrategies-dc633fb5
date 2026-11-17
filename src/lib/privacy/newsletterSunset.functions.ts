@@ -50,7 +50,13 @@ function asRpc(client: unknown): RpcCallable {
   return client as RpcCallable;
 }
 
-const ISO = z.string().datetime({ offset: true });
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const ISO = /* @__PURE__ */ (() => z.string().datetime({ offset: true }))();
 
 /** Najwięcej pozycji listy „do wygaszenia" i wykluczonych (sufit RPC: 200). */
 export const NEWSLETTER_SUNSET_DUE_LIMIT = 50;
@@ -74,14 +80,15 @@ export const getDataRetentionNewsletterDue = createServerFn({ method: "POST" })
  * kontaktu CRM, RPC i CHECK tabeli `newsletter_sunset_exclusions`) - dłuższy
  * jest odrzucany, nie skracany.
  */
-export const NewsletterExclusionSchema = z
-  .object({
-    subscriberId: z.string().uuid(),
-    reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {
-      message: "reason_length",
-    }),
-  })
-  .strict();
+export const NewsletterExclusionSchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      subscriberId: z.string().uuid(),
+      reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {
+        message: "reason_length",
+      }),
+    })
+    .strict())();
 export type NewsletterExclusionInput = z.infer<typeof NewsletterExclusionSchema>;
 
 export const excludeNewsletterSubscriber = createServerFn({ method: "POST" })
@@ -166,12 +173,13 @@ export const getNewsletterSunsetCopy = createServerFn({ method: "POST" })
     }));
   });
 
-export const SaveNewsletterSunsetCopySchema = z
-  .object({
-    overrides: NewsletterSunsetCopyOverridesSchema,
-    expectedUpdatedAt: ISO.nullable(),
-  })
-  .strict();
+export const SaveNewsletterSunsetCopySchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      overrides: NewsletterSunsetCopyOverridesSchema,
+      expectedUpdatedAt: ISO.nullable(),
+    })
+    .strict())();
 export type SaveNewsletterSunsetCopyInput = z.infer<typeof SaveNewsletterSunsetCopySchema>;
 
 /** Konflikt zapisu (inna karta zapisała treść po odczycie tej) - kod panelu. */
@@ -230,12 +238,13 @@ export const saveNewsletterSunsetCopy = createServerFn({ method: "POST" })
 /** Imię w podglądzie - pokazuje zwrot do adresata tak, jak zobaczy go subskrybent. */
 const PREVIEW_FIRST_NAME = "Anna";
 
-export const PreviewNewsletterSunsetSchema = z
-  .object({
-    lang: z.enum(["pl", "en"]),
-    overrides: NewsletterSunsetCopyOverridesSchema,
-  })
-  .strict();
+export const PreviewNewsletterSunsetSchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      lang: z.enum(["pl", "en"]),
+      overrides: NewsletterSunsetCopyOverridesSchema,
+    })
+    .strict())();
 export type PreviewNewsletterSunsetInput = z.infer<typeof PreviewNewsletterSunsetSchema>;
 
 export interface NewsletterSunsetPreviewDto {

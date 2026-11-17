@@ -117,7 +117,13 @@ function mutation<T>(
   return { ok: true, data: parse(data) };
 }
 
-const UUID = z.string().uuid();
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const UUID = /* @__PURE__ */ (() => z.string().uuid())();
 const ISO = z.string().datetime({ offset: true });
 const NODE_ID = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
@@ -454,40 +460,41 @@ export const saveJourneyEmailContent = createServerFn({ method: "POST" })
 
 // ── Zapisy: ustawienia silnika (tylko admin) ────────────────────────────────
 
-const TIME = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const TIME = /* @__PURE__ */ (() => z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/))();
 
 /** Łatka ustawień - wyłącznie klucze białej listy SQL. */
-export const JourneySettingsPatchSchema = z
-  .object({
-    enabled: z.boolean(),
-    marketing_cap_per_7d: z
-      .number()
-      .int()
-      .min(JOURNEY_LIMITS.capPer7dMin)
-      .max(JOURNEY_LIMITS.capPer7dMax),
-    quiet_start: TIME,
-    quiet_end: TIME,
-    timezone: z.string().min(1).max(64),
-    default_task_assignee_id: UUID.nullable(),
-    machine_open_seconds: z
-      .number()
-      .int()
-      .min(JOURNEY_LIMITS.machineOpenSecondsMin)
-      .max(JOURNEY_LIMITS.machineOpenSecondsMax),
-    sender_name: z
-      .string()
-      .trim()
-      .min(1)
-      .max(JOURNEY_SENDER_LIMITS.senderNameMax)
-      .regex(/^[^<>"\r\n]+$/)
-      .nullable(),
-    reply_to: z.string().trim().email().max(JOURNEY_SENDER_LIMITS.replyToMax).nullable(),
-    // Piksel otwarć (I9c-X2) - karta „Retencja danych" i ustawienia silnika.
-    open_tracking_enabled: z.boolean(),
-  })
-  .partial()
-  .strict()
-  .refine((patch) => Object.keys(patch).length > 0, { message: "patch_empty" });
+export const JourneySettingsPatchSchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      enabled: z.boolean(),
+      marketing_cap_per_7d: z
+        .number()
+        .int()
+        .min(JOURNEY_LIMITS.capPer7dMin)
+        .max(JOURNEY_LIMITS.capPer7dMax),
+      quiet_start: TIME,
+      quiet_end: TIME,
+      timezone: z.string().min(1).max(64),
+      default_task_assignee_id: UUID.nullable(),
+      machine_open_seconds: z
+        .number()
+        .int()
+        .min(JOURNEY_LIMITS.machineOpenSecondsMin)
+        .max(JOURNEY_LIMITS.machineOpenSecondsMax),
+      sender_name: z
+        .string()
+        .trim()
+        .min(1)
+        .max(JOURNEY_SENDER_LIMITS.senderNameMax)
+        .regex(/^[^<>"\r\n]+$/)
+        .nullable(),
+      reply_to: z.string().trim().email().max(JOURNEY_SENDER_LIMITS.replyToMax).nullable(),
+      // Piksel otwarć (I9c-X2) - karta „Retencja danych" i ustawienia silnika.
+      open_tracking_enabled: z.boolean(),
+    })
+    .partial()
+    .strict()
+    .refine((patch) => Object.keys(patch).length > 0, { message: "patch_empty" }))();
 export type JourneySettingsPatch = z.infer<typeof JourneySettingsPatchSchema>;
 
 export const saveJourneySettings = createServerFn({ method: "POST" })

@@ -28,7 +28,7 @@ import {
 } from "@/lib/builder/animatedHeadingLinks";
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
-import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 import { asStr } from "@/lib/content-model/contentValue";
 import { LineListTextarea } from "./LineListTextarea";
 import { readLineList } from "./lineList";

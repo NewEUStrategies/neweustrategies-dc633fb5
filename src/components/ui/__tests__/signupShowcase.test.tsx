@@ -16,11 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupShowcase, type ShowcaseImage } from "@/components/ui/signup-showcase";
 import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
-import {
-  resolvePopupPalette,
-  type PopupGalleryDesign,
-  type PopupPalette,
-} from "@/lib/newsletter/popupDesign";
+import { type PopupGalleryDesign } from "@/lib/newsletter/popupDesign";
+import { resolvePopupPalette, type PopupPalette } from "@/lib/newsletter/popupDesignResolve";
 
 const settings = defaultNewsletterSettings();
 const PALETA = resolvePopupPalette(settings, "dark");

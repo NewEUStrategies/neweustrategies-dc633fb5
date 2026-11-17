@@ -30,6 +30,7 @@
 - Resolve per-widget dark accents from CMS content `accentColorDark`, falling back to existing accent inversion, so instance-specific colors never override all section labels.
 
 - Share widget typography, spacing, dimensions, borders, shadows and interaction geometry across light/dark; vary only colors and theme media to prevent layout shifts.
+- Emit image intrinsic size only as plain `width`/`height` attributes resolved by the rendered URL (`theme_options.logo.intrinsic`, widget `srcIntrinsic`/`srcDarkIntrinsic`) through the shared `intrinsicSize` helper; never as inline `aspect-ratio`, computed CSS width or `ratio`, so unknown or stale sizes keep today's markup and geometry.
 - Render minimized chats from the shared session-backed store, with a maximum of three avatar bubbles on mobile and compact pills on desktop, so restoration state stays consistent across responsive surfaces.
 - Derive article table-of-contents activity from heading geometry in one animation-frame-throttled scroll listener, to avoid skipped sections on fast scroll.
 - Build article-audio controls from shared stateful icon atoms, so the sidebar widget and global audio bar preserve identical geometry, animation, and theme contrast.

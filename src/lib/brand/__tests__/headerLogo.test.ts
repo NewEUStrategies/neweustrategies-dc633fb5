@@ -13,8 +13,19 @@
 //     Dowód na realnym SSR obu pasków: `share/__tests__/chromeLogoPreload.test.tsx`.
 //  3. Brak logotypu (brak obiektu, puste napisy, wartości innego typu) = `""`,
 //     na którym paski przechodzą na wordmark tekstowy.
+//  4. ROZMIAR IDZIE ZA PLIKIEM: `headerLogoSize` zwraca naturalny rozmiar
+//     dokładnie tego adresu, który wybiera `headerLogoSrc` - na każdej pozycji
+//     obu łańcuchów. Rozmiar trafia do atrybutów `width`/`height` logo, więc
+//     rozmiar innego wariantu dałby przeglądarce złą proporcję do rezerwacji
+//     pola. Brak wpisu wybranego pliku = `undefined` (znacznik bez atrybutów),
+//     bez pożyczania od sąsiedniego wariantu.
 import { describe, expect, it } from "vitest";
-import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
+import {
+  headerLogoSize,
+  headerLogoSrc,
+  type HeaderLogoConfig,
+  type HeaderLogoVariants,
+} from "@/lib/brand/headerLogo";
 import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 type Field = keyof Required<HeaderLogoVariants>;
@@ -91,5 +102,97 @@ describe("headerLogoSrc - brak logotypu", () => {
   ])("%s -> pusty napis (wordmark tekstowy) w obu motywach", (_label, logo) => {
     expect(headerLogoSrc(logo, false)).toBe("");
     expect(headerLogoSrc(logo, true)).toBe("");
+  });
+});
+
+describe("headerLogoSize - rozmiar dokładnie tego pliku, który wybiera headerLogoSrc", () => {
+  const ALL_FIELDS: readonly Field[] = ["main", "main_dark", "mobile", "mobile_dark"];
+  /** Każdy wariant ma INNY rozmiar - pomyłka pliku jest widoczna w wyniku. */
+  const SIZE_OF: Record<Field, { width: number; height: number }> = {
+    main: { width: 350, height: 150 },
+    main_dark: { width: 351, height: 151 },
+    mobile: { width: 352, height: 152 },
+    mobile_dark: { width: 353, height: 153 },
+  };
+  const entryOf = (field: Field): [string, string] => [
+    url(field),
+    `${SIZE_OF[field].width}x${SIZE_OF[field].height}`,
+  ];
+  const ALL_ENTRIES = ALL_FIELDS.map(entryOf);
+
+  for (const { motyw, isDark, chain } of CHAINS) {
+    it.each(chain.map((field, index) => ({ field, index })))(
+      `${motyw}: pozycja $index ($field) - rozmiar pliku tej pozycji`,
+      ({ field, index }) => {
+        const logo: HeaderLogoConfig = { ...fillFrom(chain, index), intrinsic: ALL_ENTRIES };
+
+        expect(headerLogoSrc(logo, isDark)).toBe(url(field));
+        expect(headerLogoSize(logo, isDark)).toEqual(SIZE_OF[field]);
+      },
+    );
+
+    it.each(chain.map((field, index) => ({ field, index })))(
+      `${motyw}: pozycja $index ($field) bez własnego wpisu - undefined, bez pożyczania`,
+      ({ field, index }) => {
+        const logo: HeaderLogoConfig = {
+          ...fillFrom(chain, index),
+          // Wpisy mają wszystkie warianty POZA wybranym.
+          intrinsic: ALL_FIELDS.filter((other) => other !== field).map(entryOf),
+        };
+
+        expect(headerLogoSrc(logo, isDark)).toBe(url(field));
+        expect(headerLogoSize(logo, isDark)).toBeUndefined();
+      },
+    );
+  }
+
+  it("po przełączeniu motywu rozmiar zmienia się razem z plikiem", () => {
+    const logo: HeaderLogoConfig = {
+      mobile: url("mobile"),
+      mobile_dark: url("mobile_dark"),
+      intrinsic: ALL_ENTRIES,
+    };
+
+    expect(headerLogoSize(logo, false)).toEqual(SIZE_OF.mobile);
+    expect(headerLogoSize(logo, true)).toEqual(SIZE_OF.mobile_dark);
+  });
+
+  it("kanoniczny `/media`: wpis pod adresem ABSOLUTNYM (tak zapisuje go panel), `src` względny", () => {
+    const canonical = `${PUBLIC_MEDIA_ORIGIN}/media/theme/logo/nes-horizontal.svg`;
+    const logo: HeaderLogoConfig = { mobile: canonical, intrinsic: [[canonical, "350x150"]] };
+
+    expect(headerLogoSrc(logo, false)).toBe("/media/theme/logo/nes-horizontal.svg");
+    expect(headerLogoSize(logo, false)).toEqual({ width: 350, height: 150 });
+    // Wpis pod formą względną to inny napis niż zapisany w wariancie.
+    expect(
+      headerLogoSize(
+        { mobile: canonical, intrinsic: [["/media/theme/logo/nes-horizontal.svg", "350x150"]] },
+        false,
+      ),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["brak listy", undefined],
+    ["null", null],
+    ["napis", "350x150"],
+    ["obiekt-mapa", { [url("mobile")]: "350x150" }],
+    ["para z błędnym rozmiarem", [[url("mobile"), "0x0"]]],
+    ["para innego kształtu", [[url("mobile")], url("mobile"), null]],
+  ])("uszkodzone `intrinsic` (%s) -> undefined, a `src` bez zmian", (_label, intrinsic) => {
+    const logo: HeaderLogoConfig = { mobile: url("mobile"), intrinsic };
+
+    expect(headerLogoSize(logo, false)).toBeUndefined();
+    expect(headerLogoSrc(logo, false)).toBe(url("mobile"));
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["pusty obiekt", {}],
+    ["wpisy bez żadnego wariantu", { intrinsic: ALL_ENTRIES }],
+  ])("brak logotypu (%s) -> undefined w obu motywach", (_label, logo) => {
+    expect(headerLogoSize(logo, false)).toBeUndefined();
+    expect(headerLogoSize(logo, true)).toBeUndefined();
   });
 });

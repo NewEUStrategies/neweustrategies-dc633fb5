@@ -84,7 +84,8 @@ export const Route = createFileRoute("/plans/$planId")({
     // BRAMKA NAGŁÓWKA, której ta trasa nie miała. `no-store` należy się DWÓM
     // sytuacjom i obie są przejściowe: renderowi zdegradowanemu („nie wiemy")
     // i 404 (plan bywa włączany minutę po tym, jak crawler go odwiedził).
-    setCacheControlHeader(resilientCacheControl(degraded || found === null));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded || found === null));
     // 404 WYŁĄCZNIE z czystego odczytu KATALOGU - to on rozstrzyga o istnieniu
     // planu, a nie odczyt warstw. `CleanReadResult` jest strukturalny, więc
     // składamy go z wyniku `find` i flagi odczytu listy.

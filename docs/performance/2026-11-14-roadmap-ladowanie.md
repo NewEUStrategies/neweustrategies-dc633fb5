@@ -1,0 +1,1298 @@
+# Roadmap: ładowanie stron i modułów, SSR, Speed Index (2026-11-14)
+
+Gałąź robocza: `claude/kind-brown-vrah7o`. Dokument roboczy wykonawcy: kolejność
+prac, zakres każdej pozycji, sposób weryfikacji i warunki stopu. Aktualizować
+kolumnę „Stan" po każdej pozycji.
+
+## 0. Punkt wyjścia (pomiar z 14.11.2026)
+
+PageSpeed Insights, strona główna, Lighthouse 13.6.0:
+
+| Wskaźnik    | Telefon | Komputer |
+| ----------- | ------: | -------: |
+| Wydajność   |      93 |       96 |
+| FCP         |   1,2 s |    0,3 s |
+| LCP         |   2,0 s |    0,5 s |
+| TBT / CLS   |   0 / 0 |    0 / 0 |
+| Speed Index |   6,2 s |    2,1 s |
+| Dostępność  |      95 |       92 |
+
+Speed Index odpowiada za ~5,6 z ~6,4 utraconych punktów na telefonie i za
+całość ubytku na komputerze. Jest pochodną czasu odpowiedzi serwera
+(`2026-10-22-speed-index.md` §1: +1 s TTFB = +1,4 s SI telefon, +0,6 s komputer).
+
+Czas do pierwszego bajtu, `curl` z kolonii IAD, po dwa żądania na trasę:
+
+| Trasa                     |        TTFB | Cache        | Zapytania | Uwaga                        |
+| ------------------------- | ----------: | ------------ | --------: | ---------------------------- |
+| `/`                       |   2,5–5,3 s | MISS (3 z 5) |     14–17 | HIT 0,38 s, STALE 0,76 s     |
+| `/blog`                   |   1,6–2,6 s | MISS         |     10–13 |                              |
+| `/blog/<wpis>`            | 0,3 / 3,3 s | STALE / MISS |        20 | suma czasów zapytań 7,3 s    |
+| `/wydarzenia`             |   2,6–3,4 s | MISS         |        20 |                              |
+| `/login`                  |   2,2–2,4 s | BYPASS       |         0 | sam zimny start izolatu      |
+| `/kontakt`, `/en`         |   0,7–1,1 s | MISS         |       5–7 | ciepły izolat, bez trafienia |
+| adres nieistniejący (404) |   2,3–3,5 s | MISS         |     15–17 | pełny render strony błędu    |
+
+Stałe ograniczenie: produkcja działa na runtime Lovable (`x-deployment-id:
+psr2.*`), współdzielony cache dokumentów jest martwy (`nes-l2-fail;desc="put"`),
+każdy zimny izolat renderuje od zera.
+
+## 1. Zasady wykonania
+
+1. Jedna pozycja = jeden commit z testem przypinającym zachowanie. Bez commitów
+   zbiorczych.
+2. Po każdej pozycji: testy modułu, `bun run typecheck:tsc`, `bun run lint` na
+   zmienionych plikach; przed wypchnięciem partii `bun run verify:blocking`
+   oraz bramki `check:bundle`, `check:chunks`, `check:entry-purity`,
+   `check:server-entry-purity`, `check:document-weight`, `check:ts-sql-contract`.
+3. Reguły `AGENTS.md` obowiązują bez wyjątków. W szczególności: schemat tylko
+   przez `supabase/migrations` + `bun run migrations:mirror`; żadnej ręcznej
+   edycji `drizzle/`; wdrożenie migracji wyłącznie przez właściciela.
+4. HTML serwera ma być równy stronie po hydratacji. Każda zmiana znaczników
+   SSR dostaje test równoważności albo porównanie dokumentu przed/po.
+5. Pomiar przed i po: `scripts/performance/lighthouse-local.mjs --compare`
+   (telefon i komputer) oraz laboratorium zimnego renderu z opóźnieniem
+   150 ms na zapytanie. Liczby wpisywać do tego dokumentu.
+6. Nie pushować bez zielonej partii; PR dopiero na prośbę właściciela.
+
+## 2. Partie prac
+
+### Partia A. Dostępność i higiena linków (niskie ryzyko, bez migracji)
+
+| #   | Pozycja                                                                                                                                                                                                                                                                              | Pliki                                                                                                                                                                                     | Weryfikacja                                                                                              | Stan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Etykieta sekcji jako nagłówek 2. stopnia (`role="heading" aria-level=2`), żeby strona nie skakała z `h1` na `h3`                                                                                                                                                                     | `src/lib/builder/sectionLabelVariants.tsx`                                                                                                                                                | testy `sectionLabel*.test.tsx` + nowy test roli; miniatury `sm` i puste etykiety bez roli                | wykonane (test `sectionLabelHeadingRole.test.tsx`, 24 przypadki)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| A2  | Kanoniczne adresy wpisów w widgetach zamiast `/post/<slug>` (dziś każde kliknięcie = 301 + 2 odczyty bazy). Wspólny pomocnik `postHref`; ścieżka rodzica z osadzenia `pages` w tym samym zapytaniu (zero dodatkowych podróży); zapas `/post/<slug>` gdy rodzic zagnieżdżony/nieznany | nowy `src/lib/routing/postHref.ts`; `latestPostsSuperset.ts`, `postListQuery.ts`, `sliderPostsQuery.ts`; `PostListView.tsx`, `PostsSliderWidget.tsx`; potem pozostałe widoki (lista w §4) | test równości kolumn nadzbioru; test pomocnika; `check:ts-sql-contract`; dokument `/` bez `href="/post/` | wykonane dla post-listy, slidera, pasków news-ticker i trending-now oraz listy ocenianej (`b38389cf`, `8c83feb7`, `51ba632b`): adres kanoniczny z osadzenia strony-rodzica w tym samym zapytaniu, zapas `/post/<slug>`. Zostają: bloki treści (7 widoków, `POST_SELECT` w `lib/queries/blocks.ts`), lista `/blog`, mega menu, wyszukiwarka, lista do przeczytania; `get_post_refs` i rekomendacje wymagają zmiany RPC (E). Po wdrożeniu sprawdzić jednym żądaniem anon, że `parent_page` wraca wypełnione |
+| A3  | Kontrast i wielkość celów dotykowych (komputer)                                                                                                                                                                                                                                      | do ustalenia                                                                                                                                                                              | lokalny Lighthouse (lista elementów)                                                                     | wymaga listy elementów z audytu                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| A4  | Wymiary logotypów SVG (`width`/`height` albo `aspect-ratio`)                                                                                                                                                                                                                         | komponent logo nagłówka i stopki                                                                                                                                                          | audyt „unsized-images" pusty; CLS bez zmian                                                              | na gałęzi (`0a29a634`…`e69fec57`, 19 commitów; próg bramki `05f62691`): naturalny rozmiar pliku jako atrybuty `width`/`height` dla logo pasków, logo motywu i własnego pliku widgetu obrazu; pomiar w panelu (układ strony, bez `fetch`) przy zapisie opcji motywu i w edytorze obrazu. Bez zapisanych wymiarów znaczniki są jak dotąd (złote wzorce HTML). Dwa przeglądy, 7 znalezisk zamkniętych; druga tura poprawek bez osobnego przeglądu. Wymaga kroków właściciela po wdrożeniu (§8)               |
+
+### Partia B. Koszt renderu serwera na każdej trasie (średnie ryzyko, bez migracji)
+
+| #   | Pozycja                                                                                                                                                         | Pliki (start rozpoznania)                                                        | Weryfikacja                                                               | Stan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Strona 404: dziś 15–17 zapytań i brak zapisu w cache. Cel: krótki negatywny cache dokumentu 404 per ścieżka i render bez fali widgetów treści                   | `src/routes/$.tsx`, `src/lib/http/documentCache.server.ts`, `notFoundIfClean.ts` | laboratorium: 2. żądanie tego samego 404 bez zapytań; test polityki cache | patrz §6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| B2  | Wpis: 20 zapytań na zimnym renderze. Inwentaryzacja fal, scalenie odczytów nad zgięciem, reszta za odpowiedzią                                                  | `src/routes/$.tsx`, `src/lib/queries/*`                                          | `report:route-loaders`; laboratorium zimnego renderu przed/po             | wykonane (`f083856e`, `25716f3d`, `400ea444`, `e62d09ab`) i poprawione po niezależnym przeglądzie: łańcuch treści wpisu 4 fale -> 2, zapytania trasy 11 -> 10 (model z kodu i testów, bez pomiaru). Przegląd w dwóch z trzech perspektyw: 0 usterek poważnych, 4 drobne naprawione (kolejność `resolve_path` na drucie, podpowiedź tylko dla możliwego sluga, wyrejestrowanie słuchacza reklam, lot reklam pod `waitUntil`). Trzecią perspektywę (osadzenie współautorów, cache konfiguracji) sprawdzono ręcznie w migracjach |
+| B3  | Wydarzenia: 20 zapytań na liście; liście bez loadera, `events.$slug` grzeje 2 z ~9                                                                              | `src/routes/events*.tsx`                                                         | jak B2                                                                    | rozpoznane: moduł jest na podłodze (katalog 1 odczyt, strona wydarzenia 2 równoległe, zakładki 0); 20 zapytań `/wydarzenia` to strona CMS w `$.tsx`. Scalone: zapadka budżetu zapytań (`e01afc24`) i zaproszenie z pakietu poza wspólnym cache (`57f7c3ee`). Dalej: RPC `event_page_bootstrap` (E) i decyzja, która lista jest kanoniczna                                                                                                                                                                                     |
+| B4  | Trasy bez trafienia na ciepłym izolacie (`/kontakt`, `/en` MISS dwa razy): ustalić, czy dokument dostaje `no-store` z degradacji, czy to rotacja izolatów       | `documentCache.server.ts`, `cachePolicy.ts`                                      | nagłówki odpowiedzi + pierścień decyzji cache                             | patrz §7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| B5  | Podpowiedź obrazu LCP zapisywana przy publikacji strony, żeby preload trafiał do `<head>` także na zimnym renderze (strona główna, wydarzenia, autor, programy) | `src/routes/index.tsx`, `lcpCandidate`, zapis strony w builderze                 | dokument zimnego renderu ma preload okładki w `<head>`                    | niezaczęte                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+### Partia C. Start zimnego izolatu (wysokie ryzyko, osobny PR)
+
+| #   | Pozycja                                                                                                                              | Weryfikacja                                                                    | Stan                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | „Front door": podanie dokumentu z cache w `src/server.ts` przed importem routera. Zysk dopiero przy działającym cache współdzielonym | lokalny workerd: TTFB pierwszego żądania przy HIT; `check:server-entry-purity` | oceniony projekt, bez implementacji (`2026-11-15-zimny-start-c2.md` §7): nie omija kompilacji skryptu, na obecnym hostingu wymaga magazynu w bazie; czeka na W1                                                                               |
+| C2  | Dalszy podział kodu serwera (`/login` płaci >2 s bez bazy): trasy profilu, checkoutu, wydarzeń-studio leniwie także na serwerze      | rozmiar artefaktu i liczba modułów; równoważność HTML 11 adresów               | wykonane w części (`2026-11-15-zimny-start-c2.md`): SDK MCP poza domknięciem dokumentu, zaślepki tras `ssr: false` i `/profile/*`; 1 893 → 1 796 modułów, 14,11 → 13,23 MB, lokalnie −3 % (`/login`) i −7 % (`/`) zimnego startu; reszta w §8 |
+
+### Partia D. Klient (średnie ryzyko)
+
+| #   | Pozycja                                                                                                                  | Weryfikacja                                          | Stan                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------- |
+| D1  | `vendor-supabase` (53 KiB gz) poza bootem gościa (plan P3.1)                                                             | `check:chunks`; ślad sieci anonimowej strony głównej | rekomendacja z 16.11.2026: odłożyć (§9.9) |
+| D2  | Podział `styles.css` (563 KB / 82 KB gz, blokuje render na każdej trasie): reguły panelu i modułów poza arkusz publiczny | rozmiar arkusza publicznego; zrzuty przed/po         | niezaczęte                                |
+| D3  | Liście `$initial` z modułów mieszanych boot/admin w `app-initial` (≤ 15–20 KB gz)                                        | `check:bundle`, `report:chunk-inventory`             | niezaczęte                                |
+| D4  | Rejestry ikon `import * as` → `DynamicIcon`; decyzja o zestawie Font Awesome                                             | `check:menu-icons`, rozmiar chunku ikon              | czeka na decyzję                          |
+
+### Partia E. Zapytania scalone w RPC (wymaga migracji i wdrożenia przez właściciela)
+
+| #   | Pozycja                                                                                  | Stan           |
+| --- | ---------------------------------------------------------------------------------------- | -------------- |
+| E1  | `chrome_bootstrap` / `public_bootstrap`: ustawienia + tokeny + menu + pasek w jednym RPC | czeka na zgodę |
+| E2  | `get_public_homepage(slug)`: wiersz strony + treść kanwy                                 | czeka na zgodę |
+
+Każda migracja: plik w `supabase/migrations`, `bun run migrations:mirror`,
+granty zgodne z regułą (server-only → `service_role`), `generate:ts-sql-contract`,
+kod z zapasowym odczytem na czas między wdrożeniem kodu a migracji.
+
+### Partia F. Usuwanie martwego kodu (bez wpływu na SI, porządek)
+
+Lista z `2026-10-22-speed-index.md` §6: 34 manifesty `ggm-2021`, moduł hubu I9,
+zestaw Font Awesome. Każda pozycja po sprawdzeniu importów (`knip`) i, dla
+manifestów, odwołań w treści bazy. Usuwam tylko pozycje z zerem importerów;
+reszta do decyzji właściciela.
+
+## 3. Poza kodem: decyzje właściciela
+
+| #   | Decyzja                                                                                              | Skutek                                                   |
+| --- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| W1  | Przeniesienie produkcji na Worker we własnym koncie Cloudflare, Smart Placement, Brotli, Early Hints | jedyna dźwignia sprowadzająca SI telefonu do ~1,4–2,2 s  |
+| W2  | `vars.LHCI_URL`, `vars.LHCI_EXTRA_PATHS`, `PSI_API_KEY`                                              | pomiar tras innych niż główna, telefon i komputer        |
+| W3  | Decyzja DPO: anonimowe metryki czasowe bez zgody                                                     | widoczność pierwszego wejścia czytelnika                 |
+| W4  | Zgoda na migracje z partii E i ich wdrożenie                                                         | −2…−3 fale zapytań na każdej trasie                      |
+| W5  | Font Awesome: zostaje czy wychodzi                                                                   | odblokowuje D4; ROZSTRZYGNIĘTE 16.11.2026: usunąć (§9.6) |
+
+## 4. Kolejność i warunki stopu
+
+Kolejność: A1 → A2 → B1 → B4 → B5 → B2 → B3 → D1 → A3/A4 → D2 → D3 → C2 → C1 → F.
+Partia E równolegle po zgodzie W4.
+
+Zatrzymuję się i pytam, gdy: zmiana wymaga migracji; test równoważności HTML
+nie przechodzi; bramka bundla rośnie; pozycja dotyka zgody/pomiaru (reguły
+`AGENTS.md` o gtag i zgodach); pomiar po zmianie nie pokazuje zysku (wtedy
+wycofanie zamiast dokładania).
+
+Widoki do objęcia pomocnikiem `postHref` po `PostListView`/`PostsSliderWidget`:
+`NewsTickerView`, `TrendingNowView`, `TailoredMustReadsView`, `TrendingTicker`,
+`FoxizExtraViews`, `LatestPostsView`, `PostContextViews`, `ContextBlockViews`,
+`NavLoopViews`, `CalendarView`, `PostListCard`, `ReadingListPostCard`,
+`contentRefs.ts`, `ratedListQuery.ts`. Adresy w panelu (`MenuManager`,
+`AddItemPanel`, `SliderEditor`, `PageUrlAutocomplete`) zapisują się do treści
+CMS: osobna pozycja, bez przepisywania istniejących danych.
+
+## 5. Czego ten plan nie obiecuje
+
+Bez W1 Speed Index w PSI pozostanie zależny od losowego trafienia w zimny
+izolat (rozrzut sekund między przebiegami). Partie A–D skracają zimny render
+i liczbę zapytań, ale nie zastąpią działającego cache współdzielonego.
+Moduły klubów, podcastów i cennika nie zostały zmierzone pod właściwymi
+adresami (sprawdzone ścieżki zwróciły 404); pomiar uzupełnić przed B2/B3.
+
+## 6. B1: strona 404 - wynik (2026-11-14)
+
+Stan: fale zapytań i pamięć izolatu wykonane; cache dokumentu 404 świadomie
+nie (§6.3); jedna podróż do bazy wymaga migracji (§6.4).
+
+### 6.1. Co robi 404 nieznanego adresu jednosegmentowego
+
+Loadery korzenia i trasy `/$` biegną równolegle (router uruchamia je jako
+osobne zadania), więc fale trasy chowają się w cieniu fal powłoki, o ile jest
+ich nie więcej niż fal powłoki (dwie).
+
+Trasa `/$` przed zmianą (`73cabcb7`):
+
+| Fala | Zapytanie (plan anon)                | Miejsce                                              | Pamięć izolatu      |
+| ---- | ------------------------------------ | ---------------------------------------------------- | ------------------- |
+| T1   | RPC `resolve_path`                   | `lib/queries/public.ts:715` (`$.tsx:467`)            | 60 s, także `null`  |
+| T1   | `post_layout_settings`               | `hooks/usePostLayoutSettings.ts:17` (`$.tsx:465`)    | 60 s                |
+| T1   | RPC `get_related_posts_config`       | `lib/queries/relatedPostsConfig.ts:40` (`$.tsx:466`) | brak                |
+| T2   | `categories` po slugu                | `$.tsx:501`                                          | brak                |
+| T2   | `tags` po slugu                      | `$.tsx:502`                                          | brak                |
+| T3   | `posts` po slugu (stary adres wpisu) | `lib/routing/legacyPostPath.ts` (`$.tsx:519`)        | 5 min, także `null` |
+| (T4) | RPC `page_full_path`, gdy wpis jest  | `lib/routing/legacyPostPath.ts`                      | razem z T3          |
+
+T4 biegnie tylko wtedy, gdy wpis istnieje, czyli przy 301, nie przy 404.
+
+Powłoka (korzeń, `__root.tsx`), bez zmian w tej pozycji:
+
+| Fala | Zapytanie                                               | Miejsce                                                     |
+| ---- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| K1   | `menus` + `menu_items` dla `main` i `footer` (2)        | `__root.tsx:802` -> `lib/menus/menu.functions.ts:251`       |
+| K1   | adresy pozycji menu (strony, wpisy, taksonomie)         | `lib/menus/refResolution.ts:200-314`                        |
+| K1   | `site_settings`                                         | `__root.tsx:883` -> `lib/useSiteSetting.ts:34`              |
+| K1   | `site_design_tokens` (tokeny, kolory, skala: jeden lot) | `lib/builder/designTokens.ts:88`                            |
+| K2   | pasek „Na czasie" (`trending_posts`, wpisy, ścieżki)    | `__root.tsx:1043` -> `lib/views/postViews.functions.ts:200` |
+| K2   | `builder_popups` (sygnał „brak popupów")                | `__root.tsx:1094` -> `lib/builder/popups.ts:240`            |
+| K2   | zapytania widgetów nagłówka i stopki (zależne od CMS)   | `__root.tsx:1114` -> `lib/builder/prefetch.ts:643`          |
+
+Sama strona 404 (`PublicNotFound`) nie ma widgetów treści i niczego nie
+pobiera; fala wtórna trasy (sekcje nad zgięciem, bloki, reklamy) nie startuje,
+bo loader rzuca wcześniej. Monitor 404 (`record_seo_404`) biegnie za
+odpowiedzią pod `waitUntil` planem service-role (`src/start.ts`,
+`seo404Middleware`) i nie wchodzi ani do TTFB, ani do `db;desc="n=..."`.
+
+Rachunek zgadza się z pomiarem: zimny izolat to 6 zapytań trasy i 9-11
+powłoki (razem 15-17); ciepły izolat z adresem widzianym pierwszy raz to 5
+(tabela trasy bez `post_layout_settings`), powłoka 0.
+
+### 6.2. Po zmianie
+
+| Przypadek (zapytania trasy)                      | Przed               | Po                  |
+| ------------------------------------------------ | ------------------- | ------------------- |
+| zimny izolat, zwykły slug (`/nie-ma-strony`)     | 6 zapytań, 3 fale   | 6 zapytań, 2 fale   |
+| zimny izolat, adres skanera (`/wp-login.php`)    | 6 zapytań, 3 fale   | 3 zapytania, 1 fala |
+| zimny izolat, wielosegmentowy (`/a/nie-ma`)      | 4 zapytania, 2 fale | 4 zapytania, 2 fale |
+| ciepły izolat, adres pierwszy raz, zwykły slug   | 5 zapytań, 3 fale   | 5 zapytań, 2 fale   |
+| ciepły izolat, adres pierwszy raz, adres skanera | 5 zapytań, 3 fale   | 2 zapytania, 1 fala |
+| ciepły izolat, ten sam adres ponownie (do 60 s)  | 3 zapytania, 2 fale | 1 zapytanie, 1 fala |
+
+Powłoka bez zmian (9-11 zapytań na zimnym izolacie, 0 na ciepłym). Liczby
+„po" wynikają z testów jednostkowych loadera i z kodu; nie były mierzone na
+produkcji ani w laboratorium zimnego renderu (wymaga builda).
+
+Zmiany:
+
+1. Kategoria, tag i stary adres wpisu idą jedną falą
+   (`lib/routing/missingPathLookups.ts`); pierwszeństwo taksonomii rozstrzyga
+   `resolveMissingContent`, nie kolejność zapytań.
+2. Wynik tej fali, także negatywny, leży w jednym wpisie `edgeTtlCache` na
+   60 s, bez serve-stale; błąd bazy nie jest zapamiętywany.
+3. Segment spoza alfabetu slugów (`canBeStoredSlug`) nie pyta o archiwum ani
+   o stary wpis i nie zajmuje wpisu w pamięci izolatu. `resolve_path` pyta
+   nadal dla każdego adresu.
+4. Błąd odczytu starego adresu wpisu nie jest już zapamiętywany jako „wpisu
+   nie ma" na 5 minut (dotyczy też `/post/<slug>`).
+
+Poza zakresem tej pozycji, bo to kod wspólny ze ścieżką wpisu (B2):
+`post_layout_settings` i `get_related_posts_config` startują przed rezolucją
+treści, więc płaci je także 404. Drugie nie ma pamięci izolatu i to ono jest
+ostatnim zapytaniem powtórzonego 404. Na zimnym izolacie fala 1 ma przez nie
+7 równoległych podżądań planu anon (4 korzenia i 3 trasy) przy limicie 6.
+
+### 6.3. Cache dokumentu 404: decyzja „nie"
+
+Czysty 404 zostaje `private, no-store`. Powody, każdy z kodu:
+
+- **Purge nie obejmuje publikacji, która zamienia 404 w treść.** Publikacja
+  zaplanowana to `publish_due_posts()` i `publish_due_pages()` z `pg_cron` co
+  minutę: czysty SQL, bez wywołania purge'a. Publikacja wpisu z panelu czyści
+  selektywnie (`postDocumentPaths`): adres kanoniczny tylko wtedy, gdy RPC
+  ścieżki rodzica odpowiedział, a płaskiego starego adresu `/<slug>` (404 -> 301) nie ma na liście wcale. Purge L1 sięga wyłącznie izolatu, który
+  obsłużył zapis, purge L2 jego kolonii.
+- **Zostaje sam TTL, a ten się sumuje.** Decyzja 404 stoi na odczycie
+  `public:resolved:` z własną minutą świeżości i serve-stale do 5 minut;
+  dokument zapisany z takiego odczytu żyłby kolejną minutę ponad niego.
+- **Magazyn nie zna statusu.** `DocumentCacheEntry` i wpis L2 nie niosą
+  statusu, `replay()` oddaje zawsze 200, `documentStorePolicy` odrzuca
+  nie-200, `planDefaultCacheControl` nadaje odpowiedziom nie-200 tylko opt-out
+  albo dyrektywę 301/308, a granica odpowiedzi nadaje dyrektywę trasy tylko
+  odpowiedziom `ok`. To pięć miejsc na najbardziej krytycznej ścieżce i zmiana
+  formatu wpisu L2.
+- **Wypieranie.** Dokument 404 ma około 218 KB; budżet L1 to 24 MiB wspólnego
+  LRU, więc około 110 różnych nietrafionych adresów wypiera wszystkie
+  prawdziwe dokumenty izolatu. Potrzebny byłby osobny budżet.
+- **Zysk.** Adresy z rozszerzeniem (większość ruchu skanerów)
+  `planDocumentCache` i tak omija. Dla pozostałych trafienie wymaga tego
+  samego adresu dwa razy w ciągu minuty w tym samym izolacie, a na obecnym
+  hostingu kolejne żądania trafiają w różne izolaty i L2 nie działa. Po
+  zmianach z §6.2 takie powtórzenie kosztuje jedno zapytanie; cache dokumentu
+  oszczędziłby już tylko CPU renderu.
+
+Do ponownej oceny po W1 (działające L2). Warunki: status we wpisie L1 i L2,
+okno stale równe 0, świeżość dziedziczona po odczytach negatywnych (dokument
+nie żyje dłużej niż one), osobny budżet bajtów, nigdy dla 404 zdegradowanego.
+
+### 6.4. Jedna podróż zamiast dwóch fal: wymaga migracji (partia E)
+
+`resolve_public_path(_segments text[])` zwracające w jednym wierszu `page_id`,
+`post_id`, `category_slug`, `tag_slug` i `legacy_post_path`: ciało
+`resolve_path`, a przy braku trafienia kategoria i tag po gołym slugu oraz
+opublikowany wpis po ostatnim segmencie ze ścieżką rodzica (`page_full_path`).
+`STABLE`, `SECURITY INVOKER` (RLS i `public_tenant_id()` jak dziś), `EXECUTE`
+dla `anon` i `authenticated` (płaszczyzna publiczna, jak `resolve_path`). Kod
+z zapasem: przy `PGRST202` (funkcji jeszcze nie ma) dzisiejsza ścieżka.
+Skutek: 404 i 301 ze starego adresu w jednej fali i jednym zapytaniu trasy.
+
+## 7. B4: MISS dwa razy na ciepłym izolacie - ustalenie z kodu
+
+Defektu w kodzie nie znalazłem. Czysty dokument 200 nie wraca z L1 na ciepłym
+izolacie z jednego z poniższych powodów; trzy pierwsze tłumaczą pomiar.
+
+1. **To nie ten sam izolat.** `cold=0` w `nes-iso` znaczy tylko, że izolat
+   miał już załadowane entry routera (`src/server.ts`, `coldEntry`), a nie że
+   renderował tę ścieżkę. L1 jest per izolat, więc pierwsze żądanie ścieżki
+   w każdym ciepłym izolacie to MISS. Dla `/kontakt` przemawia za tym liczba
+   zapytań: 5-7 przy obu żądaniach to pełna rezolucja strony (`resolve_path`
+   i cztery odczyty wiersza), którą w tym samym izolacie przez 60 s pochłania
+   `public:resolved:`; drugie żądanie miałoby ich najwyżej 2-3.
+2. **Render zdegradowany nie jest zapisywany.** Loader po terminie oddaje
+   `private, no-store`: strona główna ma 600 ms na ustawienia, motyw, powłokę
+   i sekcje nad zgięciem oraz 1 200 ms na treść (`lib/ssr/homeSsrBudget.ts`),
+   trasa `/$` 1 500 ms na całość (`CONTENT_SSR_BUDGET_MS`), powłoka 500 ms
+   (`CHROME_WARM_BUDGET_MS`). Przy 150-300 ms na podróż do bazy pierwszy
+   render ścieżki w izolacie potrafi nie zmieścić się w tych terminach. Po
+   takim MISS-ie rusza odświeżenie w tle (najwyżej 2 próby na 10 minut na
+   klucz).
+3. **Render „spóźniony" żyje 30 s.** Powłoka albo sekcje nad zgięciem
+   dostrumieniowane po flushu dają `s-maxage=30`
+   (`chromeDegradedCacheControl`); po 30 s wpis jest STALE, nie MISS.
+4. Predykat kompletności na końcu strumienia (tylko strona główna) albo
+   dyrektywa zawężona w trakcie strumieniowania odrzucają zapis, choć
+   nagłówki MISS-a wyglądały na czyste; widać to tylko w pierścieniu decyzji
+   (`degradedAt: "stream"`).
+5. Wpis powstaje dopiero na końcu strumienia body, więc żądanie, które
+   przyszło wcześniej, jeszcze go nie widzi.
+6. Dokument ponad `DOCUMENT_CACHE_MAX_ENTRY_BYTES` (2 MiB) nie wchodzi wcale
+   (licznik `oversize`, ostrzeżenie w logu). Strona 404 ma około 218 KB, więc
+   tych tras to nie dotyczy.
+7. Purge między żądaniami: każdy zapis strony, menu albo ustawień czyści cały
+   host.
+
+Klucz cache'u nie zależy od nagłówków: to zwalidowany host, ścieżka oraz
+parametry `page` i `sort` (`planDocumentCache`). `Sec-GPC`, klasa
+user-agenta, `Accept-Language` i zwykłe ciasteczka do niego nie wchodzą;
+`Authorization`, ciasteczko `sb-*` i nieznany parametr zapytania dają BYPASS,
+nie MISS.
+
+Jak rozróżnić w pomiarze: `cache-control` MISS-a (`private, no-store` to
+powód 2, `s-maxage=30` to powód 3, `s-maxage=900` to dokument zapisany, więc
+kolejny MISS oznacza inny izolat), `nes-iso;desc="req=N"` (ten sam izolat
+podaje kolejne numery) i `db;desc="n=..."` (spadek przy powtórzeniu w tym
+samym izolacie).
+
+## 8. Stan na 15.11.2026, 21:30 i ciąg dalszy
+
+Zapis stanu na wypadek przerwania sesji. Gałąź `claude/kind-brown-vrah7o`,
+szkic PR #542, HEAD `05f62691` plus ten commit.
+
+### Zweryfikowane na `d94ec1f3` (wszystko poza A4)
+
+Build `cloudflare-module`, `check:bundle` (5 383,9 KB przy progu 5 386 KB),
+`check:server-entry-purity`, `check:entry-purity`, `check:chunks`,
+`verify:static`, `typecheck` (aplikacja, skrypty, e2e), ESLint całego
+repozytorium (0 błędów; uruchamiać z `--ignore-pattern ".claude/"`, jeśli
+w katalogu leżą kopie robocze agentów) i pełny zestaw testów (3 949 plików,
+97 695 testów zielonych, 194 oczekiwane porażki, 51 pominiętych - jak na bazie).
+
+### A4: przebieg i stan końcowy
+
+Trzy tury, wszystkie na gałęzi:
+
+1. Wdrożenie (`0a29a634`…`e35f3e6f`, 8 commitów). CI na `5ae9f4d2` zielone
+   w całości, łącznie z e2e i pgTAP.
+2. Pierwszy przegląd (dwie z trzech perspektyw) i poprawki `6c064c3c`…`57e77034`:
+   SVG bez własnej proporcji nie dostaje rozmiaru; zaznaczenie widgetu mierzy
+   tylko rozmiar, którego użyje renderer (kliknięcie nie zapisuje już dokumentu
+   bez potrzeby); utracony pomiar jest widoczny i wraca przy kolejnym
+   zaznaczeniu; przywrócenie wersji z historii mierzy zestaw logotypów, który
+   faktycznie zostanie w wierszu.
+3. Drugi przegląd (trzy uwagi) i poprawki `00ae4201`…`e69fec57`: o proporcję
+   pliku pyta układ strony (dwa niewidoczne `<img>`), a nie `fetch` z parserem
+   SVG, który polityka CSP mogła zablokować i który ważył najwięcej; plik bez
+   własnej proporcji zeruje wcześniej zapisany rozmiar (logo motywu i widget
+   obrazu), więc nieaktualne wymiary nie zostają po podmianie pliku; pomiar
+   trzyma panel właściwości ponad zakładkami i przypisuje wynik widgetowi,
+   przy którym ruszył, więc przełączenie zakładki albo zaznaczenia go nie gubi.
+
+Weryfikacja lokalna na `e69fec57`: build, `check:chunks`, `check:entry-purity`,
+`check:server-entry-purity`, `tsgo --noEmit --singleThreaded` (kod 0), testy
+modułów dotkniętych i sąsiednich (202 pliki, 6 891 testów zielonych).
+
+Czego NIE sprawdzono: druga tura poprawek nie miała osobnego niezależnego
+przeglądu (decyzja o zakończeniu rund przeglądu A4); sonda układu była
+sprawdzona tylko w Chromium - Firefox i Safari bez weryfikacji (w razie innego
+zachowania skutek to brak zapisanego rozmiaru, czyli znaczniki jak dziś);
+trzecia perspektywa pierwszego przeglądu (sens testów, narzędzia i18n) nie
+ruszyła.
+
+### Bramka bundla: próg `overall` 5 386 → 5 388 KB (`05f62691`)
+
+Decyzja właściciela z 15.11.2026. Pomiar gzip: `d94ec1f3` 5 383,9 KB (publiczne
+2 801,4, panelowe 2 582,5) → `e69fec57` 5 387,7 KB (publiczne 2 802,5, panelowe
+2 585,2). A4 kosztuje więc 3,8 KB: 2,7 KB w kodzie ładowanym tylko w panelu
+i 1,1 KB w chunkach publicznych, z czego 0,3 KB w chunku startowym. Budżety
+czytelnika (publiczne 2 881 KB, chunk startowy 579 KB, największy chunk 286 KB)
+mają duży zapas i nie były ruszane. Nowy próg to zaokrąglenie pomiaru w górę
+BEZ zwyczajowego marginesu +1 KB na różnicę hosta: zapas lokalny 0,3 KB. Jeżeli
+runner CI zmierzy więcej niż 5 388 KB, próg nie rośnie sam - decyzja wraca do
+właściciela. Następna faza musi najpierw zwolnić bajty, zanim cokolwiek dołoży.
+
+### Do decyzji właściciela przed wyjściem PR ze szkicu
+
+1. Linia dopisana do `AGENTS.md` (reguła naturalnego rozmiaru obrazu).
+2. Przełączenie PR #542 ze szkicu na gotowy do przeglądu (po zielonym CI na
+   `05f62691` lub nowszym).
+
+### Kroki właściciela po wdrożeniu A4
+
+Bez nich produkcja renderuje się dokładnie jak dziś.
+
+1. `/admin/theme-options`: jeden zapis bez zmian (mierzy pliki logo).
+2. Builder strony głównej: kliknięcie każdego obrazu z proporcją „auto"
+   (dowolna zakładka panelu) i zapis strony.
+3. Kontrola w źródle strony: logo `width="350" height="150"`, obraz
+   `width="1200" height="675"`; audyt `unsized-images` w PageSpeed pusty.
+
+### Po wdrożeniu całości: do sprawdzenia na produkcji
+
+- `server-timing` wpisu i 404: `db;desc="n=…"` wobec liczb z §0.
+- Jedno żądanie anonimowe do PostgREST z osadzeniem `parent_page`: czy wraca
+  wypełnione (inaczej linki zostają `/post/<slug>`, z ostrzeżeniem `[postHref]`).
+- Który preset builda stosuje hosting (`cloudflare-module` czy
+  `lovable-fetch-bundle`): w drugim poprawka chunku SDK MCP nie działa.
+
+### Następne pozycje
+
+Faza druga: §9 (mapa z 15.11.2026 i kolejność). Decyzje właściciela bez zmian:
+§3 oraz pomarańczowy tekst, kanoniczna lista wydarzeń, zgoda na migracje RPC
+(powłoka strony to dziś najdłuższy łańcuch przed pierwszym bajtem).
+
+## 9. Faza druga: mapa i kolejność (15.11.2026)
+
+Mapa sporządzona wyłącznie przez odczyt, na artefakcie klienta z `e69fec57`.
+„Zmierzone" oznacza różnicę gzip po wycięciu kodu z gotowego pliku; „szacunek"
+oznacza symulację bez builda. Rozstrzyga dopiero `bun run build` i bramki.
+
+Stan bramek przed fazą drugą: `overall` 5 387,7 / 5 388 KB lokalnie (CI
+5 385,8), CSS razem 100,13 / 101 KiB, CSS publiczny 84,09 / 85 KiB oraz trzecia,
+najciaśniejsza: `check:document-weight` `renderBlockingCssGzipBytes` 83 394 /
+83 461 B (zapas 67 B).
+
+### 9.1. Zwolnienie bajtów w JS klienta (pierwsze w kolejności)
+
+| #   | Pozycja                                                                                                                                                                                                                              | Zysk gzip                                                      | Ryzyko  | Decyzja właściciela                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ------- | -------------------------------------- |
+| J1  | Budowniczy nagłówków i polityk cache liczeni w przeglądarce jako argumenty pustych funkcji (`setCacheControlHeader`, `appendLinkHeader`; 75 wywołań w 49 chunkach tras) oraz `stripInaccessibleNodes` za bramką `typeof window`      | 1,5 KB całość, 0,8 KB chunk startowy (zmierzone)               | niskie  | nie                                    |
+| J2  | Osierocone instrukcje: schematy zod używane tylko w `z.infer` lub tylko w walidatorze serwerowym (podcasty, menu, finanse, journeys, retencja), lista hostów CSP, `TextEncoder` w `tenantAssertion`, stałe polityk cache             | 2,8 KB całość, 0,7 KB chunk startowy (zmierzone)               | niskie  | nie                                    |
+| J3  | D3: eksporty modułów mieszanych trzymane w `app-initial` tylko dla chunków panelu (`seo/robots`, `builder/experiments`, `seo/settings`, `builder/globalWidgets`, `dynamicText`, `liveTypography`, `customFonts`, `ads/types` i inne) | 0 całość; chunk startowy −6,7 KB (zmierzone), górna granica 27 | średnie | nie; WYKONANE 16.11.2026 (§9.8)        |
+| J4  | D4: rejestry ikon `import * as` w `lucide-shim`                                                                                                                                                                                      | ok. 0,9 KB całość, ok. 5,7 KB chunk startowy (szacunek)        | średnie | tak (W5); WSTRZYMANE 16.11.2026 (§9.8) |
+| J5  | Wariant ikon Font Awesome (`lucide-shim.fa`)                                                                                                                                                                                         | 17,9 KB całość i publiczne (zmierzone)                         | niskie  | WYKONANE (§9.6)                        |
+| J6  | Wpisy słowników i18n bez żadnego odwołania w kodzie (ok. 2 800 wpisów PL+EN)                                                                                                                                                         | 20–37 KB całość (szacunek heurystyczny)                        | średnie | tak                                    |
+| J7  | Dziesięć funkcji serwerowych bez importera produkcyjnego (używane tylko w testach)                                                                                                                                                   | ok. 0,4 KB; usuwa też żywe punkty RPC                          | średnie | tak                                    |
+
+Odrzucone po pomiarze: usuwanie plików „nieużywanych" wg knip (nie trafiają do
+bundla), statyczne bramki `isSsrRequest` (130 B), opcje tras panelu w chunku
+startowym (wynikają z drzewa tras), przycinanie katalogu ikon (zależy od treści
+w bazie), łączenie małych chunków panelu i fasad reeksportu (konfiguracja
+bundlera, wysokie ryzyko).
+
+### 9.2. Kanoniczne linki wpisów (A2, ciąg dalszy)
+
+Każdy pozostały link `/post/<slug>` albo płaski `/<slug>` kosztuje 301 i dwa
+odczyty bazy przy kliknięciu, a przez `AppLink` także przy najechaniu. Kolejność,
+jeden commit na zapytanie:
+
+1. Warunek wstępny: wspólny pomocnik składający kolumny z osadzeniem
+   `parent_page` i skrócenie ostrzeżenia (ok. −150 B w chunku startowym; dzięki
+   temu pozycje 2–5 są łącznie neutralne dla bramki zamiast +255 B).
+2. Mega menu nagłówka (`src/lib/queries/megaMenu.ts:75`), każda trasa.
+3. Karta wyróżnionego wpisu w panelu mega menu (`megaFeatured.ts`,
+   `MegaPanelView.tsx:235,310`; dziś płaski `/<slug>`).
+4. Archiwum `/blog` i strona główna w trybie ostatnich wpisów
+   (`src/lib/queries/public.ts`, `blogArchiveQueryOptions`).
+5. Bloki treści: cztery zapytania za `POST_SELECT` w `src/lib/queries/blocks.ts`
+   i ich widoki.
+6. Strona wpisu: stopka poprzedni/następny (`src/routes/$.tsx:1453-1475`; ścieżka
+   rodzica jest już w danych loadera) i linki do samego siebie.
+7. Blok kalendarza. 8. Paleta poleceń (`search.functions.ts`, funkcja serwerowa,
+   zero bajtów klienta, jedna dodatkowa podróż na zapytanie). 9. Listy
+   zalogowanego: zapisane, zakładki, dok, podsumowanie Q&A.
+
+Poza zakresem bez migracji: wyszukiwarka (`search_posts`, `search_autosuggest`),
+`get_post_refs`, `get_recommended_posts_v2`, `get_followed_feed`, dwa producenty
+powiadomień w SQL. Poza zakresem bez decyzji: adresy `/post/<slug>` zapisane
+w treści CMS przez edytory (slajdy, autouzupełnianie adresu). Świadomie bez
+zmian: linki w e-mailach newslettera (stabilny adres) i ścieżki, które już
+liczą adres kanoniczny po stronie serwera.
+
+### 9.3. Arkusz stylów (D2)
+
+Skład arkusza głównego (562 983 B, 83 590 B gzip): połowa to klasy Tailwind
+(42,0 KB gzip), reguły pisane ręcznie 37,5 KB gzip. Martwych reguł nie ma (0 na
+1 514), reszta panelowa to 0,2 KB. Rezerwuary to powierzchnie, których czytelnik
+artykułu nie używa.
+
+| #   | Pozycja                                                                                                                                              | Arkusz główny (gzip) | CSS razem        | Ryzyko  | Decyzja właściciela               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------- | ------- | --------------------------------- |
+| S1  | Wykresy: reguły `.neh-*`, 826 deklaracji `--chart-*` i druk wykresów do własnego arkusza, linkowanego przez komponenty wykresów (wzorzec `WorldMap`) | −7,8 KB (zmierzone)  | ok. 0            | średnie | nie; WSTRZYMANE 16.11.2026 (§9.7) |
+| S2  | Czat i dok członka (`.chat-*`, `.wd-*`) do arkusza leniwego chunku doku                                                                              | −1,5 KB (zmierzone)  | +0,3 KiB         | niskie  | nie                               |
+| S3  | Strona kariery do arkusza trasy                                                                                                                      | −0,6 KB              | +0,3 KiB         | niskie  | nie                               |
+| S4  | Ostatnie reguły wyłącznie panelowe do `admin-styles.css`                                                                                             | −0,2 KB              | 0                | niskie  | nie                               |
+| S5  | Kluby oraz reszta aplikacji członka (klasy Tailwind i reguły) w osobnym arkuszu                                                                      | −5,9 do −10,4 KB     | +2,0 do +2,9 KiB | średnie | tak: kontrakt bramek CSS          |
+| S6  | Podwójna emisja zamienników `color-mix`                                                                                                              | do −8,25 KB          | tyle samo        | wysokie | tak: zakres wsparcia przeglądarek |
+
+Wniosek o wpływie: dokument `2026-10-22-speed-index.md` liczy ok. 2 ms Speed
+Index telefonu na 1 KB gzip CSS, więc nawet −19 KB to ok. −40 ms. Szacowane
+przez PageSpeed 430 ms to koszt samego istnienia blokującego żądania, którego
+zmniejszenie arkusza nie usuwa.
+
+„Critical CSS inline" jest nierealne w tej architekturze: dowodliwe minimum dla
+samej powłoki to 41,6 KB gzip (prawie tyle, co cały dokument `/`), strony są
+składane z widgetów CMS w czasie żądania, nieblokujące ładowanie przez
+`onload` blokuje CSP (`script-src-attr 'none'`), a bramki stylów inline są
+wyczerpane (26/26 bloków). Dźwignią usuwającą to oczekiwanie jest dostarczanie:
+cache krawędziowy i 103 Early Hints, czyli W1.
+
+### 9.4. Kolejność wykonania
+
+1. J1 + J2 (zwolnienie ok. 4,3 KB) oraz równolegle 9.2 pozycje 1–6:
+   WYKONANE 16.11.2026 (§9.5).
+2. S1, potem S2 i S4 (mieszczą się w obecnych bramkach).
+3. J3 (chunk startowy).
+4. 9.2 pozycje 7–9.
+
+Po decyzjach właściciela: J4–J7, S5, S6.
+
+### 9.5. Wykonanie: partia 1 (16.11.2026)
+
+Commity na gałęzi PR: J1 + J2 `80991f55`…`4e8515e7` (8), linki `1ed8608d`…
+`c0c081e8` (6), poprawki po przeglądzie `27079b1e`, `4c23b09e`.
+
+Pomiar na zintegrowanym buildzie (kontener roboczy, `check:bundle`):
+
+| Miara                       | Przed (`d178d332`) | Po (`4c23b09e`)           |
+| --------------------------- | ------------------ | ------------------------- |
+| `overall` (cały JS klienta) | 5 387,7 KB         | 5 380,4 KB (zapas 7,6 KB) |
+| JS publiczny                | 2 802,5 KB         | 2 798,7 KB                |
+| Chunk startowy              | 261,4 KB           | 259,4 KB                  |
+| Domknięcie startu           | 475,2 KB           | 473,2 KB                  |
+
+Sam strumień bajtów na własnej gałęzi dał 5 379,2 KB (−8,5 KB wobec planowanych
+−4,3 KB); linki kosztują po scaleniu ok. +1,2 KB tej liczby, z czego większość
+to szum (niżej).
+
+**J1.** Każde wywołanie `setCacheControlHeader` i `appendLinkHeader` w `src/routes`
+(93 wywołania w 53 plikach) stoi za statyczną bramką
+`import.meta.env.SSR || import.meta.env.DEV`; `stripInaccessibleNodes` za stałą
+`IN_BROWSER_BUNDLE` jak w `ssrCache.ts`. Bramka MUSI mieć dokładnie tę postać:
+inna pisownia może zdjąć nagłówek po stronie serwera i uczynić stronę prywatną
+publicznie cache'owalną. Pilnuje tego test-zapadka
+`src/routes/__tests__/headerSetterStaticGate.test.ts` (tylko `src/routes`; dwa
+wywołania poza tym katalogiem są w kodzie serwerowym). Dowód równoważności:
+w zbudowanym artefakcie serwera chunk routera różni się od bazy w trzech
+miejscach, bez wpływu na wartości nagłówków.
+
+**J2.** Schematy zod używane wyłącznie jako typy stały się typami (podcasty,
+nadpisanie spisu treści; tożsamość typów dowiedziona asercją `Equal<>` pod
+`tsgo`). Schematy używane tylko przez walidatory serwera są owinięte w
+`/* @__PURE__ */ (() => ...)()`, a nie przeniesione: po zdjęciu owijek 13 plików
+kompiluje się bajt w bajt jak przed zmianą, więc walidacja po stronie serwera
+jest dokładnie tak samo ścisła. Sama adnotacja `@__PURE__` na łańcuchu zod nie
+wystarcza (zostają wywołania w argumentach), stąd owijka. Zostało 37
+osieroconych instrukcji (1,4 KB surowego), w tym 10 zaślepek funkcji
+serwerowych czekających na decyzję (J7).
+
+**Linki (9.2, pozycje 1–6).** Zapytania przeliczone przez osadzenie `parent_page`
+dają adres kanoniczny tylko dla rodzica najwyższego poziomu; wpis pod stroną
+zagnieżdżoną zostaje przy `/post/<slug>`. Wyjątek: stopka poprzedni/następny
+i linki wpisu do samego siebie biorą pełną ścieżkę rodzica z okruszków loadera,
+więc obsługują także zagnieżdżenie. Adres własny wpisu jest nowym, opcjonalnym
+polem `CurrentPostCtx.href` ustawianym w `src/routes/$.tsx`; strony go nie
+dostają. Błąd odczytu z osadzeniem powtarza zapytanie bez osadzenia; błąd
+zwykłego odczytu wypływa jak dotąd.
+
+**Przegląd niezależny** (jeden recenzent na strumień, obie perspektywy): 6
+znalezisk, żadnego poważnego.
+
+- Naprawione: brak testu hintów `modulepreload` na stronie głównej; test
+  kontekstu strony na danych, przy których przechodził także bez pilnowanego
+  warunku (oba nowe testy sprawdzone mutacją); nieaktualne komentarze.
+- Otwarte (częściowo zamknięte w §9.7: 4 z 10 odczytów widoczne): zapytania przekazujące kolumny przez parametr (7 nowych i 4 z fazy
+  pierwszej) są niewidoczne dla bramki kontraktu TS↔SQL w tych miejscach. Dziś
+  żadna para tabela–operacja–rola–kolumna nie wypadła, bo te same kolumny
+  pokrywają inne literały, ale ochrona jest słabsza. Poprawka: generator
+  (`src/lib/ci/tsSqlContract.ts`) ma rozwiązywać literał z drugiego argumentu
+  `readPostsWithParentPage`.
+- Otwarte: brak zapadki dla J2 (nowy schemat używany tylko jako typ wróci do
+  bundla niezauważony, dopóki mieści się w progu); kandydat: skaner
+  osieroconych instrukcji jako kontrola po buildzie.
+- Otwarte, drobne: na kilku trasach (`web-stories.$slug`, strona klubu) wejście
+  do nagłówka `Link` nadal liczy się w przeglądarce; bramka obejmuje samo
+  wywołanie.
+
+**Dwie obserwacje o bramkach.**
+
+- Liczba `overall` ma szum ok. ±1 KB między buildami o różnicy kilkudziesięciu
+  bajtów kodu (5 385,3–5 387,7 KB w siedmiu kolejnych buildach): zmieniają się
+  skróty w nazwach chunków, a z nimi kompresja importów w plikach, których treść
+  się nie zmieniła. Zapas poniżej 1 KB nie jest więc wiarygodny.
+- `check:document-weight` jest w kontenerze roboczym czerwone o 7 B na
+  `headRawBytes` (23 928 wobec 23 921) także na commicie bazowym: adres artefaktu
+  z pięciocyfrowym portem występuje w `<head>` 22 razy. To cecha środowiska; CI
+  przechodzi.
+
+**Czego nie sprawdzono.** Nie uruchomiono serwera i nie odczytano nagłówków
+z odpowiedzi; brak przebiegu w przeglądarce (hydratacja, ślad sieci stopki);
+czy osadzenie `parent_page` zwraca dane roli anonimowej na produkcji (krok
+właściciela po wdrożeniu, §8).
+
+### 9.6. Wykonanie: usunięcie opcji Font Awesome (16.11.2026)
+
+Decyzja właściciela z 16.11.2026 (W5, wariant 1 z czterech przedstawionych:
+usunąć, zostawić, rozbudować do pełnej alternatywy, Font Awesome Pro). Commit
+`30fc9181` na gałęzi PR.
+
+Powód: opcja „Font Awesome (rezerwowy)" w `/admin/settings/general` była
+niepełna. Działała tylko na ikony z `src/lib/lucide-shim.tsx` (129 ikon w 288
+plikach), a 892 pliki importują Lucide bezpośrednio, więc interfejs mieszał dwa
+style; 22 ze 129 ikon nie miały odpowiednika i znikały; serwer zawsze renderował
+Lucide, więc po hydratacji ikony migały, a do pobrania chunku nie były widoczne.
+
+Usunięte: `lucide-shim.fa.tsx`, `iconPack.ts`, `IconPackSync` w korzeniu, pole
+w panelu z czterema kluczami słownika PL/EN, testy tych modułów, pakiety
+`@fortawesome/free-solid-svg-icons` i `@fortawesome/free-brands-svg-icons`.
+`lucide-shim` eksportuje wprost komponenty Lucide. Wartość `icon_pack` zapisana
+w bazie zostaje (panel jej nie pokazuje i nie kasuje), bez migracji.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`dc01012f`) | Po (`30fc9181`) |
+| ---------------------------------------- | ------------------ | --------------- |
+| `overall` (cały JS klienta)              | 5 380,4 KB         | 5 362,2 KB      |
+| JS publiczny                             | 2 798,7 KB         | 2 780,5 KB      |
+| Chunk startowy                           | 259,4 KB           | 258,5 KB        |
+| Domknięcie startu                        | 473,2 KB           | 472,3 KB        |
+
+Zapas pod progiem `overall` (5 388 KB) wynosi teraz 25,8 KB. Czytelnik przy
+ustawieniu Lucide nie pobierał chunku Font Awesome, więc dla niego zysk to
+0,9 KB w chunku startowym (opakowanie każdej ikony, magazyn preferencji,
+zapytanie o ustawienie); pozostałe 17,3 KB to miejsce w bramce.
+
+Weryfikacja: typecheck, ESLint i Prettier na zmienionych plikach, 225 plików
+testów (6 202 testy, 32 oczekiwane porażki), build, `check:bundle`,
+`check:chunks`, `check:entry-purity`, `check:server-entry-purity`. Skrypt
+`check:menu-icons` wymieniony w tabeli partii D nie istnieje w `package.json`.
+
+Odblokowane: D4 (rejestry ikon `import * as` w `lucide-shim`), bo nie trzeba
+już zachowywać zgodności z mapą nazw Font Awesome.
+
+### 9.7. Partia 2 (16.11.2026): generator kontraktu wykonany, arkusz wykresów wstrzymany
+
+**Generator kontraktu TS↔SQL** (`src/lib/ci/tsSqlContract.ts`, commity
+`60c82c8b`…`8b6446cb`). `.select(x)` daje fakty, gdy `x` jest pierwszym
+parametrem funkcji oddanej `readPostsWithParentPage` (wprost albo przez `const`
+lub deklarację funkcji w tym samym pliku), a drugi argument pomocnika rozwiązuje
+się do napisu. Fakty powstają dla obu wariantów, które pomocnik wysyła (zwykły
+i z osadzeniem `POST_PARENT_PAGE_EMBED`, czytanym z prawdziwej stałej).
+Operacje na tabelach: 1 538 → 1 546; zbiór par tabela–operacja–rola–kolumna bez
+zmian (3 032), lista nieczytelnych miejsc bez zmian (13 z 13).
+
+Pokrycie jest częściowe: widoczne są 4 z 10 odczytów (`megaFeatured.ts` ×2,
+`public.ts` ×2). Pozostałe 6 (`megaMenu.ts`, `blocks.ts`, `postListQuery.ts`,
+`ratedListQuery.ts`, `sliderPostsQuery.ts`, `newsTickerQuery.ts`) przekazuje
+kolumny dalej do `postsQuery`, `postsNarrowedToTaxonomy` albo
+`postsConstrainedByTaxonomy`, które budują `select` w innej funkcji (w tym
+przez `[cols, ...embeds].join`). Do pokrycia ich potrzebne jest śledzenie
+parametru przez wywołania między plikami albo literał w miejscu zapytania;
+żadne zapytanie nie zostało zmienione. Przy okazji: wszystkie `select`
+w `src/lib/queries/taxonomyPivot.ts` są dla bramki niewidoczne niezależnie od
+wołającego, a generator nie ma roli `anon` (zapytania przeglądarki sprawdza
+względem grantów `authenticated`).
+
+Przegląd niezależny: 3 znaleziska. Naprawione: brak testów dla czterech
+strażników reguły (przesłonięcie parametru w bloku i `catch`, owijki wyrażenia,
+nazwa pomocnika, wymóg `const`); każdy nowy test sprawdzony mutacją. Otwarte:
+6 niewidocznych odczytów (wyżej). Weryfikacja: typecheck, ESLint, Prettier,
+`check:ts-sql-contract`, 247 plików testów.
+
+**S1, arkusz wykresów: wstrzymane decyzją właściciela z 16.11.2026.** Gotowe na
+lokalnej gałęzi `p2/charts-css` (5 commitów nad `dc01012f`). Arkusz blokujący
+render na stronach bez wykresu: 83 590 → 75 575 B gzip (zmierzone), arkusz
+wykresów 8 312 B gzip ładowany tylko przez wykres; zbiory deklaracji przed
+i po identyczne poza 11 kopiami parytetu kaskady; style obliczone w Chromium bez
+różnic na 7 479 elementach rzeczywistego markupu wykresów. Powody wstrzymania:
+
+- usterka wysokiej wagi z przeglądu, odtworzona: gdy wykres montuje się po
+  danych pobranych w przeglądarce (dossier `/tracker/<slug>`, statystyki klubu,
+  raport sponsora), React wstrzymuje zatwierdzenie do załadowania arkusza,
+  a przy aktualizacji synchronicznej najbliższa granica Suspense (cała trasa)
+  pokazuje `RouteLoadingSkeleton`;
+- strony z wykresem mają drugi arkusz blokujący render (panel: trzeci), wbrew
+  zasadzie `renderBlockingCssCount` = 1, której żaden dokument z bramki nie
+  sprawdza dla stron z wykresem;
+- remisy kaskady wygrywane dotąd kolejnością utrzymuje plik 11 skopiowanych
+  deklaracji; nowy remis nie zostałby wykryty automatycznie;
+- zysk: ok. 15 ms Speed Index na telefonie według przelicznika
+  z `2026-10-22-speed-index.md`, a CSS łącznie +0,29 KiB (zapas 0,6 KiB).
+
+Powrót do S1 ma sens po W1: cache krawędziowy i 103 Early Hints dla arkusza
+zmniejszają znaczenie jego rozmiaru, a usterkę trzeba wtedy naprawić linkiem
+arkusza w renderowanej przez serwer części tych tras.
+
+### 9.8. Partia 3 (16.11.2026): J3 wykonane, D4 wstrzymane
+
+**J3 (D3): kod używany tylko przez panel poza chunkiem startowym.** Dwanaście
+modułów mieszanych rozdzielonych na część bootu i liść panelu (bez reeksportów,
+importerzy panelu i ich `vi.mock` wskazują liść): `globalWidgetsAdmin`,
+`experimentsAdmin`, `themedWrites`, `dynamicTagCatalog`, `ads/adminFields`,
+`customFontUpload`, `liveTypographyBroadcast`, `usePostLayoutSettingsAdmin`,
+`useFontScaleAdmin`, `cropSizesAdmin`, `impersonationStart`; polityka crawlerów
+AI przeniesiona z `seo/settings.ts` do `seo/robots.ts`, dzięki czemu cały
+builder robots.txt wyszedł z bootu. Kod przeniesiony bez zmian (sprawdzone
+porównaniem wielozbioru linii dla każdego podziału).
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`28c50810`) | Po                                                            |
+| ---------------------------------------- | ------------------ | ------------------------------------------------------------- |
+| Chunk startowy (`app-initial`)           | 258,5 KB           | 253,3 KB                                                      |
+| Domknięcie startu                        | 472,3 KB           | 467,1 KB                                                      |
+| JS publiczny                             | 2 780,8 KB         | 2 776,1 KB                                                    |
+| `overall`                                | 5 362,9 KB         | 5 364,5 KB (+1,6 KB: więcej małych chunków, gorsza kompresja) |
+
+Czytelnik pobiera o 5,2 KB gzip mniej na każdej stronie. Uboczne: z bootu
+wyszły też `tenant.ts` i `widgetCacheInvalidation.tsx` (WidgetLiveSync);
+dla najemców z aktywnymi popupami ścieżka `PopupHost` dociąga przez to dwa małe
+chunki (ok. 0,8 KB gzip, równolegle przez listę preloadu).
+
+Przegląd: 3 znaleziska niskiej wagi, wszystkie zamknięte. Nowy moduł polityki
+crawlerów zużywał ostatnie miejsce zapadki `platformCoreBoundary` (113 → 114
+przy suficie 114) - kod przeniesiony do `robots.ts`, krawędzi znów 113.
+Strażnik `bootAdminLeaves.gate.test.ts` sprawdza teraz oba kierunki: moduły bootu
+nie sięgają liści, a liście importuje wyłącznie panel, serwer i inne liście
+(sprawdzone mutacją). Raport uzupełniony o ścieżkę `PopupHost`.
+
+Pozostawione celowo (nagłówki modułów każą trzymać edytor i renderer razem
+albo zysk jest poniżej 0,3 KB): `authorDisplay.ts`, `content/sponsored.ts`,
+`animatedHeadingLinks.ts`, `socialBrand.ts`, `designTokens`, `useGlobalColors`.
+W `app-initial` zostało ok. 2,2 KB gzip kodu używanego tylko przez panel
+i ok. 10,7 KB kodu używanego tylko przez publiczne chunki leniwe (np.
+`newsletter/popupDesign`, `queries/podcasts`) - kandydat na kolejną partię.
+
+**D4: rejestry ikon - wstrzymane.** Gotowe na lokalnej gałęzi
+`p2/icon-registry` (domknięcie startu −4,6 KB gzip). Zysk dała dopiero kombinacja
+dwóch zmian: `lucide-shim` jako czyste reeksporty `lucide-react` oraz ikony
+spoza 12 najczęstszych nazw ładowane leniwie za granicą Suspense. Przegląd
+odtworzył dwie usterki wysokiej wagi: (1) przy renderze po stronie klienta
+(nawigacja SPA, kanwa buildera) ikona z „ogona" nie pojawia się w pierwszym
+zatwierdzeniu i dochodzi później z przesunięciem tekstu; (2) po hydratacji
+zmiana kontekstu nad oczekującą ikoną (np. sesja w `AuthProvider`) usuwa SVG
+z serwera albo wstrzymuje całą tranzycję do pobrania chunku, wbrew regule
+„HTML serwera równy stronie po hydratacji". Do tego strażnik kliknięć wysp
+hydratacji przetrzymuje kliknięcia w ikonę w linku lub przycisku. Bez leniwego
+ogona zysk spada do ok. 0,7 KB. Warunek powrotu: wiedza, jakie nazwy ikon
+zapisane są w treściach produkcyjnych (wtedy wszystkie trafiają do zestawu
+ładowanego od razu) albo preload ogona przed renderem stron, które go używają.
+
+Przy okazji D4 znalazło usterki zachowania, istniejące już wtedy (naprawione
+16.11.2026 po zgodzie właściciela, §9.11, poza ikonami formatów wpisu): wybieraki ikon w schematach widgetów
+(`LucideIconPicker`) zapisują nazwy w formacie `kebab-case`, których rejestr nie
+rozpoznaje, więc nagłówek, przycisk, separator, newsletter i pasek gorących
+tematów zawsze pokazują ikonę zastępczą zamiast wybranej; „Bell" na liście paska
+alertów i domyślna „Flag" osi czasu nie są eksportami rejestru i również
+spadają do zastępczej; formaty wpisu „galeria" i „audio" nie mają ikony
+w liście z ocenami.
+
+### 9.9. D1 (biblioteka Supabase na starcie strony gościa): mapa i rekomendacja „odłożyć" (16.11.2026)
+
+Mapa tylko do odczytu (run `wf_89b8fcd2-b5f`), wnioski sprawdzone w kodzie na
+`5402ddd0`.
+
+- Cały kod `@supabase/*` jest w jednym chunku `vendor-supabase`: 214 889 B
+  surowego, 55 157 B gzip (zmierzone, metoda bramki). Do domknięcia startu
+  wiąże go jedna krawędź: statyczny `import { createClient }` w
+  `src/integrations/supabase/client.ts:22`. Skład (granice segmentów
+  szacowane): auth-js 46%, realtime-js z phoenix 26%, storage-js z iceberg-js
+  13%, postgrest-js 8%, rdzeń supabase-js 5%, functions-js 1%.
+- Gość nie potrzebuje klienta przed pierwszym malowaniem: `AuthProvider` rozpoznaje
+  gościa bez SDK, a zgody od P3.1 nie tworzą klienta. Potrzebuje go jednak
+  wkrótce potem: na stronach z `$.tsx` zaraz po hydratacji (`metering_settings`,
+  `post_custom_meta_defs`, `rpc/current_membership_tier`, komentarze), na `/`
+  przy wspólnym wyzwalaczu interakcji lub ciszy (5–20 s po `load`), przy każdej
+  nawigacji w przeglądarce i przy każdym wywołaniu funkcji serwerowej (globalne
+  `attachSupabaseAuth` woła `auth.getSession()`).
+- Na sześciu trasach w trybie `lcp` (`/`, `/$`, `/blog/`, kategoria, tag, autor)
+  start i tak biegnie dopiero po LCP (`bootSet.server.ts`, `bootLoaderScript.ts`),
+  więc wycięcie SDK ze startu nie zmienia pierwszego malowania; wcześniejsza
+  analiza Lantern po C3 dała ok. 0 do +1 pkt na telefonie (werdykt boot-js C4).
+  Zysk dotyczyłby tras w trybie `now` (wydarzenia, podcasty, programy, strony
+  statyczne, 404) i czytelników z zapisaną sesją.
+
+Warianty (szczegóły w wyniku runu): A, przygotowanie bez zmiany bajtów (fabryka
+klienta publicznego z `menu.functions.ts` i `mobileDrawer.functions.ts` do
+modułu serwerowego, gość bez sesji nie tworzy klienta dla funkcji serwerowych;
+mały nakład, bez decyzji właściciela); B, częściowe SDK (realtime i storage
+leniwie, ok. −22 do −25 KB gzip, szacunek; kopia wewnętrznego kleju supabase-js
+do utrzymania); C, całe SDK leniwie za istniejącym Proxy (−53,9 KB gzip ze
+startu, duży nakład, zmiana kolejności zdarzeń auth i obsługi tokenów w URL,
+725 mocków testowych, brak testów e2e przepływów logowania); D, jak C plus
+osobny klient PostgREST dla odczytów gościa (drugi klient, parytet nagłówków).
+
+**Rekomendacja: D1 odłożyć** (decyzja należy do właściciela). Bajty zostałyby odroczone, nie usunięte (gość i tak
+pobiera SDK wkrótce po starcie), a miernik roadmapy (Speed Index zależny od TTFB)
+nie drgnie - zadziałałby warunek stopu z §4. Powrót do wariantu C, gdy pomiary
+W2 pokażą znaczący ruch gości lub koszt FCP/LCP na trasach w trybie `now` albo
+celem stanie się CPU startu u realnych użytkowników (INP); przed C trzeba dodać
+testy e2e przepływów logowania (link magiczny, odzyskiwanie hasła, powrót z OAuth,
+logowanie w innej karcie). Wskaźnik w tabeli partii D był błędny: właściwy plan to
+faza1 boot-js §3.1 / werdykt C4 / PLAN P8.1, nie P3.1 (część B P3.1 jest
+wykonana).
+
+Wartościowsze dla czytelnika w tej fazie: ok. 10,7 KB gzip kodu w `app-initial`,
+którego używają wyłącznie publiczne chunki leniwe (§9.8), oraz - po decyzji
+właściciela - arkusz stylów blokujący render (S1 wstrzymane, §9.7).
+
+### 9.10. Partia 4 (16.11.2026): kod publicznych chunków leniwych poza chunkiem startowym
+
+Ciąg dalszy J3 (§9.8) dla kodu, którego w `app-initial` używały wyłącznie
+publiczne chunki leniwe. Najpierw ustalono, który moduł bootu importuje
+statycznie każdy kandydat (inwentarz `BUNDLE_INVENTORY=1` i graf źródeł), potem
+wydzielono liście bez reeksportów (kod przeniesiony bez zmian, sprawdzone
+porównaniem wielozbioru linii):
+
+- `content-model/postContextPreview.ts` - próbka kanwy buildera
+  i `useCurrentPostCtxOrPreview` (boot czyta z `postContext.tsx` tylko kontekst);
+- `queries/podcastsLatest.ts` - lista najnowszych odcinków (jedyne zapytanie
+  podcastów wołane przez rejestr prefetchu) i pełne kolumny odcinka;
+  `queries/podcastsByCategory.ts` i `queries/podcastsByProfile.ts` - sekcje
+  „Podcasty" strony kategorii/tagu i strony autora, każda w chunku swojej strony;
+  `queries/podcasts.ts` ładują już tylko trasy podcastów i panel;
+- `newsletter/popupDesignResolve.ts` - koercja zapisu i paleta popupu
+  rejestracji (domyślne zostają, czyta je hook ustawień);
+- `builder/clubHubQuery.ts` - zapytania sekcji widgetu „Klub: strona" (jedyny
+  importer `ClubHubView`, więc liść jedzie w jego chunku);
+- `seo/siteMapCopy.ts` - teksty `/sitemap`: stała wspólna `head()` i komponentu
+  ciągnęła moduł `sitemap.tsx?tsr-shared=1` (2,7 KB) do bootu.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`57af436c`) | Po (z poprawkami przeglądu) |
+| ---------------------------------------- | ------------------ | --------------------------- |
+| Chunk startowy (`app-initial`)           | 253,3 KB           | 249,0 KB                    |
+| Domknięcie startu (11 chunków)           | 467,1 KB           | 462,8 KB                    |
+| JS publiczny                             | 2 776,2 KB         | 2 777,2 KB                  |
+| `overall`                                | 5 364,4 KB         | 5 365,0 KB                  |
+
+Czytelnik pobiera o 4,3 KB gzip mniej na każdej stronie; domknięcie startu ma
+dalej te same 11 chunków.
+
+**Seria bootu - korekta pomiaru (przegląd partii 4).** Pierwszy raport
+podawał, że nowy chunk w serii bootu dostały „4 z 232 tras”. Narzędzie
+porównujące czytało manifest wyrażeniem regularnym dla postaci tablicowej
+i pomijało 111 wpisów, które minifikator zapisał jako napis z `.split(",")`.
+Wśród nich były `/category/$slug`, `/tag/$slug` i `/author/$slug`, które
+w tamtej wersji dostały chunk `podcasts` (48→49, 48→49, 62→63; o jedno
+żądanie więcej na trzech głównych trasach czytelnika z `AFTER_LCP_ROUTE_IDS`).
+Poprawka: sekcje „Podcasty” tych stron mają własne liście
+(`podcastsByCategory` w chunku `TaxonomyPage`, `podcastsByProfile` w chunku
+trasy autora), a `PODCAST_FIELDS` przeszło do `podcastsLatest` (moduł bootu).
+Nowy pomiar importuje zbudowany moduł manifestu, więc obie postaci
+wylicza silnik JavaScript, nie wyrażenie regularne. Wynik dla 342 tras, porównanie z bazą
+`57af436c`: 326 bez zmian, w tym `/`, `/$`, `/blog/`, `/post/$slug`
+i `/category`, `/tag`, `/author` (48, 48, 62 - jak w bazie). Zmieniło się 16
+tras, każda o jeden plik:
+
+- 3 trasy podcastów: `podcasts` (ich własne zapytania, dotąd w `app-initial`);
+- 11 tras panelu: `postContextPreview`, `popupDesignResolve` albo `podcasts`;
+- `/sitemap`: trzeci chunk podziału trasy (`siteMapRedirects.functions`,
+  872 B gzip), dzielony przez loader i komponent. Dotąd ten kod siedział
+  w `app-initial` i płacił za niego każdy czytelnik.
+
+Po hydratacji jeden dodatkowy chunk pobierają: popup rejestracji
+(`popupDesignResolve`) i widgety tagów dynamicznych (`postContextPreview`).
+Do tego odświeżenie ustawień newslettera na stronach z formularzem inline (na
+zatrzasku interakcji lub ciszy oraz przy nawigacji SPA): ciało odczytu
+`newsletterSettingsData` czyta z liścia wyłącznie `resolvePopupDesign`, a pobiera
+cały `popupDesignResolve` (2,3 KB gzip razem z paletą i kontrastem). Każda z tych
+ścieżek ma mniejszy bilans bajtów niż przed zmianą.
+
+Świadomie bez podziału: wydzielenie samej koercji `resolvePopupDesign` zostawiłoby
+drugi, wspólny chunk na tej ścieżce. Oszczędność wyniosłaby około 1 KB i dopiero
+po interakcji, kosztem kolejnego modułu.
+
+Strażnik `bootLazyLeaves.gate.test.ts` sprawdza trzy rzeczy. Po pierwsze, moduły
+bootu nie sięgają do liści. Po drugie, liście importują tylko wymienieni
+odbiorcy. Po trzecie (znalezisko przeglądu), trasa, która importuje liść,
+czyta jego wiązania tylko w częściach wydzielanych przez splitter
+(`routeSplitBehavior`: loader i komponenty), także pośrednio przez stałe
+najwyższego poziomu. Nie czyta ich w powłoce trasy (`head`, `beforeLoad`,
+`validateSearch`, `loaderDeps`, `pendingComponent`, eksporty), która jest
+w `app-initial`. Wcześniej mutacja `head()` trasy `/podcasts` przechodziła
+przez wszystkie bramki. Strażnik sprawdzono sześcioma mutacjami (pięć czerwonych,
+jedna kontrolna zielona) - `head()`, stała wspólna, eksport, `head()` autora,
+import `TaxonomyPage` ze wspólnego modułu.
+
+Odrzucone po pomiarze: szerszy podział newslettera (hook ustawień,
+`popupFields` i treść zgody poza bootem; build: start −6,3 KB razem z próbką
+i podcastami, wobec −3,7 KB z wąskim liściem popupu) dokładał 1-4 chunki do serii bootu `/login`, `/membership-registration`,
+`/newsletter/measurement` i `/profile/notifications`, a archiwom (`TaxonomyPage`)
++0,7 KB netto; `postLayouts` (render wpisu, ok. 0,65 KB) dokładał chunk każdej
+stronie wpisu; `billing/queries` przeniósłby `checkout.functions` do osobnego
+chunku `Paywall`. Zostawione: `lazyWidgets` (ok. 1,4 KB, wspólna mapa
+serwerowych widgetów czytelniczych - osobna zmiana z testem pierwszej powłoki
+SSR), `worldMapContent` (`geoCoords` dokładałby chunk widgetowi z preloadu
+bootu), `events/schedule` i zapytania profilu prelegenta (poniżej 0,3 KB).
+
+### 9.11. Naprawa wybieraków ikon (16.11.2026, zgoda właściciela)
+
+Usterka z §9.8: osiem miejsc publicznego renderu bierze nazwę ikony z treści CMS
+(separator z ikoną, oś czasu - ikona wpisu i ikona tytułu, pasek „hot topic”,
+newsletter z ikoną, nagłówek, przycisk, pasek ogłoszeń) i rozpoznawało wyłącznie
+134 eksporty shimu w PascalCase. Wybieraki zapisują nazwy kebab-case z pełnego
+katalogu, więc wybrana ikona nigdy się nie pokazywała.
+
+Wspólny resolver `src/lib/icons/contentIcon.tsx`, kolejność (pierwsze trafienie
+wygrywa):
+
+1. eksport shimu pod dokładnie tą nazwą - dzisiejsze wyszukiwanie, HTML bajt
+   w bajt jak przed zmianą; tylko własne klucze (klucz prototypu z treści,
+   np. `constructor`, nie trafia już do Reacta jako komponent);
+2. zestaw kuratorowany `DynamicIcon` (synchronicznie): `Bell`, `Flag`, `star`;
+3. nazwa wybieraka, której odpowiednik PascalCase jest eksportem shimu o tym
+   `displayName` (51 nazw, np. `send`, `quote`, `trash-2`), synchronicznie;
+4. pozostała nazwa wybieraka: `DynamicIcon` z katalogiem. Serwer czeka na porcję
+   `icons-N`, hydratacja odtwarza SVG z DOM-u serwera, a porcję pobiera tylko
+   render czysto kliencki. Nazwa, której katalog nie zna, rysuje zastępnik
+   miejsca jak dotąd (znacznik `data-dyn-missing`), nie znak zapytania;
+5. zastępnik miejsca.
+
+Edytor osi czasu ma wybierak ikon zamiast pola tekstowego. Poprawiony też
+błąd katalogu: sześć nazw `grid-2x2`/`grid-3x3` nigdy się nie rozwiązywało.
+
+Dowody:
+
+- test wzorcowy HTML na kodzie bazowym (8 miejsc × 1 882 nazwy): każda nazwa
+  renderowana przed zmianą daje ten sam HTML, różnice są na jawnej liście;
+- glif każdej z 1 703 nazw katalogu równy komponentowi lucide-react tej nazwy;
+- hydratacja ośmiu miejsc z aktualizacjami w trakcie: bez błędów, bez porcji
+  danych, ten sam węzeł serwera;
+- render czysto kliencki: rezerwacja = pudełko ikony; obok znaku zapytania
+  innego wywołania tej samej nazwy - zastępnik jak na serwerze.
+
+Przegląd niezależny: 5 znalezisk. Naprawione 3: cudzy znak zapytania w renderze
+klienckim, pole tekstowe osi czasu oraz 51 nazw przez porcję katalogu mimo
+komponentu w starcie. Zaakceptowane 2. Pierwsze: nieznana nazwa kebab-case
+w renderze czysto klienckim pobiera porcję katalogu, a w miejscach bez
+zastępnika pudełko się zwija - głównym źródłem takich nazw było pole tekstowe
+osi czasu, już zastąpione wybierakiem. Drugie: ostrzeżenie `react-refresh`
+w `DynamicIcon.tsx` (eksport `curatedIcon`), które wpływa tylko na odświeżanie
+w trybie deweloperskim. Każda poprawka sprawdzona mutacją.
+
+| Miara (`check:bundle`, kontener roboczy) | Przed (`49fc9375`) | Po         |
+| ---------------------------------------- | ------------------ | ---------- |
+| Chunk startowy (`app-initial`)           | 249,0 KB           | 249,4 KB   |
+| Domknięcie startu (11 chunków)           | 462,8 KB           | 463,2 KB   |
+| `overall`                                | 5 365,0 KB         | 5 366,1 KB |
+
+Zestawy plików bootu wszystkich 342 tras bez zmian (pomiar przez import manifestu).
+
+Otwarte:
+
+- zapisane wcześniej nazwy PascalCase spoza shimu i zestawu (np. „BellRing”
+  wpisane w dawne pole osi czasu) nadal dają zastępnik. Skala zależy od wyniku
+  zapytania o nazwy ikon w treściach produkcyjnych (wykonuje właściciel);
+- nie sprawdzono w prawdziwej przeglądarce (układ, CLS) ani czasu SSR na Workerze
+  dla stron z ikoną spoza zestawu (porcja `icons-N` na żądanie, jak dziś
+  w `nav-link`).
+
+### 9.12. Partia 5a (16.11.2026): linki wpisów 9.2 poz. 7–9 i stopka sąsiadów
+
+Jedno zapytanie na commit, wzorzec z §9.5: osadzenie `parent_page` przez
+`readPostsWithParentPage`, adres przez `postHref`/`postCanonicalHref`. Adres
+kanoniczny daje tylko strona-rodzic najwyższego poziomu. Rodzic zagnieżdżony albo
+niewidoczny zostawia dotychczasowy adres. Błąd odczytu z osadzeniem powtarza
+odczyt bez osadzenia.
+
+- **Kalendarz (poz. 7).** `calendarBlockQueryOptions` i `CalendarView`. Po
+  przeglądzie zapytanie zostawia w pamięci podręcznej (i w stanie odwodnionym
+  w HTML) tylko pierwszy wpis dnia, czyli to, co widok czyta (wspólna funkcja
+  `calendarFirstPostPerDay`, dzień liczony w strefie Warszawy). Stan odwodniony
+  dla 120 wpisów w miesiącu: 954 B gzip na bazie, 1 031 B z osadzeniem przed
+  poprawką, 551 B po niej. Dla 500 wpisów: 2 930 → 3 165 → 552 B. Pomiar
+  w uprzęży testowej, nie w dokumencie strumieniowym. Koszt w chunku startowym:
+  +137 B surowo, około +60–73 B gzip (dwa prawdziwe buildy).
+- **Paleta poleceń (poz. 8).** `globalSearch` po `search_quick` robi jeden odczyt
+  `posts` z osadzeniem, tylko po identyfikatorach wpisów. Wariant zapasowy nie
+  pyta bazy, bo trafienia mają już slug. Zero bajtów w kliencie (chunk
+  `CommandPalette` bez `parent_page` i `search_quick`). Overlay wyszukiwarki
+  czyta RPC `search_posts`, więc zostaje poza zakresem bez migracji.
+- **Listy zalogowanego (poz. 9).** Zakładka „zapisane” w `/reading-list`,
+  `/profile/bookmarks`, panel „Zapisane” w doku i baner podsumowania Q&A.
+- **Z inwentarza: stopka poprzedni/następny.** Sąsiad pod INNĄ stroną najwyższego
+  poziomu dostaje adres z osadzenia. Ten sam rodzic bierze ścieżkę z okruszków.
+
+Pomiar po integracji (na `f375420c`, kontener roboczy): `app-initial` 249,4 KB
+i domknięcie startu 463,2 KB bez zmian w zaokrągleniu, `overall` 5 366,1 →
+5 366,8 KB (w szumie ±1 KB). Zestawy plików bootu 342/342 tras bez zmian (import
+manifestu). Kontrakt TS↔SQL: +9 operacji, żaden fakt nie zniknął.
+
+Przegląd niezależny: własny build w osobnym klonie, pięć mutacji (każda
+czerwona), porównanie zapytań przed i po (zapasowe `select` dosłownie te same,
+filtry i najemca bez zmian), inwentarz własnym grepem. Jedno znalezisko (niska
+waga, stan odwodniony kalendarza) naprawione i zweryfikowane.
+
+Inwentarz pozostałych `/post/<slug>` i płaskich `/<slug>` (poza panelem):
+
+- dane RPC, wymagają migracji (partia E): `TailoredMustReadsView`, zakładki
+  rekomendacji i obserwowanych (`get_recommended_posts_v2`, `get_followed_feed`),
+  podpowiedzi wyszukiwarki (`search_autosuggest`), overlay (`search_posts`),
+  slajdy z referencjami (`get_post_refs`), hub eksperta (`get_expert_hub`,
+  `get_expert_materials`);
+- celowo bez zmian: e-maile newslettera, adresy liczone już przez serwer
+  (`postViews.functions`, `nextPost`, blok `post-navigation-link`), adresy
+  zapisane w bazie lub treści CMS, powiadomienia z SQL;
+- zapas tylko przy braku `href`: pasek gorących tematów, `ContextBlockViews`,
+  widgety tagów dynamicznych, `/sitemap`.
+
+Do decyzji właściciela: dok i paleta linkują STRONY płaskim `/<slug>`, więc
+strona zagnieżdżona dostaje tam zły adres (osobna usterka, nie wpisy). Nie
+sprawdzono: przebiegu w przeglądarce (preload, prefiks języka linków
+`to={href}`) ani danych osadzenia na produkcji.
+
+### 9.13. Partia 5b, część 1 (16.11.2026): S4 wykonane, S2 niewykonalne w planowanej formie
+
+**S4: ostatnie reguły wyłącznie panelowe w `admin-styles.css`.** Z `styles.css`
+przeszły `.cms-social` / `.cms-social__btn` (podgląd ikon w sekcji Social Theme
+Design) oraz `.cms-h1`…`.cms-h5` (edytor bloku nagłówka). W `styles.css` zostały
+publiczne `cms-social-list` i `.cms-post-content .cms-hN`. Klasy, także budowane
+dynamicznie (`cms-h${level}`), emitują wyłącznie `SocialSection.tsx`
+i `blocks/edit/Heading.tsx`, a graf importów prowadzi do nich tylko z tras
+`/admin`. Style obliczone w Chromium na markupie z prawdziwych komponentów (jasny
+i ciemny tryb, hover) dały 0 różnic na 3 960 elementach.
+
+| Miara (kontener roboczy)                | Przed (`49fc9375`) | Po       |
+| --------------------------------------- | ------------------ | -------- |
+| Arkusz główny (gzip)                    | 83 590 B           | 83 394 B |
+| Arkusz panelu (gzip)                    | 16 420 B           | 16 773 B |
+| CSS publiczny (`check:bundle`, próg 85) | 84,1 KB            | 83,9 KB  |
+| CSS razem (`check:bundle`, próg 101)    | 100,1 KB           | 100,3 KB |
+
+Czytelnik pobiera 0,2 KB blokującego CSS mniej. CSS razem rośnie o 0,15 KiB:
+w arkuszu głównym przeniesione reguły kompresowały się prawie za darmo, bo obok
+są te same deklaracje `.cms-post-content .cms-hN`. Zestawy plików bootu 342 tras
+bez zmian.
+
+Strażnik `adminOnlyStyleRules.test.ts`:
+
+- sprawdza emitery wyłącznie w kodzie panelu;
+- sprawdza punkty wejścia: trasy, `src/router.tsx`, `src/start.ts`,
+  `src/server.ts` oraz komponenty silnie spójne grafu bez importera z zewnątrz;
+- czyta arkusz panelu parserem CSS i wymaga dla każdej przeniesionej reguły
+  dokładnego selektora i tokenów deklaracji;
+- nadpisanie później w arkuszu, także skrótem (`font`, `background`) albo częścią
+  (`padding-inline`), liczy się jako brak.
+
+Dwie rundy przeglądu, wszystkie poprawki sprawdzone mutacjami. Otwarte, niska
+waga: nadpisanie wewnątrz `@media` lub zagnieżdżonej reguły nie jest wykrywane;
+cykl importów z trzech lub więcej plików nie ma osobnego testu.
+
+**S2: niewykonalne w planowanej formie.** Klasy `.chat-*` emituje także trasa
+`/messages` (oraz importowane przez nią statycznie `components/chat`), więc
+arkusz leniwego chunku doku dawałby na `/messages` mignięcie bez stylów. Do
+decyzji właściciela zostaje wariant tylko dla `.wd-*`: −547 B arkusza
+blokującego, +260 B obu bramek CSS. To szacunek z wycięcia na artefakcie, nie
+zbudowany ani nie sprawdzony w przeglądarce.
+
+Nie sprawdzono: czy treść CMS w bazie niesie klasy `cms-hN` albo `cms-social`
+(zapytanie tylko do odczytu po stronie właściciela).
+
+### 9.14. Partia 5b, część 2 (16.11.2026): strażniki CI - kontrakt TS↔SQL, zapadka J2, nagłówki tras
+
+- Kontrakt TS↔SQL widzi więcej kodu:
+  - kolumny przekazywane parametrem między funkcjami (do 4 skoków) - +20 operacji na tabelach z mega menu, bloków, archiwów i list;
+  - plik `.ts` parsowany jako TS, a każdy błąd składni czerwieni bramkę. **Złapane:** `profile/export.functions.ts` dawał 0 faktów (168 błędów składni) - 32 odczyty i 13 RPC eksportu RODO szły bez sprawdzenia;
+  - `looseTable(źródło, t)` i `looseClient(źródło)` z rolą źródła - +16 odczytów `service_role` i 10 RPC z `unknown` na `authenticated`;
+  - `select` przez warunek i przez zmienną `let`/`const` z budowniczym.
+- Zapadka `select` bez faktu (UNCHECKED_SELECTS_REVIEWED) z kluczem: plik, funkcja, `.from(tabela)`, pełny tekst argumentu.
+- Wstrzymanie pojedynczego faktu (SEAM_FACTS_WITHHELD_REVIEWED) zamiast wyłączania plików. Ten mechanizm odsłonił trzy realne defekty grantu (naprawione niżej), a lista jest dziś pusta.
+- Integracja dołożyła:
+  - testy warunków tabeli i operacji w dopasowaniu faktu wstrzymanego oraz roli `unknown` dla parametru spoza kontekstu (cztery mutanty wcześniej przeżywały cały zestaw);
+  - pięć RPC CRM (`crm_enqueue_lead_push`, `has_role`, `is_super_admin`, `recompute_crm_lead_score(s)`) widocznych dla kontraktu po usunięciu `rpcOf`. Na PG16 wszystkie mają EXECUTE dla `authenticated` i zgodne nazwy argumentów - defektu brak.
+- Zapadka J2 (sieroty zod w chunkach klienta): żywotność po nazwie, nie po pliku celu `import()` (dawniej 498 z 4417 modułów było „żywych” z urzędu), zasięg blokowy wiązań, lista ucieczek przestrzeni nazw. **Złapane:** 3 gołe wywołania schematów w buildzie, w tym `ListInput`, którego stary skaner J2 nie widział.
+- Nagłówki tras (G3): wejście `Link`/`Cache-Control` za bramką serwera na 12 miejscach (stary kształt znaleziony też poza dwiema pierwotnymi trasami). Bundle bez zmian w granicach budżetu:
+  - z pełnych zestawów bootu znika `archivePreload` (/blog, /category, /tag), `eventVideoHeader` (/events/$slug i 8 podtras) oraz `coverFrame` (układ klubu, /about, /members, /new);
+  - `eventLanguages` w panelu wydarzeń jest scalony z istniejącym chunkiem - jeden plik mniej, ten sam kod.
+
+### 9.15. Naprawy uprawnień (16.11.2026, polecenie właściciela) i wdrożenie migracji
+
+- Eksport RODO: sekcja `user_reports_filed` w KAŻDYM eksporcie dawała 42501, bo tabela jest RPC-only. Teraz woła SECURITY DEFINER `public.user_reports_export_my_data(p_limit integer DEFAULT 2000)` z migracji `supabase/migrations/20261116211500_user_reports_export_my_data.sql`:
+  - 7 kolumn, bez notatki i tożsamości staffu;
+  - osoba z `auth.uid()`, najemca z profilu, sufit 1..5000;
+  - EXECUTE tylko dla `authenticated` i `service_role`;
+  - pgTAP `user_reports_export_my_data_test.sql` 22/22;
+  - lustro drizzle idx 0411 (`0411_user_reports_export_my_data`).
+- Karta leada CRM: zdjęcie członka idzie wspólną ścieżką `lookupLeadAvatars` (`service_role`, `.eq("tenant_id")` z najemcą z sesji, na zewnątrz tylko `avatar_url`).
+- Karta firmy CRM: członkowie idą przez `companyMembers` (`service_role`, najemca wołającego, kolumny z grantem bez PII, maks. 200). Uwaga: rola wyłącznie `super_admin` dostaje tu członków, których pod RLS nie widzi (`is_staff()` = false) - wyłącznie kolumny nie-PII własnego najemcy.
+- Zmiany CRM nie wymagają migracji.
+
+Kroki właściciela wg docs/RUNBOOK_MIGRACJE_LOVABLE.md:
+
+- **Przed scaleniem:** jeżeli `main` ruszył się od 8d9278dc, po `git merge origin/main` wygenerować lustro ponownie przez `bun run migrations:mirror`. Idx i `when` mogą się zmienić (konflikt dziennika: §3.3). Ręcznie nie edytować drizzle SQL, `_journal.json`, snapshotów ani `MIGRATION_LANES`.
+- **Opis PR, sekcja „Wdrożenie bazy”:** idx OD=DO=411 (albo nowy po regeneracji). Kolejność z frontem: dowolna - kod przed migracją daje tylko błąd jednej sekcji eksportu (PGRST202 zamiast dzisiejszego 42501), a poprawki CRM migracji nie potrzebują. Okno: dowolne. Zmiana danych: brak. Zmiany niekompatybilne: brak.
+- **Po scaleniu i zielonym `Required release checks`:**
+  1. Nikt nie wywołuje narzędzia migracji w innej sprawie (§4.1).
+  2. Właściciel wkleja polecenie z §4.2 (NR_PR, OD, DO).
+  3. Lovable sprawdza tylko do odczytu: `bun run migrations:deploy-sql -- --pending --from <OD>`.
+  4. JEDNO wywołanie narzędzia migracji o nazwie `pr<NR>_deployment_completion` i treści dokładnie `COMMENT ON SCHEMA public IS 'standard public schema';` - nigdy SQL samej migracji, bez zapisów do `supabase_migrations.schema_migrations` ani `drizzle.__drizzle_migrations`.
+  5. Po błędzie przejściowym ponawia wyłącznie właściciel (§4.6).
+  6. Weryfikacja §4.4: `--verify --from <OD>` zwraca 0 wierszy; `check:migration-lanes`, `check:db-contract` i `check:migration-ledger` zielone; job `post-deploy` zielony na commicie bota; w commicie bota `types.ts` BEZ zmiany wpisu `user_reports_export_my_data` (PR już go niesie w formacie generatora) - każda inna różnica to dryf produkcji; eksport danych na produkcji ma wypełnioną sekcję `user_reports_filed`.
+     Weryfikacja integracji (`ab8f46d4`, 24 commity nad `851e7948`): 18 przeniesionych
+     commitów identycznych ze źródłami (patch-id i treść), lokalny PG16 z 1 330
+     migracjami (kontrakt 9/9, `user_reports_export_my_data_test` 22/22,
+     `profiles_pii_grant_test` 14/14, testy CRM), bramki migracji i SQL zielone
+     (`check:db-contract` i `check:migration-ledger` wymagają produkcji - nie
+     uruchamiane), build i bramki bundla zielone (`app-initial` 249,2 KB, `overall`
+     5 363,8 KB), 421 plików testów (13 273 testy), kontrola typów. Niezależny
+     weryfikator: własny klon, build, PG16 i 8 mutacji (8 zabitych) - zero znalezisk.
+     Lokalne testy SQL szły na zamienniku pgTAP; prawdziwy pgTAP uruchamia job `pgtap`
+     w CI.
+
+Otwarte po partii: kolumny filtrów (`.eq`, `.or`, `.in`) nadal nie są faktami
+kontraktu; 534 fakty z rolą `unknown` (klienci przekazywani parametrem, fabryki
+`admin()`); dopasowanie zdjęcia leada po adresie jest dokładne, nie bez względu
+na wielkość liter (wspólna reguła z listą CRM).
+
+### 9.16. Partia 6 (17.11.2026): usterki z rozszerzonej bramki kontraktu i zdjęcie leada
+
+Polecenie właściciela („napraw”). Usterki znalazł pomiar bramki kontraktu TS↔SQL
+rozszerzony o kolumny filtrów, role klientów i próbne wykonanie zapytań jako
+dana rola (§9.17). Każdą odtworzono na lokalnym Postgres 16 z wszystkimi
+migracjami przed naprawą i sprawdzono po niej (personel CRM, zalogowany spoza
+personelu, personel innego najemcy, gość).
+
+- **Archiwa `/category`, `/tag`, sortowanie „popularne”**: kolumna
+  `posts.views_count` nie istnieje w żadnej migracji (42703, strona błędu).
+  Teraz ranking z istniejącej funkcji `popular_post_ids` (90 dni, 200 pozycji,
+  jak widget listy wpisów); po wpisach z rankingu pozostałe wpisy terminu od
+  najnowszych, bez duplikatów między stronami; awaria rankingu daje kolejność
+  od najnowszych z ostrzeżeniem w logu.
+- **Panel zamówień biletów**: odczyt `profiles.email` klientem użytkownika
+  (42501, połykane) - imię i e-mail kupującego zawsze puste. E-mail z
+  `payment_orders.receipt_email`, profil tylko z kolumn z uprawnieniem.
+- **Bilet użytkownika na wydarzenie**: e-mail posiadacza z claimu zweryfikowanej
+  sesji, nie z `profiles.email`; błędy odczytu biletu nie udają już braku danych.
+- **Lejek CRM** (lista, karta subskrybenta, statystyki): widok
+  `crm_funnel_view` z `security_invoker` łączy `profiles.email` (42501 dla
+  personelu). Odczyt spod `service_role` z najemcą z sesji i rolą jak w RLS
+  subskrybentów; test pilnuje zakotwiczenia obu złączeń widoku w najemcy.
+  Nieużywana `crm_funnel_stats()` (bez filtra najemcy) wycofana: bez EXECUTE
+  dla ról aplikacji.
+- **Lista firm CRM**: `crm_companies_aggregates` (SECURITY INVOKER) czytała
+  `profiles.current_company_id` (42501, cała lista padała). Migracja
+  `20261117014500_crm_companies_aggregates_definer.sql` (drizzle 0412):
+  SECURITY DEFINER, tylko admin/editor/super_admin, najemca z
+  `current_tenant_id()`, test pgTAP.
+- **Goście, sekcja wyróżniona archiwum**: `builder_templates` bez uprawnień dla
+  `anon` - całe archiwum z ustawionym szablonem padało gościom. Funkcja
+  serwerowa oddaje wyłącznie szablon wskazany przez publiczny termin, najemca z
+  hosta; awaria sekcji nie odbiera listy wpisów.
+- **Goście, podcasty**: osadzenie `profiles(...)` w uczestnikach odcinka padało
+  dla `anon` (pusta lista prowadzących i gości). Teraz istniejący widok
+  `profiles_public`.
+- **Zdjęcie leada CRM bez względu na wielkość liter** (lista i karta):
+  `contact_email` przez `ilike` z pełną ucieczką `\`, `%`, `_` i cytowaniem
+  PostgREST; adresy z `*` dokładnie; przypisanie wg `lower()` bazy ograniczone
+  do zakresów Unicode zgodnych z JS, `İ` nie jest utożsamiane z `I`; przy
+  okazji obejście błędu `postgrest-js .in()` dla wartości z `"`/`\`.
+
+Żadne kolumny danych osobowych nie dostały nowych uprawnień. Każda poprawka
+przeszła niezależny przegląd (bezpieczeństwo i poprawność); cztery ostatnie
+commity (wycofanie `crm_funnel_stats`, kotwice lejka, sekcja wyróżniona,
+podcasty) przejrzano bez agentów pomocniczych po wyczerpaniu ich limitu.
+
+**Wdrożenie migracji 0411-0412 (właściciel, runbook §3.1/§4.2/§4.4).** 0. SCOPE. The DB deployment covers only entries idx 411-412 (0411_user_reports_export_my_data, 0412_crm_companies_aggregates_definer, whose second part revokes crm_funnel_stats). The featured-section (4) and podcast (5) fixes need no DB change; they rely on existing grants confirmed by owner queries (8) and (9). Section 'Wdrożenie bazy' for PR #542 (runbook §3.1) to paste into the description:
+
+## Wdrożenie bazy
+
+- Wpisy dziennika do wdrożenia: idx 411-412 (0411_user_reports_export_my_data, 0412_crm_companies_aggregates_definer)
+- Kolejność z frontem: migracja przed publikacją - eksport RODO woła nowe `user_reports_export_my_data`, lista firm CRM wymaga `crm_companies_aggregates` jako SECURITY DEFINER; REVOKE `crm_funnel_stats` jest zgodny z kodem sprzed i po zmianie (stary kod i tak dostawał 42501)
+- Okno: dowolne - wyłącznie CREATE OR REPLACE FUNCTION, GRANT/REVOKE, COMMENT; bez ALTER TABLE i bez blokad gorących tabel
+- Zmiana danych użytkowników: brak
+- Zależność od danych produkcji: brak danych; zależności schematu sprawdzają zapytania właściciela (4)-(7)
+- Zmiany niekompatybilne wstecz (DROP/RENAME tabeli lub kolumny, zmiana typu, NOT NULL bez DEFAULT): brak (REVOKE zamiast DROP; sygnatury bez zmian)
+- Ostrzeżenia generatora (ustawienie-sesji, enum-nowa-wartosc): brak
+- Kontrole przed scaleniem i tuż przed wyzwoleniem (tylko odczyt; scalenie uzbraja wpisy, §4.1): bun run migrations:deploy-sql -- --pending --from 411 | zapytania właściciela (4) kotwice, (5) args/kształt, (6) istnienie crm_funnel_stats, (7) eksport
+- Polecenie dla Lovable: docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.2, NR_PR=542, OD=411, DO=412
+
+1. READ-ONLY PRE-CHECKS BEFORE THE MERGE. Owner, SQL editor at More → Database → Manage → SQL editor; read-only queries only. Run owner queries (4), (5), (6) and (7):
+   (a) (4): profiles_join_tenant_anchored = t AND leads_join_tenant_anchored = t. If either is false, the funnel fix must not ship: do not merge and do not publish.
+   (b) (5): args_match_migration = t AND shape_matches_migration = t. The current production result shape must equal TABLE(company_id uuid, leads_count bigint, last_lead_activity_at timestamp with time zone, contacts_count bigint) with argument _company_ids uuid[]; otherwise CREATE OR REPLACE fails with 42P13.
+   (c) (6): stats_exists = t; otherwise the REVOKE fails with 42883.
+   (d) (7): export_fn_absent = t, or an existing function with exactly the same args and shape; user_reports_missing_columns = {}.
+   Any other result: stop, do not merge, and report it.
+2. MERGE (runbook §4.1). Merge PR #542 only after the pre-checks pass. The merge arms entries 411-412: from that moment NOBODY calls the Lovable migration tool for any reason, including unrelated ones, until step 4. Wait for 'Required release checks' to be green on the merge commit. Make sure no other merged-but-undeployed PR exists; if one does, OD/DO cover both, following §4.1. No database export is needed: no user data changes, no hot-table locks, and this is not the first deployment after the switch.
+3. READ-ONLY CHECK JUST BEFORE THE TRIGGER (runbook §4.2 step 2). On current main HEAD (the merge commit), run `bun run migrations:deploy-sql -- --pending --from 411` and execute the printed SELECT read-only. Requirements:
+
+- The 'kotwica' (anchor) row, idx 410 0410_pr541_deployment_completion, has status 'juz zastosowany'.
+- Both 'zakres' (range) rows, 411 and 412, have status 'zostanie wykonany'.
+- No row after 412 has 'zostanie wykonany'.
+- None of these statuses appear: 'POMINIETY: when nie wiekszy od ostatniego zapisu', 'INNY HASH W REJESTRZE', 'PONOWNA DOSTAWA: ten sam plik juz w rejestrze'.
+  Otherwise stop and escalate. The hashes must come from main HEAD: the 0412 hash changed in this branch (cbdec8ca6dba… on HEAD 1fa85bdc). Repeat the read-only checks (4)-(7) from step 1 immediately before the trigger.
+
+4. EXACTLY ONE CALL TO THE LOVABLE MIGRATION TOOL (runbook §4.2). The owner pastes into the Lovable chat the §4.2 command with these substitutions: NR_PR=542, OD=411, DO=412, KOLEJNOŚĆ='po migracji'. Its step 3 calls the migration tool EXACTLY ONCE, named `pr542_deployment_completion`, with this exact one-line content:
+   COMMENT ON SCHEMA public IS 'standard public schema';
+   This is the canonical no-op trigger: the Drizzle migrator runs the pending entries 411-412 in one transaction. Never send the migration SQL itself, never use SQL without a file, and never write to drizzle.__drizzle_migrations or supabase_migrations.schema_migrations. Do not add the entry to MIGRATION_LANES.
+5. MIGRATOR ERROR (runbook §4.6). The batch is fully rolled back; confirm that the top row of the §4.5 query is unchanged. Lovable does not retry or fix anything itself; it reports SQLSTATE, message and file.
+
+- On 55P03, 40P01 or 57014 (transient), ONLY THE OWNER retries the §4.2 command later, after the §4.5 long-transaction query returns 0 rows, at most twice in total. Then stop and escalate.
+- On any other error, e.g. 42P13 (shape or argument name of crm_companies_aggregates or user_reports_export_my_data) or 42883 (crm_funnel_stats missing), fix it in a PR: the NOT-recorded supabase file plus `bun run migrations:mirror --rewrite <tag>` per §6.3, including the MIGRATION_EDIT_ALLOWLIST entries and a fresh `--verify` showing 'brak w rejestrze'. Then CI, merge, and §4.2 again. A new migration will not help, because it would sit behind the failing entry.
+
+6. VERIFICATION (runbook §4.4).
+   (1) Lovable: `bun run migrations:deploy-sql -- --verify --from 411` run read-only → 0 rows.
+   (2) Lovable: `bun run check:migration-lanes`, `bun run check:db-contract`, `bun run check:migration-ledger` → green.
+   (3) Owner, SQL editor: SELECT id, created_at, to_timestamp(created_at / 1000.0) AT TIME ZONE 'UTC' AS utc, left(hash, 12) AS hash12 FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 10; → the top row is the `when` of pr542_deployment_completion, followed by created_at 1794209632123 (0412, hash12 cbdec8ca6dba, if main carries the file unchanged from this branch) and 1794209572123 (0411).
+   (4) Owner: GitHub Actions → CI run of the bot commit carrying the trigger → job `post-deploy` green. Red with missing SUPABASE_URL means repository variables are missing (§4.8). Skipped means 'Required release checks' are red on that commit.
+   (5) Reviewer: the types.ts diff in the bot commit contains only PR objects: the new `user_reports_export_my_data` function. `crm_companies_aggregates` keeps the same signature (no diff). `crm_funnel_stats` normally stays, since REVOKE does not remove it; if the generator drops it, nothing calls it.
+   (6) Owner: after publishing the front end:
+
+- /admin/crm/companies shows the list with counters;
+- the GDPR export contains user_reports_filed without an error;
+- /admin/crm/funnel shows counters;
+- AS A GUEST: /category/<slug> and /tag/<slug> from owner query (8) show the post list and the featured section;
+- AS A GUEST: /podcast/<slug> and /podcasts/<show> show the hosts and guests.
+
+7. POST-DEPLOY QUERIES (read-only). (4): stats_auth_exec = f, stats_service_exec = f, both anchors = t. (5): is_definer = t, auth_exec = t, anon_exec = f, auth_reads_current_company_id = f. (6): execute_grantees = owner only, comment_head = 'WYCOFANA 2026-11-17…'. (7): export_fn_absent = f, and the shape matches. (8) and (9): anon has no SELECT on builder_templates or on the identity columns of profiles, and anon_reads_profiles_public = t. Any deviation: report it; do not fix it in the SQL editor.
+
+**Zapytania kontrolne dla produkcji (tylko odczyt; baza produkcyjna może różnić się od migracji).**
+
+(1) [unchanged; post-deploy, popular ranking]
+
+```sql
+SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'views_count') AS posts_views_count_exists, to_regprocedure('public.popular_post_ids(integer,integer)') IS NOT NULL AS ranking_fn_exists, has_function_privilege('anon', 'public.popular_post_ids(integer,integer)', 'EXECUTE') AS anon_can_rank, (SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('public.popular_post_ids(integer,integer)')) AS ranking_is_definer;
+```
+
+expected: f, t, t, t
+
+(2) [unchanged]
+
+```sql
+SELECT has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, has_column_privilege('authenticated', 'public.payment_orders', 'receipt_email', 'SELECT') AS auth_reads_receipt_email, has_column_privilege('authenticated', 'public.profiles', 'display_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'first_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'last_name', 'SELECT') AS auth_reads_profile_names;
+```
+
+expected: f, t, t
+
+(3) [unchanged]
+
+```sql
+SELECT has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, has_column_privilege('authenticated', 'public.profiles', 'first_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'last_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'display_name', 'SELECT') AS auth_reads_profile_names, has_column_privilege('authenticated', 'public.payment_orders', 'provider_intent_id', 'SELECT') AS auth_reads_order_txn, has_table_privilege('authenticated', 'public.event_rsvps', 'SELECT') AS auth_reads_rsvps;
+```
+
+expected: f, t, t, t
+
+(4) [UPDATED: tenant anchors of the joins plus crm_funnel_stats state; run BEFORE merging and again AFTER deploying]
+
+```sql
+SELECT (SELECT reloptions FROM pg_class WHERE oid = to_regclass('public.crm_funnel_view')) AS view_options, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~* 'lower\(p\.email\)' AS view_joins_profiles_email, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~ 'p\.tenant_id = s\.tenant_id' AS profiles_join_tenant_anchored, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~ 'c\.tenant_id = s\.tenant_id' AS leads_join_tenant_anchored, has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, (SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('public.crm_funnel_stats()')) AS stats_is_definer, CASE WHEN to_regprocedure('public.crm_funnel_stats()') IS NULL THEN NULL ELSE has_function_privilege('authenticated', to_regprocedure('public.crm_funnel_stats()'), 'EXECUTE') END AS stats_auth_exec, CASE WHEN to_regprocedure('public.crm_funnel_stats()') IS NULL THEN NULL ELSE has_function_privilege('service_role', to_regprocedure('public.crm_funnel_stats()'), 'EXECUTE') END AS stats_service_exec, has_table_privilege('service_role', 'public.crm_funnel_view', 'SELECT') AS service_reads_view, has_column_privilege('service_role', 'public.profiles', 'email', 'SELECT') AS service_reads_profiles_email, (SELECT coalesce(array_agg(c), '{}') FROM unnest(ARRAY['id','tenant_id','email','first_name','last_name','display_name','language','source','status','confirmed_at','unsubscribed_at','created_at','user_id','profile_id','avatar_url','is_registered','contact_id','is_contact','contact_stage','contact_score']) AS c WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'crm_funnel_view' AND column_name = c)) AS missing_screen_columns;
+```
+
+expected: {security_invoker=on}, t, profiles_join_tenant_anchored=t, leads_join_tenant_anchored=t, f, f, then stats_auth_exec and stats_service_exec = t before the deploy and f after it, service_reads_view=t, service_reads_profiles_email=t, missing_screen_columns={}. BLOCKER: if profiles_join_tenant_anchored or leads_join_tenant_anchored is false, the funnel fix (the service_role read of crm_funnel_view filtered only on s.tenant_id) MUST NOT SHIP. Do not merge and do not publish the front end until the view is fixed with a new migration.
+
+(5) [UPDATED: argument check plus shape; pre-check for 0412]
+
+```sql
+SELECT p.prosecdef AS is_definer, p.proconfig AS config, pg_get_function_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS result_shape, pg_get_function_arguments(p.oid) = '_company_ids uuid[]' AS args_match_migration, pg_get_function_result(p.oid) = 'TABLE(company_id uuid, leads_count bigint, last_lead_activity_at timestamp with time zone, contacts_count bigint)' AS shape_matches_migration, pg_get_functiondef(p.oid) ~ 'current_company_id' AS reads_current_company_id, pg_get_functiondef(p.oid) ~ 'current_tenant_id' AS scopes_by_session_tenant, has_column_privilege('authenticated', 'public.profiles', 'current_company_id', 'SELECT') AS auth_reads_current_company_id, has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec, has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec FROM pg_proc p WHERE p.oid = to_regprocedure('public.crm_companies_aggregates(uuid[])');
+```
+
+BEFORE the deploy, args_match_migration and shape_matches_migration MUST be t; otherwise CREATE OR REPLACE in 0412 fails with 42P13 and the migrator rolls back all of 411-412. AFTER the deploy: is_definer=t, config={"search_path=public, pg_temp"}, reads_current_company_id=t, scopes_by_session_tenant=t, auth_reads_current_company_id=f, auth_exec=t, anon_exec=f.
+
+(6) [NEW: crm_funnel_stats; pre-check for 0412 and verification of the revoke]
+
+```sql
+SELECT to_regprocedure('public.crm_funnel_stats()') IS NOT NULL AS stats_exists, (SELECT coalesce(array_agg(g ORDER BY g), '{}') FROM (SELECT DISTINCT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE r.rolname::text END AS g FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a LEFT JOIN pg_roles r ON r.oid = a.grantee WHERE p.oid = to_regprocedure('public.crm_funnel_stats()') AND a.privilege_type = 'EXECUTE') x) AS execute_grantees, left(obj_description(to_regprocedure('public.crm_funnel_stats()'), 'pg_proc'), 40) AS comment_head;
+```
+
+BEFORE the deploy, stats_exists MUST be t; otherwise the REVOKE fails with 42883 and the whole batch rolls back. AFTER: execute_grantees contains only the owner (no PUBLIC, anon, authenticated or service_role) and comment_head starts with 'WYCOFANA 2026-11-17'.
+
+(7) [NEW: pre-check for 0411 user_reports_export_my_data]
+
+```sql
+SELECT to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL AS export_fn_absent, CASE WHEN to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL THEN NULL ELSE pg_get_function_arguments(to_regprocedure('public.user_reports_export_my_data(integer)')) END AS existing_args, CASE WHEN to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL THEN NULL ELSE pg_get_function_result(to_regprocedure('public.user_reports_export_my_data(integer)')) END AS existing_result_shape, (SELECT coalesce(array_agg(c ORDER BY c), '{}') FROM unnest(ARRAY['id','reported_id','reason','details','status','created_at','resolved_at','reporter_id','tenant_id']) AS c WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'user_reports' AND column_name = c)) AS user_reports_missing_columns, has_table_privilege('authenticated', 'public.user_reports', 'SELECT') AS auth_reads_user_reports_table;
+```
+
+BEFORE the deploy: export_fn_absent=t, or else existing_args='p_limit integer DEFAULT 2000' AND existing_result_shape='TABLE(id uuid, reported_id uuid, reason text, details text, status text, created_at timestamp with time zone, resolved_at timestamp with time zone)' (otherwise 42P13). user_reports_missing_columns={} (a missing column would surface as an export error at runtime, not during the migration). auth_reads_user_reports_table=f, and it must stay that way.
+
+(8) [NEW: (4) archive featured section, guest impact, read-only, no deploy needed]
+
+```sql
+SELECT 'category' AS kind, c.slug, c.tenant_id, c.featured_template_id, t.id IS NOT NULL AS template_in_same_tenant, t.data ->> 'kind' AS template_kind FROM public.categories c LEFT JOIN public.builder_templates t ON t.id = c.featured_template_id AND t.tenant_id = c.tenant_id WHERE c.featured_template_id IS NOT NULL UNION ALL SELECT 'tag', g.slug, g.tenant_id, g.featured_template_id, t.id IS NOT NULL, t.data ->> 'kind' FROM public.tags g LEFT JOIN public.builder_templates t ON t.id = g.featured_template_id AND t.tenant_id = g.tenant_id WHERE g.featured_template_id IS NOT NULL ORDER BY 1, 2;  SELECT has_table_privilege('anon', 'public.builder_templates', 'SELECT') AS anon_reads_builder_templates, has_table_privilege('service_role', 'public.builder_templates', 'SELECT') AS service_reads_builder_templates, has_column_privilege('service_role', 'public.categories', 'featured_template_id', 'SELECT') AND has_column_privilege('service_role', 'public.tags', 'featured_template_id', 'SELECT') AS service_reads_featured_ids;
+```
+
+Each row of the first query is an archive page guests saw as 'no data' before the fix. A row with template_in_same_tenant=f or template_kind<>'section' will render without the featured section after the fix (editorial data, not an error). Second query, expected: f, t, t. NEVER grant builder_templates to anon.
+
+(9) [NEW: (5) podcasts, guest impact, read-only]
+
+```sql
+SELECT count(*) FILTER (WHERE pep.profile_id IS NOT NULL) AS people_with_profile, count(*) FILTER (WHERE pep.profile_id IS NOT NULL AND public.profile_has_public_presence(pep.profile_id, pep.tenant_id)) AS profile_visible_to_guests, count(*) FILTER (WHERE pep.profile_id IS NOT NULL AND NOT public.profile_has_public_presence(pep.profile_id, pep.tenant_id) AND btrim(pep.display_name) = '') AS guest_sees_empty_name, has_table_privilege('anon', 'public.profiles_public', 'SELECT') AS anon_reads_profiles_public, has_column_privilege('anon', 'public.profiles', 'slug', 'SELECT') OR has_column_privilege('anon', 'public.profiles', 'display_name', 'SELECT') OR has_column_privilege('anon', 'public.profiles', 'avatar_url', 'SELECT') AS anon_reads_profile_identity_columns FROM public.podcast_episode_people pep;
+```
+
+expected: anon_reads_profiles_public=t, anon_reads_profile_identity_columns=f (NEVER open these columns to anon). guest_sees_empty_name>0 means rows that show guests a name-less chip, because the linked profile has no public presence and the row has no name. Fix that editorially by filling display_name; no grant is needed.
+
+Weryfikacja integracji (21 commitów nad `75c3cd21`, bez konfliktów): bramki
+migracji i SQL zielone (`check:db-contract` i `check:migration-ledger` wymagają
+produkcji), kontrakt TS↔SQL 1 039 RPC i 1 698 operacji, 0 wstrzymanych; build
+i bramki bundla zielone (`app-initial` 249,2 KB, `overall` 5 365,1 KB, CSS
+publiczny 83,9 KB); 990 plików testów (27 480 testów); kontrola typów.
+Zestawy plików bootu bez zmian wobec `75c3cd21`.
+
+### 9.17. Bramka kontraktu: kolumny filtrów, role klientów, próbne wykonanie (stan 17.11.2026)
+
+Pomiar (lokalna gałąź `p8/contract`, tylko odczyt, CI bez zmian - wygenerowany
+pgTAP bajt w bajt) dodał do ekstraktora: kolumny filtrów i sortowania (`.eq`,
+`.in`, `.or("…")`, `.order`, `.match`, `.not`, `.filter`, zakresy, upsert),
+fakty osadzeń, rozstrzyganie roli klienta przekazywanego parametrem (wszystkie
+miejsca wywołania muszą się zgadzać; parametr z wartością domyślną liczy też
+domyślną), klienta przeglądarki jako gościa i zalogowanego oraz próbne
+wykonanie zapytań jako dana rola w wycofywanej transakcji (łapie widoki
+`security_invoker` i funkcje SECURITY INVOKER). To on znalazł usterki z §9.16;
+wykrywa też trzy usterki z listopada na wersjach plików sprzed napraw.
+
+Otwarte (po odnowieniu limitu agentów 22.11.2026): dokończyć klasyfikację
+naruszeń gościa (dostępne bez logowania / tylko po zalogowaniu - 391 zapytań
+przeglądarki pada jako `anon`, większość to ekrany wymagające logowania),
+naprawić ewentualne kolejne usterki dostępne dla gości, usunąć 6 martwych
+ścieżek zapasowych sprzed migracji (`couponRpc.server.ts`,
+`admissionRpc.server.ts`, `adminSlots.ts`) albo wpisać je jako przejrzane,
+i dopiero wtedy włączyć te sprawdzenia w CI (pgTAP), żeby bramka czerwieniła
+nowe usterki tej klasy.

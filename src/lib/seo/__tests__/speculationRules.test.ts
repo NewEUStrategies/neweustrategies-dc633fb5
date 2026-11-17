@@ -81,7 +81,7 @@ describe("speculationRules", () => {
   });
 
   it("reguły są krótsze niż w wersji z czterema wzorcami na prefiks (-1,1 KB w `<head>`)", () => {
-    // 2 zestawy x 17 prefiksów; dawny dokument: 2 334 B.
+    // 2 zestawy x 18 prefiksów (17 + `/events/invite`); dawny dokument: 2 334 B.
     expect(speculationRulesJson().length).toBeLessThan(1300);
   });
 

@@ -7,6 +7,7 @@ import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, type LooseQuery } from "@/lib/supabase/looseQuery";
 import { nullIfBlank } from "@/lib/crm/text";
+import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
 import { isEventActivityAction } from "@/lib/crm/eventActivity";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
@@ -85,6 +86,17 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
 
     // Jedno wywołanie RPC agreguje leady + kontakty po stronie bazy
     // (zamiast pobierania do 5000 wierszy z crm_leads i profiles).
+    //
+    // KLIENTEM WOŁAJĄCEGO, NIE SPOD SERVICE-ROLE. Do 17.11.2026 funkcja była
+    // SECURITY INVOKER i czytała `profiles.current_company_id` bez grantu dla
+    // `authenticated` (20260724090100) - 42501 przy każdej niepustej liście.
+    // Od migracji 20261117014500 jest SECURITY DEFINER z bramką staffu CRM
+    // i najemcą WYŁĄCZNIE z sesji (`current_tenant_id()`), a leady i profile
+    // liczy tylko z najemcy firmy. Service-role nie wchodził w grę: ciało nie
+    // zna najemcy, a `company_id` / `current_company_id` nie są sparowane
+    // z `tenant_id`, więc liczyłoby obce wiersze wskazujące na firmę.
+    // Identyfikatory to wyłącznie firmy z listy pod RLS, nie z ładunku; firma
+    // spoza najemcy nie ma wiersza agregatu i dostaje zera niżej.
     const leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
     const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {
@@ -127,15 +139,7 @@ export const getCrmCompany = createServerFn({ method: "POST" })
     const fetchAll = async (query: LooseQuery): Promise<unknown[]> => rowsOf(await query);
 
     const [profiles, leads] = await Promise.all([
-      fetchAll(
-        looseTable(context, "profiles")
-          .select(
-            "id, display_name, first_name, last_name, avatar_url, job_title, location, slug, contact_email, discoverable",
-          )
-          .eq("current_company_id", data.id)
-          .order("updated_at", { ascending: false })
-          .limit(200),
-      ),
+      companyMembers(context, company as { id: string; tenant_id: string }),
       fetchAll(
         looseTable(context, "crm_leads")
           .select(
@@ -149,6 +153,66 @@ export const getCrmCompany = createServerFn({ method: "POST" })
 
     return { json: j({ company, profiles, leads }) };
   });
+
+/**
+ * Członkowie platformy przypięci do firmy (`profiles.current_company_id`) -
+ * lista „Kontakty" na karcie firmy.
+ *
+ * Do 2026-11-16 karta czytała to klientem wołającego i pytała o `location`,
+ * `contact_email` oraz filtrowała po `current_company_id`. Żadna z tych kolumn
+ * nie ma grantu dla `authenticated` (20260724090100, pgTAP
+ * `profiles_pii_grant_test`), więc PostgREST odrzucał całe zapytanie (42501),
+ * a `rowsOf` bez sprawdzenia `error` dawał pustą listę - na KAŻDEJ karcie.
+ *
+ * Grantu nie otwieramy. Ścieżka jak awatary leadów (crm.functions.ts): tenant
+ * z sesji (`resolveCallerTenantId`), odczyt spod service-role z jawnym
+ * `.eq("tenant_id", tenantId)` - jedyną granicą najemcy, bo RLS jest tam
+ * wyłączone - i `current_company_id` wyłącznie jako filtr po stronie serwera.
+ * Kolumny: dokładnie to, co karta renderuje (id, nazwy, `avatar_url`,
+ * `job_title`, `slug`), i wyłącznie kolumny z grantem SELECT dla
+ * `authenticated` - bez `contact_email` i `location` (PII bez grantu).
+ * `current_company_id` i `updated_at` służą tylko do filtra i kolejności po
+ * stronie serwera, w odpowiedzi ich nie ma.
+ *
+ * To NIE jest zakres, który wołający przeczytałby sam pod RLS. Polityka
+ * `Profiles authenticated read` wpuszcza do cudzych profili wyłącznie
+ * `is_staff()` (admin/editor/author) w tym samym najemcy, a `requireCrmStaff`
+ * przepuszcza także `super_admin`: wołający, którego JEDYNĄ rolą jest
+ * `super_admin`, pod RLS widzi tylko własny profil, a tu dostaje członków
+ * firmy. Dokładne zachowanie dla każdej roli z bramki: wiersze profili
+ * najemcy WOŁAJĄCEGO (z jego profilu, nie z firmy ani z ładunku) przypiętych
+ * do tej firmy, najwyżej 200, wyłącznie z kolumnami wyżej - nigdy PII bez
+ * grantu i nigdy profil innego najemcy. Firma innego najemcy niż wołający
+ * (zakres super admina „wszystkie tenanty"): lista pusta, bez lookupu.
+ *
+ * Awaria lookupu nie wywraca karty firmy (inaczej strona pokazałaby „Firma
+ * nieznaleziona"), ale nie znika już po cichu: trafia do logu serwera.
+ */
+async function companyMembers(
+  context: { readonly supabase: unknown; readonly userId: string },
+  company: { readonly id: string; readonly tenant_id: string },
+): Promise<unknown[]> {
+  try {
+    const tenantId = await resolveCallerTenantId(context);
+    if (company.tenant_id !== tenantId) return [];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const res = await looseClient({ supabase: supabaseAdmin })
+      .from("profiles")
+      .select("id, display_name, first_name, last_name, avatar_url, job_title, slug")
+      .eq("tenant_id", tenantId)
+      .eq("current_company_id", company.id)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+    if (res.error) throw new Error(res.error.message);
+    return rowsOf(res);
+  } catch (err) {
+    console.error("[crm] company members lookup failed", {
+      companyId: company.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
 
 /**
  * Linki społecznościowe (kolumna `social_links`, te same sieci co karta encji

@@ -3,8 +3,13 @@
 // 2) wymienia bieżącą sesję na sesję usera przez verifyOtp(magiclink token_hash),
 // 3) ustawia flagę banera + przekierowuje do /profile,
 // 4) przywracanie sesji super admina: setSession(original) + zamknięcie audytu.
+//
+// Kroki 1-3 (`impersonateUser`) mieszkają w `impersonationStart.ts`: woła je
+// wyłącznie panel użytkowników, a ten moduł czyta baner impersonacji w powłoce
+// każdej strony, więc jest w chunku startowym klienta. Nie importuj go stąd
+// (roadmapa ładowania §9.1 J3).
 import { supabase } from "@/integrations/supabase/client";
-import { startImpersonation, endImpersonation } from "@/lib/admin/impersonation.functions";
+import { endImpersonation } from "@/lib/admin/impersonation.functions";
 import {
   IMPERSONATION_STORAGE_KEY,
   browserStorage,
@@ -34,38 +39,12 @@ export function getImpersonationState(): ImpersonationState | null {
   }
 }
 
-function setImpersonationState(state: ImpersonationState | null) {
+/** Zapis stanu banera; wspólny ze startem impersonacji (`impersonationStart.ts`). */
+export function setImpersonationState(state: ImpersonationState | null) {
   if (typeof window === "undefined") return;
   if (!state) removeStoredValue(browserStorage("session"), IMPERSONATION_STORAGE_KEY);
   else
     writeStoredValue(browserStorage("session"), IMPERSONATION_STORAGE_KEY, JSON.stringify(state));
-}
-
-export async function impersonateUser(targetUserId: string, targetLabel: string): Promise<void> {
-  const { data: sess } = await supabase.auth.getSession();
-  if (!sess.session) throw new Error("Brak aktywnej sesji - zaloguj się ponownie.");
-
-  const result = await startImpersonation({ data: { targetUserId } });
-
-  const { error: otpErr } = await supabase.auth.verifyOtp({
-    token_hash: result.tokenHash,
-    type: "magiclink",
-  });
-  if (otpErr) {
-    // best-effort: zamknij audyt
-    await endImpersonation({ data: { sessionId: result.sessionId } }).catch(() => undefined);
-    throw new Error(otpErr.message);
-  }
-
-  setImpersonationState({
-    sessionId: result.sessionId,
-    targetUserId,
-    targetLabel,
-    original: {
-      access_token: sess.session.access_token,
-      refresh_token: sess.session.refresh_token,
-    },
-  });
 }
 
 /**

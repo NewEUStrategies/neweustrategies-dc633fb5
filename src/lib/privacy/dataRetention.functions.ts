@@ -43,7 +43,13 @@ import {
 export { mapDataRetentionError };
 export type { DataRetentionMutation, DataRetentionMutationError, DataRetentionRead };
 
-const ISO = z.string().datetime({ offset: true });
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const ISO = /* @__PURE__ */ (() => z.string().datetime({ offset: true }))();
 
 // ── Odczyty ──────────────────────────────────────────────────────────────────
 
@@ -75,18 +81,19 @@ export const getDataRetentionCrmDue = createServerFn({ method: "POST" })
 
 // ── Zapisy ───────────────────────────────────────────────────────────────────
 
-export const SaveCategorySchema = z
-  .object({
-    category: z.enum(DATA_RETENTION_EDITABLE_CATEGORIES),
-    periodMonths: z.number().int(),
-    enabled: z.boolean(),
-    expectedUpdatedAt: ISO.nullable(),
-  })
-  .strict()
-  .refine((input) => isRetentionPeriodAllowed(input.category, input.periodMonths), {
-    message: "period_out_of_range",
-    path: ["periodMonths"],
-  });
+export const SaveCategorySchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      category: z.enum(DATA_RETENTION_EDITABLE_CATEGORIES),
+      periodMonths: z.number().int(),
+      enabled: z.boolean(),
+      expectedUpdatedAt: ISO.nullable(),
+    })
+    .strict()
+    .refine((input) => isRetentionPeriodAllowed(input.category, input.periodMonths), {
+      message: "period_out_of_range",
+      path: ["periodMonths"],
+    }))();
 export type SaveCategoryInput = z.infer<typeof SaveCategorySchema>;
 
 export const saveDataRetentionCategory = createServerFn({ method: "POST" })
@@ -103,12 +110,13 @@ export const saveDataRetentionCategory = createServerFn({ method: "POST" })
   });
 
 /** Lokalny dzień „YYYY-MM-DD" (natywna wartość pola daty - bez przesunięcia doby). */
-const LOCAL_DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const LOCAL_DAY = /* @__PURE__ */ (() => z.string().regex(/^\d{4}-\d{2}-\d{2}$/))();
 
-export const EnforcementSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("enable_now") }).strict(),
-  z.object({ action: z.literal("postpone"), until: LOCAL_DAY }).strict(),
-]);
+export const EnforcementSchema = /* @__PURE__ */ (() =>
+  z.discriminatedUnion("action", [
+    z.object({ action: z.literal("enable_now") }).strict(),
+    z.object({ action: z.literal("postpone"), until: LOCAL_DAY }).strict(),
+  ]))();
 export type EnforcementInput = z.infer<typeof EnforcementSchema>;
 
 export const setDataRetentionEnforcement = createServerFn({ method: "POST" })
@@ -122,16 +130,17 @@ export const setDataRetentionEnforcement = createServerFn({ method: "POST" })
     return mutation(raw, error, parseDataRetentionState);
   });
 
-export const ExtendContactSchema = z
-  .object({
-    leadId: z.string().uuid(),
-    // Powód po obcięciu brzegów 3-500 znaków - dłuższy jest odrzucany, nie
-    // skracany (ten sam predykat co RPC i CHECK tabeli).
-    reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {
-      message: "reason_length",
-    }),
-  })
-  .strict();
+export const ExtendContactSchema = /* @__PURE__ */ (() =>
+  z
+    .object({
+      leadId: z.string().uuid(),
+      // Powód po obcięciu brzegów 3-500 znaków - dłuższy jest odrzucany, nie
+      // skracany (ten sam predykat co RPC i CHECK tabeli).
+      reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {
+        message: "reason_length",
+      }),
+    })
+    .strict())();
 export type ExtendContactInput = z.infer<typeof ExtendContactSchema>;
 
 export const extendDataRetentionContact = createServerFn({ method: "POST" })

@@ -145,7 +145,7 @@ export function PostExcerptView({
       {showMore && ctx?.slug && (
         <>
           {" "}
-          <AppLink href={`/post/${ctx.slug}`} className="text-primary hover:underline">
+          <AppLink href={ctx.href ?? `/post/${ctx.slug}`} className="text-primary hover:underline">
             {lang === "en"
               ? `Read the full analysis: ${ctx.title_en ?? ctx.title_pl ?? ""}`.trim()
               : `Przeczytaj całą analizę: ${ctx.title_pl ?? ctx.title_en ?? ""}`.trim()}

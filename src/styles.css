@@ -561,8 +561,10 @@ body {
   --voice-stop-border: color-mix(in oklab, var(--primary) 72%, #000);
   /* Szary ton akcji "wiecej" w etykiecie sekcji (Kinetic Signal Notch). To
      neutralna szarosc bez ocieplenia brandem - na jasnej plycie odrobinie
-     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). */
-  --nes-kinetic-action: oklch(0.56 0.004 250);
+     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). Liczone na
+     tle strony #f8f7f3, nie na bieli: 0.56 dawalo tam 4,34:1 (audyt axe
+     2026-11-14), 0.54 daje 4,72:1. */
+  --nes-kinetic-action: oklch(0.54 0.004 250);
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
@@ -2211,37 +2213,6 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   content: var(--td-meta-sep, "\2022");
   margin-right: var(--td-meta-gap, 12px);
   opacity: 0.6;
-}
-
-/* Social icons */
-.cms-social {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--td-si-gap, 8px);
-}
-.cms-social a,
-.cms-social__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--td-si-color, var(--foreground));
-  background: var(--td-si-bg, transparent);
-  border-radius: var(--td-si-radius, 9999px);
-  padding: var(--td-si-py, 6px) var(--td-si-px, 6px);
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease,
-    transform 0.15s ease;
-}
-.cms-social a svg,
-.cms-social__btn svg {
-  width: var(--td-si-size, 18px);
-  height: var(--td-si-size, 18px);
-}
-.cms-social a:hover,
-.cms-social__btn:hover {
-  color: var(--td-si-hover-color, #fa9346);
-  background: var(--td-si-hover-bg, transparent);
 }
 
 /* ===== Unified post title / excerpt across every widget =====
@@ -4896,62 +4867,6 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   font-weight: var(--fw-h6, 600);
   text-transform: var(--tt-h6, uppercase);
 }
-/* -------------------------------------------------------------
- * CMS builder (Gutenberg) - edytowalne nagłówki bloków.
- * Nagłówek jest edytowany przez TipTap, więc DOM to
- * `.cms-hN > .ProseMirror > p`. Reguły poniżej wymuszają na tym
- * akapicie DOKŁADNIE te same globalne tokeny (--fs-hN / --lh-hN /
- * --ls-hN / --fw-hN / --tt-hN), co strona publiczna - dzięki temu
- * zmiana rozmiarów czcionek w panelu admina jest natychmiast
- * widoczna w builderze 1:1. Selektory z `p` wygrywają nad ogólną
- * regułą `[data-builder-renderer] p` (specyficzność klasa+element).
- * ------------------------------------------------------------- */
-:is(.block-canvas, [data-builder-renderer]) .cms-h1 p,
-.cms-h1,
-[data-builder-renderer] .cms-h1 {
-  font-size: var(--fs-h1, 2.5rem);
-  line-height: var(--lh-h1, 1.15);
-  letter-spacing: var(--ls-h1, -0.5px);
-  font-weight: var(--fw-h1, 800);
-  text-transform: var(--tt-h1, none);
-}
-:is(.block-canvas, [data-builder-renderer]) .cms-h2 p,
-.cms-h2,
-[data-builder-renderer] .cms-h2 {
-  font-size: var(--fs-h2, 2rem);
-  line-height: var(--lh-h2, 1.2);
-  letter-spacing: var(--ls-h2, -0.25px);
-  font-weight: var(--fw-h2, 700);
-  text-transform: var(--tt-h2, none);
-}
-:is(.block-canvas, [data-builder-renderer]) .cms-h3 p,
-.cms-h3,
-[data-builder-renderer] .cms-h3 {
-  font-size: var(--fs-h3, 1.625rem);
-  line-height: var(--lh-h3, 1.25);
-  letter-spacing: var(--ls-h3, 0);
-  font-weight: var(--fw-h3, 700);
-  text-transform: var(--tt-h3, none);
-}
-:is(.block-canvas, [data-builder-renderer]) .cms-h4 p,
-.cms-h4,
-[data-builder-renderer] .cms-h4 {
-  font-size: var(--fs-h4, 1.375rem);
-  line-height: var(--lh-h4, 1.3);
-  letter-spacing: var(--ls-h4, 0);
-  font-weight: var(--fw-h4, 700);
-  text-transform: var(--tt-h4, none);
-}
-:is(.block-canvas, [data-builder-renderer]) .cms-h5 p,
-.cms-h5,
-[data-builder-renderer] .cms-h5 {
-  font-size: var(--fs-h5, 1.125rem);
-  line-height: var(--lh-h5, 1.4);
-  letter-spacing: var(--ls-h5, 0);
-  font-weight: var(--fw-h5, 600);
-  text-transform: var(--tt-h5, none);
-}
-/* Rytm pionowy nagłówka w builderze - jak w publicznym wpisie. */
 
 [data-builder-renderer] .prose :is(p, li),
 [data-builder-renderer] :is(p, li),

@@ -7,73 +7,14 @@
 // The resolver is intentionally string-in / string-out and *safe*: unknown
 // tokens are left untouched so authors can spot typos, and no HTML is
 // generated - callers keep full control over presentation.
+//
+// Katalog tokenów dla wstawiacza w panelu (`DYNAMIC_TAG_GROUPS`) mieszka
+// w `dynamicTagCatalog.ts`: ten moduł czytają widgety renderera, więc jest
+// w chunku startowym każdej strony. Nie importuj tu katalogu (roadmapa
+// ładowania §9.1 J3).
 import type { CurrentPostCtx } from "@/lib/content-model/postContext";
 
 export type DynamicTagLang = "pl" | "en";
-
-export interface DynamicTagDef {
-  /** Token as typed by the user - always wrapped in curly braces. */
-  token: string;
-  /** Short i18n-agnostic English label used inside the admin picker. */
-  label: string;
-  /** Optional short description surfaced next to the label. */
-  description?: string;
-}
-
-export const DYNAMIC_TAG_GROUPS: {
-  id: "post" | "author" | "taxonomy" | "site";
-  labelPl: string;
-  labelEn: string;
-  tags: DynamicTagDef[];
-}[] = [
-  {
-    id: "post",
-    labelPl: "Wpis",
-    labelEn: "Post",
-    tags: [
-      { token: "{post.title}", label: "Tytuł wpisu" },
-      { token: "{post.excerpt}", label: "Zajawka" },
-      { token: "{post.slug}", label: "Slug" },
-      { token: "{post.date}", label: "Data publikacji" },
-      { token: "{post.updated}", label: "Data aktualizacji" },
-      { token: "{post.reading}", label: "Czas czytania" },
-      { token: "{post.views}", label: "Wyświetlenia" },
-    ],
-  },
-  {
-    id: "author",
-    labelPl: "Autor",
-    labelEn: "Author",
-    tags: [
-      { token: "{author.name}", label: "Imię i nazwisko" },
-      { token: "{author.role}", label: "Stanowisko" },
-      { token: "{author.company}", label: "Firma / redakcja" },
-    ],
-  },
-  {
-    id: "taxonomy",
-    labelPl: "Taksonomia",
-    labelEn: "Taxonomy",
-    tags: [
-      { token: "{category.name}", label: "Nazwa kategorii" },
-      { token: "{tag.name}", label: "Nazwa tagu" },
-      { token: "{archive.label}", label: "Etykieta archiwum" },
-    ],
-  },
-  {
-    id: "site",
-    labelPl: "Kontekst",
-    labelEn: "Context",
-    tags: [
-      { token: "{date.today}", label: "Dzisiejsza data" },
-      { token: "{year}", label: "Bieżący rok" },
-    ],
-  },
-];
-
-export function listDynamicTags(): DynamicTagDef[] {
-  return DYNAMIC_TAG_GROUPS.flatMap((g) => g.tags);
-}
 
 function fmtDate(iso: string | undefined, lang: DynamicTagLang): string {
   if (!iso) return "";

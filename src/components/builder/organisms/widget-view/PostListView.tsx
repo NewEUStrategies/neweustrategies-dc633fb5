@@ -28,6 +28,7 @@ import {
 } from "@/lib/builder/authorDisplay";
 import { postListExcerptToggle, postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
+import { postHref } from "@/lib/routing/postHref";
 import type { SponsoredDisclosureInput } from "@/lib/content/sponsored";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import {
@@ -345,7 +346,7 @@ export function PostListView({
         {rows.map((p) => (
           <AppLink
             key={p.id}
-            href={`/post/${p.slug}`}
+            href={postHref(p)}
             data-author-title-scope={titleScope}
             className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 sm:gap-4 py-3 group`}
           >
@@ -419,7 +420,7 @@ export function PostListView({
         {rows.map((p, i) => (
           <AppLink
             key={p.id}
-            href={`/post/${p.slug}`}
+            href={postHref(p)}
             data-author-title-scope={titleScope}
             className="block py-4 sm:py-5 group"
           >
@@ -510,7 +511,7 @@ export function PostListView({
         {rows.map((p, i) => (
           <AppLink
             key={p.id}
-            href={`/post/${p.slug}`}
+            href={postHref(p)}
             data-author-title-scope={titleScope}
             className={`post-list-numbered-row grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
@@ -580,7 +581,7 @@ export function PostListView({
         {rows.map((p, i) => (
           <AppLink
             key={p.id}
-            href={`/post/${p.slug}`}
+            href={postHref(p)}
             data-author-title-scope={titleScope}
             className="block group"
           >
@@ -619,7 +620,7 @@ export function PostListView({
     return (
       <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
         <AppLink
-          href={`/post/${lead.slug}`}
+          href={postHref(lead)}
           data-author-title-scope={tokenTitleScope}
           className="group block"
         >
@@ -655,7 +656,7 @@ export function PostListView({
           {rest.map((p, i) => (
             <li key={p.id} className="border-b border-border/60 last:border-0">
               <AppLink
-                href={`/post/${p.slug}`}
+                href={postHref(p)}
                 className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-2.5 sm:gap-3 py-3 sm:py-3.5 first:pt-0 group`}
               >
                 {p.cover_image_url ? (
@@ -698,7 +699,7 @@ export function PostListView({
         {rows.map((p) => (
           <AppLink
             key={p.id}
-            href={`/post/${p.slug}`}
+            href={postHref(p)}
             data-author-title-scope={tokenTitleScope}
             className={`group grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)] lg:grid-cols-[144px_minmax(0,1fr)]" : "grid-cols-1"} items-stretch gap-3 sm:gap-4 p-2.5 sm:p-3.5 rounded-lg bg-card border border-border/70 hover:border-brand/60 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.18)] transition-all`}
           >
@@ -942,7 +943,7 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <AppLink
-        href={`/post/${p.slug}`}
+        href={postHref(p)}
         data-author-title-scope={titleScope}
         className={`group relative block overflow-hidden rounded-md ring-1 ring-black/5 shadow-[0_4px_18px_-8px_rgba(0,0,0,0.35)] hover:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] transition-shadow min-h-[180px] sm:min-h-[220px] ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
       >
@@ -975,7 +976,7 @@ function PostCard({
   if (variant === "minimal") {
     return (
       <AppLink
-        href={`/post/${p.slug}`}
+        href={postHref(p)}
         data-author-title-scope={titleScope}
         className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
       >
@@ -1008,7 +1009,7 @@ function PostCard({
 
   // default - card
   return (
-    <AppLink href={`/post/${p.slug}`} data-author-title-scope={titleScope} className={base}>
+    <AppLink href={postHref(p)} data-author-title-scope={titleScope} className={base}>
       {p.cover_image_url && (
         <WidgetMediaImage
           src={p.cover_image_url}

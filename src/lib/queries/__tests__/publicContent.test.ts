@@ -15,7 +15,10 @@
 //     strony. TAGI I KATEGORIE WYPADŁY Z TEJ LISTY 2026-09-20 (audyt CWV, F06):
 //     nie jadą już osobnymi zapytaniami, tylko OSADZENIEM w wierszu `posts`
 //     (`POST_RESOLVE_SELECT`), więc ich odmowa kładzie CAŁE zapytanie wiersza
-//     i wpada w `if (error) throw` - odmowa nie ma już gdzie zniknąć. Każde z nich dostaje tu
+//     i wpada w `if (error) throw` - odmowa nie ma już gdzie zniknąć.
+//     WSPÓŁAUTORZY ZESZLI Z NIEJ 2026-11-14 (roadmapa ładowania, B2) tą samą
+//     drogą: `post_authors(user_id, sort_order)` jest trzecim osadzeniem tego
+//     samego wiersza, więc wpis kosztuje o jeden round-trip mniej. Każde z nich dostaje tu
 //     przypadek PRZYPINAJĄCY stan faktyczny, a pięć najgroźniejszych dodatkowo
 //     `it.fails` z konsekwencją dla człowieka. Klasa defektu „awaria wygląda
 //     jak brak danych" wystąpiła w tym repo trzykrotnie;
@@ -33,7 +36,8 @@
 //     filtr rozgłasza w widocznej mapie strony adresy, które sitemap.xml ukrywa
 //     przed crawlerami; dlatego asercja porównuje CAŁE argumenty ogniwa;
 //   * KOLEJNOŚĆ OGNIW JEST KONTRAKTEM. Współautorzy muszą przyjść z
-//     `.order("sort_order", { ascending: true })`, kategorie publiczne z
+//     `.order("sort_order", { referencedTable: "post_authors", ascending:
+//     true })` (ogniwo na wierszu wpisu, zaadresowane do osadzenia), kategorie publiczne z
 //     `.order("name_pl")` BEZ opcji, lista bloga z `.order("published_at",
 //     { ascending: false })`. Zgubione ogniwo `.order()` to kolejność losowa
 //     między żądaniami - autorzy w cytowaniu zamieniają się miejscami, a wpisy
@@ -108,6 +112,7 @@ import {
 import type { RecordedRpc, SupabaseRpcStub } from "@/test/supabase/rpc";
 import { EMPTY_BODY } from "@/lib/access/gating";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 
 /** Data bazowa całego pliku - żaden przypadek nie czyta prawdziwego zegara. */
 const DATA_BAZOWA = "2026-08-21T10:00:00.000Z";
@@ -147,11 +152,13 @@ import {
   blogListQueryOptions,
   fetchGatedBody,
   homePageQueryOptions,
+  onResolvedPathHit,
   publicCategoriesQueryOptions,
   publicPagesTreeQueryOptions,
   resolvePostsPerPage,
   resolvedContentQueryOptions,
   type ResolvedContent,
+  type ResolvedPathHit,
 } from "@/lib/queries/public";
 
 // ---------- strażniki zawężające (zamiast rzutowań) ------------------------
@@ -265,10 +272,18 @@ function wierszWpisuListy(id: string, over: Record<string, unknown> = {}): Recor
  */
 function wierszWpisuZTaksonomiami(
   id: string,
-  osadzenia: { post_tags?: unknown; post_categories?: unknown },
+  osadzenia: { post_tags?: unknown; post_categories?: unknown; post_authors?: unknown },
   over: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return wierszWpisuListy(id, { ...osadzenia, ...over });
+}
+
+/**
+ * Wiersze osadzenia `post_authors(user_id, sort_order)` w kolejności, w jakiej
+ * oddaje je PostgREST po `order=sort_order.asc` na zasobie osadzonym.
+ */
+function wspolautorzy(...userIds: string[]): Array<{ user_id: string; sort_order: number }> {
+  return userIds.map((user_id, sort_order) => ({ user_id, sort_order }));
 }
 
 function wierszProfilu(id: string): Record<string, unknown> {
@@ -330,20 +345,28 @@ function odpowiedzStron(plan: PlanStron): TableResponder {
 
 /** Plan pełnej rezolucji treści. Każda granica ma tu domyślną, UDANĄ
  *  odpowiedź, bo atrapa traktuje niezaplanowaną tabelę jako błąd testu - a
- *  `Promise.all` w rezolucji dotyka PIĘCIU granic naraz.
+ *  `Promise.all` w rezolucji dotyka CZTERECH granic naraz.
  *
  *  Nie ma tu już odnóg `tagi`/`kategorie`: od 2026-09-20 taksonomie jadą
  *  OSADZENIEM w wierszu `posts` (`POST_RESOLVE_SELECT`), więc planuje się je
  *  na wierszu wpisu (`wierszWpisuZTaksonomiami`), a nie na osobnej tabeli.
- *  Brak planu dla `post_tags`/`post_categories` jest tu KONTROLĄ NEGATYWNĄ:
- *  gdyby produkcja wróciła do osobnych round-tripów, atrapa oddałaby błąd
- *  „brak zaplanowanej odpowiedzi", a asercje `chainsFor(...)` w teście
- *  „pięć granic naraz" złapałyby to wprost. */
+ *  Od 2026-11-14 tak samo WSPÓŁAUTORZY (`post_authors` w tym samym wierszu,
+ *  fabryka `wspolautorzy(...)`).
+ *  Brak planu dla `post_tags`/`post_categories`/`post_authors` jest tu
+ *  KONTROLĄ NEGATYWNĄ: gdyby produkcja wróciła do osobnych round-tripów,
+ *  atrapa oddałaby błąd „brak zaplanowanej odpowiedzi", a asercje
+ *  `chainsFor(...)` w teście „cztery granice naraz" złapałyby to wprost. */
 interface PlanRezolucji {
   resolve?: SupabaseResult;
   wpis?: SupabaseResult;
+  /**
+   * Odpowiedź odczytu SPEKULACYJNEGO (`posts` po slugu, LISTA wierszy), który
+   * od 2026-11-14 startuje równolegle z `resolve_path`. Domyślnie wyprowadzona
+   * z `wpis`: ten sam wiersz w liście (spekulacja trafia - stan produkcyjny),
+   * pusta lista dla `null`, ten sam błąd dla odmowy.
+   */
+  wpisPoSlugu?: SupabaseResult;
   cialo?: SupabaseResult;
-  wspolautorzy?: SupabaseResult;
   okruszki?: SupabaseResult;
   dostep?: SupabaseResult;
   profile?: SupabaseResult;
@@ -358,8 +381,13 @@ function planuj(plan: PlanRezolucji = {}): void {
   );
   funkcje().setResponse("get_entity_content", plan.cialo ?? ok(cialo()));
   funkcje().setResponse("page_breadcrumbs", plan.okruszki ?? ok([okruszek(ID_STRONY, 0)]));
-  baza().setResponse("posts", plan.wpis ?? ok(wierszWpisuListy(ID_WPISU)));
-  baza().setResponse("post_authors", plan.wspolautorzy ?? ok([]));
+  const wpis = plan.wpis ?? ok(wierszWpisuListy(ID_WPISU));
+  baza().setResponse("posts", (chain) => {
+    if (filtrEq(chain, "slug") === undefined) return wpis;
+    if (plan.wpisPoSlugu) return plan.wpisPoSlugu;
+    if (wpis.error) return wpis;
+    return ok(wpis.data == null ? [] : [wpis.data]);
+  });
   baza().setResponse("content_access_public", plan.dostep ?? ok(null));
   baza().setResponse("profiles_public", plan.profile ?? ok([]));
   baza().setResponse("author_profiles_public", plan.nakladka ?? ok(null));
@@ -374,10 +402,14 @@ beforeEach(() => {
   baza().reset();
   funkcje().reset();
   h.cache.length = 0;
+  // Wyłączenie osadzenia strony-rodzica po błędzie jest stanem MODUŁU - bez
+  // zdjęcia go przypadek z odmową zmieniałby `select` listy bloga w kolejnych.
+  resetPostParentPageRead();
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 // ==========================================================================
@@ -607,6 +639,34 @@ describe("rozmiar strony list wpisów: co wolno wpisać operatorowi", () => {
 // LISTA BLOGA - kształt zapytania i dwa stany zwrotki
 // ==========================================================================
 
+/** `select` listy i archiwum bloga Z osadzeniem strony-rodzica - dosłownie, znak po znaku. */
+const SELECT_BLOGA_Z_RODZICEM =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate, parent_page:pages!posts_parent_page_id_fkey(slug, parent_id)";
+/** Ten sam `select` bez osadzenia: odczyt zapasowy i kształt sprzed zmiany. */
+const SELECT_BLOGA_ZAPASOWY =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, is_sponsored, sponsored_kind, sponsored_affiliate";
+
+function selectOf(chain: RecordedChain | undefined): string {
+  return String(chain?.argsOf("select")?.[0]);
+}
+
+/** Trzy wpisy: pod `/blog`, pod stroną zagnieżdżoną i pod rodzicem niewidocznym dla gościa. */
+function wierszeBlogaZRodzicami(): Array<Record<string, unknown>> {
+  return [
+    wierszWpisuListy("a", { parent_page: { slug: "blog", parent_id: null } }),
+    wierszWpisuListy("b", { parent_page: { slug: "energetyka", parent_id: "pg-analizy" } }),
+    wierszWpisuListy("c", { parent_page: null }),
+  ];
+}
+
+/** Odmowa odczytu Z OSADZENIEM, zwykła odpowiedź odczytu zapasowego. */
+function osadzenieZawodzi(zapas: SupabaseResult): TableResponder {
+  return (chain) =>
+    selectOf(chain).includes("parent_page:")
+      ? fail("permission denied for table pages", "42501")
+      : zapas;
+}
+
 describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
   it("pyta wyłącznie o opublikowane i nieusunięte, od najnowszych, z limitem strony", async () => {
     baza().setResponse("posts", ok([wierszWpisuListy("a")]));
@@ -629,12 +689,56 @@ describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
     expect(h.cache).toEqual([{ key: "public:blog-list:120", ttl: 60_000 }]);
   });
 
-  it("adres wpisu idzie przez trasę /post/$slug, więc brak ścieżki rodzica go nie psuje", async () => {
+  it("wiersz bez strony-rodzica linkuje przez trasę /post/$slug, więc brak ścieżki rodzica go nie psuje", async () => {
     baza().setResponse("posts", ok([wierszWpisuListy("a"), wierszWpisuListy("b")]));
     const wynik = await klient().fetchQuery(blogListQueryOptions());
     expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
     // Zero N+1: żadne `page_full_path` nie poleciało.
     expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("rodzic jedzie w TYM SAMYM odczycie: jedno żądanie o wpisy, zero o strony i zero RPC ścieżek", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    await klient().fetchQuery(blogListQueryOptions());
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(selectOf(lancuch("posts"))).toBe(SELECT_BLOGA_Z_RODZICEM);
+    expect(baza().chainsFor("pages")).toHaveLength(0);
+    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("adres kanoniczny dla rodzica najwyższego poziomu; zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual([
+      "/blog/slug-a",
+      "/post/slug-b",
+      "/post/slug-c",
+    ]);
+  });
+
+  it("pozycja listy NIE niesie `parent_page` - kształt wiersza w cache jak przed zmianą", async () => {
+    baza().setResponse("posts", ok(wierszeBlogaZRodzicami()));
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    for (const pozycja of wynik.posts) {
+      expect(Object.keys(pozycja)).toEqual([...Object.keys(wierszWpisuListy("x")), "href"]);
+    }
+  });
+
+  it("odczyt z osadzeniem zawodzi: TO SAMO zapytanie bez osadzenia, lista z adresami zapasowymi", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    baza().setResponse(
+      "posts",
+      osadzenieZawodzi(ok([wierszWpisuListy("a"), wierszWpisuListy("b")])),
+    );
+    const wynik = await klient().fetchQuery(blogListQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
+
+    const [zRodzicem, zapasowy, ...reszta] = baza().chainsFor("posts");
+    expect(reszta).toHaveLength(0);
+    expect(selectOf(zRodzicem)).toBe(SELECT_BLOGA_Z_RODZICEM);
+    expect(selectOf(zapasowy)).toBe(SELECT_BLOGA_ZAPASOWY);
+    expect(zapasowy?.calls.slice(1)).toEqual(zRodzicem?.calls.slice(1));
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("PUSTO: serwis bez wpisów oddaje pustą listę", async () => {
@@ -643,8 +747,14 @@ describe("lista bloga: kształt zapytania, adresy i dwa stany zwrotki", () => {
   });
 
   it("ODMOWA: baza, która odmówiła, rzuca - lista nie udaje serwisu bez treści", async () => {
+    // Odmowa obu wariantów kolumn: zapas ratuje rozjazd osadzenia, nie awarię `posts`.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     baza().setResponse("posts", fail("odmowa posts", "42501"));
     await expect(klient().fetchQuery(blogListQueryOptions())).rejects.toThrow("odmowa posts");
+    expect(baza().chainsFor("posts").map(selectOf)).toEqual([
+      SELECT_BLOGA_Z_RODZICEM,
+      SELECT_BLOGA_ZAPASOWY,
+    ]);
   });
 });
 
@@ -684,9 +794,66 @@ describe("archiwum bloga: okno strony jest dokładne, licznik niezależny od wie
     expect(wynik.total).toBe(0);
   });
 
+  it("rodzic jedzie w TYM SAMYM odczycie co okno strony i licznik: jedno żądanie o wpisy", async () => {
+    baza().setResponse("posts", okZLicznikiem(wierszeBlogaZRodzicami(), 137));
+    await klient().fetchQuery(blogArchiveQueryOptions({ pageSize: 20 }));
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(lancuch("posts").argsOf("select")).toEqual([
+      SELECT_BLOGA_Z_RODZICEM,
+      { count: "exact" },
+    ]);
+    expect(baza().chainsFor("pages")).toHaveLength(0);
+    expect(funkcje().callsFor("page_full_path")).toHaveLength(0);
+  });
+
+  it("karta /blog linkuje adresem kanonicznym; rodzic zagnieżdżony i niewidoczny zostają przy /post/", async () => {
+    // Ten sam wpis miał na `/blog` dwa adresy: kanoniczny z breadcrumbów
+    // i `/post/<slug>` z karty, który odpowiada 301 i dwoma odczytami bazy.
+    baza().setResponse("posts", okZLicznikiem(wierszeBlogaZRodzicami(), 137));
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions({ pageSize: 20 }));
+    expect(wynik.posts.map((p) => p.href)).toEqual([
+      "/blog/slug-a",
+      "/post/slug-b",
+      "/post/slug-c",
+    ]);
+    // Stan odwodniony dokumentu `/blog` nie rośnie o osadzenie rodzica.
+    for (const pozycja of wynik.posts) {
+      expect(Object.keys(pozycja)).toEqual([...Object.keys(wierszWpisuListy("x")), "href"]);
+    }
+  });
+
+  it("wiersz bez strony-rodzica zostaje przy /post/$slug", async () => {
+    baza().setResponse("posts", okZLicznikiem([wierszWpisuListy("a")], 1));
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions());
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a"]);
+  });
+
+  it("odczyt z osadzeniem zawodzi: to samo okno i licznik bez osadzenia, karty z adresem zapasowym", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    baza().setResponse(
+      "posts",
+      osadzenieZawodzi(okZLicznikiem([wierszWpisuListy("a"), wierszWpisuListy("b")], 137)),
+    );
+    const wynik = await klient().fetchQuery(blogArchiveQueryOptions({ page: 3, pageSize: 10 }));
+    expect(wynik.posts.map((p) => p.href)).toEqual(["/post/slug-a", "/post/slug-b"]);
+    // Licznik pochodzi z odczytu zapasowego - paginacja nie znika.
+    expect(wynik).toMatchObject({ total: 137, page: 3, pageSize: 10 });
+
+    const [zRodzicem, zapasowy, ...reszta] = baza().chainsFor("posts");
+    expect(reszta).toHaveLength(0);
+    expect(zRodzicem?.argsOf("select")).toEqual([SELECT_BLOGA_Z_RODZICEM, { count: "exact" }]);
+    expect(zapasowy?.argsOf("select")).toEqual([SELECT_BLOGA_ZAPASOWY, { count: "exact" }]);
+    expect(zapasowy?.calls.slice(1)).toEqual(zRodzicem?.calls.slice(1));
+    expect(ogniwa(lancuch("posts"), "range")).toEqual([[20, 29]]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it("ODMOWA: archiwum rzuca, zamiast pokazać „brak wpisów” z licznikiem 0", async () => {
+    // Odmowa obu wariantów kolumn: zapas ratuje rozjazd osadzenia, nie awarię `posts`.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     baza().setResponse("posts", fail("odmowa archiwum", "57014"));
     await expect(klient().fetchQuery(blogArchiveQueryOptions())).rejects.toThrow("odmowa archiwum");
+    expect(baza().chainsFor("posts")).toHaveLength(2);
   });
 });
 
@@ -841,29 +1008,33 @@ describe("rezolucja adresu: pięć wyjść, gdy funkcja SQL już odpowiedziała"
 describe("rezolucja adresu: gałąź WPISU", () => {
   const TRAFIENIE_WPISU = ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]);
 
-  it("pięć granic naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
+  it("cztery granice naraz: kształt każdego zapytania i nazwy argumentów funkcji SQL", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
       wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
     });
     await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
 
-    // FALA GŁÓWNA MA PIĘĆ ODNÓG, NIE SIEDEM (audyt CWV 2026-09-20, F06): trzy
-    // łańcuchy tabelowe i dwie funkcje SQL. Siódma odnoga czekała w kolejce na
-    // zwolnienie slotu przy limicie 6 równoległych połączeń runtime Workers,
-    // więc liczba odnóg jest tu KONTRAKTEM WYDAJNOŚCI, nie ozdobą asercji.
-    expect(baza().chains.map((c) => c.table)).toEqual([
-      "posts",
-      "post_authors",
-      "content_access_public",
-    ]);
+    // WPIS BEZ AUTORÓW TO CZTERY ZAPYTANIA W DWÓCH FALACH (audyt CWV
+    // 2026-09-20, F06; roadmapa ładowania 2026-11-14, B2): dwa łańcuchy tabelowe
+    // i trzy funkcje SQL, z czego wiersz wpisu leci RAZEM z `resolve_path`.
+    // Zimny render wpisu stoi w kolejce do 6 równoległych połączeń runtime
+    // Workers razem z odczytami korzenia, więc liczba odnóg jest tu KONTRAKTEM
+    // WYDAJNOŚCI, nie ozdobą asercji.
+    expect(baza().chains.map((c) => c.table)).toEqual(["posts", "content_access_public"]);
     expect(funkcje().names()).toEqual(["resolve_path", "get_entity_content", "page_breadcrumbs"]);
 
-    // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała.
+    // Wiersz wpisu: kolumny prezentacyjne, ZERO kolumn ciała. JEDEN odczyt
+    // `posts` - spekulacyjny, po OSTATNIM segmencie adresu (to ten sam slug,
+    // po którym wpisu szuka `resolve_path`); odczytu po id nie ma wcale.
+    expect(baza().chainsFor("posts")).toHaveLength(1);
     const cWpis = lancuch("posts");
     expect(cWpis.argsOf("select")?.[0]).toBe(POST_RESOLVE_SELECT);
-    expect(filtrEq(cWpis, "id")).toEqual(["id", ID_WPISU]);
-    expect(cWpis.has("maybeSingle")).toBe(true);
+    expect(filtrEq(cWpis, "slug")).toEqual(["slug", "wpis"]);
+    expect(filtrEq(cWpis, "id")).toBeUndefined();
+    // LISTA, nie `.maybeSingle()`: dwa wiersze o tym slugu (staff widzący
+    // dwóch najemców) nie mogą zamienić spekulacji w błąd zapytania.
+    expect(cWpis.has("maybeSingle")).toBe(false);
 
     // Taksonomie: zagnieżdżony select przez tabelę pivot - ale OSADZONY
     // w wierszu wpisu, a nie w osobnym round-tripie. Gwarancja „pytamy
@@ -878,9 +1049,17 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     expect(baza().chainsFor("post_tags")).toHaveLength(0);
     expect(baza().chainsFor("post_categories")).toHaveLength(0);
 
-    // Współautorzy: kolejność jest KONTRAKTEM - bez tego ogniwa autorzy w
-    // cytowaniu zamieniają się miejscami między żądaniami.
-    expect(ogniwa(lancuch("post_authors"), "order")).toEqual([["sort_order", { ascending: true }]]);
+    // Współautorzy: OSADZENI w wierszu wpisu (trzecie osadzenie obok
+    // taksonomii), ZERO osobnego round-tripu po `post_authors`.
+    expect(POST_RESOLVE_SELECT).toContain("post_authors(user_id, sort_order)");
+    expect(baza().chainsFor("post_authors")).toHaveLength(0);
+    // Kolejność jest KONTRAKTEM - bez tego ogniwa autorzy w cytowaniu
+    // zamieniają się miejscami między żądaniami. Ogniwo MUSI adresować zasób
+    // osadzony: `.order("sort_order")` bez `referencedTable` sortowałby
+    // wiersze wpisu, a współautorzy wróciliby w kolejności fizycznej.
+    expect(ogniwa(cWpis, "order")).toEqual([
+      ["sort_order", { referencedTable: "post_authors", ascending: true }],
+    ]);
 
     // Okruszki i reguła dostępu.
     expect(wywolanie("page_breadcrumbs").keys()).toEqual(["_page_id"]);
@@ -892,6 +1071,94 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     const kolumnyDostepu = String(cDostep.argsOf("select")?.[0]);
     expect(kolumnyDostepu).toContain("teaser_pl");
     expect(kolumnyDostepu).not.toContain("password");
+  });
+
+  it("SPEKULACJA TRAFIONA: profile autorów ruszają w fali z treścią, nie falę po niej", async () => {
+    // Dowód KOLEJNOŚCI FAL, nie samego wyniku: ciało wpisu WISI, a profile
+    // autorów i nakładka mają już swoje łańcuchy. Przed zmianą profile
+    // startowały dopiero po całej fali z wierszem wpisu (trzecia fala
+    // round-tripów na ścieżce pierwszego bajtu).
+    let puscCialo: (wynik: SupabaseResult) => void = () => {};
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1") },
+          { author_id: ID_AUTORA },
+        ),
+      ),
+      profile: ok([wierszProfilu(ID_AUTORA), wierszProfilu("wsp-1")]),
+      nakladka: ok({ job_title: "Analityk", custom_socials: [] }),
+    });
+    funkcje().setResponse(
+      "get_entity_content",
+      () =>
+        new Promise<SupabaseResult>((resolve) => {
+          puscCialo = resolve;
+        }),
+    );
+    const bieg = klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
+    await vi.waitFor(() => expect(baza().chainsFor("author_profiles_public")).toHaveLength(1));
+    expect(baza().chainsFor("profiles_public")).toHaveLength(1);
+    // Wiersz wpisu przyszedł ze spekulacji - odczytu po id nie było.
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    puscCialo(ok(cialo()));
+    const wpis = jakoWpis(await bieg);
+    expect(wpis.authors.map((a) => a.id)).toEqual([ID_AUTORA, "wsp-1"]);
+    expect(wpis.item.content_pl).toBe("treść pl");
+  });
+
+  it("SPEKULACJA CHYBIONA: wiersz idzie po id, wynik jest TEN SAM", async () => {
+    // Inny wpis o tym samym slugu (np. widoczny staffowi z drugiego najemcy)
+    // nie ma prawa wejść do wyniku: liczy się WYŁĄCZNIE `post_id` z
+    // `resolve_path`. Kod schodzi wtedy na dotychczasowy odczyt po id.
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null, read_minutes: 7 })),
+      wpisPoSlugu: ok([wierszWpisuListy("obcy-wpis", { author_id: null, read_minutes: 99 })]),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(wpis.item.read_minutes).toBe(7);
+    const lancuchy = baza().chainsFor("posts");
+    expect(lancuchy).toHaveLength(2);
+    expect(filtrEq(lancuchy[1], "id")).toEqual(["id", ID_WPISU]);
+    expect(lancuchy[1].has("maybeSingle")).toBe(true);
+    // Kolejność współautorów obowiązuje na OBU odczytach wiersza.
+    for (const lancuchWpisu of lancuchy) {
+      expect(ogniwa(lancuchWpisu, "order")).toEqual([
+        ["sort_order", { referencedTable: "post_authors", ascending: true }],
+      ]);
+    }
+  });
+
+  it("AWARIA spekulacji to brak podpowiedzi, nie awaria wpisu", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+      wpisPoSlugu: fail("statement timeout", "57014"),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(baza().chainsFor("posts")).toHaveLength(2);
+  });
+
+  it("odpowiedź spekulacji w kształcie INNYM niż lista też schodzi na odczyt po id", async () => {
+    planuj({
+      resolve: TRAFIENIE_WPISU,
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+      wpisPoSlugu: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    const wpis = jakoWpis(
+      await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+    expect(baza().chainsFor("posts")).toHaveLength(2);
   });
 
   it("wpis, który zniknął między rezolucją a pobraniem, daje `null` (nie pusty wpis)", async () => {
@@ -949,13 +1216,19 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     // inaczej każdy dokument SSR wiezie te same dane dwa razy.
     expect(wpis.item).not.toHaveProperty("post_tags");
     expect(wpis.item).not.toHaveProperty("post_categories");
+    expect(wpis.item).not.toHaveProperty("post_authors");
   });
 
   it("profile WSZYSTKICH autorów lecą JEDNYM zapytaniem, w kanonicznej kolejności", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-      wspolautorzy: ok([{ user_id: "wsp-1" }, { user_id: "wsp-2" }]),
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1", "wsp-2") },
+          { author_id: ID_AUTORA },
+        ),
+      ),
       profile: ok([wierszProfilu("wsp-2"), wierszProfilu(ID_AUTORA), wierszProfilu("wsp-1")]),
       nakladka: ok({ job_title: "Analityk", custom_socials: [] }),
     });
@@ -963,8 +1236,9 @@ describe("rezolucja adresu: gałąź WPISU", () => {
       await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
     );
     // JEDEN round-trip po profile (nie trzy) i DOKŁADNA lista id: autor główny
-    // pierwszy, potem współautorzy w kolejności `sort_order`. To jest wywołanie
-    // `orderAuthorIds` - samą funkcję pokrywa postAuthors.test.ts.
+    // pierwszy, potem współautorzy w kolejności `sort_order` (tej z osadzenia).
+    // To jest wywołanie `orderAuthorIds` - samą funkcję pokrywa
+    // postAuthors.test.ts.
     expect(baza().chainsFor("profiles_public")).toHaveLength(1);
     expect(lancuch("profiles_public").argsOf("in")).toEqual(["id", [ID_AUTORA, "wsp-1", "wsp-2"]]);
     // Nakładka tylko dla autora GŁÓWNEGO i tylko z publicznej projekcji.
@@ -979,8 +1253,7 @@ describe("rezolucja adresu: gałąź WPISU", () => {
   it("wpis BEZ autorów nie płaci ani jednego round-tripu za profile", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
-      wspolautorzy: ok([]),
+      wpis: ok(wierszWpisuZTaksonomiami(ID_WPISU, { post_authors: [] }, { author_id: null })),
     });
     const wpis = jakoWpis(
       await klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
@@ -994,8 +1267,13 @@ describe("rezolucja adresu: gałąź WPISU", () => {
   it("wpis bez autora głównego, ale ze współautorami, NIE pyta o nakładkę", async () => {
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
-      wspolautorzy: ok([{ user_id: "wsp-1" }]),
+      wpis: ok(
+        wierszWpisuZTaksonomiami(
+          ID_WPISU,
+          { post_authors: wspolautorzy("wsp-1") },
+          { author_id: null },
+        ),
+      ),
       profile: ok([wierszProfilu("wsp-1")]),
     });
     const wpis = jakoWpis(
@@ -1008,18 +1286,24 @@ describe("rezolucja adresu: gałąź WPISU", () => {
     expect(wpis.authors.map((a) => a.id)).toEqual(["wsp-1"]);
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa post_authors", async () => {
-    // Linia 729 domyka odmowę wyrażeniem `(coAuthorRows ?? [])`, więc lista
-    // autorów kurczy się do tego jednego, którego id siedzi w wierszu wpisu.
+  it("błąd odczytu jest zgłaszany: odmowa post_authors kładzie CAŁE zapytanie wiersza", async () => {
+    // Jak przy taksonomiach: w OSADZENIU nie ma osobnej odpowiedzi tabeli,
+    // którą dałoby się po cichu zgubić. Brak uprawnień do `post_authors` to
+    // `42501` na zapytaniu `posts`, więc odmowa NIE MOŻE skurczyć listy
+    // autorów do tego jednego, którego id siedzi w wierszu wpisu - a profile
+    // nie są w ogóle pytane.
     planuj({
       resolve: TRAFIENIE_WPISU,
-      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: ID_AUTORA })),
-      wspolautorzy: fail("odmowa post_authors", "42501"),
+      wpis: fail("permission denied for table post_authors", "42501"),
       profile: ok([wierszProfilu(ID_AUTORA)]),
     });
     await expect(
       klient().fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
-    ).rejects.toMatchObject({ message: "odmowa post_authors" });
+    ).rejects.toMatchObject({
+      message: "permission denied for table post_authors",
+      code: "42501",
+    });
+    expect(baza().chainsFor("profiles_public")).toHaveLength(0);
   });
 
   it("błąd odczytu jest zgłaszany: odmowa post_tags kładzie CAŁE zapytanie wiersza", async () => {
@@ -1189,6 +1473,46 @@ describe("rezolucja adresu: gałąź STRONY i dziedziczenie nagłówka microsite
     expect(strona.item.header_override).toBeNull();
   });
 
+  it("adres JEDNOSEGMENTOWY nie spekuluje - nie może być wpisem", async () => {
+    // `resolve_path` szuka wpisu wyłącznie pod stroną-rodzicem (co najmniej
+    // dwa segmenty), więc odczyt `posts` po slugu byłby tu round-tripem za nic
+    // na każdej stronie najwyższego poziomu.
+    planuj({
+      resolve: TRAFIENIE_STRONY,
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(baza().chainsFor("posts")).toHaveLength(0);
+  });
+
+  it("strona ZAGNIEŻDŻONA płaci jeden odczyt spekulacyjny i go ignoruje", async () => {
+    planuj({
+      resolve: TRAFIENIE_STRONY,
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+      // Wpis o slugu równym ostatniemu segmentowi istnieje gdzie indziej -
+      // adres i tak jest STRONĄ, bo tak rozstrzygnął `resolve_path`.
+      wpisPoSlugu: ok([wierszWpisuListy(ID_WPISU)]),
+    });
+    const strona = jakoStrona(
+      await klient().fetchQuery(resolvedContentQueryOptions(["dzial", "o-nas"])),
+    );
+    expect(strona.kind).toBe("page");
+    expect(strona.item.id).toBe(ID_STRONY);
+    expect(baza().chainsFor("posts")).toHaveLength(1);
+    expect(filtrEq(baza().chainsFor("posts")[0], "slug")).toEqual(["slug", "o-nas"]);
+  });
+
+  it("adres wielosegmentowy, którego ostatni segment nie może być slugiem, nie spekuluje", async () => {
+    // Skanery (`/wp-admin/setup-config.php`, `/.git/config`): żaden wpis nie
+    // ma takiego sluga, a gałąź „treści nie ma" dla takich adresów nie pyta
+    // bazy wcale. Podpowiedź byłaby zapytaniem, które nie może trafić.
+    planuj({ resolve: ok([]) });
+    await expect(
+      klient().fetchQuery(resolvedContentQueryOptions(["wp-admin", "setup-config.php"])),
+    ).resolves.toBeNull();
+    expect(baza().chainsFor("posts")).toHaveLength(0);
+  });
+
   it("strona, która zniknęła między rezolucją a pobraniem, daje `null`", async () => {
     planuj({ resolve: TRAFIENIE_STRONY, strony: { poId: ok(null) } });
     await expect(klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]))).resolves.toBeNull();
@@ -1276,11 +1600,10 @@ it("successful empty metadata responses preserve the resolved article", async ()
     wpis: ok(
       wierszWpisuZTaksonomiami(
         ID_WPISU,
-        { post_tags: null, post_categories: null },
+        { post_tags: null, post_categories: null, post_authors: null },
         { author_id: ID_AUTORA },
       ),
     ),
-    wspolautorzy: ok(null),
     profile: ok(null),
     nakladka: ok(null),
   });
@@ -1309,4 +1632,106 @@ it("resolves the configured homepage slug without falling back to home", async (
   planuj({ strony: { poSlug: ok({ id: "configured-start", slug: "start" }) } });
   expect((await klient().fetchQuery(homePageQueryOptions()))?.id).toBe("configured-start");
   expect(baza().chainsFor("pages")).toHaveLength(1);
+});
+
+// ==========================================================================
+// ZGŁOSZENIE TRAFIENIA ŚCIEŻKI - rodzaj i id treści falę przed samą treścią
+// ==========================================================================
+
+describe("zgłoszenie trafienia ścieżki: rodzaj i id treści, zanim treść się rozstrzygnie", () => {
+  it("WPIS: słuchacz dostaje rodzaj i id PO starcie odnóg treści, a PRZED ich końcem", async () => {
+    // Loader trasy treści startuje z tego zgłoszenia rozgrzewkę slotów
+    // reklamowych (potrzebuje tylko rodzaju i id). Dwie rzeczy są tu kontraktem:
+    // zgłoszenie przychodzi, gdy ciało wpisu jeszcze WISI (inaczej praca
+    // słuchacza stałaby szeregowo za treścią, jak przed zmianą), oraz DOPIERO
+    // po wystartowaniu odnóg treści (inaczej dekoracja zajęłaby połączenie
+    // przed zapytaniami, od których zależy pierwszy bajt).
+    let puscCialo: (wynik: SupabaseResult) => void = () => {};
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    funkcje().setResponse(
+      "get_entity_content",
+      () =>
+        new Promise<SupabaseResult>((resolve) => {
+          puscCialo = resolve;
+        }),
+    );
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    let odnogiPrzyZgloszeniu: string[] = [];
+    onResolvedPathHit(client, (hit) => {
+      trafienia.push(hit);
+      odnogiPrzyZgloszeniu = [...funkcje().names(), ...baza().chains.map((c) => c.table)];
+    });
+
+    const bieg = client.fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"]));
+    await vi.waitFor(() => expect(trafienia).toHaveLength(1));
+
+    expect(trafienia).toEqual([{ kind: "post", id: ID_WPISU }]);
+    expect(odnogiPrzyZgloszeniu).toEqual([
+      "resolve_path",
+      "get_entity_content",
+      "page_breadcrumbs",
+      "posts",
+      "content_access_public",
+    ]);
+    puscCialo(ok(cialo()));
+    expect(jakoWpis(await bieg).item.id).toBe(ID_WPISU);
+    // Najwyżej raz na rezolucję.
+    expect(trafienia).toHaveLength(1);
+  });
+
+  it("STRONA: rodzaj `page` i id strony", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: null }]),
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    onResolvedPathHit(client, (hit) => trafienia.push(hit));
+    await client.fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([{ kind: "page", id: ID_STRONY }]);
+  });
+
+  it("adres BEZ treści nie budzi słuchacza - 404 nie płaci za jego pracę", async () => {
+    planuj({ resolve: ok([]) });
+    const client = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    onResolvedPathHit(client, (hit) => trafienia.push(hit));
+    await expect(client.fetchQuery(resolvedContentQueryOptions(["nie", "ma"]))).resolves.toBeNull();
+    expect(trafienia).toEqual([]);
+  });
+
+  it("wyjątek słuchacza NIE przerywa rezolucji treści", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: ID_WPISU }]),
+      wpis: ok(wierszWpisuListy(ID_WPISU, { author_id: null })),
+    });
+    const client = klient();
+    onResolvedPathHit(client, () => {
+      throw new Error("słuchacz padł");
+    });
+    const wpis = jakoWpis(
+      await client.fetchQuery(resolvedContentQueryOptions(["analizy", "wpis"])),
+    );
+    expect(wpis.item.id).toBe(ID_WPISU);
+  });
+
+  it("słuchacz jest per klient zapytań i da się go wyrejestrować", async () => {
+    planuj({
+      resolve: ok([{ page_id: ID_STRONY, post_id: null }]),
+      strony: { poId: ok({ id: ID_STRONY, header_override: "x" }) },
+    });
+    const zeSluchaczem = klient();
+    const trafienia: ResolvedPathHit[] = [];
+    const wyrejestruj = onResolvedPathHit(zeSluchaczem, (hit) => trafienia.push(hit));
+    // Inne żądanie (inny klient) nie budzi cudzego słuchacza.
+    await klient().fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([]);
+    wyrejestruj();
+    await zeSluchaczem.fetchQuery(resolvedContentQueryOptions(["o-nas"]));
+    expect(trafienia).toEqual([]);
+  });
 });

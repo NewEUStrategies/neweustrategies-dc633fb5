@@ -69,11 +69,13 @@ export const EXPORT_SECTION_LIMITS: Readonly<Record<string, number>> = Object.fr
   consent_events: EXPORT_ROW_LIMIT,
   reading_history: EXPORT_ROW_LIMIT,
   comments: EXPORT_ROW_LIMIT,
-  user_reports_filed: EXPORT_ROW_LIMIT,
   chat_conversations: EXPORT_ROW_LIMIT,
   chat_messages_sent: EXPORT_MESSAGE_LIMIT,
   notifications: EXPORT_ROW_LIMIT,
   invitations_sent: EXPORT_ROW_LIMIT,
+  // Zgłoszenia złożone: sufit w RPC (`user_reports_export_my_data`, p_limit) -
+  // tabela jest RPC-only, PostgREST nie ma tu żadnego `.limit(...)`.
+  user_reports_filed: EXPORT_ROW_LIMIT,
   // Sieć kontaktów: RPC stronicujące, sklejane do tego samego sufitu.
   network_connections: EXPORT_ROW_LIMIT,
   network_invitations_sent: EXPORT_ROW_LIMIT,

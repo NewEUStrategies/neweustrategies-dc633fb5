@@ -48,6 +48,7 @@ import { GUEST_SAVED_ARTICLES_KEY } from "@/lib/storageKeys";
 import { onOpenLoginPopup, type LoginPopupOptions } from "@/lib/loginPopupBus";
 import { axeViolations, summarize } from "@/test/axe";
 import { ok, fail, type RecordedChain } from "@/test/supabaseChain";
+import { resetPostParentPageRead } from "@/lib/routing/postParentPageRead";
 
 /** Wiersz feedu obserwowanych / rekomendacji w zakresie kolumn karty. */
 interface FeedRow {
@@ -347,6 +348,10 @@ beforeEach(() => {
   h.recommendedRefetches = 0;
   chain.reset();
   rpc.reset();
+  // Odczyt zapisanych wpisów idzie przez `readPostsWithParentPage`, którego
+  // okno wyłączenia osadzenia żyje w module - przypadek z odmową bazy nie
+  // może przestawić kolejnych na odczyt bez osadzenia.
+  resetPostParentPageRead();
   window.localStorage.clear();
 });
 

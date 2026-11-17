@@ -760,6 +760,147 @@ describe("trasa łapiąca wszystko - wejścia brzegowe kompozycji", () => {
     expect(prop("ContentRenderer").currentPostCtx).toMatchObject({ tags: [], categories: [] });
   });
 
+  // ADRESY KANONICZNE LICZONE NA STRONIE WPISU. Stopka linkowała sąsiadów przez
+  // `/post/<slug>` (301 i dwa odczyty bazy), a ładuje oba odnośniki
+  // z wyprzedzeniem - koszt płaciło KAŻDE wyświetlenie wpisu z włączoną stopką.
+  // Ścieżka strony-rodzica bieżącego wpisu jest już w danych loadera (okruszki),
+  // więc sąsiad pod TĄ SAMĄ stroną dostaje adres kanoniczny bez odczytu.
+  describe("adresy kanoniczne z okruszków loadera", () => {
+    /** Sąsiad w kształcie wiersza `adjacentPostsQueryOptions`. */
+    const sasiad = (slug: string, parentPageId: string) => ({
+      slug,
+      title_pl: `Wpis ${slug}`,
+      title_en: `Post ${slug}`,
+      parent_page_id: parentPageId,
+    });
+    function zSasiadami(data: ResolvedContent, prev: unknown, next: unknown): void {
+      h.layout!.show_prev_next = true;
+      qc.setQueryData(["public", "adjacent-posts", data.item.id, data.item.published_at], {
+        prev,
+        next,
+      });
+      mount(data);
+    }
+
+    it("sąsiad pod TĄ SAMĄ stroną-rodzicem dostaje jej ścieżkę; pod inną zostaje przy /post/", () => {
+      // Fikstura: wpis `atom` pod stroną `page-1` o pełnej ścieżce `analizy`.
+      zSasiadami(article(), sasiad("wczesniejszy", "page-1"), sasiad("pozniejszy", "page-inna"));
+
+      expect(prop("PostFooterBars")).toMatchObject({
+        prev: { slug: "wczesniejszy", parent_path: "analizy" },
+        next: { slug: "pozniejszy", parent_path: "post" },
+      });
+    });
+
+    it.each([
+      ["najwyższego poziomu: jego slug", { slug: "raporty", parent_id: null }, "raporty"],
+      ["zagnieżdżony: /post/", { slug: "energia", parent_id: "page-9" }, "post"],
+      ["niewidoczny dla gościa: /post/", null, "post"],
+    ])(
+      "sąsiad pod INNĄ stroną-rodzicem z osadzenia - rodzic %s",
+      (_nazwa, parentPage, oczekiwana) => {
+        // Rodzic sąsiada przyszedł osadzeniem w odczycie sąsiadów
+        // (`adjacentPostsQueryOptions`); adres kanoniczny daje tylko strona
+        // najwyższego poziomu - ta sama reguła co listy (`postCanonicalHref`).
+        zSasiadami(
+          article(),
+          { ...sasiad("wczesniejszy", "page-inna"), parent_page: parentPage },
+          sasiad("pozniejszy", "page-1"),
+        );
+
+        expect(prop("PostFooterBars")).toMatchObject({
+          prev: { slug: "wczesniejszy", parent_path: oczekiwana },
+          // Ten sam rodzic co bieżący wpis: nadal pełna ścieżka z okruszków.
+          next: { slug: "pozniejszy", parent_path: "analizy" },
+        });
+      },
+    );
+
+    it("sąsiad pod TĄ SAMĄ stroną: ścieżka z okruszków wygrywa z osadzeniem", () => {
+      // Osadzenie wyraża tylko stronę najwyższego poziomu, okruszki - pełną
+      // ścieżkę; dla tego samego rodzica rozstrzygają okruszki.
+      const data = article();
+      data.parentPageId = "page-2";
+      zSasiadami(
+        data,
+        { ...sasiad("wczesniejszy", "page-2"), parent_page: { slug: "atom", parent_id: "page-1" } },
+        null,
+      );
+
+      expect(prop("PostFooterBars")).toMatchObject({
+        prev: { slug: "wczesniejszy", parent_path: "analizy/atom" },
+      });
+    });
+
+    it("rodzic ZAGNIEŻDŻONY: sąsiad dostaje pełną ścieżkę, której osadzenie w zapytaniu nie wyrazi", () => {
+      const data = article();
+      data.parentPageId = "page-2";
+      zSasiadami(data, sasiad("wczesniejszy", "page-2"), sasiad("pozniejszy", "page-1"));
+
+      expect(prop("PostFooterBars")).toMatchObject({
+        prev: { parent_path: "analizy/atom" },
+        // `page-1` JEST w okruszkach (przodek), ale nie jest rodzicem bieżącego
+        // wpisu - o ścieżce sąsiada rozstrzyga wyłącznie ten sam rodzic.
+        next: { parent_path: "post" },
+      });
+    });
+
+    it.each([
+      ["brak okruszka strony-rodzica", { crumbs: [] }],
+      [
+        "okruszek rodzica bez ścieżki",
+        {
+          crumbs: [
+            {
+              id: "page-1",
+              slug: "analizy",
+              title_pl: "Analizy",
+              title_en: "Analyses",
+              depth: 1,
+              full_path: "",
+            },
+          ],
+        },
+      ],
+    ])("%s: sąsiedzi i własny adres zostają jak dotąd", (_nazwa, nadpisanie) => {
+      const data = resolvedPost({ ...nadpisanie, item: article().item });
+      zSasiadami(data, sasiad("wczesniejszy", "page-1"), sasiad("pozniejszy", "page-1"));
+
+      expect(prop("PostFooterBars")).toMatchObject({
+        prev: { parent_path: "post" },
+        next: { parent_path: "post" },
+      });
+      expect(prop("ContentRenderer").currentPostCtx).toMatchObject({ kind: "post", slug: "atom" });
+      expect((prop("ContentRenderer").currentPostCtx as { href?: string }).href).toBeUndefined();
+    });
+
+    it("kontekst wpisu niesie WŁASNY adres kanoniczny: ścieżka rodzica + slug", () => {
+      mount(article());
+      // Ten sam adres, pod którym wpis został rozwiązany (`_splat` trasy
+      // i adres w boksie cytowania): `/analizy/atom`.
+      expect(prop("ContentRenderer").currentPostCtx).toMatchObject({
+        kind: "post",
+        slug: "atom",
+        href: "/analizy/atom",
+      });
+    });
+
+    it("kontekst STRONY nie dostaje adresu - widgety strony linkują jak dotąd", () => {
+      // Kształt jak z produkcji: loader strony niesie `parentPageId` równe id
+      // SAMEJ strony, a `page_breadcrumbs()` zawsze zawiera tę stronę z pełną
+      // ścieżką. Okruszek rodzica więc ISTNIEJE i ma ścieżkę - o braku adresu
+      // rozstrzyga wyłącznie warunek „to wpis" w `$.tsx`. Z `parentPageId`,
+      // którego nie ma w okruszkach, test przechodziłby także bez tego warunku,
+      // a strona `/analizy` dostałaby nieistniejący adres `/analizy/atom`.
+      const dane = { ...page(), parentPageId: "page-1" };
+      expect(dane.crumbs.find((c) => c.id === dane.parentPageId)?.full_path).toBeTruthy();
+      mount(dane);
+      const ctx = prop("ContentRenderer").currentPostCtx as { kind: string; href?: string };
+      expect(ctx.kind).toBe("page");
+      expect(ctx.href).toBeUndefined();
+    });
+  });
+
   it("wpis BEZ daty publikacji nie pyta o sąsiadów, choć `show_prev_next` jest włączone", () => {
     // `published_at` jest w bazie kolumną dopuszczającą NULL (wpis zdjęty
     // z publikacji, import bez daty). Zapas `?? null` jest jedynym powodem,

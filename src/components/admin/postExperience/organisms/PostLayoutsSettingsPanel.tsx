@@ -7,7 +7,8 @@ import { PostLayoutGroup } from "@/components/admin/postExperience/molecules/Pos
 import { PostLayoutRatioSection } from "@/components/admin/postExperience/molecules/PostLayoutRatioSection";
 import { PostLayoutTogglesSection } from "@/components/admin/postExperience/molecules/PostLayoutTogglesSection";
 import { PostLayoutTypographySection } from "@/components/admin/postExperience/molecules/PostLayoutTypographySection";
-import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettingsAdmin";
 import { adminToast } from "@/lib/adminToasts";
 import { draftDirty } from "@/lib/admin/panelDraft";
 import { layoutGroups } from "@/lib/post/layoutPanelRules";

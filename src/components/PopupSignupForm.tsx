@@ -47,7 +47,7 @@ import {
   isPopupFieldNeverRequired,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
-import { resolvePopupDesign } from "@/lib/newsletter/popupDesign";
+import { resolvePopupDesign } from "@/lib/newsletter/popupDesignResolve";
 
 interface Props {
   settings: NewsletterSettings;

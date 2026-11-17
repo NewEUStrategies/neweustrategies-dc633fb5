@@ -250,7 +250,7 @@ vi.mock("@/hooks/useExpertLayoutSettings", () => ({
     },
   }),
 }));
-vi.mock("@/lib/queries/podcasts", () => ({
+vi.mock("@/lib/queries/podcastsByProfile", () => ({
   podcastsByProfileQueryOptions: (id: string) => ({
     queryKey: ["podcasts", id],
     queryFn: () => Promise.resolve(h.podcasts),

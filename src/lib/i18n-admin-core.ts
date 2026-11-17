@@ -1192,11 +1192,6 @@ export const adminCorePl = {
       weekStart: "Pierwszy dzień tygodnia",
       monday: "poniedziałek",
       sunday: "niedziela",
-      iconPack: "Zestaw ikon",
-      iconPackHint:
-        "Lucide jest domyślny i zalecany. Font Awesome dostępny jako wariant rezerwowy.",
-      iconLucide: "Lucide (domyślnie)",
-      iconFA: "Font Awesome (rezerwowy)",
     },
     newsletter: {
       title: "Newsletter",
@@ -2485,10 +2480,6 @@ export const adminCoreEn = {
       weekStart: "First day of the week",
       monday: "Monday",
       sunday: "Sunday",
-      iconPack: "Icon pack",
-      iconPackHint: "Lucide is default and recommended. Font Awesome is available as a fallback.",
-      iconLucide: "Lucide (default)",
-      iconFA: "Font Awesome (fallback)",
     },
     newsletter: {
       title: "Newsletter",

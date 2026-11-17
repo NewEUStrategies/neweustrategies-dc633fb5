@@ -64,11 +64,12 @@ import {
   type SpeakerEngagement,
 } from "@/lib/builder/speakersQuery";
 import {
-  RATED_LIST_POST_COLUMNS,
+  RATED_LIST_POST_PLAIN_COLUMNS,
   RATED_LIST_PROFILE_COLUMNS,
   ratedListQueryOptions,
   type RatedListItem,
 } from "@/lib/builder/ratedListQuery";
+import { postColumnsWithParentPage } from "@/lib/routing/postHref";
 
 const db = (): SupabaseFromStub => {
   if (!sb.from) throw new Error("atrapa `from` nie zostala zamontowana");
@@ -587,7 +588,11 @@ describe("lista oceniana: sortowanie, okno i mapowanie", () => {
     await run(ratedListQueryOptions({ source: "dynamic", numberOfPosts: 5, postOffset: 10 }, "pl"));
 
     expect(db().lastChain("posts")?.argsOf("range")).toEqual([10, 14]);
-    expect(db().lastChain("posts")?.argsOf("select")?.[0]).toBe(RATED_LIST_POST_COLUMNS);
+    // Literał modułu z osadzeniem rodzica doklejonym przez wspólny pomocnik
+    // (dosłowny napis przypina `ratedListCanonicalHref.test.ts`).
+    expect(db().lastChain("posts")?.argsOf("select")?.[0]).toBe(
+      postColumnsWithParentPage(RATED_LIST_POST_PLAIN_COLUMNS),
+    );
   });
 
   it("tasowanie 'random' zachowuje ZBIOR wierszy, zmienia tylko kolejnosc", async () => {

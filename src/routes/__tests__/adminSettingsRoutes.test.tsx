@@ -77,8 +77,6 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
-  /** Wywołania `setIconPack` - panel ogólny przestawia paczkę ikon od razu. */
-  iconPacks: [] as string[],
   /** Wywołania `requestConsentPreferences` z podglądu banera. */
   consentPreviewRequests: 0,
   /** Kolory globalne widziane przez panel wyglądu. */
@@ -221,11 +219,6 @@ vi.mock("@/components/admin/builder/ui/atoms/ColorField", () => ({
   ColorField: propsStub("ColorField"),
 }));
 
-vi.mock("@/lib/iconPack", () => ({
-  setIconPack: (pack: string) => {
-    h.iconPacks.push(pack);
-  },
-}));
 vi.mock("@/lib/ads/consent", () => ({
   requestConsentPreferences: () => {
     h.consentPreviewRequests += 1;
@@ -467,7 +460,6 @@ beforeEach(() => {
   h.savingKeys = new Set();
   h.settingsSaveThrows = null;
   h.props = {};
-  h.iconPacks = [];
   h.consentPreviewRequests = 0;
   h.globalColors = {};
   h.globalColorSaves = [];
@@ -730,20 +722,28 @@ describe("admin.settings.general - trzy sekcje w jednym panelu", () => {
     expect(weekSelect?.getAttribute("data-value")).toBe("0");
   });
 
-  it("zmiana paczki ikon działa NATYCHMIAST, jeszcze przed zapisem", async () => {
-    // Paczka ikon zmienia wygląd całego panelu, więc podglądem jest sam panel.
-    // To świadomy skutek uboczny opisany efektem w kodzie - i musi zadziałać
-    // także dla wartości wczytanej z bazy, nie tylko dla kliknięcia.
+  it("panel nie oferuje już wyboru zestawu ikon; zapisany `icon_pack` przechodzi przez zapis bez zmian", async () => {
+    // Opcja Font Awesome została usunięta (decyzja właściciela z 16.11.2026,
+    // roadmapa §9, W5): interfejs renderuje wyłącznie Lucide. Wiersz z bazy
+    // może nadal nieść `icon_pack` z czasów przełącznika - panel go nie
+    // pokazuje, nie wymaga i nie kasuje, żeby zapis innego pola nie zmieniał
+    // danych, których nie dotyczy.
     h.rows.general = { icon_pack: "fontawesome" };
     await mountGeneral();
-    await waitFor(() => expect(h.iconPacks).toContain("fontawesome"));
-
     const packSelect = selects().find((select) =>
-      Array.from(select.options).some((option) => option.value === "lucide"),
+      Array.from(select.options).some(
+        (option) => option.value === "lucide" || option.value === "fontawesome",
+      ),
     );
-    if (!packSelect) throw new Error("test: brak wyboru paczki ikon");
-    fireEvent.change(packSelect, { target: { value: "lucide" } });
-    await waitFor(() => expect(h.iconPacks.at(-1)).toBe("lucide"));
+    expect(packSelect).toBeUndefined();
+
+    fireEvent.change(textInputs()[0], { target: { value: "Nowa nazwa" } });
+    fireEvent.click(saveButton() as HTMLButtonElement);
+    await waitFor(() => expect(lastSave("general")).toBeTruthy());
+    expect(lastSave("general")).toMatchObject({
+      site_name: "Nowa nazwa",
+      icon_pack: "fontawesome",
+    });
   });
 
   it("ładunek `general` niesie ZMIENIONĄ wartość, nie domyślną", async () => {

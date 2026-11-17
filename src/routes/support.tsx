@@ -44,9 +44,10 @@ export const Route = createFileRoute("/support")({
     // tylko niekanoniczny dla brzegu - stąd krótka świeżość z rewalidacją
     // zamiast `no-store` (różnica wobec `resilientCacheControl`: docblock
     // helpera). Czysty render zostaje przy polityce treści.
-    setCacheControlHeader(
-      staticFallbackCacheControl(!hasSsrQueryData(context.queryClient, options.queryKey)),
-    );
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        staticFallbackCacheControl(!hasSsrQueryData(context.queryClient, options.queryKey)),
+      );
   },
   head: () => {
     const url = getRequestUrl() || "/support";

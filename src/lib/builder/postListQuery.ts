@@ -21,6 +21,8 @@ import {
   latestSupersetAuthorIds,
   projectLatestPostRows,
 } from "@/lib/builder/latestPostsSuperset";
+import { postColumnsWithParentPage, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 export type Lang = "pl" | "en";
 
@@ -44,6 +46,12 @@ export interface PostRow {
   is_sponsored?: boolean | null;
   sponsored_kind?: string | null;
   sponsored_affiliate?: boolean | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` - z niej `postHref` liczy
+   * adres kanoniczny wpisu. `null`, gdy gość rodzica nie widzi; pola nie ma
+   * w wierszu z odczytu zapasowego bez osadzenia (adres `/post/<slug>`).
+   */
+  parent_page?: PostParentPage | null;
   /** Resolved inside the query for variants that render a byline (see
    *  {@link POST_LIST_BYLINE_VARIANTS}), so author names ship with the SSR
    *  prefetch instead of popping in via a separate client-side query after
@@ -325,8 +333,13 @@ async function fetchPopularPostIds(
  * dotyczy TAKŻE pozycji w zestawieniu (UPNPR art. 7 pkt 11a), a widget
  * `post-list` zasila strony główne budowane builderem - bez tych kolumn
  * sponsorowany materiał trafiałby tam bez żadnego wyróżnienia.
+ *
+ * Jedyny literał kolumn tego zapytania i zarazem odczyt zapasowy. Wariant
+ * z osadzeniem strony-rodzica (`POST_PARENT_PAGE_EMBED`, `lib/routing/postHref.ts`)
+ * dokleja `readPostsWithParentPage`: karta linkuje wprost na adres kanoniczny
+ * wpisu, a nie na `/post/<slug>`, który odpowiada 301.
  */
-export const POST_LIST_COLUMNS =
+export const POST_LIST_PLAIN_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
 /**
@@ -359,7 +372,8 @@ function postListReadsLatestSuperset(input: PostListFetchInput): boolean {
 
 /**
  * Wycinek nadzbioru w kształcie wierszy `fetchPostListRows`: kolumny
- * `POST_LIST_COLUMNS`, byline z jednego odczytu profili wszystkich autorów
+ * `POST_LIST_PLAIN_COLUMNS` z osadzeniem rodzica (to, o co pyta widget), byline
+ * z jednego odczytu profili wszystkich autorów
  * nadzbioru (podzbiór id wiersza daje te same profile co `.in("id", ...)`
  * widgetu). `null` = nadzbiór niedostępny, wołający pyta jak dotąd.
  */
@@ -370,7 +384,7 @@ async function postListRowsFromLatestSuperset(
   if (superset === null) return null;
   const rows = projectLatestPostRows<PostRow>(
     superset.slice(input.offset, input.offset + input.limit),
-    POST_LIST_COLUMNS,
+    postColumnsWithParentPage(POST_LIST_PLAIN_COLUMNS),
   );
   return attachAuthorNames(rows, input.withAuthors, () =>
     fetchLatestSupersetAuthors(latestSupersetAuthorIds(superset)).catch(() => []),
@@ -437,30 +451,42 @@ async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> 
   }
   if (idFilter && idFilter.length === 0) return [];
 
-  let q = postsConstrainedByTaxonomy(POST_LIST_COLUMNS, constraints)
-    .eq("status", "published")
-    .is("deleted_at", null);
-
-  if (input.postFormat) q = q.eq("post_format", input.postFormat);
-  if (input.authorId) q = q.eq("author_id", input.authorId);
-  if (input.dateFrom) q = q.gte("published_at", `${input.dateFrom}T00:00:00Z`);
-  if (input.dateTo) q = q.lte("published_at", `${input.dateTo}T23:59:59Z`);
-  if (idFilter) q = q.in("id", idFilter);
-  if (input.excludeIds.length) {
-    q = q.not("id", "in", `(${Array.from(new Set(input.excludeIds)).join(",")})`);
-  }
-
   const orderCol = postListOrderColumn(effectiveOrderBy, input.lang);
-  if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
-    q = q.order(orderCol, { ascending: input.orderDir === "asc" });
-  }
-  if (effectiveOrderBy !== "popular") {
-    q = q.range(input.offset, input.offset + input.limit - 1);
-  }
+  // Jedno zapytanie w dwóch wariantach kolumn: z osadzeniem strony-rodzica
+  // (adres kanoniczny w tym samym odczycie) i - tylko gdy tamto odda błąd -
+  // bez osadzenia, żeby rozjazd schematu `pages` nie opróżnił listy wpisów.
+  //
+  // `columns: string`, nie literał: jedna funkcja buduje oba warianty, a unia
+  // dwóch literałów wywraca parser `select` w typach supabase-js (ParserError
+  // zamiast wiersza). Typ wiersza nadaje więc rzutowanie niżej. Nazwy kolumn
+  // nadal pilnuje kompilator i bramka kontraktu na literale nadzbioru
+  // (`latestPostsSuperset.ts`), a test trzyma równość zbiorów kolumn.
+  const read = (columns: string) => {
+    let q = postsConstrainedByTaxonomy(columns, constraints)
+      .eq("status", "published")
+      .is("deleted_at", null);
 
-  const { data, error } = await q;
+    if (input.postFormat) q = q.eq("post_format", input.postFormat);
+    if (input.authorId) q = q.eq("author_id", input.authorId);
+    if (input.dateFrom) q = q.gte("published_at", `${input.dateFrom}T00:00:00Z`);
+    if (input.dateTo) q = q.lte("published_at", `${input.dateTo}T23:59:59Z`);
+    if (idFilter) q = q.in("id", idFilter);
+    if (input.excludeIds.length) {
+      q = q.not("id", "in", `(${Array.from(new Set(input.excludeIds)).join(",")})`);
+    }
+
+    if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
+      q = q.order(orderCol, { ascending: input.orderDir === "asc" });
+    }
+    if (effectiveOrderBy !== "popular") {
+      q = q.range(input.offset, input.offset + input.limit - 1);
+    }
+    return q;
+  };
+
+  const { data, error } = await readPostsWithParentPage(read, POST_LIST_PLAIN_COLUMNS);
   if (error) throw error;
-  let rows = (data ?? []) as PostRow[];
+  let rows = (data ?? []) as unknown as PostRow[];
   if (effectiveOrderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
   if (effectiveOrderBy === "popular" && popularIds) {
     rows = rankAndSlicePopular(rows, popularIds, input.offset, input.limit);

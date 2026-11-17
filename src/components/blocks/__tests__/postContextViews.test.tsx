@@ -724,4 +724,32 @@ describe("RelatedPostsView", () => {
     await waitFor(() => expect(container.querySelector("a")).toBeTruthy());
     expect(hrefs(container).some((x) => x.includes("powiazany"))).toBe(true);
   });
+
+  // Karta linkowała `/post/<slug>`, czyli adres odpowiadający 301 i dwoma
+  // odczytami bazy. Wiersz niesie stronę-rodzica z osadzenia - adres liczy
+  // `postHref`; bez rodzica do policzenia zostaje adres zapasowy.
+  it.each(["grid", "list", "compact"] as const)(
+    "układ %s: rodzic najwyższego poziomu daje adres kanoniczny, pozostałe zostają przy /post/",
+    async (layout) => {
+      h.posts = [
+        row({ id: "a", slug: "wpis-a", parent_page: { slug: "blog", parent_id: null } }),
+        row({ id: "b", slug: "wpis-b", parent_page: { slug: "energetyka", parent_id: "pg-1" } }),
+        row({ id: "c", slug: "wpis-c", parent_page: null }),
+        row({ id: "d", slug: "wpis-d" }),
+      ];
+      const container = view(<RelatedPostsView layout={layout} />);
+      await waitFor(() => expect(container.querySelectorAll("li")).toHaveLength(4));
+      // Okładka i tytuł jednej karty linkują ten sam adres - stąd zbiór.
+      expect([...new Set(hrefs(container))]).toEqual([
+        "/blog/wpis-a",
+        "/post/wpis-b",
+        "/post/wpis-c",
+        "/post/wpis-d",
+      ]);
+      for (const li of container.querySelectorAll("li")) {
+        const adresy = Array.from(li.querySelectorAll("a"), (a) => a.getAttribute("href"));
+        expect(new Set(adresy).size).toBe(1);
+      }
+    },
+  );
 });

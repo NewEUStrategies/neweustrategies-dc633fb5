@@ -87,7 +87,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
 
 // Podcast/web-story query options resolve from their own Supabase helpers;
 // stub the option factories so the views receive deterministic episodes/stories.
-vi.mock("@/lib/queries/podcasts", () => ({
+vi.mock("@/lib/queries/podcastsLatest", () => ({
   latestPodcastsQueryOptions: (limit: number) => ({
     queryKey: ["pods", limit],
     queryFn: async () => podcasts.list,

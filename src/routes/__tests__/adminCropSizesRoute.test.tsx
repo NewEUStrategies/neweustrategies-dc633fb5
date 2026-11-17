@@ -37,8 +37,8 @@ vi.mock("@/lib/appDialogs", () => ({
     return h.confirmAnswer;
   },
 }));
-vi.mock("@/lib/cropSizes", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/cropSizes")>()),
+vi.mock("@/lib/cropSizesAdmin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/cropSizesAdmin")>()),
   listCropSizes: async () => h.sizes,
   upsertCropSize: async (tenantId: string, draft: unknown) => {
     if (h.upsertError) throw h.upsertError;

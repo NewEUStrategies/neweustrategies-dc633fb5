@@ -19,11 +19,8 @@ import type { ReactElement } from "react";
 import { DynamicTagWidget } from "../DynamicTagWidgets";
 import { makeWidget } from "@/lib/builder/registry";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
-import {
-  CurrentPostProvider,
-  PLACEHOLDER_POST_CTX,
-  type CurrentPostCtx,
-} from "@/lib/content-model/postContext";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 import type { WidgetType } from "@/lib/builder/types";
 
 /** Wszystkie widgety zależne od kontekstu wpisu / archiwum. */

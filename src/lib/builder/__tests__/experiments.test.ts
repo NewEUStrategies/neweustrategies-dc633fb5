@@ -94,16 +94,18 @@ import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import {
   assignVariant,
   collectExperimentIds,
-  conversionRate,
   fnv1a,
   isSectionVisibleForAssignments,
   recordExperimentEvent,
   useExperimentAssignments,
+  type AbVariant,
+} from "../experiments";
+import {
+  conversionRate,
   useExperimentStats,
   useExperimentsAdmin,
   zScore,
-  type AbVariant,
-} from "../experiments";
+} from "../experimentsAdmin";
 import type { SectionNode } from "../types";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";

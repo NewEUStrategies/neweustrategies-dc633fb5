@@ -43,6 +43,12 @@ import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+// Teksty mapy z osobnego modułu, nie z lokalnej stałej: `head()` (powłoka trasy,
+// chunk startowy) i komponent czytają te same napisy, a WSPÓLNA lokalna stała
+// head+komponent ląduje w module `?tsr-shared`, który powłoka importuje - razem
+// z listami linków, metadanymi dokumentów prawnych i zapytaniem przekierowań
+// (roadmapa ładowania §9.10; ten sam wzorzec co `lib/legal/meta.ts`).
+import { COPY } from "@/lib/seo/siteMapCopy";
 
 /** Wspólny termin trzech zapytań mapy - biegną równolegle, więc jeden budżet. */
 const SITEMAP_SSR_BUDGET_MS = 2_000;
@@ -54,33 +60,6 @@ const SITEMAP_SSR_BUDGET_MS = 2_000;
 const NO_PAGES: PageTreeRow[] = [];
 const NO_CATEGORIES: PublicSiteMapCategory[] = [];
 const NO_POSTS: { posts: BlogListItem[] } = { posts: [] };
-
-export const COPY = {
-  pl: {
-    title: "Mapa strony",
-    description: "Pełna mapa serwisu: wszystkie strony, kategorie i najnowsze artykuły.",
-    pages: "Strony",
-    categories: "Kategorie",
-    posts: "Najnowsze artykuły",
-    home: "Strona główna",
-    blog: "Blog",
-    community: "Społeczność",
-    legal: "Dokumenty i zasady",
-    degraded: "Nie udało się załadować pełnej mapy strony",
-  },
-  en: {
-    title: "Site map",
-    description: "The full site map: every page, category and the latest articles.",
-    pages: "Pages",
-    categories: "Categories",
-    posts: "Latest articles",
-    home: "Home",
-    blog: "Blog",
-    community: "Community",
-    legal: "Policies and documents",
-    degraded: "Couldn't load the full site map",
-  },
-} as const;
 
 // Huby treści - trasy kodowe sekcji „Strony", prawdziwe niezależnie od bazy.
 // Programy i Web Stories dołączyły w 2026-10 (audyt mapy HTML): sekcja `core`
@@ -213,7 +192,8 @@ export const Route = createFileRoute("/sitemap")({
     // dostają własnej sekcji ani komunikatu: fallback `{}` tylko zostawia
     // linki tras, niczego nie chowa.
     const degraded = anyDegraded(pages, categories, posts, redirects);
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     // FLAGI JADĄ DO KOMPONENTU tym samym kontraktem co `/experts` i `/glossary`:
     // pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji. Bez
     // tego zasiany fallback wyglądał dokładnie jak prawda - sekcja wpisów pusta,

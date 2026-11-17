@@ -102,6 +102,9 @@ const COMPANY_SOCIAL_FIELDS = [
   { key: "youtube", label: "YouTube" },
 ] as const;
 
+// Kształt listy „Kontakty" z `getCrmCompany` - wyłącznie kolumny `profiles`
+// z grantem dla `authenticated` (adres kontaktowy i lokalizacja członka nie
+// opuszczają serwera, patrz `companyMembers` w crm-companies.functions.ts).
 type LinkedProfile = {
   id: string;
   display_name: string | null;
@@ -109,10 +112,7 @@ type LinkedProfile = {
   last_name: string | null;
   avatar_url: string | null;
   job_title: string | null;
-  location: string | null;
   slug: string | null;
-  contact_email: string | null;
-  discoverable: boolean | null;
 };
 type LinkedLead = {
   id: string;
@@ -953,7 +953,6 @@ function AdminCompanyDetailPage() {
                   const name =
                     p.display_name ||
                     [p.first_name, p.last_name].filter(Boolean).join(" ") ||
-                    p.contact_email ||
                     p.id.slice(0, 8);
                   return (
                     <li key={p.id} className="flex items-center gap-2 px-2.5 py-2">

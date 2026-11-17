@@ -97,7 +97,8 @@ vi.mock(
 import { CountdownView } from "@/components/blocks/InteractiveViews";
 import { CodeBlockView } from "@/components/blocks/CodeBlockView";
 import { PostDateView } from "@/components/blocks/ContextBlockViews";
-import { CurrentPostProvider, PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { CurrentPostProvider } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 import { formatDate, formatDateTime, siteYear, SITE_TIME_ZONE } from "@/lib/i18n/format";
 import { renderSimpleWidget } from "@/components/builder/organisms/widget-view/SimpleWidgets";
 import type { WidgetNode } from "@/lib/builder/types";

@@ -12,6 +12,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import * as Icons from "@/lib/lucide-shim";
+import { contentIcon } from "@/lib/icons/contentIcon";
 import { AppLink } from "@/components/atoms/AppLink";
 
 type AlertStyle = "info" | "warning" | "success" | "brand";
@@ -109,8 +110,9 @@ export function AlertBar() {
     const requested = bar.icon ?? "auto";
     if (requested === "none") return null;
     const name = requested === "auto" ? AUTO_ICON[bar.style] : requested;
-    const map = Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
-    return map[name] ?? map.Megaphone ?? null;
+    // Nazwa z `ThemeOptionsPane` (także `Bell`) albo zapisana ręcznie; pudełko
+    // ikony to `w-4 h-4` (16 px).
+    return contentIcon(name, Icons.Megaphone, 16);
   }, [bar.icon, bar.style]);
 
   if (!bar.enabled || !msg || dismissed) return null;

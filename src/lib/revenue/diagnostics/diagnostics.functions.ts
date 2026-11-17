@@ -385,53 +385,63 @@ export const getRevenueSnoozes = createServerFn({ method: "POST" })
 // Walidacja = CHECK-i tabeli (lustro `REVENUE_LIMITS`, parytet
 // `revenueLimitsParity.test.ts`): wartość za długa jest ODRZUCANA, nigdy
 // przycinana - licznik w formularzu zna ten sam limit.
-const CheckId = z
-  .string()
-  .regex(REVENUE_LIMITS.checkIdPattern, "check_id_invalid")
-  .refine((id) => isRevenueCheckId(id), "check_id_invalid");
-const ScopeKey = z.string().min(1).max(REVENUE_LIMITS.scopeKeyMax).default("*");
+//
+// `/* @__PURE__ */ (() => ...)()` przy schematach niżej: kompilator Start
+// zdejmuje walidatory z bundla przeglądarki, ale deklaracja schematu zostaje
+// (eksport albo `z.infer<typeof ...>`), a bundler nie umie dowieść czystości
+// łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
+// mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
+// ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
+const CheckId = /* @__PURE__ */ (() =>
+  z
+    .string()
+    .regex(REVENUE_LIMITS.checkIdPattern, "check_id_invalid")
+    .refine((id) => isRevenueCheckId(id), "check_id_invalid"))();
+const ScopeKey = /* @__PURE__ */ (() =>
+  z.string().min(1).max(REVENUE_LIMITS.scopeKeyMax).default("*"))();
 const DAY_MS = 86_400_000;
 
-export const SnoozeInput = z
-  .object({
-    checkId: CheckId,
-    scopeKey: ScopeKey,
-    kind: z.enum(SNOOZE_KINDS),
-    until: z.string().datetime({ offset: true }).nullable().default(null),
-    reason: z
-      .string()
-      .refine(
-        (text) =>
-          text.trim().length >= REVENUE_LIMITS.snoozeReasonMin &&
-          text.trim().length <= REVENUE_LIMITS.snoozeReasonMax,
-        "reason_invalid",
-      )
-      .nullable()
-      .default(null),
-    scopeHash: z.string().min(1).max(REVENUE_LIMITS.scopeHashMax).nullable().default(null),
-  })
-  .refine((s) => !(UNSNOOZABLE_CHECK_IDS as readonly string[]).includes(s.checkId), {
-    message: "not_snoozable",
-  })
-  .refine((s) => s.kind !== "days" || (s.until !== null && Date.parse(s.until) > Date.now()), {
-    message: "until_invalid",
-  })
-  // Ta sama granica co SQL (`now() + 180 dni`): termin dalszy jest
-  // ODRZUCANY, nie skracany do 180 dni - SQL sprawdza go i tak po swojej stronie.
-  .refine(
-    (s) =>
-      s.kind !== "days" ||
-      s.until === null ||
-      Date.parse(s.until) <= Date.now() + REVENUE_LIMITS.snoozeMaxDays * DAY_MS,
-    { message: "until_too_far" },
-  )
-  // „Świadomie tak ma być" wymaga odcisku faktów i powodu - jak CHECK tabeli.
-  .refine((s) => s.kind !== "intentional" || s.scopeHash !== null, {
-    message: "scope_hash_required",
-  })
-  .refine((s) => s.kind !== "intentional" || s.reason !== null, {
-    message: "reason_required",
-  });
+export const SnoozeInput = /* @__PURE__ */ (() =>
+  z
+    .object({
+      checkId: CheckId,
+      scopeKey: ScopeKey,
+      kind: z.enum(SNOOZE_KINDS),
+      until: z.string().datetime({ offset: true }).nullable().default(null),
+      reason: z
+        .string()
+        .refine(
+          (text) =>
+            text.trim().length >= REVENUE_LIMITS.snoozeReasonMin &&
+            text.trim().length <= REVENUE_LIMITS.snoozeReasonMax,
+          "reason_invalid",
+        )
+        .nullable()
+        .default(null),
+      scopeHash: z.string().min(1).max(REVENUE_LIMITS.scopeHashMax).nullable().default(null),
+    })
+    .refine((s) => !(UNSNOOZABLE_CHECK_IDS as readonly string[]).includes(s.checkId), {
+      message: "not_snoozable",
+    })
+    .refine((s) => s.kind !== "days" || (s.until !== null && Date.parse(s.until) > Date.now()), {
+      message: "until_invalid",
+    })
+    // Ta sama granica co SQL (`now() + 180 dni`): termin dalszy jest
+    // ODRZUCANY, nie skracany do 180 dni - SQL sprawdza go i tak po swojej stronie.
+    .refine(
+      (s) =>
+        s.kind !== "days" ||
+        s.until === null ||
+        Date.parse(s.until) <= Date.now() + REVENUE_LIMITS.snoozeMaxDays * DAY_MS,
+      { message: "until_too_far" },
+    )
+    // „Świadomie tak ma być" wymaga odcisku faktów i powodu - jak CHECK tabeli.
+    .refine((s) => s.kind !== "intentional" || s.scopeHash !== null, {
+      message: "scope_hash_required",
+    })
+    .refine((s) => s.kind !== "intentional" || s.reason !== null, {
+      message: "reason_required",
+    }))();
 export type SnoozeInputValue = z.input<typeof SnoozeInput>;
 
 const UnsnoozeInput = z.object({ checkId: CheckId, scopeKey: ScopeKey });

@@ -34,7 +34,8 @@ vi.mock("@/lib/builder/typographyCss", async (importOriginal) => {
 
 import { ChromeWidgetView } from "../ChromeWidgetView";
 import { WidgetView } from "../WidgetView";
-import { broadcastWidgetTypography, subscribeWidgetTypography } from "@/lib/builder/liveTypography";
+import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
+import { broadcastWidgetTypography } from "@/lib/builder/liveTypographyBroadcast";
 import { buildLegacyWidgetTypographyCss } from "@/lib/builder/typographyCss";
 import { globalWidgetKey } from "@/lib/builder/globalWidgets";
 

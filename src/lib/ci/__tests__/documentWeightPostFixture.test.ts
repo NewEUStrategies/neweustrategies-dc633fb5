@@ -92,6 +92,31 @@ describe("homeFixture: wpis bramki wagi dokumentu", () => {
       cover_image_url: "https://fixture.invalid/cover.jpg",
     });
     expect(homeFixture.posts).toHaveLength(8);
+    // Rezolucja adresu czyta ten wiersz PO SLUGU (odczyt spekulacyjny równoległy
+    // z `resolve_path`, lista bez `.maybeSingle()`), z kolejnością zaadresowaną do
+    // osadzenia `post_authors` - fixture ma oddać DOKŁADNIE ten jeden wiersz.
+    expect(
+      await json(
+        table(`posts?select=*&slug=eq.${String(post.slug)}&post_authors.order=sort_order.asc`),
+      ),
+    ).toEqual([row]);
+  });
+
+  it("`artifact-boot`: odczyt wpisu po slugu oddaje TEN SAM wiersz artykułu co odczyt po id", async () => {
+    // Spec kolumny tekstu mierzy wpis z treścią; gdyby odczyt po slugu oddał
+    // goły wiersz listy, strona wyrenderowałaby się bez pól artykułu.
+    vi.stubEnv("NES_PERFORMANCE_CASE", "artifact-boot");
+    const single = { headers: { accept: "application/vnd.pgrst.object+json" } };
+    for (const [id, slug] of [
+      [String(post.id), String(post.slug)],
+      ["00000000-0000-0000-0000-0000000000a2", `${String(post.slug)}-sidebar`],
+    ]) {
+      const byId = await json(
+        fixtureResponse(new Request(`${BASE}/posts?select=*&id=eq.${id}`, single)),
+      );
+      expect(byId).toMatchObject({ id, slug });
+      expect(await json(table(`posts?select=*&slug=eq.${slug}`))).toEqual([byId]);
+    }
   });
 
   it.each([undefined, "lighthouse-local", "slow-first-fold", "popup-first-render"])(

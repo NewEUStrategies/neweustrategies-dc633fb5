@@ -65,7 +65,7 @@ vi.mock("@/lib/appDialogs", () => ({
 }));
 vi.mock("@/components/Header", () => ({ Header: () => <div data-testid="naglowek-strony" /> }));
 vi.mock("@/components/Footer", () => ({ Footer: () => <div data-testid="stopka-strony" /> }));
-vi.mock("@/lib/builder/liveTypography", () => ({
+vi.mock("@/lib/builder/liveTypographyBroadcast", () => ({
   clearAllLiveWidgetTypography: () => {
     typography.cleared += 1;
   },
@@ -115,7 +115,7 @@ vi.mock("@/lib/builder/templates", async (importOriginal) => {
     }),
   };
 });
-vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
+vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -128,7 +128,7 @@ vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
     }),
   };
 });
-vi.mock("@/lib/builder/experiments", async (importOriginal) => {
+vi.mock("@/lib/builder/experimentsAdmin", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,

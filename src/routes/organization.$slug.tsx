@@ -50,7 +50,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 
 const VALID_SORT: ReadonlyArray<ArchiveSort> = ["newest", "oldest", "popular"];
 
@@ -115,11 +115,12 @@ export const Route = createFileRoute("/organization/$slug")({
       ORGANIZATION_UNKNOWN,
     );
     if (identity.degraded) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
       return { org: null, degraded: true, total: 0, page: deps.page, lang };
     }
     if (!identity.data) {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       throw notFound();
     }
     // Publikacje są WTÓRNE wobec tożsamości: gdy nie dojadą, profil i tak ma się
@@ -133,7 +134,8 @@ export const Route = createFileRoute("/organization/$slug")({
     //
     // `undefined` = listy nie ma z definicji (firma), `null` = nie dojechała.
     const archive = postsPromise === null ? undefined : await postsPromise;
-    setCacheControlHeader(resilientCacheControl(archive === null));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(archive === null));
     return {
       org: identity.data,
       degraded: false,

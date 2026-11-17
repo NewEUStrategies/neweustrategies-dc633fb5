@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { supabase } from "@/integrations/supabase/client";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 import { gridColsClass } from "@/components/readingList/atoms/gridColsClass";
 import { ReadingListEmptyState } from "@/components/readingList/molecules/ReadingListEmptyState";
 import { ReadingListErrorState } from "@/components/readingList/molecules/ReadingListErrorState";
@@ -48,20 +49,27 @@ export function SavedSection({ columns, lang }: { columns: number; lang: "pl" | 
   // rozjazd z /profile/bookmarks, które pokazuje wpisy i strony. Teraz obie
   // powierzchnie „zapisanych" pokazują ten sam zakres.
   const pageIds = (bookmarks ?? []).filter((b) => b.entity_type === "page").map((b) => b.entity_id);
+  // Strona-rodzic jedzie osadzeniem w TYM SAMYM odczycie wpisów, więc karta
+  // linkuje adresem kanonicznym (`postHref` w karcie) zamiast `/post/<slug>`,
+  // który odpowiada 301 i dwoma odczytami bazy. Błąd odczytu z osadzeniem
+  // powtarza ten sam odczyt bez niego (karty z adresem zapasowym); błąd TEGO
+  // odczytu jest błędem sekcji jak dotąd.
   const postsQ = useQuery({
     queryKey: ["saved-posts", postIds.join(",")],
     enabled: postIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(
-          `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
-        )
-        .in("id", postIds)
-        .eq("status", "published")
-        .is("deleted_at", null);
+      const { data, error } = await readPostsWithParentPage(
+        (columns: string) =>
+          supabase
+            .from("posts")
+            .select(columns)
+            .in("id", postIds)
+            .eq("status", "published")
+            .is("deleted_at", null),
+        `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
+      );
       if (error) throw error;
-      return data as PostRow[];
+      return data as unknown as PostRow[];
     },
   });
   const pagesQ = useQuery({

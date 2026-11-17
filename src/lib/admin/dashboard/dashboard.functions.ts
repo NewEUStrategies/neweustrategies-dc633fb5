@@ -79,6 +79,10 @@ function read<T>(
   return { available: true, report: parse(data) };
 }
 
+// `/* @__PURE__ */ (() => ...)()`: schemat czytają wyłącznie walidatory
+// serwera; bez tego zapisu jego budowa zostawała w bundlu klienta jako gołe
+// wywołanie (deklarację trzyma `z.infer<typeof windowInput>`). Uzasadnienie:
+// `lib/menus/types.ts`.
 /**
  * Okno analityczne. Obie granice i obie strony porównania przychodzą z klienta,
  * bo to ON zna strefę czasową patrzącego - patrz nagłówek `period.ts`.
@@ -86,14 +90,15 @@ function read<T>(
  * (Kiritimati +14, Baker Island -12); szerszy zakres znaczyłby zepsuty zegar
  * klienta, a nie egzotyczną strefę.
  */
-const windowInput = z.object({
-  sinceIso: z.string().datetime(),
-  untilIso: z.string().datetime(),
-  prevSinceIso: z.string().datetime(),
-  prevUntilIso: z.string().datetime(),
-  bucket: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
-  offsetMinutes: z.number().int().min(-840).max(840).default(0),
-});
+const windowInput = /* @__PURE__ */ (() =>
+  z.object({
+    sinceIso: z.string().datetime(),
+    untilIso: z.string().datetime(),
+    prevSinceIso: z.string().datetime(),
+    prevUntilIso: z.string().datetime(),
+    bucket: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
+    offsetMinutes: z.number().int().min(-840).max(840).default(0),
+  }))();
 
 type WindowInput = z.infer<typeof windowInput>;
 

@@ -20,7 +20,16 @@
 // kompilatora TypeScript, bez kompilacji) zbiera FAKTY SZWU:
 //   1. `.rpc("fn", { klucze })` - nazwa, klucze argumentów, rola klienta,
 //   2. `.from("t")` z łańcuchem `.select/.insert/.update/.upsert/.delete` -
-//      tabela, kolumny, literały zapisywane do kolumn, cel `onConflict`,
+//      tabela, kolumny, literały zapisywane do kolumn, cel `onConflict`;
+//      także `.select(<parametr>)` w funkcji oddanej pomocnikowi
+//      `readPostsWithParentPage` (oba warianty kolumn, które on wyśle)
+//      i `select` składany z parametru, którego wartość podają wywołania
+//      (także z innego pliku: `postsNarrowedToTaxonomy(kolumny, ...)`),
+//      oraz łańcuchy na zmiennej z budowniczym (`const base = ....from("t")`,
+//      `let q = ....update(p).eq(...)` przedłużane `q = q.eq(...)`, a dalej
+//      `q.select(...)`), a `looseTable(context, "t")` (CRM) liczy się jak
+//      `.from("t")`; KAŻDY `select` na budowniczym, który nie dał faktu, jest
+//      pozycją zapadki `UNCHECKED_SELECTS_REVIEWED`,
 //   3. rejestr kolumn publicznych (`PUBLIC_COLUMN_CONTRACTS`) - stałe TS, które
 //      deklarują, co z tabeli wolno czytać frontowi,
 // i renderuje z nich test pgTAP (`supabase/tests/ts_sql_contract_test.sql`),
@@ -35,10 +44,19 @@
 //   * `supabase` w pliku z klientem przeglądarki
 //     (`@/integrations/supabase/client`) albo z `requireSupabaseAuth`, oraz
 //     `context.supabase` / `ctx.supabase` - `authenticated`;
+//   * `looseClient(źródło)` (CRM, `lib/supabase/looseQuery.ts`) - wprost albo
+//     przez `const x = looseClient(źródło)` - jak źródło `looseTable`:
+//     `context`/`ctx` - `authenticated`, `{ supabase: X }` - jak odbiorca `X`;
 //   * wszystko inne (parametr pomocnika, atrapa) - `unknown`: sprawdzamy
 //     istnienie i sygnaturę, ale nie uprawnienia.
 // Fałszywy alarm byłby tu gorszy niż luka - bramka, która krzyczy na stan
 // zgodny z bazą, zostaje wyłączona pierwszego dnia.
+//
+// Znany defekt grantu, którego bramka jeszcze nie może czerwienić (kod sprzed
+// niej), to wpis `SEAM_FACTS_WITHHELD_REVIEWED`: wstrzymuje uprawnienia
+// JEDNEGO faktu (plik, funkcja, tabela, operacja, rola, pełna lista kolumn),
+// nigdy pliku ani pomocnika. Dziś lista jest pusta - każdy fakt idzie do
+// pgTAP z rolą klienta.
 //
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
@@ -105,9 +123,25 @@ export interface PublicColumnFact extends PublicColumnContract {
   readonly columns: readonly string[] | null;
 }
 
+/**
+ * Fakt operacji na tabeli WSTRZYMANY w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`):
+ * kod go wnosi, ale jego uprawnień kontrakt nie sprawdza - to znany defekt
+ * grantu z nazwanym właścicielem naprawy. Istnienie relacji i kolumn sprawdza
+ * nadal (render z rolą `unknown`).
+ */
+export interface WithheldFact extends TableSite {
+  /** Ścieżka nazwanych funkcji wywołania (jak w kluczu zapadki `select`). */
+  readonly fn: string;
+  /** Klucz wpisu przeglądu, który go wstrzymał. */
+  readonly key: string;
+}
+
 export interface SeamFacts {
   readonly rpcs: readonly RpcSite[];
+  /** Fakty operacji na tabelach, które idą do pgTAP z rolą klienta. */
   readonly tables: readonly TableSite[];
+  /** Fakty wstrzymane wpisem przeglądu - DOKŁADNIE te, nic poza nimi. */
+  readonly withheld: readonly WithheldFact[];
   readonly literals: readonly LiteralWrite[];
   readonly conflicts: readonly ConflictTarget[];
   readonly publicColumns: readonly PublicColumnFact[];
@@ -118,8 +152,33 @@ export interface SeamFacts {
     readonly rpcCallsWithUnknownName: number;
     readonly tableChains: number;
     readonly tableChainsWithUnknownTable: number;
-    /** Pliki z wywołaniem, którego nazwy/tabeli nie da się ustalić statycznie. */
+    /**
+     * Pliki z wywołaniem, którego nazwy/tabeli nie da się ustalić statycznie,
+     * odczyty `readPostsWithParentPage`, których kolumn nie da się ustalić,
+     * oraz `select` z parametru, do którego dociera wartość czasu działania.
+     */
     readonly unresolvedSites: readonly string[];
+    /**
+     * `.select(x)` na tabeli znanej z nazwy, który nie dał ANI faktu, ANI
+     * wpisu w `unresolvedSites` (stała lokalna funkcji, `X.join(", ")`,
+     * warunek `a ? b : c`, funkcja bez widocznego wołającego...) - kontrakt go
+     * nie sprawdza i nikt by o tym nie wiedział. Posortowane, z powtórzeniami.
+     */
+    readonly uncheckedSelects: readonly string[];
+    /**
+     * Pliki, których parser kompilatora nie przeczytał bez błędów składni
+     * (`plik: N błędów składni, pierwszy: linia L: komunikat`). Drzewo takiego
+     * pliku jest po pierwszym błędzie zgadywane, więc jego wywołania mogą nie
+     * dać ŻADNEGO faktu - i nikt by o tym nie wiedział. Posortowane.
+     */
+    readonly parseErrors: readonly string[];
+    /**
+     * Wpisy `SEAM_FACTS_WITHHELD_REVIEWED` i liczba faktów, które każdy
+     * wstrzymał. Przegląd dotyczył JEDNEGO faktu, więc każda inna liczba to
+     * problem zasięgu: 0 - wpis nieaktualny (kod już tego nie czyta albo
+     * zmienił kolumny), więcej - wpis wstrzymuje coś, czego nikt nie oglądał.
+     */
+    readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
 }
 
@@ -268,8 +327,20 @@ function resolveConstant(
     : resolveConstant(imported[1], targetScope, scopes, known, depth + 1);
 }
 
+/**
+ * Rodzaj skryptu PO ROZSZERZENIU, jak u kompilatora. Plik `.ts` parsowany jako
+ * TSX gubi się na pierwszej strzałce generycznej (`async <Row>(...) =>` to
+ * w TSX otwarcie znacznika) i resztę pliku czyta jako tekst JSX - do
+ * listopada 2026 eksport danych RODO (`profile/export.functions.ts`) dawał
+ * przez to 168 błędów składni, zero łańcuchów `.from` i zero `.rpc`, a 33
+ * odczyty i 13 wywołań RPC nie były sprawdzane przez nic.
+ */
+export function scriptKindOf(file: string): ts.ScriptKind {
+  return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
 function buildScope(file: string, code: string): FileScope {
-  const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, scriptKindOf(file));
   const strings = new Map<string, string>();
   const stringExprs = new Map<string, ts.Expression>();
   const objects = new Map<string, ts.ObjectLiteralExpression>();
@@ -346,17 +417,25 @@ function buildScope(file: string, code: string): FileScope {
 
 // ── Rola klienta ────────────────────────────────────────────────────────────
 
-/** Rola klienta dla odbiorcy `.rpc` / `.from` (`supabase`, `context.supabase`, ...). */
+/**
+ * Rola klienta dla odbiorcy `.rpc` / `.from` (`supabase`, `context.supabase`,
+ * `looseClient(context)`, nazwa związana z `looseClient(...)`, ...).
+ */
 export function receiverRole(
   receiver: ts.Expression,
-  scope: Pick<FileScope, "adminAliases" | "browserClient" | "authMiddleware">,
+  scope: FileScope,
+  known: ReadonlySet<string>,
 ): ClientRole {
   const node = unwrap(receiver);
+  if (ts.isCallExpression(node) && isLooseHelperCall(node, LOOSE_CLIENT, scope, known)) {
+    return looseSourceRole(node.arguments[0], scope, known);
+  }
   if (ts.isIdentifier(node)) {
     if (scope.adminAliases.has(node.text)) return "service_role";
     if (node.text === "supabase" && (scope.browserClient || scope.authMiddleware))
       return "authenticated";
-    return "unknown";
+    const bound = looseClientBinding(node, scope, known);
+    return bound === null ? "unknown" : looseSourceRole(bound.arguments[0], scope, known);
   }
   if (ts.isPropertyAccessExpression(node)) {
     const name = node.name.text;
@@ -402,11 +481,8 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
   const columns = new Set<string>();
   let star = false;
   for (const raw of splitTopLevel(select)) {
-    if (raw.includes("(") || raw.startsWith("...")) continue;
-    let item = raw;
-    const alias = item.indexOf(":");
-    if (alias !== -1 && item[alias + 1] !== ":") item = item.slice(alias + 1);
-    item = item.split("::")[0].split("->")[0].trim();
+    const item = selectItemColumn(raw);
+    if (item === null) continue;
     if (item === "*") {
       star = true;
       continue;
@@ -416,11 +492,1154 @@ export function parseSelectColumns(select: string): { columns: string[]; star: b
   return { columns: [...columns].sort(), star };
 }
 
+/**
+ * Kolumna elementu listy `select` (bez aliasu, rzutowania i ścieżki json);
+ * `null` - zasób osadzony albo rozkład, czyli nie kolumna tej tabeli.
+ */
+function selectItemColumn(raw: string): string | null {
+  if (raw.includes("(") || raw.startsWith("...")) return null;
+  let item = raw;
+  const alias = item.indexOf(":");
+  if (alias !== -1 && item[alias + 1] !== ":") item = item.slice(alias + 1);
+  return item.split("::")[0].split("->")[0].trim();
+}
+
+// ── Odczyt wpisów przez `readPostsWithParentPage` ───────────────────────────
+//
+// `readPostsWithParentPage(read, PLAIN)` (`lib/routing/postParentPageRead.ts`)
+// woła `read(postColumnsWithParentPage(PLAIN))`, a po błędzie `read(PLAIN)`.
+// W łańcuchu `.from("posts").select(columns)` wewnątrz `read` argument
+// `select` jest parametrem, więc `resolveString` go nie zna i bez tej reguły
+// odczyt nie dawał żadnego faktu: kolumna dopisana do PLAIN bez GRANT-u
+// przechodziła CI i padała dopiero w przeglądarce.
+//
+// REGUŁA JEST WĄSKA CELOWO - jeden kształt, bez zgadywania:
+//   * argument `.select` to PIERWSZY parametr NAJBLIŻSZEJ funkcji (strzałka,
+//     wyrażenie `function` albo deklaracja), jedyne wiązanie tej nazwy w tej
+//     funkcji i nigdzie w niej nie przypisywane - czyli wartość, którą podał
+//     pomocnik;
+//   * ta funkcja jest pierwszym argumentem wywołania pomocnika wprost albo
+//     przez `const`/deklarację funkcji w tym samym pliku (nazwa wiązana raz
+//     w swoim bloku i nieprzypisywana), a pomocnik to import z jego modułu;
+//   * drugi argument pomocnika rozwiązuje się zwykłym `resolveString`.
+// Parametr przekazany DALEJ (`postsQuery(narrowing, columns)`,
+// `postsConstrainedByTaxonomy(columns, ...)`) nie jest tym kształtem - tam
+// `select` składa inna funkcja; te odczyty widzi reguła przepływu kolumn
+// przez parametr (sekcja niżej), dla której pomocnik jest jednym ze źródeł
+// wartości parametru.
+//
+// Oba warianty dają fakty: osadzenie bierzemy ze stałej, której używa sam
+// pomocnik (`POST_PARENT_PAGE_EMBED` w `postHref.ts`), nie z kopii literału.
+// `parseSelectColumns` pomija zasoby osadzone (także w literałach gdzie
+// indziej), więc dziś oba warianty dają te same kolumny `posts`; uprawnienia
+// do `pages(slug, parent_id)` z osadzenia bramka nie sprawdza nigdzie.
+
+/** Pomocnik, jego moduł i stała osadzenia, którą dokleja (ścieżki repo). */
+export const POST_PARENT_PAGE_READ = {
+  helper: "readPostsWithParentPage",
+  module: "src/lib/routing/postParentPageRead.ts",
+  embedModule: "src/lib/routing/postHref.ts",
+  embedConstant: "POST_PARENT_PAGE_EMBED",
+} as const;
+
+/**
+ * Wariant kolumn z osadzeniem - ten sam napis, który składa
+ * `postColumnsWithParentPage` (test pilnuje równości z tamtą funkcją).
+ */
+export function withPostParentPageEmbed(plainColumns: string, embed: string): string {
+  return `${plainColumns}, ${embed}`;
+}
+
+type ReadFunction = ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration;
+
+/** Najbliższa funkcja zawierająca węzeł (dowolnego rodzaju). */
+function enclosingFunction(node: ts.Node): ts.SignatureDeclaration | null {
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current)) return current;
+  }
+  return null;
+}
+
+/** Ile wiązań nazwy (zmienna, parametr, rozkład, funkcja, klasa, enum) jest w poddrzewie. */
+function bindingCount(root: ts.Node, name: string): number {
+  let count = 0;
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name
+    ) {
+      count += 1;
+    } else if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isClassExpression(node) ||
+        ts.isEnumDeclaration(node)) &&
+      node.name?.text === name
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return count;
+}
+
+function containsIdentifier(node: ts.Node, name: string): boolean {
+  if (ts.isIdentifier(node)) return node.text === name;
+  return ts.forEachChild(node, (child) => containsIdentifier(child, name) || undefined) ?? false;
+}
+
+/** Czy w poddrzewie coś przypisuje do nazwy (`=`, `+=`, `++`, rozkład, `for (x of ...)`). */
+function isAssigned(root: ts.Node, name: string): boolean {
+  let assigned = false;
+  const isTarget = (target: ts.Expression): boolean => {
+    const node = unwrap(target);
+    if (ts.isIdentifier(node)) return node.text === name;
+    // Przypisanie rozkładające: konserwatywnie - nazwa gdziekolwiek po lewej.
+    if (ts.isArrayLiteralExpression(node) || ts.isObjectLiteralExpression(node)) {
+      return containsIdentifier(node, name);
+    }
+    return false;
+  };
+  const visit = (node: ts.Node): void => {
+    if (assigned) return;
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      isTarget(node.left)
+    ) {
+      assigned = true;
+      return;
+    }
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      (node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken) &&
+      isTarget(node.operand)
+    ) {
+      assigned = true;
+      return;
+    }
+    if (
+      (ts.isForOfStatement(node) || ts.isForInStatement(node)) &&
+      !ts.isVariableDeclarationList(node.initializer) &&
+      isTarget(node.initializer)
+    ) {
+      assigned = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return assigned;
+}
+
+/** Wyrażenie razem z owijkami (nawiasy, `as`, `satisfies`, `!`) nad nim. */
+function outermostWrapper(node: ts.Expression): ts.Expression {
+  let current: ts.Expression = node;
+  for (;;) {
+    const parent = current.parent;
+    if (
+      (ts.isParenthesizedExpression(parent) ||
+        ts.isAsExpression(parent) ||
+        ts.isSatisfiesExpression(parent) ||
+        ts.isNonNullExpression(parent) ||
+        ts.isTypeAssertionExpression(parent)) &&
+      parent.expression === current
+    ) {
+      current = parent;
+      continue;
+    }
+    return current;
+  }
+}
+
+/** Czy wywołanie to `readPostsWithParentPage(...)` z importu modułu pomocnika. */
+function isPostParentPageHelperCall(
+  call: ts.CallExpression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee)) return false;
+  const imported = scope.imports.get(callee.text);
+  return (
+    imported !== undefined &&
+    imported[1] === POST_PARENT_PAGE_READ.helper &&
+    resolveModule(scope.file, imported[0], known) === POST_PARENT_PAGE_READ.module
+  );
+}
+
+/** Wywołania pomocnika, którym funkcja `fn` jest oddana jako pierwszy argument. */
+function helperCallsReceiving(
+  fn: ReadFunction,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ts.CallExpression[] {
+  let name: string;
+  let container: ts.Node;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined) return [];
+    name = fn.name.text;
+    container = fn.parent;
+  } else {
+    const outer = outermostWrapper(fn);
+    const parent = outer.parent;
+    // Wprost: `readPostsWithParentPage((columns) => ..., COLS)`.
+    if (ts.isCallExpression(parent)) {
+      return parent.arguments[0] === outer && isPostParentPageHelperCall(parent, scope, known)
+        ? [parent]
+        : [];
+    }
+    // Przez stałą: `const read = (columns) => ...; readPostsWithParentPage(read, COLS)`.
+    if (
+      !ts.isVariableDeclaration(parent) ||
+      parent.initializer !== outer ||
+      !ts.isIdentifier(parent.name) ||
+      !ts.isVariableDeclarationList(parent.parent) ||
+      !(parent.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(parent.parent.parent)
+    ) {
+      return [];
+    }
+    name = parent.name.text;
+    container = parent.parent.parent.parent;
+  }
+  // Nazwa wiązana RAZ w swoim bloku i nieprzypisywana - każde jej użycie
+  // w tym bloku to ta funkcja.
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  const calls: ts.CallExpression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && isPostParentPageHelperCall(node, scope, known)) {
+      const first = node.arguments[0] === undefined ? null : unwrap(node.arguments[0]);
+      if (first !== null && ts.isIdentifier(first) && first.text === name) calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(container);
+  return calls;
+}
+
+/**
+ * Napisy `select`, które dostanie `.select(arg)` przez `readPostsWithParentPage`.
+ * `null` - to nie ten kształt (wołający rozwiązuje argument jak dotąd);
+ * pusta lista - ten kształt, ale kolumn nie da się ustalić (miejsce trafia do
+ * `unresolved`, fakt nie powstaje).
+ */
+function postParentPageSelects(
+  arg: ts.Expression,
+  selectCall: ts.CallExpression,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+): string[] | null {
+  const id = unwrap(arg);
+  if (!ts.isIdentifier(id)) return null;
+  const fn = enclosingFunction(selectCall);
+  if (
+    fn === null ||
+    !(ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isFunctionDeclaration(fn))
+  ) {
+    return null;
+  }
+  const first = fn.parameters[0];
+  if (
+    first === undefined ||
+    first.dotDotDotToken !== undefined ||
+    !ts.isIdentifier(first.name) ||
+    first.name.text !== id.text ||
+    bindingCount(fn, id.text) !== 1 ||
+    isAssigned(fn, id.text)
+  ) {
+    return null;
+  }
+  const calls = helperCallsReceiving(fn, scope, known);
+  if (calls.length === 0) return null;
+
+  const embed = postParentPageEmbed(exportsIndex, known);
+  const selects: string[] = [];
+  for (const call of calls) {
+    const plainArg = call.arguments[1];
+    const plain =
+      plainArg === undefined ? null : resolveString(plainArg, scope, exportsIndex, known);
+    const site = `${scope.file}: .select(${id.text}) <- ${POST_PARENT_PAGE_READ.helper}`;
+    if (plain === null) {
+      out.unresolved.push(
+        `${site}(…, ${plainArg === undefined ? "" : plainArg.getText(scope.sf).slice(0, 60)})`,
+      );
+      continue;
+    }
+    if (embed === null) {
+      // Kolumny zwykłego wariantu są pewne; wariantu z osadzeniem - nie.
+      out.unresolved.push(
+        `${site}: ${POST_PARENT_PAGE_READ.embedConstant} (${POST_PARENT_PAGE_READ.embedModule}) nieczytelne`,
+      );
+    } else {
+      selects.push(withPostParentPageEmbed(plain, embed));
+    }
+    selects.push(plain);
+  }
+  return selects;
+}
+
+/** Osadzenie, które dokleja pomocnik - wartość PRAWDZIWEJ stałej z `postHref.ts`. */
+function postParentPageEmbed(exportsIndex: ExportIndex, known: ReadonlySet<string>): string | null {
+  const embedScope = exportsIndex.get(POST_PARENT_PAGE_READ.embedModule);
+  return embedScope === undefined
+    ? null
+    : resolveConstant(POST_PARENT_PAGE_READ.embedConstant, embedScope, exportsIndex, known, 0);
+}
+
+// ── Kolumny przekazywane parametrem między funkcjami ────────────────────────
+//
+// Reguła pomocnika (wyżej) widzi `.select(columns)` tylko wtedy, gdy funkcja
+// oddana `readPostsWithParentPage` SAMA woła `.select` na swoim parametrze.
+// Sześć odczytów wpisów (mega menu, bloki treści, cztery widgety buildera)
+// i archiwum taksonomii przekazuje kolumny DALEJ - do `postsQuery`
+// (`blocks.ts`), `postsNarrowedToTaxonomy` albo `postsConstrainedByTaxonomy`
+// (`taxonomyPivot.ts`), które składają `select` w innej funkcji, także
+// w innym pliku (`${cols}, ${OSADZENIE}`, `[cols, ...osadzenia].join(", ")`).
+// Bez tej reguły kolumna dopisana do ich literału bez GRANT-u przechodziła CI.
+//
+// JAK. `.select(arg)`, którego `arg` zależy od DOKŁADNIE JEDNEGO parametru
+// najbliższej funkcji F, dostaje fakty z wartości, jakie ten parametr
+// przyjmuje w wywołaniach F:
+//   * wywołanie po nazwie w tym samym pliku albo - gdy F jest eksportem
+//     najwyższego poziomu (`export function` / `export const`) - przez import
+//     nazwany w innym pliku (bez reeksportów i importów przestrzeni nazw);
+//   * `readPostsWithParentPage(F, PLAIN)` dla pierwszego parametru: oba
+//     warianty, które pomocnik wysyła (z osadzeniem i zapasowy);
+//   * argument to literał albo stała - albo znów parametr funkcji wołającej:
+//     wtedy krok w górę, najwyżej `COLUMN_FLOW_MAX_DEPTH` skoków.
+// Fakt dostaje plik, w którym rozwiązał się literał kolumn (tam się je
+// dopisuje), a rolę - odbiorca `.from()` w funkcji składającej `select`.
+//
+// STRAŻNICY (jak przy pomocniku: fałszywy fakt jest gorszy niż brak faktu):
+//   * parametr: identyfikator bez `...` i bez wartości domyślnej, jedyne
+//     wiązanie tej nazwy w F, nigdzie nieprzypisywany;
+//   * nazwa F wiązana RAZ w swoim bloku i nieprzypisywana; w pliku
+//     importującym nazwa lokalna niczym nieprzesłonięta;
+//   * wywołanie z rozkładem (`f(...args)`) do pozycji parametru - pomijane;
+//   * nazwy w wyrażeniu `select` i w argumentach: parametr, `const`
+//     najbliższej funkcji (jedyne wiązanie, w zasięgu użycia), stała modułu
+//     albo importu, której nazwy nic w pliku nie przesłania - wartość
+//     PRAWDZIWEJ stałej (np. `CATEGORY_PIVOT_EMBED`, `POST_PARENT_PAGE_EMBED`).
+//     `let`, wiązanie wielokrotne albo przesłonięte: reguła milczy;
+//   * `[...].join(sep)` z rozkładem `xs.map(cb)`: element listy to wynik `cb`
+//     z wartościami czasu działania; bez faktu kolumny tylko wtedy, gdy jest
+//     zasobem osadzonym (`alias:tabela!inner()`), czyli nie kolumną tej tabeli.
+// Wartość czasu działania na miejscu KOLUMNY (argument wyliczany dopiero
+// w przeglądarce, rozkład bez `map`, element bez nawiasu) czyni miejsce
+// nieczytelnym: znane kolumny dają fakty, a miejsce trafia do
+// `unresolvedSites` (zapadka). Funkcja nieznanego wołającego (oddana jako
+// wartość, wołana tylko z testów) faktów nie daje - jak dotąd; taki `select`,
+// podobnie jak każdy, którego reguła milczy, trafia do `uncheckedSelects`
+// (zapadka `UNCHECKED_SELECTS_REVIEWED`).
+
+/** Najwięcej skoków wywołań między `.select` a literałem kolumn. */
+export const COLUMN_FLOW_MAX_DEPTH = 4;
+
+/** Znak spoza składni `select`: część napisu znana dopiero w czasie działania. */
+const RUNTIME_PART = "";
+
+/** Kawałek szablonu `select`: tekst albo parametr najbliższej funkcji. */
+type FlowPart = string | { readonly param: number };
+
+interface FlowValue {
+  /** Napis `select` (z `RUNTIME_PART` w miejscach nieznanych statycznie). */
+  readonly text: string;
+  /** Plik, w którym rozwiązał się literał kolumn. */
+  readonly file: string;
+}
+
+interface FlowImport {
+  readonly scope: FileScope;
+  readonly local: string;
+  readonly imported: string;
+}
+
+interface FlowEnv {
+  readonly scopes: ExportIndex;
+  readonly known: ReadonlySet<string>;
+  /** Miejsca nieczytelne tej reguły (zbiór: jedno miejsce osiągalne z kilku `select`). */
+  readonly unresolved: Set<string>;
+  /**
+   * Ile razy reguła zgłosiła miejsce nieczytelne (także już znane ze zbioru) -
+   * żeby `select` bez faktu, ale ze zgłoszonym miejscem, nie trafił do
+   * `uncheckedSelects`.
+   */
+  flagged: number;
+  /** Plik -> importy nazwane z niego; budowane leniwie, raz na ekstrakcję. */
+  importers: Map<string, FlowImport[]> | null;
+}
+
+interface FlowCtx {
+  readonly scope: FileScope;
+  /** Najbliższa funkcja wyrażenia - jej parametry to dziury szablonu. */
+  readonly fn: ts.SignatureDeclaration | null;
+  /** Callbacki `.map(cb)` w trakcie oceny - ich wiązania to wartości czasu działania. */
+  readonly lambdas: readonly ts.SignatureDeclaration[];
+}
+
+/** Indeks parametru `name` funkcji `fn`; `-1` - to nie parametr; `null` - parametr poza regułą. */
+function flowParamIndex(fn: ts.SignatureDeclaration, name: string): number | null {
+  const index = fn.parameters.findIndex((p) => ts.isIdentifier(p.name) && p.name.text === name);
+  if (index === -1) return -1;
+  const param = fn.parameters[index];
+  return param.dotDotDotToken === undefined &&
+    param.initializer === undefined &&
+    bindingCount(fn, name) === 1 &&
+    !isAssigned(fn, name)
+    ? index
+    : null;
+}
+
+/**
+ * Inicjalizator jedynej deklaracji `const name` w `fn`, w zasięgu `use`.
+ * `undefined` - nazwa nie jest w `fn` wiązana; `null` - jest, ale poza regułą
+ * (`let`, wiele wiązań, przypisanie, blok nieobejmujący użycia, funkcja
+ * zagnieżdżona, parametr rozkładany).
+ */
+function flowLocalConst(
+  fn: ts.SignatureDeclaration,
+  name: string,
+  use: ts.Node,
+): ts.Expression | null | undefined {
+  const count = bindingCount(fn, name);
+  if (count === 0) return undefined;
+  if (count !== 1 || isAssigned(fn, name)) return null;
+  const decls: ts.VariableDeclaration[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) {
+      decls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn);
+  const decl = decls[0];
+  if (
+    decls.length !== 1 ||
+    decl.initializer === undefined ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent) ||
+    enclosingFunction(decl) !== fn
+  ) {
+    return null;
+  }
+  const block = decl.parent.parent.parent;
+  for (let node: ts.Node | undefined = use; node; node = node.parent) {
+    if (node === block) return decl.initializer;
+  }
+  return null;
+}
+
+function flowIdentifier(
+  id: ts.Identifier,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  const name = id.text;
+  if (ctx.lambdas.some((cb) => bindingCount(cb, name) > 0)) return [RUNTIME_PART];
+  if (ctx.fn !== null) {
+    const index = flowParamIndex(ctx.fn, name);
+    if (index === null) return null;
+    if (index >= 0) return [{ param: index }];
+    const init = flowLocalConst(ctx.fn, name, id);
+    if (init === null) return null;
+    if (init !== undefined) return flowTemplate(init, ctx, env, depth + 1);
+  }
+  // Poza najbliższą funkcją: tylko stała modułu albo importu, a nazwy nie
+  // wiąże w pliku nic innego (zmienna funkcji zewnętrznej, parametr gdzie
+  // indziej) - inaczej wartość z modułu mogłaby nie być tą wysyłaną.
+  const { scope } = ctx;
+  const topLevel = scope.strings.has(name) || scope.stringExprs.has(name) ? 1 : 0;
+  if ((topLevel === 1 || scope.imports.has(name)) && bindingCount(scope.sf, name) === topLevel) {
+    const value = resolveConstant(name, scope, env.scopes, env.known, 0);
+    if (value !== null) return [value];
+  }
+  return [RUNTIME_PART];
+}
+
+/** Wynik callbacku: ciało-wyrażenie albo blok z jednym `return`. */
+function callbackResult(cb: ts.ArrowFunction | ts.FunctionExpression): ts.Expression | null {
+  if (!ts.isBlock(cb.body)) return cb.body;
+  const [only] = cb.body.statements;
+  return cb.body.statements.length === 1 &&
+    ts.isReturnStatement(only) &&
+    only.expression !== undefined
+    ? only.expression
+    : null;
+}
+
+/** Element rozkładu w `[...].join`: `xs.map(cb)` - jeden reprezentatywny wynik `cb`. */
+function flowSpreadItem(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  const node = unwrap(expr);
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "map" &&
+    node.arguments.length >= 1
+  ) {
+    const cb = unwrap(node.arguments[0]);
+    if (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) {
+      const result = callbackResult(cb);
+      if (result !== null) {
+        return flowTemplate(result, { ...ctx, lambdas: [...ctx.lambdas, cb] }, env, depth + 1);
+      }
+    }
+  }
+  return [RUNTIME_PART];
+}
+
+/** `[a, ...xs.map(cb)].join(sep)`; `undefined` - to nie ten kształt. */
+function flowJoin(
+  call: ts.CallExpression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null | undefined {
+  const callee = call.expression;
+  if (
+    !ts.isPropertyAccessExpression(callee) ||
+    callee.name.text !== "join" ||
+    call.arguments.length !== 1
+  ) {
+    return undefined;
+  }
+  const list = unwrap(callee.expression);
+  if (!ts.isArrayLiteralExpression(list)) return undefined;
+  const sepParts = flowTemplate(call.arguments[0], ctx, env, depth + 1);
+  if (
+    sepParts === null ||
+    !sepParts.every((p): p is string => typeof p === "string" && !p.includes(RUNTIME_PART))
+  ) {
+    return null;
+  }
+  const sep = sepParts.join("");
+  const out: FlowPart[] = [];
+  for (const [i, el] of list.elements.entries()) {
+    const item = ts.isSpreadElement(el)
+      ? flowSpreadItem(el.expression, ctx, env, depth + 1)
+      : flowTemplate(el, ctx, env, depth + 1);
+    if (item === null) return null;
+    if (i > 0) out.push(sep);
+    out.push(...item);
+  }
+  return out;
+}
+
+/**
+ * Szablon napisu: tekst, `RUNTIME_PART` w miejscach znanych dopiero w czasie
+ * działania i dziury na parametry najbliższej funkcji. `null` - wyrażenie
+ * poza regułą (wiązanie, którego wartości nie da się pewnie ustalić).
+ */
+function flowTemplate(
+  expr: ts.Expression,
+  ctx: FlowCtx,
+  env: FlowEnv,
+  depth: number,
+): FlowPart[] | null {
+  if (depth > 8) return null;
+  const node = unwrap(expr);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
+  if (ts.isTemplateExpression(node)) {
+    const parts: FlowPart[] = [node.head.text];
+    for (const span of node.templateSpans) {
+      const inner = flowTemplate(span.expression, ctx, env, depth + 1);
+      if (inner === null) return null;
+      parts.push(...inner, span.literal.text);
+    }
+    return parts;
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = flowTemplate(node.left, ctx, env, depth + 1);
+    const right = flowTemplate(node.right, ctx, env, depth + 1);
+    return left === null || right === null ? null : [...left, ...right];
+  }
+  if (ts.isIdentifier(node)) return flowIdentifier(node, ctx, env, depth);
+  if (ts.isCallExpression(node)) {
+    const joined = flowJoin(node, ctx, env, depth);
+    if (joined !== undefined) return joined;
+  }
+  return [RUNTIME_PART];
+}
+
+function flowParams(parts: readonly FlowPart[]): number[] {
+  const params = new Set<number>();
+  for (const part of parts) if (typeof part !== "string") params.add(part.param);
+  return [...params];
+}
+
+function flowSubstitute(parts: readonly FlowPart[], value: string): string {
+  return parts.map((part) => (typeof part === "string" ? part : value)).join("");
+}
+
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === kind);
+}
+
+/** Wywołania `name(...)` (odbiorca: sam identyfikator) w poddrzewie. */
+function callsByName(root: ts.Node, name: string): ts.CallExpression[] {
+  const calls: ts.CallExpression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrap(node.expression);
+      if (ts.isIdentifier(callee) && callee.text === name) calls.push(node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return calls;
+}
+
+function importersOf(file: string, env: FlowEnv): readonly FlowImport[] {
+  if (env.importers === null) {
+    const index = new Map<string, FlowImport[]>();
+    for (const scope of env.scopes.values()) {
+      for (const [local, [spec, imported]] of scope.imports) {
+        const target = resolveModule(scope.file, spec, env.known);
+        if (target === null) continue;
+        const list = index.get(target) ?? [];
+        list.push({ scope, local, imported });
+        index.set(target, list);
+      }
+    }
+    env.importers = index;
+  }
+  return env.importers.get(file) ?? [];
+}
+
+/** Wywołania funkcji `fn` po nazwie: w jej bloku i (eksport) w plikach importujących. */
+function directCallsOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: FlowEnv,
+): Array<{ readonly call: ts.CallExpression; readonly scope: FileScope }> {
+  let name: string;
+  let statement: ts.Statement;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined || fn.body === undefined) return [];
+    name = fn.name.text;
+    statement = fn;
+  } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+    const outer = outermostWrapper(fn);
+    const decl = outer.parent;
+    if (
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== outer ||
+      !ts.isIdentifier(decl.name) ||
+      !ts.isVariableDeclarationList(decl.parent) ||
+      !(decl.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(decl.parent.parent)
+    ) {
+      return [];
+    }
+    name = decl.name.text;
+    statement = decl.parent.parent;
+  } else {
+    return [];
+  }
+  const container = statement.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return [];
+  const calls = callsByName(container, name).map((call) => ({ call, scope }));
+  if (
+    ts.isSourceFile(container) &&
+    hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
+    !hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+  ) {
+    for (const imp of importersOf(scope.file, env)) {
+      if (imp.imported !== name) continue;
+      if (bindingCount(imp.scope.sf, imp.local) !== 0 || isAssigned(imp.scope.sf, imp.local)) {
+        continue;
+      }
+      for (const call of callsByName(imp.scope.sf, imp.local))
+        calls.push({ call, scope: imp.scope });
+    }
+  }
+  return calls;
+}
+
+/** Wartości argumentu `arg` wywołania `call` (krok w górę, gdy to parametr wołającego). */
+function flowArgumentValues(
+  arg: ts.Expression,
+  call: ts.CallExpression,
+  scope: FileScope,
+  env: FlowEnv,
+  depth: number,
+  stack: Set<string>,
+): FlowValue[] {
+  const fn = enclosingFunction(call);
+  const parts = flowTemplate(arg, { scope, fn, lambdas: [] }, env, 0);
+  if (parts === null) return [{ text: RUNTIME_PART, file: scope.file }];
+  const params = flowParams(parts);
+  if (params.length === 0) return [{ text: flowSubstitute(parts, ""), file: scope.file }];
+  if (params.length > 1 || fn === null) return [{ text: RUNTIME_PART, file: scope.file }];
+  return flowParamValues(fn, params[0], scope, env, depth + 1, stack).map((v) => ({
+    text: flowSubstitute(parts, v.text),
+    file: v.file,
+  }));
+}
+
+/** Zgłoszenie miejsca nieczytelnego reguły przepływu (zbiór + licznik zgłoszeń). */
+function flowUnresolved(env: FlowEnv, site: string): void {
+  env.unresolved.add(site);
+  env.flagged += 1;
+}
+
+/** Wartości parametru `index` funkcji `fn` ze wszystkich widocznych wywołań. */
+function flowParamValues(
+  fn: ts.SignatureDeclaration,
+  index: number,
+  scope: FileScope,
+  env: FlowEnv,
+  depth: number,
+  stack: Set<string>,
+): FlowValue[] {
+  const site = `${scope.file}:${fn.getStart(scope.sf)}`;
+  if (depth > COLUMN_FLOW_MAX_DEPTH) {
+    flowUnresolved(
+      env,
+      `${site}: przepływ kolumn dłuższy niż ${COLUMN_FLOW_MAX_DEPTH} wywołania (parametr ${index + 1})`,
+    );
+    return [];
+  }
+  const key = `${site}:${index}`;
+  if (stack.has(key)) return [];
+  stack.add(key);
+  try {
+    const values: FlowValue[] = [];
+    if (
+      index === 0 &&
+      (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isFunctionDeclaration(fn))
+    ) {
+      for (const call of helperCallsReceiving(fn, scope, env.known)) {
+        const plainArg = call.arguments[1];
+        if (plainArg === undefined) continue;
+        const embed = postParentPageEmbed(env.scopes, env.known);
+        if (embed === null) {
+          flowUnresolved(
+            env,
+            `${scope.file}: ${POST_PARENT_PAGE_READ.helper}(…): ${POST_PARENT_PAGE_READ.embedConstant} (${POST_PARENT_PAGE_READ.embedModule}) nieczytelne`,
+          );
+        }
+        for (const plain of flowArgumentValues(plainArg, call, scope, env, depth, stack)) {
+          if (embed !== null) {
+            values.push({ text: withPostParentPageEmbed(plain.text, embed), file: plain.file });
+          }
+          values.push(plain);
+        }
+      }
+    }
+    for (const { call, scope: callerScope } of directCallsOf(fn, scope, env)) {
+      const args = call.arguments;
+      if (args.slice(0, index + 1).some((a) => ts.isSpreadElement(a))) continue;
+      const arg = args[index];
+      if (arg === undefined) continue;
+      values.push(...flowArgumentValues(arg, call, callerScope, env, depth, stack));
+    }
+    return values;
+  } finally {
+    stack.delete(key);
+  }
+}
+
+/**
+ * Napisy `select` (z plikiem literału kolumn) dla `.select(arg)`, którego
+ * argument zależy od jednego parametru najbliższej funkcji. `null` - to nie
+ * ten kształt (bez faktu, jak dotąd).
+ */
+function columnFlowSelects(
+  arg: ts.Expression,
+  selectCall: ts.CallExpression,
+  scope: FileScope,
+  env: FlowEnv,
+): FlowValue[] | null {
+  const fn = enclosingFunction(selectCall);
+  if (fn === null) return null;
+  const parts = flowTemplate(arg, { scope, fn, lambdas: [] }, env, 0);
+  if (parts === null) return null;
+  const params = flowParams(parts);
+  if (params.length !== 1) return null;
+  return flowParamValues(fn, params[0], scope, env, 1, new Set()).map((v) => ({
+    text: flowSubstitute(parts, v.text),
+    file: v.file,
+  }));
+}
+
+/** Czy któryś element listy `select` na miejscu kolumny jest wartością czasu działania. */
+function hasRuntimeColumn(select: string): boolean {
+  return splitTopLevel(select).some(
+    (raw) => selectItemColumn(raw)?.includes(RUNTIME_PART) ?? false,
+  );
+}
+
+/** Nazwa na dnie łańcucha `x.a(...).b(...)` (albo `null`). */
+function chainRootName(expr: ts.Expression): string | null {
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+      node = unwrap(node.expression.expression);
+    } else if (ts.isPropertyAccessExpression(node)) {
+      node = unwrap(node.expression);
+    } else {
+      return ts.isIdentifier(node) ? node.text : null;
+    }
+  }
+}
+
+/**
+ * Czy KAŻDE przypisanie do `name` w poddrzewie to `name = name.<ogniwa>(...)`
+ * (także w obu gałęziach warunku) - przedłużenie tego samego budowniczego
+ * (filtr, warunek wersji). Inne
+ * przypisanie (`q = filtruj(q)`, `+=`, rozkład, `for (q of ...)`) - nie.
+ */
+function onlySelfExtending(root: ts.Node, name: string): boolean {
+  // `q = q.eq(...)` albo `q = warunek ? q.is(...) : q.eq(...)`.
+  const extends_ = (expr: ts.Expression): boolean => {
+    const node = unwrap(expr);
+    return ts.isConditionalExpression(node)
+      ? extends_(node.whenTrue) && extends_(node.whenFalse)
+      : chainRootName(node) === name;
+  };
+  let ok = true;
+  const visit = (node: ts.Node): void => {
+    if (!ok) return;
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+      const left = unwrap(node.left);
+      if (ts.isIdentifier(left) && left.text === name) {
+        if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken || !extends_(node.right)) {
+          ok = false;
+          return;
+        }
+      } else if (
+        (ts.isArrayLiteralExpression(left) || ts.isObjectLiteralExpression(left)) &&
+        containsIdentifier(left, name)
+      ) {
+        ok = false;
+        return;
+      }
+    }
+    if (
+      ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+        (node.operator === ts.SyntaxKind.PlusPlusToken ||
+          node.operator === ts.SyntaxKind.MinusMinusToken) &&
+        containsIdentifier(node.operand, name)) ||
+      ((ts.isForOfStatement(node) || ts.isForInStatement(node)) &&
+        !ts.isVariableDeclarationList(node.initializer) &&
+        containsIdentifier(node.initializer, name))
+    ) {
+      ok = false;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return ok;
+}
+
+/**
+ * Budowniczy w zmiennej: łańcuch każdego użycia nazwy. `top` to ostatnie
+ * ogniwo łańcucha wprost nad `.from()` (albo samo `.from()`):
+ *   * `const base = supabase.from("t")`, a dalej `base.select(...)` /
+ *     `base.update(...)` - nazwa wiązana raz w swoim bloku i nieprzypisywana;
+ *   * `let q = supabase.from("t").update(p).eq("id", id)`, warunkowo
+ *     `q = q.eq("updated_at", v)`, a dalej `await q.select("id, updated_at")`
+ *     (RETURNING zapisu) - `let` tylko wtedy, gdy KAŻDE przypisanie przedłuża
+ *     ten sam budowniczy (`onlySelfExtending`). Inne przypisanie - reguła
+ *     milczy, a `select` na tej nazwie trafia do `uncheckedSelects`.
+ */
+function boundChains(top: ts.CallExpression): ts.CallExpression[][] {
+  const outer = outermostWrapper(top);
+  const decl = outer.parent;
+  if (
+    !ts.isVariableDeclaration(decl) ||
+    decl.initializer !== outer ||
+    !ts.isIdentifier(decl.name) ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !ts.isVariableStatement(decl.parent.parent)
+  ) {
+    return [];
+  }
+  const isConst = (decl.parent.flags & ts.NodeFlags.Const) !== 0;
+  const isLet = (decl.parent.flags & ts.NodeFlags.Let) !== 0;
+  if (!isConst && !isLet) return [];
+  const name = decl.name.text;
+  const container = decl.parent.parent.parent;
+  if (bindingCount(container, name) !== 1) return [];
+  if (isConst ? isAssigned(container, name) : !onlySelfExtending(container, name)) return [];
+  const chains: ts.CallExpression[][] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === name && node !== decl.name) {
+      const ref = outermostWrapper(node);
+      const access = ref.parent;
+      if (
+        ts.isPropertyAccessExpression(access) &&
+        access.expression === ref &&
+        ts.isCallExpression(access.parent) &&
+        access.parent.expression === access
+      ) {
+        chains.push([access.parent, ...chainAbove(access.parent)]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(container);
+  return chains;
+}
+
+// ── `looseTable(kontekst, "tabela")` ────────────────────────────────────────
+//
+// Moduły CRM czytają tabele spoza wygenerowanych typów przez
+// `looseTable(context, "crm_leads")` (`lib/supabase/looseQuery.ts`), czyli
+// `.from()` klienta z kontekstu funkcji serwerowej - w kodzie nie ma wtedy
+// `.from(` i 50 odczytów nie dawało faktu ani wpisu w żadnej zapadce.
+// Wywołanie pomocnika z TEGO modułu z tabelą rozwiązywalną statycznie jest
+// traktowane jak `.from()`; rola - jak odbiorca `context.supabase`
+// (`authenticated`), a dla `{ supabase: X }` - jak odbiorca `X`. Tabela
+// nieczytelna (`looseTable(context, view)`): bez faktu, a każdy `select` na
+// tym budowniczym trafia do `uncheckedSelects` (zapadka listy przejrzanej).
+//
+// `looseClient(źródło)` z tego samego modułu to klient o tej samej roli co
+// źródło - do listopada 2026 odbiorca `looseClient(context).rpc(...)` (albo
+// `const client = looseClient(context); client.rpc(...)`) dostawał rolę
+// `unknown`, więc EXECUTE `crm_funnel_stats`, `crm_import_leads`,
+// `crm_companies_aggregates` i `has_role` oraz uprawnienia odczytów
+// `looseClient({ supabase: supabaseAdmin }).from(...)` nie były sprawdzane.
+// Nazwa liczy się tylko wtedy, gdy jest `const` związanym z wywołaniem
+// pomocnika, jedynym wiązaniem tej nazwy w swoim bloku (bez przesłonięć
+// głębiej), nieprzypisywanym, a użycie leży w tym bloku. Inaczej - `unknown`,
+// jak dotąd.
+
+/** Pomocnik i jego moduł (ścieżka repo). */
+export const LOOSE_TABLE = {
+  helper: "looseTable",
+  module: "src/lib/supabase/looseQuery.ts",
+  arity: 2,
+} as const;
+
+/** Klient bez wygenerowanych typów z tego samego modułu. */
+export const LOOSE_CLIENT = {
+  helper: "looseClient",
+  module: LOOSE_TABLE.module,
+  arity: 1,
+} as const;
+
+/** Czy wywołanie to `helper(...)` z importu modułu pomocnika, z jego liczbą argumentów. */
+function isLooseHelperCall(
+  call: ts.CallExpression,
+  helper: typeof LOOSE_TABLE | typeof LOOSE_CLIENT,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  const callee = unwrap(call.expression);
+  if (!ts.isIdentifier(callee) || call.arguments.length !== helper.arity) return false;
+  const imported = scope.imports.get(callee.text);
+  return (
+    imported !== undefined &&
+    imported[1] === helper.helper &&
+    resolveModule(scope.file, imported[0], known) === helper.module
+  );
+}
+
+/** Czy wywołanie to `looseTable(źródło, tabela)` z importu modułu pomocnika. */
+function isLooseTableCall(
+  call: ts.CallExpression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): boolean {
+  return isLooseHelperCall(call, LOOSE_TABLE, scope, known);
+}
+
+/** Czy `inner` leży w poddrzewie `outer` (albo nim jest). */
+function within(inner: ts.Node, outer: ts.Node): boolean {
+  for (let node: ts.Node | undefined = inner; node; node = node.parent) {
+    if (node === outer) return true;
+  }
+  return false;
+}
+
+/**
+ * Wywołanie `looseClient(...)`, z którym związana jest nazwa użyta w `id`:
+ * `const id = looseClient(x)` w instrukcji bloku, który obejmuje użycie,
+ * jedyne wiązanie tej nazwy w tym bloku (także głębiej - parametr, rozkład,
+ * zagnieżdżona funkcja) i nigdzie w nim nieprzypisywane. `null` - nazwa nie
+ * jest takim klientem (albo nie na pewno).
+ */
+function looseClientBinding(
+  id: ts.Identifier,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ts.CallExpression | null {
+  // Bez importu pomocnika nie ma czego szukać (szybka ścieżka dla 99% plików).
+  if (![...scope.imports.values()].some(([, imported]) => imported === LOOSE_CLIENT.helper)) {
+    return null;
+  }
+  const name = id.text;
+  let found: ts.CallExpression | null = null;
+  const visit = (node: ts.Node): void => {
+    if (found !== null) return;
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name &&
+      node.initializer !== undefined &&
+      ts.isVariableDeclarationList(node.parent) &&
+      node.parent.flags & ts.NodeFlags.Const &&
+      ts.isVariableStatement(node.parent.parent)
+    ) {
+      const init = unwrap(node.initializer);
+      const container = node.parent.parent.parent;
+      if (
+        ts.isCallExpression(init) &&
+        isLooseHelperCall(init, LOOSE_CLIENT, scope, known) &&
+        within(id, container) &&
+        bindingCount(container, name) === 1 &&
+        !isAssigned(container, name)
+      ) {
+        found = init;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(scope.sf);
+  return found;
+}
+
+/** Rola klienta źródła `looseTable(źródło, ...)` / `looseClient(źródło)`. */
+function looseSourceRole(
+  source: ts.Expression,
+  scope: FileScope,
+  known: ReadonlySet<string>,
+): ClientRole {
+  const node = unwrap(source);
+  if (ts.isIdentifier(node) && (node.text === "context" || node.text === "ctx")) {
+    return "authenticated";
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const prop of node.properties) {
+      if (ts.isPropertyAssignment(prop) && propName(prop.name) === "supabase") {
+        return receiverRole(prop.initializer, scope, known);
+      }
+      if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === "supabase") {
+        return receiverRole(prop.name, scope, known);
+      }
+    }
+  }
+  return "unknown";
+}
+
+/** `.from()` tabeli public (nie kubełek Storage, nie inny schemat, nie `Array.from`). */
+function isTableFrom(call: ts.CallExpression): boolean {
+  const method = callMethod(call);
+  if (method?.name !== "from" || call.arguments.length !== 1) return false;
+  const recv = unwrap(method.receiver);
+  if (ts.isPropertyAccessExpression(recv) && recv.name.text === "storage") return false;
+  if (ts.isCallExpression(recv) && callMethod(recv)?.name === "schema") return false;
+  // Konstruktory globalne (`Array.from`, `Buffer.from`) - nie klient Supabase.
+  return !(ts.isIdentifier(recv) && /^[A-Z]/.test(recv.text));
+}
+
+/**
+ * Tabela budowniczego Supabase, na którym stoi wyrażenie: łańcuch w dół do
+ * `.from(t)` / `looseTable(x, t)` albo do nazwy, którą GDZIEKOLWIEK w pliku
+ * wiąże się (albo przypisuje) z takim łańcuchem. `undefined` - to nie
+ * budowniczy; `null` - budowniczy, tabela nieczytelna. Celowo szeroko: to
+ * wszechświat zapadki, nie źródło faktów.
+ */
+function builderTable(
+  expr: ts.Expression,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  seen: Set<string>,
+): string | null | undefined {
+  const tableOf = (arg: ts.Expression): string | null => {
+    const table = resolveString(arg, scope, exportsIndex, known);
+    return table !== null && COLUMN_RE.test(table) ? table : null;
+  };
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node)) {
+      if (isLooseTableCall(node, scope, known)) return tableOf(node.arguments[1]);
+      if (isTableFrom(node)) return tableOf(node.arguments[0]);
+      const method = callMethod(node);
+      if (method === null) return undefined;
+      node = unwrap(method.receiver);
+      continue;
+    }
+    // `(warunek ? q.eq(...) : q).select(...)`, `a ?? b`, `a || b` - budowniczy
+    // w którejkolwiek gałęzi (pierwsza z tabelą wygrywa).
+    if (
+      ts.isConditionalExpression(node) ||
+      (ts.isBinaryExpression(node) &&
+        (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+          node.operatorToken.kind === ts.SyntaxKind.BarBarToken))
+    ) {
+      const branches = ts.isConditionalExpression(node)
+        ? [node.whenTrue, node.whenFalse]
+        : [node.left, node.right];
+      let found: string | null | undefined;
+      for (const branch of branches) {
+        const table = builderTable(branch, scope, exportsIndex, known, seen);
+        if (table !== undefined && (found === undefined || found === null)) found = table;
+      }
+      return found;
+    }
+    if (!ts.isIdentifier(node) || seen.has(node.text)) return undefined;
+    const name = node.text;
+    seen.add(name);
+    let found: string | null | undefined;
+    const consider = (value: ts.Expression): void => {
+      const table = builderTable(value, scope, exportsIndex, known, seen);
+      if (table !== undefined && (found === undefined || found === null)) found = table;
+    };
+    const visit = (child: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(child) &&
+        ts.isIdentifier(child.name) &&
+        child.name.text === name &&
+        child.initializer !== undefined
+      ) {
+        consider(child.initializer);
+      } else if (
+        ts.isBinaryExpression(child) &&
+        child.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(unwrap(child.left)) &&
+        (unwrap(child.left) as ts.Identifier).text === name
+      ) {
+        consider(child.right);
+      }
+      ts.forEachChild(child, visit);
+    };
+    visit(scope.sf);
+    return found;
+  }
+}
+
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
 interface Collector {
   rpcs: RpcSite[];
   tables: TableSite[];
+  /** Wpisy przeglądu faktów wstrzymanych (wejście) i to, co wstrzymały. */
+  withheldReviewed: readonly WithheldFactReviewed[];
+  withheld: WithheldFact[];
   literals: LiteralWrite[];
   conflicts: ConflictTarget[];
   rpcCalls: number;
@@ -428,6 +1647,82 @@ interface Collector {
   tableChains: number;
   tableChainsWithUnknownTable: number;
   unresolved: string[];
+  uncheckedSelects: string[];
+  /**
+   * Wywołania `.select`, które ekstrakcja OBEJRZAŁA (fakt, miejsce
+   * nieczytelne, `head: true` albo wpis w `uncheckedSelects`). Reszta
+   * `select` na budowniczym Supabase trafia do `uncheckedSelects`.
+   */
+  visitedSelects: Set<ts.CallExpression>;
+}
+
+/**
+ * Nazwa funkcji do klucza listy przejrzanej: nazwa deklaracji, a funkcji
+ * anonimowej - wiązanie albo właściwość, do której trafia (także przez łańcuch
+ * wywołań: `export const f = createServerFn().handler(async () => ...)` - `f`).
+ * `null` - callback bez nazwy (`xs.map(...)` w wyrażeniu), pomijany w ścieżce.
+ */
+function functionName(fn: ts.SignatureDeclaration): string | null {
+  if (
+    (ts.isFunctionDeclaration(fn) ||
+      ts.isFunctionExpression(fn) ||
+      ts.isMethodDeclaration(fn) ||
+      ts.isGetAccessorDeclaration(fn) ||
+      ts.isSetAccessorDeclaration(fn)) &&
+    fn.name !== undefined
+  ) {
+    return propName(fn.name as ts.PropertyName) ?? fn.name.getText();
+  }
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return null;
+  let current: ts.Node = outermostWrapper(fn);
+  for (;;) {
+    const parent: ts.Node = current.parent;
+    if (
+      (ts.isCallExpression(parent) &&
+        (parent.expression === current || parent.arguments.some((a) => a === current))) ||
+      (ts.isPropertyAccessExpression(parent) && parent.expression === current)
+    ) {
+      current = outermostWrapper(parent as ts.Expression);
+      continue;
+    }
+    if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+    if (ts.isPropertyAssignment(parent) || ts.isPropertyDeclaration(parent)) {
+      return propName(parent.name);
+    }
+    return null;
+  }
+}
+
+/** Ścieżka nazwanych funkcji nad węzłem (`zewn.wewn`); `<moduł>` - poza funkcją. */
+function enclosingFunctionPath(node: ts.Node): string {
+  const names: string[] = [];
+  for (let current = node.parent; current; current = current.parent) {
+    if (ts.isFunctionLike(current)) {
+      const name = functionName(current);
+      if (name !== null) names.push(name);
+    }
+  }
+  return names.length === 0 ? "<moduł>" : names.reverse().join(".");
+}
+
+/**
+ * Klucz `select` bez faktu i bez miejsca nieczytelnego: plik, ścieżka
+ * funkcji, tabela i tekst argumentu - BEZ numeru linii, więc lista przejrzana
+ * nie zmienia się od edycji w innym miejscu pliku. Funkcja i tabela są
+ * w kluczu, żeby naprawa jednego miejsca i dopisanie TEGO SAMEGO tekstu
+ * w innej funkcji albo na innej tabeli nie wymieniły się po cichu. Tekst
+ * argumentu jest PEŁNY (białe znaki zwinięte do spacji): do listopada 2026
+ * klucz obcinał go do 80 znaków, więc kolumna dopisana za 80. znakiem
+ * przejrzanego `select` zostawiała ten sam klucz i przechodziła CI.
+ */
+function uncheckedSelectSite(
+  call: ts.CallExpression,
+  table: string | null,
+  scope: FileScope,
+): string {
+  const arg = call.arguments[0];
+  const text = arg === undefined ? "" : arg.getText(scope.sf).replace(/\s+/g, " ");
+  return `${scope.file}: ${enclosingFunctionPath(call)}: .from(${table ?? "?"}).select(${text})`;
 }
 
 function callMethod(node: ts.CallExpression): { name: string; receiver: ts.Expression } | null {
@@ -526,19 +1821,36 @@ function visitFile(
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
   out: Collector,
+  flow: FlowEnv,
 ): void {
+  const selects: ts.CallExpression[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const method = callMethod(node);
       if (method?.name === "rpc" && node.arguments.length >= 1) {
         handleRpc(node, method.receiver, scope, exportsIndex, known, out);
       } else if (method?.name === "from" && node.arguments.length === 1) {
-        handleFrom(node, method.receiver, scope, exportsIndex, known, out);
+        handleFrom(node, method.receiver, scope, exportsIndex, known, out, flow);
+      } else if (isLooseTableCall(node, scope, known)) {
+        const role = looseSourceRole(node.arguments[0], scope, known);
+        handleBuilder(node, node.arguments[1], role, false, scope, exportsIndex, known, out, flow);
+      } else if (method?.name === "select") {
+        selects.push(node);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(scope.sf);
+  // Wszechświat zapadki: KAŻDY `.select` na budowniczym Supabase, którego
+  // przebieg wyżej nie obejrzał (budowniczy w `let` przypisywanym inaczej niż
+  // przedłużeniem, `looseTable` z tabelą nieczytelną, nazwa związana
+  // z budowniczym w innej funkcji...), trafia do `uncheckedSelects`.
+  for (const call of selects) {
+    if (out.visitedSelects.has(call)) continue;
+    const receiver = (call.expression as ts.PropertyAccessExpression).expression;
+    const table = builderTable(receiver, scope, exportsIndex, known, new Set());
+    if (table !== undefined) out.uncheckedSelects.push(uncheckedSelectSite(call, table, scope));
+  }
 }
 
 function handleRpc(
@@ -564,7 +1876,7 @@ function handleRpc(
     keys =
       objects === null || hasSpread ? null : objectShape(objects, scope, exportsIndex, known).keys;
   }
-  out.rpcs.push({ name, keys, role: receiverRole(receiver, scope), file: scope.file });
+  out.rpcs.push({ name, keys, role: receiverRole(receiver, scope, known), file: scope.file });
 }
 
 function handleFrom(
@@ -574,6 +1886,7 @@ function handleFrom(
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
   out: Collector,
+  flow: FlowEnv,
 ): void {
   const recv = unwrap(receiver);
   // `supabase.storage.from("bucket")` to kubełek Storage, nie tabela;
@@ -583,84 +1896,169 @@ function handleFrom(
     const inner = callMethod(recv);
     if (inner?.name === "schema") return;
   }
-  const chain = chainAbove(node);
-  const ops = chain.map((c) => callMethod(c)?.name ?? "");
+  const role = receiverRole(receiver, scope, known);
+  handleBuilder(node, node.arguments[0], role, true, scope, exportsIndex, known, out, flow);
+}
+
+/**
+ * Łańcuchy budowniczego `node` (`.from(t)` albo `looseTable(x, t)`): fakty
+ * operacji, miejsca nieczytelne i `select` bez faktu. `unresolvedIsSite` -
+ * tabela nieczytelna to wpis w `unresolvedSites` (`.from(nazwa)`); bez tego
+ * (`looseTable`) budowniczy jest pomijany, a jego `select` trafiają do
+ * `uncheckedSelects` przez wszechświat w `visitFile`.
+ */
+function handleBuilder(
+  node: ts.CallExpression,
+  tableArg: ts.Expression,
+  role: ClientRole,
+  unresolvedIsSite: boolean,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  flow: FlowEnv,
+): void {
+  // Łańcuch wprost nad budowniczym oraz - gdy budowniczy (także po ogniwach)
+  // trafia do zmiennej - łańcuch każdego jej użycia (`boundChains`).
+  const direct = chainAbove(node);
+  const top = direct.length > 0 ? direct[direct.length - 1] : node;
+  const chains = [...(direct.length > 0 ? [direct] : []), ...boundChains(top)];
   const QUERY = new Set(["select", "insert", "update", "upsert", "delete"]);
-  if (!ops.some((op) => QUERY.has(op))) return; // `Array.from`, `Buffer.from`, ...
-  out.tableChains += 1;
-  const table = resolveString(node.arguments[0], scope, exportsIndex, known);
+  const opsOf = (chain: readonly ts.CallExpression[]): string[] =>
+    chain.map((c) => callMethod(c)?.name ?? "");
+  // `Array.from`, `Buffer.from`, ...
+  if (!chains.some((chain) => opsOf(chain).some((op) => QUERY.has(op)))) return;
+  const table = resolveString(tableArg, scope, exportsIndex, known);
   if (table === null || !COLUMN_RE.test(table)) {
+    if (!unresolvedIsSite) return;
+    out.tableChains += 1;
     out.tableChainsWithUnknownTable += 1;
-    out.unresolved.push(
-      `${scope.file}: .from(${node.arguments[0].getText(scope.sf).slice(0, 60)})`,
-    );
+    out.unresolved.push(`${scope.file}: .from(${tableArg.getText(scope.sf).slice(0, 60)})`);
+    // Zgłoszone miejsce obejmuje każdy `select` tego budowniczego.
+    for (const chain of chains) {
+      for (const call of chain)
+        if (callMethod(call)?.name === "select") out.visitedSelects.add(call);
+    }
     return;
   }
-  const role = receiverRole(receiver, scope);
-  const site = (op: TableOp, columns: readonly string[], star: boolean): void => {
-    out.tables.push({ table, op, columns, star, role, file: scope.file });
+  out.tableChains += 1;
+  const site = (
+    call: ts.CallExpression,
+    op: TableOp,
+    columns: readonly string[],
+    star: boolean,
+  ): void => {
+    pushTableFact(out, { table, op, columns, star, role, file: scope.file }, call, scope);
   };
 
-  for (let i = 0; i < chain.length; i += 1) {
-    const call = chain[i];
-    const op = ops[i];
-    if (op === "select") {
-      const arg = call.arguments[0];
-      const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-      // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
-      const head =
-        opts !== null &&
-        ts.isObjectLiteralExpression(opts) &&
-        opts.properties.some(
-          (p) =>
-            ts.isPropertyAssignment(p) &&
-            propName(p.name) === "head" &&
-            p.initializer.kind === ts.SyntaxKind.TrueKeyword,
-        );
-      if (head) continue;
-      if (arg === undefined) {
-        site("select", [], true);
-        continue;
-      }
-      const text = resolveString(arg, scope, exportsIndex, known);
-      if (text === null) continue;
-      const parsed = parseSelectColumns(text);
-      if (parsed.star || parsed.columns.length > 0) site("select", parsed.columns, parsed.star);
-    } else if (op === "insert" || op === "update" || op === "upsert") {
-      const objects = objectArgument(call.arguments[0], scope);
-      let kind: TableOp = op;
-      let conflict: string | null = null;
-      if (op === "upsert") {
+  for (const chain of chains) {
+    const ops = opsOf(chain);
+    for (let i = 0; i < chain.length; i += 1) {
+      const call = chain[i];
+      const op = ops[i];
+      if (op === "select") {
+        out.visitedSelects.add(call);
+        const arg = call.arguments[0];
         const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-        if (opts && ts.isObjectLiteralExpression(opts)) {
-          for (const p of opts.properties) {
-            if (!ts.isPropertyAssignment(p)) continue;
-            const key = propName(p.name);
-            if (key === "ignoreDuplicates" && p.initializer.kind === ts.SyntaxKind.TrueKeyword) {
-              kind = "upsert_ignore";
+        // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
+        const head =
+          opts !== null &&
+          ts.isObjectLiteralExpression(opts) &&
+          opts.properties.some(
+            (p) =>
+              ts.isPropertyAssignment(p) &&
+              propName(p.name) === "head" &&
+              p.initializer.kind === ts.SyntaxKind.TrueKeyword,
+          );
+        if (head) continue;
+        if (arg === undefined) {
+          site(call, "select", [], true);
+          continue;
+        }
+        const flaggedBefore = flow.flagged;
+        // Parametr funkcji oddanej `readPostsWithParentPage` PRZED rozwiązaniem
+        // po nazwie: parametr przesłania stałą modułu o tej samej nazwie.
+        const viaHelper = postParentPageSelects(arg, call, scope, exportsIndex, known, out);
+        // Kolumny z parametru przekazanego przez wywołania (reguła przepływu),
+        // także PRZED rozwiązaniem po nazwie - z tego samego powodu. Fakt
+        // dostaje plik literału kolumn, rolę - odbiorca tego `.from()`.
+        const flowed = viaHelper === null ? columnFlowSelects(arg, call, scope, flow) : null;
+        const text =
+          viaHelper === null && flowed === null
+            ? resolveString(arg, scope, exportsIndex, known)
+            : null;
+        for (const value of flowed ?? []) {
+          const parsed = parseSelectColumns(value.text);
+          if (parsed.star || parsed.columns.length > 0) {
+            pushTableFact(
+              out,
+              {
+                table,
+                op: "select",
+                columns: parsed.columns,
+                star: parsed.star,
+                role,
+                file: value.file,
+              },
+              call,
+              scope,
+            );
+          }
+          if (hasRuntimeColumn(value.text)) {
+            flow.unresolved.add(
+              `${scope.file}: .select(${arg.getText(scope.sf).slice(0, 60)}) <- ${value.file}: kolumna z wartości czasu działania`,
+            );
+          }
+        }
+        for (const select of viaHelper ?? (text === null ? [] : [text])) {
+          const parsed = parseSelectColumns(select);
+          if (parsed.star || parsed.columns.length > 0) {
+            site(call, "select", parsed.columns, parsed.star);
+          }
+        }
+        // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
+        // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
+        // Pomocnik bez napisu zawsze zgłasza miejsce, więc tu go nie ma.
+        const unchecked =
+          viaHelper === null &&
+          (flowed === null ? text === null : flowed.length === 0 && flow.flagged === flaggedBefore);
+        if (unchecked) out.uncheckedSelects.push(uncheckedSelectSite(call, table, scope));
+      } else if (op === "insert" || op === "update" || op === "upsert") {
+        const objects = objectArgument(call.arguments[0], scope);
+        let kind: TableOp = op;
+        let conflict: string | null = null;
+        if (op === "upsert") {
+          const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
+          if (opts && ts.isObjectLiteralExpression(opts)) {
+            for (const p of opts.properties) {
+              if (!ts.isPropertyAssignment(p)) continue;
+              const key = propName(p.name);
+              if (key === "ignoreDuplicates" && p.initializer.kind === ts.SyntaxKind.TrueKeyword) {
+                kind = "upsert_ignore";
+              }
+              if (key === "onConflict")
+                conflict = resolveString(p.initializer, scope, exportsIndex, known);
             }
-            if (key === "onConflict")
-              conflict = resolveString(p.initializer, scope, exportsIndex, known);
+          }
+          if (conflict !== null) {
+            const columns = conflict
+              .split(",")
+              .map((c) => c.trim())
+              .filter((c) => c.length > 0);
+            if (columns.every((c) => COLUMN_RE.test(c))) {
+              out.conflicts.push({ table, columns: [...columns].sort(), file: scope.file });
+            }
           }
         }
-        if (conflict !== null) {
-          const columns = conflict
-            .split(",")
-            .map((c) => c.trim())
-            .filter((c) => c.length > 0);
-          if (columns.every((c) => COLUMN_RE.test(c))) {
-            out.conflicts.push({ table, columns: [...columns].sort(), file: scope.file });
-          }
+        if (objects === null) continue;
+        const shape = objectShape(objects, scope, exportsIndex, known);
+        site(call, kind, shape.keys, false);
+        for (const lit of shape.literals) {
+          out.literals.push({ table, column: lit.column, value: lit.value, file: scope.file });
         }
+      } else if (op === "delete") {
+        site(call, "delete", [], false);
       }
-      if (objects === null) continue;
-      const shape = objectShape(objects, scope, exportsIndex, known);
-      site(kind, shape.keys, false);
-      for (const lit of shape.literals) {
-        out.literals.push({ table, column: lit.column, value: lit.value, file: scope.file });
-      }
-    } else if (op === "delete") {
-      site("delete", [], false);
     }
   }
 }
@@ -678,10 +2076,140 @@ function readPublicColumns(
   return { ...contract, columns: parsed.star ? null : parsed.columns };
 }
 
+/**
+ * Błędy składni każdego pliku - publicznym API kompilatora
+ * (`Program.getSyntacticDiagnostics`) na TYCH SAMYCH drzewach, z których
+ * ekstrakcja czyta fakty. Program jest pamięciowy: bez `lib`, bez rozwiązywania
+ * importów i bez systemu plików (moduł zostaje czysty).
+ */
+function parseErrorsOf(scopes: ReadonlyMap<string, FileScope>): string[] {
+  const host: ts.CompilerHost = {
+    getSourceFile: (name) => scopes.get(name)?.sf,
+    getDefaultLibFileName: () => "lib.d.ts",
+    writeFile: () => undefined,
+    getCurrentDirectory: () => "",
+    getCanonicalFileName: (name) => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+    fileExists: (name) => scopes.has(name),
+    readFile: () => undefined,
+  };
+  const program = ts.createProgram({
+    rootNames: [...scopes.keys()],
+    options: { noLib: true, noResolve: true, types: [] },
+    host,
+  });
+  const out: string[] = [];
+  for (const scope of scopes.values()) {
+    const sf = program.getSourceFile(scope.file);
+    // Program, który nie oddał NASZEGO drzewa, sprawdzałby inny tekst - to
+    // błąd bramki, nie pliku, więc nie może przejść w ciszy.
+    if (sf !== scope.sf) {
+      out.push(`${scope.file}: kompilator nie przyjął drzewa ekstrakcji`);
+      continue;
+    }
+    const diagnostics = program.getSyntacticDiagnostics(sf);
+    if (diagnostics.length === 0) continue;
+    const first = diagnostics[0];
+    const line =
+      first.start === undefined ? "?" : sf.getLineAndCharacterOfPosition(first.start).line + 1;
+    out.push(
+      `${scope.file}: ${diagnostics.length} błędów składni, pierwszy: linia ${line}: ${ts.flattenDiagnosticMessageText(first.messageText, " ")}`,
+    );
+  }
+  return out.sort();
+}
+
+// ── Fakty wstrzymane w przeglądzie (lista może TYLKO maleć) ─────────────────
+//
+// Reguła ekstrakcji czasem odsłania odczyt, którego schemat po migracjach nie
+// przepuszcza (sprawdzone lokalnie: `has_column_privilege`, zapytanie roli).
+// To defekt dla właściciela - faktu nie dopisujemy do pgTAP (CI czerwieniłoby
+// się na kodzie sprzed zmiany bramki), ale też NIE wyłączamy pliku: do
+// listopada 2026 wyłączenie całego pliku (`profile/export.functions.ts`)
+// i wszystkich `looseTable` dwóch plików CRM zdejmowało z kontraktu 32 odczyty,
+// 13 RPC i 25 wierszy (także zapisy z literałami), a nieistniejąca kolumna
+// dopisana do sąsiedniego odczytu, RPC o zmyślonej nazwie albo zapis
+// `crm_leads.stage = 'not_a_stage'` przechodziły CI.
+//
+// Wpis wstrzymuje DOKŁADNIE JEDEN fakt: plik, funkcja, tabela, operacja, rola
+// i PEŁNA lista kolumn. Wszystko inne w pliku - jak każdy kod: fakty do pgTAP,
+// `select` bez faktu do zapadki. Kolumna dopisana do wstrzymanego odczytu to
+// inny fakt (idzie do pgTAP z rolą klienta), a wpis, który nie trafia
+// w dokładnie jeden fakt, czerwieni `check:ts-sql-contract`. Wstrzymany fakt
+// renderuje się z rolą `unknown` - istnienie relacji i kolumn sprawdza pgTAP
+// dalej, wstrzymane są wyłącznie uprawnienia. Literały i cele onConflict
+// wstrzymanego zapisu - jak dotąd (osobne fakty).
+//
+// Lista jest dziś PUSTA. Trzy wpisy z przeglądu (listopad 2026) zeszły razem
+// z naprawami: sekcja `user_reports_filed` eksportu RODO woła SECURITY DEFINER
+// `user_reports_export_my_data` (20261116211500), a awatar karty leada
+// (`lookupLeadAvatars`) i członkowie karty firmy (`companyMembers`) czytają
+// `profiles` spod `service_role` z najemcą z sesji. Mechanizm zostaje: nowy
+// znany defekt grantu w kodzie sprzed bramki dostaje wpis tu, nie wyłączenie
+// pliku.
+
+/** Wpis przeglądu: jeden fakt, którego uprawnień kontrakt świadomie nie sprawdza. */
+export interface WithheldFactReviewed {
+  readonly file: string;
+  /** Ścieżka nazwanych funkcji wywołania (`enclosingFunctionPath`, jak w kluczu zapadki). */
+  readonly fn: string;
+  readonly table: string;
+  readonly op: TableOp;
+  readonly role: ClientRole;
+  /** Kolumny faktu DOKŁADNIE (posortowane, bez `*`). */
+  readonly columns: readonly string[];
+  /** Defekt, właściwa naprawa i warunek zdjęcia wpisu - to czyta właściciel. */
+  readonly reason: string;
+}
+
+export function withheldKey(entry: Omit<WithheldFactReviewed, "reason">): string {
+  return `${entry.file}: ${entry.fn}: ${entry.op} ${entry.table} dla ${entry.role} [${entry.columns.join(",")}]`;
+}
+
+export const SEAM_FACTS_WITHHELD_REVIEWED: readonly WithheldFactReviewed[] = [];
+
+/** Kolumny wpisu i faktu są tą samą listą. */
+function sameColumns(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((c, i) => c === b[i]);
+}
+
+/**
+ * Fakt operacji na tabeli: do `tables` albo - gdy pasuje DOKŁADNIE do wpisu
+ * przeglądu (plik wywołania i literału ten sam) - do `withheld`.
+ */
+function pushTableFact(
+  out: Collector,
+  fact: TableSite,
+  call: ts.CallExpression,
+  scope: FileScope,
+): void {
+  if (fact.file === scope.file && !fact.star) {
+    const candidates = out.withheldReviewed.filter(
+      (e) =>
+        e.file === fact.file &&
+        e.table === fact.table &&
+        e.op === fact.op &&
+        e.role === fact.role &&
+        sameColumns(e.columns, fact.columns),
+    );
+    if (candidates.length > 0) {
+      const fn = enclosingFunctionPath(call);
+      const entry = candidates.find((e) => e.fn === fn);
+      if (entry !== undefined) {
+        out.withheld.push({ ...fact, fn, key: withheldKey(entry) });
+        return;
+      }
+    }
+  }
+  out.tables.push(fact);
+}
+
 /** Pełna ekstrakcja faktów szwu z kodu produkcyjnego. */
 export function extractSeamFacts(
   sources: readonly SourceFile[],
   contracts: readonly PublicColumnContract[] = PUBLIC_COLUMN_CONTRACTS,
+  withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
 ): SeamFacts {
   const known = new Set(sources.map((s) => s.file));
   const scopes = new Map<string, FileScope>();
@@ -691,6 +2219,8 @@ export function extractSeamFacts(
   const out: Collector = {
     rpcs: [],
     tables: [],
+    withheldReviewed,
+    withheld: [],
     literals: [],
     conflicts: [],
     rpcCalls: 0,
@@ -698,12 +2228,21 @@ export function extractSeamFacts(
     tableChains: 0,
     tableChainsWithUnknownTable: 0,
     unresolved: [],
+    uncheckedSelects: [],
+    visitedSelects: new Set(),
   };
-  for (const scope of scopes.values()) visitFile(scope, exportsIndex, known, out);
+  const flow: FlowEnv = { scopes, known, unresolved: new Set(), flagged: 0, importers: null };
+  for (const scope of scopes.values()) {
+    visitFile(scope, exportsIndex, known, out, flow);
+  }
+  out.unresolved.push(...flow.unresolved);
+  const matched = new Map<string, number>();
+  for (const w of out.withheld) matched.set(w.key, (matched.get(w.key) ?? 0) + 1);
 
   return {
     rpcs: out.rpcs,
     tables: out.tables,
+    withheld: out.withheld,
     literals: out.literals,
     conflicts: out.conflicts,
     publicColumns: contracts.map((c) => readPublicColumns(c, scopes, known)),
@@ -714,6 +2253,12 @@ export function extractSeamFacts(
       tableChains: out.tableChains,
       tableChainsWithUnknownTable: out.tableChainsWithUnknownTable,
       unresolvedSites: [...out.unresolved].sort(),
+      uncheckedSelects: [...out.uncheckedSelects].sort(),
+      parseErrors: parseErrorsOf(scopes),
+      withheldReviewed: withheldReviewed.map((entry) => {
+        const key = withheldKey(entry);
+        return { key, matched: matched.get(key) ?? 0 };
+      }),
     },
   };
 }
@@ -723,15 +2268,151 @@ export function extractSeamFacts(
 /**
  * Zapadka: wywołania, których nazwy funkcji albo tabeli NIE da się ustalić
  * statycznie (pomocniki generyczne: sortowanie, wybór linku, bramka
- * analityki). Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
- * wywołanie z obliczoną nazwą zapala `check:ts-sql-contract`: zamień je na
- * literał (najlepiej) albo świadomie podnieś zapadkę w przeglądzie.
+ * analityki), odczyty `readPostsWithParentPage` z kolumnami nie do
+ * ustalenia i kolumny z parametru, do którego dociera wartość czasu działania
+ * (reguła przepływu kolumn). Kontrakt ich nie sprawdza - liczba może TYLKO maleć. Nowe
+ * wywołanie z obliczoną nazwą (albo listą kolumn) zapala
+ * `check:ts-sql-contract`: zamień je na literał (najlepiej) albo świadomie
+ * podnieś zapadkę w przeglądzie.
  */
 export const MAX_UNRESOLVED_SITES = 13;
 
+const LOCAL_CONST =
+  "stała `const` WEWNĄTRZ funkcji z literałem kolumn - generator czyta stałe modułu i importów, nie funkcji";
+const ENTITY_COLS_PROPERTY =
+  "właściwość stałej obiektowej `ENTITY_SELECT_COLS` (wprost, przez stałą lokalną albo w szablonie `POST_RESOLVE_SELECT`) - generator czyta tylko stałe napisowe";
+const LANG_SUFFIX =
+  "kolumny zależne od języka czasu działania (`title_${t}`, `titleCol` z warunku) - dwa warianty, generator nie rozgałęzia";
+const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie rozgałęzia';
+
+const LOOSE_VIEW =
+  "`looseTable(context, view)` z tabelą z warunku (`crm_leads` / `crm_leads_all`) - generator nie rozgałęzia";
+const VIA_CONDITIONAL =
+  "RETURNING zapisu na budowniczym przez warunek (`c ? q.is(...) : q.gt(...)`, `(c ? q.eq(...) : q).select(...)`) - generator nie prowadzi łańcucha przez warunek";
+
+/**
+ * Zapadka zasięgu `select`: KAŻDY `select` na budowniczym Supabase
+ * (`.from()`, `looseTable()`, zmienna z takim łańcuchem), który NIE daje
+ * faktu ani wpisu w `unresolvedSites` (`coverage.uncheckedSelects`) - kontrakt
+ * go nie sprawdza, więc kolumna dopisana tam bez GRANT-u przechodzi CI.
+ * Klucz: plik, ścieżka funkcji, tabela i tekst argumentu (bez numeru linii) -
+ * naprawa w jednej funkcji i ten sam tekst w innej (albo na innej tabeli) to
+ * nowy klucz, nie zamiana. Wartość: ile takich miejsc i dlaczego. Lista może
+ * TYLKO maleć: nowy taki `select` czerwieni `check:ts-sql-contract`. Naprawa:
+ * kolumny w literale albo w stałej modułu (`const X = "a, b"`, także szablon
+ * z innymi stałymi napisowymi); dopiero gdy się nie da - wpis tutaj, z powodem,
+ * w przeglądzie.
+ */
+export const UNCHECKED_SELECTS_REVIEWED: Readonly<
+  Record<string, readonly [count: number, reason: string]>
+> = {
+  "src/lib/billing/donations.server.ts: findDonationAnchor: .from(donations).select(columns)": [
+    2,
+    LOCAL_CONST,
+  ],
+  'src/lib/billing/legacyNonPaymentReconcile.server.ts: applyLegacyPlan: .from(user_subscriptions).select("id")':
+    [1, VIA_CONDITIONAL],
+  'src/lib/billing/oneTimeFulfilment.server.ts: settleOrder.flipToPaid: .from(payment_orders).select("id")':
+    [1, VIA_CONDITIONAL],
+  'src/lib/billing/oneTimeFulfilment.server.ts: settleSubscriptionCheckoutOrder: .from(payment_orders).select("id")':
+    [1, VIA_CONDITIONAL],
+  'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(payment_orders).select(ORDER_REF_COLUMNS.join(", "))':
+    [
+      1,
+      '`ORDER_REF_COLUMNS.join(", ")` - napis składany z tablicy `as const`; generator nie składa tablic',
+    ],
+  'src/lib/billing/reconcile.server.ts: collectOwnedRefValues: .from(subscriptions).select(SUBSCRIPTION_REF_COLUMNS.join(", "))':
+    [1, '`SUBSCRIPTION_REF_COLUMNS.join(", ")` - jak wyżej'],
+  "src/lib/crm.functions.ts: buildLeadTimeline: .from(crm_consent_log).select(CONSENT_LOG_TIMELINE_SELECT)":
+    [
+      1,
+      '`CONSENT_LOG_TIMELINE_COLUMNS.join(", ")` (`crm/consentLog.ts`) - napis składany z tablicy; generator nie składa tablic',
+    ],
+  'src/lib/crm.functions.ts: exportCrmLeadsCsv: .from(?).select("*")': [1, LOOSE_VIEW],
+  'src/lib/crm.functions.ts: listCrmLeads: .from(?).select("*")': [1, LOOSE_VIEW],
+  "src/lib/crm.functions.ts: listStaffUsers: .from(profiles).select(cols)": [1, LOCAL_CONST],
+  "src/lib/experts/queries.ts: fetchExpertHubLegacy: .from(profiles_public).select(PROFILE_COLS)": [
+    2,
+    LOCAL_CONST,
+  ],
+  "src/lib/experts/queries.ts: fetchMaterials: .from(events).select(EVENT_COLS)": [2, LOCAL_CONST],
+  "src/lib/experts/queries.ts: fetchMaterials: .from(podcasts).select(PODCAST_COLS)": [
+    1,
+    LOCAL_CONST,
+  ],
+  "src/lib/experts/queries.ts: fetchMaterials: .from(posts).select(POST_COLS)": [2, LOCAL_CONST],
+  "src/lib/mcp/tools/get-post.ts: handler: .from(posts).select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/list-recent-posts.ts: handler: .from(posts).select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  "src/lib/mcp/tools/search-posts.ts: handler: .from(posts).select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)":
+    [1, LANG_SUFFIX],
+  'src/lib/newsletter-campaigns.functions.ts: countCampaignAudience: .from(newsletter_subscribers).select(data.segment ? "email, meta" : "email")':
+    [1, TERNARY],
+  'src/lib/newsletter-campaigns.functions.ts: runCampaignSend: .from(newsletter_subscribers).select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email, first_name, last_name, language, unsubscribe_token")':
+    [1, TERNARY],
+  "src/lib/notifications/preferencesQuery.ts: useNotificationPreferences.queryFn: .from(notification_preferences).select(NOTIFICATION_PREFERENCE_SELECT)":
+    [
+      1,
+      '`NOTIFICATION_PREFERENCE_COLUMNS.join(", ")` (`preferences.ts`) - lista wyprowadzana z obiektu domyślnego w czasie działania',
+    ],
+  "src/lib/queries/public.ts: homePageQueryOptions.queryFn: .from(pages).select(cols)": [
+    3,
+    ENTITY_COLS_PROPERTY,
+  ],
+  "src/lib/queries/public.ts: postRowById: .from(posts).select(POST_RESOLVE_SELECT)": [
+    1,
+    ENTITY_COLS_PROPERTY,
+  ],
+  "src/lib/queries/public.ts: resolveContentForSegments: .from(pages).select(ENTITY_SELECT_COLS.page)":
+    [1, ENTITY_COLS_PROPERTY],
+  "src/lib/queries/public.ts: speculativePostRows: .from(posts).select(POST_RESOLVE_SELECT)": [
+    1,
+    ENTITY_COLS_PROPERTY,
+  ],
+};
+
+/**
+ * Rozjazd `coverage.uncheckedSelects` z listą przejrzaną: `fresh` - miejsca
+ * nowe albo liczniejsze niż w przeglądzie; `stale` - wpisy, których jest już
+ * mniej (naprawione - zdejmij z listy).
+ */
+export function uncheckedSelectDrift(
+  facts: SeamFacts,
+  reviewed: Readonly<Record<string, readonly [number, string]>> = UNCHECKED_SELECTS_REVIEWED,
+): { fresh: string[]; stale: string[] } {
+  const counts = new Map<string, number>();
+  for (const site of facts.coverage.uncheckedSelects) counts.set(site, (counts.get(site) ?? 0) + 1);
+  const fresh: string[] = [];
+  const stale: string[] = [];
+  for (const [site, count] of counts) {
+    const allowed = reviewed[site]?.[0] ?? 0;
+    if (count > allowed) fresh.push(`${site} (${count}, przejrzanych: ${allowed})`);
+  }
+  for (const [site, [allowed]] of Object.entries(reviewed)) {
+    const count = counts.get(site) ?? 0;
+    if (count < allowed) stale.push(`${site} (${count}, przejrzanych: ${allowed})`);
+  }
+  return { fresh: fresh.sort(), stale: stale.sort() };
+}
+
 /** Problemy zasięgu ekstrakcji - bez bazy, do bramki `check:ts-sql-contract`. */
-export function seamCoverageProblems(facts: SeamFacts): string[] {
+export function seamCoverageProblems(
+  facts: SeamFacts,
+  reviewedUnchecked: Readonly<
+    Record<string, readonly [number, string]>
+  > = UNCHECKED_SELECTS_REVIEWED,
+): string[] {
   const problems: string[] = [];
+  // Bez wyjątków: drzewo pliku z błędem składni jest od pierwszego błędu
+  // zgadywane, więc kontrakt może nie widzieć ani jednego jego zapytania.
+  const { parseErrors } = facts.coverage;
+  if (parseErrors.length > 0) {
+    problems.push(
+      `${parseErrors.length} plików z błędami składni - ich zapytań kontrakt nie widzi:\n` +
+        parseErrors.map((entry) => `        ${entry}`).join("\n"),
+    );
+  }
   for (const p of facts.publicColumns) {
     if (p.columns === null) {
       problems.push(
@@ -742,8 +2423,25 @@ export function seamCoverageProblems(facts: SeamFacts): string[] {
   const unresolved = facts.coverage.unresolvedSites;
   if (unresolved.length > MAX_UNRESOLVED_SITES) {
     problems.push(
-      `${unresolved.length} wywołań z nazwą nie do ustalenia statycznie (zapadka: ${MAX_UNRESOLVED_SITES}):\n` +
+      `${unresolved.length} wywołań z nazwą (albo kolumnami odczytu) nie do ustalenia statycznie (zapadka: ${MAX_UNRESOLVED_SITES}):\n` +
         unresolved.map((site) => `        ${site}`).join("\n"),
+    );
+  }
+  // Wpis faktu wstrzymanego trafia w DOKŁADNIE jeden fakt: zero - kod już tak
+  // nie czyta (zdejmij wpis; dopisana kolumna to inny fakt, który i tak idzie
+  // do pgTAP), więcej - wpis wstrzymuje fakt, którego nikt nie oglądał.
+  const offTarget = facts.coverage.withheldReviewed.filter((entry) => entry.matched !== 1);
+  if (offTarget.length > 0) {
+    problems.push(
+      `${offTarget.length} wpisów SEAM_FACTS_WITHHELD_REVIEWED nie trafia w dokładnie jeden fakt (0 - nieaktualny, zdejmij; więcej - wstrzymuje fakt spoza przeglądu):\n` +
+        offTarget.map((entry) => `        ${entry.key} (faktów: ${entry.matched})`).join("\n"),
+    );
+  }
+  const { fresh } = uncheckedSelectDrift(facts, reviewedUnchecked);
+  if (fresh.length > 0) {
+    problems.push(
+      `${fresh.length} odczytów \`select\` bez faktu kontraktu i bez miejsca nieczytelnego - kolumn nikt nie sprawdza (zapadka UNCHECKED_SELECTS_REVIEWED; kolumny w literał albo stałą modułu):\n` +
+        fresh.map((site) => `        ${site}`).join("\n"),
     );
   }
   return problems;
@@ -868,8 +2566,20 @@ export function renderContractTest(
 
   // Grupa = (tabela, operacja, rola, PLIK): naruszenie kolumny ma wskazywać
   // plik, który ją czyta, a nie wszystkie pliki dotykające tej tabeli.
+  // Fakt wstrzymany idzie z rolą `unknown`: istnienie relacji i kolumn
+  // sprawdzamy, uprawnień (znany defekt z wpisu przeglądu) - nie.
   const tableRows = groupBy(
-    facts.tables,
+    [
+      ...facts.tables,
+      ...facts.withheld.map((w): TableSite => ({
+        table: w.table,
+        op: w.op,
+        columns: w.columns,
+        star: w.star,
+        role: "unknown",
+        file: w.file,
+      })),
+    ],
     (t) => `${t.table}|${t.op}|${t.role}|${t.file}`,
     (t) => ({ key: t, value: { columns: new Set(t.columns), star: t.star } }),
     (v, t) => {

@@ -10,8 +10,15 @@
 //  3. Przenoszenie na krańcach listy nie zapisuje niczego; w środku zamienia
 //     sąsiadów, nie gubiąc ani nie dublując pozycji.
 //
-// Atrapy: tylko Radix Select (happy-dom nie otwiera warstwy). Słownik jest
-// PRAWDZIWY - asercje mierzą napisy, które widzi redakcja.
+//  4. Nazwy ikon Lucide (ikona wpisu i ikona przy tytule) wybiera się
+//     wybierakiem `LucideIconPicker` (nazwy kebab-case z katalogu), nie polem
+//     tekstowym: wpisane nazwy PascalCase spoza shimu nie renderowały się na
+//     stronie. Wyczyszczenie zapisuje pusty napis.
+//
+// Atrapy: Radix Select (happy-dom nie otwiera warstwy) i `LucideIconPicker`
+// (popover Radix) - atrapa wybieraka to pole z `data-picker`, które oddaje
+// wybraną nazwę przez `onChange` wybieraka. Słownik jest PRAWDZIWY - asercje
+// mierzą napisy, które widzi redakcja.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -23,6 +30,22 @@ vi.mock("@/components/ui/select", async () => {
   const { radixSelectStub } = await import("@/test/reactStubs");
   return radixSelectStub(React);
 });
+
+vi.mock("../../../molecules/LucideIconPicker", () => ({
+  LucideIconPicker: ({
+    value,
+    onChange,
+  }: {
+    value?: string;
+    onChange: (name: string | undefined) => void;
+  }) => (
+    <input
+      data-picker="lucide"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value || undefined)}
+    />
+  ),
+}));
 
 type Content = WidgetNode["content"];
 type Row = Record<string, Json>;
@@ -121,7 +144,7 @@ describe("TimelineEditor - rodzaje pozycji i ich pola", () => {
   it.each([
     ["avatar", "URL awatara", "avatar", "https://cdn.test/a.png"],
     ["initials", "Inicjały (1-2 znaki)", "initials", "JK"],
-    ["lucide", "Nazwa ikony Lucide", "iconName", "Flag"],
+    ["lucide", "Nazwa ikony Lucide", "iconName", "alarm-clock-check"],
   ])("typ ikony „%s” pokazuje TYLKO swoje pole źródła i zapisuje je", (type, label, key, value) => {
     const { entries } = renderEditor({ entries: [entry("A", { iconType: type })] });
     const sourceLabels = ["URL awatara", "Inicjały (1-2 znaki)", "Nazwa ikony Lucide"];
@@ -143,7 +166,6 @@ describe("TimelineEditor - rodzaje pozycji i ich pola", () => {
   });
 
   it.each([
-    ["Ikona przy tytule (Lucide)", "titleIconName", "FileText"],
     ["Tytuł (EN)", "title_en", "Launch"],
     ["Opis (EN)", "desc_en", "We shipped."],
     ["Autor akcji - imię i nazwisko", "actorName", "Jan Kowalski"],
@@ -155,6 +177,23 @@ describe("TimelineEditor - rodzaje pozycji i ich pola", () => {
     fireEvent.change(fieldUnder(label), { target: { value } });
     expect(entries()[0]).toEqual(entry("A", { [key]: value }));
   });
+
+  it.each([
+    ["Nazwa ikony Lucide", "iconName", { iconType: "lucide", iconName: "Flag" }],
+    ["Ikona przy tytule (Lucide)", "titleIconName", { titleIconName: "FileText" }],
+  ] as const)(
+    "pole „%s” to wybierak ikon (nazwa kebab-case), a wyczyszczenie zapisuje pusty napis",
+    (label, key, over) => {
+      const { entries } = renderEditor({ entries: [entry("A", { ...over })] });
+      const field = fieldUnder(label);
+      expect(field.dataset.picker, "wybierak, nie pole tekstowe").toBe("lucide");
+      expect(field.value).toBe(over[key as keyof typeof over]);
+      fireEvent.change(field, { target: { value: "bell-ring" } });
+      expect(entries()[0]?.[key]).toBe("bell-ring");
+      fireEvent.change(field, { target: { value: "" } });
+      expect(entries()[0]?.[key]).toBe("");
+    },
+  );
 
   it("edycja drugiej pozycji nie rusza pierwszej", () => {
     const { entries } = renderEditor({ entries: [entry("A"), entry("B")] });

@@ -22,6 +22,7 @@ import {
   newsTickerDisplayLimit,
   type TickerPost,
 } from "@/lib/builder/newsTickerQuery";
+import { postHref } from "@/lib/routing/postHref";
 
 /** Rozmiar tytułu wiersza (`text-[15px]`) - szacunek bylinu przed pomiarem. */
 const TRENDING_TITLE_PX = 15;
@@ -150,7 +151,7 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
             return (
               <AppLink
                 key={`${p.id}-${i}`}
-                href={`/post/${p.slug}`}
+                href={postHref(p)}
                 title={title(p)}
                 aria-hidden={i >= rows.length ? true : undefined}
                 tabIndex={i >= rows.length ? -1 : undefined}

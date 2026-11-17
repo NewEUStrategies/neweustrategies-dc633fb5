@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { SignupShowcase } from "../signup-showcase";
 import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
-import { resolvePopupPalette } from "@/lib/newsletter/popupDesign";
+import { resolvePopupPalette } from "@/lib/newsletter/popupDesignResolve";
 
 const settings = defaultNewsletterSettings();
 const images = Array.from({ length: 5 }, (_, index) => ({

@@ -36,6 +36,12 @@
 //     wariantu `mobile` (ten sam plik co pasek mobilny) powłoka ma jeden
 //     preload, a nie dwa.
 //
+//  5. NATURALNY ROZMIAR LOGO (Lighthouse `unsized-images`): gdy Opcje motywu
+//     zapisały `logo.intrinsic` dla renderowanego pliku, logo paska mobilnego i
+//     oba logo paska czytania niosą atrybuty `width`/`height` (zaraz po `alt`),
+//     a bez wpisu znaczniki są bajt w bajt takie jak przed zmianą. Atrybuty nie
+//     ruszają `src`, `loading` ani liczby preloadów.
+//
 // CZEGO NIE DUBLUJE: kolejności łańcucha wariantów (`lib/brand/__tests__/
 // headerLogo.test.ts`) ani zachowania paska czytania w przeglądarce
 // (`ReadingHeader.test.tsx`). Widgety bez logo (renderer buildera, ticker,
@@ -125,7 +131,7 @@ const HEADER_DOC: BuilderDocument = {
   sections: [{ id: "hdr-sec-1", kind: "section", children: [] }],
 };
 
-type ThemeLogo = { main?: string; mobile?: string };
+type ThemeLogo = { main?: string; mobile?: string; intrinsic?: [string, string][] };
 
 /**
  * Pełny dokument z serwera: wspólny cache ustawień zasila OBA paski (jak
@@ -213,6 +219,10 @@ const logoImgLoading = (html: string) =>
     .filter((tag) => (attr(tag, "src") ?? "").endsWith(LOGO_PATH))
     .map((tag) => attr(tag, "loading"));
 
+/** Pełne znaczniki `<img>` z tym plikiem logo, w kolejności dokumentu. */
+const logoImgTags = (html: string) =>
+  (html.match(/<img[^>]*>/g) ?? []).filter((tag) => (attr(tag, "src") ?? "").endsWith(LOGO_PATH));
+
 describe("SSR wpisu: pasek mobilny + pasek czytania = jeden preload logo", () => {
   it("kanoniczny `/media/...svg`: oba `<img>` mają ten sam względny `src`, `<head>` ma jeden preload", async () => {
     const html = await ssrDocument(articleChrome, { mobile: CANONICAL_LOGO });
@@ -288,6 +298,89 @@ describe("SSR: atom `Logo` (reset hasła, z nagłówkiem) w tej samej formie adr
 
     expect(logoImgSrcs(html)).toEqual([LOGO_PATH, LOGO_PATH]);
     expect(logoPreloads(headOf(html))).toHaveLength(1);
+    expect(logoPreloads(html)).toHaveLength(1);
+  });
+});
+
+describe("SSR: naturalny rozmiar logo w atrybutach width/height", () => {
+  // Znaczniki SPRZED zmiany (zdjęte z `Header.tsx` i `ReadingHeader.tsx` bez
+  // `headerLogoSize`): dopóki Opcje motywu nie zapiszą rozmiaru, HTML ma być
+  // dokładnie taki.
+  const HEADER_TAG =
+    `<img src="${LOGO_PATH}" alt="New European Strategies" ` +
+    'class="h-8 w-auto max-w-[180px] object-contain" loading="eager" decoding="async"/>';
+  const READING_LEFT_TAG =
+    `<img src="${LOGO_PATH}" alt="" ` +
+    'class="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain" ' +
+    'loading="lazy" decoding="async"/>';
+  const READING_CENTER_TAG =
+    `<img src="${LOGO_PATH}" alt="" ` +
+    'class="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain" ' +
+    'loading="lazy" decoding="async"/>';
+
+  /** Pasek czytania z OBOMA logo (lewa kolumna + środek), jak na landingach. */
+  const bothReadingLogos = (
+    <>
+      <Header />
+      <main>
+        <ReadingHeader title="Quiz" entityId="page-1" centerLogo />
+      </main>
+    </>
+  );
+
+  it("bez `intrinsic`: trzy znaczniki logo bajt w bajt jak przed zmianą", async () => {
+    const html = await ssrDocument(bothReadingLogos, { mobile: CANONICAL_LOGO });
+
+    expect(logoImgTags(html)).toEqual([HEADER_TAG, READING_LEFT_TAG, READING_CENTER_TAG]);
+  });
+
+  it("wpis innego pliku albo błędny rozmiar: dalej żadnego width/height", async () => {
+    for (const intrinsic of [
+      [["https://cdn.example.com/inne-logo.svg", "350x150"]],
+      [[CANONICAL_LOGO, "0x0"]],
+      // Ten sam plik pod adresem względnym to inny napis niż zapisany wariant.
+      [[LOGO_PATH, "350x150"]],
+    ] satisfies [string, string][][]) {
+      const html = await ssrDocument(bothReadingLogos, { mobile: CANONICAL_LOGO, intrinsic });
+
+      expect(logoImgTags(html)).toEqual([HEADER_TAG, READING_LEFT_TAG, READING_CENTER_TAG]);
+    }
+  });
+
+  it("z wpisem: logo nagłówka i oba logo paska czytania niosą width/height po `alt`", async () => {
+    const html = await ssrDocument(bothReadingLogos, {
+      mobile: CANONICAL_LOGO,
+      intrinsic: [[CANONICAL_LOGO, "350x150"]],
+    });
+    const sized = (tag: string, alt: string) =>
+      tag.replace(` alt="${alt}"`, ` alt="${alt}" width="350" height="150"`);
+
+    // Reszta każdego znacznika (klasy, loading, decoding) bez zmian.
+    expect(logoImgTags(html)).toEqual([
+      sized(HEADER_TAG, "New European Strategies"),
+      sized(READING_LEFT_TAG, ""),
+      sized(READING_CENTER_TAG, ""),
+    ]);
+    expect(logoImgTags(html)[0]).toMatch(
+      new RegExp(`^<img src="${LOGO_PATH}" alt="New European Strategies" width="350" height="150"`),
+    );
+  });
+
+  it("wpis: `src`, kolejność eager/lazy i jeden preload w `<head>` jak bez rozmiaru", async () => {
+    const html = await ssrDocument(articleChrome, {
+      mobile: CANONICAL_LOGO,
+      intrinsic: [[CANONICAL_LOGO, "350x150"]],
+    });
+
+    expect(logoImgSrcs(html)).toEqual([LOGO_PATH, LOGO_PATH]);
+    expect(logoImgLoading(html)).toEqual(["eager", "lazy"]);
+    for (const tag of logoImgTags(html)) {
+      expect(attr(tag, "width")).toBe("350");
+      expect(attr(tag, "height")).toBe("150");
+    }
+    const inHead = logoPreloads(headOf(html));
+    expect(inHead).toHaveLength(1);
+    expect(attr(inHead[0] ?? "", "href")).toBe(LOGO_PATH);
     expect(logoPreloads(html)).toHaveLength(1);
   });
 });

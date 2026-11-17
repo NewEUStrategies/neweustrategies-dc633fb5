@@ -65,7 +65,8 @@ export const Route = createFileRoute("/club/$clubSlug")({
     // i brakowi wiersza (klub niepubliczny albo opublikowany minutę po wizycie
     // crawlera - wzór: category.$slug.tsx). Czysta karta publiczna zostaje przy
     // polityce treści.
-    setCacheControlHeader(resilientCacheControl(card.degraded || card.data === null));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(card.degraded || card.data === null));
     // ZDEGRADOWANY ODCZYT MUSI ZOSTAWIĆ CACHE PUSTY. `loadResilient` zasiewa
     // fallback (`null`, `updatedAt: 0`), bo jego typowy konsument to
     // `useSuspenseQuery` - tu konsumentem jest zwykłe `useQuery`
@@ -97,8 +98,13 @@ export const Route = createFileRoute("/club/$clubSlug")({
     // bez deduplikacji, czyli jako drugi, identyczny preload (jak w archiwach,
     // `blog.index.tsx`) - dlatego układ nie ma już `head()`, a deskryptor nie
     // wraca w danych loadera.
-    const preload = clubCoverPreload(club, location.pathname);
-    if (preload) appendLinkHeader(imagePreloadLinkHeaderValue(preload));
+    //
+    // Deskryptor liczy się W GAŁĘZI BRAMKI: czyta go wyłącznie nagłówek, więc
+    // w bundlu przeglądarki znika razem z wywołaniem (roadmapa §9.5, J1).
+    if (import.meta.env.SSR || import.meta.env.DEV) {
+      const preload = clubCoverPreload(club, location.pathname);
+      if (preload) appendLinkHeader(imagePreloadLinkHeaderValue(preload));
+    }
 
     return { club: toClubHeadSource(club) };
   },

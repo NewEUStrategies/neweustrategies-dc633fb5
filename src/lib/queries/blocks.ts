@@ -19,6 +19,8 @@ import type { PublicPoll } from "@/lib/community/publicQueries";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { postsNarrowedToTaxonomy, type TaxonomyNarrowing } from "@/lib/queries/taxonomyPivot";
 import { SITE_TIME_ZONE } from "@/lib/i18n/format";
+import type { PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 import { eventDayKey, instantFromWallClock, wallClockInZone } from "@/lib/events/timezone";
 
 const STALE_TIME = 2 * 60_000;
@@ -40,6 +42,12 @@ export interface BlockPostRow {
   cover_image_url: string | null;
   published_at: string | null;
   parent_page_id: string | null;
+  /**
+   * Strona-rodzic z osadzenia w tym samym `select` (zapytania listowe) - z niej
+   * widok liczy adres kanoniczny karty (`postHref`). Brak pola albo `null`
+   * (odczyt zapasowy, tryb `trending`, sąsiad wpisu) = `/post/<slug>`.
+   */
+  parent_page?: PostParentPage | null;
 }
 
 export interface TaxonomyItem {
@@ -65,6 +73,11 @@ export interface PostNeighbor {
   href: string;
 }
 
+/**
+ * Kolumny wiersza wpisu w blokach - jedyny literał kolumn tej warstwy i zarazem
+ * odczyt zapasowy list. Wariant z osadzeniem strony-rodzica dokleja
+ * `readPostsWithParentPage` (`lib/routing/postParentPageRead.ts`).
+ */
 const POST_SELECT = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
 
 /**
@@ -88,11 +101,39 @@ async function categoryIdForSlug(categorySlug: string): Promise<string | null | 
   return cat?.id ?? undefined;
 }
 
-/** Zapytanie o wpisy, zawężone do kategorii albo nie - jedno miejsce na ten wybór. */
-function postsQuery(narrowing: TaxonomyNarrowing | null) {
+/**
+ * Zapytanie o wpisy, zawężone do terminu taksonomii albo nie - jedno miejsce na
+ * ten wybór. `columns: string` (nie literał): te same kolumny lecą w dwóch
+ * wariantach, z osadzeniem strony-rodzica i bez - powód w `postListQuery.ts`.
+ */
+function postsQuery(narrowing: TaxonomyNarrowing | null, columns: string) {
   return narrowing === null
-    ? supabase.from("posts").select(POST_SELECT)
-    : postsNarrowedToTaxonomy(POST_SELECT, narrowing);
+    ? supabase.from("posts").select(columns)
+    : postsNarrowedToTaxonomy(columns, narrowing);
+}
+
+/**
+ * Lista wpisów bloku: `refine` dokłada filtry, sortowanie i limit na zapytaniu
+ * z `postsQuery`, a odczyt leci z osadzeniem strony-rodzica (adres kanoniczny
+ * karty bez osobnego round-tripu po ścieżki).
+ *
+ * Błąd odczytu Z OSADZENIEM nie jest błędem bloku: leci to samo zapytanie bez
+ * osadzenia i wiersze wracają bez `parent_page` (karty z adresem zapasowym
+ * `/post/<slug>`). Błąd TEGO odczytu rzuca jak dotąd - blok wchodzi w stan
+ * błędu, a nie udaje listy bez wpisów. `data: null` to nadal pusta lista.
+ */
+async function readBlockPosts(
+  narrowing: TaxonomyNarrowing | null,
+  refine: (
+    query: ReturnType<typeof postsQuery>,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<BlockPostRow[]> {
+  const { data, error } = await readPostsWithParentPage(
+    (columns: string) => refine(postsQuery(narrowing, columns)),
+    POST_SELECT,
+  );
+  if (error) throw error;
+  return (data ?? []) as BlockPostRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -113,14 +154,13 @@ export const latestPostsBlockQueryOptions = (input: LatestPostsInput) =>
       const safeCount = Math.max(1, Math.min(50, input.count));
       const catId = await categoryIdForSlug(input.category);
       if (catId === undefined) return [];
-      const q = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(safeCount);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(catId === null ? null : { kind: "category", termIds: [catId] }, (q) =>
+        q
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(safeCount),
+      );
     },
   });
 
@@ -316,17 +356,18 @@ export const queryLoopBlockQueryOptions = (input: QueryLoopInput) =>
     queryFn: async (): Promise<BlockPostRow[]> => {
       const catId = await categoryIdForSlug(input.categorySlug);
       if (catId === undefined) return [];
-      const base = postsQuery(catId === null ? null : { kind: "category", termIds: [catId] })
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .limit(Math.max(1, Math.min(24, input.limit)));
-      const q =
-        input.orderBy === "title"
-          ? base.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
-          : base.order("published_at", { ascending: false });
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(
+        catId === null ? null : { kind: "category", termIds: [catId] },
+        (query) => {
+          const base = query
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .limit(Math.max(1, Math.min(24, input.limit)));
+          return input.orderBy === "title"
+            ? base.order(input.lang === "en" ? "title_en" : "title_pl", { ascending: true })
+            : base.order("published_at", { ascending: false });
+        },
+      );
     },
   });
 
@@ -372,16 +413,16 @@ export const relatedPostsBlockQueryOptions = (input: RelatedPostsInput) =>
       }
       if (narrowing !== null && narrowing.termIds.length === 0) return [];
 
-      let q = postsQuery(narrowing)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(cap);
-      if (input.currentId) q = q.neq("id", input.currentId);
-      if (input.strategy === "author" && input.authorId) q = q.eq("author_id", input.authorId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      return readBlockPosts(narrowing, (query) => {
+        let q = query
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .order("published_at", { ascending: false })
+          .limit(cap);
+        if (input.currentId) q = q.neq("id", input.currentId);
+        if (input.strategy === "author" && input.authorId) q = q.eq("author_id", input.authorId);
+        return q;
+      });
     },
   });
 
@@ -471,6 +512,8 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
           _limit: lim + 1,
         });
         if (error) throw error;
+        // Funkcja SQL oddaje tylko `parent_page_id` (bez sluga strony), więc
+        // wiersz nie niesie `parent_page` i karta zostaje przy `/post/<slug>`.
         return (data ?? []).map((p) => ({
           id: p.id,
           slug: p.slug,
@@ -488,16 +531,15 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
           ? await categoryIdForSlug(input.categorySlug)
           : null;
       if (input.strategy === "category" && (catId === null || catId === undefined)) return [];
-      const q = postsQuery(
+      return readBlockPosts(
         catId === null || catId === undefined ? null : { kind: "category", termIds: [catId] },
-      )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(lim + 1);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+        (q) =>
+          q
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .order("published_at", { ascending: false })
+            .limit(lim + 1),
+      );
     },
   });
 
@@ -544,10 +586,10 @@ function siteMonthWindow(input: CalendarInput): { start: string; end: string } {
  * Dzień miesiąca (1-31), w którym wpis wyszedł - w strefie serwisu, tak jak
  * datuje go strona wpisu - albo `null`, gdy chwila leży poza miesiącem
  * `target` albo jest nieczytelna. Klucz doby (YYYY-MM-DD) to początek zegara
- * `wallClockInZone`, a nie `eventDayKey`: siatka woła to dla każdego z do 500
- * wierszy, a `eventDayKey` buduje nowy `Intl.DateTimeFormat` przy każdym
- * wywołaniu (setki ms CPU na render SSR). Formater zegara jest buforowany per
- * strefa; doba wychodzi ta sama.
+ * `wallClockInZone`, a nie `eventDayKey`: zapytanie kalendarza woła to dla
+ * każdego z do 500 wierszy (`calendarFirstPostPerDay`), a `eventDayKey` buduje
+ * nowy `Intl.DateTimeFormat` przy każdym wywołaniu (setki ms CPU na render
+ * SSR). Formater zegara jest buforowany per strefa; doba wychodzi ta sama.
  */
 export function calendarPublishedDay(publishedAt: string, target: CalendarInput): number | null {
   const key = wallClockInZone(publishedAt, SITE_TIME_ZONE).slice(0, 10);
@@ -555,26 +597,81 @@ export function calendarPublishedDay(publishedAt: string, target: CalendarInput)
   return Number(key.slice(8, 10));
 }
 
+/**
+ * Wpis, który linkuje dzień siatki: PIERWSZY wiersz danej doby w kolejności
+ * `rows` (zapytanie sortuje rosnąco, więc najwcześniejsza publikacja dnia),
+ * kluczem dzień 1-31 miesiąca `target`. Wiersz spoza miesiąca albo z
+ * nieczytelną datą odpada (`calendarPublishedDay` = `null`). Kolejność mapy to
+ * kolejność pierwszych wystąpień.
+ *
+ * JEDNA reguła dla zapytania i widoku: zapytanie przycina nią wiersze, zanim
+ * trafią do cache'u (a z nim do stanu odwodnionego w HTML), a `CalendarView`
+ * bierze z niej adres dnia - także z wierszy, których nikt nie przyciął
+ * (stan odwodniony sprzed tej zmiany, atrapy testów), z tym samym wynikiem.
+ */
+export function calendarFirstPostPerDay<T extends { published_at: string }>(
+  rows: readonly T[],
+  target: CalendarInput,
+): Map<number, T> {
+  const byDay = new Map<number, T>();
+  for (const row of rows) {
+    const day = calendarPublishedDay(row.published_at, target);
+    if (day !== null && !byDay.has(day)) byDay.set(day, row);
+  }
+  return byDay;
+}
+
+/**
+ * Wiersz kalendarza. `parent_page` - strona-rodzic z osadzenia w tym samym
+ * `select`; z niej widok liczy adres dnia (`postHref`). Brak pola albo `null`
+ * (odczyt zapasowy, rodzic zagnieżdżony albo niewidoczny) = `/post/<slug>`.
+ */
+export interface CalendarPostRow {
+  slug: string;
+  published_at: string;
+  parent_page?: PostParentPage | null;
+}
+
 export const calendarBlockQueryOptions = (input: CalendarInput) =>
   queryOptions({
     queryKey: ["public", "blocks", "calendar", input] as const,
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
-    queryFn: async (): Promise<Array<{ slug: string; published_at: string }>> => {
+    // Osadzenie strony-rodzica jak w listach bloków (`readBlockPosts`): dzień
+    // linkuje adresem kanonicznym zamiast `/post/<slug>` (301 i dwa odczyty
+    // bazy na kliknięcie, a `AppLink` płaci je już przy najechaniu). Błąd
+    // odczytu z osadzeniem powtarza ten sam odczyt bez niego; błąd TEGO
+    // odczytu rzuca jak dotąd. `parent_page` zostaje w wierszu, bo zapytanie
+    // rozgrzewa SSR - serwer i przeglądarka liczą adres z tego samego wiersza.
+    //
+    // CACHE NIESIE NAJWYŻEJ JEDEN WIERSZ NA DZIEŃ. Siatka linkuje dzień
+    // pierwszym wpisem doby i nie czyta nic więcej, a wszystko, co zwraca ten
+    // `queryFn`, jedzie w stanie odwodnionym w HTML. Miesiąc 120 wpisów to
+    // było 120 wierszy z `parent_page` (ok. 16 KB surowego JSON-u przy slugach
+    // ok. 35 znaków), przy suficie 500 - ok. 67 KB; po przycięciu zostaje do
+    // 31 wierszy (ok. 4 KB).
+    // Przycina `calendarFirstPostPerDay`, ta sama reguła, którą widok wybiera
+    // wpis dnia, więc siatka i adresy są te same co z pełnej listy.
+    queryFn: async (): Promise<CalendarPostRow[]> => {
       const { start, end } = siteMonthWindow(input);
-      const { data, error } = await supabase
-        .from("posts")
-        .select("slug, published_at")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .gte("published_at", start)
-        .lt("published_at", end)
-        .order("published_at", { ascending: true })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []).filter(
-        (r): r is { slug: string; published_at: string } => !!r.published_at,
+      const { data, error } = await readPostsWithParentPage(
+        (columns: string) =>
+          supabase
+            .from("posts")
+            .select(columns)
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .gte("published_at", start)
+            .lt("published_at", end)
+            .order("published_at", { ascending: true })
+            .limit(500),
+        "slug, published_at",
       );
+      if (error) throw error;
+      const published = ((data ?? []) as unknown as CalendarPostRow[]).filter(
+        (r) => !!r.published_at,
+      );
+      return [...calendarFirstPostPerDay(published, input).values()];
     },
   });
 

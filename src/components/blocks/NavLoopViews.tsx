@@ -11,6 +11,7 @@ import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { formatDate } from "@/lib/i18n/format";
+import { postHref } from "@/lib/routing/postHref";
 
 type Lang = "pl" | "en";
 
@@ -151,7 +152,8 @@ export function QueryLoopView({
         {posts.map((p) => {
           const title = postTitle(p, lang);
           const excerpt = (lang === "en" ? p.excerpt_en : p.excerpt_pl) ?? "";
-          const href = `/post/${p.slug}`;
+          // Adres kanoniczny z rodzica osadzonego w wierszu; bez niego `/post/<slug>`.
+          const href = postHref(p);
           return (
             <li key={p.id} className="flex flex-col gap-2">
               {showImage && p.cover_image_url && (

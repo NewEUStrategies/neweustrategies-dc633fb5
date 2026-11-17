@@ -4,6 +4,8 @@ import {
   robotsUsagePolicy,
   AI_SEARCH_CRAWLERS,
   AI_TRAINING_CRAWLERS,
+} from "@/lib/seo/robots";
+import {
   DEFAULT_SEO_SETTINGS,
   effectiveNewsPublicationName,
   effectiveSiteName,

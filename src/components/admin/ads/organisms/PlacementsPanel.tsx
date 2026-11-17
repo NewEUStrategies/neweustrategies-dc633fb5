@@ -20,15 +20,13 @@ import { Switch } from "@/components/ui/switch";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminToast } from "@/lib/adminToasts";
+import type { AdPageType, AdPlacement, AdPosition } from "@/lib/ads/types";
 import {
   AD_PAGE_TYPE_LABEL_KEYS,
   AD_POSITION_LABEL_KEYS,
-  type AdPageType,
-  type AdPlacement,
   AD_SLOT_PICKER_COLUMNS,
-  type AdPosition,
   type AdSlotPickerRow,
-} from "@/lib/ads/types";
+} from "@/lib/ads/adminFields";
 import { emptyPlacement } from "../model";
 
 export function PlacementsPanel() {

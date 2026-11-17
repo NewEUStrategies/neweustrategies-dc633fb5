@@ -1,6 +1,6 @@
 // Public-content query options. Centralized so loaders + components share
 // identical keys/fetchers (single source of truth for cache invalidation).
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import type { PageTreeRow } from "@/lib/seo/pageTree";
@@ -10,7 +10,10 @@ import { GUEST_ACCESS_CONTEXT, stripInaccessibleNodes } from "@/lib/builder/acce
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { canBeStoredSlug } from "@/lib/routing/resolvePublicPath";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
+import { postHref, type PostParentPage } from "@/lib/routing/postHref";
+import { readPostsWithParentPage } from "@/lib/routing/postParentPageRead";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
@@ -73,7 +76,8 @@ export const ENTITY_SELECT_COLS = {
 /**
  * Select wiersza wpisu W REZOLUCJI ADRESU: kolumny encji PLUS taksonomie
  * osadzone przez tabele pivot (`post_tags(tags(...))`, `post_categories(
- * categories(...))`) w JEDNYM round-tripie.
+ * categories(...))`) ORAZ współautorzy (`post_authors(user_id, sort_order)`)
+ * w JEDNYM round-tripie.
  *
  * Do 2026-09-20 tagi i kategorie jechały DWOMA osobnymi zapytaniami w fali
  * głównej wpisu, która miała przez to SIEDEM odnóg przy limicie 6 równoległych
@@ -83,11 +87,20 @@ export const ENTITY_SELECT_COLS = {
  * zapytaniu, więc ukryty przez RLS tag daje `tags: null` w wierszu pivotu -
  * dokładnie tak, jak wcześniej - i jest odsiewany tą samą filtracją.
  *
+ * WSPÓŁAUTORZY (2026-11-14, roadmapa ładowania B2). `post_authors` było
+ * ostatnim osobnym odczytem tej fali kluczowanym SAMYM id wpisu - czyli
+ * trzecim zapytaniem o ten sam wpis. Zimny render wpisu to 20 round-tripów
+ * w kolejce do sześciu połączeń Workera, więc każdy zdjęty odczyt skraca
+ * kolejkę wszystkim pozostałym. Osadzenie idzie po kluczu obcym
+ * `post_authors_post_id_fkey` i przechodzi WŁASNĄ politykę RLS tabeli, tak jak
+ * przy osobnym zapytaniu; kolejność `sort_order` adresuje zasób osadzony
+ * (`referencedTable`) w miejscu wywołania (`resolveContentForSegments`).
+ *
  * Osobna stała (nie rozszerzenie `ENTITY_SELECT_COLS.post`), bo osadzenia
  * mają sens tylko tu; jeden literał szablonowy z tego samego powodu, co wyżej.
  */
 export const POST_RESOLVE_SELECT =
-  `${ENTITY_SELECT_COLS.post}, post_tags(tags(slug, name)), post_categories(categories(slug, name_pl, name_en, color))` as const;
+  `${ENTITY_SELECT_COLS.post}, post_tags(tags(slug, name)), post_categories(categories(slug, name_pl, name_en, color)), post_authors(user_id, sort_order)` as const;
 
 async function fetchAccessRule(
   entityType: "post" | "page",
@@ -120,9 +133,20 @@ async function fetchAccessRule(
  * so an identity-dependent strip would serve one visitor's nodes to the next.
  * In the browser the same fetcher runs with the visitor's real session, so the
  * body is left intact and the renderer gates it against the real context.
+ *
+ * BUNDEL PRZEGLĄDARKI: sam test `typeof window` rozstrzyga się dopiero w czasie
+ * działania, więc `stripInaccessibleNodes` i `accessRuleOf` jechały w chunku
+ * startowym klienta, choć nigdy się tam nie wykonują. Stała niżej jest
+ * w PRODUKCYJNYM bundlu klienta literałem `true`, więc wszystko za wyjściem
+ * znika. Ten sam zapis i to samo uzasadnienie co `IN_BROWSER_BUNDLE`
+ * w `lib/ssrCache.ts`: pod vitestem i w dev kliencie stała jest fałszem
+ * i o gałęzi decyduje jak dotąd `typeof window`; na serwerze produkcyjnym
+ * `SSR` jest prawdą, więc stała też jest fałszem.
  */
+const IN_BROWSER_BUNDLE = import.meta.env.PROD && !import.meta.env.SSR;
+
 function stripBuilderAccessForAnonymousRender(builderData: unknown): unknown {
-  if (typeof window !== "undefined") return builderData;
+  if (IN_BROWSER_BUNDLE || typeof window !== "undefined") return builderData;
   return stripInaccessibleNodes(builderData, GUEST_ACCESS_CONTEXT);
 }
 
@@ -560,6 +584,30 @@ export function resolvePostsPerPage(settings: Record<string, unknown> | undefine
   return Number.isFinite(n) && n >= 1 ? Math.min(100, Math.round(n)) : BLOG_PAGE_SIZE;
 }
 
+/**
+ * Kolumny pozycji listy bloga - jedyny literał kolumn obu zapytań (lista
+ * i archiwum) i zarazem odczyt zapasowy. Wariant z osadzeniem strony-rodzica
+ * dokleja `readPostsWithParentPage` (`lib/routing/postParentPageRead.ts`).
+ */
+const BLOG_LIST_COLUMNS = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`;
+
+/** Wiersz odczytu listy bloga: pozycja bez adresu, z rodzicem z osadzenia (gdy odczyt go niesie). */
+type BlogListRow = Omit<BlogListItem, "href"> & { parent_page?: PostParentPage | null };
+
+/**
+ * Wiersz -> pozycja listy z adresem wpisu. Adres liczy `postHref` z rodzica
+ * osadzonego w TYM SAMYM odczycie: kanoniczny `/<rodzic>/<slug>`, a gdy
+ * wiersz go nie niesie (odczyt zapasowy, rodzic zagnieżdżony albo niewidoczny)
+ * - `/post/<slug>`, który trasa `/post/$slug` rozwiąże w bazie i odpowie 301.
+ * Zero N+1: żadnego `page_full_path` na pozycję.
+ *
+ * `parent_page` NIE trafia do pozycji: adres jest już policzony, a każde pole
+ * wiersza jedzie w stanie odwodnionym dokumentu `/blog` (do 100 pozycji).
+ */
+function blogListItem({ parent_page, ...row }: BlogListRow): BlogListItem {
+  return { ...row, href: postHref({ slug: row.slug, parent_page }) };
+}
+
 export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
   queryOptions({
     queryKey: ["public", "blog", "list", { limit }] as const,
@@ -568,26 +616,24 @@ export const blogListQueryOptions = (limit: number = BLOG_PAGE_SIZE) =>
       // zapytanie biegło na każde żądanie SSR. Klucz zawiera limit (rozmiar
       // strony z ustawień czytania rozdziela wpisy cache).
       edgeTtlCache(`public:blog-list:${limit}`, 60_000, async () => {
-        const { data, error } = await supabase
-          .from("posts")
-          .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
-          )
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false })
-          .limit(limit);
+        // Dwa warianty kolumn jednego zapytania: z osadzeniem strony-rodzica
+        // i - tylko gdy tamto odda błąd - bez niego (lista z adresami
+        // zapasowymi zamiast błędu po rozjeździe schematu `pages`). Błąd
+        // odczytu zapasowego rzuca jak dotąd. `columns: string` - powód
+        // w `lib/builder/postListQuery.ts` (parser typów `select`).
+        const { data, error } = await readPostsWithParentPage(
+          (columns: string) =>
+            supabase
+              .from("posts")
+              .select(columns)
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("published_at", { ascending: false })
+              .limit(limit),
+          BLOG_LIST_COLUMNS,
+        );
         if (error) throw error;
-        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-        // Posts always link via the dedicated `/post/$slug` route, which resolves
-        // even when a parent path is missing. (A previous version fetched one
-        // `page_full_path` RPC per parent page here and then never used the
-        // result - removed: pure N+1 with no effect on the href.)
-        const posts: BlogListItem[] = rows.map((r) => ({
-          ...r,
-          href: `/post/${r.slug}`,
-        }));
-        return { posts };
+        return { posts: ((data ?? []) as unknown as BlogListRow[]).map(blogListItem) };
       }),
     staleTime: 2 * 60_000,
   });
@@ -624,21 +670,22 @@ export const blogArchiveQueryOptions = (params: BlogArchiveParams = {}) => {
     queryFn: async (): Promise<BlogArchiveResult> =>
       edgeTtlCache(`public:blog-archive:${page}:${pageSize}`, 60_000, async () => {
         const from = (page - 1) * pageSize;
-        const { data, count, error } = await supabase
-          .from("posts")
-          .select(
-            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, ${SPONSORED_LIST_COLS}`,
-            { count: "exact" },
-          )
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false })
-          .range(from, from + pageSize - 1);
+        // Osadzenie strony-rodzica i odczyt zapasowy - jak w `blogListQueryOptions`.
+        // Licznik (`count: "exact"`) wraca z tego wariantu, którego wynik został
+        // oddany; osadzenie rodzica (jeden do jednego) nie zmienia liczby wierszy.
+        const { data, count, error } = await readPostsWithParentPage(
+          (columns: string) =>
+            supabase
+              .from("posts")
+              .select(columns, { count: "exact" })
+              .eq("status", "published")
+              .is("deleted_at", null)
+              .order("published_at", { ascending: false })
+              .range(from, from + pageSize - 1),
+          BLOG_LIST_COLUMNS,
+        );
         if (error) throw error;
-        const rows = (data ?? []) as Array<Omit<BlogListItem, "href">>;
-        // Wpisy linkują przez dedykowaną trasę /post/$slug (jak blogListQueryOptions)
-        // - rozwiązuje się także przy brakującej ścieżce rodzica, zero N+1.
-        const posts: BlogListItem[] = rows.map((r) => ({ ...r, href: `/post/${r.slug}` }));
+        const posts = ((data ?? []) as unknown as BlogListRow[]).map(blogListItem);
         return { posts, total: count ?? 0, page, pageSize };
       }),
     staleTime: 2 * 60_000,
@@ -706,125 +753,285 @@ export const publicCategoriesQueryOptions = () =>
   });
 
 /**
- * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
- * objąć go edgeTtlCache bez zmiany logiki). Trzy fale round-tripów:
- * resolve_path -> Promise.all(metadane Z taksonomiami+body+współautorzy+
- * okruszki+access; 5 odnóg) -> profile autorów.
+ * Wiersz wpisu po ID - odczyt KANONICZNY rezolucji (i zapas dla odczytu
+ * spekulacyjnego niżej). Builder, nie obietnica: PostgREST wysyła żądanie
+ * dopiero przy `await`.
  */
-async function resolveContentForSegments(segments: string[]): Promise<ResolvedContent | null> {
-  const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
-    _segments: segments,
+function postRowById(postId: string) {
+  return (
+    supabase
+      .from("posts")
+      .select(POST_RESOLVE_SELECT)
+      .eq("id", postId)
+      // Kolejność współautorów jest KONTRAKTEM (cytowania, `citation_author`):
+      // `referencedTable` adresuje zasób osadzony - bez niego `.order()`
+      // sortowałby wiersze wpisu, a współautorzy wróciliby w kolejności
+      // fizycznej (ten sam wzorzec co `menu_items` w `menu.functions.ts`).
+      .order("sort_order", { referencedTable: "post_authors", ascending: true })
+      .maybeSingle()
+  );
+}
+
+/** Wiersz wpisu w kształcie `POST_RESOLVE_SELECT` (kolumny encji + osadzenia). */
+type PostResolveRow = NonNullable<Awaited<ReturnType<typeof postRowById>>["data"]>;
+
+/**
+ * SPEKULACYJNY odczyt wiersza wpisu PO SLUGU - startuje RÓWNOLEGLE z
+ * `resolve_path`, zanim znane jest id wpisu (roadmapa ładowania 2026-11-14, B2).
+ *
+ * PO CO. Rezolucja wpisu miała trzy SZEREGOWE fale: `resolve_path` -> wiersz
+ * wpisu (po id) -> profile autorów (po `author_id` z wiersza). Każda fala to
+ * pełny round-trip z izolatu do bazy (zmierzone na produkcji: 110-360 ms),
+ * a pierwszy bajt dokumentu czeka na ostatnią. Adres wpisu to
+ * `<ścieżka strony>/<slug wpisu>`, a `resolve_path` szuka wpisu DOKŁADNIE po
+ * ostatnim segmencie (`slug = _segments[n]`), więc ten sam wiersz da się
+ * poprosić od razu - i profile autorów ruszają falę wcześniej, razem z treścią,
+ * okruszkami i regułą dostępu. Trzy fale robią się dwiema, liczba zapytań
+ * wpisu zostaje ta sama (odczyt po slugu ZASTĘPUJE odczyt po id).
+ *
+ * DLACZEGO TO JEST DOKŁADNE, A NIE PRZYBLIŻONE. Wiersz ze spekulacji jest
+ * używany WYŁĄCZNIE wtedy, gdy jego `id` równa się `post_id` z `resolve_path`:
+ * to ten sam wiersz, ten sam select, ten sam klient i ta sama polityka RLS,
+ * co przy odczycie po id. O tym, CZY adres jest wpisem (i czy rodzic się
+ * zgadza), nadal rozstrzyga wyłącznie `resolve_path`. Każdy inny wynik
+ * spekulacji - brak wiersza, inny wpis o tym slugu u innego rodzica, błąd -
+ * kończy się dotychczasowym odczytem po id, czyli zachowaniem sprzed zmiany.
+ *
+ * NIGDY NIE ODRZUCA: błąd spekulacji to brak podpowiedzi, nie awaria treści
+ * (i obietnica bywa porzucana, gdy adres okazuje się stroną).
+ *
+ * KOSZT. Adres jednosegmentowy nie może być wpisem (`resolve_path` wymaga
+ * strony-rodzica), więc nie spekuluje; nie spekuluje też adres, którego ostatni
+ * segment nie może być slugiem (skanery). Strona zagnieżdżona i nieistniejący
+ * adres wielosegmentowy o poprawnym slugu płacą jedno zapytanie po indeksie
+ * `(tenant_id, slug)` więcej - RÓWNOLEGŁE do `resolve_path` i zgłoszone PO nim,
+ * więc bez wpływu na liczbę fal i bez zajmowania mu miejsca w kolejce połączeń.
+ */
+function speculativePostRows(slug: string): Promise<PostResolveRow[]> {
+  return Promise.resolve(
+    supabase
+      .from("posts")
+      .select(POST_RESOLVE_SELECT)
+      .eq("slug", slug)
+      .order("sort_order", { referencedTable: "post_authors", ascending: true }),
+  ).then(
+    // `Array.isArray`, nie `?? []`: odpowiedź w innym kształcie niż lista
+    // (atrapa backendu, pośrednik) to też „brak podpowiedzi", nie wyjątek.
+    ({ data, error }) => (!error && Array.isArray(data) ? data : []),
+    () => [],
+  );
+}
+
+/**
+ * Profile WSZYSTKICH autorów wpisu (główny + współautorzy) JEDNYM selectem
+ * .in() po profiles_public - wcześniej były to dwie sekwencyjne rundy (osobny
+ * profil autora głównego, a potem drugi .in() na współautorów), co dokładało
+ * 1-2 round-tripy na krytycznej ścieżce TTFB wpisu. Nakładka author_profiles
+ * (tylko dla autora głównego) leci równolegle w tym samym Promise.all, więc
+ * nie dokłada opóźnienia. Ten sam klient anon i te same widoki - izolacja
+ * tenanta/RLS bez zmian. Kolejność i scalanie są czystymi funkcjami
+ * (orderAuthorIds / buildPostAuthors), przetestowanymi w izolacji.
+ */
+async function fetchPostAuthorship(
+  mainAuthorId: string | null,
+  coAuthorUserIds: readonly string[],
+): Promise<{ author: PostAuthor | null; authors: PostAuthorRef[] }> {
+  const orderedAuthorIds = orderAuthorIds(mainAuthorId, coAuthorUserIds);
+  if (orderedAuthorIds.length === 0) return { author: null, authors: [] };
+  // Nakładka autora z author_profiles_public - publicznej projekcji BEZ
+  // kolumn kontaktowych (contact_email/phone/media_contact_* są PII i mają
+  // odebrany SELECT role-wide). Bezpośredni select z author_profiles
+  // z contact_email kończył się tu 42501 (połykanym), więc nakładka
+  // znikała z każdej strony wpisu; widok filtruje też is_public = true
+  // oraz tenant = public_tenant_id() po stronie bazy.
+  const overlayQuery = mainAuthorId
+    ? supabase
+        .from("author_profiles_public")
+        .select(
+          "avatar_url, job_title, company, bio_pl, bio_en, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
+        )
+        .eq("user_id", mainAuthorId)
+        .maybeSingle()
+    : null;
+  const [{ data: profileRows, error: profileRowsError }, overlayRes] = await Promise.all([
+    supabase
+      .from("profiles_public")
+      .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
+      .in("id", orderedAuthorIds),
+    overlayQuery ?? Promise.resolve({ data: null, error: null } as const),
+  ]);
+  if (profileRowsError) throw profileRowsError;
+  if (overlayRes.error) throw overlayRes.error;
+  return buildPostAuthors({
+    orderedAuthorIds,
+    profileRows: (profileRows ?? []) as FullAuthorRow[],
+    mainAuthorId,
+    overlay: overlayRes.data as RawAuthorOverlay | null,
   });
+}
+
+/** Co `resolve_path` rozstrzygnął o adresie: rodzaj treści i jej id. */
+export interface ResolvedPathHit {
+  kind: "post" | "page";
+  /** Id wpisu albo strony - to samo, które niesie `item.id` rozstrzygniętej treści. */
+  id: string;
+}
+
+type ResolvedPathHitListener = (hit: ResolvedPathHit) => void;
+
+/**
+ * Słuchacze trafienia ścieżki, po jednym na `QueryClient` - czyli na żądanie
+ * SSR (klient zapytań jest tam tworzony per żądanie). `WeakMap`, więc wpis
+ * znika razem z klientem żądania i nie wymaga sprzątania.
+ */
+const pathHitListeners = new WeakMap<QueryClient, ResolvedPathHitListener>();
+
+/**
+ * Zgłoszenie „adres jest treścią" ZARAZ PO `resolve_path`, zanim treść się
+ * rozstrzygnie (roadmapa ładowania 2026-11-14, B2).
+ *
+ * PO CO. Loader trasy treści ma pracę, która potrzebuje wyłącznie RODZAJU
+ * i ID treści (rozgrzewka slotów reklamowych), a nie samej treści. Dopóki
+ * czekała na cały wynik rezolucji, jej round-trip stał SZEREGOWO za ostatnią
+ * falą treści. Słuchacz dostaje te dwie wartości falę wcześniej.
+ *
+ * KONTRAKT. Słuchacz jest wołany najwyżej raz na rezolucję, PO wystartowaniu
+ * odnóg treści (więc jego praca staje w kolejce połączeń ZA nimi), i nigdy,
+ * gdy adres nie jest treścią. Nie jest wołany, gdy wynik przyszedł z cache'u
+ * izolatu albo z lotu innego żądania - wołający MUSI mieć drogę zapasową.
+ * Wyjątek słuchacza nie przerywa rezolucji. Zwraca funkcję wyrejestrowującą.
+ */
+export function onResolvedPathHit(
+  client: QueryClient,
+  listener: ResolvedPathHitListener,
+): () => void {
+  pathHitListeners.set(client, listener);
+  return () => {
+    if (pathHitListeners.get(client) === listener) pathHitListeners.delete(client);
+  };
+}
+
+function notifyPathHit(onPathHit: ResolvedPathHitListener | undefined, hit: ResolvedPathHit): void {
+  if (!onPathHit) return;
+  try {
+    onPathHit(hit);
+  } catch {
+    /* praca słuchacza jest dodatkiem - nigdy nie przerywa rezolucji treści */
+  }
+}
+
+/**
+ * Rdzeń rezolucji treści po segmentach ścieżki (wydzielony z queryFn, żeby
+ * objąć go edgeTtlCache bez zmiany logiki).
+ *
+ * WPIS - DWIE fale round-tripów: [resolve_path + spekulacyjny wiersz wpisu po
+ * slugu] -> [body + okruszki + access + profile autorów + nakładka autora;
+ * 5 odnóg]. Gdy spekulacja nie trafi (patrz `speculativePostRows`), wiersz
+ * idzie po id w fali drugiej, a profile autorów w trzeciej - jak przed zmianą.
+ * STRONA - bez zmian: resolve_path -> [wiersz + body + okruszki + access].
+ */
+async function resolveContentForSegments(
+  segments: string[],
+  onPathHit?: ResolvedPathHitListener,
+): Promise<ResolvedContent | null> {
+  // `resolve_path` IDZIE NA DRUT PIERWSZE (przegląd B2, 2026-11-15). Zimny
+  // izolat startuje w tym oknie 8 podżądań (4 korzenia, 2 trasy, rezolucja
+  // i podpowiedź) przy sześciu połączeniach Workera, a kolejka obsługuje je
+  // w kolejności zgłoszenia. Rezolucja bramkuje całą resztę treści, podpowiedź
+  // niczego - gdyby szła pierwsza, to ona zajmowałaby wcześniejszy slot.
+  // `.then` wprost, nie `await` niżej: budowniczy PostgREST wysyła żądanie
+  // dopiero przy pierwszym `.then`.
+  const resolving = supabase.rpc("resolve_path", { _segments: segments }).then((r) => r);
+  // Podpowiedź tylko dla segmentu, który MOŻE być slugiem wpisu. Adresy
+  // skanerów (`/wp-admin/setup-config.php`, `/.git/config`) nie trafią w żaden
+  // wpis, a gałąź „treści nie ma" właśnie dla nich przestała pytać bazę
+  // (`canBeStoredSlug` w `lib/routing/resolvePublicPath.ts`); slug spoza
+  // alfabetu wpisany ręcznie do bazy obsłuży odczyt po id, jak dotąd.
+  const lastSegment = segments[segments.length - 1];
+  const speculativeRows =
+    segments.length >= 2 && canBeStoredSlug(lastSegment) ? speculativePostRows(lastSegment) : null;
+  const { data: resolved, error: rErr } = await resolving;
   if (rErr) throw rErr;
   const hit = (resolved ?? [])[0] as { page_id: string | null; post_id: string | null } | undefined;
   if (!hit?.page_id) return null;
 
   if (hit.post_id) {
+    const postId = hit.post_id;
+    // Wiersz wpisu i - zaraz po nim - profile autorów jako JEDNA odnoga fali
+    // drugiej. Przy trafionej spekulacji wiersz jest już na miejscu, więc
+    // profile startują razem z pozostałymi odnogami, a nie falę później.
+    const rowAndAuthors = (async () => {
+      let data = speculativeRows
+        ? ((await speculativeRows).find((candidate) => candidate.id === postId) ?? null)
+        : null;
+      if (!data) {
+        const byId = await postRowById(postId);
+        if (byId.error) throw byId.error;
+        data = byId.data;
+      }
+      if (!data) return null;
+      // Osadzenia schodzą z wiersza PRZED złożeniem `item`: kształt `PostData`
+      // i całego `ResolvedContent` (tagi/kategorie jako osobne listy) jest
+      // kontraktem konsumentów i dehydratowanego payloadu - nie może urosnąć
+      // o surowe wiersze pivotu.
+      const {
+        post_tags: tagRows,
+        post_categories: catRows,
+        post_authors: coAuthorRows,
+        ...row
+      } = data;
+      const tags = (tagRows ?? [])
+        .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
+        .filter((t): t is { slug: string; name: string } => !!t);
+      const categories = (catRows ?? [])
+        .map((r) => (r as { categories: PostCategory | null }).categories)
+        .filter((c): c is PostCategory => !!c);
+      const authorship = await fetchPostAuthorship(
+        row.author_id ?? null,
+        // Jawny, wąski kształt wiersza osadzenia - ten sam zabieg co przy
+        // `tagRows`/`catRows` wyżej.
+        (coAuthorRows ?? []).map((coAuthor) => (coAuthor as { user_id: string }).user_id),
+      );
+      return { row, tags, categories, ...authorship };
+    })();
     // Body columns (content_*/builder_data/blocks_data) are fetched via the
     // gated RPC, never selected directly - the row select carries only the
-    // non-sensitive display metadata (plus embedded taxonomies, see
-    // `POST_RESOLVE_SELECT`). PIĘĆ odnóg, nie siedem: wiersz wpisu niesie tagi
-    // i kategorie w osadzeniu, więc cała fala mieści się w limicie 6
-    // równoległych połączeń Workers i żadna odnoga nie czeka w kolejce.
-    const [
-      { data, error },
-      body,
-      { data: coAuthorRows, error: coAuthorRowsError },
-      crumbs,
-      access,
-    ] = await Promise.all([
-      supabase.from("posts").select(POST_RESOLVE_SELECT).eq("id", hit.post_id).maybeSingle(),
-      fetchGatedBody("post", hit.post_id),
-      supabase
-        .from("post_authors")
-        .select("user_id, sort_order")
-        .eq("post_id", hit.post_id)
-        .order("sort_order", { ascending: true }),
+    // non-sensitive display metadata (plus embedded taxonomies and co-authors,
+    // see `POST_RESOLVE_SELECT`). Fala ma najwyżej PIĘĆ żądań naraz (body,
+    // okruszki, access i - przy trafionej spekulacji - profile z nakładką
+    // albo, bez niej, sam wiersz po id), więc mieści się w limicie 6
+    // równoległych połączeń Workers.
+    const wave = Promise.all([
+      rowAndAuthors,
+      fetchGatedBody("post", postId),
       fetchPageBreadcrumbs(hit.page_id),
-      fetchAccessRule("post", hit.post_id),
+      fetchAccessRule("post", postId),
     ]);
-    if (coAuthorRowsError) throw coAuthorRowsError;
-    if (error) throw error;
-    if (!data) return null;
-    // Osadzenia schodzą z wiersza PRZED złożeniem `item`: kształt `PostData`
-    // i całego `ResolvedContent` (tagi/kategorie jako osobne listy) jest
-    // kontraktem konsumentów i dehydratowanego payloadu - nie może urosnąć
-    // o surowe wiersze pivotu.
-    const { post_tags: tagRows, post_categories: catRows, ...row } = data;
-    const tags = (tagRows ?? [])
-      .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
-      .filter((t): t is { slug: string; name: string } => !!t);
-    const categories = (catRows ?? [])
-      .map((r) => (r as { categories: PostCategory | null }).categories)
-      .filter((c): c is PostCategory => !!c);
-    const post = { ...row, ...body } as PostData;
-    // Profile WSZYSTKICH autorów (główny + współautorzy) pobieramy JEDNYM
-    // selectem .in() po profiles_public - wcześniej były to dwie
-    // sekwencyjne rundy (osobny profil autora głównego, a potem drugi
-    // .in() na współautorów), co dokładało 1-2 round-tripy na krytycznej
-    // ścieżce TTFB wpisu. Nakładka author_profiles (tylko dla autora
-    // głównego) leci równolegle w tym samym Promise.all, więc nie dokłada
-    // opóźnienia. Ten sam klient anon i te same widoki - izolacja
-    // tenanta/RLS bez zmian. Kolejność i scalanie są czystymi funkcjami
-    // (orderAuthorIds / buildPostAuthors), przetestowanymi w izolacji.
-    const mainAuthorId = post.author_id ?? null;
-    const orderedAuthorIds = orderAuthorIds(
-      mainAuthorId,
-      (coAuthorRows ?? []).map((row) => (row as { user_id: string }).user_id),
-    );
-    let author: PostAuthor | null = null;
-    let authors: PostAuthorRef[] = [];
-    if (orderedAuthorIds.length > 0) {
-      // Nakładka autora z author_profiles_public - publicznej projekcji BEZ
-      // kolumn kontaktowych (contact_email/phone/media_contact_* są PII i mają
-      // odebrany SELECT role-wide). Bezpośredni select z author_profiles
-      // z contact_email kończył się tu 42501 (połykanym), więc nakładka
-      // znikała z każdej strony wpisu; widok filtruje też is_public = true
-      // oraz tenant = public_tenant_id() po stronie bazy.
-      const overlayQuery = mainAuthorId
-        ? supabase
-            .from("author_profiles_public")
-            .select(
-              "avatar_url, job_title, company, bio_pl, bio_en, website_url, x_url, linkedin_url, facebook_url, instagram_url, spotify_url, custom_socials",
-            )
-            .eq("user_id", mainAuthorId)
-            .maybeSingle()
-        : null;
-      const [{ data: profileRows, error: profileRowsError }, overlayRes] = await Promise.all([
-        supabase
-          .from("profiles_public")
-          .select("id, slug, display_name, first_name, last_name, avatar_url, bio_pl, bio_en")
-          .in("id", orderedAuthorIds),
-        overlayQuery ?? Promise.resolve({ data: null, error: null } as const),
-      ]);
-      if (profileRowsError) throw profileRowsError;
-      if (overlayRes.error) throw overlayRes.error;
-      ({ author, authors } = buildPostAuthors({
-        orderedAuthorIds,
-        profileRows: (profileRows ?? []) as FullAuthorRow[],
-        mainAuthorId,
-        overlay: overlayRes.data as RawAuthorOverlay | null,
-      }));
-    }
+    // PO wystartowaniu odnóg treści - patrz kontrakt `onResolvedPathHit`.
+    notifyPathHit(onPathHit, { kind: "post", id: postId });
+    const [resolvedRow, body, crumbs, access] = await wave;
+    if (!resolvedRow) return null;
     return {
       kind: "post",
-      item: post,
+      item: { ...resolvedRow.row, ...body } as PostData,
       crumbs,
       parentPageId: hit.page_id,
-      tags,
-      categories,
-      author,
-      authors,
+      tags: resolvedRow.tags,
+      categories: resolvedRow.categories,
+      author: resolvedRow.author,
+      authors: resolvedRow.authors,
       access,
     };
   }
 
-  const [{ data, error }, body, crumbs, access] = await Promise.all([
+  const pageWave = Promise.all([
     supabase.from("pages").select(ENTITY_SELECT_COLS.page).eq("id", hit.page_id).maybeSingle(),
     fetchGatedBody("page", hit.page_id),
     fetchPageBreadcrumbs(hit.page_id),
     fetchAccessRule("page", hit.page_id),
   ]);
+  notifyPathHit(onPathHit, { kind: "page", id: hit.page_id });
+  const [{ data, error }, body, crumbs, access] = await pageWave;
   if (error) throw error;
   if (!data) return null;
   // Microsites (C4): header_override DZIEDZICZY w dół poddrzewa stron -
@@ -865,7 +1072,7 @@ async function resolveContentForSegments(segments: string[]): Promise<ResolvedCo
 export const resolvedContentQueryOptions = (segments: string[]) =>
   queryOptions({
     queryKey: ["public", "resolved", segments] as const,
-    queryFn: async (): Promise<ResolvedContent | null> => {
+    queryFn: async ({ client }): Promise<ResolvedContent | null> => {
       if (segments.length === 0) return null;
       // Per-isolate TTL (per tenant host): każdy MISS cache dokumentów płacił
       // dotąd pełne ~10 round-tripów rezolucji wpisu. Krótkie 60 s pokrywa
@@ -874,7 +1081,9 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
       // ANONIMOWA projekcja (body gated = null z get_entity_content), więc
       // współdzielenie między żądaniami jest bezpieczne z konstrukcji.
       return edgeTtlCache(`public:resolved:${segments.join("/")}`, 60_000, () =>
-        resolveContentForSegments(segments),
+        // Słuchacz czytany W CHWILI trafienia, nie przy starcie zapytania -
+        // loader rejestruje go tuż przed `ensureQueryData`.
+        resolveContentForSegments(segments, (hit) => pathHitListeners.get(client)?.(hit)),
       );
     },
     staleTime: PAGE_PATH_TTL,

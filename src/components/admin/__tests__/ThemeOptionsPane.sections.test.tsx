@@ -21,6 +21,13 @@
 //   5. ADRES Z HASHEM OTWIERA KONKRETNĄ SEKCJĘ (deep-link z menu admina).
 //   6. PODGLĄD LOGO PRZEŁĄCZA MOTYW CAŁEJ APLIKACJI - przycisk „słońce/księżyc"
 //      woła `useTheme().toggle()`, a nie zmienia tylko własnego tła.
+//   7. ZAPIS MIERZY PLIKI LOGO. Każde „Zapisz" (i przywrócenie rewizji) najpierw
+//      mierzy naturalny rozmiar plików sześciu wariantów publicznych i wysyła
+//      listę `logo.intrinsic` w TYM SAMYM dokumencie - strona dokłada z niej
+//      logo atrybuty `width`/`height` (Lighthouse `unsized-images`). Pomiar jest
+//      częścią akcji zapisu, więc klik zaraz po otwarciu panelu go nie omija.
+//      Sam pomiar (`measureIntrinsicSize`) jest ATRAPĄ: w środowisku testowym
+//      `Image` niczego nie ładuje i każdy zapis czekałby 5 s na limit czasu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   - `GlobalColorsEditor`, `ThemeDesignPane`, `ThemeFontSizesPane`,
@@ -72,6 +79,26 @@ const stubs = vi.hoisted(() => ({
   history: null as unknown,
   /** Wartość, którą atrapa dialogu historii oddaje przez `onRestore`. */
   restoreValue: null as unknown,
+  /** Wynik pomiaru pliku per adres; brak wpisu = pomiar nieudany (`""`). */
+  measured: {} as Record<string, string>,
+  /** Adresy plików, które się ładują, ale nie mają własnej proporcji. */
+  measuredNoRatio: [] as string[],
+  /** Adresy, o których pomiar poproszono, w kolejności wywołań. */
+  measureCalls: [] as string[],
+  /** Bramka wstrzymująca pomiar (`null` = pomiar odpowiada od razu). */
+  measureGate: null as Promise<void> | null,
+}));
+
+// Pomiar naturalnego rozmiaru pliku: bez tej atrapy sondy `<img>` w środowisku
+// testowym nie odpalają ani `load`, ani `error`, więc KAŻDY zapis czekałby 5 s
+// na limit.
+vi.mock("@/lib/media/measureIntrinsicSize", () => ({
+  measureIntrinsicSize: async (url: string) => {
+    stubs.measureCalls.push(url);
+    if (stubs.measureGate) await stubs.measureGate;
+    if (stubs.measuredNoRatio.includes(url)) return { size: "", noRatio: true };
+    return { size: stubs.measured[url] ?? "", noRatio: false };
+  },
 }));
 
 // WŁASNA atrapa i18n zamiast wspólnej z `@/test/i18nStub`: `useLogoLocations`
@@ -258,6 +285,10 @@ beforeEach(() => {
   backgrounds().reset();
   history().reset();
   stubs.restoreValue = null;
+  stubs.measured = {};
+  stubs.measuredNoRatio = [];
+  stubs.measureCalls = [];
+  stubs.measureGate = null;
   window.location.hash = "";
 });
 
@@ -1124,5 +1155,260 @@ describe("ThemeOptionsPane - zapis i historia", () => {
 
     deferred.release?.({ data: null, error: null });
     await waitFor(() => expect(toasts().success).toHaveBeenCalled());
+  });
+});
+
+describe("ThemeOptionsPane - naturalne rozmiary logo przy zapisie", () => {
+  const A = "https://cdn.example.test/logo-a.svg";
+  const B = "https://cdn.example.test/logo-b.svg";
+  const C = "https://cdn.example.test/logo-c.svg";
+  const logoOf = (doc: Record<string, unknown>) => doc.logo as Record<string, unknown>;
+
+  it("zapis bez żadnej edycji mierzy różne adresy wariantów i wysyła `logo.intrinsic`", async () => {
+    // Dokładnie krok właściciela po wdrożeniu: otworzyć panel, kliknąć Zapisz.
+    stubs.measured = { [A]: "350x150", [B]: "700x300" };
+    await mountPane({ logo: { main: A, main_dark: B, mobile: A } });
+
+    const doc = await saveAndRead();
+
+    // Każdy adres raz, w kolejności wariantów; `mobile` to ten sam plik co `main`.
+    expect(stubs.measureCalls).toEqual([A, B]);
+    expect(logoOf(doc).intrinsic).toEqual([
+      [A, "350x150"],
+      [B, "700x300"],
+    ]);
+    // Same warianty przechodzą przez zapis nietknięte.
+    expect(logoOf(doc).main).toBe(A);
+    expect(logoOf(doc).main_dark).toBe(B);
+    expect(logoOf(doc).mobile).toBe(A);
+  });
+
+  it("adres wpisany w formularzu jest mierzony W AKCJI zapisu, nie efektem przy edycji", async () => {
+    stubs.measured = { [C]: "512x128" };
+    await mountPane();
+
+    fireEvent.change(screen.getByLabelText("themeOptions.slots.main"), { target: { value: C } });
+    expect(stubs.measureCalls).toEqual([]);
+
+    const doc = await saveAndRead();
+    expect(stubs.measureCalls).toEqual([C]);
+    expect(logoOf(doc).intrinsic).toEqual([[C, "512x128"]]);
+  });
+
+  it("nieudany pomiar zostawia poprzedni wpis adresu, a wpis podmienionego pliku znika", async () => {
+    // A: plik chwilowo niedostępny (pomiar pusty); B: podmieniony na C.
+    stubs.measured = { [C]: "512x128" };
+    await mountPane({
+      logo: {
+        main: A,
+        main_dark: B,
+        intrinsic: [
+          [A, "350x150"],
+          [B, "700x300"],
+        ],
+      },
+    });
+    fireEvent.change(screen.getByLabelText("themeOptions.slots.mainDark"), {
+      target: { value: C },
+    });
+
+    const doc = await saveAndRead();
+
+    // Lista ZASTĘPUJE poprzednią w wierszu (scalanie zapisu nie skleja tablic).
+    expect(logoOf(doc).intrinsic).toEqual([
+      [A, "350x150"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("plik bez własnej proporcji: Zapisz USUWA jego wpis z listy w wierszu, wpis pliku niedostępnego zostaje", async () => {
+    // A: SVG bez proporcji, w wierszu stoi jego rozmiar zastępczy (300 × 150)
+    // zapisany przed poprawką pomiaru; B: plik chwilowo niedostępny.
+    stubs.measuredNoRatio = [A];
+    await mountPane({
+      logo: {
+        main: A,
+        main_dark: B,
+        intrinsic: [
+          [A, "300x150"],
+          [B, "700x300"],
+        ],
+      },
+    });
+
+    const doc = await saveAndRead();
+
+    expect(stubs.measureCalls).toEqual([A, B]);
+    expect(logoOf(doc).intrinsic).toEqual([[B, "700x300"]]);
+    expect(logoOf(doc).main).toBe(A);
+  });
+
+  it("logo organizacji, paska bocznego i zakładek nie są mierzone", async () => {
+    stubs.measured = { [A]: "350x150" };
+    await mountPane({
+      logo: {
+        main: A,
+        organization: "https://cdn.example.test/org.svg",
+        organization_dark: "https://cdn.example.test/org-dark.svg",
+        sidebar_icon: "https://cdn.example.test/sidebar.svg",
+        sidebar_expanded: "https://cdn.example.test/sidebar-wide.svg",
+        bookmark_ios: "https://cdn.example.test/ios.png",
+        bookmark_windows: "https://cdn.example.test/windows.png",
+      },
+    });
+
+    const doc = await saveAndRead();
+
+    expect(stubs.measureCalls).toEqual([A]);
+    expect(logoOf(doc).intrinsic).toEqual([[A, "350x150"]]);
+    expect(logoOf(doc).organization).toBe("https://cdn.example.test/org.svg");
+  });
+
+  it("żaden pomiar się nie udał: zapis dochodzi do skutku z pustą listą", async () => {
+    await mountPane({ logo: { main: A, main_dark: B } });
+
+    const doc = await saveAndRead();
+
+    expect(stubs.measureCalls).toEqual([A, B]);
+    expect(logoOf(doc).intrinsic).toEqual([]);
+    expect(toasts().success).toHaveBeenCalledWith("Zapisano");
+  });
+
+  it("w trakcie POMIARU przycisk mówi Zapisywanie i jest zablokowany, a do bazy nic jeszcze nie poszło", async () => {
+    let release = () => {};
+    stubs.measureGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    stubs.measured = { [A]: "350x150" };
+    await mountPane({ logo: { main: A } });
+
+    fireEvent.click(saveButton());
+    const saving = await screen.findByRole("button", { name: /themeOptions\.saving/ });
+    expect(saving).toBeDisabled();
+    // Drugi klik w zablokowany przycisk nie startuje drugiego pomiaru ani zapisu.
+    fireEvent.click(saving);
+    expect(stubs.measureCalls).toEqual([A]);
+    expect(sb().writes("site_settings")).toEqual([]);
+    expect(toasts().success).not.toHaveBeenCalled();
+
+    release();
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    expect(sb().writes("site_settings")).toHaveLength(1);
+    const row = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(row.value).intrinsic).toEqual([[A, "350x150"]]);
+    await waitFor(() => expect(saveButton()).not.toBeDisabled());
+  });
+
+  it("przywrócenie rewizji mierzy pliki PRZYWRACANE i zapisuje ich rozmiary", async () => {
+    stubs.measured = { [A]: "350x150", [B]: "700x300" };
+    await mountPane({ logo: { main: A, intrinsic: [[A, "350x150"]] } });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+
+    // Rewizja sprzed podmiany logo: inny plik i lista z jej własnego czasu.
+    stubs.restoreValue = {
+      ...current,
+      logo: {
+        ...current.logo,
+        main: B,
+        intrinsic: [["https://cdn.example.test/dawne.svg", "1x1"]],
+      },
+    };
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    expect(stubs.measureCalls).toEqual([B]);
+    const saved = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(saved.value).main).toBe(B);
+    expect(logoOf(saved.value).intrinsic).toEqual([[B, "700x300"]]);
+    expect(screen.getByLabelText("themeOptions.slots.main")).toHaveValue(B);
+  });
+
+  /**
+   * Rewizja sprzed dodania logo mobilnego: jej gałąź `logo` nie ma klucza
+   * `mobile` (ani własnej listy rozmiarów), a główne logo to plik `B`.
+   */
+  const revisionWithoutMobile = (current: { logo: Record<string, unknown> }) => {
+    const logo: Record<string, unknown> = { ...current.logo, main: B };
+    delete logo.mobile;
+    delete logo.intrinsic;
+    return { ...current, logo };
+  };
+
+  it("przywrócenie rewizji BEZ wariantu, który ma bieżący wiersz: mierzony jest zestaw, który zostanie w wierszu", async () => {
+    // Zapis SCALA rewizję z wierszem i żadnego klucza nie usuwa, więc logo
+    // mobilne zostaje na stronie. Lista rozmiarów zastępuje poprzednią w
+    // całości - liczona z samej rewizji, zabierała temu logo atrybuty.
+    stubs.measured = { [A]: "350x150", [B]: "700x300", [C]: "512x128" };
+    await mountPane({
+      logo: {
+        main: A,
+        mobile: C,
+        intrinsic: [
+          [A, "350x150"],
+          [C, "512x128"],
+        ],
+      },
+    });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+
+    stubs.restoreValue = revisionWithoutMobile(current);
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const saved = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(saved.value).main).toBe(B);
+    expect(logoOf(saved.value).mobile).toBe(C);
+    expect(stubs.measureCalls).toEqual([B, C]);
+    expect(logoOf(saved.value).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("kolejne Zapisz po takim przywróceniu (szkic bez wariantu) nadal mierzy logo, które jest w wierszu", async () => {
+    stubs.measured = { [A]: "350x150", [B]: "700x300", [C]: "512x128" };
+    await mountPane({ logo: { main: A, mobile: C } });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+    stubs.restoreValue = revisionWithoutMobile(current);
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    stubs.measureCalls = [];
+
+    const doc = await saveAndRead();
+
+    expect(logoOf(doc).mobile).toBe(C);
+    expect(stubs.measureCalls).toEqual([B, C]);
+    expect(logoOf(doc).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
+  });
+
+  it("nieudany pomiar wariantu spoza rewizji zostawia jego wpis z bieżącego wiersza", async () => {
+    // Plik `C` chwilowo niedostępny; rewizja niesie własną, starszą listę.
+    stubs.measured = { [B]: "700x300" };
+    await mountPane({
+      logo: {
+        main: A,
+        mobile: C,
+        intrinsic: [
+          [A, "350x150"],
+          [C, "512x128"],
+        ],
+      },
+    });
+    const current = history().last()?.currentValue as { logo: Record<string, unknown> };
+    const revision = revisionWithoutMobile(current);
+    revision.logo.intrinsic = [["https://cdn.example.test/dawne.svg", "1x1"]];
+
+    stubs.restoreValue = revision;
+    fireEvent.click(screen.getByRole("button", { name: "przywroc-rewizje" }));
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const saved = sb().lastWrite("site_settings") as { value: Record<string, unknown> };
+    expect(logoOf(saved.value).intrinsic).toEqual([
+      [B, "700x300"],
+      [C, "512x128"],
+    ]);
   });
 });

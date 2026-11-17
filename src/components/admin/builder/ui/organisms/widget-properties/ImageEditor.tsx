@@ -6,16 +6,48 @@
 // `SchemaFieldControl`, co reszta panelu. Wcześniej ten edytor przesłaniał cały
 // blok schematu, więc cztery ustawienia obsługiwane przez renderer
 // (mediaWidgets.tsx) były w panelu nieosiągalne.
+//
+// NATURALNY ROZMIAR PLIKU (`srcIntrinsic` / `srcDarkIntrinsic`, napis "WxH") to
+// wartość MIERZONA, nie wpisywana: renderer dokłada z niej obrazowi bez ramki
+// atrybuty `width`/`height` (Lighthouse `unsized-images`). Dlatego nie jest
+// polem schematu ani wpisem `IMAGE_EDITOR_HANDLED_KEYS` - edytor pokazuje ją
+// tylko jako podpowiedź pod slotem.
+//
+// POMIAR I ZAPIS NIE MIESZKAJĄ W EDYTORZE. Robi to hak
+// `useImageIntrinsicCapture` (reguły, kiedy mierzy i kiedy zapisuje, są w jego
+// nagłówku), a trzyma go panel właściwości NAD zakładkami: edytor siedzi w
+// zakładce "Treść", która po PRZEJŚCIU NA INNĄ ZAKŁADKĘ jest odmontowywana, więc
+// pomiar trzymany tutaj gubił wynik, gdy redaktor otworzył "Styl" albo
+// "Zaawansowane", i nie ruszał po zaznaczeniu obrazu, dopóki "Treść" nie była
+// widoczna. Edytor dostaje od panelu dwa zapisy idące przez pomiar (`capture`:
+// zmiana pliku slotu i ustawienie, od którego zależy użycie rozmiaru) i tylko
+// je wywołuje. Renderowany bez panelu (testy edytora, bramka wierności
+// ustawień) uruchamia ten sam hak sam.
+//
+// ZNANE OGRANICZENIE (szczegóły w nagłówku haka): wynik pomiaru przepada, gdy
+// redaktor ODZNACZY widget albo zaznaczy inny, zanim pomiar wróci - treść
+// zostaje wtedy z nowym adresem i pustym rozmiarem (znacznik bez atrybutów, jak
+// przed tą funkcją), stan naprawia kolejne zaznaczenie, a do tego czasu
+// podpowiedź pod slotem mówi, że wymiary nie są zapisane. Samo przełączenie
+// zakładki panelu wyniku nie gubi.
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
+import {
+  intrinsicSlotUse,
+  type ImageFileSlot,
+  type SiteLogoSettings,
+} from "@/lib/admin/imageIntrinsicUse";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ImageSlot } from "./ImageSlot";
+import { useImageIntrinsicCapture, type ImageIntrinsicCapture } from "./useImageIntrinsicCapture";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -23,7 +55,20 @@ interface Props {
   c: WidgetNode["content"];
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
+  /**
+   * Zapisy idące przez pomiar rozmiaru, trzymane przez panel właściwości (żyją
+   * także wtedy, gdy zakładka z edytorem jest zamknięta). Bez nich edytor
+   * prowadzi pomiar sam i wtedy liczą się `widgetId` oraz `isGlobal`.
+   */
+  capture?: ImageIntrinsicCapture;
+  /** Jak `widgetId` haka `useImageIntrinsicCapture` - tylko dla edytora bez `capture`. */
+  widgetId?: string;
+  /** Jak `isGlobal` haka `useImageIntrinsicCapture` - tylko dla edytora bez `capture`. */
+  isGlobal?: boolean;
 }
+
+/** `"1200x675"` -> `"1200 × 675 px"` (podpowiedź pod slotem, bez tłumaczenia). */
+const sizeHint = (size: string) => `${size.replace("x", " × ")} px`;
 
 /** Pola schematu obrazka rysowane przez ten edytor (kolejność = kolejność w UI). */
 const PRESENTATION_KEYS = ["caption", "variant", "objectFit", "ratio"] as const;
@@ -60,11 +105,13 @@ const SITE_LOGO_FIELD: SchemaField | undefined = (WIDGET_SCHEMAS.image ?? []).fi
   (f) => f.key === "useSiteLogo",
 );
 
-export function ImageEditor({ c, lang, setContent }: Props) {
+export function ImageEditor({ c, lang, setContent, capture, widgetId, isGlobal }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
   const src = typeof c.src === "string" ? c.src : "";
   const srcDark = typeof c.srcDark === "string" ? c.srcDark : "";
+  const srcIntrinsic = typeof c.srcIntrinsic === "string" ? c.srcIntrinsic : "";
+  const srcDarkIntrinsic = typeof c.srcDarkIntrinsic === "string" ? c.srcDarkIntrinsic : "";
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
   const altEn = typeof c.alt_en === "string" ? c.alt_en : "";
   const href = typeof c.href === "string" ? c.href : "";
@@ -73,6 +120,38 @@ export function ImageEditor({ c, lang, setContent }: Props) {
   const heightPx = typeof c.heightPx === "number" ? c.heightPx : Number(c.heightPx) || 0;
   const align = (typeof c.align === "string" ? c.align : "center") as "left" | "center" | "right";
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
+
+  // Logo motywu z TEGO SAMEGO cache'u ustawień, z którego rysuje podgląd na
+  // kanwie (bez własnego pobrania): od niego zależy, czy renderer narysuje
+  // własny plik widgetu, czyli czy podpowiedź o braku wymiarów ma sens.
+  const { data: siteSettings } = useQuery({ ...siteSettingsQueryOptions, enabled: false });
+  const siteLogo = resolveSetting<{ logo?: SiteLogoSettings }>(
+    siteSettings,
+    "theme_options",
+    {},
+  ).logo;
+
+  // Pomiar trzyma panel (`capture`); edytor bez panelu uruchamia hak sam.
+  const ownCapture = useImageIntrinsicCapture({
+    enabled: !capture,
+    c,
+    setContent,
+    widgetId,
+    isGlobal,
+  });
+  const { changeSlot, setRenderOption } = capture ?? ownCapture;
+
+  const darkHint = t("builder.imageEditor.slotDarkHint");
+  // Podpowiedź pod slotem: zapisany rozmiar albo - gdy renderer by go użył, a w
+  // treści go nie ma - informacja, że wymiary nie są zapisane: pomiar trwa, nie
+  // udał się, plik nie ma własnej proporcji (SVG) albo wynik przepadł (patrz
+  // "ZNANE OGRANICZENIE" w nagłówku). Slot, którego rozmiaru renderer nie użyje,
+  // zostaje bez tej informacji - tam brak wymiarów niczego nie zmienia.
+  const usedNow = intrinsicSlotUse((key) => c[key], siteLogo);
+  const sizeNote = (slot: ImageFileSlot, stored: string): string =>
+    stored ? sizeHint(stored) : usedNow[slot] ? t("builder.imageEditor.sizeNotStored") : "";
+  const lightSizeNote = sizeNote("src", srcIntrinsic);
+  const darkSizeNote = sizeNote("srcDark", srcDarkIntrinsic);
 
   return (
     <div className="space-y-4">
@@ -123,7 +202,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
           field={SITE_LOGO_FIELD}
           lang={lang}
           content={c}
-          setContent={setContent}
+          setContent={setRenderOption}
         />
       ) : null}
 
@@ -131,15 +210,16 @@ export function ImageEditor({ c, lang, setContent }: Props) {
         label={t("builder.imageEditor.slotLight")}
         icon={<Sun className="w-3.5 h-3.5" />}
         value={src}
-        onChange={(v) => setContent("src", v)}
+        onChange={(v) => changeSlot("src", v)}
+        hint={lightSizeNote || undefined}
       />
 
       <ImageSlot
         label={t("builder.imageEditor.slotDark")}
         icon={<Moon className="w-3.5 h-3.5" />}
         value={srcDark}
-        onChange={(v) => setContent("srcDark", v)}
-        hint={t("builder.imageEditor.slotDarkHint")}
+        onChange={(v) => changeSlot("srcDark", v)}
+        hint={darkSizeNote ? `${darkHint} · ${darkSizeNote}` : darkHint}
       />
 
       <div className="pt-2 border-t border-border space-y-2">
@@ -290,7 +370,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             field={field}
             lang={lang}
             content={c}
-            setContent={setContent}
+            setContent={setRenderOption}
           />
         ))}
       </section>

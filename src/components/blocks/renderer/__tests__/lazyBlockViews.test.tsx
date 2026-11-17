@@ -46,6 +46,8 @@ vi.mock("@/lib/queries/blocks", () => {
     pollBlockQueryOptions: (i: unknown) => opts(["poll", i], () => null),
     calendarBlockQueryOptions: (i: unknown) => opts(["cal", i], () => []),
     calendarTarget: () => ({ year: 2026, month: 8 }),
+    // Atrapa zapytania nie oddaje wierszy, więc żaden dzień nie ma wpisu.
+    calendarFirstPostPerDay: () => new Map(),
     liveBlogEntriesBlockQueryOptions: (i: unknown) => opts(["lb", i], () => []),
   };
 });

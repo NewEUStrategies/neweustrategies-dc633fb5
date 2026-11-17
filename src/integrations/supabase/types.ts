@@ -37028,6 +37028,18 @@ export type Database = {
             Returns: boolean
           }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
+      user_reports_export_my_data: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          details: string
+          id: string
+          reason: string
+          reported_id: string
+          resolved_at: string
+          status: string
+        }[]
+      }
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }
         Returns: number

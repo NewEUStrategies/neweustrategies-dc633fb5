@@ -801,6 +801,28 @@ describe("trasa /qa/$slug - sesja, pytania i odpowiedzi", () => {
     );
   });
 
+  it("PODSUMOWANIE pod stroną najwyższego poziomu linkuje adresem kanonicznym", async () => {
+    // `/post/<slug>` odpowiada 301 na `/<strona-rodzic>/<slug>` - dodatkowy
+    // dokument i dwa odczyty bazy przy kliknięciu. Rodzic jedzie osadzeniem
+    // w tym samym odczycie teasera, więc baner linkuje od razu właściwym adresem.
+    h.sessions = [session({ post_id: SUMMARY_POST_ID, status: "closed" })];
+    h.posts = [
+      {
+        id: SUMMARY_POST_ID,
+        slug: "energetyka-2026-podsumowanie",
+        title_pl: "Energetyka 2026 - podsumowanie",
+        title_en: "Energy 2026 - recap",
+        parent_page: { slug: "analizy", parent_id: null },
+      },
+    ];
+    await mountSession();
+
+    expect(await screen.findByRole("link", { name: /Przeczytaj podsumowanie/ })).toHaveAttribute(
+      "href",
+      "/analizy/energetyka-2026-podsumowanie",
+    );
+  });
+
   it("sesja BEZ podsumowania nie pokazuje pustego banera", async () => {
     await mountSession();
     await screen.findByRole("heading", { level: 1 });

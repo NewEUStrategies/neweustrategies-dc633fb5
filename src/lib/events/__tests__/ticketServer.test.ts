@@ -501,8 +501,23 @@ function ordersTable(rows: readonly PaymentOrderRow[]): (chain: RecordedChain) =
   };
 }
 
+/**
+ * Adres z claimu `email` zweryfikowanego tokenu wołającego - INNY niż
+ * cokolwiek w profilu, żeby asercja dowodziła źródła adresu na bilecie.
+ */
+const SESJA = "anna.sesja@example.org";
+
 describe("loadMyEventTicket", () => {
-  /** Pełny scenariusz czterech odczytów: RSVP -> wydarzenie -> zamówienia -> profil. */
+  /** Log serwera - odmowy odczytów pobocznych mają tu zostawić ślad. */
+  let logBledow: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    logBledow = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    logBledow.mockRestore();
+  });
+
+  /** Pełny scenariusz pięciu odczytów: RSVP -> wydarzenie, zamówienia, profil, zgłoszenie. */
   function ticketScenario(input: {
     rsvp?: { id: string; status: string } | null;
     event?: ReturnType<typeof eventRow> | null;
@@ -519,6 +534,9 @@ describe("loadMyEventTicket", () => {
         : ok("orders" in input ? input.orders : null),
     );
     stub.db.setResponse("profiles", ok(input.profile === undefined ? profileRow() : input.profile));
+    // Brak zgłoszenia (wejście z RSVP) - stan domyślny; przypadki trybu
+    // wejścia podmieniają tę odpowiedź.
+    stub.db.setResponse("event_registrations", ok(null));
     return stub;
   }
 
@@ -565,13 +583,18 @@ describe("loadMyEventTicket", () => {
       ],
     ] as const)("%s -> %s", async (_label, row, entry) => {
       const stub = withRegistration(row);
-      const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      const ticket = await loadMyEventTicket(
+        asClient(stub),
+        EVENT_IDS.user,
+        EVENT_IDS.event,
+        SESJA,
+      );
       expect(ticket?.entry).toBe(entry);
     });
 
     it("zgłoszenie czyta TO wydarzenie, tylko stany z prawem wejścia, najnowsze", async () => {
       const stub = withRegistration(PAID);
-      await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
       const chain = stub.db.lastChain("event_registrations");
       expect(chain?.argsOf("select")?.[0]).toBe(
         "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
@@ -626,7 +649,7 @@ describe("loadMyEventTicket", () => {
       it("tryb wejścia pochodzi z JEGO zgłoszenia, nie z najnowszego cudzego", async () => {
         const stub = ticketScenario({});
         stub.db.setResponse("event_registrations", staffVisibleTable);
-        const ticket = await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event);
+        const ticket = await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event, SESJA);
         // Własne zgłoszenie jest nieopłacone: lista gości, a nie „kod w mailu".
         expect(ticket?.entry).toBe("guest_list");
       });
@@ -634,7 +657,7 @@ describe("loadMyEventTicket", () => {
       it("filtr osoby wołającego idzie DO BAZY (złączenie wewnętrzne po user_id)", async () => {
         const stub = ticketScenario({});
         stub.db.setResponse("event_registrations", staffVisibleTable);
-        await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event);
+        await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event, SESJA);
         const chain = stub.db.lastChain("event_registrations");
         const eqs = chain?.calls.filter((call) => call.method === "eq").map((call) => call.args);
         expect(eqs).toContainEqual(["event_people.user_id", STAFF]);
@@ -646,7 +669,7 @@ describe("loadMyEventTicket", () => {
       it("kontrapunkt: drugi uczestnik nadal widzi SWÓJ kod wysłany mailem", async () => {
         const stub = ticketScenario({});
         stub.db.setResponse("event_registrations", staffVisibleTable);
-        const ticket = await loadMyEventTicket(asClient(stub), OTHER, EVENT_IDS.event);
+        const ticket = await loadMyEventTicket(asClient(stub), OTHER, EVENT_IDS.event, SESJA);
         expect(ticket?.entry).toBe("emailed_qr");
       });
     });
@@ -655,7 +678,7 @@ describe("loadMyEventTicket", () => {
   it("bez wiersza RSVP nie ma biletu", async () => {
     const stub = ticketScenario({ rsvp: null });
     await expect(
-      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event),
+      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
     ).resolves.toBeNull();
   });
 
@@ -667,7 +690,7 @@ describe("loadMyEventTicket", () => {
       // przy wejściu, po podróży.
       const stub = ticketScenario({ rsvp: rsvpRow({ status }) });
       await expect(
-        loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event),
+        loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
       ).resolves.toBeNull();
     },
   );
@@ -675,13 +698,13 @@ describe("loadMyEventTicket", () => {
   it("brak wydarzenia nie daje biletu", async () => {
     const stub = ticketScenario({ event: null });
     await expect(
-      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event),
+      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
     ).resolves.toBeNull();
   });
 
   it("bilet bezpłatny wyprowadza numer z wiersza RSVP i nie ma danych płatności", async () => {
     const stub = ticketScenario({ orders: [] });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket).toMatchObject({
       transactionId: null,
       amountCents: null,
@@ -695,7 +718,7 @@ describe("loadMyEventTicket", () => {
     // Numer biletu jest jednocześnie numerem, który obsługa zestawia z
     // płatnością. Dla biletu płatnego musi wskazywać zamówienie.
     const stub = ticketScenario({ orders: [paymentOrderRow()] });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.order));
     expect(ticket).toMatchObject({
       transactionId: "pi_test_123",
@@ -720,7 +743,7 @@ describe("loadMyEventTicket", () => {
         paymentOrderRow(),
       ],
     });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.transactionId).toBe("pi_test_123");
     expect(ticket?.amountCents).toBe(12000);
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.order));
@@ -741,7 +764,7 @@ describe("loadMyEventTicket", () => {
       }),
     );
     const stub = ticketScenario({ orders: [...newer, paymentOrderRow()] });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.transactionId).toBe("pi_test_123");
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.order));
   });
@@ -760,7 +783,7 @@ describe("loadMyEventTicket", () => {
         }),
       ],
     });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.transactionId).toBe("pi_ponowione");
   });
 
@@ -768,20 +791,20 @@ describe("loadMyEventTicket", () => {
     const stub = ticketScenario({
       orders: [paymentOrderRow({ metadata: { event_id: EVENT_IDS.otherEvent } })],
     });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.transactionId).toBeNull();
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.rsvp));
   });
 
   it("brak zamówienia czyta się jak bilet bezpłatny", async () => {
     const stub = ticketScenario({ orders: null });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.amountCents).toBeNull();
   });
 
   it("filtr wydarzenia, statusu i właściciela idzie DO BAZY, a nie do pamięci", async () => {
     const stub = ticketScenario({});
-    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     const chain = stub.db.lastChain("payment_orders");
     expect(chain?.calls.filter((call) => call.method === "eq").map((call) => call.args)).toEqual([
       ["user_id", EVENT_IDS.user],
@@ -796,22 +819,107 @@ describe("loadMyEventTicket", () => {
 
   it("bez potwierdzonego miejsca nie pyta ani o zamówienie, ani o profil", async () => {
     const stub = ticketScenario({ rsvp: rsvpRow({ status: "waitlist" }) });
-    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(stub.db.chainsFor("payment_orders")).toHaveLength(0);
     expect(stub.db.chainsFor("profiles")).toHaveLength(0);
   });
 
-  it("posiadacza podpisuje imieniem i nazwiskiem", async () => {
+  it("posiadacza podpisuje imieniem i nazwiskiem, a adres bierze z SESJI", async () => {
     const stub = ticketScenario({});
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.holderName).toBe("Anna Kowalska");
-    expect(ticket?.holderEmail).toBe("anna@example.org");
+    expect(ticket?.holderEmail).toBe(SESJA);
+  });
+
+  it("profil pyta WYŁĄCZNIE o kolumny z grantem dla `authenticated` - bez `email`", async () => {
+    // `profiles.email` nie ma grantu SELECT dla `authenticated` (poprawka PII
+    // 20260724090100). Jedna taka kolumna w `select` wywraca CAŁE zapytanie
+    // kodem 42501 - do 17.11.2026 karta i dokument biletu traciły przez to
+    // wiersz posiadacza u KAŻDEGO uczestnika.
+    const stub = ticketScenario({});
+    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
+    const chain = stub.db.lastChain("profiles");
+    expect(chain?.argsOf("select")).toEqual(["first_name, last_name, display_name"]);
+    expect(chain?.argsOf("eq")).toEqual(["id", EVENT_IDS.user]);
+  });
+
+  it("ODMOWA PROFILU (42501) nie gubi posiadacza: adres z sesji zostaje, nazwa znika, log ma ślad", async () => {
+    const stub = ticketScenario({});
+    stub.db.setResponse("profiles", fail("permission denied for table profiles", "42501"));
+
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
+
+    expect(ticket).not.toBeNull();
+    expect(ticket?.holderName).toBeNull();
+    expect(ticket?.holderEmail).toBe(SESJA);
+    expect(logBledow).toHaveBeenCalledWith("[events] my ticket: holder profile lookup failed", {
+      eventId: EVENT_IDS.event,
+      message: "permission denied for table profiles",
+      code: "42501",
+    });
+  });
+
+  it("adres z sesji: spacje i brak claimu dają brak adresu, a nie pusty wiersz", async () => {
+    for (const sesja of [null, "", "   "]) {
+      const stub = ticketScenario({});
+      const ticket = await loadMyEventTicket(
+        asClient(stub),
+        EVENT_IDS.user,
+        EVENT_IDS.event,
+        sesja,
+      );
+      expect(ticket?.holderEmail, JSON.stringify(sesja)).toBeNull();
+    }
+  });
+
+  it("ODMOWA RSVP RZUCA - awaria odczytu nie jest „brakiem biletu”", async () => {
+    const stub = ticketScenario({});
+    stub.db.setResponse("event_rsvps", fail("permission denied for table event_rsvps", "42501"));
+    await expect(
+      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
+    ).rejects.toThrow("permission denied for table event_rsvps");
+  });
+
+  it("ODMOWA WYDARZENIA RZUCA - awaria odczytu nie jest „brakiem wydarzenia”", async () => {
+    const stub = ticketScenario({});
+    stub.db.setResponse("events", fail("permission denied for table events", "42501"));
+    await expect(
+      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
+    ).rejects.toThrow("permission denied for table events");
+  });
+
+  it("ODMOWA ZAMÓWIENIA RZUCA - bilet płatny nie może udawać bezpłatnego z numerem z RSVP", async () => {
+    const stub = ticketScenario({});
+    stub.db.setResponse("payment_orders", fail("permission denied for table payment_orders"));
+    await expect(
+      loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA),
+    ).rejects.toThrow("permission denied for table payment_orders");
+  });
+
+  it("odmowa zgłoszenia degraduje tryb wejścia do listy gości - z wpisem w logu", async () => {
+    const stub = ticketScenario({});
+    stub.db.setResponse("event_registrations", fail("permission denied for table event_people"));
+
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
+
+    expect(ticket?.entry).toBe("guest_list");
+    expect(logBledow).toHaveBeenCalledWith("[events] my ticket: registration lookup failed", {
+      eventId: EVENT_IDS.event,
+      message: "permission denied for table event_people",
+      code: undefined,
+    });
+  });
+
+  it("udane odczyty nie piszą niczego do logu błędów", async () => {
+    const stub = ticketScenario({});
+    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
+    expect(logBledow).not.toHaveBeenCalled();
   });
 
   it("samo imię nie zostawia spacji na końcu nazwiska", async () => {
     const stub = ticketScenario({ profile: profileRow({ last_name: null }) });
     expect(
-      (await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event))?.holderName,
+      (await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA))?.holderName,
     ).toBe("Anna");
   });
 
@@ -820,29 +928,29 @@ describe("loadMyEventTicket", () => {
       profile: profileRow({ first_name: null, last_name: null }),
     });
     expect(
-      (await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event))?.holderName,
+      (await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA))?.holderName,
     ).toBe("anna.k");
   });
 
   it("pusty profil daje bilet bez podpisu, a nie bilet z napisem `null`", async () => {
     const stub = ticketScenario({
-      profile: profileRow({ first_name: null, last_name: null, display_name: null, email: null }),
+      profile: profileRow({ first_name: null, last_name: null, display_name: null }),
     });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, null);
     expect(ticket?.holderName).toBeNull();
     expect(ticket?.holderEmail).toBeNull();
   });
 
   it("brak wiersza profilu nie blokuje wydania biletu", async () => {
     const stub = ticketScenario({ profile: null });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket).not.toBeNull();
     expect(ticket?.holderName).toBeNull();
   });
 
   it("przepisuje opis wydarzenia na bilet", async () => {
     const stub = ticketScenario({});
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket).toMatchObject({
       eventId: EVENT_IDS.event,
       slug: "szczyt-energetyczny",
@@ -859,7 +967,7 @@ describe("loadMyEventTicket", () => {
     const stub = ticketScenario({
       event: eventRow({ slug: "", title_pl: "", title_en: "", timezone: null, location: null }),
     });
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket?.slug).toBe("");
     expect(ticket?.titlePl).toBe("");
     expect(ticket?.timezone).toBeNull();
@@ -884,7 +992,7 @@ describe("loadMyEventTicket", () => {
         location: null,
       }),
     );
-    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event, SESJA);
     expect(ticket).toMatchObject({
       slug: "",
       titlePl: "",

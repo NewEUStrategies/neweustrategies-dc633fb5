@@ -17,6 +17,7 @@ import {
   newsTickerDisplayLimit,
   type TickerPost,
 } from "@/lib/builder/newsTickerQuery";
+import { postHref } from "@/lib/routing/postHref";
 
 /**
  * Rozmiar tytułu wiersza pionowego tickera dla szacunku bylinu: `text-[11px]`,
@@ -109,7 +110,7 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
             aria-hidden={i >= rows.length ? true : undefined}
             inert={i >= rows.length ? true : undefined}
           >
-            <AppLink href={`/post/${p.slug}`} className="cms-post-title whitespace-nowrap">
+            <AppLink href={postHref(p)} className="cms-post-title whitespace-nowrap">
               {title(p)}
             </AppLink>
             <span aria-hidden className="text-muted-foreground/70 select-none">
@@ -157,7 +158,7 @@ function NewsTickerVerticalItem({
 
   return (
     <AppLink
-      href={`/post/${post.slug}`}
+      href={postHref(post)}
       data-author-title-scope={showAuthor ? "" : undefined}
       // Rozmiar tytułu wiersza (klasa niżej) dla szacunku bylinu przed
       // pomiarem - HTML z serwera ma ten sam rozmiar co strona po hydratacji.

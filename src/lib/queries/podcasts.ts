@@ -3,62 +3,22 @@
 // Sieć programów: programy (podcast_shows) -> sezony -> odcinki (podcasts),
 // uczestnicy odcinków (podcast_episode_people) + agregacje na profilu
 // eksperta i stronie specjalizacji (kategorii).
+//
+// Lista najnowszych odcinków (`latestPodcastsQueryOptions`, kolumny karty)
+// i pełna lista kolumn odcinka (`PODCAST_FIELDS`) mieszkają w `./podcastsLatest`
+// - woła je rejestr prefetchu widgetów z chunku startowego. Sekcje „Podcasty"
+// strony autora i strony kategorii/tagu mają własne liście
+// (`./podcastsByProfile`, `./podcastsByCategory`), żeby trafiały do chunków tych
+// stron, a nie do wspólnego chunku tego modułu (przegląd §9.10: dodatkowe
+// żądanie w zestawie startowym /category, /tag, /author). Ten moduł ładują
+// tylko trasy podcastów i panel.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
-
-export const PODCAST_FIELDS =
-  "id,tenant_id,slug,title_pl,title_en,excerpt_pl,excerpt_en,show_notes_pl,show_notes_en,transcript_pl,transcript_en,audio_url,duration_seconds,episode_number,season,cover_image_url,status,published_at,author_id,show_id,category_id,chapters,quotes,resources,explicit,episode_type,created_at,updated_at";
+import { PODCAST_FIELDS } from "./podcastsLatest";
 
 export const PODCAST_SHOW_FIELDS =
   "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_image_url,spotify_url,apple_url,youtube_url,sort_order,status,created_at,updated_at";
-
-/**
- * Kolumny KARTY odcinka na listach (katalog /podcasts, widżet CMS
- * `podcast-latest`) - dokładnie to, co karta renderuje. Bez transkrypcji,
- * notatek i jsonb (do 30 pełnych odcinków w dehydrowanym ładunku SSR) i bez
- * metadanych Apple (`explicit`, `episode_type`), których lista nie czyta.
- * Incydent 2026-10-09: pełne PODCAST_FIELDS kończyło się na produkcji 42703
- * („column podcasts.explicit does not exist", migracja 20260725090500 nigdy
- * nie poszła), więc katalog renderował wyłącznie komunikat awarii.
- */
-export const PODCAST_LIST_FIELDS =
-  "id,slug,title_pl,title_en,excerpt_pl,excerpt_en,audio_url,duration_seconds,episode_number,season,cover_image_url,published_at,show_id";
-
-export type PodcastListItem = Pick<
-  Podcast,
-  | "id"
-  | "slug"
-  | "title_pl"
-  | "title_en"
-  | "excerpt_pl"
-  | "excerpt_en"
-  | "audio_url"
-  | "duration_seconds"
-  | "episode_number"
-  | "season"
-  | "cover_image_url"
-  | "published_at"
-  | "show_id"
->;
-
-export const latestPodcastsQueryOptions = (limit = 8) =>
-  queryOptions({
-    queryKey: ["podcasts", "latest", limit] as const,
-    queryFn: async (): Promise<PodcastListItem[]> => {
-      const { data, error } = await supabase
-        .from("podcasts")
-        .select(PODCAST_LIST_FIELDS)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(Math.max(1, Math.min(limit, 50)));
-      if (error) throw error;
-      // Bez rzutowania: każda kolumna listy jest w wygenerowanych typach.
-      return data ?? [];
-    },
-    staleTime: 60_000,
-  });
 
 export const podcastBySlugQueryOptions = (slug: string) =>
   queryOptions({
@@ -175,6 +135,24 @@ export const showEpisodeStatsQueryOptions = queryOptions({
 });
 
 // ---------- uczestnicy (prowadzący / goście) --------------------------------
+//
+// PROFIL UCZESTNIKA Z `profiles_public`, NIE Z OSADZENIA `profiles(...)`.
+// Do 17.11.2026 wiersze uczestników niosły osadzenie
+// `profiles(slug,display_name,avatar_url)`. Anon ma SELECT wyłącznie na
+// kolumnach profilu, które nie identyfikują osoby (open_to, seeking_*,
+// offering_*, intent_updated_at, completeness_score), więc PostgREST odrzucał
+// CAŁE zapytanie (42501 „permission denied for table profiles"), loader
+// spadał na pustą obsadę (`loadResilient`), a gość widział odcinek i program
+// bez prowadzących i gości. Zalogowany też nie dostawał profilu prowadzącej
+// z innego zakresu RLS - tylko nazwę z wiersza.
+//
+// Publiczna droga do profilu to projekcja `profiles_public` (tą samą czytają
+// autorzy wpisu, katalog ekspertów i awatary podpowiedzi): dla gościa wiersz
+// profilu najemcy hosta z publiczną obecnością
+// (`profile_has_public_presence`), dla zalogowanego dodatkowo profile
+// widoczne w jego najemcy. Uczestnik, którego profilu projekcja nie
+// pokazuje, zostaje z nazwą z wiersza i bez linku - dokładnie tak, jak
+// osadzenie odsiewane przez RLS. Grantów na `profiles` nie otwieramy.
 
 interface PersonRow {
   id: string;
@@ -184,26 +162,72 @@ interface PersonRow {
   role: string;
   url: string | null;
   sort_order: number;
-  profiles: { slug: string | null; display_name: string | null; avatar_url: string | null } | null;
 }
 
-function toPerson(row: PersonRow): PodcastPerson {
+/** Wiersz `profiles_public` - wyłącznie kolumny, które malują trasy podcastów. */
+interface PersonProfile {
+  id: string | null;
+  slug: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+function toPerson(row: PersonRow, profile: PersonProfile | null): PodcastPerson {
   return {
     id: row.id,
     episode_id: row.episode_id,
     profile_id: row.profile_id,
     // Nazwisko z profilu wygrywa, gdy wiersz nie ma własnego nadpisania.
-    display_name: row.display_name || row.profiles?.display_name || "",
+    display_name: row.display_name || profile?.display_name || "",
     role: row.role === "host" ? "host" : "guest",
     url: row.url,
     sort_order: row.sort_order,
-    profile_slug: row.profiles?.slug ?? null,
-    profile_avatar_url: row.profiles?.avatar_url ?? null,
+    profile_slug: profile?.slug ?? null,
+    profile_avatar_url: profile?.avatar_url ?? null,
   };
 }
 
-const PERSON_FIELDS =
-  "id,episode_id,profile_id,display_name,role,url,sort_order,profiles(slug,display_name,avatar_url)";
+const PERSON_FIELDS = "id,episode_id,profile_id,display_name,role,url,sort_order";
+const PERSON_PROFILE_FIELDS = "id, slug, display_name, avatar_url";
+
+/**
+ * Ile identyfikatorów profili jedzie w jednym `.in("id", ...)`. Obsada
+ * całego programu (do 500 odcinków) może mieć setki osób, a lista idzie
+ * w linii żądania - stała porcja trzyma ją w kilku KB niezależnie od
+ * rozmiaru programu.
+ */
+const PERSON_PROFILE_CHUNK = 100;
+
+/**
+ * Dokłada publiczny profil do wierszy uczestników. Odmowa projekcji RZUCA
+ * (jak odczyt autorów wpisu): obsada bez profili to render zdegradowany,
+ * który `loadResilient` w loaderze trasy zdejmuje z cache'u brzegowego, a nie
+ * cicha „obsada bez linków" utrwalona na CDN.
+ */
+async function withPublicProfiles(rows: readonly PersonRow[]): Promise<PodcastPerson[]> {
+  const ids = Array.from(
+    new Set(rows.map((row) => row.profile_id).filter((id): id is string => !!id)),
+  );
+  const profiles = new Map<string, PersonProfile>();
+  const parts: string[][] = [];
+  for (let i = 0; i < ids.length; i += PERSON_PROFILE_CHUNK) {
+    parts.push(ids.slice(i, i + PERSON_PROFILE_CHUNK));
+  }
+  const results = await Promise.all(
+    parts.map((part) =>
+      supabase.from("profiles_public").select(PERSON_PROFILE_FIELDS).in("id", part),
+    ),
+  );
+  for (const { data, error } of results) {
+    if (error) throw error;
+    for (const profile of (data ?? []) as PersonProfile[]) {
+      if (profile.id) profiles.set(profile.id, profile);
+    }
+  }
+  return rows.map((row) =>
+    toPerson(row, row.profile_id ? (profiles.get(row.profile_id) ?? null) : null),
+  );
+}
 
 export const episodePeopleQueryOptions = (episodeId: string) =>
   queryOptions({
@@ -215,7 +239,7 @@ export const episodePeopleQueryOptions = (episodeId: string) =>
         .eq("episode_id", episodeId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return ((data ?? []) as unknown as PersonRow[]).map(toPerson);
+      return withPublicProfiles((data ?? []) as PersonRow[]);
     },
     staleTime: 60_000,
     enabled: !!episodeId,
@@ -233,88 +257,10 @@ export const episodesPeopleQueryOptions = (episodeIds: readonly string[]) =>
         .in("episode_id", episodeIds.slice(0, 500))
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return ((data ?? []) as unknown as PersonRow[]).map(toPerson);
+      return withPublicProfiles((data ?? []) as PersonRow[]);
     },
     staleTime: 60_000,
     enabled: episodeIds.length > 0,
   });
 
 // ---------- agregacje: profil eksperta + specjalizacja ----------------------
-
-/**
- * Odcinki, w których ekspert występuje (prowadzący/gość przez profil) lub
- * których jest autorem. Zasila sekcję "Podcasty" na /author/$slug.
- */
-export const podcastsByProfileQueryOptions = (profileId: string, limit = 12) =>
-  queryOptions({
-    queryKey: ["podcasts", "by-profile", profileId, limit] as const,
-    queryFn: async (): Promise<Podcast[]> => {
-      const { data: people, error: peopleError } = await supabase
-        .from("podcast_episode_people")
-        .select("episode_id")
-        .eq("profile_id", profileId)
-        .limit(200);
-      if (peopleError) throw peopleError;
-      const ids = Array.from(new Set((people ?? []).map((r) => r.episode_id as string)));
-
-      // Dwie gałęzie (występy + autorstwo) zamiast .or() z podzapytaniem,
-      // którego PostgREST nie wspiera dla listy id.
-      const [byRole, byAuthor] = await Promise.all([
-        ids.length
-          ? supabase
-              .from("podcasts")
-              .select(PODCAST_FIELDS)
-              .in("id", ids)
-              .eq("status", "published")
-              .is("deleted_at", null)
-          : Promise.resolve({ data: [], error: null }),
-        supabase
-          .from("podcasts")
-          .select(PODCAST_FIELDS)
-          .eq("author_id", profileId)
-          .eq("status", "published")
-          .is("deleted_at", null)
-          .order("published_at", { ascending: false, nullsFirst: false })
-          .limit(limit),
-      ]);
-      if (byRole.error) throw byRole.error;
-      if (byAuthor.error) throw byAuthor.error;
-
-      const seen = new Set<string>();
-      const merged: Podcast[] = [];
-      for (const row of [
-        ...(byRole.data ?? []),
-        ...(byAuthor.data ?? []),
-      ] as unknown as Podcast[]) {
-        if (seen.has(row.id)) continue;
-        seen.add(row.id);
-        merged.push(row);
-      }
-      merged.sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? ""));
-      return merged.slice(0, limit);
-    },
-    staleTime: 2 * 60_000,
-    enabled: !!profileId,
-  });
-
-/** Odcinki przypięte do specjalizacji (kategorii) - sekcja na /category/$slug. */
-export const podcastsByCategoryQueryOptions = (categoryId: string, limit = 8) =>
-  queryOptions({
-    queryKey: ["podcasts", "by-category", categoryId, limit] as const,
-    queryFn: async (): Promise<Podcast[]> => {
-      const { data, error } = await supabase
-        .from("podcasts")
-        .select(PODCAST_FIELDS)
-        .eq("category_id", categoryId)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(Math.max(1, Math.min(limit, 50)));
-      if (error) throw error;
-      // `as unknown as`: kolumny explicit / episode_type pochodzą z migracji
-      // 20260725090500 i nie ma ich jeszcze w wygenerowanych typach.
-      return (data ?? []) as unknown as Podcast[];
-    },
-    staleTime: 2 * 60_000,
-    enabled: !!categoryId,
-  });

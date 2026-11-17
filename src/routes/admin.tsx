@@ -24,7 +24,7 @@ import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import adminCss from "@/admin-styles.css?url";
 
 /** Polityka dokumentu panelu - stała modułu, żeby nie liczyć jej co żądanie. */
-const NO_STORE = cacheControlHeader({ cacheable: false });
+const NO_STORE = /* @__PURE__ */ cacheControlHeader({ cacheable: false });
 
 export const Route = createFileRoute("/admin")({
   // SSR SZKIELETU, NIE PANELU (audyt CWV 2026-09-20: F32, plan 3.13).
@@ -61,7 +61,7 @@ export const Route = createFileRoute("/admin")({
     // tę samą intencję wprost, żeby nie zależeć od kolejności middleware: od tej
     // zmiany dokument NIESIE HTML szkieletu, więc zakaz musi stać na drucie
     // niezależnie od tego, która warstwa go wypowie pierwsza.
-    setCacheControlHeader(NO_STORE);
+    if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
     // KOTWIC SŁOWNIKÓW ADMINA TU NIE MA - I NIE WOLNO IM TU WRÓCIĆ.
     // Powód i miejsce docelowe: `AdminSession` niżej. Bramka: `i18n-admin-core`
     // i `i18n-admin-extras` w `HEAVY_DICTIONARIES` (scripts/check-entry-purity.ts).

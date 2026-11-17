@@ -5,14 +5,27 @@ import {
   renderedMediaUrl,
   RESPONSIVE_WIDTHS,
 } from "@/lib/cropSizes";
+import type { IntrinsicSize } from "@/lib/media/intrinsicSize";
 
 export type HoverEffect = "none" | "zoom" | "fade" | "slide";
 
 type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" | "decoding"> & {
   src: string;
   alt: string;
+  /**
+   * `width` + `height` WYMUSZAJĄ proporcję układu: oprócz atrybutów dają
+   * inline `aspect-ratio` na obrazie, zaślepce błędu i opakowaniu efektu hover.
+   */
   width?: number;
   height?: number;
+  /**
+   * Naturalny rozmiar PLIKU: wyłącznie atrybuty `width`/`height`, bez żadnego
+   * CSS. Przeglądarka rezerwuje z nich pole przed pobraniem (`aspect-ratio:
+   * auto W / H`), a po pobraniu wygrywa realna proporcja pliku, więc wartość
+   * nieaktualna nie zniekształca obrazu trwale i nie nadpisuje klas proporcji
+   * (np. `aspect-square`). Jawne `width`/`height` mają pierwszeństwo.
+   */
+  intrinsicSize?: IntrinsicSize | null;
   priority?: boolean;
   aspectRatio?: number;
   fadeIn?: boolean;
@@ -49,6 +62,7 @@ export function OptimizedImage({
   alt,
   width,
   height,
+  intrinsicSize,
   priority = false,
   aspectRatio,
   fadeIn = true,
@@ -132,8 +146,8 @@ export function OptimizedImage({
       // `sizes` bez `srcset` nic nie robi (P3.2a) - same bajty w HTML-u.
       sizes={srcSet ? `${!priority && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}` : undefined}
       alt={alt}
-      width={width}
-      height={height}
+      width={width ?? intrinsicSize?.width}
+      height={height ?? intrinsicSize?.height}
       loading={priority ? "eager" : "lazy"}
       // async także dla priority: sync potrafi blokować główny wątek na czas
       // dekodowania hero-coveru; eager + fetchPriority=high w pełni ustawiają

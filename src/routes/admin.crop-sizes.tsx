@@ -21,7 +21,7 @@ import {
   deleteCropSize,
   type CropSize,
   type CropSizeDraft,
-} from "@/lib/cropSizes";
+} from "@/lib/cropSizesAdmin";
 
 import { confirmDialog } from "@/lib/appDialogs";
 export const Route = createFileRoute("/admin/crop-sizes")({

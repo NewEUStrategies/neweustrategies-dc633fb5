@@ -40,8 +40,8 @@ vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
   ),
 }));
 
-vi.mock("@/lib/builder/globalWidgets", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgets")>();
+vi.mock("@/lib/builder/globalWidgetsAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/globalWidgetsAdmin")>();
   return { ...actual, useGlobalWidgets: () => ({ items: h.widgets }) };
 });
 vi.mock("@/lib/builder/popups", async (importOriginal) => {

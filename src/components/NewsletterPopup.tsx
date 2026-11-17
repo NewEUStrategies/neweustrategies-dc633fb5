@@ -30,7 +30,7 @@ import {
   popupPaletteVars,
   resolvePopupDesign,
   resolvePopupPalette,
-} from "@/lib/newsletter/popupDesign";
+} from "@/lib/newsletter/popupDesignResolve";
 
 const LS_KEY = "nl_popup_last";
 

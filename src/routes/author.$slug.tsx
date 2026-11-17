@@ -47,7 +47,7 @@ import {
   isPaginatedAuthorHubView,
   parseAuthorHubSearch,
 } from "@/lib/experts/materialsSearch";
-import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
+import { podcastsByProfileQueryOptions } from "@/lib/queries/podcastsByProfile";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -78,7 +78,7 @@ import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import type { ExpertHubData } from "@/lib/experts/types";
 
-const NO_STORE = contentCacheControl({ preview: true });
+const NO_STORE = /* @__PURE__ */ contentCacheControl({ preview: true });
 
 /**
  * Fallback zapytania tożsamościowego. `null` jest tu WYŁĄCZNIE wartością
@@ -183,7 +183,7 @@ export const Route = createFileRoute("/author/$slug")({
       { deadlineAt, label: `expert-hub:${params.slug}` },
     );
     if (identity.degraded) {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       return {
         hub: null,
         degraded: true,
@@ -221,7 +221,7 @@ export const Route = createFileRoute("/author/$slug")({
       throw redirect({ to: "/people/$slug", params: { slug: params.slug }, statusCode: 301 });
     }
     if (!data) {
-      setCacheControlHeader(NO_STORE);
+      if (import.meta.env.SSR || import.meta.env.DEV) setCacheControlHeader(NO_STORE);
       // W PRZEGLĄDARCE werdykt policzono już z sesją czytelnika (bearer
       // dokleja `attachSupabaseAuth`), więc `AuthorHubNotFound` nie pyta tego
       // samego czytelnika drugi raz. Werdykt SSR jest anonimowy, a brak
@@ -264,7 +264,9 @@ export const Route = createFileRoute("/author/$slug")({
     // POD TERMINEM - gołe `await` na tej obietnicy trzymało TTFB aż do
     // watchdoga SSR, bo `try/catch` broni przed błędem, nie przed zwisem.
     await withBudget(materialsPromise, AUTHOR_HUB_SSR_BUDGET_MS, deadlineAt);
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
     const materials =
+      (import.meta.env.SSR || import.meta.env.DEV) &&
       context.queryClient.getQueryState(materialsOptions.queryKey)?.status !== "success";
     // Non-indexable profile robots still share the same cacheable shell.
     // `resilientCacheControl` zamiast ręcznego warunku (2026-09-13): wartość
@@ -273,9 +275,10 @@ export const Route = createFileRoute("/author/$slug")({
     // ternar przepuszczał też wersję ODWRÓCONĄ (patrz recenzja PR #357, P2).
     // Brak werdyktu o roli autora też degraduje: hub bez pewności, że nie
     // należy się 301, nie może zostać rozdany z brzegu kolejnym czytelnikom.
-    setCacheControlHeader(
-      resilientCacheControl(materials || layout.degraded || authorRole.verdict === null),
-    );
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        resilientCacheControl(materials || layout.degraded || authorRole.verdict === null),
+      );
     return {
       hub: data,
       degraded: false,

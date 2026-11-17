@@ -34,9 +34,11 @@ function main(): void {
   const elapsed = `${((Date.now() - started) / 1000).toFixed(2)} s`;
   const c = facts.coverage;
   const summary =
-    `kontrakt TS <-> SQL: ${facts.rpcs.length} wywołań RPC, ${facts.tables.length} operacji na tabelach, ` +
+    `kontrakt TS <-> SQL: ${facts.rpcs.length} wywołań RPC, ${facts.tables.length} operacji na tabelach ` +
+    `(+${facts.withheld.length} wstrzymanych w przeglądzie: bez uprawnień), ` +
     `${facts.literals.length} literałów, ${facts.conflicts.length} celów onConflict, ` +
-    `${facts.publicColumns.length} stałych kolumn publicznych (${c.files} plików, ${elapsed})`;
+    `${facts.publicColumns.length} stałych kolumn publicznych (${c.files} plików, ` +
+    `${c.parseErrors.length} z błędami składni, ${elapsed})`;
 
   const problems = seamCoverageProblems(facts);
   if (process.argv.includes("--check")) {

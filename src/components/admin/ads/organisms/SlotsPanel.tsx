@@ -19,13 +19,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminToast } from "@/lib/adminToasts";
-import {
-  AD_SLOT_KIND_LABEL_KEYS,
-  adTargetingToJson,
-  parseAdTargeting,
-  type AdSlot,
-  type AdSlotKind,
-} from "@/lib/ads/types";
+import { parseAdTargeting, type AdSlot, type AdSlotKind } from "@/lib/ads/types";
+import { AD_SLOT_KIND_LABEL_KEYS, adTargetingToJson } from "@/lib/ads/adminFields";
 import { fetchAdminAdSlots } from "@/lib/ads/adminSlots";
 import { emptySlot } from "../model";
 import { TargetingEditor } from "../molecules/TargetingEditor";

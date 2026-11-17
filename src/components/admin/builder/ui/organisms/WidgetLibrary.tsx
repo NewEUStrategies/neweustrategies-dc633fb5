@@ -29,7 +29,8 @@ import {
   starterName,
   type StarterTemplate,
 } from "@/lib/builder/starterTemplates";
-import { useGlobalWidgets, type GlobalWidget } from "@/lib/builder/globalWidgets";
+import type { GlobalWidget } from "@/lib/builder/globalWidgets";
+import { useGlobalWidgets } from "@/lib/builder/globalWidgetsAdmin";
 import { GLOBAL_WIDGET_MIME, CONTAINER_MIME } from "./builder/VisualCanvas";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 import { StructurePicker } from "./StructurePicker";

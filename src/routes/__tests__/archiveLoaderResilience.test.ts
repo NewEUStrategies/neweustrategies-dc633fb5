@@ -242,6 +242,22 @@ describe("/category/$slug - odporność loadera", () => {
     expect(storedByEdge(h.cacheControl[0])).toBe(true);
   });
 
+  it("padnięta SEKCJA WYRÓŻNIONA zostawia listę i krótką politykę brzegu (nie `no-store`, nie politykę treści)", async () => {
+    // Do 17.11.2026 odmowa odczytu szablonu wyróżnionego odrzucała CAŁE
+    // archiwum (goście dostawali komunikat zamiast listy). Teraz archiwum
+    // przychodzi bez sekcji z flagą `featured_section_degraded`: treść jest
+    // prawdziwa, brakuje dodatku redakcji - to stan „kompletny, krótko".
+    h.archive = {
+      ...TAXONOMY,
+      taxonomy: { ...TAXONOMY.taxonomy, featured_section: null, featured_section_degraded: true },
+    };
+    const data = await runLoader(CategoryRoute);
+    expect(data.degraded).toBe(false);
+    expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
+    expect(h.cacheControl).toEqual([chromeDegradedCacheControl()]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(true);
+  });
+
   it("czysty odczyt nie melduje degradacji layoutu", async () => {
     // Kontrola negatywna dla przypadku wyżej: gdyby `layoutDegraded` było
     // stale `true`, tamten test przechodziłby bez żadnego zwisu.
@@ -282,6 +298,17 @@ describe("/tag/$slug - odporność loadera", () => {
     expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
     expect(h.cacheControl).toEqual([chromeDegradedCacheControl()]);
     expect(storedByEdge(h.cacheControl[0])).toBe(true);
+  });
+
+  it("padnięta SEKCJA WYRÓŻNIONA tagu: lista zostaje, brzeg dostaje krótką politykę", async () => {
+    h.archive = {
+      ...TAXONOMY,
+      taxonomy: { ...TAXONOMY.taxonomy, featured_section: null, featured_section_degraded: true },
+    };
+    const data = await runLoader(TagRoute, "nato");
+    expect(data.degraded).toBe(false);
+    expect(data.posts.map((post) => post.slug)).toEqual(["pkb-2026", "inflacja-2026"]);
+    expect(h.cacheControl).toEqual([chromeDegradedCacheControl()]);
   });
 
   it("brak taksonomii tagu kończy się 404, które nie utrwala się na brzegu", async () => {

@@ -13,7 +13,7 @@
 // obiektu, który renderuje kanwa. Dopisanie nowego pola do `PLACEHOLDER_POST_CTX`
 // automatycznie rozszerza zakres bramki - lista nie może się rozjechać ze
 // źródłem, bo nie jest osobną listą.
-import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContextPreview";
 
 /**
  * Napisy zbyt krótkie albo zbyt ogólne, by ich obecność w HTML-u cokolwiek

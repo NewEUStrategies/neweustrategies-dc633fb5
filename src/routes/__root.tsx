@@ -96,7 +96,6 @@ import { PublicNotFound } from "@/components/molecules/PublicNotFound";
 import { LazyFriendlyErrorPage } from "../components/error/LazyFriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
-import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
@@ -751,23 +750,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // ten sam dla PL i EN (jeden font, P3.2b); jedyny wpis zależny od języka
     // to chunk słownika niżej, a dokumenty są keyowane ścieżką z prefiksem
     // języka, więc wpis cache nigdy nie niesie cudzych hintów.
-    const renderLang = currentLang();
-    for (const value of rootLinkHeaderValues(ROOT_ASSETS)) {
-      appendLinkHeader(value);
+    if (import.meta.env.SSR || import.meta.env.DEV) {
+      const renderLang = currentLang();
+      for (const value of rootLinkHeaderValues(ROOT_ASSETS)) {
+        appendLinkHeader(value);
+      }
+      // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
+      // `<link>`-iem w `<head>`. Nazwa pliku jest znana tylko w środowisku
+      // serwerowym (bundel przeglądarki wczytuje moduł wirtualny, zanim chunki
+      // dostaną nazwy), więc węzeł w `<head>` byłby rozjazdem tożsamości korzenia
+      // dokumentu. Pełne uzasadnienie: `lib/seo/rootHead.ts` przy
+      // `dictionaryPreloadLinkHeaderValue` i nagłówek
+      // `scripts/lib/localeChunkPlugin.ts`.
+      // OD P2.1 hint modułu z loadera trafia do zestawu bootu (`#nes-boot-set`,
+      // `lib/boot/bootSet.server.ts` czyta akumulator `Link` w dehydratacji):
+      // dokument po LCP (`/`, `/$`) nie niesie go w odpowiedzi, dokument `now`
+      // niesie go razem z całą serią (`lib/http/frameworkPreloads.server.ts`).
+      const dictionaryHint = dictionaryPreloadLinkHeaderValue(LOCALE_CHUNK_URLS[renderLang]);
+      if (dictionaryHint) appendLinkHeader(dictionaryHint);
     }
-    // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
-    // `<link>`-iem w `<head>`. Nazwa pliku jest znana tylko w środowisku
-    // serwerowym (bundel przeglądarki wczytuje moduł wirtualny, zanim chunki
-    // dostaną nazwy), więc węzeł w `<head>` byłby rozjazdem tożsamości korzenia
-    // dokumentu. Pełne uzasadnienie: `lib/seo/rootHead.ts` przy
-    // `dictionaryPreloadLinkHeaderValue` i nagłówek
-    // `scripts/lib/localeChunkPlugin.ts`.
-    // OD P2.1 hint modułu z loadera trafia do zestawu bootu (`#nes-boot-set`,
-    // `lib/boot/bootSet.server.ts` czyta akumulator `Link` w dehydratacji):
-    // dokument po LCP (`/`, `/$`) nie niesie go w odpowiedzi, dokument `now`
-    // niesie go razem z całą serią (`lib/http/frameworkPreloads.server.ts`).
-    const dictionaryHint = dictionaryPreloadLinkHeaderValue(LOCALE_CHUNK_URLS[renderLang]);
-    if (dictionaryHint) appendLinkHeader(dictionaryHint);
     // Warm site_settings + design tokens / global colors / post-layout so
     // <DesignTokensStyle />, <ContentAreaStyle /> and friends render their
     // `<style>` server-side. Without this the first paint uses raw styles.css
@@ -898,7 +899,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         fontScaleQueryOptions.queryKey,
       ]) {
         if (!hasSsrQueryData(context.queryClient, queryKey)) {
-          setCacheControlHeader(resilientCacheControl(true));
+          if (import.meta.env.SSR || import.meta.env.DEV)
+            setCacheControlHeader(resilientCacheControl(true));
           await context.queryClient.cancelQueries({ queryKey, exact: true }).catch(() => undefined);
         }
       }
@@ -906,7 +908,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // Termin chrome-only minął bez ustawień: nagłówek pójdzie na domyślnych
     // (zasiew niżej), a taki dokument nie ma prawa utrwalić się na brzegu.
     if (chromeOnly && !hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey)) {
-      setCacheControlHeader(resilientCacheControl(true));
+      if (import.meta.env.SSR || import.meta.env.DEV)
+        setCacheControlHeader(resilientCacheControl(true));
     }
     // `updatedAt: 0` - zasiew MUSI rodzić się PRZETERMINOWANY.
     //
@@ -1002,7 +1005,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // Chunki leniwych widgetów nagłówka: hinty modułów idą do serii bootu (ta sama
         // droga co słownik wyżej), więc nagłówek po boocie po LCP ma swoje widgety
         // w tym samym burście co wejście - warunek CLS 0 (werdykt boot-js C3).
-        if (isServer && headerVisible && header.builder_data) {
+        if (
+          (import.meta.env.SSR || import.meta.env.DEV) &&
+          isServer &&
+          headerVisible &&
+          header.builder_data
+        ) {
           for (const hint of widgetPreloadHeaders(header.builder_data, 3)) appendLinkHeader(hint);
         }
         const chromeQueryKeys: QueryKey[] = [
@@ -1124,10 +1132,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // będzie kompletny - wolno go współdzielić KRÓTKO (s-maxage=30);
           // `failed` = rozgrzewka padła albo budżet wyczerpany - `no-store`.
           // Scalenie w `setCacheControlHeader` gwarantuje, że ostrzejsza wygrywa.
-          markDegraded: (kind) =>
-            setCacheControlHeader(
-              kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
-            ),
+          markDegraded: (kind) => {
+            if (import.meta.env.SSR || import.meta.env.DEV) {
+              setCacheControlHeader(
+                kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
+              );
+            }
+          },
           // STRONA GŁÓWNA PO TERMINIE (P3.6b, R2c): `warm` niżej jest związane
           // wspólnym terminem dokumentu (`chromeBudget`, `homeDeadline`), więc po
           // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
@@ -1195,7 +1206,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         }
       } catch {
         /* chrome warm-up is best-effort decoration - never let it block the site */
-        setCacheControlHeader(resilientCacheControl(true));
+        if (import.meta.env.SSR || import.meta.env.DEV)
+          setCacheControlHeader(resilientCacheControl(true));
       }
     }
     // Jedyne, co czyta loaderData korzenia: strumień GA4 dla tagu Google w
@@ -1622,7 +1634,6 @@ function RootComponent() {
       <ClientObservability />
       <ThemeProvider>
         <AuthProvider>
-          <IconPackSync />
           <AuthenticatedLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />

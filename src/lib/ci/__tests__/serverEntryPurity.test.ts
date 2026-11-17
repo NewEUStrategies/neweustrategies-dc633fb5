@@ -6,9 +6,11 @@ import {
   analyzeServerEntryPurity,
   clientOnlyRouteComponents,
   CLIENT_ONLY_ROUTE_PREFIXES,
+  documentBaselineChunks,
   renderServerEntryPurityReport,
   resolveChunkPath,
   serverEntryPurityFailed,
+  ssrFalseRoutePaths,
   startEntryLoaders,
   startupChunks,
   staticImportersOfChunk,
@@ -20,6 +22,13 @@ import {
 } from "@/lib/ci/serverEntryPurity";
 
 const STRIPE_RULE = LAZY_ONLY_PACKAGES[0];
+/**
+ * Testy reguł Stripe, jednej kopii aplikacji i zaślepek biorą samą regułę Stripe - ich
+ * artefakty-atrapy nie niosą chunku SDK MCP, którego pilnuje druga reguła listy (własny
+ * blok „domknięcie pierwszego dokumentu").
+ */
+const STRIPE_RULES = [STRIPE_RULE];
+const MCP_RULE = LAZY_ONLY_PACKAGES[1];
 
 /** Artefakt, w którym SDK jedzie wyłącznie przez `import()`. */
 const CZYSTE: ServerChunk[] = [
@@ -88,7 +97,7 @@ function analiza(chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) {
   return analyzeServerEntryPurity({
     chunks: chunks.length > 0 ? [...chunks, LOADER, TRASA_PANELU, ZASLEPKA] : chunks,
     sources,
-    lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+    lazyOnlyPackages: STRIPE_RULES,
     frozenRules: FROZEN_STATIC_IMPORTERS,
   });
 }
@@ -251,7 +260,7 @@ describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
     analyzeServerEntryPurity({
       chunks,
       sources: ZRODLA,
-      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      lazyOnlyPackages: STRIPE_RULES,
       frozenRules: FROZEN_STATIC_IMPORTERS,
     });
 
@@ -299,18 +308,114 @@ describe("serverEntryPurity - jedna kopia aplikacji w artefakcie", () => {
   });
 });
 
-describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydratacji", () => {
-  const surowa = (chunks: ServerChunk[]) =>
+describe("serverEntryPurity - domknięcie pierwszego dokumentu", () => {
+  // Kształt artefaktu z 2026-11-15: wejście Workera dociąga wrapper SSR przez `import()`,
+  // loader wejść Start ładuje router i start, a router importuje `zod` statycznie i SDK MCP
+  // przez fasadę `import()`.
+  const WEJSCIE: ServerChunk = {
+    path: "index.mjs",
+    source: "const r=()=>import(`./_ssr/server-LLL.mjs`);export{r as default};",
+  };
+  const ROUTER: ServerChunk = {
+    path: "_ssr/router-RRR.mjs",
+    source: 'import{z}from"../_libs/zod.mjs";const h=()=>import(`../_libs/_5.mjs`);export{h,z};',
+  };
+  const START: ServerChunk = { path: "_ssr/start-SSS.mjs", source: "export{};" };
+  const ADAPTERY: ServerChunk = { path: "_ssr/empty-plugin-adapters-PPP.mjs", source: "export{};" };
+  const ZOD: ServerChunk = { path: "_libs/zod.mjs", source: "const z=1;export{z};" };
+  const FASADA: ServerChunk = {
+    path: "_libs/_5.mjs",
+    source: 'export*from"./@lovable.dev/mcp-js+[...].mjs";',
+  };
+  const SDK: ServerChunk = {
+    path: "_libs/@lovable.dev/mcp-js+[...].mjs",
+    source: 'import{z}from"../zod.mjs";const m=z;export{m};',
+  };
+  const CZYSTY_UKLAD = [WEJSCIE, LOADER, ROUTER, START, ADAPTERY, ZOD, FASADA, SDK];
+  /** Układ sprzed naprawy: `zod` w chunku SDK, więc router importuje chunk SDK statycznie. */
+  const ZOD_W_SDK = [
+    WEJSCIE,
+    LOADER,
+    {
+      path: ROUTER.path,
+      source:
+        'import{z}from"../_libs/@lovable.dev/mcp-js+[...].mjs";const h=()=>import(`../_libs/_5.mjs`);export{h,z};',
+    },
+    START,
+    ADAPTERY,
+    FASADA,
+    { path: SDK.path, source: "const z=1,m=z;export{m,z};" },
+  ];
+  const mcp = (chunks: ServerChunk[]) =>
     analyzeServerEntryPurity({
-      chunks: [...CZYSTE, LOADER, ...chunks],
+      chunks: [...chunks, TRASA_PANELU, ZASLEPKA],
       sources: ZRODLA,
-      lazyOnlyPackages: LAZY_ONLY_PACKAGES,
+      lazyOnlyPackages: [MCP_RULE],
       frozenRules: FROZEN_STATIC_IMPORTERS,
     });
 
+  it("to loader wejść, chunk routera i chunk startu z ich statycznymi zależnościami", () => {
+    expect([...documentBaselineChunks(CZYSTY_UKLAD)].sort()).toEqual([
+      "_libs/zod.mjs",
+      "_ssr/router-RRR.mjs",
+      "_ssr/server-LLL.mjs",
+      "_ssr/start-SSS.mjs",
+    ]);
+    // Trzeci `import()` loadera (adaptery wtyczek) i fasada SDK są leniwe - poza domknięciem.
+    expect(documentBaselineChunks(CZYSTY_UKLAD).has(FASADA.path)).toBe(false);
+    expect(documentBaselineChunks(CZYSTY_UKLAD).has(SDK.path)).toBe(false);
+  });
+
+  it("bez loadera wejść domknięcie jest puste - skan zgłasza to regułą jednej kopii", () => {
+    expect(documentBaselineChunks([WEJSCIE, ROUTER, START, ZOD]).size).toBe(0);
+    expect(mcp([WEJSCIE, ROUTER, START, ZOD, FASADA, SDK]).startEntryLoaders).toEqual([]);
+  });
+
+  it("SDK MCP za fasadą `import()` przechodzi i podaje liczbę plików domknięcia", () => {
+    const report = mcp(CZYSTY_UKLAD);
+    expect(report.documentBaselineChunks).toBe(4);
+    expect(report.lazyOnly).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("paczka współdzielona w chunku SDK oblewa, choć korzenie startu jej nie widzą", () => {
+    // Router wchodzi do grafu przez `import()`, więc nie jest korzeniem bez importerów -
+    // reguła licząca wyłącznie start (stan do 2026-11-15) przepuszczała ten artefakt.
+    expect(startupChunks(ZOD_W_SDK).has(ROUTER.path)).toBe(false);
+    const report = mcp(ZOD_W_SDK);
+    expect(report.lazyOnly.map((violation) => violation.importers)).toEqual([[ROUTER.path]]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("ładowanych przy starcie albo z pierwszym dokumentem");
+    expect(text).toContain("    _ssr/router-RRR.mjs");
+    expect(text).toContain("scripts/lib/serverVendorChunks.ts");
+  });
+
+  it("lista reguł pilnuje chunku SDK MCP pod nazwą, którą nadaje mu Nitro", () => {
+    expect(LAZY_ONLY_PACKAGES.map((pkg) => pkg.chunk)).toEqual([
+      "_libs/stripe.mjs",
+      "_libs/@lovable.dev/mcp-js+[...].mjs",
+    ]);
+    const brak = mcp([WEJSCIE, LOADER, ROUTER, START, ADAPTERY, ZOD]);
+    expect(brak.missingChunks.map((pkg) => pkg.chunk)).toEqual([MCP_RULE.chunk]);
+    expect(serverEntryPurityFailed(brak)).toBe(true);
+  });
+});
+
+describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydratacji", () => {
+  const surowa = (chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) =>
+    analyzeServerEntryPurity({
+      chunks: [...CZYSTE, LOADER, ...chunks],
+      sources,
+      lazyOnlyPackages: STRIPE_RULES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+  /** Raport reguły zaślepek dla jednej trasy panelu z zaślepką i niczym więcej. */
+  const JEDNA_ZASLEPKA = { checked: 1, heavy: [], unresolved: [], missing: [], unexpected: [] };
+
   it("zaślepka komponentu trasy panelu przechodzi", () => {
     const report = surowa([TRASA_PANELU, ZASLEPKA]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
     expect(serverEntryPurityFailed(report)).toBe(false);
   });
 
@@ -346,7 +451,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
   });
 
   it("węzły błędu i 404 trasy panelu też muszą być zaślepką; loader nie jest sprawdzany", () => {
@@ -377,7 +482,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
       TRASA_PANELU,
       ZASLEPKA,
     ]);
-    expect(report.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(report.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
   });
 
   it("importer wyciągnięty przez Oxc do zmiennej też jest sprawdzany (przegląd PR #534)", () => {
@@ -388,7 +493,7 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
         "var x=1,am=()=>import(`./admin.coupons-H.mjs`),lm=()=>import(`./admin.kokpit-K.mjs`);var Q=C(`/admin/coupons`)({validateSearch:e=>e,component:T(am,`component`)}),R=C(`/admin/kokpit`)({loader:L(lm,`loader`),component:T(lm,`component`)});",
     };
     const zaslepka = surowa([trasa, { path: "_ssr/admin.coupons-H.mjs", source: ZASLEPKA.source }]);
-    expect(zaslepka.clientOnlyComponents).toEqual({ checked: 1, heavy: [], unresolved: [] });
+    expect(zaslepka.clientOnlyComponents).toEqual(JEDNA_ZASLEPKA);
     const pelny = surowa([
       trasa,
       { path: "_ssr/admin.coupons-H.mjs", source: "w".repeat(53_228) },
@@ -422,9 +527,196 @@ describe("serverEntryPurity - komponenty tras renderowanych wyłącznie po hydra
     expect(renderServerEntryPurityReport(report)).toContain("nie znaleziono komponentów tras");
   });
 
-  it("prefiks reguły to `/admin/` - layout `/admin` renderuje szkielet na serwerze", () => {
-    expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/"]);
+  it("prefiksy reguły to `/admin/` i `/profile/` - same layouty renderują się na serwerze", () => {
+    expect(CLIENT_ONLY_ROUTE_PREFIXES).toEqual(["/admin/", "/profile/"]);
     expect(clientOnlyRouteComponents([TRASA_PANELU, ZASLEPKA]).checked).toBe(1);
+  });
+
+  it("podstrony `/profile/*` muszą być zaślepką; layout `/profile` i `/profile_/…` nie", () => {
+    const profil: ServerChunk = {
+      path: "_ssr/routes-PRF.mjs",
+      source:
+        "var P=S(`/profile`)({component:w(()=>import(`./profile-L.mjs`),`component`)}),I=S(`/profile/`)({component:w(()=>import(`./profile.index-I.mjs`),`component`)}),E=S(`/profile/edit`)({component:w(()=>import(`./profile.edit-E.mjs`),`component`)}),O=S(`/profile_/portal`)({component:w(()=>import(`./profile_.portal-O.mjs`),`component`)});",
+    };
+    const report = surowa([
+      profil,
+      { path: "_ssr/profile-L.mjs", source: "l".repeat(10_510) },
+      { path: "_ssr/profile.index-I.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/profile.edit-E.mjs", source: "e".repeat(86_815) },
+      { path: "_ssr/profile_.portal-O.mjs", source: "o".repeat(3_000) },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(2);
+    expect(report.clientOnlyComponents.heavy).toEqual([
+      { route: "/profile/edit", chunk: "_ssr/profile.edit-E.mjs", bytes: 86_815 },
+    ]);
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
+  });
+});
+
+describe("serverEntryPurity - trasy z `ssr: false` i kontrola zwrotna zaślepek", () => {
+  /** Źródło trasy skanera: `ssr: false` jako opcja trasy (komentarze już wymaskowane). */
+  const ZRODLO_SKANERA: SourceFile = {
+    path: "src/routes/scanner.tsx",
+    source:
+      'export const Route = createFileRoute("/scanner")({\n  ssr: false,\n  component: ScannerRoute,\n});',
+  };
+  const ZRODLA_SSR = [...ZRODLA, ZRODLO_SKANERA];
+  /** Trasa po Oxc: `ssr:!1`, komponent i wspólna grupa błędu i 404. */
+  const TRASA_SKANERA: ServerChunk = {
+    path: "_ssr/routes-SCN.mjs",
+    source:
+      "var Sc=S(`/scanner`)({ssr:!1,component:w(()=>import(`./scanner-C.mjs`),`component`),errorComponent:w(()=>import(`./scanner-E.mjs`),`errorComponent`),notFoundComponent:w(()=>import(`./scanner-E.mjs`),`notFoundComponent`)});export{Sc};",
+  };
+  const ZASLEPKA_BLEDU =
+    "function e(){return null}export{e as errorComponent,e as notFoundComponent};";
+  const analiza = (chunks: ServerChunk[], sources: SourceFile[] = ZRODLA_SSR) =>
+    analyzeServerEntryPurity({
+      chunks: [...CZYSTE, LOADER, TRASA_PANELU, ZASLEPKA, ...chunks],
+      sources,
+      lazyOnlyPackages: STRIPE_RULES,
+      frozenRules: FROZEN_STATIC_IMPORTERS,
+    });
+
+  it("listę tras bierze ze źródeł: opcja trasy tak, komentarz, test i plik spoza tras nie", () => {
+    expect(
+      ssrFalseRoutePaths([
+        ZRODLO_SKANERA,
+        {
+          path: "src/routes/events.$slug_.ticket.tsx",
+          source:
+            'export const Route = createFileRoute("/events/$slug_/ticket")({\n  head: () => ({}),\n  ssr: false,\n});',
+        },
+        {
+          // `bezKomentarzy` zamienia komentarz na spacje - linia nie zaczyna się od `  ssr`.
+          path: "src/routes/admin.tsx",
+          source:
+            'export const Route = createFileRoute("/admin")({\n                        \n  component: A,\n});',
+        },
+        {
+          path: "src/routes/__tests__/scannerRoute.test.tsx",
+          source: 'createFileRoute("/atrapa")({\n  ssr: false,\n});',
+        },
+        { path: "src/lib/x.ts", source: 'createFileRoute("/nie-trasa")({\n  ssr: false,\n});' },
+      ]),
+    ).toEqual(["/events/$slug_/ticket", "/scanner"]);
+  });
+
+  it("komponent oraz grupa błędu i 404 trasy z `ssr: false` pod zaślepką przechodzą", () => {
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+    ]);
+    // 1 importer trasy panelu + 3 importery skanera (błąd i 404 wskazują ten sam plik).
+    expect(report.clientOnlyComponents).toEqual({
+      checked: 4,
+      heavy: [],
+      unresolved: [],
+      missing: [],
+      unexpected: [],
+    });
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("pełny komponent trasy z `ssr: false` oblewa z trasą, plikiem i rozmiarem", () => {
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: "s".repeat(100_427) },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+    ]);
+    expect(report.clientOnlyComponents.heavy).toEqual([
+      { route: "/scanner", chunk: "_ssr/scanner-C.mjs", bytes: 100_427 },
+    ]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+  });
+
+  it("`pendingComponent` trasy z `ssr: false` nie jest sprawdzany - serwer go renderuje", () => {
+    const trasa: ServerChunk = {
+      path: "_ssr/routes-PND.mjs",
+      source:
+        "var Sc=S(`/scanner`)({ssr:!1,pendingComponent:w(()=>import(`./scanner-P.mjs`),`pendingComponent`),component:w(()=>import(`./scanner-C.mjs`),`component`)});",
+    };
+    const report = analiza([
+      trasa,
+      { path: "_ssr/scanner-P.mjs", source: "p".repeat(4_000) },
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(2);
+    expect(report.clientOnlyComponents.heavy).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
+  });
+
+  it("trasa ze źródeł, której skan artefaktu nie sprawdził, oblewa zamiast wypaść po cichu", () => {
+    const report = analiza([]);
+    expect(report.clientOnlyComponents.missing).toEqual(["/scanner"]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("1 tras z `ssr: false` w źródłach nie ma w artefakcie serwera");
+    expect(text).toContain("    /scanner");
+  });
+
+  it("potomek trasy z `ssr: false` dziedziczy klasę po prefiksie ścieżki", () => {
+    const dziecko: ServerChunk = {
+      path: "_ssr/routes-CHD.mjs",
+      source:
+        "var Sd=S(`/scanner/desk`)({component:w(()=>import(`./scanner.desk-C.mjs`),`component`)});",
+    };
+    const report = analiza([
+      TRASA_SKANERA,
+      { path: "_ssr/scanner-C.mjs", source: ZASLEPKA.source },
+      { path: "_ssr/scanner-E.mjs", source: ZASLEPKA_BLEDU },
+      dziecko,
+      { path: "_ssr/scanner.desk-C.mjs", source: ZASLEPKA.source },
+    ]);
+    expect(report.clientOnlyComponents.checked).toBe(5);
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
+  });
+
+  it("zaślepka pod trasą, którą serwer renderuje, oblewa - kontrola zwrotna wtyczki", () => {
+    const publiczna: ServerChunk = {
+      path: "_ssr/routes-PUB.mjs",
+      source:
+        "var B=S(`/blog`)({component:w(()=>import(`./blog-B.mjs`),`component`),errorComponent:w(()=>import(`./blog-E.mjs`),`errorComponent`)});",
+    };
+    const report = analiza(
+      [
+        publiczna,
+        { path: "_ssr/blog-B.mjs", source: ZASLEPKA.source },
+        { path: "_ssr/blog-E.mjs", source: "e".repeat(900) },
+      ],
+      ZRODLA,
+    );
+    expect(report.clientOnlyComponents.unexpected).toEqual([
+      { route: "/blog", chunk: "_ssr/blog-B.mjs" },
+    ]);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain(
+      "1 komponentów tras, które serwer RENDERUJE, jest w artefakcie zaślepką",
+    );
+    expect(text).toContain("    /blog: _ssr/blog-B.mjs");
+  });
+
+  it("mały prawdziwy komponent (przelotka z `<Outlet/>`) to nie zaślepka", () => {
+    // 218 B na artefakcie z 2026-11-14 (`club.$clubSlug`, `events`, `people`) - poniżej progu
+    // rozmiaru zaślepki, dlatego kontrola zwrotna patrzy na treść pliku, nie na bajty.
+    const layout: ServerChunk = {
+      path: "_ssr/routes-LAY.mjs",
+      source: "var E=S(`/events`)({component:w(()=>import(`./events-O.mjs`),`component`)});",
+    };
+    const report = analiza(
+      [
+        layout,
+        {
+          path: "_ssr/events-O.mjs",
+          source:
+            'import{Outlet as t}from"../_libs/r.mjs";var n=e();function r(){return(0,n.jsx)(t,{})}export{r as component};',
+        },
+      ],
+      ZRODLA,
+    );
+    expect(report.clientOnlyComponents.unexpected).toEqual([]);
+    expect(serverEntryPurityFailed(report)).toBe(false);
   });
 });
 

@@ -6,10 +6,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   calendarBlockQueryOptions,
-  calendarPublishedDay,
+  calendarFirstPostPerDay,
   calendarTarget,
 } from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
+import { postHref } from "@/lib/routing/postHref";
 
 interface Props {
   /** YYYY-MM, puste = bieżący miesiąc. */
@@ -24,12 +25,14 @@ export function CalendarView({ month, lang }: Props) {
   // Dzień publikacji w strefie serwisu, nie procesu: `getDate()` dawał 31 marca
   // wpisowi z 01:30 1 kwietnia (Warszawa) - SSR w UTC i czytelnik poza CET
   // widzieli inny dzień niż strona wpisu (szczegóły przy `calendarPublishedDay`).
+  // Adres dnia: kanoniczny `/<rodzic>/<slug>` z osadzenia w wierszu, a bez
+  // niego `/post/<slug>` (`postHref`) - liczony z wiersza w stanie odwodnionym,
+  // więc HTML serwera i strona po hydratacji mają ten sam adres. Wpis dnia
+  // wybiera ta sama reguła, którą zapytanie przycina wiersze do jednego na dzień
+  // (`calendarFirstPostPerDay`).
   const byDay = useMemo(() => {
     const m = new Map<number, string>();
-    for (const r of rows) {
-      const d = calendarPublishedDay(r.published_at, target);
-      if (d !== null && !m.has(d)) m.set(d, r.slug);
-    }
+    for (const [day, row] of calendarFirstPostPerDay(rows, target)) m.set(day, postHref(row));
     return m;
   }, [rows, target]);
 
@@ -44,9 +47,9 @@ export function CalendarView({ month, lang }: Props) {
       ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
       : ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
 
-  const cells: Array<{ day: number | null; slug: string | null }> = [];
-  for (let i = 0; i < firstDow; i++) cells.push({ day: null, slug: null });
-  for (let d = 1; d <= days; d++) cells.push({ day: d, slug: byDay.get(d) ?? null });
+  const cells: Array<{ day: number | null; href: string | null }> = [];
+  for (let i = 0; i < firstDow; i++) cells.push({ day: null, href: null });
+  for (let d = 1; d <= days; d++) cells.push({ day: d, href: byDay.get(d) ?? null });
 
   return (
     <figure className="not-prose my-4 border border-border rounded-lg overflow-hidden">
@@ -70,9 +73,9 @@ export function CalendarView({ month, lang }: Props) {
                 <td key={i} className="p-1 align-middle">
                   {c.day === null ? (
                     ""
-                  ) : c.slug ? (
+                  ) : c.href ? (
                     <AppLink
-                      href={`/post/${c.slug}`}
+                      href={c.href}
                       className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/15 text-primary hover:bg-primary hover:text-primary-foreground font-medium"
                     >
                       {c.day}

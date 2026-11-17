@@ -52,7 +52,8 @@ export const Route = createFileRoute("/series/$slug")({
       seriesPageQueryOptions(params.slug),
       NO_SERIES,
     );
-    setCacheControlHeader(resilientCacheControl(degraded));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded));
     if (!degraded && data === null) throw notFound();
     return {
       degraded,

@@ -117,9 +117,44 @@ describe("getMyEventTicket - bilet WŁAŚCICIELA", () => {
     const supabase = client();
     await (getMyEventTicket as unknown as Callable)({
       data: { eventId: EVENT },
-      context: { supabase, userId: USER },
+      context: { supabase, userId: USER, claims: { sub: USER, email: "anna@example.org" } },
     });
-    expect(spies.loadMyEventTicket).toHaveBeenCalledWith(supabase, USER, EVENT);
+    expect(spies.loadMyEventTicket).toHaveBeenCalledWith(supabase, USER, EVENT, "anna@example.org");
+  });
+
+  it("adres posiadacza pochodzi z CLAIMU sesji, nie z ładunku żądania", async () => {
+    // `profiles.email` nie ma grantu SELECT dla `authenticated` (poprawka PII
+    // 20260724090100), więc jedynym źródłem adresu jest zweryfikowany token.
+    // Adres podany w danych żądania nie może trafić na bilet.
+    await (getMyEventTicket as unknown as Callable)({
+      data: { eventId: EVENT, email: "podstawiony@example.org" } as { eventId: string },
+      context: {
+        supabase: client(),
+        userId: USER,
+        claims: { sub: USER, email: "anna@example.org" },
+      },
+    });
+    expect(spies.loadMyEventTicket).toHaveBeenLastCalledWith(
+      expect.anything(),
+      USER,
+      EVENT,
+      "anna@example.org",
+    );
+  });
+
+  it("claim bez adresu albo nie-tekstowy daje brak adresu, a nie wyjątek", async () => {
+    for (const claims of [undefined, { sub: USER }, { sub: USER, email: 42 }]) {
+      await (getMyEventTicket as unknown as Callable)({
+        data: { eventId: EVENT },
+        context: { supabase: client(), userId: USER, claims },
+      });
+      expect(spies.loadMyEventTicket).toHaveBeenLastCalledWith(
+        expect.anything(),
+        USER,
+        EVENT,
+        null,
+      );
+    }
   });
 
   it("oddaje wynik warstwy logiki bez przetwarzania", async () => {

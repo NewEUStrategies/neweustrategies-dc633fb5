@@ -68,8 +68,8 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: (...a: unknown[]) => h.confirm(...a) }));
 
 // PRAWDZIWE `zScore` i `conversionRate`, atrapowane tylko hooki danych.
-vi.mock("@/lib/builder/experiments", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/builder/experiments")>();
+vi.mock("@/lib/builder/experimentsAdmin", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/experimentsAdmin")>();
   return {
     ...actual,
     useExperimentsAdmin: () => ({

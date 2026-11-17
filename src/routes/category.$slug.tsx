@@ -137,16 +137,22 @@ export const Route = createFileRoute("/category/$slug")({
     //      plus dobę okna stale.
     //   3. RENDER CZYSTY: dotychczasowa polityka treści - bajt w bajt.
     //
+    // Sekcja wyróżniona, której odczyt padł (`featured_section_degraded`), to
+    // stan 2., nie 1.: lista wpisów, licznik i `head()` są prawdziwe, brakuje
+    // wyłącznie dodatku redakcji nad listą - więc krótka świeżość
+    // z rewalidacją, żeby brzeg nie utrwalił archiwum bez sekcji na 15 minut.
+    //
     // Polityka 2. nie przebije ostrzejszej decyzji innego loadera tego samego
     // żądania: `narrowestCacheControl` (lib/http/cachePolicy.ts) wybiera
     // MNIEJSZE `s-maxage`, a `private`/`no-store` wygrywa bezwarunkowo.
-    setCacheControlHeader(
-      archive.degraded || archive.data === null
-        ? resilientCacheControl(true)
-        : settings.degraded
-          ? chromeDegradedCacheControl()
-          : resilientCacheControl(false),
-    );
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(
+        archive.degraded || archive.data === null
+          ? resilientCacheControl(true)
+          : settings.degraded || archive.data.taxonomy.featured_section_degraded
+            ? chromeDegradedCacheControl()
+            : resilientCacheControl(false),
+      );
     // 404 WYŁĄCZNIE z czystego odczytu - blip nie ma prawa wypisać archiwum
     // z indeksu.
     const data = notFoundIfClean(archive);
@@ -170,8 +176,13 @@ export const Route = createFileRoute("/category/$slug")({
     // na HIT/STALE; droga do 103 Early Hints). `<head>` dostaje preload od
     // Reacta 19 (obraz `fetchPriority="high"` w powłoce) - link z `head()`
     // był jego duplikatem (`blog.index.tsx`).
-    const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
-    if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    // Za bramką: wartość czyta wyłącznie nagłówek (roadmapa §9.5, J1).
+    const coverPreload =
+      import.meta.env.SSR || import.meta.env.DEV
+        ? archiveFirstCardPreload(data.posts, settings.data.show_featured_top)
+        : null;
+    if ((import.meta.env.SSR || import.meta.env.DEV) && coverPreload)
+      appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // TREŚĆ jest prawdziwa, więc strona renderuje się normalnie - nawet gdy
     // layout przyjechał z fallbacku (`layoutDegraded`), bo domyślki z kodu są
     // pełnoprawną prezentacją, a nie brakiem danych.

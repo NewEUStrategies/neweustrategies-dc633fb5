@@ -45,7 +45,8 @@ export const Route = createFileRoute("/live")({
     // domyślną politykę treści (900 s): czytelnik trwającej relacji nie może
     // dostawać wpisu sprzed 15 minut. Ta sama wartość, którą dla `/live`
     // deklaruje `planDefaultCacheControl` - jedna doktryna, jedno źródło.
-    setCacheControlHeader(resilientCacheControl(degraded, liveCacheControl()));
+    if (import.meta.env.SSR || import.meta.env.DEV)
+      setCacheControlHeader(resilientCacheControl(degraded, liveCacheControl()));
     return { degraded };
   },
   head: () => {

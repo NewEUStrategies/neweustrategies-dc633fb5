@@ -72,6 +72,18 @@ describe("dynamic-tag widgets with full context", () => {
     expect(screen.getByRole("link", { name: "Tytuł wpisu" }).getAttribute("href")).toBe("/wpis");
   });
 
+  it("post-title links to the canonical address when the context carries one", () => {
+    // Płaskie `/<slug>` nie jest adresem wpisu: trafia w 404 trasy `/$`
+    // i dopiero stamtąd w 301. Trasa wpisu podaje adres kanoniczny w kontekście.
+    renderTag(
+      <DynamicTagWidget node={node("post-title", { tag: "h1", linkToPost: true })} lang="pl" />,
+      { ...FULL, href: "/analizy/energetyka/wpis" },
+    );
+    expect(screen.getByRole("link", { name: "Tytuł wpisu" }).getAttribute("href")).toBe(
+      "/analizy/energetyka/wpis",
+    );
+  });
+
   it("post-title falls back to the content fallback when context lacks a title", () => {
     renderTag(
       <DynamicTagWidget node={node("post-title", { fallback_pl: "Zapasowy" })} lang="pl" />,

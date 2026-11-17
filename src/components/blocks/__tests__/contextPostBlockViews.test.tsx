@@ -231,6 +231,18 @@ describe("PostExcerptView", () => {
     ).toHaveAttribute("href", "/post/analiza-rynku");
   });
 
+  it("z adresem kanonicznym w kontekście link „czytaj dalej” go używa, nie /post/<slug>", () => {
+    // `/post/<slug>` odpowiada 301 i dwoma odczytami bazy; trasa wpisu zna
+    // własny adres kanoniczny z okruszków loadera i podaje go w kontekście.
+    view(<PostExcerptView showMore lang="en" cls="" />, {
+      ...CTX,
+      href: "/analizy/energetyka/analiza-rynku",
+    });
+    expect(
+      screen.getByRole("link", { name: "Read the full analysis: Market analysis" }),
+    ).toHaveAttribute("href", "/analizy/energetyka/analiza-rynku");
+  });
+
   it("polska wersja linku i zapas tytułu na drugi język", () => {
     view(<PostExcerptView showMore lang="pl" cls="" />, { ...CTX, title_pl: undefined });
     expect(

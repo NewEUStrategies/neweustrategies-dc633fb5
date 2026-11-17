@@ -15,6 +15,7 @@
 // a przeglądarka przy hydratacji NIE pobiera porcji - odtwarza SVG z DOM-u
 // serwera (znacznik `data-dyn-icon`, P2.4; szczegóły przy `readSsrIcon`).
 import { lazy, Suspense } from "react";
+import { catalogIconName } from "./catalogIconName";
 import {
   // - zestaw bazowy (nawigacja/UI) -
   ArrowLeft,
@@ -309,6 +310,25 @@ export const CURATED_ICON_KEYS: readonly string[] = Object.keys(CURATED);
 const CURATED_LC: Record<string, IconComponent> = {};
 for (const [k, v] of Object.entries(CURATED)) CURATED_LC[k.toLowerCase()] = v;
 
+/** Własny klucz mapy - nie metoda z prototypu (`constructor`, `toString`). */
+function own(map: Record<string, IconComponent>, key: string): IconComponent | undefined {
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
+}
+
+function curatedByKey(key: string): IconComponent | undefined {
+  return key ? (own(CURATED, key) ?? own(CURATED_LC, key.toLowerCase())) : undefined;
+}
+
+/**
+ * Komponent zestawu kuratorowanego dla nazwy z danych (ta sama rozdzielczość
+ * co w `DynamicIcon`: kebab-case, PascalCase, podkreślenia, spacje, bez
+ * wielkości liter) albo `undefined`. Renderuje się synchronicznie, bez
+ * granicy Suspense i bez porcji katalogu.
+ */
+export function curatedIcon(name: string): IconComponent | undefined {
+  return curatedByKey(toPascalKey(name));
+}
+
 function toPascalKey(name: string): string {
   const trimmed = String(name || "").trim();
   if (!trimmed) return "";
@@ -361,11 +381,26 @@ interface DynamicIconProps extends LucideProps {
    * Zestaw kuratorowany pilnuje bramka `check:menu-icons`.
    */
   allowFull?: boolean;
+  /**
+   * Co narysować, gdy katalog NIE ZNA nazwy (po dociągnięciu porcji danych).
+   *
+   * Domyślnie (`undefined`) - znak zapytania (`HelpCircle`), jak dotąd.
+   * Komponent - ikona zastępcza miejsca (np. `Star` separatora), z tymi samymi
+   * propsami co ikona; `null` - nic. Miejsca z treści CMS (`contentIcon.tsx`)
+   * pokazują dla nieznanej nazwy to samo, co przed naprawą wybieraków.
+   *
+   * Serwer znakuje taki render atrybutem `data-dyn-missing` (na SVG zastępnika
+   * albo na pustym `<template>`, gdy zastępnika nie ma), a przeglądarka przy
+   * hydratacji czyta ten znacznik i rysuje zastępnik od razu - bez porcji
+   * danych i bez pytania o kształt `data-dyn-icon`, który dla tej samej nazwy
+   * w innym miejscu strony może być znakiem zapytania.
+   */
+  missing?: IconComponent | null;
 }
 
-export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProps) {
+export function DynamicIcon({ name, allowFull = true, missing, ...rest }: DynamicIconProps) {
   const key = toPascalKey(name);
-  const Curated = key ? (CURATED[key] ?? CURATED_LC[key.toLowerCase()]) : undefined;
+  const Curated = curatedByKey(key);
   if (Curated) return <Curated {...rest} />;
   if (!key) return <HelpCircle {...rest} />;
   if (!allowFull) {
@@ -389,7 +424,25 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
   // Ta sama granica Suspense po obu stronach (struktura hydratacji). Serwer
   // zawsze rysuje ikonę z porcji danych (`DynamicIconChunk`) i znakuje ją
   // `data-dyn-icon`; przeglądarka najpierw szuka tego SVG w DOM-ie z SSR.
-  const ssr = readSsrIcon(key, rest.className);
+  // Z `missing`: najpierw znacznik nazwy spoza katalogu (`data-dyn-missing`).
+  const Missing = missing === undefined ? undefined : missingIcon(missing);
+  if (Missing && readSsrMissing(key)) {
+    return (
+      <Suspense fallback={fallback}>
+        <Missing {...rest} data-dyn-icon={key} />
+      </Suspense>
+    );
+  }
+  // Z `missing` kształt z DOM-u bierzemy tylko wtedy, gdy to ikona TEJ nazwy
+  // z katalogu (klasa `lucide-<nazwa>` z `createLucideIcon`). Domyślne
+  // wywołanie (bez `missing`, np. `nav-link` w nagłówku) rysuje dla nazwy spoza
+  // katalogu znak zapytania pod tym samym `data-dyn-icon`; render czysto
+  // kliencki miejsca z treści pokazałby wtedy ten znak zamiast zastępnika
+  // miejsca, który dla tej samej treści rysuje serwer (przegląd naprawy
+  // wybieraków ikon). Bez kształtu decyduje porcja danych, jak dla nazwy,
+  // której w DOM-ie nie ma.
+  const found = readSsrIcon(key, rest.className);
+  const ssr = found && (!Missing || isCatalogShape(found, key)) ? found : undefined;
   return (
     <Suspense fallback={fallback}>
       {ssr ? (
@@ -400,10 +453,50 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
           data-dyn-icon={key}
         />
       ) : (
-        <DynamicIconChunk iconKey={key} {...rest} data-dyn-icon={key} />
+        <DynamicIconChunk iconKey={key} missing={Missing} {...rest} data-dyn-icon={key} />
       )}
     </Suspense>
   );
+}
+
+// ---------- nazwa spoza katalogu z zastępnikiem miejsca (`missing`) ----------
+
+/** Atrybut, którym serwer znakuje render nazwy spoza katalogu (wartość = klucz). */
+const SSR_MISSING_ATTR = "data-dyn-missing";
+
+type MissingIconProps = LucideProps & { "data-dyn-icon"?: string };
+
+// Jeden komponent na zastępnik: stała tożsamość typu, więc `lazy` w porcji
+// (pamięć per zastępnik) i render przy hydratacji dają to samo drzewo.
+const missingIcons = new globalThis.Map<IconComponent | null, IconComponent>();
+
+function missingIcon(Fallback: IconComponent | null): IconComponent {
+  let Missing = missingIcons.get(Fallback);
+  if (!Missing) {
+    Missing = function MissingCatalogIcon({ "data-dyn-icon": key, ...props }: MissingIconProps) {
+      // Zastępnik bez `data-dyn-icon`: kształt pod tym kluczem to dla innych
+      // wywołań znak zapytania, nie ikona tego miejsca.
+      return Fallback ? (
+        <Fallback {...props} data-dyn-missing={key} />
+      ) : (
+        <template data-dyn-missing={key} />
+      );
+    } as IconComponent;
+    missingIcons.set(Fallback, Missing);
+  }
+  return Missing;
+}
+
+// Klucze potwierdzone w DOM-ie z SSR jako spoza katalogu (ten sam katalog na
+// serwerze i w przeglądarce, więc to fakt o NAZWIE, nie o miejscu).
+const ssrMissingKeys = new Set<string>();
+
+function readSsrMissing(key: string): boolean {
+  if (typeof document === "undefined") return false;
+  if (ssrMissingKeys.has(key)) return true;
+  if (!document.querySelector(`[${SSR_MISSING_ATTR}="${cssAttrValue(key)}"]`)) return false;
+  ssrMissingKeys.add(key);
+  return true;
 }
 
 // ---------- ikony spoza zestawu: SVG z DOM-u SSR (P2.4, hydration:H10 e) ----------
@@ -456,6 +549,11 @@ function cssAttrValue(value: string): string {
 /** `stroke-width` -> `strokeWidth`: nazwa propsa Reacta dla atrybutu SVG. */
 function svgPropName(attribute: string): string {
   return attribute.replace(/-([a-z])/g, (_, ch: string) => ch.toUpperCase());
+}
+
+/** Kształt z DOM-u jest ikoną katalogu dla klucza (nie zastępnikiem innego wywołania). */
+function isCatalogShape(shape: SsrIconShape, key: string): boolean {
+  return shape.lucideClasses.split(" ").includes(`lucide-${catalogIconName(key)}`);
 }
 
 function readSsrIcon(key: string, className: string | undefined): SsrIconShape | undefined {

@@ -52,7 +52,7 @@ const h = vi.hoisted(() => ({
   saved: [] as unknown[],
 }));
 
-vi.mock("@/hooks/useFontScale", () => ({
+vi.mock("@/hooks/useFontScaleAdmin", () => ({
   // Kształt `UseQueryResult` w zakresie, który czyta trasa.
   useAdminFontScale: () => ({
     data: h.data,
