@@ -15,6 +15,7 @@ import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQu
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -261,11 +262,22 @@ function ResilientSliderImage({
   // Opacity does not stop native lazy loading for stacked slides. Only give
   // the browser a real URL after this slide has first become visible. Keep
   // previously shown images mounted so crossfades and backwards navigation work.
-  const [requested, setRequested] = useState(active || alwaysVisible);
-  const shouldLoad = active || alwaysVisible || requested;
-  useEffect(() => {
-    if (active || alwaysVisible) setRequested(true);
-  }, [active, alwaysVisible]);
+  // Stan startowy zależy wyłącznie od `active`/`alwaysVisible` (slajd 0 po obu
+  // stronach), więc SSR i pierwszy render klienta są identyczne.
+  const shown = active || alwaysVisible;
+  const [requested, setRequested] = useState(shown);
+  const shouldLoad = shown || requested;
+  // Pierwsze pokazanie montuje świeży `<img>` z `opacity:0`; krycie zdejmujemy
+  // dopiero po przeliczeniu tego stylu, więc przejście 700 ms z arkusza biegnie
+  // jak wtedy, gdy ukryty `<img>` czekał w DOM-ie. Wszystko przed malowaniem.
+  useIsomorphicLayoutEffect(() => {
+    if (!shown || requested) return;
+    const img = imgRef.current;
+    // Odczyt wymusza przeliczenie stylu - bez niego przeglądarka od razu
+    // zobaczyłaby krycie 1 i pominęła przejście.
+    if (img) void getComputedStyle(img).opacity;
+    setRequested(true);
+  }, [shown, requested]);
 
   const originalSrc = safeImageUrl(src) || src;
   const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
@@ -284,18 +296,36 @@ function ResilientSliderImage({
     }
   }, [displaySrc, fallback, onBrokenSource, originalSrc, shouldLoad]);
 
-  const visible = alwaysVisible || active;
+  const fillClassName =
+    className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg";
+  // Dieta znaczników (P2.6, HW-6): przejście siedzi w arkuszu wspólnym
+  // (`.eh-slider [data-fill-image]`, ta sama deklaracja), a inline zostaje
+  // wyłącznie stan per slajd - `opacity:0` slajdu ukrytego. Widoczny obraz
+  // nie ma atrybutu `style` (krycie 1 to wartość początkowa), więc
+  // 152 B × 21 obrazów znika z dokumentu.
+  const hiddenStyle: CSSProperties = { opacity: 0, ...style };
+  if (!shouldLoad) {
+    // Slajd jeszcze niepokazany: pusty `<span>` zamiast `<img>` bez src/srcset
+    // (błąd walidatora HTML). Te same klasy i krycie trzymają pudełko
+    // (absolute inset-0) i kolejność warstw stosu; bez atrybutów pobierania
+    // znacznik jest krótszy, a żądanie sieciowe startuje dopiero z `<img>`.
+    return (
+      <span aria-hidden="true" data-fill-image className={fillClassName} style={hiddenStyle} />
+    );
+  }
+
+  const visible = alwaysVisible || (active && requested);
   // Responsive candidates for Supabase-storage covers: hero sliders previously
   // downloaded the full-resolution original on every device - the single
   // biggest LCP cost on slider homepages. buildImageSrcSet returns "" for
   // non-transformable (external/fallback) URLs, so those keep plain `src`.
-  const srcSet = shouldLoad ? buildImageSrcSet(displaySrc) : "";
+  const srcSet = buildImageSrcSet(displaySrc);
   return (
     <img
       ref={imgRef}
       // Atrybut względny obok względnego `srcSet` (P3.2a/P4.2); stan (`displaySrc`,
       // `originalSrc`, `onBrokenSource`) zostaje absolutny.
-      src={shouldLoad ? (srcSet ? renderedMediaUrl(displaySrc) : displaySrc) : undefined}
+      src={srcSet ? renderedMediaUrl(displaySrc) : displaySrc}
       srcSet={srcSet || undefined}
       sizes={srcSet ? `${priority ? "" : "auto, "}${sizes}` : undefined}
       alt=""
@@ -303,20 +333,13 @@ function ResilientSliderImage({
       data-fill-image
       data-lcp-candidate={lcpCandidate ? "" : undefined}
       loading={priority ? "eager" : "lazy"}
-      // Slajdy 2..N leżą w viewporcie (stack absolute, ukryte tylko przez
-      // opacity), więc natywne lazy i tak startuje ich pobieranie od razu -
-      // "low" zdejmuje je z drogi prawdziwego kandydata LCP (slajd aktywny).
-      // Deterministyczne dla SSR/hydratacji: obie strony renderują idx=0
-      // jako aktywny.
+      // "low" dostaje już pokazany, a teraz ukryty slajd stosu - zdejmuje go
+      // z drogi prawdziwego kandydata LCP (slajd aktywny). Deterministyczne
+      // dla SSR/hydratacji: obie strony renderują idx=0 jako aktywny.
       fetchPriority={priority && active ? "high" : active ? "auto" : "low"}
       decoding="async"
-      className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
-      // Dieta znaczników (P2.6, HW-6): przejście siedzi w arkuszu wspólnym
-      // (`.eh-slider [data-fill-image]`, ta sama deklaracja), a inline zostaje
-      // wyłącznie stan per slajd - `opacity:0` slajdu ukrytego. Widoczny obraz
-      // nie ma atrybutu `style` (krycie 1 to wartość początkowa), więc
-      // 152 B × 21 obrazów znika z dokumentu.
-      style={visible ? style : { opacity: 0, ...style }}
+      className={fillClassName}
+      style={visible ? style : hiddenStyle}
       onError={(e) => {
         onBrokenSource(originalSrc);
         const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;

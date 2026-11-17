@@ -47,11 +47,13 @@
 //    nawigacja, autoplay) leżą poza tym plikiem z premedytacją - mają własne
 //    pliki i własne atrapy routera.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { act, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 import type { SupabaseFromStub } from "@/test/supabase";
+import type { LcpImage } from "../aboveFold";
 
 const sb = vi.hoisted(() => ({ from: null as SupabaseFromStub | null }));
 
@@ -437,10 +439,18 @@ describe("SliderRender - katalog wariantów", () => {
   });
 
   it.each(SLIDER_VARIANT_VALUES)(
-    "rysuje w wariancie %s tyle obrazów wypełniających, ile jest slajdów",
+    "rysuje w wariancie %s tyle warstw wypełniających, ile jest slajdów (`<img>` tylko dla pokazanych)",
     (variant) => {
       const { container } = renderSlider({ variant });
-      expect(container.querySelectorAll("img[data-fill-image]")).toHaveLength(ITEMS.length);
+      const layers = [...container.querySelectorAll("[data-fill-image]")];
+      expect(layers).toHaveLength(ITEMS.length);
+      // Multi-card pokazuje wszystkie karty naraz; warianty stosu montują
+      // `<img>` tylko dla slajdu aktywnego, reszta to puste zaślepki.
+      const expected =
+        variant === "multi-card"
+          ? ITEMS.map(() => "IMG")
+          : ["IMG", ...ITEMS.slice(1).map(() => "SPAN")];
+      expect(layers.map((el) => el.tagName)).toEqual(expected);
     },
   );
 
@@ -857,13 +867,29 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
     });
   });
 
-  it("daje pierwszemu slajdowi wysoki priorytet pobrania, a pozostałym niski", () => {
+  it("daje pierwszemu slajdowi wysoki priorytet pobrania, a pozostałych nie pobiera przed pokazaniem", () => {
     const { container } = renderSlider();
-    const imgs = [...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]")];
-    expect(imgs[0].getAttribute("fetchpriority")).toBe("high");
-    expect(imgs[0].getAttribute("loading")).toBe("eager");
-    expect(imgs[1].getAttribute("fetchpriority")).toBe("low");
-    expect(imgs[1].getAttribute("loading")).toBe("lazy");
+    const [first, ...rest] = [...container.querySelectorAll<HTMLElement>("[data-fill-image]")];
+    expect(first.tagName).toBe("IMG");
+    expect(first.getAttribute("fetchpriority")).toBe("high");
+    expect(first.getAttribute("loading")).toBe("eager");
+    expect(rest).toHaveLength(ITEMS.length - 1);
+    // Zaślepka nie ma czego pobierać ani priorytetyzować - żadnego z atrybutów
+    // pobierania (krótszy znacznik niż dawny `<img>` bez src).
+    for (const layer of rest) {
+      expect(layer.tagName).toBe("SPAN");
+      for (const attr of [
+        "src",
+        "srcset",
+        "sizes",
+        "loading",
+        "fetchpriority",
+        "decoding",
+        "alt",
+      ]) {
+        expect(layer.hasAttribute(attr), attr).toBe(false);
+      }
+    }
   });
 
   it("pokazuje w wariancie multi-card wszystkie karty naraz, bez wygaszania nieaktywnych", () => {
@@ -1112,12 +1138,11 @@ const DOT_VARIANTS = [
 
 describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
   it.each(STACKED_VARIANTS)(
-    "w wariancie %s aktywny obraz nie ma atrybutu style, a ukryte niosą wyłącznie opacity:0",
+    "w wariancie %s aktywny obraz nie ma atrybutu style, a ukryte warstwy niosą wyłącznie opacity:0",
     (variant) => {
       const { container } = renderSlider({ variant });
-      const [active, ...hidden] = [
-        ...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]"),
-      ];
+      const [active, ...hidden] = [...container.querySelectorAll<HTMLElement>("[data-fill-image]")];
+      expect(active.tagName).toBe("IMG");
       expect(active.getAttribute("style")).toBeNull();
       expect(hidden).toHaveLength(ITEMS.length - 1);
       for (const img of hidden) {
@@ -1268,16 +1293,103 @@ describe("SliderRender - parytet SSR i klienta znaczników P2.6", () => {
       expect(dotsOf(server).map((d) => d.className)).toEqual(
         dotsOf(container).map((d) => d.className),
       );
+      // Element (obraz / zaślepka), adres i krycie każdej warstwy - hydratacja
+      // nie może podmienić zaślepki na `<img>` ani odwrotnie.
       const imgStyles = (root: ParentNode) =>
-        [...root.querySelectorAll<HTMLImageElement>("img[data-fill-image]")].map((img) =>
-          img.hasAttribute("style") ? img.style.opacity : null,
-        );
+        [...root.querySelectorAll<HTMLElement>("[data-fill-image]")].map((el) => [
+          el.tagName,
+          el.hasAttribute("src"),
+          el.hasAttribute("style") ? el.style.opacity : null,
+        ]);
       expect(imgStyles(server)).toEqual(imgStyles(container));
       const cardStyles = (root: ParentNode) =>
         [...root.querySelectorAll("article.eh-multi-card-item")].map((a) =>
           a.getAttribute("style"),
         );
       expect(cardStyles(server)).toEqual(cardStyles(container));
+    },
+  );
+});
+
+// ------------------------------------------------------------------
+// SSR bez `<img>` bez adresu (walidator HTML: "Element img is missing one or
+// more of the following attributes: src, srcset")
+// ------------------------------------------------------------------
+
+/**
+ * Zaślepka niepokazanego slajdu w dokumencie serwera, co do bajtu. Dopisanie
+ * atrybutu łamie ten test, bo zaślepka nie może być dłuższa od dawnego `<img>`
+ * bez src (`alt`, `draggable`, `loading`, `fetchpriority`, `decoding`).
+ */
+const SSR_PLACEHOLDER =
+  '<span aria-hidden="true" data-fill-image="true" class="eh-img absolute inset-0 w-full h-full object-cover widget-media-fg" style="opacity:0"></span>';
+
+describe("SliderRender - SSR bez <img> bez src/srcset", () => {
+  function sliderTree(config: Partial<SliderConfig>, lcp?: LcpImage) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return (
+      <QueryClientProvider client={client}>
+        <SliderRender config={{ items: ITEMS, autoplay: false, ...config }} lang="pl" lcp={lcp} />
+      </QueryClientProvider>
+    );
+  }
+  const imgTags = (html: string) => html.match(/<img\b[^>]*>/g) ?? [];
+
+  it.each(SLIDER_VARIANT_VALUES)("wariant %s: każdy <img> z serwera ma src", (variant) => {
+    const tags = imgTags(renderToString(sliderTree({ variant })));
+    expect(tags.length).toBeGreaterThan(0);
+    for (const tag of tags) expect(tag).toMatch(/\ssrc(set)?="[^"]+"/);
+  });
+
+  it.each(STACKED_VARIANTS)(
+    "wariant %s: niepokazane slajdy to zaślepki bez atrybutów pobierania",
+    (variant) => {
+      const html = renderToString(sliderTree({ variant }));
+      expect(html.split(SSR_PLACEHOLDER)).toHaveLength(ITEMS.length);
+      expect(imgTags(html).filter((tag) => tag.includes("data-fill-image"))).toHaveLength(1);
+    },
+  );
+
+  it("slajd aktywny kandydata LCP zostaje tym samym <img> (src, eager, high, znacznik, bez style)", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(sliderTree({}, true));
+    const [active] = host.querySelectorAll<HTMLElement>("[data-fill-image]");
+    expect(active.tagName).toBe("IMG");
+    expect(active.getAttribute("src")).toBe(ITEMS[0].image);
+    expect(active.getAttribute("loading")).toBe("eager");
+    expect(active.getAttribute("fetchpriority")).toBe("high");
+    expect(active.getAttribute("data-lcp-candidate")).toBe("");
+    expect(active.hasAttribute("style")).toBe(false);
+    expect(host.querySelectorAll("[data-lcp-candidate]")).toHaveLength(1);
+  });
+
+  it.each(STACKED_VARIANTS)(
+    "wariant %s: hydratacja przejmuje zaślepki i obraz bez rozjazdu i bez podmiany węzłów",
+    async (variant) => {
+      const html = renderToString(sliderTree({ variant }, true));
+      const host = document.createElement("div");
+      host.innerHTML = html;
+      document.body.append(host);
+      const layers = [...host.querySelectorAll("[data-fill-image]")];
+      const errors: unknown[] = [];
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation((error) => errors.push(error));
+      const root = hydrateRoot(host, sliderTree({ variant }, true), {
+        onRecoverableError: (error) => errors.push(error),
+      });
+      try {
+        await act(async () => {});
+        expect(errors).toEqual([]);
+        const after = [...host.querySelectorAll("[data-fill-image]")];
+        expect(after).toHaveLength(layers.length);
+        after.forEach((el, i) => expect(el).toBe(layers[i]));
+        expect(after.map((el) => el.tagName)).toEqual(["IMG", ...ITEMS.slice(1).map(() => "SPAN")]);
+      } finally {
+        await act(async () => root.unmount());
+        consoleError.mockRestore();
+        host.remove();
+      }
     },
   );
 });

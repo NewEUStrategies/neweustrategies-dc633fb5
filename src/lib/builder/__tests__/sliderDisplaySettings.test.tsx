@@ -1023,15 +1023,63 @@ describe("slider network priority", () => {
         items: [ITEMS[0], { ...ITEMS[0], image: "https://cdn.x/2.jpg" }],
         showAuthor: false,
       });
-      const images = container.querySelectorAll<HTMLImageElement>("img[data-fill-image]");
-      expect(images[0]).toHaveAttribute("src", ITEMS[0].image);
-      expect(images[0]).toHaveAttribute("loading", "eager");
-      expect(images[1]).not.toHaveAttribute("src");
-      expect(images[1]).not.toHaveAttribute("srcset");
+      const layers = () => container.querySelectorAll<HTMLElement>("[data-fill-image]");
+      const [first, hidden] = layers();
+      expect(first.tagName).toBe("IMG");
+      expect(first).toHaveAttribute("src", ITEMS[0].image);
+      expect(first).toHaveAttribute("loading", "eager");
+      // Niepokazany slajd: zaślepka bez adresu - zero żądań i zero `<img>`
+      // bez src/srcset (błąd walidatora HTML).
+      expect(hidden.tagName).toBe("SPAN");
+      expect(hidden).not.toHaveAttribute("src");
+      expect(hidden).not.toHaveAttribute("srcset");
+      expect(hidden.style.opacity).toBe("0");
       fireEvent.click(container.querySelector<HTMLButtonElement>(".eh-next")!);
-      expect(images[1]).toHaveAttribute("src", "https://cdn.x/2.jpg");
-      expect(images[0]).toHaveAttribute("src", ITEMS[0].image);
-      expect(images[1]).toHaveAttribute("loading", "lazy");
+      const [previous, shown] = layers();
+      expect(shown.tagName).toBe("IMG");
+      expect(shown).toHaveAttribute("src", "https://cdn.x/2.jpg");
+      expect(shown).toHaveAttribute("loading", "lazy");
+      expect(shown).toHaveAttribute("fetchpriority", "auto");
+      expect(shown.getAttribute("style")).toBeNull();
+      // Poprzedni obraz zostaje tym samym węzłem (przenikanie), tylko wygaszony.
+      expect(previous).toBe(first);
+      expect(previous).toHaveAttribute("src", ITEMS[0].image);
+      expect(previous.style.opacity).toBe("0");
     },
   );
+
+  it("świeży obraz pokazanego slajdu startuje z policzonym opacity:0, więc przejście krycia biegnie", () => {
+    const { container } = renderSlider({
+      variant: "editorial-hero",
+      items: THREE_SLIDES,
+      showAuthor: false,
+    });
+    const layers = () => [...container.querySelectorAll<HTMLElement>("[data-fill-image]")];
+    // Styl odczytany przed zdjęciem krycia: bez tego przeglądarka zobaczyłaby
+    // od razu krycie 1 i pominęła przejście 700 ms z arkusza wspólnego.
+    const reads: Array<{ el: Element; opacity: string }> = [];
+    const original = window.getComputedStyle.bind(window);
+    const spy = vi
+      .spyOn(window, "getComputedStyle")
+      .mockImplementation((el: Element, pseudo?: string | null) => {
+        if (el instanceof HTMLImageElement) reads.push({ el, opacity: el.style.opacity });
+        return original(el, pseudo);
+      });
+    try {
+      fireEvent.click(container.querySelector<HTMLButtonElement>(".eh-next")!);
+      const shown = layers()[1];
+      expect(shown.tagName).toBe("IMG");
+      expect(reads).toContainEqual({ el: shown, opacity: "0" });
+      expect(shown.getAttribute("style")).toBeNull();
+      // Powrót na pokazany już slajd nie montuje nowego obrazu ani nie czyta stylu.
+      reads.length = 0;
+      fireEvent.click(container.querySelector<HTMLButtonElement>(".eh-prev")!);
+      fireEvent.click(container.querySelector<HTMLButtonElement>(".eh-next")!);
+      expect(layers()[1]).toBe(shown);
+      expect(reads).toEqual([]);
+      expect(layers().map((el) => el.tagName)).toEqual(["IMG", "IMG", "SPAN"]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
