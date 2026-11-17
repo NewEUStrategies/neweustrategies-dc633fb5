@@ -90,7 +90,7 @@
 // wycinkami kodu.
 import ts from "typescript";
 
-import { guardRegion, inSpans } from "./sessionGuard";
+import { guardAt, inSpans, queryOptionsFactoryOf } from "./sessionGuard";
 
 // ── Fakty szwu ──────────────────────────────────────────────────────────────
 
@@ -313,6 +313,11 @@ export interface ObservedTable extends ObservedCommon {
    * kontrakt nie sprawdza - ani rolą bramki, ani zmierzoną, ani gościa.
    */
   readonly withheld: boolean;
+  /**
+   * Odczyt `head: true` (sama liczba wierszy) - fakt WYŁĄCZNIE miary, bez
+   * lustra w bramce: PostgREST czyta relację i kolumny listy pod `count(...)`.
+   */
+  readonly head?: true;
 }
 
 /** Kolumna filtra albo sortowania: rola potrzebuje SELECT na `table.column`. */
@@ -2279,6 +2284,47 @@ function measuredRoleAt(
         );
       }
     }
+    // `context.supabase` / `ctx.supabase`: ta sama kolejność co dla nazwy
+    // `supabase` - reguła nazwy (klient z sesją z `requireSupabaseAuth`, jedynego
+    // middleware z `supabase` w kontekście) tylko dla kontekstu handlera funkcji
+    // serwera albo middleware; parametr innej funkcji i zmienna lokalna -
+    // wiązanie (wywołania: obiekt `{ supabase }` z klientem przeglądarki albo
+    // kluczem publicznym to inna rola i gość).
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "supabase") {
+      const base = unwrap(node.expression);
+      const bound =
+        ts.isIdentifier(base) && (base.text === "context" || base.text === "ctx")
+          ? contextClientRole(base, scope, env, depth)
+          : null;
+      if (bound !== null) {
+        if (bound.role === "unknown") {
+          return bound.absent === true
+            ? bound
+            : unknownRole(
+                `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
+                bound.candidates,
+                bound.residual,
+              );
+        }
+        if (bound.role !== legacy) {
+          return {
+            ...bound,
+            via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${bound.via}`.slice(
+              0,
+              MAX_VIA,
+            ),
+          };
+        }
+        return withGuest(
+          {
+            role: legacy,
+            via: `bramka: ${legacyRoleVia(expr, scope)}`,
+            ...serverField(bound.server),
+          },
+          bound.guest,
+        );
+      }
+    }
     // Reguła nazwy bez wiązania w pliku: `supabase` w pliku z importem klienta
     // przeglądarki to ten klient (gość - `anon`); sam `requireSupabaseAuth`
     // to klient z sesją z żądania.
@@ -3179,7 +3225,12 @@ function memberRole(
     ts.isIdentifier(node) &&
     (node.text === "context" || node.text === "ctx")
   ) {
-    return { role: "authenticated", via: `bramka: ${node.text}.supabase` };
+    return (
+      contextClientRole(node, scope, env, depth) ?? {
+        role: "authenticated",
+        via: `bramka: ${node.text}.supabase`,
+      }
+    );
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -3209,6 +3260,83 @@ function memberRole(
     );
   }
   return unknownRole(`.${prop} na ${compactText(node, scope)}`);
+}
+
+/**
+ * Funkcja przekazana WPROST do `.handler(...)` (funkcja serwera) albo
+ * `.server(...)` (middleware) - jej pierwszy argument niesie `context`
+ * z middleware (`requireSupabaseAuth` - jedyny, który wkłada tam `supabase`).
+ */
+function isServerFnCallback(fn: ts.SignatureDeclaration): boolean {
+  const call = fn.parent;
+  if (call === undefined || !ts.isCallExpression(call) || !call.arguments.some((a) => a === fn)) {
+    return false;
+  }
+  const callee = unwrap(call.expression);
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    (callee.name.text === "handler" || callee.name.text === "server")
+  );
+}
+
+/**
+ * Rola `context.supabase` / `ctx.supabase` z WIĄZANIA nazwy: `null` - reguła
+ * nazwy (kontekst handlera funkcji serwera albo middleware, rozkładany
+ * `{ context }`; nazwa bez deklaracji w pliku); parametr innej funkcji -
+ * `.supabase` argumentu każdego wywołania (`paramRole`), zmienna lokalna -
+ * jej inicjalizatora; inne wiązanie - nieustalona (bez zgadywania).
+ */
+function contextClientRole(
+  base: ts.Identifier,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution | null {
+  const binding = bindingOf(base, scope);
+  // Ścieżka bez widocznej roli: reguła nazwy zostaje KANDYDATEM (uprawnienia
+  // `authenticated` sprawdzane jak dotąd), a fakt - na liście przejrzanej.
+  const unresolved = (r: RoleResolution): RoleResolution =>
+    r.role !== "unknown" || (r.candidates?.length ?? 0) > 0 || r.absent === true
+      ? r
+      : unknownRole(
+          r.via,
+          [{ role: "authenticated", via: `reguła nazwy ${base.text}.supabase`, guest: false }],
+          r.via,
+        );
+  if (binding.kind === "none") {
+    return declaringScope(base) === null ? null : unresolved(unknownRole(binding.why));
+  }
+  if (binding.kind === "param") {
+    if (binding.prop === "context") {
+      // `{ context }` handlera albo funkcji, której KAŻDE wywołanie dostaje
+      // argument handlera (`.handler((ctx) => f(ctx))`).
+      if (binding.index === 0 && isServerFnCallback(binding.fn)) return null;
+      const sites = callSitesOf(binding.fn, scope, env);
+      if (
+        sites !== null &&
+        sites.length > 0 &&
+        sites.every((site) => {
+          const arg = argumentAt(site.call, binding.index);
+          if (arg === undefined || arg === "spread") return false;
+          const node = unwrap(arg);
+          if (!ts.isIdentifier(node)) return false;
+          const b = bindingOf(node, site.scope);
+          return b.kind === "param" && b.index === 0 && b.prop === null && isServerFnCallback(b.fn);
+        })
+      ) {
+        return null;
+      }
+      return unresolved(unknownRole(`${base.text}.supabase: { context } parametru poza handlerem`));
+    }
+    if (binding.prop === null) {
+      return unresolved(paramRole(binding.fn, binding.index, "supabase", scope, env, depth));
+    }
+    return unresolved(unknownRole(`${base.text}.supabase: element ${binding.prop} parametru`));
+  }
+  if (binding.kind === "local" && binding.prop === null) {
+    return unresolved(memberRole(binding.init, "supabase", scope, env, depth + 1));
+  }
+  return unresolved(unknownRole(`${base.text}.supabase: wiązanie ${binding.kind}`));
 }
 
 /** Rola źródła `looseTable(źródło, t)` / `looseClient(źródło)` - czyli `źródło.supabase`. */
@@ -5135,6 +5263,35 @@ function handleBuilder(
     columns: readonly string[],
     star: boolean,
   ): boolean => fact({ table, op, columns, star, role, file: scope.file }, call);
+  // Odczyt `head: true` (sama liczba wierszy): PostgREST i tak czyta relację
+  // i kolumny listy `select` (CTE `pgrst_source` pod `count(...)`), więc 42501
+  // i 42P01 są te same co przy zwykłym odczycie - fakt MIARY (istnienie,
+  // uprawnienia kolumn, gość, sonda odczytu), bez faktu bramki (asercje 1-9
+  // bez zmian). Lista nieczytelna - fakt bez kolumn (relacja, sonda).
+  const headFact = (call: ts.CallExpression, columns: readonly string[], star: boolean): void => {
+    if (measure === null) return;
+    const observedFact: ObservedTable = placed(
+      {
+        table,
+        op: "select",
+        columns,
+        star,
+        file: scope.file,
+        role: measure.role.role,
+        via: measure.role.via,
+        enforcedRole: role,
+        withheld: false,
+        head: true,
+        guest: measure.role.guest === true,
+        ...candidateField(measure.role),
+        site: scope.file,
+        fn: enclosingFunctionPath(call),
+      },
+      call,
+    );
+    out.observed.tables.push(observedFact);
+    chainFacts.push({ fact: observedFact, chain: chainIndex });
+  };
   // Osadzenia odczytu niosą jego wstrzymanie (fakt bez kolumn - odczyt
   // nie jest wstrzymany).
   const embedUse = (ids: readonly number[], withheld: boolean): void => {
@@ -5156,7 +5313,8 @@ function handleBuilder(
         out.visitedSelects.add(call);
         const arg = call.arguments[0];
         const opts = call.arguments[1] ? unwrap(call.arguments[1]) : null;
-        // `head: true` - sama liczba wierszy, PostgREST nie zwraca kolumn.
+        // `head: true` - sama liczba wierszy; PostgREST nie zwraca kolumn, ale
+        // je czyta (`headFact`).
         const head =
           opts !== null &&
           ts.isObjectLiteralExpression(opts) &&
@@ -5166,7 +5324,12 @@ function handleBuilder(
               propName(p.name) === "head" &&
               p.initializer.kind === ts.SyntaxKind.TrueKeyword,
           );
-        if (head) continue;
+        if (head) {
+          const text = arg === undefined ? "*" : resolveString(arg, scope, exportsIndex, known);
+          const parsed = text === null ? { columns: [], star: false } : parseSelectColumns(text);
+          headFact(call, parsed.columns, parsed.star);
+          continue;
+        }
         if (arg === undefined) {
           site(call, "select", [], true);
           continue;
@@ -6258,15 +6421,22 @@ type KeyedFact =
   | ({ readonly kind: "table" } & ObservedTable)
   | ({ readonly kind: "filter" } & FilterSite)
   | ({ readonly kind: "embed" } & ObservedEmbed)
-  | ({ readonly kind: "statement" } & ObservedStatement);
+  | ({ readonly kind: "statement" } & ObservedStatement)
+  | ({ readonly kind: "dynwrite" } & ObservedDynamicWrite);
 
-function keyedFacts(o: ObservedFacts): KeyedFact[] {
+/**
+ * Fakty pod kluczami list. Zapisy z ładunkiem nieczytelnym (`dynamic`) -
+ * tylko we wszechświecie gościa: ich wiersz `anon` (uprawnienie do zapisu
+ * którejkolwiek kolumny) zdejmuje wpis GUEST_LOGIN_ONLY_REVIEWED pod kluczem.
+ */
+function keyedFacts(o: ObservedFacts, dynamic = false): KeyedFact[] {
   return [
     ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x })),
     ...o.tables.map((x) => ({ kind: "table" as const, ...x })),
     ...o.filters.map((x) => ({ kind: "filter" as const, ...x })),
     ...o.embeds.map((x) => ({ kind: "embed" as const, ...x })),
     ...o.statements.map((x) => ({ kind: "statement" as const, ...x })),
+    ...(dynamic ? o.dynamicWrites.map((x) => ({ kind: "dynwrite" as const, ...x })) : []),
   ];
 }
 
@@ -6306,12 +6476,13 @@ function shapeUniverse(
   o: ObservedFacts,
   pick: (x: KeyedFact) => boolean,
   withCandidates = false,
+  dynamic = false,
 ): Map<string, { count: number; shape: string }> {
   const callOf = factCallOf(o);
   const acc = new Map<string, { count: number; parts: Set<string> }>();
   const cols = (columns: readonly string[], star: boolean): string =>
     [...columns, ...(star ? ["*"] : [])].join(",");
-  for (const x of keyedFacts(o)) {
+  for (const x of keyedFacts(o, dynamic)) {
     if (!pick(x)) continue;
     // Kolumny `EXCLUDED` upsertu to jego ładunek - już w kształcie faktu zapisu.
     if (x.kind === "filter" && x.method === "upsert(EXCLUDED)") continue;
@@ -6331,6 +6502,9 @@ function shapeUniverse(
     } else if (x.kind === "table") {
       at.count += 1;
       at.parts.add(`${x.op}[${cols(x.columns, x.star)}]`);
+    } else if (x.kind === "dynwrite") {
+      at.count += 1;
+      at.parts.add(`${x.op}[?]`);
     } else if (x.kind === "filter") {
       at.parts.add(`${x.method}(${x.embed === null ? "" : `${x.embed}.`}${x.column})`);
     } else if (x.kind === "embed") {
@@ -6383,6 +6557,10 @@ const REST_REFERENCE =
   "kandydat z widocznych wywołań sprawdzany, ale nie każde odwołanie do funkcji jest wywołaniem (`const [{ f }] = await Promise.all([import(...)])`, funkcja w obiekcie pomocników) - klienta pozostałych ścieżek reguła roli nie widzi";
 const REST_MEMO =
   "kandydat sprawdzany (świeży klient `createClient(…, SERVICE_ROLE)`), ale ta sama wartość bywa klientem z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`) - wiązanie przypisywane, reguła roli go nie śledzi";
+// Recenzja r2 (`ctx.supabase` z wiązania, nie z nazwy): parametr `ctx` ma
+// kandydata z reguły nazwy, ale wartość to wynik funkcji.
+const REST_GATEWAY_CTX =
+  "kandydat sprawdzany (reguła nazwy `ctx.supabase` - klient z sesją), ale `ctx` to wynik `toAnalyticsGatewayCtx(context)` (obiekt z opakowaniem `context.supabase`); każde z 4 wywołań (status.functions, semantic/snapshot.functions, ga4.functions x2) podaje kontekst handlera funkcji serwera z `requireSupabaseAuth` - reguła roli nie czyta pól wyniku funkcji";
 const REST_MEMBER =
   "kandydat sprawdzany (`supabase` handlera z sesją), ale logger importu woła ten sam pomocnik z `this.supabase` (pole instancji) - reguła roli nie czyta pól";
 
@@ -6409,6 +6587,11 @@ const REST_MEMBER =
  * z jedną rolą we wszystkich wywołaniach.
  */
 export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> = {
+  "src/lib/analytics/gateway.server.ts: readStoredAnalyticsSettings: .from(site_settings)": [
+    1,
+    "eq(key) kandydaci(authenticated) select[value]",
+    REST_GATEWAY_CTX,
+  ],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: clubs: .rpc(admin_revenue_clubs_summary)":
     [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: email: .rpc(admin_revenue_email_health)":
@@ -6703,7 +6886,12 @@ export type GuestLoginOnlyEntry = readonly [count: number, shape: string, eviden
  * w WARUNKU bramki sesji (`enabled:` opcji zapytania, `user && ...`, `?:`,
  * `if (!user) return`, `<AuthGate>`; `typeof window`, `user?.id` w kluczu
  * zapytania - nie), albo z bramką, której region nie obejmuje KAŻDEGO
- * wywołania pod kluczem. Fakt klienta wykonanego na serwerze (`server`) jest
+ * wywołania pod kluczem. Recenzja r2: wartość warunku musi pochodzić ze
+ * źródła sesji (`useAuth()`, `auth.getSession()`/`getUser()`, `context`
+ * handlera), nie tylko nazywać się `user`/`userId`; `enabled:` w
+ * `queryOptions(...)` liczy się tylko, gdy opcje trafiają wyłącznie do
+ * `useQuery`/`useInfiniteQuery`/`useQueries` (`prefetchQuery`, `fetchQuery`,
+ * `ensureQueryData`, `useSuspenseQuery` tej flagi nie znają). Fakt klienta wykonanego na serwerze (`server`) jest
  * anonimowy dla każdego - wpis go nie zdejmuje. Listę wypełnia przegląd
  * wyniku `bun run generate:ts-sql-contract --guest-gaps` (gotowe klucze,
  * liczby i kształty tego, co jako gość pada na bazie po migracjach).
@@ -6753,18 +6941,180 @@ function guardEvidenceProblem(
   const regions: (readonly [number, number])[] = [];
   for (const snippet of snippets) {
     const found = [...code.matchAll(snippetRe(snippet))]
-      .map((m) => guardRegion(sf, m.index ?? 0, (m.index ?? 0) + m[0].length))
-      .filter((r): r is readonly [number, number] => r !== null);
+      .map((m) => guardAt(sf, m.index ?? 0, (m.index ?? 0) + m[0].length))
+      .filter((r) => r !== null);
     if (found.length === 0) {
-      return `\`${snippet}\` - w ${site} nie ma takiego warunku bramki sesji (enabled: z sesją w opcjach zapytania, user && ..., warunek ?:, if (!user) return, <AuthGate>)`;
+      return `\`${snippet}\` - w ${site} nie ma takiego warunku bramki sesji (enabled: z sesją ze źródła sesji - useAuth(), auth.getSession() - w opcjach zapytania, user && ..., warunek ?:, if (!user) return, <AuthGate>)`;
     }
-    regions.push(...found);
+    for (const g of found) {
+      const factory = queryOptionsFactoryOf(g.node);
+      const bypass = factory === null ? null : queryOptionsBypass(factory, site, sources);
+      if (bypass !== null) return `\`${snippet}\` - ${bypass}`;
+      regions.push(g.region);
+    }
   }
   for (const at of positions) {
     if (!regions.some(([a, b]) => a <= at && at < b)) {
       const line = sf.getLineAndCharacterOfPosition(at).line + 1;
       return `wywołanie ${site}:${line} poza regionem bramki z dowodu`;
     }
+  }
+  return null;
+}
+
+/** Wywołania, które respektują `enabled` opcji zapytania. */
+const ENABLED_HONORING: ReadonlySet<string> = new Set([
+  "useQuery",
+  "useInfiniteQuery",
+  "useQueries",
+]);
+
+/** Nazwa wywoływanej funkcji (`f(...)`, `x.f(...)`). */
+function calleeName(call: ts.CallExpression): string {
+  const callee = unwrap(call.expression);
+  return ts.isIdentifier(callee)
+    ? callee.text
+    : ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : "";
+}
+
+/**
+ * Odwołanie do opcji zapytania w pozycji, która respektuje `enabled`:
+ * argument `useQuery`/`useInfiniteQuery`/`useQueries` (wprost, rozłożony
+ * w obiekcie, w tablicy `queries` albo w `.map(...)` tej tablicy) albo
+ * `.queryKey` (klucz bez pobrania).
+ */
+function honorsEnabled(ref: ts.Node): boolean {
+  let e: ts.Node = ref;
+  if (e.parent !== undefined && ts.isCallExpression(e.parent) && e.parent.expression === e) {
+    e = e.parent;
+  }
+  if (
+    e.parent !== undefined &&
+    ts.isPropertyAccessExpression(e.parent) &&
+    e.parent.expression === e &&
+    e.parent.name.text === "queryKey"
+  ) {
+    return true;
+  }
+  for (let at: ts.Node = e; at.parent !== undefined; at = at.parent) {
+    const parent = at.parent;
+    if (ts.isCallExpression(parent)) {
+      if (ENABLED_HONORING.has(calleeName(parent)) && parent.arguments.some((a) => a === at)) {
+        return true;
+      }
+      // `ids.map((id) => opts(id))` w tablicy `queries` - dalej w górę.
+      if (calleeName(parent) === "map" && parent.arguments.some((a) => a === at)) continue;
+      return false;
+    }
+    if (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isSpreadAssignment(parent) ||
+      ts.isSpreadElement(parent) ||
+      ts.isObjectLiteralExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      (ts.isPropertyAssignment(parent) && parent.initializer === at) ||
+      (ts.isArrowFunction(parent) && parent.body === at)
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Opcje zapytania z bramką `enabled:` (`queryOptions(...)`), które trafiają
+ * do wywołania NIEZNAJĄCEGO tej flagi (`prefetchQuery`, `fetchQuery`,
+ * `ensureQueryData`, `useSuspenseQuery`, zmienna przekazana dalej) - opis
+ * miejsca; `null` - każde odwołanie do opcji to `useQuery`/`useInfiniteQuery`/
+ * `useQueries` albo `.queryKey`. Opcje bez nazwy poza takim wywołaniem - problem.
+ */
+function queryOptionsBypass(
+  factory: ts.CallExpression,
+  site: string,
+  sources: ReadonlyMap<string, string> | undefined,
+): string | null {
+  let at: ts.Node = factory;
+  while (
+    at.parent !== undefined &&
+    (ts.isParenthesizedExpression(at.parent) ||
+      ts.isAsExpression(at.parent) ||
+      ts.isSatisfiesExpression(at.parent))
+  ) {
+    at = at.parent;
+  }
+  const parent = at.parent;
+  let holder: string | null = null;
+  if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) holder = parent.name.text;
+  else {
+    const fn =
+      ts.isArrowFunction(parent) && parent.body === at
+        ? parent
+        : ts.isReturnStatement(parent)
+          ? ts.findAncestor(parent, ts.isFunctionLike)
+          : undefined;
+    if (fn !== undefined && ts.isFunctionDeclaration(fn) && fn.name !== undefined) {
+      holder = fn.name.text;
+    } else if (
+      fn !== undefined &&
+      (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) &&
+      ts.isVariableDeclaration(fn.parent) &&
+      ts.isIdentifier(fn.parent.name)
+    ) {
+      holder = fn.parent.name.text;
+    }
+  }
+  if (holder === null) {
+    return honorsEnabled(at)
+      ? null
+      : "opcje zapytania bez nazwy poza useQuery - prefetchQuery/fetchQuery/ensureQueryData/useSuspenseQuery nie znają enabled";
+  }
+  for (const [file, code] of sources ?? []) {
+    if (!code.includes(holder)) continue;
+    const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, scriptKindOf(file));
+    // Nazwy lokalne opcji: w pliku deklaracji - sama nazwa, gdzie indziej -
+    // import (także pod aliasem); `x.holder` (przestrzeń nazw) - zawsze.
+    const names = new Set<string>(file === site ? [holder] : []);
+    const visitImports = (node: ts.Node): void => {
+      if (ts.isImportSpecifier(node) && (node.propertyName ?? node.name).text === holder) {
+        names.add(node.name.text);
+      }
+      ts.forEachChild(node, visitImports);
+    };
+    visitImports(sf);
+    let problem: string | null = null;
+    const visit = (node: ts.Node): void => {
+      if (problem !== null) return;
+      const ref =
+        ts.isIdentifier(node) &&
+        names.has(node.text) &&
+        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+          ? node
+          : ts.isPropertyAccessExpression(node) && node.name.text === holder
+            ? node
+            : null;
+      if (ref !== null) {
+        const p = ref.parent;
+        const declaration =
+          (ts.isVariableDeclaration(p) && p.name === ref) ||
+          (ts.isFunctionDeclaration(p) && p.name === ref) ||
+          ts.isImportSpecifier(p) ||
+          ts.isExportSpecifier(p) ||
+          ts.isImportClause(p);
+        if (!declaration && !honorsEnabled(ref)) {
+          const line = sf.getLineAndCharacterOfPosition(ref.getStart(sf)).line + 1;
+          problem = `opcje ${holder} trafiają w ${file}:${line} poza useQuery/useInfiniteQuery/useQueries (prefetchQuery, fetchQuery, ensureQueryData i useSuspenseQuery nie znają enabled - gość wykonuje zapytanie)`;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    if (problem !== null) return problem;
   }
   return null;
 }
@@ -6794,7 +7144,7 @@ export function guestLoginOnlyDrift(
   reviewed: Readonly<Record<string, GuestLoginOnlyEntry>> = GUEST_LOGIN_ONLY_REVIEWED,
   sources?: ReadonlyMap<string, string>,
 ): { stale: string[]; fresh: string[]; invalid: string[] } {
-  const universe = shapeUniverse(facts.observed, exemptableGuest);
+  const universe = shapeUniverse(facts.observed, exemptableGuest, false, true);
   // Miejsca wywołań faktów, które wpis zdejmuje - każde musi być pod bramką dowodu.
   const callOf = factCallOf(facts.observed);
   const positions = new Map<string, number[]>();
@@ -6806,6 +7156,7 @@ export function guestLoginOnlyDrift(
     ...o.tables.map((x) => ({ kind: "table" as const, ...x, source: x })),
     ...o.filters.map((x) => ({ kind: "filter" as const, ...x, source: x })),
     ...o.embeds.map((x) => ({ kind: "embed" as const, ...x, source: x })),
+    ...o.dynamicWrites.map((x) => ({ kind: "dynwrite" as const, ...x, source: x })),
   ];
   for (const x of placedFacts as (KeyedFact & { readonly source: object })[]) {
     if (!exemptableGuest(x)) continue;
@@ -6844,7 +7195,7 @@ export function guestLoginOnlyDrift(
 export function guestLoginOnlyCandidates(
   facts: SeamFacts,
 ): Map<string, { count: number; shape: string }> {
-  return shapeUniverse(facts.observed, exemptableGuest);
+  return shapeUniverse(facts.observed, exemptableGuest, false, true);
 }
 
 /**
@@ -6868,6 +7219,14 @@ export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
 export interface InvokerTriggerReviewed {
   readonly md5: string;
   readonly reason: string;
+  /**
+   * Blokady domknięcia (`ts_closure_blockers`: kolumna bez uprawnienia roli,
+   * funkcja bez EXECUTE, dynamiczny SQL) przejrzane jako nieosiągalne albo
+   * bezpieczne - dokładny tekst. Blokady liczone przy KAŻDYM przebiegu (granty
+   * zmieniają się bez zmiany md5), więc blokada spoza listy czerwieni asercję
+   * 20 także przy zgodnym md5. Bez pola - domknięcie bez blokad.
+   */
+  readonly blockers?: readonly string[];
 }
 
 /**
@@ -6882,6 +7241,12 @@ export interface InvokerTriggerReviewed {
  * wpisu tutaj z md5 bieżącego DOMKNIĘCIA (ciało i funkcje `public` wołane
  * z ciała) - zmiana ciała albo funkcji wołanej to ponowny przegląd, a wpis
  * bez takiego wyzwalacza to diagnostyka pgTAP (nieaktualny), nie niepowodzenie.
+ * Zapis to także zapis z domknięcia funkcji SECURITY INVOKER wykonywanej jako
+ * klient (RPC, polityka, DEFAULT...). Niezależnie od md5 każdy przebieg liczy
+ * blokady domknięcia (`ts_closure_blockers`) dla roli z uprawnieniem do zapisu:
+ * md5 przypina treść, a REVOKE na funkcji wołanej albo kolumnie czytanej przez
+ * wyzwalacz (zwykła poprawka z doradcy Supabase) zmienia tylko granty - blokada
+ * spoza `blockers` wpisu czerwieni asercję 20 przy zgodnym md5.
  *
  * Wykonanie prawdziwego INSERT w podtransakcji (BEFORE ROW przed RLS
  * i ograniczeniami) sprawdzone na PG16 z seedem: 127 zapisów klienta bez
@@ -6898,6 +7263,13 @@ export interface InvokerTriggerReviewed {
 // (`.upsert(payload)`, `.update(patch)`) przejrzanych od nowa; `ts_closure_blockers`
 // bez blokad dla authenticated (anon: brak UPDATE `post_sidebar_layouts`
 // i EXECUTE `is_service_role_caller` - zapis anon pada wcześniej na grancie tabeli).
+// Recenzja r2: odcisk bez funkcji SECURITY DEFINER wołanych z ciała (ich EXECUTE
+// sprawdzają blokady) i z przeciążeniem dobranym po liczbie argumentów - trzy
+// odciski przeliczone na tej samej bazie (pages/posts_search_vector_refresh:
+// bez `unaccent(regdictionary, text)`, którego ciało nie woła; profiles_pin_tenant:
+// bez `has_role`/`is_service_role_caller`); stary odcisk był zgodny tuż przed
+// zmianą, więc treść funkcji bez zmian od przeglądu. Blokady domknięcia
+// (`ts_closure_blockers`, kolumnowo) dla roli z uprawnieniem do zapisu - puste.
 const TOUCH_ONLY = "tylko `NEW.updated_at := now()` - bez odczytu relacji i bez innych funkcji";
 const NEW_OLD_ONLY = "pola NEW/OLD i `now()` - bez odczytu relacji i bez innych funkcji";
 
@@ -6919,7 +7291,7 @@ export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerRe
       "`to_tsvector('public.nes_polish', ...)` na polach NEW - konfiguracja wyszukiwania nie ma uprawnień, bez odczytu relacji",
   },
   "public.pages_search_vector_refresh": {
-    md5: "84a0d97062ba1cf4ad11fd0c463f77a5",
+    md5: "23f3d170613dde523ccf9ac60a73f214",
     reason:
       "woła `nes_pages_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
   },
@@ -6933,7 +7305,7 @@ export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerRe
       "przy `NEW.is_default` UPDATE `post_sidebar_layouts.is_default` po `tenant_id`, `id`, `is_default` - authenticated ma UPDATE(is_default) i SELECT tych kolumn, a zapis klienta (SidebarBuilderPane) działa na tej samej tabeli pod tymi samymi politykami RLS",
   },
   "public.posts_search_vector_refresh": {
-    md5: "7c2f70feaaa5af0953d6a1d2ce001893",
+    md5: "494c9021c68b2dca704b27cac9b21312",
     reason:
       "woła `nes_posts_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
   },
@@ -6955,7 +7327,7 @@ export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerRe
     reason: "`btrim`/`NULLIF` na polach NEW - bez odczytu relacji",
   },
   "public.profiles_pin_tenant": {
-    md5: "87ac656abaa9711cfdcb1e554b483b15",
+    md5: "1b5f6bf7b1890a96b7ed98bfd089f5ea",
     reason:
       "przy zmianie `tenant_id` woła `is_service_role_caller()` i `has_role(...)` (obie SECURITY DEFINER; authenticated ma EXECUTE obu). anon nie ma EXECUTE `is_service_role_caller`, ale nie ma też UPDATE na profiles - zapis profilu jako anon pada na uprawnieniu tabeli przed wyzwalaczem (asercje 17/19)",
   },
@@ -7011,14 +7383,20 @@ export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerRe
 
 /**
  * Funkcje SECURITY INVOKER wykonywane jako rola klienta POZA wyzwalaczami
- * (RPC `anon`/`authenticated`, funkcje widoków i polityk RLS relacji klienta),
- * których domknięcie ma blokadę (`ts_closure_blockers`: relacja bez pełnego
- * SELECT roli, zapis bez uprawnienia, dynamiczny SQL) - `schemat.nazwa` ->
- * md5 domknięcia i powód: przegląd potwierdza, że KAŻDA gałąź ciała czyta
- * tylko kolumny z grantem roli. Sondy wykonują jedną ścieżkę ciała (argumenty
- * NULL i syntetyczne), a funkcję wiersza widoku - tylko dla istniejącego
- * wiersza, więc to przegląd, nie sonda. Na 10a7ea59 żadne domknięcie nie ma
- * blokady - lista pusta; wpis bez blokady to diagnostyka (nieaktualny).
+ * (RPC `anon`/`authenticated`; przy dostępie do relacji - funkcje widoków,
+ * polityki RLS relacji i relacji bazowych widoków security_invoker, a przy
+ * zapisie DEFAULT, CHECK i ograniczenia domen kolumn; to samo dla relacji,
+ * do których sięga domknięcie takiej funkcji), których domknięcie ma blokadę
+ * (`ts_closure_blockers`: kolumna czytana albo zapisywana bez uprawnienia roli,
+ * także kolumna bazowa widoku security_invoker, funkcja bez EXECUTE, dynamiczny
+ * SQL) - `schemat.nazwa` -> md5 domknięcia, przejrzane blokady (`blockers`)
+ * i powód: przegląd potwierdza, że gałąź z blokadą jest nieosiągalna albo
+ * bezpieczna. Blokada spoza wpisu (np. po REVOKE) albo inny md5 - naruszenie.
+ * Sondy wykonują jedną ścieżkę ciała (argumenty NULL i syntetyczne), a funkcję
+ * wiersza widoku, polityki albo DEFAULT - tylko dla istniejącego wiersza albo
+ * wcale (zapis to EXPLAIN), więc to przegląd, nie sonda. Na 10a7ea59 żadne
+ * domknięcie nie ma blokady - lista pusta; wpis bez blokady to diagnostyka
+ * (nieaktualny).
  */
 export const INVOKER_FUNCTIONS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {};
 
@@ -7666,11 +8044,15 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
   const callOf = factCallOf(o);
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
+  const reviewedRow = ([fn, entry]: [string, InvokerTriggerReviewed]): string =>
+    [sqlString(fn), sqlString(entry.md5), sqlTextArray([...(entry.blockers ?? [])].sort())].join(
+      ", ",
+    );
   const triggerRows = Object.entries(enforcement.invokerTriggers ?? INVOKER_TRIGGERS_REVIEWED)
-    .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
+    .map(reviewedRow)
     .sort();
   const functionRows = Object.entries(enforcement.invokerFunctions ?? INVOKER_FUNCTIONS_REVIEWED)
-    .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
+    .map(reviewedRow)
     .sort();
   const vacuousReviewed = Object.keys(
     enforcement.rpcProbeVacuous ?? RPC_PROBE_VACUOUS_REVIEWED,
@@ -7866,13 +8248,14 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     o.dynamicWrites.flatMap((w) =>
       checkedRoles(w).flatMap((c) =>
         [
-          ...(c.role === "anon" || c.role === "authenticated" ? [c.role] : []),
-          ...(guestOn(w, c, `.from(${w.table})`) ? ["anon"] : []),
-        ].map((role) =>
+          ...(c.role === "anon" || c.role === "authenticated" ? [[c.role, "false"]] : []),
+          ...(guestOn(w, c, `.from(${w.table})`) ? [["anon", "true"]] : []),
+        ].map(([role, guest]) =>
           [
             sqlString(w.table),
             sqlString(w.op),
             sqlString(role),
+            guest,
             sqlString(w.site),
             sqlString(w.fn),
           ].join(", "),
@@ -7891,7 +8274,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     guestKeys.set(key, GUEST_EXEMPT_CLASSES.has(cls) ? cls : `sprawdzane ${cls}`);
   }
   // Klucze listy, które zdejmują wiersze gościa (fakt pod kluczem w pliku public).
-  const exemptable = shapeUniverse(o, exemptableGuest);
+  const exemptable = shapeUniverse(o, exemptableGuest, false, true);
   const reviewedApplied = Object.keys(reviewed).filter(
     (k) => exemptable.has(k) && clsOf(k.slice(0, k.indexOf(": "))) === "public",
   ).length;
@@ -7950,9 +8333,12 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (takze ${o.dynamicWrites.length} zapisow z ladunkiem
 -- nieczytelnym - wszystkie kolumny) - sondy zapisu (EXPLAIN) ich nie wykonuja:
 -- asercja 20, md5 domkniecia (cialo i funkcje wolane), przejrzane
--- INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}. RPC, funkcje widokow i polityk relacji klienta:
--- domkniecie bez blokad (relacja bez pelnego SELECT roli, zapis bez uprawnienia,
--- dynamiczny SQL) albo wpis INVOKER_FUNCTIONS_REVIEWED: ${functionRows.length}. Wpis bez przedmiotu - diag.
+-- INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}, a przy kazdym przebiegu domkniecie bez blokad
+-- uprawnien roli z grantem zapisu. RPC, funkcje widokow, polityk (takze relacji bazowych
+-- widokow security_invoker), DEFAULT/CHECK/domen zapisu - dla relacji klienta i relacji
+-- domkniecia: domkniecie bez blokad (kolumna bez uprawnienia roli, takze przez widok
+-- security_invoker, funkcja bez EXECUTE, dynamiczny SQL) albo wpis
+-- INVOKER_FUNCTIONS_REVIEWED: ${functionRows.length}. Wpis bez przedmiotu - diag.
 `;
 
   const setup = `-- ── Fakty miary (asercje 10-20) ─────────────────────────────────────────────
@@ -7962,6 +8348,10 @@ CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op
 CREATE TEMP TABLE ts_obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], guest boolean, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
+-- Zapisy z ladunkiem nieczytelnym (.insert(rows), .update(patch)): istnienie
+-- relacji (asercja 12), uprawnienie do operacji na KTOREJKOLWIEK kolumnie
+-- (11/17) i wyzwalacze (20) - ladunek = wszystkie kolumny.
+CREATE TEMP TABLE ts_obs_dynwrite (rel text, op text, role text, guest boolean, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("ts_obs_rpc", "fn, keys, role, enforced, via, guest, site, func", rpcRows)}
 ${valuesBlock("ts_obs_table", "rel, op, role, enforced, cols, star, via, guest, file, site, func", tableRows)}
@@ -7969,6 +8359,7 @@ ${valuesBlock("ts_obs_filter", "rel, col, embed, method, op, role, enforced, gue
 ${valuesBlock("ts_obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, guest, site, func", statementRows)}
 ${valuesBlock("ts_obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, guest, file, site, func", embedRows)}
 ${valuesBlock("ts_obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
+${valuesBlock("ts_obs_dynwrite", "rel, op, role, guest, site, func", dynamicWriteRows)}
 ${RESULT_COLUMNS_SQL}
 -- Relacje osadzen (tabela ts_obs_embed_rel: id, rodzic, relacja, klucz obcy).
 ${EMBED_FUNCTIONS_SQL}
@@ -8039,7 +8430,23 @@ SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
   FROM ts_obs_table t
  WHERE t.op = 'delete' AND (t.guest OR t.role IS DISTINCT FROM t.enforced)
    AND ${rel("t.rel")} IS NOT NULL
-   AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE');
+   AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE')
+UNION ALL
+-- Ladunek nieczytelny: kolumn nie znamy, wiec uprawnienie do operacji na
+-- KTOREJKOLWIEK kolumnie (bez niego zapis pada 42501 zawsze); bramka 1-9
+-- tych zapisow nie ma.
+SELECT 'table', w.guest, w.site, w.func, '.from(' || w.rel || ')',
+       format('%s: %s: %s %s dla %s: brak %s na zadnej kolumnie (ladunek nieczytelny)', w.site, w.func,
+              w.rel, w.op, w.role, priv)
+  FROM ts_obs_dynwrite w
+  CROSS JOIN LATERAL unnest(CASE w.op
+      WHEN 'insert' THEN ARRAY['INSERT']
+      WHEN 'update' THEN ARRAY['UPDATE']
+      WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']
+      WHEN 'upsert_ignore' THEN ARRAY['INSERT']
+      ELSE ARRAY[]::text[] END) AS priv
+ WHERE ${rel("w.rel")} IS NOT NULL
+   AND NOT has_any_column_privilege(w.role, ${rel("w.rel")}, priv);
 
 -- Kolumny filtrow: istnienie (relacja, kolumna, klucz glowny celu bez onConflict).
 -- Relacja filtra osadzenia nieczytelna jako tabela (osadzenie po nazwie klucza
@@ -8060,7 +8467,20 @@ SELECT DISTINCT f.site, f.func,
                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
                  AND a.attnum > 0 AND NOT a.attisdropped)))
 UNION
-${rpcResultMissingSql("ts_obs_rpc_col")};
+${rpcResultMissingSql("ts_obs_rpc_col")}
+UNION
+-- Relacja faktu miary (odczyt \`head: true\` bez faktu bramki) i zapisu
+-- z ladunkiem nieczytelnym istnieje (42P01; sondy sa tylko dla istniejacych).
+SELECT DISTINCT t.site, t.func,
+       format('%s: %s: %s (%s%s): relacja nie istnieje', t.site, t.func, t.rel, t.op,
+              CASE WHEN t.file <> t.site THEN ', literal w ' || t.file ELSE '' END)
+  FROM ts_obs_table t
+ WHERE ${rel("t.rel")} IS NULL
+UNION
+SELECT DISTINCT w.site, w.func,
+       format('%s: %s: %s (%s, ladunek nieczytelny): relacja nie istnieje', w.site, w.func, w.rel, w.op)
+  FROM ts_obs_dynwrite w
+ WHERE ${rel("w.rel")} IS NULL;
 
 -- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
 -- w UPDATE i DELETE). Kolumna przez zlaczenie z pg_attribute, uprawnienie po
@@ -8124,109 +8544,60 @@ SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
    AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
 
 ${INVOKER_CLOSURE_SQL}
--- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (anon/authenticated):
--- INSERT - insert/upsert, UPDATE - update/upsert (UPDATE OF kolumny tylko gdy
--- ladunek je zawiera; ladunek nieczytelny - wszystkie kolumny), DELETE - delete.
--- Sondy zapisu (EXPLAIN) ich nie wykonuja, wiec funkcja: SECURITY DEFINER albo
--- wpis INVOKER_TRIGGERS_REVIEWED z md5 biezacego DOMKNIECIA (cialo i funkcje
--- wolane z ciala - ts_closure_md5).
-CREATE TEMP TABLE ts_obs_dynwrite (rel text, op text, role text, site text, func text) ON COMMIT DROP;
-${valuesBlock("ts_obs_dynwrite", "rel, op, role, site, func", dynamicWriteRows)}
-CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text) ON COMMIT DROP;
-${valuesBlock("ts_trigger_reviewed", "fn, md5", triggerRows)}
-CREATE TEMP TABLE ts_invoker_reviewed (fn text, md5 text) ON COMMIT DROP;
-${valuesBlock("ts_invoker_reviewed", "fn, md5", functionRows)}
-CREATE TEMP TABLE ts_trigger_fired ON COMMIT DROP AS
-WITH t AS (
-  SELECT n.nspname || '.' || p.proname AS fn, pg_temp.ts_closure_md5(p.oid) AS md5, c.relname::text AS rel,
-         tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
-         ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
-                 JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols
-    FROM pg_trigger tg
-    JOIN pg_class c ON c.oid = tg.tgrelid
-    JOIN pg_proc p ON p.oid = tg.tgfoid
-    JOIN pg_namespace n ON n.oid = p.pronamespace
-   WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
-     AND tg.tgenabled <> 'D' AND NOT p.prosecdef
-), w AS (
-  SELECT rel, op, role, site, func, payload FROM ts_obs_stmt
-  UNION ALL
-  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite
-)
-SELECT t.*, w.op, w.role, w.site, w.func
-  FROM t
-  JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')
- WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))
-    OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')
-        AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))
-    OR ((t.tgtype & 8) <> 0 AND w.op = 'delete');
-CREATE TEMP VIEW ts_v_trigger AS
-SELECT DISTINCT format('%s: %s: %s %s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
-         f.site, f.func, f.rel, f.op, f.role, f.tgname,
-         CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
-         concat_ws('/', CASE WHEN (f.tgtype & 4) <> 0 THEN 'INSERT' END,
-                        CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
-                        CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
-         CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
-         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'
-              ELSE format('domkniecie zmienione od przegladu (cialo albo funkcja wolana; md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
-  FROM ts_trigger_fired f
-  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
- WHERE r.md5 IS DISTINCT FROM f.md5;
+CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text, blockers text[]) ON COMMIT DROP;
+${valuesBlock("ts_trigger_reviewed", "fn, md5, blockers", triggerRows)}
+CREATE TEMP TABLE ts_invoker_reviewed (fn text, md5 text, blockers text[]) ON COMMIT DROP;
+${valuesBlock("ts_invoker_reviewed", "fn, md5, blockers", functionRows)}
+
+-- Dostep klienta do relacji (rola, relacja, operacja) z faktow zapytan.
+CREATE TEMP TABLE ts_client_access ON COMMIT DROP AS
+SELECT s.role, ${rel("s.rel")} AS rel, s.op, min(s.site) AS site, min(s.func) AS func
+  FROM (SELECT rel, op, role, site, func FROM ts_obs_stmt
+        UNION ALL SELECT rel, op, role, site, func FROM ts_obs_table
+        UNION ALL SELECT rel, op, role, site, func FROM ts_obs_dynwrite
+        UNION ALL SELECT pc.relname::text, 'select', m.role, m.site, m.func
+                    FROM ts_obs_embed m JOIN ts_obs_embed_rel x ON x.id = m.id
+                    JOIN pg_class pc ON pc.oid = x.target) s
+ WHERE s.role IN ('anon', 'authenticated') AND ${rel("s.rel")} IS NOT NULL
+ GROUP BY s.role, ${rel("s.rel")}, s.op;
 
 -- Funkcje SECURITY INVOKER wykonywane jako rola klienta poza wyzwalaczami:
--- RPC (anon/authenticated z EXECUTE) oraz funkcje widokow (takze zagniezdzonych)
--- i polityk RLS relacji czytanych albo zapisywanych przez klienta - funkcja
--- widoku liczy sie dla KAZDEGO wiersza jako wywolujacy, takze w widoku
--- definera. Tylko funkcje public (migracje) - auth.uid() itp. to platforma. Sondy wykonuja tylko jedna sciezke ciala (RPC: argumenty NULL
--- i syntetyczne) albo zaden wiersz (relacja bez danych), wiec domkniecie
--- sprawdza sie statycznie (ts_closure_blockers: relacja bez pelnego SELECT
--- roli, zapis bez uprawnienia tabeli, dynamiczny SQL); z blokada - wpis
--- INVOKER_FUNCTIONS_REVIEWED z md5 domkniecia albo naprawa.
+-- RPC (anon/authenticated z EXECUTE) oraz funkcje wykonywane przy dostepie do
+-- relacji (ts_access_roots: funkcje widokow, takze zagniezdzonych - liczone dla
+-- KAZDEGO wiersza jako wywolujacy, takze w widoku definera; polityki RLS
+-- relacji i relacji bazowych widokow security_invoker; przy zapisie DEFAULT,
+-- CHECK i ograniczenia domen kolumn) - dostepu klienta i dostepu z domkniecia
+-- korzenia (do trzech poziomow). Tylko funkcje public (migracje) - auth.uid()
+-- itp. to platforma. Sondy wykonuja tylko jedna sciezke ciala (RPC: argumenty
+-- NULL i syntetyczne), zapis planuja (EXPLAIN) albo nie widza wiersza (relacja
+-- bez danych), wiec domkniecie sprawdza sie statycznie (ts_closure_blockers);
+-- z blokada - wpis INVOKER_FUNCTIONS_REVIEWED z md5 domkniecia i przejrzanymi
+-- blokadami albo naprawa.
 CREATE TEMP TABLE ts_invoker_root ON COMMIT DROP AS
-SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn AS via, r.role, p.oid
-  FROM ts_obs_rpc r
-  CROSS JOIN LATERAL (
-         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
-         UNION ALL
-         SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
-          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
-  JOIN pg_proc p ON p.oid = o.oid
- WHERE r.role IN ('anon', 'authenticated')
-   AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
-   AND has_function_privilege(r.role, p.oid, 'EXECUTE');
-INSERT INTO ts_invoker_root (site, func, via, role, oid)
-WITH RECURSIVE c AS (
-  SELECT DISTINCT s.role, ${rel("s.rel")} AS rel, min(s.site) AS site, min(s.func) AS func
-    FROM (SELECT rel, role, site, func FROM ts_obs_stmt
-          UNION ALL SELECT rel, role, site, func FROM ts_obs_table
-          UNION ALL SELECT rel, role, site, func FROM ts_obs_dynwrite
-          UNION ALL SELECT pc.relname::text, m.role, m.site, m.func
-                      FROM ts_obs_embed m JOIN ts_obs_embed_rel x ON x.id = m.id
-                      JOIN pg_class pc ON pc.oid = x.target) s
-   WHERE s.role IN ('anon', 'authenticated') AND ${rel("s.rel")} IS NOT NULL
-   GROUP BY s.role, ${rel("s.rel")}
-), v AS (
-  SELECT role, rel, site, func FROM c
+WITH RECURSIVE r(site, func, via, role, oid, lvl) AS (
+  SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn, r.role, p.oid, 0
+    FROM ts_obs_rpc r
+    CROSS JOIN LATERAL (
+           SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
+           UNION ALL
+           SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
+            WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
+    JOIN pg_proc p ON p.oid = o.oid
+   WHERE r.role IN ('anon', 'authenticated')
+     AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
+     AND has_function_privilege(r.role, p.oid, 'EXECUTE')
   UNION
-  SELECT v.role, d.refobjid, v.site, v.func
-    FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
-    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
-                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
-    JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('v', 'm')
+  SELECT a.site, a.func, x.via, a.role, x.oid, 0
+    FROM ts_client_access a
+    CROSS JOIN LATERAL pg_temp.ts_access_roots(a.role, a.rel, a.op) x
+  UNION
+  SELECT r.site, r.func, x.via || ' (z ' || r.oid::regprocedure::text || ')', r.role, x.oid, r.lvl + 1
+    FROM r
+    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a
+    CROSS JOIN LATERAL pg_temp.ts_access_roots(r.role, a.rel, a.op) x
+   WHERE r.lvl < 3
 )
-SELECT DISTINCT v.site, v.func, 'widok ' || v.rel::regclass::text, v.role, p.oid
-  FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
-  JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
-  JOIN pg_proc p ON p.oid = d.refobjid AND NOT p.prosecdef
-  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public'
-UNION
-SELECT DISTINCT c.site, c.func, 'polityka ' || pol.polname || ' na ' || c.rel::regclass::text, c.role, p.oid
-  FROM c JOIN pg_policy pol ON pol.polrelid = c.rel
-                           AND (0 = ANY (pol.polroles) OR to_regrole(c.role)::oid = ANY (pol.polroles))
-  JOIN pg_depend d ON d.classid = 'pg_policy'::regclass AND d.objid = pol.oid AND d.refclassid = 'pg_proc'::regclass
-  JOIN pg_proc p ON p.oid = d.refobjid AND NOT p.prosecdef
-  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public';
+SELECT DISTINCT site, func, via, role, oid FROM r;
 CREATE TEMP TABLE ts_invoker_check ON COMMIT DROP AS
 SELECT x.oid, x.role, pg_namespace.nspname || '.' || pg_proc.proname AS fn,
        pg_temp.ts_closure_md5(x.oid) AS md5,
@@ -8236,13 +8607,95 @@ SELECT x.oid, x.role, pg_namespace.nspname || '.' || pg_proc.proname AS fn,
   JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace;
 CREATE TEMP VIEW ts_v_invoker AS
 SELECT DISTINCT format('%s: %s: %s jako %s -> %s() SECURITY INVOKER: %s - %s', r.site, r.func, r.via, r.role, k.fn,
-         array_to_string(k.blockers, '; '),
+         array_to_string(ARRAY(SELECT b FROM unnest(k.blockers) b
+                                WHERE e.fn IS NULL OR e.md5 IS DISTINCT FROM k.md5 OR b <> ALL (e.blockers)
+                                ORDER BY 1), '; '),
          CASE WHEN e.fn IS NULL THEN 'brak wpisu INVOKER_FUNCTIONS_REVIEWED (md5 domkniecia ' || k.md5 || ')'
-              ELSE format('domkniecie zmienione od przegladu (md5 %s, wpis %s)', k.md5, e.md5) END) AS msg
+              WHEN e.md5 IS DISTINCT FROM k.md5 THEN format('domkniecie zmienione od przegladu (md5 %s, wpis %s)', k.md5, e.md5)
+              ELSE 'blokady spoza przegladu INVOKER_FUNCTIONS_REVIEWED (uprawnienia roli zmienione)' END) AS msg
   FROM ts_invoker_root r
   JOIN ts_invoker_check k ON k.oid = r.oid AND k.role = r.role
   LEFT JOIN ts_invoker_reviewed e ON e.fn = k.fn
- WHERE cardinality(k.blockers) > 0 AND e.md5 IS DISTINCT FROM k.md5;
+ WHERE cardinality(k.blockers) > 0
+   AND (e.md5 IS DISTINCT FROM k.md5 OR NOT (k.blockers <@ e.blockers));
+
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem jako rola klienta (anon/authenticated)
+-- - zapisem klienta i zapisem z domkniecia korzenia: INSERT - insert/upsert,
+-- UPDATE - update/upsert (UPDATE OF kolumny tylko gdy ladunek je zawiera;
+-- ladunek nieczytelny - wszystkie kolumny), DELETE - delete. Sondy zapisu
+-- (EXPLAIN) ich nie wykonuja, wiec funkcja: SECURITY DEFINER albo wpis
+-- INVOKER_TRIGGERS_REVIEWED z md5 biezacego DOMKNIECIA (cialo i funkcje
+-- wolane z ciala - ts_closure_md5), a przy kazdym przebiegu - domkniecie bez
+-- blokad dla roli z uprawnieniem do zapisu (granty mogly sie zmienic od
+-- przegladu; rola bez uprawnienia pada wczesniej - asercje 11/17).
+CREATE TEMP TABLE ts_trigger_fired ON COMMIT DROP AS
+WITH t AS (
+  SELECT n.nspname || '.' || p.proname AS fn, c.relname::text AS rel,
+         tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
+         ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
+                 JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols,
+         p.oid AS foid, c.oid AS relid
+    FROM pg_trigger tg
+    JOIN pg_class c ON c.oid = tg.tgrelid
+    JOIN pg_proc p ON p.oid = tg.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
+     AND tg.tgenabled <> 'D' AND NOT p.prosecdef
+), w AS (
+  SELECT rel, op, role, site, func, payload, NULL::text AS via FROM ts_obs_stmt
+  UNION ALL
+  SELECT rel, op, role, site, func, NULL::text[], NULL FROM ts_obs_dynwrite
+  UNION ALL
+  SELECT k.relname::text, a.op, r.role, r.site, r.func,
+         CASE WHEN bool_and(a.col IS NOT NULL) THEN array_agg(DISTINCT a.col ORDER BY a.col) END,
+         min(r.via || ' -> ' || a.fn::regprocedure::text)
+    FROM ts_invoker_root r
+    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a
+    JOIN pg_class k ON k.oid = a.rel AND k.relnamespace = 'public'::regnamespace
+   WHERE a.op IN ('insert', 'update', 'delete')
+   GROUP BY k.relname, a.op, r.role, r.site, r.func
+), x AS MATERIALIZED (
+  SELECT t.*, w.op, w.role, w.site, w.func, w.via,
+         CASE w.op WHEN 'delete' THEN has_table_privilege(w.role, t.relid, 'DELETE')
+                   WHEN 'update' THEN has_any_column_privilege(w.role, t.relid, 'UPDATE')
+                   WHEN 'upsert' THEN has_any_column_privilege(w.role, t.relid, 'INSERT')
+                                      AND has_any_column_privilege(w.role, t.relid, 'UPDATE')
+                   ELSE has_any_column_privilege(w.role, t.relid, 'INSERT') END AS priv
+    FROM t
+    JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')
+   WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))
+      OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')
+          AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))
+      OR ((t.tgtype & 8) <> 0 AND w.op = 'delete')
+), m AS MATERIALIZED (
+  SELECT d.foid, pg_temp.ts_closure_md5(d.foid) AS md5 FROM (SELECT DISTINCT foid FROM x) d
+)
+SELECT x.*, m.md5 FROM x JOIN m ON m.foid = x.foid;
+CREATE TEMP TABLE ts_trigger_check ON COMMIT DROP AS
+SELECT f.foid, f.role, ARRAY(SELECT pg_temp.ts_closure_blockers(f.foid, f.role) ORDER BY 1) AS blockers
+  FROM (SELECT DISTINCT foid, role FROM ts_trigger_fired WHERE priv) f;
+CREATE TEMP VIEW ts_v_trigger AS
+SELECT DISTINCT format('%s: %s: %s %s%s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
+         f.site, f.func, f.rel, f.op, coalesce(' (' || f.via || ')', ''), f.role, f.tgname,
+         CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
+         concat_ws('/', CASE WHEN (f.tgtype & 4) <> 0 THEN 'INSERT' END,
+                        CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
+                        CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
+         CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
+         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'
+              ELSE format('domkniecie zmienione od przegladu (cialo albo funkcja wolana; md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
+  FROM ts_trigger_fired f
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE r.md5 IS DISTINCT FROM f.md5
+UNION
+SELECT DISTINCT format('%s: %s: %s %s%s jako %s -> wyzwalacz %s -> %s() SECURITY INVOKER: domkniecie z blokada uprawnien roli: %s',
+         f.site, f.func, f.rel, f.op, coalesce(' (' || f.via || ')', ''), f.role, f.tgname, f.fn,
+         array_to_string(ARRAY(SELECT b FROM unnest(k.blockers) b
+                                WHERE b <> ALL (coalesce(r.blockers, '{}'::text[])) ORDER BY 1), '; '))
+  FROM ts_trigger_fired f
+  JOIN ts_trigger_check k ON k.foid = f.foid AND k.role = f.role
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE f.priv AND NOT (k.blockers <@ coalesce(r.blockers, '{}'::text[]));
 
 -- Wpisy przejrzane bez przedmiotu (zapis klienta zniknal, funkcja bez blokady,
 -- sonda juz nie pusta): diagnostyka pgTAP, NIE niepowodzenie - zaleza od kodu
@@ -8292,7 +8745,14 @@ SELECT p.guest, p.site, p.func, '.rpc(' || p.rel || ')',
   FROM ts_probe p
  WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (${sqlTextArray(vacuousReviewed)})
  GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
-HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0;
+HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
+   -- Gosc: wczesne wyjscie bez sesji (auth.uid() IS NULL ...) to sciezka goscia,
+   -- nie cialo niesprawdzone - gdy domkniecie rozgalezia sie na sesji, a sonda
+   -- authenticated tej funkcji czyta relacje (cialo dalej sprawdzone).
+   AND NOT (p.role = 'anon' AND pg_temp.ts_session_branch(p.rel)
+            AND EXISTS (SELECT 1 FROM ts_probe a
+                         WHERE a.kind LIKE 'probe-rpc%' AND a.rel = p.rel
+                           AND a.role = 'authenticated' AND a.touched > 0));
 `;
   return { header, setup };
 }
@@ -8831,85 +9291,498 @@ ROLLBACK;
  * w komentarzu też blokuje) - fałszywa blokada to wpis z powodem, nie luka.
  */
 const INVOKER_CLOSURE_SQL = `-- Domkniecie funkcji SECURITY INVOKER (asercja 20).
-CREATE FUNCTION pg_temp.ts_fn_body(p_oid oid) RETURNS text LANGUAGE sql STABLE
+CREATE FUNCTION pg_temp.ts_fn_body(p_oid oid) RETURNS text LANGUAGE plpgsql STABLE
 SET search_path = pg_catalog AS $f$
-  SELECT coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid), '') FROM pg_proc p WHERE p.oid = p_oid
+#variable_conflict use_column
+BEGIN
+  RETURN (
+  SELECT coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid), '') FROM pg_proc p WHERE p.oid = p_oid);
+END
 $f$;
 
-CREATE FUNCTION pg_temp.ts_closure(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE sql STABLE
+-- Cialo bez komentarzy i literalow napisowych, malymi literami: nazwa relacji
+-- w komentarzu albo w napisie nie jest odczytem.
+CREATE FUNCTION pg_temp.ts_fn_clean(p_oid oid) RETURNS text LANGUAGE plpgsql STABLE
 SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN (
+  SELECT lower(regexp_replace(pg_temp.ts_fn_body(p_oid),
+                              '--[^\\n]*|/\\*([^*]|\\*+[^*/])*\\*+/|''([^'']|'''')*''', ' ', 'g')));
+END
+$f$;
+
+-- Wywolania w ciele: nazwa i liczba argumentow (przecinki na glebokosci
+-- nawiasu wywolania; nawiasy i [] zagniezdzone pomijane).
+CREATE FUNCTION pg_temp.ts_calls(p_oid oid) RETURNS TABLE(name text, nargs int) LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+DECLARE
+  c text[] := regexp_split_to_array(pg_temp.ts_fn_clean(p_oid), '');
+  n int := coalesce(array_length(c, 1), 0);
+  i int := 1;
+  j int;
+  k int;
+  ch text;
+  ident text := NULL;
+  fr text[] := '{}';
+  cnt int[] := '{}';
+  ne boolean[] := '{}';
+BEGIN
+  WHILE i <= n LOOP
+    ch := c[i];
+    k := coalesce(array_length(fr, 1), 0);
+    IF ch ~ '[a-z_]' THEN
+      j := i;
+      WHILE j < n AND c[j + 1] ~ '[a-z0-9_$]' LOOP j := j + 1; END LOOP;
+      ident := array_to_string(c[i:j], '');
+      IF k > 0 THEN ne[k] := true; END IF;
+      i := j + 1;
+      CONTINUE;
+    ELSIF ch = '(' OR ch = '[' THEN
+      IF k > 0 THEN ne[k] := true; END IF;
+      fr := fr || CASE WHEN ch = '(' THEN coalesce(ident, '') ELSE '' END;
+      cnt := cnt || 0;
+      ne := ne || false;
+      ident := NULL;
+    ELSIF ch = ')' OR ch = ']' THEN
+      IF k > 0 THEN
+        IF fr[k] <> '' THEN
+          name := fr[k];
+          nargs := CASE WHEN ne[k] THEN cnt[k] + 1 ELSE 0 END;
+          RETURN NEXT;
+        END IF;
+        fr := fr[1:k - 1];
+        cnt := cnt[1:k - 1];
+        ne := ne[1:k - 1];
+      END IF;
+      ident := NULL;
+    ELSIF ch = ',' THEN
+      IF k > 0 THEN cnt[k] := cnt[k] + 1; ne[k] := true; END IF;
+      ident := NULL;
+    ELSIF ch !~ '\\s' THEN
+      IF k > 0 THEN ne[k] := true; END IF;
+      ident := NULL;
+    END IF;
+    i := i + 1;
+  END LOOP;
+END
+$f$;
+
+-- Funkcje public wolane z ciala: przeciazenie o tej nazwie, ktore przyjmuje
+-- tyle argumentow (domyslne, VARIADIC); zadne nie pasuje - wszystkie o tej nazwie.
+CREATE FUNCTION pg_temp.ts_callees_scan(p_oid oid) RETURNS SETOF oid LANGUAGE plpgsql STABLE
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  WITH k AS (SELECT DISTINCT name, nargs FROM pg_temp.ts_calls(p_oid)),
+  c AS (SELECT k.name, k.nargs, q.oid,
+               (k.nargs BETWEEN q.pronargs - q.pronargdefaults AND q.pronargs
+                OR (q.provariadic <> 0 AND k.nargs >= q.pronargs - 1)) AS fits
+          FROM k JOIN pg_proc q ON q.proname = k.name AND q.pronamespace = 'public'::regnamespace)
+  SELECT DISTINCT c.oid FROM c
+   WHERE c.fits OR NOT EXISTS (SELECT 1 FROM c x WHERE x.name = c.name AND x.nargs = c.nargs AND x.fits);
+END
+$f$;
+
+-- Pamiec podreczna analizy ciala (wywolania, dostep) i domkniecia - funkcje
+-- wspolne dla wielu korzeni i wyzwalaczy licza sie raz na przebieg.
+CREATE TEMP TABLE ts_memo_fn (fn oid PRIMARY KEY) ON COMMIT DROP;
+CREATE TEMP TABLE ts_memo_callee (fn oid, callee oid) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_callee (fn);
+CREATE TEMP TABLE ts_memo_access (fn oid, rel oid, op text, col text, star boolean) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_access (fn);
+CREATE TEMP TABLE ts_memo_root (root oid PRIMARY KEY) ON COMMIT DROP;
+CREATE TEMP TABLE ts_memo_closure (root oid, oid oid, depth int) ON COMMIT DROP;
+CREATE INDEX ON ts_memo_closure (root);
+
+CREATE FUNCTION pg_temp.ts_fn_memo(p_oid oid) RETURNS void LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_temp.ts_memo_fn WHERE fn = p_oid) THEN
+    INSERT INTO pg_temp.ts_memo_callee SELECT p_oid, x FROM pg_temp.ts_callees_scan(p_oid) x;
+    INSERT INTO pg_temp.ts_memo_access SELECT p_oid, a.rel, a.op, a.col, a.star FROM pg_temp.ts_fn_access_scan(p_oid) a;
+    INSERT INTO pg_temp.ts_memo_fn VALUES (p_oid);
+  END IF;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_callees(p_oid oid) RETURNS SETOF oid LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  PERFORM pg_temp.ts_fn_memo(p_oid);
+  RETURN QUERY SELECT m.callee FROM pg_temp.ts_memo_callee m WHERE m.fn = p_oid;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_fn_access(p_oid oid) RETURNS TABLE(rel oid, op text, col text, star boolean) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  PERFORM pg_temp.ts_fn_memo(p_oid);
+  RETURN QUERY SELECT m.rel, m.op, m.col, m.star FROM pg_temp.ts_memo_access m WHERE m.fn = p_oid;
+END
+$f$;
+
+CREATE FUNCTION pg_temp.ts_closure(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_temp.ts_memo_root WHERE root = p_root) THEN
+    INSERT INTO pg_temp.ts_memo_closure SELECT p_root, c.oid, c.depth FROM pg_temp.ts_closure_scan(p_root) c;
+    INSERT INTO pg_temp.ts_memo_root VALUES (p_root);
+  END IF;
+  RETURN QUERY SELECT m.oid, m.depth FROM pg_temp.ts_memo_closure m WHERE m.root = p_root;
+END
+$f$;
+
+-- Domkniecie: korzen i funkcje wolane rekurencyjnie przez SECURITY INVOKER
+-- (funkcja SECURITY DEFINER to lisc - jej cialo dziala jako wlasciciel).
+CREATE FUNCTION pg_temp.ts_closure_scan(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
   WITH RECURSIVE c(oid, depth) AS (
     SELECT p_root, 0
     UNION
     SELECT q.oid, c.depth + 1
       FROM c
       JOIN pg_proc p ON p.oid = c.oid
-      CROSS JOIN LATERAL (
-        SELECT DISTINCT lower(m[1]) AS name
-          FROM regexp_matches(pg_temp.ts_fn_body(p.oid), '([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', 'g') m) w
-      JOIN pg_proc q ON q.proname = w.name
-      JOIN pg_namespace n ON n.oid = q.pronamespace
-     WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid AND n.nspname = 'public'
+      CROSS JOIN LATERAL pg_temp.ts_callees(p.oid) q(oid)
+     WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid
        AND p.prolang IN (SELECT l.oid FROM pg_language l WHERE l.lanname IN ('sql', 'plpgsql'))
   )
-  SELECT c.oid, min(c.depth)::int FROM c GROUP BY c.oid
+  SELECT c.oid, min(c.depth)::int FROM c GROUP BY c.oid;
+END
 $f$;
 
-CREATE FUNCTION pg_temp.ts_closure_md5(p_root oid) RETURNS text LANGUAGE sql STABLE
+-- Odcisk domkniecia: sygnatura, konfiguracja i cialo kazdej funkcji
+-- wykonywanej jako wywolujacy (korzen i wolane SECURITY INVOKER); funkcja
+-- SECURITY DEFINER wolana z ciala - poza odciskiem (jej EXECUTE sprawdza
+-- ts_closure_blockers, a nowe przeciazenie nie zmienia tego, co sie wykonuje).
+CREATE FUNCTION pg_temp.ts_closure_md5(p_root oid) RETURNS text LANGUAGE plpgsql
 SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN (
   SELECT md5(string_agg(format('%s|%s|%s|%s', p.oid::regprocedure, p.prosecdef,
-                               coalesce(array_to_string(p.proconfig, ','), ''),
-                               CASE WHEN p.prosecdef AND c.depth > 0 THEN '' ELSE md5(pg_temp.ts_fn_body(p.oid)) END),
+                               coalesce(array_to_string(p.proconfig, ','), ''), md5(pg_temp.ts_fn_body(p.oid))),
                         E'\\n' ORDER BY p.oid::regprocedure::text))
     FROM pg_temp.ts_closure(p_root) c JOIN pg_proc p ON p.oid = c.oid
+   WHERE c.depth = 0 OR NOT p.prosecdef);
+END
 $f$;
 
-CREATE FUNCTION pg_temp.ts_closure_blockers(p_root oid, p_role text) RETURNS SETOF text LANGUAGE sql STABLE
+-- Kolumny (attnum; 0 - relacja) relacji czytanych JAKO WYWOLUJACY przez widok
+-- security_invoker (start): reguly widoku i rekurencyjnie zagniezdzonych widokow
+-- security_invoker (pg_depend reguly - te kolumny sprawdza Postgres przy kazdym
+-- odczycie widoku, takze bez wierszy); via - widok, ktorego regula czyta.
+CREATE TEMP TABLE ts_view_ref ON COMMIT DROP AS
+WITH RECURSIVE iv AS (
+  SELECT k.oid FROM pg_class k CROSS JOIN LATERAL unnest(k.reloptions) o
+   WHERE k.relkind = 'v'
+     AND lower(o) IN ('security_invoker=true', 'security_invoker=on', 'security_invoker=1', 'security_invoker=yes')
+), v(start, rel) AS (
+  SELECT oid, oid FROM iv
+  UNION
+  SELECT v.start, d.refobjid
+    FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
+   WHERE d.refobjid IN (SELECT oid FROM iv)
+)
+SELECT DISTINCT v.start, v.rel AS via, d.refobjid AS rel, d.refobjsubid AS attnum
+  FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+  JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                  AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
+  JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('r', 'p', 'f', 'v', 'm');
+
+CREATE FUNCTION pg_temp.ts_view_refs(p_rel oid) RETURNS TABLE(via oid, rel oid, attnum int) LANGUAGE plpgsql STABLE
 SET search_path = pg_catalog AS $f$
-  WITH c AS (
-    SELECT p.oid, pg_temp.ts_fn_body(p.oid) AS body, l.lanname
-      FROM pg_temp.ts_closure(p_root) x
-      JOIN pg_proc p ON p.oid = x.oid
-      JOIN pg_language l ON l.oid = p.prolang
-     WHERE (x.depth = 0 OR NOT p.prosecdef) AND l.lanname IN ('sql', 'plpgsql')
-  ), rels AS (
-    SELECT DISTINCT c.oid AS fn, k.oid AS rel, k.relkind
-      FROM c
-      CROSS JOIN LATERAL (SELECT DISTINCT lower(m[1]) AS w
-                            FROM regexp_matches(c.body, '([A-Za-z_][A-Za-z0-9_]*)', 'g') m) w
-      JOIN pg_class k ON k.relname = w.w AND k.relnamespace = 'public'::regnamespace
-                     AND k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY SELECT r.via, r.rel, r.attnum FROM pg_temp.ts_view_ref r WHERE r.start = p_rel;
+END
+$f$;
+
+-- Funkcje public SECURITY INVOKER wykonywane jako rola przy dostepie do relacji
+-- (rel): funkcje widoku i widokow zagniezdzonych (view; liczone dla kazdego
+-- wiersza jako wywolujacy, takze w widoku definera), polityki RLS (policy,
+-- role polityki), DEFAULT (default; generated - kolumna generowana, takze
+-- UPDATE), CHECK (check) i ograniczenia domen kolumn (domain).
+CREATE TEMP TABLE ts_rel_fn ON COMMIT DROP AS
+WITH RECURSIVE vs(start, rel) AS (
+  SELECT k.oid, k.oid FROM pg_class k WHERE k.relkind IN ('v', 'm')
+  UNION
+  SELECT vs.start, d.refobjid
+    FROM vs JOIN pg_rewrite rw ON rw.ev_class = vs.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> vs.rel
+    JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('v', 'm')
+), f(rel, kind, roles, oid, via) AS (
+  SELECT vs.start, 'view', NULL::oid[], d.refobjid, 'widok ' || vs.rel::regclass::text
+    FROM vs JOIN pg_rewrite rw ON rw.ev_class = vs.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT pol.polrelid, 'policy', pol.polroles, d.refobjid, 'polityka ' || pol.polname || ' na ' || pol.polrelid::regclass::text
+    FROM pg_policy pol
+    JOIN pg_depend d ON d.classid = 'pg_policy'::regclass AND d.objid = pol.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT ad.adrelid, CASE WHEN att.attgenerated <> '' THEN 'generated' ELSE 'default' END, NULL::oid[], d.refobjid,
+         'DEFAULT ' || ad.adrelid::regclass::text || '.' || quote_ident(att.attname)
+    FROM pg_attrdef ad
+    JOIN pg_attribute att ON att.attrelid = ad.adrelid AND att.attnum = ad.adnum AND NOT att.attisdropped
+    JOIN pg_depend d ON d.classid = 'pg_attrdef'::regclass AND d.objid = ad.oid AND d.refclassid = 'pg_proc'::regclass
+  UNION
+  SELECT con.conrelid, 'check', NULL::oid[], d.refobjid, 'CHECK ' || con.conname || ' na ' || con.conrelid::regclass::text
+    FROM pg_constraint con
+    JOIN pg_depend d ON d.classid = 'pg_constraint'::regclass AND d.objid = con.oid AND d.refclassid = 'pg_proc'::regclass
+   WHERE con.contype = 'c' AND con.conrelid <> 0
+  UNION
+  SELECT att.attrelid, 'domain', NULL::oid[], d.refobjid,
+         'domena ' || t.oid::regtype::text || ' (' || att.attrelid::regclass::text || '.' || quote_ident(att.attname) || ')'
+    FROM pg_attribute att
+    JOIN pg_class k ON k.oid = att.attrelid AND k.relkind IN ('r', 'p', 'f')
+    JOIN pg_type t ON t.oid = att.atttypid AND t.typtype = 'd'
+    JOIN pg_constraint con ON con.contypid = t.oid
+    JOIN pg_depend d ON d.classid = 'pg_constraint'::regclass AND d.objid = con.oid AND d.refclassid = 'pg_proc'::regclass
+   WHERE att.attnum > 0 AND NOT att.attisdropped
+)
+SELECT DISTINCT f.rel, f.kind, f.roles, f.oid, f.via
+  FROM f JOIN pg_proc p ON p.oid = f.oid AND NOT p.prosecdef
+  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public';
+
+-- Dostep ciala do relacji (instrukcja po instrukcji): odczyt relacji (kolumna
+-- NULL - dowolna kolumna), kolumny kwalifikowane aliasem albo nazwa relacji,
+-- kolumny bez kwalifikatora (relacja instrukcji z ta kolumna; kilka - te bez
+-- aliasu), * i alias.*; zapis INSERT (lista kolumn), UPDATE (lewe strony SET,
+-- takze ON CONFLICT DO UPDATE), DELETE (cala relacja). Cel zapisu i lewa
+-- strona SET nie sa odczytem; argument plpgsql nie jest kolumna.
+CREATE FUNCTION pg_temp.ts_fn_access_scan(p_oid oid) RETURNS TABLE(rel oid, op text, col text, star boolean)
+LANGUAGE plpgsql STABLE SET search_path = pg_catalog AS $f$
+DECLARE
+  v_args text[];
+  v_kw text[] := '{where,join,inner,left,right,full,outer,cross,natural,on,using,set,group,order,limit,offset,union,except,intersect,returning,values,select,from,lateral,window,having,for,into,default,and,or,not,then,else,end,loop,when,as,with,do,is,in,tablesample,only,fetch,if,case,between,like,ilike,similar,asc,desc,nulls,by,all,any,some,exists,update,insert,delete,conflict,nothing,strict,perform,return,raise,exception,elsif,while,foreach,exit,continue,begin,declare,execute,open,close,get,"null",true,false}';
+  v_ident constant text := '[a-z_][a-z0-9_$]*';
+  s text;
+  v_read text;
+  m text[];
+BEGIN
+  SELECT CASE WHEN l.lanname = 'plpgsql' THEN coalesce(p.proargnames, '{}') ELSE '{}' END
+    INTO v_args FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang WHERE p.oid = p_oid;
+  -- Sekwencje z literalu nextval/currval/setval (literal zdejmuje ts_fn_clean).
+  RETURN QUERY
+  SELECT DISTINCT k.oid, 'select', NULL::text, false
+    FROM regexp_matches(lower(pg_temp.ts_fn_body(p_oid)),
+                        '\\m(?:nextval|currval|setval)\\s*\\(\\s*''(?:public\\.)?([a-z_][a-z0-9_$]*)''', 'g') x
+    JOIN pg_class k ON k.relname = x[1] AND k.relnamespace = 'public'::regnamespace AND k.relkind = 'S';
+  FOR s IN SELECT t FROM regexp_split_to_table(pg_temp.ts_fn_clean(p_oid), ';') t WHERE t ~ '[a-z]' LOOP
+    -- Tekst odczytu: bez celow zapisu (INSERT INTO t (kolumny), UPDATE t, DELETE FROM t)
+    -- i bez lewych stron SET (kolumna przypisana nie jest czytana).
+    v_read := s;
+    m := regexp_match(v_read, '^(.*?\\mset\\M)(.*?)(\\m(?:where|from|returning)\\M.*)?$');
+    IF m IS NOT NULL AND v_read ~ '\\mupdate\\M' THEN
+      v_read := m[1] || regexp_replace(m[2], '(^|,)(\\s*)[a-z_][a-z0-9_$]*(\\s*=)(?![=>])', '\\1\\2\\3', 'g') || coalesce(m[3], '');
+    END IF;
+    v_read := regexp_replace(v_read,
+      '\\minsert\\s+into\\s+(?:only\\s+)?(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?[a-z_][a-z0-9_$]*(?:\\s+as\\s+[a-z_][a-z0-9_$]*)?\\s*(?:\\([^()]*\\))?', ' ', 'g');
+    v_read := regexp_replace(v_read,
+      '\\m(?:delete\\s+from|update)\\s+(?:only\\s+)?(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?[a-z_][a-z0-9_$]*', ' ', 'g');
+    RETURN QUERY
+    WITH tok AS (
+      SELECT x[1] AS a, x[2] AS b, coalesce(x[3], '') AS nx, src
+        FROM (VALUES ('all', s), ('read', v_read)) z(src, txt)
+        CROSS JOIN LATERAL regexp_matches(z.txt, '([a-z_][a-z0-9_$]*)(?:\\s*\\.\\s*([a-z_][a-z0-9_$]*|\\*))?(\\s*\\(|\\s*:=)?', 'g') x
+    ), relt AS (
+      SELECT DISTINCT t.src, k.oid
+        FROM tok t
+        JOIN pg_class k ON k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+                       AND ((t.b IS NULL AND k.relname = t.a AND k.relnamespace = 'public'::regnamespace)
+                            OR (t.a = 'public' AND k.relname = t.b AND k.relnamespace = 'public'::regnamespace)
+                            OR (t.a NOT IN ('public', 'pg_catalog', 'information_schema') AND k.relname = t.b
+                                AND k.relnamespace = (SELECT n.oid FROM pg_namespace n WHERE n.nspname = t.a)))
+       WHERE t.nx NOT LIKE '%('
+    ), rels AS (
+      SELECT DISTINCT r.oid, k.relname::text AS relname FROM relt r JOIN pg_class k ON k.oid = r.oid
+    ), occ AS (
+      -- Wystapienia relacji: alias (slowo po nazwie, nie slowo kluczowe) albo bez aliasu.
+      SELECT r.oid, nullif(regexp_replace(btrim(o[1]), '^as\\s+', ''), '') AS alias
+        FROM rels r
+        CROSS JOIN LATERAL regexp_matches(s,
+          '(?:^|[^a-z0-9_$.])(?:[a-z_][a-z0-9_$]*\\s*\\.\\s*)?' || regexp_replace(r.relname, '([$])', '\\\\\\1', 'g')
+          || '(?![a-z0-9_$]|\\s*[.(])(\\s+(?:as\\s+)?[a-z_][a-z0-9_$]*)?', 'g') o
+    ), al AS (
+      SELECT DISTINCT oid, alias FROM occ WHERE alias IS NOT NULL AND alias <> ALL (v_kw)
+      UNION
+      SELECT oid, relname FROM rels
+    ), bare AS (
+      SELECT DISTINCT oid FROM occ WHERE alias IS NULL OR alias = ANY (v_kw)
+    ), cols AS (
+      SELECT r.oid, a.attname::text AS col
+        FROM rels r JOIN pg_attribute a ON a.attrelid = r.oid AND a.attnum > 0 AND NOT a.attisdropped
+    ), q AS (
+      -- Kolumny kwalifikowane aliasem albo nazwa relacji (alias.* - wszystkie).
+      SELECT DISTINCT al.oid, CASE WHEN t.b = '*' THEN NULL ELSE t.b END AS col, t.b = '*' AS star
+        FROM tok t JOIN al ON al.alias = t.a
+       WHERE t.src = 'read' AND t.b IS NOT NULL AND t.nx NOT LIKE '%('
+         AND (t.b = '*' OR EXISTS (SELECT 1 FROM cols c WHERE c.oid = al.oid AND c.col = t.b))
+    ), u AS (
+      -- Kolumny bez kwalifikatora: relacja instrukcji z ta kolumna; kilka - te bez
+      -- aliasu (wszystkie, gdy kazda ma alias).
+      SELECT DISTINCT c.oid, c.col
+        FROM (SELECT DISTINCT a FROM tok WHERE src = 'read' AND b IS NULL AND nx = '' AND a <> ALL (v_args)) t
+        JOIN cols c ON c.col = t.a
+       WHERE (SELECT count(*) FROM cols x WHERE x.col = t.a) = 1
+          OR c.oid IN (SELECT oid FROM bare)
+          OR NOT EXISTS (SELECT 1 FROM cols x WHERE x.col = t.a AND x.oid IN (SELECT oid FROM bare))
+    )
+    SELECT r.oid, 'select', NULL::text, false FROM relt r WHERE r.src = 'read'
     UNION
-    SELECT DISTINCT c.oid, k.oid, k.relkind
-      FROM c
-      CROSS JOIN LATERAL regexp_matches(c.body, '([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)', 'g') m
-      JOIN pg_namespace n ON n.nspname = lower(m[1])
-                         AND n.nspname NOT IN ('public', 'pg_catalog', 'information_schema')
-      JOIN pg_class k ON k.relnamespace = n.oid AND k.relname = lower(m[2])
-                     AND k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+    SELECT q.oid, 'select', q.col, q.star FROM q
+    UNION
+    SELECT u.oid, 'select', u.col, false FROM u
+    UNION
+    SELECT r.oid, 'select', NULL::text, true FROM relt r
+     WHERE r.src = 'read' AND s ~ '\\mselect\\s+(?:distinct\\s+)?\\*';
+    -- Zapisy: INSERT INTO t [(kolumny)], ON CONFLICT DO UPDATE SET, UPDATE t SET, DELETE FROM t.
+    RETURN QUERY
+    WITH w AS (
+      SELECT 'insert' AS op, x[1] AS nsp, x[2] AS rel, x[3] AS list
+        FROM regexp_matches(s, '\\minsert\\s+into\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)(?:\\s+as\\s+[a-z_][a-z0-9_$]*)?\\s*(?:\\(([^()]*)\\))?', 'g') x
+      UNION ALL
+      SELECT 'delete', x[1], x[2], NULL
+        FROM regexp_matches(s, '\\mdelete\\s+from\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') x
+      UNION ALL
+      SELECT 'update', x[1], x[2],
+             (SELECT string_agg(y[1], ',') FROM regexp_matches(coalesce(m[2], ''), '(?:^|,)\\s*([a-z_][a-z0-9_$]*)\\s*=(?![=>])', 'g') y)
+        FROM regexp_matches(s, '\\mupdate\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') x
+       WHERE x[2] <> 'set'
+      UNION ALL
+      SELECT 'update', i[1], i[2],
+             (SELECT string_agg(y[1], ',') FROM regexp_matches(coalesce(m[2], ''), '(?:^|,)\\s*([a-z_][a-z0-9_$]*)\\s*=(?![=>])', 'g') y)
+        FROM regexp_matches(s, '\\minsert\\s+into\\s+(?:only\\s+)?(?:([a-z_][a-z0-9_$]*)\\s*\\.\\s*)?([a-z_][a-z0-9_$]*)', 'g') i
+       WHERE s ~ '\\mdo\\s+update\\s+set\\M'
+    ), wr AS (
+      SELECT w.op, k.oid, w.list
+        FROM w JOIN pg_class k ON k.relname = w.rel AND k.relkind IN ('r', 'p', 'f', 'v')
+                              AND k.relnamespace = coalesce((SELECT n.oid FROM pg_namespace n WHERE n.nspname = w.nsp), 'public'::regnamespace)
+    )
+    SELECT wr.oid, wr.op, NULL::text, false FROM wr WHERE wr.list IS NULL OR btrim(wr.list) = '' OR wr.op = 'delete'
+    UNION
+    SELECT wr.oid, wr.op, btrim(c), false FROM wr CROSS JOIN LATERAL unnest(string_to_array(wr.list, ',')) c
+     WHERE wr.op <> 'delete' AND btrim(c) ~ '^[a-z_][a-z0-9_$]*$';
+  END LOOP;
+END
+$f$;
+
+-- Dostep funkcji domkniecia wykonywanych jako wywolujacy.
+CREATE FUNCTION pg_temp.ts_closure_access(p_root oid) RETURNS TABLE(fn oid, rel oid, op text, col text, star boolean)
+LANGUAGE plpgsql SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT x.oid, a.rel, a.op, a.col, a.star
+    FROM pg_temp.ts_closure(p_root) x
+    JOIN pg_proc p ON p.oid = x.oid
+    JOIN pg_language l ON l.oid = p.prolang AND l.lanname IN ('sql', 'plpgsql')
+    CROSS JOIN LATERAL pg_temp.ts_fn_access(x.oid) a
+   WHERE x.depth = 0 OR NOT p.prosecdef;
+END
+$f$;
+
+-- Blokady domkniecia dla roli: kolumna czytana bez SELECT (takze kolumny
+-- bazowe widoku security_invoker), relacja bez SELECT zadnej kolumny,
+-- kolumna zapisywana bez INSERT/UPDATE, DELETE bez uprawnienia, sekwencja bez
+-- USAGE, dynamiczny SQL, wolana funkcja bez EXECUTE.
+CREATE FUNCTION pg_temp.ts_closure_blockers(p_root oid, p_role text) RETURNS SETOF text LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  WITH a AS (
+    SELECT * FROM pg_temp.ts_closure_access(p_root)
+  ), r AS (
+    SELECT a.fn, a.rel, a.col, a.star, NULL::oid AS via FROM a WHERE a.op = 'select'
+    UNION
+    SELECT a.fn, v.rel, att.attname::text, false, v.via
+      FROM a CROSS JOIN LATERAL pg_temp.ts_view_refs(a.rel) v
+      LEFT JOIN pg_attribute att ON att.attrelid = v.rel AND att.attnum = v.attnum AND v.attnum > 0
+     WHERE a.op = 'select'
+  ), w AS (
+    SELECT a.fn, a.rel, a.col, upper(a.op) AS priv FROM a WHERE a.op IN ('insert', 'update', 'delete')
   )
-  SELECT format('%s czyta %s bez pelnego %s', r.fn::regprocedure, r.rel::regclass,
-                CASE r.relkind WHEN 'S' THEN 'USAGE' ELSE 'SELECT' END)
-    FROM rels r
-   WHERE CASE r.relkind WHEN 'S' THEN NOT has_sequence_privilege(p_role, r.rel, 'USAGE')
-                        ELSE NOT has_table_privilege(p_role, r.rel, 'SELECT') END
+  SELECT format('%s czyta %s bez %s%s', r.fn::regprocedure, r.rel::regclass,
+                CASE k.relkind WHEN 'S' THEN 'USAGE' ELSE 'SELECT' END,
+                CASE WHEN r.via IS NOT NULL THEN ' (widok security_invoker ' || r.via::regclass || ')' ELSE '' END)
+    FROM r JOIN pg_class k ON k.oid = r.rel
+   WHERE r.col IS NULL AND NOT r.star
+     AND CASE k.relkind WHEN 'S' THEN NOT has_sequence_privilege(p_role, r.rel, 'USAGE')
+                        ELSE NOT has_any_column_privilege(p_role, r.rel, 'SELECT') END
   UNION
-  SELECT format('%s zapisuje %s bez %s', c.oid::regprocedure, k.oid::regclass, w.priv)
-    FROM c
-    CROSS JOIN LATERAL regexp_matches(c.body,
-      '\\m(insert\\s+into|update|delete\\s+from)\\s+(?:only\\s+)?(?:public\\.)?([A-Za-z_][A-Za-z0-9_]*)', 'gi') m
-    CROSS JOIN LATERAL (SELECT CASE WHEN lower(m[1]) LIKE 'insert%' THEN 'INSERT'
-                                    WHEN lower(m[1]) = 'update' THEN 'UPDATE' ELSE 'DELETE' END AS priv) w
-    JOIN pg_class k ON k.relname = lower(m[2]) AND k.relnamespace = 'public'::regnamespace
-   WHERE NOT has_table_privilege(p_role, k.oid, w.priv)
+  SELECT format('%s czyta %s.%s bez SELECT%s', r.fn::regprocedure, r.rel::regclass, quote_ident(att.attname),
+                CASE WHEN r.via IS NOT NULL THEN ' (widok security_invoker ' || r.via::regclass || ')' ELSE '' END)
+    FROM r JOIN pg_attribute att ON att.attrelid = r.rel AND att.attname = r.col AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE NOT has_column_privilege(p_role, r.rel, att.attnum, 'SELECT')
   UNION
-  SELECT format('%s wykonuje dynamiczny SQL (EXECUTE)', c.oid::regprocedure)
-    FROM c
-   WHERE c.lanname = 'plpgsql' AND c.body ~* '\\mexecute\\M(?!\\s+(function|procedure)\\M)'
+  SELECT format('%s czyta %s.* bez SELECT (%s)', r.fn::regprocedure, r.rel::regclass,
+                string_agg(quote_ident(att.attname), ', ' ORDER BY att.attnum))
+    FROM r JOIN pg_attribute att ON att.attrelid = r.rel AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE r.star AND NOT has_column_privilege(p_role, r.rel, att.attnum, 'SELECT')
+   GROUP BY r.fn, r.rel
+  UNION
+  SELECT format('%s zapisuje %s.%s bez %s', w.fn::regprocedure, w.rel::regclass, quote_ident(att.attname), w.priv)
+    FROM w JOIN pg_attribute att ON att.attrelid = w.rel AND att.attname = w.col AND att.attnum > 0 AND NOT att.attisdropped
+   WHERE NOT has_column_privilege(p_role, w.rel, att.attnum, w.priv)
+  UNION
+  SELECT format('%s zapisuje %s bez %s', w.fn::regprocedure, w.rel::regclass, w.priv)
+    FROM w
+   WHERE w.col IS NULL AND NOT has_table_privilege(p_role, w.rel, w.priv)
+  UNION
+  SELECT format('%s wykonuje dynamiczny SQL (EXECUTE)', x.oid::regprocedure)
+    FROM pg_temp.ts_closure(p_root) x
+    JOIN pg_proc p ON p.oid = x.oid
+    JOIN pg_language l ON l.oid = p.prolang AND l.lanname = 'plpgsql'
+   WHERE (x.depth = 0 OR NOT p.prosecdef)
+     AND pg_temp.ts_fn_clean(x.oid) ~ '\\mexecute\\M(?!\\s+(function|procedure)\\M)'
   UNION
   SELECT format('wola %s bez EXECUTE', x.oid::regprocedure)
     FROM pg_temp.ts_closure(p_root) x
-   WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE')
+   WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE');
+END
+$f$;
+
+-- Funkcje wykonywane jako rola p_role przy dostepie p_op do relacji p_rel:
+-- funkcje widokow relacji, polityki RLS roli na relacji i na relacjach bazowych
+-- widoku security_invoker, a przy zapisie DEFAULT (INSERT; generowane takze
+-- UPDATE), CHECK i ograniczenia domen kolumn.
+CREATE FUNCTION pg_temp.ts_access_roots(p_role text, p_rel oid, p_op text) RETURNS TABLE(oid oid, via text)
+LANGUAGE plpgsql SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT f.oid, f.via
+    FROM pg_temp.ts_rel_fn f
+   WHERE CASE f.kind
+           WHEN 'policy' THEN (f.rel = p_rel OR f.rel IN (SELECT r.rel FROM pg_temp.ts_view_ref r WHERE r.start = p_rel))
+                              AND (0 = ANY (f.roles) OR to_regrole(p_role)::oid = ANY (f.roles))
+           WHEN 'view' THEN f.rel = p_rel
+           WHEN 'default' THEN f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore')
+           ELSE f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore', 'update') END;
+END
+$f$;
+
+-- Rozgalezienie na sesji w domknieciu funkcji o tej nazwie (auth.uid(),
+-- auth.role(), auth.jwt(), request.jwt) - takze w wolanej SECURITY DEFINER.
+CREATE FUNCTION pg_temp.ts_session_branch(p_fn text) RETURNS boolean LANGUAGE plpgsql
+SET search_path = pg_catalog AS $f$
+#variable_conflict use_column
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM pg_proc q
+     CROSS JOIN LATERAL pg_temp.ts_closure(q.oid) x
+     WHERE q.proname = p_fn AND q.pronamespace = 'public'::regnamespace
+       AND (pg_temp.ts_fn_clean(x.oid) ~ '\\mauth\\s*\\.\\s*(uid|role|jwt)\\s*\\(\\s*\\)'
+            OR pg_temp.ts_fn_body(x.oid) ~* 'request\\.jwt'));
+END
 $f$;
 `;
 

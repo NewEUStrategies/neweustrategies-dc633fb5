@@ -2650,7 +2650,7 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
         ` ${x.role} ${x.fn}`,
     );
 
-  it("odczyt: kolumny `select` i filtry tabeli łańcucha (bez osadzeń i bez celu upsertu); `head: true` - same filtry; powtórzone zapytanie raz", () => {
+  it("odczyt: kolumny `select` i filtry tabeli łańcucha (bez osadzeń i bez celu upsertu); `head: true` - kolumny listy i filtry (r2 D: PostgREST czyta je pod `count`); powtórzone zapytanie raz", () => {
     const f = observed({
       "src/a.server.ts": `${ADMIN_FILE}
         export async function read() {
@@ -2665,7 +2665,7 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
     });
     expect(statementKeys(f)).toEqual([
       "select orders [id,total] ładunek() where(tenant_id,created_at) service_role read",
-      "select orders [] ładunek() where(deleted_at) service_role read",
+      "select orders [id] ładunek() where(deleted_at) service_role read",
       "select orders [*] ładunek() where() service_role read",
     ]);
     // Filtr osadzenia zostaje faktem filtra (sonda kolumny osobno), nie WHERE łańcucha.
@@ -2891,7 +2891,7 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
     expect(sql).toContain("touched = x.touched");
     // Gałąź naruszenia - ostatnia w widoku sond; wpis nieaktualny to
     // diagnostyka (`ts_v_stale`), nie naruszenie asercji 16.
-    expect(sql).toContain("HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0;\n");
+    expect(sql).toContain("HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0\n");
     expect(sql).not.toContain("SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED'");
     expect(sql).toContain("WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL ('{}'::text[])");
     const reviewed = renderContractTest(f, {}, { reach, rpcProbeVacuous: { pure_fn: "test" } });
@@ -2912,16 +2912,36 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
     const sql = renderContractTest(f, {}, { reach });
     expect(sql).toContain("CREATE TEMP VIEW ts_v_trigger AS");
     expect(sql).toContain("tg.tgenabled <> 'D' AND NOT p.prosecdef");
-    // Odcisk domknięcia (ciało i funkcje `public` wołane z ciała), nie samo ciało.
-    expect(sql).toContain("pg_temp.ts_closure_md5(p.oid) AS md5");
-    expect(sql).not.toContain("md5(p.prosrc)");
+    // Odcisk domknięcia (ciało i funkcje `public` wołane z ciała), nie samo
+    // ciało - liczony raz na funkcję odpalonego wyzwalacza (MATERIALIZED).
     expect(sql).toContain(
-      "SELECT rel, op, role, site, func, payload FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite",
+      "m AS MATERIALIZED (\n  SELECT d.foid, pg_temp.ts_closure_md5(d.foid) AS md5 FROM (SELECT DISTINCT foid FROM x) d\n)",
+    );
+    expect(sql).not.toContain("md5(p.prosrc)");
+    // Zapisy klienta, z ładunkiem nieczytelnym i z domknięcia funkcji
+    // SECURITY INVOKER wykonywanej jako klient (r2: RPC, polityka, DEFAULT...).
+    expect(sql).toContain(
+      "SELECT rel, op, role, site, func, payload, NULL::text AS via FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[], NULL FROM ts_obs_dynwrite\n  UNION ALL\n  SELECT k.relname::text, a.op, r.role, r.site, r.func,",
+    );
+    expect(sql).toContain(
+      "    FROM ts_invoker_root r\n    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a\n    JOIN pg_class k ON k.oid = a.rel AND k.relnamespace = 'public'::regnamespace\n   WHERE a.op IN ('insert', 'update', 'delete')",
     );
     expect(sql).toContain("JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')");
     expect(sql).toContain(
-      "WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))\n    OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')\n        AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))\n    OR ((t.tgtype & 8) <> 0 AND w.op = 'delete')",
+      "   WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))\n      OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')\n          AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))\n      OR ((t.tgtype & 8) <> 0 AND w.op = 'delete')",
     );
+    // r2 A: blokady domknięcia przy KAŻDYM przebiegu (granty zmieniają się bez
+    // zmiany md5) - dla roli z uprawnieniem do zapisu, także przy wpisie.
+    expect(sql).toContain(
+      "CASE w.op WHEN 'delete' THEN has_table_privilege(w.role, t.relid, 'DELETE')",
+    );
+    expect(sql).toContain(
+      "SELECT f.foid, f.role, ARRAY(SELECT pg_temp.ts_closure_blockers(f.foid, f.role) ORDER BY 1) AS blockers\n  FROM (SELECT DISTINCT foid, role FROM ts_trigger_fired WHERE priv) f;",
+    );
+    expect(sql).toContain(
+      " WHERE f.priv AND NOT (k.blockers <@ coalesce(r.blockers, '{}'::text[]));",
+    );
+    expect(sql).toContain("SECURITY INVOKER: domkniecie z blokada uprawnien roli: %s");
     expect(sql).toContain("WHERE r.md5 IS DISTINCT FROM f.md5");
     expect(sql).toContain(
       "'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'",
@@ -2936,8 +2956,9 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
     );
     const triggerView = sql.slice(
       sql.indexOf("CREATE TEMP VIEW ts_v_trigger AS"),
-      sql.indexOf("CREATE TEMP TABLE ts_invoker_root"),
+      sql.indexOf("CREATE TEMP VIEW ts_v_stale AS"),
     );
+    expect(triggerView).toContain("brak wpisu INVOKER_TRIGGERS_REVIEWED");
     expect(triggerView).not.toContain("wpis nieaktualny");
     expect(sql).toContain(
       "ARRAY(SELECT DISTINCT msg FROM (SELECT msg FROM ts_v_trigger UNION ALL SELECT msg FROM ts_v_invoker) m ORDER BY 1)",
@@ -2947,7 +2968,9 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
     expect(sql).toContain("('user_bookmarks', 'insert', 'authenticated',");
     expect(sql).toContain("('user_bookmarks', 'insert', 'anon',");
     // Lista z repozytorium trafia do pliku; własna lista wejścia zastępuje ją.
-    expect(sql).toContain("('public.set_updated_at', '3d4d1916c6c7ceb45278184b27b9406b')");
+    expect(sql).toContain(
+      "('public.set_updated_at', '3d4d1916c6c7ceb45278184b27b9406b', '{}'::text[])",
+    );
     const own = renderContractTest(
       f,
       {},
@@ -2956,7 +2979,7 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
         invokerTriggers: { "public.rev_trg": { md5: "0".repeat(32), reason: "test" } },
       },
     );
-    expect(own).toContain("('public.rev_trg', '00000000000000000000000000000000')");
+    expect(own).toContain("('public.rev_trg', '00000000000000000000000000000000', '{}'::text[])");
     expect(own).not.toContain("'public.set_updated_at'");
   });
 
@@ -2971,7 +2994,11 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
     const sql = renderContractTest(f, {}, { reach });
     const rows = sql
       .split("\n")
-      .filter((line) => /^\s*\('public\.[a-z_0-9]+', '[0-9a-f]{32}'\)/.test(line));
+      .filter((line) =>
+        /^\s*\('public\.[a-z_0-9]+', '[0-9a-f]{32}', ('\{\}'::text\[\]|ARRAY\[.*\]::text\[\])\)/.test(
+          line,
+        ),
+      );
     expect(rows).toHaveLength(entries.length);
     expect([...rows].sort()).toEqual(rows);
   });
@@ -2998,17 +3025,17 @@ describe("asercja 20 po recenzji r1: ładunek nieczytelny, domknięcie funkcji, 
     ]);
     const sql = renderContractTest(f, {}, { reach });
     expect(sql).toContain(
-      `('archive_layout_settings', 'upsert', 'authenticated', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+      `('archive_layout_settings', 'upsert', 'authenticated', false, '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
     );
     expect(sql).toContain(
-      `('posts', 'update', 'authenticated', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+      `('posts', 'update', 'authenticated', false, '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
     );
     // Literał ładunku - zapytanie sondy jak dotąd.
     expect(
       f.observed.statements.some((x) => x.op === "update" && x.payload.includes("title_pl")),
     ).toBe(true);
     // Plik `admin`: bez wiersza gościa; plik `public` - z wierszem `anon`.
-    expect(sql).not.toContain(`('posts', 'update', 'anon', '${FILE}'`);
+    expect(sql).not.toContain(`('posts', 'update', 'anon', true, '${FILE}'`);
     const pub = renderContractTest(
       f,
       {},
@@ -3017,8 +3044,58 @@ describe("asercja 20 po recenzji r1: ładunek nieczytelny, domknięcie funkcji, 
       },
     );
     expect(pub).toContain(
-      `('posts', 'update', 'anon', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+      `('posts', 'update', 'anon', true, '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
     );
+  });
+
+  it("zapis z ładunkiem nieczytelnym (r2 L1): istnienie relacji (asercja 12) i uprawnienie do operacji na KTÓREJKOLWIEK kolumnie (11/17) - nowy zapis do tabeli bez grantu albo z literówką nie przechodzi po cichu przy zamianie innych ładunków na literał", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    // Tabela zapisów tworzona przed widokami naruszeń (czyta ją `ts_v_fact`).
+    expect(sql.indexOf("CREATE TEMP TABLE ts_obs_dynwrite")).toBeLessThan(
+      sql.indexOf("CREATE TEMP VIEW ts_v_fact AS"),
+    );
+    expect(sql).toContain(
+      "CREATE TEMP TABLE ts_obs_dynwrite (rel text, op text, role text, guest boolean, site text, func text)",
+    );
+    const fact = sql.slice(
+      sql.indexOf("CREATE TEMP VIEW ts_v_fact AS"),
+      sql.indexOf("CREATE TEMP VIEW ts_v_filter_missing AS"),
+    );
+    expect(fact).toContain(
+      "format('%s: %s: %s %s dla %s: brak %s na zadnej kolumnie (ladunek nieczytelny)', w.site, w.func,",
+    );
+    expect(fact).toContain("  FROM ts_obs_dynwrite w\n");
+    expect(fact).toContain("   AND NOT has_any_column_privilege(w.role, ");
+    expect(fact).toContain("      WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']");
+    const missing = sql.slice(
+      sql.indexOf("CREATE TEMP VIEW ts_v_filter_missing AS"),
+      sql.indexOf("CREATE TEMP VIEW ts_v_filter_denied AS"),
+    );
+    expect(missing).toContain(
+      "format('%s: %s: %s (%s, ladunek nieczytelny): relacja nie istnieje', w.site, w.func, w.rel, w.op)",
+    );
+    // Relacja faktu miary bez lustra w bramce (odczyt `head: true`) - też istnienie.
+    expect(missing).toContain(
+      "format('%s: %s: %s (%s%s): relacja nie istnieje', t.site, t.func, t.rel, t.op,",
+    );
+    // Wiersz gościa zapisu z ładunkiem nieczytelnym w pliku `public` - klucz
+    // listy GUEST_LOGIN_ONLY_REVIEWED (kształt `op[?]`), jak fakty z kolumnami.
+    const PUB = new Map([[FILE, { cls: "public", entry: "/", path: [] }]]);
+    expect(
+      guestLoginOnlyCandidates(f).get(`${FILE}: ArchiveLayoutAdmin.mutationFn: .from(posts)`),
+    ).toEqual({
+      count: 2,
+      shape: "eq(id) update[?] update[title_pl]",
+    });
+    const entry = {
+      [`${FILE}: ArchiveLayoutAdmin.mutationFn: .from(posts)`]: [
+        2,
+        "eq(id) update[?] update[title_pl]",
+        "`x`",
+      ],
+    } as const;
+    const exempt = renderContractTest(f, {}, { reach: PUB, guestLoginOnly: entry });
+    expect(exempt).not.toContain(`('posts', 'update', 'anon', true, '${FILE}'`);
   });
 
   it("zapadka MAX_DYNAMIC_PAYLOAD_WRITES: więcej zapisów z ładunkiem nieczytelnym niż przejrzane - czerwono", () => {
@@ -3044,38 +3121,84 @@ describe("asercja 20 po recenzji r1: ładunek nieczytelny, domknięcie funkcji, 
     ).toBe(true);
   });
 
-  it("domknięcie funkcji: funkcje `public` wołane z ciała (rekurencyjnie przez INVOKER), odcisk stały między bazami (search_path pg_catalog), blokady: relacja bez pełnego SELECT, zapis bez uprawnienia, funkcja bez EXECUTE, dynamiczny SQL", () => {
+  it("domknięcie funkcji: funkcje `public` wołane z ciała (rekurencyjnie przez INVOKER, przeciążenie po liczbie argumentów), odcisk stały między bazami (search_path pg_catalog) bez wołanych SECURITY DEFINER, blokady kolumnowe (r2 H): ciało bez komentarzy i literałów, kolumna czytana bez SELECT (także bazowa widoku security_invoker - r2 B), relacja bez SELECT żadnej kolumny, kolumna zapisu bez INSERT/UPDATE, funkcja bez EXECUTE, dynamiczny SQL", () => {
     const sql = renderContractTest(f, {}, { reach });
     const closure = sql.slice(
       sql.indexOf("CREATE FUNCTION pg_temp.ts_fn_body"),
-      sql.indexOf("CREATE TEMP TABLE ts_obs_dynwrite"),
+      sql.indexOf("-- Dostep klienta do relacji"),
     );
     expect(closure).toContain("pg_get_function_sqlbody(p.oid)");
-    expect(closure).toContain("'([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', 'g'");
+    // r2 H: komentarze i literały napisowe poza analizą (nazwa w komentarzu to
+    // nie odczyt) - jedno przejście, wygrywa konstrukcja zaczynająca się wcześniej.
     expect(closure).toContain(
-      "WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid AND n.nspname = 'public'",
+      String.raw`'--[^\n]*|/\*([^*]|\*+[^*/])*\*+/|''([^'']|'''')*''', ' ', 'g')`,
     );
-    expect(closure.match(/SET search_path = pg_catalog AS \$f\$/g)).toHaveLength(4);
+    // r2 L2: przeciążenie po liczbie argumentów wywołania (domyślne, VARIADIC);
+    // żadne nie pasuje - wszystkie o tej nazwie.
     expect(closure).toContain(
-      "CASE WHEN p.prosecdef AND c.depth > 0 THEN '' ELSE md5(pg_temp.ts_fn_body(p.oid)) END",
+      "(k.nargs BETWEEN q.pronargs - q.pronargdefaults AND q.pronargs\n                OR (q.provariadic <> 0 AND k.nargs >= q.pronargs - 1)) AS fits",
     );
-    expect(closure).toContain("ELSE NOT has_table_privilege(p_role, r.rel, 'SELECT') END");
-    expect(closure).toContain("WHERE NOT has_table_privilege(p_role, k.oid, w.priv)");
+    expect(closure).toContain(
+      "WHERE c.fits OR NOT EXISTS (SELECT 1 FROM c x WHERE x.name = c.name AND x.nargs = c.nargs AND x.fits)",
+    );
+    expect(closure).not.toContain(String.raw`'([A-Za-z_][A-Za-z0-9_]*)\s*\(', 'g'`);
+    expect(closure).toContain("WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid");
+    // Każda funkcja domknięcia z `search_path = pg_catalog` (regprocedure/regclass
+    // ze schematem - odcisk i treść blokad stałe między bazami).
+    expect(closure.match(/CREATE FUNCTION pg_temp\./g)?.length).toBe(
+      closure.match(/SET search_path = pg_catalog AS \$f\$/g)?.length,
+    );
+    // r2 L2: odcisk bez funkcji SECURITY DEFINER wołanych z ciała.
+    const md5 = closure.slice(closure.indexOf("CREATE FUNCTION pg_temp.ts_closure_md5"));
+    expect(md5).toContain("   WHERE c.depth = 0 OR NOT p.prosecdef);");
+    expect(closure).not.toContain("CASE WHEN p.prosecdef AND c.depth > 0 THEN ''");
+    // r2 H: blokady kolumnowe, nie pełny SELECT tabeli.
+    expect(closure).not.toContain("NOT has_table_privilege(p_role, r.rel, 'SELECT')");
+    expect(closure).toContain("ELSE NOT has_any_column_privilege(p_role, r.rel, 'SELECT') END");
+    expect(closure).toContain(
+      "   WHERE NOT has_column_privilege(p_role, r.rel, att.attnum, 'SELECT')",
+    );
+    expect(closure).toContain(
+      "   WHERE NOT has_column_privilege(p_role, w.rel, att.attnum, w.priv)",
+    );
+    expect(closure).toContain(
+      "   WHERE w.col IS NULL AND NOT has_table_privilege(p_role, w.rel, w.priv)",
+    );
+    // Lewa strona SET i lista INSERT to zapis, nie odczyt.
+    expect(closure).toContain(
+      String.raw`regexp_replace(m[2], '(^|,)(\s*)[a-z_][a-z0-9_$]*(\s*=)(?![=>])', '\1\2\3', 'g')`,
+    );
+    // r2 B: kolumny bazowe widoku security_invoker czytane jako wywołujący
+    // (pg_depend reguły, rekurencyjnie), z widokiem w treści blokady.
+    expect(closure).toContain("CREATE TEMP TABLE ts_view_ref ON COMMIT DROP AS");
+    expect(closure).toContain(
+      "lower(o) IN ('security_invoker=true', 'security_invoker=on', 'security_invoker=1', 'security_invoker=yes')",
+    );
+    expect(closure).toContain("FROM a CROSS JOIN LATERAL pg_temp.ts_view_refs(a.rel) v");
+    expect(closure).toContain("' (widok security_invoker ' || r.via::regclass || ')'");
     expect(closure).toContain(
       "WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE')",
     );
-    expect(closure).toContain("\\mexecute\\M(?!\\s+(function|procedure)\\M)");
+    expect(closure).toContain(String.raw`\mexecute\M(?!\s+(function|procedure)\M)`);
+    // Sekwencja z literału `nextval('...')` - literał zdjęty z analizy, więc osobno.
+    expect(closure).toContain(
+      String.raw`'\m(?:nextval|currval|setval)\s*\(\s*''(?:public\.)?([a-z_][a-z0-9_$]*)''', 'g'`,
+    );
   });
 
   it("RPC SECURITY INVOKER (każda gałąź ciała, nie tylko sondy), funkcje widoków (także zagnieżdżonych) i polityk RLS relacji klienta - blokada domknięcia bez wpisu INVOKER_FUNCTIONS_REVIEWED to naruszenie asercji 20; wpis bez blokady - diagnostyka", () => {
     const sql = renderContractTest(f, {}, { reach });
     expect(sql).toContain("CREATE TEMP TABLE ts_invoker_root ON COMMIT DROP AS");
-    expect(sql).toContain("SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn AS via, r.role, p.oid");
-    expect(sql).toContain("'widok ' || v.rel::regclass::text");
-    expect(sql).toContain("JOIN pg_rewrite rw ON rw.ev_class = v.rel");
-    expect(sql).toContain("'polityka ' || pol.polname || ' na ' || c.rel::regclass::text");
-    expect(sql).toContain("to_regrole(c.role)::oid = ANY (pol.polroles)");
-    expect(sql).toContain("WHERE cardinality(k.blockers) > 0 AND e.md5 IS DISTINCT FROM k.md5;");
+    expect(sql).toContain("  SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn, r.role, p.oid, 0");
+    expect(sql).toContain(
+      "SELECT vs.start, 'view', NULL::oid[], d.refobjid, 'widok ' || vs.rel::regclass::text",
+    );
+    expect(sql).toContain("JOIN pg_rewrite rw ON rw.ev_class = vs.rel");
+    expect(sql).toContain("'polityka ' || pol.polname || ' na ' || pol.polrelid::regclass::text");
+    expect(sql).toContain("AND (0 = ANY (f.roles) OR to_regrole(p_role)::oid = ANY (f.roles))");
+    expect(sql).toContain(
+      "WHERE cardinality(k.blockers) > 0\n   AND (e.md5 IS DISTINCT FROM k.md5 OR NOT (k.blockers <@ e.blockers));",
+    );
     expect(sql).toContain(
       "INVOKER_FUNCTIONS_REVIEWED: %s - wpis nieaktualny (funkcja nie jest wykonywana przez klienta albo jej domkniecie nie ma blokad)",
     );
@@ -3088,7 +3211,67 @@ describe("asercja 20 po recenzji r1: ładunek nieczytelny, domknięcie funkcji, 
         invokerFunctions: { "public.resolve_path": { md5: "a".repeat(32), reason: "test" } },
       },
     );
-    expect(own).toContain(`('public.resolve_path', '${"a".repeat(32)}')`);
+    expect(own).toContain(`('public.resolve_path', '${"a".repeat(32)}', '{}'::text[])`);
+  });
+
+  it("korzenie po recenzji r2 (B, C, G): DEFAULT/CHECK/domeny zapisu, polityki relacji bazowych widoku security_invoker i dostęp z domknięcia korzenia; wpis INVOKER_FUNCTIONS_REVIEWED z przejrzanymi blokadami - blokada spoza listy to naruszenie przy zgodnym md5", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    const rel = sql.slice(
+      sql.indexOf("CREATE TEMP TABLE ts_rel_fn ON COMMIT DROP AS"),
+      sql.indexOf("-- Funkcje wykonywane jako rola p_role"),
+    );
+    // C: DEFAULT (kolumny generowane - także UPDATE), CHECK i domeny kolumn.
+    expect(rel).toContain(
+      "JOIN pg_depend d ON d.classid = 'pg_attrdef'::regclass AND d.objid = ad.oid",
+    );
+    expect(rel).toContain("CASE WHEN att.attgenerated <> '' THEN 'generated' ELSE 'default' END");
+    expect(rel).toContain("   WHERE con.contype = 'c' AND con.conrelid <> 0");
+    expect(rel).toContain("    JOIN pg_constraint con ON con.contypid = t.oid");
+    expect(rel).toContain("  FROM f JOIN pg_proc p ON p.oid = f.oid AND NOT p.prosecdef");
+    const roots = sql.slice(
+      sql.indexOf("CREATE FUNCTION pg_temp.ts_access_roots"),
+      sql.indexOf("-- Rozgalezienie na sesji"),
+    );
+    // G: polityka relacji bazowej widoku security_invoker (pg_depend reguły).
+    expect(roots).toContain(
+      "WHEN 'policy' THEN (f.rel = p_rel OR f.rel IN (SELECT r.rel FROM pg_temp.ts_view_ref r WHERE r.start = p_rel))",
+    );
+    expect(roots).toContain(
+      "WHEN 'default' THEN f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore')",
+    );
+    expect(roots).toContain(
+      "ELSE f.rel = p_rel AND p_op IN ('insert', 'upsert', 'upsert_ignore', 'update') END;",
+    );
+    // Dostęp klienta (zapytania, zapisy, ładunek nieczytelny, osadzenia) i dostęp
+    // z domknięcia korzenia (do trzech poziomów).
+    expect(sql).toContain("CREATE TEMP TABLE ts_client_access ON COMMIT DROP AS");
+    expect(sql).toContain(
+      "    FROM ts_client_access a\n    CROSS JOIN LATERAL pg_temp.ts_access_roots(a.role, a.rel, a.op) x",
+    );
+    expect(sql).toContain(
+      "    CROSS JOIN LATERAL pg_temp.ts_closure_access(r.oid) a\n    CROSS JOIN LATERAL pg_temp.ts_access_roots(r.role, a.rel, a.op) x\n   WHERE r.lvl < 3",
+    );
+    // Wpis z blokadami: md5 i blokady przejrzane; blokada spoza listy - naruszenie.
+    const own = renderContractTest(
+      f,
+      {},
+      {
+        reach,
+        invokerFunctions: {
+          "public.resolve_path": {
+            md5: "a".repeat(32),
+            reason: "test",
+            blockers: ["z b", "a b"],
+          },
+        },
+      },
+    );
+    expect(own).toContain(
+      `('public.resolve_path', '${"a".repeat(32)}', ARRAY['a b', 'z b']::text[])`,
+    );
+    expect(own).toContain(
+      "              ELSE 'blokady spoza przegladu INVOKER_FUNCTIONS_REVIEWED (uprawnienia roli zmienione)' END) AS msg",
+    );
   });
 });
 
@@ -3853,8 +4036,14 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     expect(anonOf("podcast_shows")).toBe(true);
     expect(anonOf("profiles")).toBe(true);
     // Brak rozjazdu dla wpisu zgodnego z kodem: `enabled: !!user` w opcjach
-    // zapytania tej relacji obejmuje jej wywołanie.
-    const guarded = code.replace('queryKey: ["s"],', 'queryKey: ["s"], enabled: !!user,');
+    // zapytania tej relacji obejmuje jej wywołanie (`user` ze źródła sesji -
+    // r2 E: wiązanie, nie sama nazwa; opcje tylko w deklaracji).
+    const guarded = code
+      .replace('queryKey: ["s"],', 'queryKey: ["s"], enabled: !!user,')
+      .replace(
+        BROWSER_IMPORT,
+        `${BROWSER_IMPORT}\n      import { useAuth } from "@/hooks/useAuth";\n      const { user } = useAuth();`,
+      );
     expect(
       guestLoginOnlyDrift(observed({ [PODCASTS]: guarded }), reach, entry, sources(guarded)),
     ).toEqual({
@@ -3886,7 +4075,7 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     const evidence = `${FILE} \`if (!user) return null\` - wyróżnione tylko z sesją`;
     const guardedCode = NOVEMBER[FILE].replace(
       "export async function featured() { return",
-      "export async function featured(user) { if (!user) return null; return",
+      "export async function featured() { const { data: { user } } = await supabase.auth.getUser(); if (!user) return null; return",
     );
     const guarded = new Map([[FILE, guardedCode]]);
     const f = observed({ [FILE]: guardedCode });
@@ -3935,7 +4124,7 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
   it("dowód bramki sprawdzany w źródłach (recenzja S9, r1 F4): fragment warunku bramki sesji w pliku klucza; plik spoza źródeł, sam komentarz albo usunięta bramka - czerwono", () => {
     const guardedCode = NOVEMBER[FILE].replace(
       "export async function featured() { return",
-      "export async function featured(user) { if (!user) return null; return",
+      "export async function featured() { const { data: { user } } = await supabase.auth.getUser(); if (!user) return null; return",
     );
     const g = observed({ [FILE]: guardedCode });
     const drift = (
@@ -4068,7 +4257,9 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     ).toContain("poza regionem bramki z dowodu");
     // Wczesne wyjście bez sesji (`if (!user) throw`) obejmuje resztę bloku.
     const mutation = `${BROWSER_IMPORT}
-      export function useToggle(user) {
+      import { useAuth } from "@/hooks/useAuth";
+      export function useToggle() {
+        const { user } = useAuth();
         return useMutation({ mutationFn: async () => {
           if (!user) throw new Error("Not authenticated");
           return supabase.from("user_follows").delete().eq("id", 1);
@@ -4761,7 +4952,8 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(o.rpcs.map((r) => [r.name, r.enforcedRole, r.site])).toEqual(
       measured.rpcs.map((r) => [r.name, r.role, r.file]),
     );
-    expect(o.tables.filter((t) => t.enforcedRole !== "unknown").length).toBe(
+    // Odczyt `head: true` - fakt wyłącznie miary (r2 D), bez lustra w bramce.
+    expect(o.tables.filter((t) => t.enforcedRole !== "unknown" && t.head !== true).length).toBe(
       measured.tables.filter((t) => t.role !== "unknown").length,
     );
     // Rola bramki rozstrzygnięta - miara zmienia ją WYŁĄCZNIE tam, gdzie
@@ -4780,9 +4972,13 @@ describe("stan repozytorium - miara poza bramką", () => {
     // o różnych rolach - reguła nazwy zgadywała `authenticated`; miara mówi
     // `unknown` (lista UNKNOWN_ROLE_REVIEWED), a asercja 5 sprawdza dalej rolę
     // bramki.
+    // `gateway.server.ts` (recenzja r2 F): `ctx.supabase` z wiązania - `ctx` to
+    // wynik `toAnalyticsGatewayCtx(context)`, więc `unknown` z kandydatem
+    // `authenticated` (reguła nazwy) i resztą na liście UNKNOWN_ROLE_REVIEWED.
     expect(conflicts).toEqual([
       "src/lib/events/ticket.server.ts legacySeatsFor get_event_rsvp_counts: authenticated -> unknown",
       "src/lib/events/ticket.server.ts seatsFor event_seat_state: authenticated -> unknown",
+      "src/lib/analytics/gateway.server.ts readStoredAnalyticsSettings site_settings: authenticated -> unknown",
       "src/lib/events/ticket.server.ts legacySeatsFor events: authenticated -> unknown",
       "src/lib/events/ticket.server.ts assertSeatAvailable event_rsvps: authenticated -> unknown",
       "src/lib/menus/menu.functions.ts listMenuSummaries menus: authenticated -> anon",
@@ -5099,7 +5295,7 @@ describe("scalenie pasów ról i sond: role kandydackie i anon serwera w sondach
     // Asercja 20: zapisy wszystkich ról klienta z ts_obs_stmt (kandydaci i anon
     // serwera) i zapisy z ładunkiem nieczytelnym (ts_obs_dynwrite).
     expect(mergeGate).toContain(
-      "SELECT rel, op, role, site, func, payload FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite",
+      "SELECT rel, op, role, site, func, payload, NULL::text AS via FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[], NULL FROM ts_obs_dynwrite\n  UNION ALL\n",
     );
     expect(mergeGate).toContain("JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')");
     // Kolumna wyniku RPC klienta przeglądarki - istnienie (asercja 12), bez roli.
@@ -5160,5 +5356,242 @@ describe("scalenie pasów ról i sond: role kandydackie i anon serwera w sondach
       `('admin_event_seating_export', ARRAY['p_payload']::text[], 'section_sort', 'order', '${FILE}', '${FILE}', 'exportMyData')`,
     );
     expect(sql).not.toMatch(/\('admin_event_seating_export', '(section_sort|seat_id)', NULL,/);
+  });
+});
+
+describe("recenzja r2: `context.supabase` z wiązania, dowód bramki ze źródła sesji, odczyt `head: true`, sonda pusta gościa", () => {
+  const PUBLIC = "src/lib/queries/zq.ts";
+  const reach = new Map([[PUBLIC, { cls: "public", entry: "/", path: [] }]]);
+  const tableOf = (f: SeamFacts, fn: string) => f.observed.tables.find((t) => t.fn === fn);
+
+  it("F: `context.supabase` w pomocniku - rola z wywołań (klient przeglądarki -> gość, klient serwisowy -> service_role), nie z nazwy; kontekst handlera i funkcja wołana argumentem handlera - reguła nazwy", () => {
+    const f = observed({
+      [PUBLIC]: `${BROWSER_IMPORT}
+        ${AUTH_IMPORT}
+        ${ADMIN_FILE}
+        async function zqRead(context: { supabase: typeof supabase }) {
+          return context.supabase.from("builder_templates").select("id, data").limit(1);
+        }
+        export async function zqPublic() { return zqRead({ supabase }); }
+        async function zqRpc(ctx: { supabase: typeof supabase }) { return ctx.supabase.rpc("crm_funnel_stats"); }
+        export async function zqPublicRpc() { return zqRpc({ supabase }); }
+        async function zqAdmin(ctx: { supabase: unknown }) { return ctx.supabase.from("menus").select("id"); }
+        export async function zqAdminCall() { return zqAdmin({ supabase: supabaseAdmin }); }
+        export const zqHandler = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) =>
+          context.supabase.from("menus").select("id, name"));
+        async function zqHelper({ context }: { context: { supabase: unknown } }) {
+          return context.supabase.from("menus").select("slug");
+        }
+        export const zqViaHelper = createServerFn().middleware([requireSupabaseAuth]).handler((ctx) => zqHelper(ctx));
+      `,
+    });
+    const read = tableOf(f, "zqRead");
+    expect([read?.role, read?.guest]).toEqual(["authenticated", true]);
+    const rpc = f.observed.rpcs.find((r) => r.fn === "zqRpc");
+    expect([rpc?.role, rpc?.guest]).toEqual(["authenticated", true]);
+    expect(tableOf(f, "zqAdmin")?.role).toBe("service_role");
+    const handler = tableOf(f, "zqHandler");
+    expect([handler?.role, handler?.guest, handler?.via]).toEqual([
+      "authenticated",
+      false,
+      "bramka: context.supabase",
+    ]);
+    expect([tableOf(f, "zqHelper")?.role, tableOf(f, "zqHelper")?.guest]).toEqual([
+      "authenticated",
+      false,
+    ]);
+    // Gość klienta przeglądarki w pliku `public` - wiersz `anon` w pgTAP.
+    const sql = renderContractTest(f, {}, { reach });
+    expect(sql).toContain(
+      `('builder_templates', 'select', 'anon', 'authenticated', ARRAY['data', 'id']::text[]`,
+    );
+  });
+
+  it("F: `ctx.supabase` z wiązaniem nieczytelnym - kandydat z reguły nazwy (sprawdzany) i reszta na liście UNKNOWN_ROLE_REVIEWED, nie cicha rola `authenticated`", () => {
+    const f = observed({
+      [PUBLIC]: `
+        export async function zqStored(ctx: { supabase: unknown }) {
+          return ctx.supabase.from("site_settings").select("value").eq("key", "x");
+        }
+        export const zqCaller = (context: unknown) => zqStored(wrap(context));
+      `,
+    });
+    const t = tableOf(f, "zqStored");
+    expect(t?.role).toBe("unknown");
+    expect(t?.candidates?.map((c) => c.role)).toEqual(["authenticated"]);
+    expect(t?.residual).toBeDefined();
+  });
+
+  it("E: dowód bramki wymaga wartości ze źródła sesji (`useAuth()`, `auth.getUser()`, `context` handlera) - nazwa `user`/`userId` z parametru albo adresu strony nie jest bramką", () => {
+    const check = (code: string, evidence: string) => {
+      const g = observed({ [PUBLIC]: code });
+      const [key, v] = [...guestLoginOnlyCandidates(g)][0];
+      return guestLoginOnlyDrift(
+        g,
+        reach,
+        { [key]: [v.count, v.shape, evidence] },
+        new Map([[PUBLIC, code]]),
+      ).invalid;
+    };
+    const hook = (decl: string, param = "") => `${BROWSER_IMPORT}
+      import { useAuth } from "@/hooks/useAuth";
+      export function useZq(${param}) {
+        ${decl}
+        return useQuery({ queryKey: ["zq"], enabled: !!userId, queryFn: async () => supabase.from("builder_templates").select("id") });
+      }`;
+    // Źródło sesji: pole wyniku `useAuth()` i stała z niego wyliczona.
+    expect(
+      check(
+        hook("const { user } = useAuth(); const userId = user?.id ?? null;"),
+        "`enabled: !!userId`",
+      ),
+    ).toEqual([]);
+    expect(check(hook("const userId = useAuth().user?.id;"), "`enabled: !!userId`")).toEqual([]);
+    // Recenzja r2: `userId` autora z adresu (parametr hooka) - ta sama nazwa, nie sesja.
+    expect(check(hook("", "userId: string | undefined"), "`enabled: !!userId`")[0]).toContain(
+      "nie ma takiego warunku bramki sesji",
+    );
+    // `let` może zostać przypisany czymkolwiek - nie źródło sesji.
+    expect(check(hook("let userId = useAuth().user?.id;"), "`enabled: !!userId`")[0]).toContain(
+      "nie ma takiego warunku bramki sesji",
+    );
+    // `supabase.auth.getUser()` w funkcji asynchronicznej.
+    const fetcher = `${BROWSER_IMPORT}
+      export async function zqFetch() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+        return supabase.from("builder_templates").select("id");
+      }`;
+    expect(check(fetcher, "`if (!user) return null`")).toEqual([]);
+    expect(
+      check(
+        fetcher.replace(
+          "const { data: { user } } = await supabase.auth.getUser();",
+          "const user = getCached();",
+        ),
+        "`if (!user) return null`",
+      )[0],
+    ).toContain("nie ma takiego warunku bramki sesji");
+  });
+
+  it("E: `enabled:` opcji `queryOptions(...)` jest bramką tylko, gdy KAŻDE odwołanie do opcji to `useQuery`/`useInfiniteQuery`/`useQueries` albo `.queryKey` - `prefetchQuery`, `fetchQuery`, `ensureQueryData` i `useSuspenseQuery` tej flagi nie znają", () => {
+    const OTHER = "src/components/zq/Card.tsx";
+    const base = `${BROWSER_IMPORT}
+      import { useAuth } from "@/hooks/useAuth";
+      export function zqTemplatesQueryOptions() {
+        const { user } = useAuth();
+        return queryOptions({ queryKey: ["zq"], enabled: !!user, queryFn: async () => supabase.from("builder_templates").select("id, data") });
+      }`;
+    const check = (code: string, other?: string) => {
+      const g = observed({ [PUBLIC]: code });
+      const [key, v] = [...guestLoginOnlyCandidates(g)][0];
+      const sources = new Map([
+        [PUBLIC, code],
+        ...(other === undefined ? [] : [[OTHER, other] as const]),
+      ]);
+      return guestLoginOnlyDrift(
+        g,
+        reach,
+        { [key]: [v.count, v.shape, "`enabled: !!user`"] },
+        sources,
+      ).invalid;
+    };
+    const used = (
+      call: string,
+    ) => `import { zqTemplatesQueryOptions as opts } from "@/lib/queries/zq";
+      export function Card() { ${call} return null; }`;
+    expect(check(base)).toEqual([]);
+    expect(check(base, used("const q = useQuery(opts());"))).toEqual([]);
+    expect(check(base, used("const q = useQuery({ ...opts(), staleTime: 1 });"))).toEqual([]);
+    expect(check(base, used("const qs = useQueries({ queries: ids.map(() => opts()) });"))).toEqual(
+      [],
+    );
+    expect(check(base, used("client.invalidateQueries({ queryKey: opts().queryKey });"))).toEqual(
+      [],
+    );
+    // Recenzja r2: rozgrzewka na najechaniu - `prefetchQuery` ignoruje `enabled`.
+    const prefetch = check(base, used("const warm = () => client.prefetchQuery(opts());"));
+    expect(prefetch[0]).toContain(
+      `opcje zqTemplatesQueryOptions trafiają w ${OTHER}:2 poza useQuery`,
+    );
+    for (const call of [
+      "void client.fetchQuery(opts());",
+      "void client.ensureQueryData(opts());",
+      "const q = useSuspenseQuery(opts());",
+      "const o = opts(); void client.prefetchQuery(o);",
+    ]) {
+      expect(check(base, used(call))[0], call).toContain("poza useQuery");
+    }
+    // To samo w pliku deklaracji.
+    expect(
+      check(
+        `${base}\n      export function zqWarm(c) { void c.prefetchQuery(zqTemplatesQueryOptions()); }`,
+      )[0],
+    ).toContain("poza useQuery");
+    // Opcje bez nazwy: `useQuery(queryOptions(...))` - tak; `useSuspenseQuery(...)` - nie.
+    const inline = (hook: string) => `${BROWSER_IMPORT}
+      import { useAuth } from "@/hooks/useAuth";
+      export function useZq() {
+        const { user } = useAuth();
+        return ${hook}(queryOptions({ queryKey: ["zq"], enabled: !!user, queryFn: async () => supabase.from("builder_templates").select("id") }));
+      }`;
+    expect(check(inline("useQuery"))).toEqual([]);
+    expect(check(inline("useSuspenseQuery"))[0]).toContain(
+      "opcje zapytania bez nazwy poza useQuery",
+    );
+  });
+
+  it("D: odczyt `head: true` - fakt miary z kolumnami listy (`*` - wszystkie; lista nieczytelna - relacja), gość i sonda odczytu; bez faktu bramki (asercje 1-9 bez zmian)", () => {
+    const code = `${BROWSER_IMPORT}
+      export async function zqCount() { return supabase.from("builder_templates").select("id", { count: "exact", head: true }); }
+      export async function zqTypo() { return supabase.from("builder_templatez").select("*", { count: "exact", head: true }); }
+      export async function zqDyn(cols: string) { return supabase.from("builder_templates").select(cols, { count: "exact", head: true }).eq("slot", "x"); }
+    `;
+    const f = observed({ [PUBLIC]: code });
+    expect(f.tables).toEqual([]);
+    expect(
+      f.observed.tables.map(
+        (t) =>
+          `${t.fn} ${t.table} ${t.op}[${t.columns.join(",")}]${t.star ? "*" : ""} ${t.head === true} ${t.guest}`,
+      ),
+    ).toEqual([
+      "zqCount builder_templates select[id] true true",
+      "zqTypo builder_templatez select[]* true true",
+      "zqDyn builder_templates select[] true true",
+    ]);
+    expect(
+      f.observed.statements.map(
+        (s) => `${s.fn} ${s.columns.join(",")}${s.star ? "*" : ""} where(${s.where.join(",")})`,
+      ),
+    ).toEqual(["zqCount id where()", "zqTypo * where()", "zqDyn  where(slot)"]);
+    const sql = renderContractTest(f, {}, { reach });
+    // Wiersze faktów miary (uprawnienia kolumn, gość) i istnienie relacji w 12.
+    expect(sql).toContain(
+      `('builder_templates', 'select', 'anon', 'authenticated', ARRAY['id']::text[], false,`,
+    );
+    expect(sql).toContain(
+      `('builder_templatez', 'select', 'authenticated', 'authenticated', '{}'::text[], true,`,
+    );
+    // Legacy (asercje 1-9) - bez wierszy tych odczytów.
+    expect(
+      sql.slice(sql.indexOf("INSERT INTO ts_table"), sql.indexOf("-- ── Fakty miary")),
+    ).not.toContain("builder_template");
+  });
+
+  it("L3: sonda pusta gościa przy rozgałęzieniu na sesji (`auth.uid() IS NULL` ... w domknięciu) nie jest naruszeniem, gdy sonda authenticated tej funkcji czyta relacje", () => {
+    const sql = renderContractTest(
+      observed({
+        [PUBLIC]: `${BROWSER_IMPORT}\n export const zq = () => supabase.rpc("resolve_path", { _segments: ["a"] });`,
+      }),
+      {},
+      { reach },
+    );
+    expect(sql).toContain(
+      "   AND NOT (p.role = 'anon' AND pg_temp.ts_session_branch(p.rel)\n            AND EXISTS (SELECT 1 FROM ts_probe a\n                         WHERE a.kind LIKE 'probe-rpc%' AND a.rel = p.rel\n                           AND a.role = 'authenticated' AND a.touched > 0));",
+    );
+    expect(sql).toContain(
+      String.raw`AND (pg_temp.ts_fn_clean(x.oid) ~ '\mauth\s*\.\s*(uid|role|jwt)\s*\(\s*\)'`,
+    );
+    expect(sql).toContain(String.raw`OR pg_temp.ts_fn_body(x.oid) ~* 'request\.jwt'));`);
   });
 });
