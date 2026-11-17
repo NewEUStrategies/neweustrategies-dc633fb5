@@ -7,6 +7,9 @@
 //
 // Głos na ważność jest przyciskiem przełącznym z `aria-pressed`, a nie dwoma
 // przyciskami "zagłosuj"/"cofnij": to jedna decyzja o dwóch stanach.
+//
+// Gość widzi licznik i WYGASZONY przycisk - tak jak głosowanie w `PollCard`.
+// Aktywny przycisk bez sesji prowadził do 42501 i ogólnego toastu błędu.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronUp, CornerDownRight } from "lucide-react";
@@ -23,6 +26,7 @@ const ANSWER_MAX = 10000;
 export function ClubQuestionCard({
   row,
   lang,
+  canVote,
   votePending,
   answerPending,
   onVote,
@@ -30,6 +34,8 @@ export function ClubQuestionCard({
 }: {
   row: ClubThreadQuestionRow;
   lang: "pl" | "en";
+  /** Głos wymaga sesji - `false` dla gościa. */
+  canVote: boolean;
   votePending: boolean;
   answerPending: boolean;
   onVote: (on: boolean) => void;
@@ -65,7 +71,7 @@ export function ClubQuestionCard({
             className="h-8 w-8 p-0"
             aria-pressed={row.my_vote}
             aria-label={t("club.workspace.questions.vote")}
-            disabled={votePending}
+            disabled={!canVote || votePending}
             onClick={() => onVote(!row.my_vote)}
           >
             <ChevronUp className="h-4 w-4" />

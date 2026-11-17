@@ -47,11 +47,15 @@ export function ClubThreadQuestionsPanel({
    *  anonimowe tam, gdzie klub tego nie przewiduje, więc przełącznik ma się
    *  wtedy w ogóle nie pokazywać. */
   canGoAnonymous,
+  /** Głos na ważność wymaga sesji (`club_thread_question_vote` nie ma EXECUTE
+   *  dla `anon`), ale NIE prawa zapisu: czytający członek też głosuje. */
+  canVote,
 }: {
   threadId: string;
   lang: "pl" | "en";
   canContribute: boolean;
   canGoAnonymous: boolean;
+  canVote: boolean;
 }) {
   const { t } = useTranslation();
   const [sort, setSort] = useState<ClubQuestionSort>("top");
@@ -116,6 +120,7 @@ export function ClubThreadQuestionsPanel({
               key={row.id}
               row={row}
               lang={lang}
+              canVote={canVote}
               votePending={vote.isPending}
               answerPending={answer.isPending}
               onVote={(on) => vote.mutate({ questionId: row.id, on }, { onError: failed })}
