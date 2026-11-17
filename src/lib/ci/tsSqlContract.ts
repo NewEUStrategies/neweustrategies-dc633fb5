@@ -214,6 +214,14 @@ export interface RoleResolution {
    * wywołaniach) - nie niesie klienta, więc nie wpływa na zgodność ról.
    */
   readonly absent?: boolean;
+  /**
+   * Klient przeglądarki (`@/integrations/supabase/client`): rola
+   * `authenticated` TYLKO z sesją. Gość (bez logowania), a także KAŻDE
+   * wywołanie na serwerze (SSR, loader, handler funkcji serwera - klient bez
+   * magazynu sesji) idzie z kluczem publicznym, czyli jako `anon`. Miara
+   * sprawdza wtedy OBIE role: wiersz z rolą zmierzoną i drugi z `anon`.
+   */
+  readonly guest?: boolean;
 }
 
 interface ObservedCommon {
@@ -221,6 +229,8 @@ interface ObservedCommon {
   readonly via: string;
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
   readonly enforcedRole: ClientRole;
+  /** Klient przeglądarki: miara sprawdza też `anon` (`RoleResolution.guest`). */
+  readonly guest: boolean;
   /** Plik wywołania (`file` faktu bywa plikiem literału kolumn). */
   readonly site: string;
   /** Ścieżka nazwanych funkcji wywołania (jak w kluczach list przejrzanych). */
@@ -254,6 +264,43 @@ export interface FilterSite extends ObservedCommon {
   readonly op: TableOp;
   /** Plik, w którym rozwiązał się literał kolumny. */
   readonly file: string;
+  /**
+   * Rola bramki dla klienta łańcucha: z nią pgTAP sprawdza fakty łańcucha
+   * (kolumn filtra bramka nie sprawdza - `enforcedRole` zostaje `unknown`).
+   * Budowniczy przez wartość - rola bramki odbiorcy jego `.from()`.
+   */
+  readonly gateRole: ClientRole;
+}
+
+/**
+ * Zasób osadzony listy `select` (`rel(...)`, `alias:rel!fk(...)`,
+ * `...rel(...)`, także zagnieżdżony). PostgREST czyta go złączeniem z relacją
+ * nadrzędną, więc rola łańcucha potrzebuje SELECT na jego kolumnach
+ * i kolumnach klucza obcego złączenia. Relację rozwiązuje SQL miary tak jak
+ * PostgREST: nazwa relacji, a gdy jej nie ma - nazwa klucza obcego albo
+ * kolumny z kluczem obcym relacji nadrzędnej (`autor:author_id(...)`).
+ */
+export interface ObservedEmbed extends ObservedCommon {
+  /** Numer osadzenia (indeks w `observed.embeds`) - do wiązania zagnieżdżeń w SQL. */
+  readonly id: number;
+  /** Osadzenie nadrzędne (`id`); `null` - pierwszy poziom, rodzicem jest `table`. */
+  readonly parentId: number | null;
+  /** Tabela łańcucha (`.from`). */
+  readonly table: string;
+  /** Ścieżka osadzenia w liście `select` (alias albo nazwa, `a.b`). */
+  readonly path: string;
+  /** Nazwa relacji z listy `select` (tabela, widok, klucz obcy albo jego kolumna). */
+  readonly rel: string;
+  /** Podpowiedź `!fk` (bez `!inner`/`!left`); `null` - brak. */
+  readonly hint: string | null;
+  /** Kolumny osadzenia (bez zagnieżdżeń, posortowane). */
+  readonly columns: readonly string[];
+  readonly star: boolean;
+  readonly op: TableOp;
+  /** Plik, w którym rozwiązał się literał listy `select`. */
+  readonly file: string;
+  /** Rola bramki dla klienta łańcucha (osadzeń bramka nie sprawdza - `enforcedRole` `unknown`). */
+  readonly gateRole: ClientRole;
 }
 
 /**
@@ -268,6 +315,10 @@ export interface ObservedStatement {
   readonly table: string;
   readonly op: TableOp;
   readonly role: MeasuredRole;
+  /** Rola bramki faktów tego zapytania (różne albo wstrzymane - `unknown`). */
+  readonly enforcedRole: ClientRole;
+  /** Klient przeglądarki: sonda także jako `anon`. */
+  readonly guest: boolean;
   readonly via: string;
   readonly site: string;
   readonly fn: string;
@@ -291,6 +342,8 @@ export interface ObservedFacts {
   /** Każdy fakt tabeli bramki (także wstrzymany) z rolą zmierzoną. */
   readonly tables: readonly ObservedTable[];
   readonly filters: readonly FilterSite[];
+  /** Zasoby osadzone list `select` faktów odczytu (bez powtórzeń). */
+  readonly embeds: readonly ObservedEmbed[];
   /** Zapytania łańcuchów `.from()`/`looseTable` do sond wykonania (bez powtórzeń). */
   readonly statements: readonly ObservedStatement[];
   /**
@@ -1795,18 +1848,21 @@ const KNOWN_CLIENT_EXPORTS: readonly {
   readonly name: string;
   readonly role: ClientRole;
   readonly via: string;
+  readonly guest: boolean;
 }[] = [
   {
     module: "src/integrations/supabase/client.server.ts",
     name: "supabaseAdmin",
     role: "service_role",
     via: "import supabaseAdmin",
+    guest: false,
   },
   {
     module: "src/integrations/supabase/client.ts",
     name: "supabase",
     role: "authenticated",
     via: "import klienta przeglądarki",
+    guest: true,
   },
 ];
 
@@ -1869,7 +1925,21 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
     );
   }
   const vias = [...new Set(roles.map((r) => r.via))];
-  return { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) };
+  // Klient przeglądarki w KTÓRYMKOLWIEK wywołaniu - zapytanie idzie też jako
+  // gość (`anon`); to suma wartości, nie zgadywanie.
+  return withGuest(
+    { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) },
+    roles.some((r) => r.guest === true),
+  );
+}
+
+/**
+ * Rola z flagą gościa. `guest` pochodzi WYŁĄCZNIE od klienta przeglądarki
+ * (`authenticated`), a zgodność ról wymaga jednej roli - więc gość nigdy nie
+ * stoi przy innej roli (test stanu repozytorium pilnuje tego niezmiennika).
+ */
+function withGuest(role: RoleResolution, guest: boolean | undefined): RoleResolution {
+  return guest === true ? { ...role, guest: true } : role;
 }
 
 /** Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary. */
@@ -1899,12 +1969,18 @@ function measuredRole(
         const imported = identifierRole(node, scope, env, depth);
         if (imported.role !== "unknown" && imported.role !== legacy) {
           return {
-            role: imported.role,
+            ...imported,
             via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${imported.via}`.slice(
               0,
               MAX_VIA,
             ),
           };
+        }
+        if (imported.role === legacy) {
+          return withGuest(
+            { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+            imported.guest,
+          );
         }
       }
       const declaredInFile =
@@ -1923,16 +1999,29 @@ function measuredRole(
         }
         if (bound.role !== legacy) {
           return {
-            role: bound.role,
+            ...bound,
             via: `wiązanie zamiast reguły nazwy (bramka: ${legacy}): ${bound.via}`.slice(
               0,
               MAX_VIA,
             ),
           };
         }
+        return withGuest(
+          { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+          bound.guest,
+        );
       }
     }
-    return { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` };
+    // Reguła nazwy bez wiązania w pliku: `supabase` w pliku z importem klienta
+    // przeglądarki to ten klient (gość - `anon`); sam `requireSupabaseAuth`
+    // to klient z sesją z żądania.
+    return withGuest(
+      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+      ts.isIdentifier(node) &&
+        node.text === "supabase" &&
+        !scope.adminAliases.has("supabase") &&
+        scope.browserClient,
+    );
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -2351,15 +2440,15 @@ function importRole(
 ): RoleResolution {
   const target = resolveModule(scope.file, spec, env.flow.known);
   const knownExport = KNOWN_CLIENT_EXPORTS.find((k) => k.module === target && k.name === name);
-  if (knownExport !== undefined) return { role: knownExport.role, via: knownExport.via };
+  if (knownExport !== undefined) {
+    return withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+  }
   const exported = moduleExport(spec, name, scope, env);
   if (exported === null || exported.binding.kind !== "local" || exported.binding.prop !== null) {
     return unknownRole(`import ${name} z ${spec}: nie stała modułu`);
   }
   const inner = measuredRole(exported.binding.init, exported.scope, env, depth + 1);
-  return inner.role === "unknown"
-    ? inner
-    : { role: inner.role, via: `import ${name} <- ${inner.via}` };
+  return inner.role === "unknown" ? inner : { ...inner, via: `import ${name} <- ${inner.via}` };
 }
 
 function identifierRole(
@@ -2381,7 +2470,7 @@ function identifierRole(
           : memberRole(binding.init, binding.prop, scope, env, depth + 1);
       return inner.role === "unknown"
         ? inner
-        : { role: inner.role, via: `const ${id.text} <- ${inner.via}`.slice(0, MAX_VIA) };
+        : { ...inner, via: `const ${id.text} <- ${inner.via}`.slice(0, MAX_VIA) };
     }
     case "reassigned":
       return agreeingRole(
@@ -3475,6 +3564,8 @@ const BUILDER_CHAIN_METHODS: ReadonlySet<string> = new Set([
 interface BuilderRef {
   readonly table: string;
   readonly role: RoleResolution;
+  /** Rola bramki odbiorcy `.from()` / źródła `looseTable` (`receiverRole`). */
+  readonly gate: ClientRole;
   readonly select: string | null;
   readonly op: TableOp;
 }
@@ -3518,7 +3609,8 @@ function builderOf(
         const table = tableOf(node.arguments[1]);
         if (table === null) return null;
         const role = looseMeasuredRole(node.arguments[0], scope, env.roles, 0);
-        return [{ table, role, select, op }];
+        const gate = looseSourceRole(node.arguments[0], scope, known);
+        return [{ table, role, gate, select, op }];
       }
       if (isTableFrom(node)) {
         const method = callMethod(node);
@@ -3531,7 +3623,15 @@ function builderOf(
         }
         const table = tableOf(node.arguments[0]);
         if (table === null) return null;
-        return [{ table, role: measuredRole(recv, scope, env.roles, 0), select, op }];
+        return [
+          {
+            table,
+            role: measuredRole(recv, scope, env.roles, 0),
+            gate: receiverRole(recv, scope, known),
+            select,
+            op,
+          },
+        ];
       }
       const method = callMethod(node);
       if (method !== null) {
@@ -3629,6 +3729,9 @@ interface Collector {
     rpcs: ObservedRpc[];
     tables: ObservedTable[];
     filters: FilterSite[];
+    embeds: ObservedEmbed[];
+    /** Klucz osadzenia (z kluczem rodzica) -> `id` - to samo osadzenie tylko raz. */
+    embedKeys: Map<string, number>;
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
@@ -3881,7 +3984,7 @@ function visitFile(
       for (const why of found.unresolved) out.observed.unresolvedFilters.push(`${where}: ${why}`);
       const seen = new Set<string>();
       for (const builder of builders) {
-        const key = `${builder.table}|${builder.role.role}|${builder.op}|${builder.select ?? ""}`;
+        const key = `${builder.table}|${builder.role.role}|${builder.role.guest === true}|${builder.gate}|${builder.op}|${builder.select ?? ""}`;
         if (seen.has(key)) continue;
         seen.add(key);
         for (const column of found.columns) {
@@ -3905,6 +4008,8 @@ function visitFile(
             role: builder.role.role,
             via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
             enforcedRole: "unknown",
+            guest: builder.role.guest === true,
+            gateRole: builder.gate,
             file: column.file,
             site: scope.file,
             fn: enclosingFunctionPath(call),
@@ -3968,6 +4073,7 @@ function handleRpc(
     role: measured.role,
     via: measured.via,
     enforcedRole: role,
+    guest: measured.guest === true,
     file: scope.file,
     site: scope.file,
     fn: enclosingFunctionPath(node),
@@ -4078,6 +4184,7 @@ function handleBuilder(
       role: measure.role.role,
       via: measure.role.via,
       enforcedRole: withheld ? "unknown" : f.role,
+      guest: measure.role.guest === true,
       site: scope.file,
       fn: enclosingFunctionPath(call),
     };
@@ -4131,6 +4238,9 @@ function handleBuilder(
             ? resolveString(arg, scope, exportsIndex, known)
             : null;
         for (const value of flowed ?? []) {
+          if (measure !== null) {
+            observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
+          }
           const parsed = parseSelectColumns(value.text);
           if (parsed.star || parsed.columns.length > 0) {
             fact(
@@ -4152,6 +4262,9 @@ function handleBuilder(
           }
         }
         for (const select of viaHelper ?? (text === null ? [] : [text])) {
+          if (measure !== null) {
+            observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
+          }
           const parsed = parseSelectColumns(select);
           if (parsed.star || parsed.columns.length > 0) {
             site(call, "select", parsed.columns, parsed.star);
@@ -4207,6 +4320,7 @@ function handleBuilder(
       chains,
       direct,
       table,
+      role,
       scope,
       exportsIndex,
       known,
@@ -4218,12 +4332,110 @@ function handleBuilder(
       direct.length > 0,
       table,
       measure.role,
+      role,
       scope.file,
       chainFacts,
       chainFilters,
       out,
     );
   }
+}
+
+/**
+ * Element listy `select` będący zasobem osadzonym: nazwa w odpowiedzi (alias
+ * albo relacja), relacja, podpowiedź `!fk` (`!inner`/`!left` to rodzaj
+ * złączenia, nie podpowiedź) i lista wewnętrzna. `null` - kolumna, agregat
+ * (`count()`, `kol.sum()`) albo nazwa nieczytelna.
+ */
+export function selectEmbedItem(
+  raw: string,
+): { name: string; rel: string; hint: string | null; inner: string } | null {
+  const open = raw.indexOf("(");
+  if (open === -1 || !raw.endsWith(")")) return null;
+  const inner = raw.slice(open + 1, -1);
+  if (inner.trim().length === 0) return null;
+  let head = raw.slice(0, open).trim();
+  if (head.startsWith("...")) head = head.slice(3).trim();
+  let alias: string | null = null;
+  const colon = head.indexOf(":");
+  if (colon !== -1) {
+    alias = head.slice(0, colon).trim();
+    head = head.slice(colon + 1).trim();
+  }
+  const [rel, ...mods] = head.split("!").map((x) => x.trim());
+  if (!COLUMN_RE.test(rel)) return null;
+  const hints = mods.filter((m) => m !== "inner" && m !== "left");
+  return { name: alias ?? rel, rel, hint: hints[0] ?? null, inner };
+}
+
+/**
+ * Miara: zasoby osadzone listy `select` (rekurencyjnie) jako fakty na
+ * relacji osadzonej z rolą łańcucha. `count` w liście osadzenia to dawna
+ * składnia licznika osadzenia PostgREST (`rel(count)`), nie kolumna.
+ */
+function observeEmbeds(
+  select: string,
+  file: string,
+  table: string,
+  gateRole: ClientRole,
+  role: RoleResolution,
+  call: ts.CallExpression,
+  scope: FileScope,
+  out: Collector,
+): void {
+  const fn = enclosingFunctionPath(call);
+  const walk = (list: string, parentId: number | null, prefix: string | null, depth: number) => {
+    if (depth > 8) return;
+    for (const raw of splitTopLevel(list)) {
+      const item = selectEmbedItem(raw);
+      if (item === null) continue;
+      const parsed = parseSelectColumns(item.inner);
+      const columns = parsed.columns.filter((c) => c !== "count");
+      const path = prefix === null ? item.name : `${prefix}.${item.name}`;
+      const key = JSON.stringify([
+        parentId === null ? null : out.observed.embeds[parentId].id,
+        scope.file,
+        fn,
+        table,
+        path,
+        item.rel,
+        item.hint,
+        columns,
+        parsed.star,
+        role.role,
+        role.guest === true,
+        role.via,
+        gateRole,
+        file,
+      ]);
+      let id = out.observed.embedKeys.get(key);
+      if (id === undefined) {
+        id = out.observed.embeds.length;
+        out.observed.embedKeys.set(key, id);
+        out.observed.embeds.push({
+          id,
+          parentId,
+          table,
+          path,
+          rel: item.rel,
+          hint: item.hint,
+          columns,
+          star: parsed.star,
+          op: "select",
+          role: role.role,
+          via: role.via,
+          enforcedRole: "unknown",
+          guest: role.guest === true,
+          gateRole,
+          file,
+          site: scope.file,
+          fn,
+        });
+      }
+      walk(item.inner, id, path, depth + 1);
+    }
+  };
+  walk(select, null, null, 0);
 }
 
 /** Metody faktów filtra upsertu: cel `ON CONFLICT` i kolumny `EXCLUDED`. */
@@ -4241,6 +4453,7 @@ function observeStatements(
   hasDirect: boolean,
   table: string,
   role: RoleResolution,
+  gateRole: ClientRole,
   site: string,
   facts: readonly { readonly fact: ObservedTable; readonly chain: number }[],
   filters: readonly { readonly filter: FilterSite; readonly chain: number }[],
@@ -4270,6 +4483,14 @@ function observeStatements(
     const columns = unique(selects.flatMap((f) => f.columns));
     const star = selects.some((f) => f.star);
     const writes = gFacts.filter((f) => f.op !== "select");
+    // Rola bramki zapytania: rola, z którą pgTAP sprawdza jego fakty (fakt
+    // wstrzymany - `unknown`); bez faktów (sam `head: true` i filtry) - rola
+    // bramki klienta łańcucha.
+    const enforcedOf = (fs: readonly ObservedTable[]): ClientRole => {
+      const roles = [...new Set(fs.map((f) => f.enforcedRole))];
+      return fs.length === 0 ? gateRole : roles.length === 1 ? roles[0] : "unknown";
+    };
+    const guest = role.guest === true;
     const statements: ObservedStatement[] =
       writes.length === 0
         ? selects.length === 0 && where.length === 0
@@ -4279,6 +4500,8 @@ function observeStatements(
                 table,
                 op: "select",
                 role: role.role,
+                enforcedRole: enforcedOf(selects),
+                guest,
                 via: role.via,
                 site,
                 fn,
@@ -4295,6 +4518,8 @@ function observeStatements(
               table,
               op: w.op,
               role: role.role,
+              enforcedRole: enforcedOf([w, ...selects]),
+              guest,
               via: role.via,
               site,
               fn: w.fn,
@@ -4323,6 +4548,7 @@ function observeChainFilters(
   chains: readonly (readonly ts.CallExpression[])[],
   direct: readonly ts.CallExpression[],
   table: string,
+  gateRole: ClientRole,
   scope: FileScope,
   exportsIndex: ExportIndex,
   known: ReadonlySet<string>,
@@ -4380,6 +4606,8 @@ function observeChainFilters(
           role: measure.role.role,
           via: measure.role.via,
           enforcedRole: "unknown",
+          guest: measure.role.guest === true,
+          gateRole,
           file: column.file,
           site: scope.file,
           fn: enclosingFunctionPath(call),
@@ -4639,6 +4867,8 @@ export function extractSeamFacts(
       rpcs: [],
       tables: [],
       filters: [],
+      embeds: [],
+      embedKeys: new Map(),
       statements: [],
       statementKeys: new Set(),
       unresolvedFilters: [],
@@ -4699,6 +4929,7 @@ export function extractSeamFacts(
       rpcs: out.observed.rpcs,
       tables: out.observed.tables,
       filters: out.observed.filters,
+      embeds: out.observed.embeds,
       statements: out.observed.statements,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
@@ -5418,9 +5649,26 @@ ROLLBACK;
  * „permission denied for …"; 42501 z własnym komunikatem (autoryzacja
  * funkcji) i inne błędy (walidacja wejścia) liczy podsumowanie sond.
  */
+/** Opis drogi roli w wierszu gościa (klient przeglądarki bez sesji). */
+export const GUEST_VIA = "gość bez sesji: klient przeglądarki z kluczem publicznym";
+
+/**
+ * Wiersze miary: fakt z rolą zmierzoną, a fakt klienta przeglądarki
+ * (`guest`) - DRUGI raz z rolą `anon` (gość, SSR, handler serwera).
+ */
+export function withGuestRows<
+  T extends { readonly role: MeasuredRole; readonly via: string; readonly guest: boolean },
+>(xs: readonly T[]): T[] {
+  return xs.flatMap((x) =>
+    x.guest && x.role === "authenticated"
+      ? [x, { ...x, role: "anon" as const, via: `${GUEST_VIA} <- ${x.via}`.slice(0, MAX_VIA) }]
+      : [x],
+  );
+}
+
 export function renderObservedQueries(facts: SeamFacts): string {
   const o = facts.observed;
-  const rpcRows = o.rpcs.map((r) =>
+  const rpcRows = withGuestRows(o.rpcs).map((r) =>
     [
       sqlString(r.name),
       sqlTextArray(r.keys),
@@ -5431,7 +5679,7 @@ export function renderObservedQueries(facts: SeamFacts): string {
       sqlString(r.fn),
     ].join(", "),
   );
-  const tableRows = o.tables.map((t) =>
+  const tableRows = withGuestRows(o.tables).map((t) =>
     [
       sqlString(t.table),
       sqlString(t.op),
@@ -5445,7 +5693,7 @@ export function renderObservedQueries(facts: SeamFacts): string {
       sqlString(t.fn),
     ].join(", "),
   );
-  const filterRows = o.filters.map((f) =>
+  const filterRows = withGuestRows(o.filters).map((f) =>
     [
       sqlString(f.table),
       f.column === PRIMARY_KEY_COLUMNS ? "NULL" : sqlString(f.column),
@@ -5453,17 +5701,19 @@ export function renderObservedQueries(facts: SeamFacts): string {
       sqlString(f.method),
       sqlString(f.op),
       sqlString(f.role),
+      sqlString(f.gateRole),
       sqlString(f.via),
       sqlString(f.file),
       sqlString(f.site),
       sqlString(f.fn),
     ].join(", "),
   );
-  const statementRows = o.statements.map((t) =>
+  const statementRows = withGuestRows(o.statements).map((t) =>
     [
       sqlString(t.table),
       sqlString(t.op),
       sqlString(t.role),
+      sqlString(t.enforcedRole),
       sqlTextArray(t.columns),
       t.star ? "true" : "false",
       sqlTextArray(t.payload),
@@ -5474,15 +5724,44 @@ export function renderObservedQueries(facts: SeamFacts): string {
       sqlString(t.fn),
     ].join(", "),
   );
+  const embedRows = withGuestRows(o.embeds).map((e) =>
+    [
+      String(e.id),
+      e.parentId === null ? "NULL" : String(e.parentId),
+      sqlString(e.table),
+      sqlString(e.path),
+      sqlString(e.rel),
+      e.hint === null ? "NULL" : sqlString(e.hint),
+      sqlTextArray(e.columns),
+      e.star ? "true" : "false",
+      sqlString(e.role),
+      sqlString(e.gateRole),
+      sqlString(e.via),
+      sqlString(e.file),
+      sqlString(e.site),
+      sqlString(e.fn),
+    ].join(", "),
+  );
+  const guests =
+    rpcRows.length -
+    o.rpcs.length +
+    (tableRows.length - o.tables.length) +
+    (filterRows.length - o.filters.length) +
+    (embedRows.length - o.embeds.length) +
+    (statementRows.length - o.statements.length);
   const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
   const roles = "('anon', 'authenticated', 'service_role')";
   return `-- ============================================================================
 -- WYGENEROWANE - MIARA POZA BRAMKA CI (\`bun run generate:ts-sql-contract --measure\`).
 -- Nie jest testem pgTAP i nie trafia do supabase/tests. Zwraca naruszenia:
 -- rodzaj | plik wywolania | funkcja | relacja | kolumna | rola zmierzona |
--- rola bramki | problem | droga ustalenia roli.
+-- rola bramki | problem | droga ustalenia roli. Rola bramki faktu tabeli
+-- i RPC to rola w pgTAP; kolumny filtra i osadzenia (bramka ich nie
+-- sprawdza) - rola bramki klienta ich lancucha. Klient przegladarki ma
+-- dwa wiersze: authenticated (z sesja) i anon (gosc, SSR, handler serwera).
 -- RPC: ${o.rpcs.length}, fakty tabel: ${o.tables.length}, kolumny filtrow: ${o.filters.length},
--- zapytania do sond wykonania: ${o.statements.length}.
+-- osadzenia: ${o.embeds.length}, zapytania do sond wykonania: ${o.statements.length};
+-- wiersze goscia (klient przegladarki takze jako anon): ${guests}.
 -- Najpierw podsumowanie sond (rodzaj | wynik | liczba), potem naruszenia
 -- (kolumna caught_by: privilege-check albo execution-probe).
 -- WYLACZNIE baza jednorazowa: sondy RPC wykonuja ciala funkcji (wycofane, ale
@@ -5493,17 +5772,20 @@ SET LOCAL statement_timeout = '30min';
 SET LOCAL lock_timeout = '5s';
 CREATE TEMP TABLE obs_rpc (fn text, keys text[], role text, enforced text, via text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, file text, site text, func text) ON COMMIT DROP;
-CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op text, role text, via text, file text, site text, func text) ON COMMIT DROP;
-CREATE TEMP TABLE obs_stmt (rel text, op text, role text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
 ${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
-${valuesBlock("obs_filter", "rel, col, embed, method, op, role, via, file, site, func", filterRows)}
-${valuesBlock("obs_stmt", "rel, op, role, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
+${valuesBlock("obs_filter", "rel, col, embed, method, op, role, enforced, via, file, site, func", filterRows)}
+${valuesBlock("obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
+${valuesBlock("obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, via, file, site, func", embedRows)}
 ${RPC_MATCH_SQL}
+${EMBED_SQL}
 -- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
 CREATE TEMP VIEW obs_filter_cols AS
-SELECT f.rel, coalesce(f.col, pk.col) AS col, f.embed, f.method, f.op, f.role, f.via, f.file, f.site, f.func
+SELECT f.rel, coalesce(f.col, pk.col) AS col, f.embed, f.method, f.op, f.role, f.enforced, f.via, f.file, f.site, f.func
   FROM obs_filter f
   LEFT JOIN LATERAL (
     SELECT a.attname::text AS col
@@ -5577,7 +5859,7 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
    WHERE t.op = 'delete' AND t.role IN ${roles} AND ${rel("t.rel")} IS NOT NULL
      AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE')
   UNION ALL
-  SELECT 'filter-column', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny?)'), f.role, 'unknown',
+  SELECT 'filter-column', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny?)'), f.role, f.enforced,
          CASE WHEN ${rel("f.rel")} IS NULL THEN 'relacja nie istnieje'
               WHEN f.col IS NULL THEN 'brak klucza glownego'
               WHEN NOT EXISTS (SELECT 1 FROM pg_attribute a
@@ -5596,6 +5878,30 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (f.role IN ${roles}
           AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT'))
+  UNION ALL
+  SELECT 'embed-column', m.site, m.func, c.relname::text, col.col, m.role, m.enforced,
+         CASE WHEN NOT EXISTS (SELECT 1 FROM pg_attribute a
+                                WHERE a.attrelid = x.target AND a.attname = col.col
+                                  AND a.attnum > 0 AND NOT a.attisdropped)
+              THEN 'kolumna nie istnieje' ELSE 'brak SELECT' END
+           || ' (osadzenie ' || m.path || ' w ' || m.tbl
+           || CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END || ')',
+         m.via
+    FROM obs_embed m
+    JOIN obs_embed_rel x ON x.id = m.id AND x.target IS NOT NULL
+    JOIN pg_class c ON c.oid = x.target
+    CROSS JOIN LATERAL (
+      SELECT a.attname::text AS col FROM pg_attribute a
+       WHERE a.attrelid = x.target AND a.attnum > 0 AND NOT a.attisdropped
+         AND (m.star OR a.attname = ANY (m.cols))
+      UNION
+      SELECT y FROM unnest(m.cols) y
+    ) col
+   WHERE NOT EXISTS (SELECT 1 FROM pg_attribute a
+                      WHERE a.attrelid = x.target AND a.attname = col.col
+                        AND a.attnum > 0 AND NOT a.attisdropped)
+      OR (m.role IN ${roles}
+          AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))
 ) v;
 ${PROBE_SQL}
 SELECT p.kind, coalesce(p.outcome, 'nie uruchomiona') AS outcome, count(*) AS probes
@@ -5607,7 +5913,7 @@ SELECT kind, site, func, rel, col, role, enforced, problem, via, caught_by FROM 
   SELECT kind, site, func, rel, col, role, enforced, problem, via, 'privilege-check' AS caught_by
     FROM obs_violation
   UNION ALL
-  SELECT DISTINCT p.kind, p.site, p.func, p.rel, p.cols, p.role, 'unknown',
+  SELECT DISTINCT p.kind, p.site, p.func, p.rel, p.cols, p.role, p.enforced,
          p.msg || CASE WHEN EXISTS (SELECT 1 FROM obs_violation v
                                      WHERE v.site = p.site AND v.func = p.func
                                        AND v.rel = p.rel AND v.role = p.role)
@@ -5622,6 +5928,76 @@ ROLLBACK;
 }
 
 /**
+ * Relacje osadzeń miary, jak rozwiązuje je PostgREST: nazwa relacji z listy
+ * `select`, a bez takiej relacji - nazwa klucza obcego albo kolumny z kluczem
+ * obcym relacji nadrzędnej. Klucz złączenia to JEDYNY klucz obcy między
+ * relacjami (z podpowiedzią `!fk` - wskazany); inaczej `NULL` (sonda bez
+ * złączenia). Relacja spoza `public` nie jest wystawiona przez PostgREST -
+ * nieczytelna. Zagnieżdżenia rozwiązuje rekurencja od tabeli łańcucha.
+ */
+const EMBED_SQL = `-- Relacje osadzen (tabela obs_embed_rel: id, rodzic, relacja, klucz obcy).
+CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)
+LANGUAGE plpgsql STABLE AS $f$
+DECLARE
+  v_fks oid[];
+BEGIN
+  IF p_parent IS NULL THEN RETURN; END IF;
+  target := to_regclass('public.' || quote_ident(p_rel));
+  IF target IS NULL THEN
+    SELECT array_agg(c.oid) INTO v_fks FROM pg_constraint c
+     WHERE c.contype = 'f' AND c.conrelid = p_parent
+       AND (c.conname = p_rel OR (cardinality(c.conkey) = 1 AND EXISTS (
+             SELECT 1 FROM pg_attribute a
+              WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1] AND a.attname = p_rel)));
+    IF cardinality(v_fks) = 1 THEN
+      fk := v_fks[1];
+      SELECT c.confrelid INTO target FROM pg_constraint c WHERE c.oid = fk;
+    END IF;
+  ELSE
+    SELECT array_agg(c.oid) INTO v_fks FROM pg_constraint c
+     WHERE c.contype = 'f'
+       AND ((c.conrelid = p_parent AND c.confrelid = target)
+            OR (c.conrelid = target AND c.confrelid = p_parent))
+       AND (p_hint IS NULL OR c.conname = p_hint OR (cardinality(c.conkey) = 1 AND EXISTS (
+             SELECT 1 FROM pg_attribute a
+              WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1] AND a.attname = p_hint)));
+    IF cardinality(v_fks) = 1 THEN fk := v_fks[1]; END IF;
+  END IF;
+  IF target IS NOT NULL
+     AND (SELECT relnamespace FROM pg_class WHERE oid = target) <> 'public'::regnamespace THEN
+    target := NULL;
+    fk := NULL;
+  END IF;
+END $f$;
+
+-- Warunek zlaczenia po kluczu obcym: p - relacja nadrzedna, t - osadzona.
+CREATE FUNCTION pg_temp.ts_fk_join(p_fk oid, p_parent oid)
+RETURNS text LANGUAGE sql STABLE AS $f$
+  SELECT string_agg(CASE WHEN c.conrelid = p_parent
+                         THEN format('p.%I = t.%I', a.attname, b.attname)
+                         ELSE format('t.%I = p.%I', a.attname, b.attname) END, ' AND ' ORDER BY k.o)
+    FROM pg_constraint c
+    CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY k(src, dst, o)
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.src
+    JOIN pg_attribute b ON b.attrelid = c.confrelid AND b.attnum = k.dst
+   WHERE c.oid = p_fk
+$f$;
+
+CREATE TEMP TABLE obs_embed_rel ON COMMIT DROP AS
+WITH RECURSIVE e AS (SELECT DISTINCT id, parent_id, tbl, rel, hint FROM obs_embed),
+r AS (
+  SELECT e.id, to_regclass('public.' || quote_ident(e.tbl))::oid AS parent, x.target, x.fk
+    FROM e CROSS JOIN LATERAL pg_temp.ts_embed(to_regclass('public.' || quote_ident(e.tbl)), e.rel, e.hint) x
+   WHERE e.parent_id IS NULL
+  UNION ALL
+  SELECT e.id, r.target, x.target, x.fk
+    FROM r JOIN e ON e.parent_id = r.id
+    CROSS JOIN LATERAL pg_temp.ts_embed(r.target, e.rel, e.hint) x
+)
+SELECT id, parent, target, fk FROM r;
+`;
+
+/**
  * Sondy wykonania miary (opis w `renderObservedQueries`): tabela `obs_probe`
  * z instrukcją każdej sondy, jej wykonanie jako rola zmierzona w podtransakcji
  * kończonej wyjątkiem wartownika i klasyfikacja wyniku.
@@ -5629,7 +6005,7 @@ ROLLBACK;
 const PROBE_SQL = `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
 CREATE TEMP TABLE obs_probe (
   id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
-  role text, via text, sql text, state text, msg text, ctx text, outcome text
+  role text, enforced text, via text, sql text, state text, msg text, ctx text, outcome text
 ) ON COMMIT DROP;
 
 -- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
@@ -5682,12 +6058,12 @@ BEGIN
 END $f$;
 
 -- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 0, zapis jako EXPLAIN.
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, via, sql)
+INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
 SELECT 'probe-' || s.op, s.site, s.func, s.rel,
        concat_ws(' ', CASE WHEN s.star THEN '*' ELSE array_to_string(s.cols, ',') END,
                  nullif('ladunek(' || array_to_string(s.payload, ',') || ')', 'ladunek()'),
                  nullif('where(' || array_to_string(s.where_cols, ',') || ')', 'where()')),
-       s.role, s.via,
+       s.role, s.enforced, s.via,
        CASE s.op
          WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 0',
            CASE WHEN s.star THEN '*' ELSE coalesce(pg_temp.ts_list(s.cols, '%I', ', '), '') END,
@@ -5718,8 +6094,8 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
    AND to_regclass('public.' || quote_ident(s.rel)) IS NOT NULL;
 
 -- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, via, sql)
-SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.via,
+INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
+SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,
        format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)
   FROM obs_filter_cols f
  WHERE f.role IN ('anon', 'authenticated', 'service_role') AND f.col IS NOT NULL
@@ -5727,9 +6103,9 @@ SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.via,
 
 -- RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated, z EXECUTE
 -- (brak EXECUTE zglasza juz sprawdzenie uprawnien).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, via, sql)
+INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
 SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
-       r.role, r.via, format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
+       r.role, r.enforced, r.via, format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
   FROM obs_rpc r
   JOIN pg_proc p ON p.oid IN (
          SELECT pg_temp.ts_rpc_match(r.fn, r.keys) WHERE r.keys IS NOT NULL
@@ -5739,6 +6115,26 @@ SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.ke
  WHERE r.role IN ('anon', 'authenticated')
    AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
    AND has_function_privilege(r.role, p.oid, 'EXECUTE');
+
+-- Osadzenia: kolumny relacji osadzonej ZE zlaczeniem po kluczu obcym (SELECT
+-- na kolumnach klucza po obu stronach); bez jednoznacznego klucza - sama
+-- relacja; relacja nieczytelna - tylko w podsumowaniu.
+INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql, outcome)
+SELECT DISTINCT 'probe-embed', m.site, m.func, coalesce(c.relname::text, m.rel),
+       m.path || '(' || CASE WHEN m.star THEN '*' ELSE array_to_string(m.cols, ',') END || ')',
+       m.role, m.enforced, m.via,
+       CASE WHEN x.target IS NULL THEN NULL
+            WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 0', tc.list, c.relname)
+            ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,
+                        pc.relname, c.relname, pg_temp.ts_fk_join(x.fk, x.parent)) END,
+       CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END
+  FROM obs_embed m
+  JOIN obs_embed_rel x ON x.id = m.id
+  LEFT JOIN pg_class c ON c.oid = x.target
+  LEFT JOIN pg_class pc ON pc.oid = x.parent
+  CROSS JOIN LATERAL (SELECT CASE WHEN m.star THEN 't.*'
+                                  ELSE coalesce(pg_temp.ts_list(m.cols, 't.%I', ', '), '') END AS list) tc
+ WHERE m.role IN ('anon', 'authenticated', 'service_role');
 
 DO $probe$
 DECLARE
@@ -5765,7 +6161,7 @@ BEGIN
   IF to_regclass('public.tenants') IS NOT NULL THEN
     EXECUTE $q$SELECT domain FROM public.tenants ORDER BY is_default DESC NULLS LAST, created_at LIMIT 1$q$ INTO v_host;
   END IF;
-  FOR r IN SELECT id, role, sql FROM obs_probe ORDER BY id LOOP
+  FOR r IN SELECT id, role, sql FROM obs_probe WHERE sql IS NOT NULL ORDER BY id LOOP
     BEGIN
       PERFORM set_config('request.jwt.claims',
         CASE WHEN r.role = 'authenticated'

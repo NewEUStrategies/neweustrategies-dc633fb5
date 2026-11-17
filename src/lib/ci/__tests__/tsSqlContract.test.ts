@@ -19,6 +19,7 @@ import { POST_PARENT_PAGE_EMBED, postColumnsWithParentPage } from "@/lib/routing
 import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
 import {
   COLUMN_FLOW_MAX_DEPTH,
+  GUEST_VIA,
   MAX_UNRESOLVED_SITES,
   LOOSE_CLIENT,
   LOOSE_TABLE,
@@ -34,6 +35,7 @@ import {
   renderContractTest,
   renderObservedQueries,
   seamCoverageProblems,
+  selectEmbedItem,
   uncheckedSelectDrift,
   withPostParentPageEmbed,
   withheldKey,
@@ -2679,7 +2681,7 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
     });
     const sql = renderObservedQueries(f);
     expect(sql).toContain(
-      "('orders', 'update', 'service_role', ARRAY['id']::text[], false, ARRAY['status']::text[], ARRAY['id']::text[], NULL::text[],",
+      "('orders', 'update', 'service_role', 'service_role', ARRAY['id']::text[], false, ARRAY['status']::text[], ARRAY['id']::text[], NULL::text[],",
     );
     expect(sql).toContain("format('SELECT %s FROM public.%I%s LIMIT 0'");
     expect(sql).toContain("format('EXPLAIN UPDATE public.%I SET %s%s%s'");
@@ -2704,6 +2706,281 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
   });
 });
 
+describe("miara: klient przeglądarki - z sesją (`authenticated`) i jako gość (`anon`)", () => {
+  const BROWSER = `import { supabase } from "@/integrations/supabase/client";`;
+  const guestKeys = (f: SeamFacts): string[] => [
+    ...f.observed.rpcs.map((r) => `rpc ${r.name}: ${r.role}${r.guest ? "+anon" : ""}`),
+    ...f.observed.tables.map((t) => `${t.op} ${t.table}: ${t.role}${t.guest ? "+anon" : ""}`),
+  ];
+
+  it("import klienta przeglądarki (wprost, przez stałą, przez parametr) - `authenticated` + gość; `context.supabase`, klient serwisowy i `createClient` z kluczem publicznym - bez gościa", () => {
+    const f = observed({
+      "src/lib/x/public.ts": `${BROWSER}
+        export async function read() {
+          await supabase.from("t_direct").select("id");
+          await supabase.rpc("fn_direct", { p: 1 });
+          const db = supabase;
+          await db.from("t_const").select("id");
+          await helper(supabase);
+        }
+        async function helper(c: unknown) { await c.from("t_param").select("id"); }
+      `,
+      "src/lib/x/a.functions.ts": `
+        export const f = createServerFn().handler(async ({ context }) => {
+          await context.supabase.from("t_ctx").select("id");
+        });
+      `,
+      "src/lib/x/b.server.ts": `${ADMIN_FILE}
+        import { createClient } from "@supabase/supabase-js";
+        export async function g() {
+          await supabaseAdmin.from("t_admin").select("id");
+          const pub = createClient(url, process.env.SUPABASE_PUBLISHABLE_KEY!);
+          await pub.from("t_pub").select("id");
+        }
+      `,
+      // Reguła nazwy bez wiązania w pliku z klientem przeglądarki - ten klient.
+      "src/lib/x/c.ts": `import * as client from "@/integrations/supabase/client";
+        export async function h() { await supabase.from("t_name").select("id"); }
+      `,
+    });
+    expect(guestKeys(f)).toEqual([
+      "rpc fn_direct: authenticated+anon",
+      "select t_direct: authenticated+anon",
+      "select t_const: authenticated+anon",
+      "select t_param: authenticated+anon",
+      "select t_ctx: authenticated",
+      "select t_admin: service_role",
+      "select t_pub: anon",
+      "select t_name: authenticated+anon",
+    ]);
+  });
+
+  it("parametr: klient przeglądarki w JEDNYM wywołaniu - zapytanie idzie też jako gość; `const supabase = context.supabase` w pliku z importem klienta przeglądarki - bez gościa", () => {
+    const f = observed({
+      "src/lib/x/load.ts": `
+        export async function load(c: unknown) { await c.from("t_mixed").select("id"); }
+      `,
+      "src/lib/x/a.ts": `${BROWSER}
+        import { load } from "@/lib/x/load";
+        export async function viaBrowser() { await load(supabase); }
+        export const f = createServerFn().handler(async ({ context }) => {
+          await load(context.supabase);
+          const supabase = context.supabase;
+          await supabase.from("t_shadow").select("id");
+        });
+      `,
+    });
+    expect(guestKeys(f)).toEqual([
+      "select t_mixed: authenticated+anon",
+      "select t_shadow: authenticated",
+    ]);
+  });
+
+  it("render: fakt klienta przeglądarki ma DRUGI wiersz z rolą `anon` (RPC, tabela, filtr, osadzenie, zapytanie sondy); inne fakty - jeden", () => {
+    const f = observed({
+      "src/lib/x/public.ts": `${BROWSER}
+        export async function read() {
+          await supabase.from("posts").select("id, author:profiles(slug)").eq("status", s);
+          await supabase.rpc("fn_pub", { p: 1 });
+        }
+      `,
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function w() { await supabaseAdmin.from("orders").select("id").eq("tenant_id", t); }
+      `,
+    });
+    const sql = renderObservedQueries(f);
+    const guest = `'${GUEST_VIA} <- bramka: klient przeglądarki'`;
+    expect(sql).toContain(
+      `('fn_pub', ARRAY['p']::text[], 'authenticated', 'authenticated', 'bramka: klient przeglądarki'`,
+    );
+    expect(sql).toContain(`('fn_pub', ARRAY['p']::text[], 'anon', 'authenticated', ${guest}`);
+    expect(sql).toContain(
+      `('posts', 'select', 'anon', 'authenticated', ARRAY['id']::text[], false, ${guest}`,
+    );
+    expect(sql).toContain(
+      `('posts', 'status', NULL, 'eq', 'select', 'anon', 'authenticated', ${guest}`,
+    );
+    expect(sql).toContain(
+      `'author', 'profiles', NULL, ARRAY['slug']::text[], false, 'anon', 'authenticated', ${guest}`,
+    );
+    expect(sql).toContain(
+      `('posts', 'select', 'anon', 'authenticated', ARRAY['id']::text[], false, '{}'::text[], ARRAY['status']::text[], NULL::text[], ${guest}`,
+    );
+    // Klient serwisowy - bez wiersza gościa.
+    expect(sql).not.toMatch(/\('orders', [^\n]*'anon'/);
+    expect(sql).toContain("wiersze goscia (klient przegladarki takze jako anon): 5.");
+  });
+});
+
+describe("miara: zasoby osadzone listy `select` jako fakty relacji osadzonej", () => {
+  it("element listy: alias, podpowiedź `!fk` (bez `!inner`/`!left`), rozkład; kolumna i agregat - nie osadzenie", () => {
+    expect(selectEmbedItem("author:profiles!posts_author_id_fkey!inner(slug)")).toEqual({
+      name: "author",
+      rel: "profiles",
+      hint: "posts_author_id_fkey",
+      inner: "slug",
+    });
+    expect(selectEmbedItem("tags!left(id)")).toEqual({
+      name: "tags",
+      rel: "tags",
+      hint: null,
+      inner: "id",
+    });
+    expect(selectEmbedItem("...authors(name)")).toEqual({
+      name: "authors",
+      rel: "authors",
+      hint: null,
+      inner: "name",
+    });
+    expect(selectEmbedItem("owner:owner_id(id)")).toEqual({
+      name: "owner",
+      rel: "owner_id",
+      hint: null,
+      inner: "id",
+    });
+    expect(selectEmbedItem("count()")).toBeNull();
+    expect(selectEmbedItem("total.sum()")).toBeNull();
+    expect(selectEmbedItem("id")).toBeNull();
+  });
+
+  it("fakty osadzeń: zagnieżdżenie z rodzicem, `*`, licznik `rel(count)` bez kolumny `count`, osadzenie w RETURNING i z listy składanej parametrem; to samo osadzenie raz", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function read() {
+          await supabaseAdmin.from("orders").select("id, buyer:profiles!orders_buyer_fkey(slug, org:organizations(*)), items:order_items(count)");
+          await supabaseAdmin.from("orders").select("id, buyer:profiles!orders_buyer_fkey(slug, org:organizations(*)), items:order_items(count)");
+          await supabaseAdmin.from("orders").insert({ id }).select("id, owner:owner_id(email)");
+          await byColumns("id, plan:access_plans(name)");
+        }
+        async function byColumns(columns: string) {
+          await supabaseAdmin.from("subs").select(columns);
+        }
+      `,
+    });
+    expect(
+      f.observed.embeds.map(
+        (e) =>
+          `${e.id}<-${e.parentId ?? "-"} ${e.table} ${e.path} ${e.rel}${e.hint === null ? "" : `!${e.hint}`} [${e.star ? "*" : e.columns.join(",")}] ${e.role} ${e.fn}`,
+      ),
+    ).toEqual([
+      "0<-- orders buyer profiles!orders_buyer_fkey [slug] service_role read",
+      "1<-0 orders buyer.org organizations [*] service_role read",
+      "2<-- orders items order_items [] service_role read",
+      "3<-- orders owner owner_id [email] service_role read",
+      "4<-- subs plan access_plans [name] service_role byColumns",
+    ]);
+    // Osadzenie nie zmienia faktów tabeli łańcucha ani pgTAP bramki.
+    expect(new Set(f.observed.embeds.map((e) => e.enforcedRole))).toEqual(new Set(["unknown"]));
+    expect(new Set(f.observed.embeds.map((e) => e.gateRole))).toEqual(new Set(["service_role"]));
+  });
+
+  it("render: relacja osadzenia jak PostgREST (nazwa, klucz obcy albo jego kolumna, rekurencja od tabeli łańcucha), sprawdzenie SELECT i sonda ze złączeniem po kluczu obcym", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function read() {
+          await supabaseAdmin.from("orders").select("id, buyer:profiles(slug, org:organizations(name))");
+        }
+      `,
+    });
+    const sql = renderObservedQueries(f);
+    expect(sql).toContain(
+      "(0, NULL, 'orders', 'buyer', 'profiles', NULL, ARRAY['slug']::text[], false, 'service_role', 'service_role',",
+    );
+    expect(sql).toContain(
+      "(1, 0, 'orders', 'buyer.org', 'organizations', NULL, ARRAY['name']::text[], false, 'service_role', 'service_role',",
+    );
+    expect(sql).toContain(
+      "CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)",
+    );
+    expect(sql).toContain(
+      "WHERE c.contype = 'f' AND c.conrelid = p_parent\n       AND (c.conname = p_rel OR",
+    );
+    expect(sql).toContain("<> 'public'::regnamespace THEN");
+    expect(sql).toContain("CROSS JOIN LATERAL pg_temp.ts_embed(r.target, e.rel, e.hint) x");
+    expect(sql).toContain(
+      "SELECT 'embed-column', m.site, m.func, c.relname::text, col.col, m.role, m.enforced,",
+    );
+    expect(sql).toContain("AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))");
+    expect(sql).toContain(
+      "format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,",
+    );
+    expect(sql).toContain("THEN format('p.%I = t.%I', a.attname, b.attname)");
+    expect(sql).toContain("CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END");
+    expect(sql).toContain(
+      "FOR r IN SELECT id, role, sql FROM obs_probe WHERE sql IS NOT NULL ORDER BY id LOOP",
+    );
+  });
+});
+
+describe("miara: rola bramki w wierszach sond i kolumn filtra", () => {
+  it("zapytanie sondy niesie rolę bramki swoich faktów (zapis i RETURNING; sam `head: true` - rola klienta łańcucha); filtr i osadzenie - rolę bramki klienta łańcucha", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        async function admin() { return supabaseAdmin; }
+        export async function w() {
+          await supabaseAdmin.from("orders").update({ status: "x" }).eq("id", id).select("id");
+          await supabaseAdmin.from("orders").select("id", { count: "exact", head: true }).eq("tenant_id", t);
+          const db = await admin();
+          await db.from("orders").select("id, buyer:profiles(slug)").eq("status", s);
+        }
+      `,
+    });
+    expect(f.observed.statements.map((x) => `${x.op} ${x.role} ${x.enforcedRole}`)).toEqual([
+      "update service_role service_role",
+      "select service_role service_role",
+      "select service_role unknown",
+    ]);
+    expect(f.observed.filters.map((x) => `${x.column} ${x.gateRole} ${x.enforcedRole}`)).toEqual([
+      "id service_role unknown",
+      "tenant_id service_role unknown",
+      "status unknown unknown",
+    ]);
+    expect(f.observed.embeds.map((x) => x.gateRole)).toEqual(["unknown"]);
+    const sql = renderObservedQueries(f);
+    expect(sql).toContain(
+      "('orders', 'update', 'service_role', 'service_role', ARRAY['id']::text[]",
+    );
+    expect(sql).toContain("('orders', 'id', NULL, 'eq', 'update', 'service_role', 'service_role',");
+    expect(sql).toContain(
+      "SELECT DISTINCT p.kind, p.site, p.func, p.rel, p.cols, p.role, p.enforced,",
+    );
+    expect(sql).toContain("s.role, s.enforced, s.via,");
+    expect(sql).toContain(
+      "'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,",
+    );
+    expect(sql).toContain("r.role, r.enforced, r.via, format('SELECT public.%I(%s)'");
+    expect(sql).toContain(
+      "SELECT 'filter-column', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny?)'), f.role, f.enforced,",
+    );
+    // Żaden wiersz naruszenia nie wpisuje roli bramki literałem.
+    expect(sql).not.toMatch(/p\.role, 'unknown'|f\.role, 'unknown'/);
+  });
+
+  it("fakt wstrzymany w przeglądzie - zapytanie sondy z rolą bramki `unknown`", () => {
+    const code = `${ADMIN_FILE}
+      export async function w() { await supabaseAdmin.from("orders").select("id, total"); }
+    `;
+    const reviewed = [
+      {
+        file: "src/a.server.ts",
+        fn: "w",
+        table: "orders",
+        op: "select" as const,
+        role: "service_role" as const,
+        columns: ["id", "total"],
+        reason: "test",
+      },
+    ];
+    const f = extractSeamFacts([{ file: "src/a.server.ts", code }], NO_CONTRACTS, reviewed, {
+      observe: true,
+    });
+    expect(f.withheld.length).toBe(1);
+    expect(f.observed.statements.map((x) => `${x.role} ${x.enforcedRole}`)).toEqual([
+      "service_role unknown",
+    ]);
+  });
+});
+
 describe("miara poza bramką nie zmienia bramki", () => {
   const files = {
     "src/a.server.ts": `${ADMIN_FILE}
@@ -2725,6 +3002,7 @@ describe("miara poza bramką nie zmienia bramki", () => {
       rpcs: [],
       tables: [],
       filters: [],
+      embeds: [],
       statements: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
@@ -2799,5 +3077,26 @@ describe("stan repozytorium - miara poza bramką", () => {
     const unknownBefore = [...o.rpcs, ...o.tables].filter((x) => x.enforcedRole === "unknown");
     const unknownAfter = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown");
     expect(unknownAfter.length).toBeLessThan(unknownBefore.length / 4);
+  });
+
+  it("klient przeglądarki idzie też jako gość - przykłady weryfikatora: odczyt `builder_templates` archiwum taksonomii i osadzenie `profiles` w osobach odcinka podcastu", () => {
+    const o = measured.observed;
+    expect(
+      o.tables
+        .filter((t) => t.site === "src/lib/queries/archives.ts" && t.fn === "fetchFeaturedSection")
+        .map((t) => `${t.table} ${t.role} ${t.guest}`),
+    ).toEqual(["builder_templates authenticated true"]);
+    expect(
+      o.embeds
+        .filter((e) => e.site === "src/lib/queries/podcasts.ts")
+        .map((e) => `${e.fn} ${e.table}->${e.rel} [${e.columns.join(",")}] ${e.role} ${e.guest}`),
+    ).toEqual([
+      "episodePeopleQueryOptions.queryFn podcast_episode_people->profiles [avatar_url,display_name,slug] authenticated true",
+      "episodesPeopleQueryOptions.queryFn podcast_episode_people->profiles [avatar_url,display_name,slug] authenticated true",
+    ]);
+    // Gość wyłącznie przy roli `authenticated` (klient przeglądarki z sesją).
+    const all = [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements];
+    expect(all.filter((x) => x.guest && x.role !== "authenticated")).toEqual([]);
+    expect(all.filter((x) => x.guest).length).toBeGreaterThan(1000);
   });
 });

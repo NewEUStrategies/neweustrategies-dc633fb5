@@ -31,6 +31,12 @@
  * go puszczać WYŁĄCZNIE na bazie jednorazowej (lokalny klaster po
  * migracjach), nigdy na produkcji: wywołania RPC wykonują ciała funkcji.
  * Wynik: podsumowanie sond, potem naruszenia z kolumną `caught_by`.
+ *
+ * Klient przeglądarki (`@/integrations/supabase/client`) ma w SQL miary DWA
+ * wiersze każdego faktu: `authenticated` (z sesją) i `anon` (gość, SSR,
+ * handler serwera - klient bez sesji idzie z kluczem publicznym). Zasoby
+ * osadzone list `select` (`profiles(slug, ...)`) to osobne fakty na relacji
+ * osadzonej, sprawdzane i sondowane ze złączeniem po kluczu obcym.
  */
 import { writeFileSync } from "node:fs";
 import {
@@ -63,6 +69,8 @@ function measure(): void {
       `  fakty RPC i tabel z rolą unknown: bramka ${all.filter((x) => x.enforcedRole === "unknown").length}, miara ${all.filter((x) => x.role === "unknown").length}`,
       `  rola bramka->miara: ${count(all, (x) => `${x.enforcedRole}->${x.role}`)}`,
       `  kolumny filtrów: ${o.filters.length} (${count(o.filters, (f) => f.role)})`,
+      `  zasoby osadzone: ${o.embeds.length} (${count(o.embeds, (e) => e.role)})`,
+      `  fakty klienta przeglądarki (także jako gość anon): RPC ${o.rpcs.filter((x) => x.guest).length}, tabele ${o.tables.filter((x) => x.guest).length}, filtry ${o.filters.filter((x) => x.guest).length}, osadzenia ${o.embeds.filter((x) => x.guest).length}, zapytania sond ${o.statements.filter((x) => x.guest).length}`,
       `  zapytania do sond wykonania: ${o.statements.length} (${count(o.statements, (s) => s.role)})`,
       `  miejsca filtrów nieczytelne: ${o.unresolvedFilters.length}`,
       `  wywołania filtra poza rozpoznanym budowniczym: ${o.filtersOutsideChains.length}`,
