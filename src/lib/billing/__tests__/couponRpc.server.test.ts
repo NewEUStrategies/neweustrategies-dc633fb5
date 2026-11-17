@@ -6,11 +6,9 @@
 //      w najemcy `null`; tu to awaria, nie orzeczenie o kodzie, i baza nie
 //      jest w ogóle pytana.
 //   2. SUROWY ADRES W BAZIE - do `rate_limits` trafia wyłącznie solony skrót.
-//   3. CICHA STARA ŚCIEŻKA - walidacja i rezerwacja nie mają już powrotu do
-//      starego RPC z JWT kupującego: brak funkcji (PGRST202/42883) to awaria
-//      wdrożenia i idzie do wołającego jako błąd. Zwolnienie ma jeszcze okno
-//      wdrożenia - wolno w nie wejść tylko przy braku funkcji; odmowa uprawnień
-//      czy timeout to awaria.
+//   3. CICHA STARA ŚCIEŻKA - walidacja, rezerwacja i zwolnienie nie mają już
+//      powrotu do starego RPC klientem wołającego: brak funkcji
+//      (PGRST202/42883) to awaria wdrożenia i idzie do wołającego jako błąd.
 //   4. CICHE ŁĄCZENIE KODU - reguła kumulacji (TIX-13a), której nie dało się
 //      odczytać, nie może zamienić się w „łączy się ze wszystkim"; wyjątek
 //      to wyłącznie okno wdrożenia kolumn (42703/PGRST204).
@@ -24,7 +22,6 @@ const h = vi.hoisted(() => ({
   tenantThrows: false,
   requestThrows: false,
   admin: vi.fn(),
-  user: vi.fn(),
   db: null as SupabaseFromStub | null,
 }));
 
@@ -65,7 +62,6 @@ const {
 
 const USER = "dddddddd-0000-4000-8000-00000000000d";
 const PLAN = "cccccccc-0000-4000-8000-00000000000c";
-const userClient = { rpc: (...args: unknown[]) => h.user(...args) } as never;
 
 const validation = {
   userId: USER,
@@ -103,9 +99,7 @@ beforeEach(() => {
   h.requestThrows = false;
   h.db = supabaseFromStub();
   h.admin.mockReset();
-  h.user.mockReset();
   h.admin.mockResolvedValue({ data: { ok: true }, error: null });
-  h.user.mockResolvedValue({ data: { ok: true }, error: null });
 });
 
 describe("validatePlanCouponForUser", () => {
@@ -274,51 +268,46 @@ describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)"
     orderId: "ffffffff-0000-4000-8000-00000000000f",
   };
 
+  /** Nazwy wszystkich wywołanych RPC - jedyny klient to rola serwisowa. */
+  const rpcNames = () => h.admin.mock.calls.map(([name]) => name as string);
+
   it("zwalnia rolą serwisową w najemcy ZAMÓWIENIA i dla konta z sesji", async () => {
     h.admin.mockResolvedValue({ data: true, error: null });
 
-    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: true, error: null });
+    expect(await releaseCouponForUser(release)).toEqual({ data: true, error: null });
     expect(h.admin).toHaveBeenCalledWith("release_b2b_coupon_for_user", {
       _tenant_id: "bbbbbbbb-0000-4000-8000-00000000000b",
       _user_id: USER,
       _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
       _order_id: "ffffffff-0000-4000-8000-00000000000f",
     });
-    expect(h.user).not.toHaveBeenCalled();
-  });
-
-  it("OKNO WDROŻENIA: stare zwolnienie klientem kupującego", async () => {
-    h.admin.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "no function" } });
-    h.user.mockResolvedValue({ data: true, error: null });
-
-    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: true, error: null });
-    expect(h.user).toHaveBeenCalledWith("release_b2b_coupon", {
-      _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
-      _order_id: "ffffffff-0000-4000-8000-00000000000f",
-    });
+    expect(rpcNames()).toEqual(["release_b2b_coupon_for_user"]);
   });
 
   it("odmowa bazy (opłacone albo cudze zamówienie) wraca jako false, bez starej ścieżki", async () => {
     h.admin.mockResolvedValue({ data: false, error: null });
 
-    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: false, error: null });
-    expect(h.user).not.toHaveBeenCalled();
+    expect(await releaseCouponForUser(release)).toEqual({ data: false, error: null });
+    expect(rpcNames()).toEqual(["release_b2b_coupon_for_user"]);
   });
 
-  // Stara funkcja zwalniała użycie także OPŁACONEGO zamówienia - awaria nowej
-  // (uprawnienia, timeout) nie może być przepustką do niej.
+  // Stara funkcja zwalniała użycie także OPŁACONEGO zamówienia - żadna awaria
+  // nowej, także jej brak (dawniej przepustka do starej), nie może do niej
+  // prowadzić.
   it.each([
+    {
+      code: "PGRST202",
+      message: "Could not find the function public.release_b2b_coupon_for_user",
+    },
+    { code: "42883", message: "function public.release_b2b_coupon_for_user does not exist" },
     { code: "42501", message: "permission denied for function release_b2b_coupon_for_user" },
     { code: "57014", message: "canceling statement due to statement timeout" },
-  ])(
-    "awaria spoza okna wdrożenia ($code) idzie do wołającego bez starej ścieżki",
-    async (error) => {
-      h.admin.mockResolvedValue({ data: null, error });
+  ])("awaria ($code) idzie do wołającego bez starej ścieżki", async (error) => {
+    h.admin.mockResolvedValue({ data: null, error });
 
-      expect(await releaseCouponForUser(userClient, release)).toEqual({ data: null, error });
-      expect(h.user).not.toHaveBeenCalled();
-    },
-  );
+    expect(await releaseCouponForUser(release)).toEqual({ data: null, error });
+    expect(rpcNames()).toEqual(["release_b2b_coupon_for_user"]);
+  });
 });
 
 describe("requestProbeIdentity (tożsamość sond kodów: wycena, pakiet, licznik treści)", () => {

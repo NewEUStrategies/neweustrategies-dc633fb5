@@ -261,7 +261,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
       if (couponId) {
         const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-        const { error: releaseErr } = await releaseCouponForUser(supabase, {
+        const { error: releaseErr } = await releaseCouponForUser({
           tenantId: order.tenant_id,
           userId,
           couponId,

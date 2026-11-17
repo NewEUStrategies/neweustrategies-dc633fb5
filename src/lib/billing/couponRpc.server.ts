@@ -19,28 +19,24 @@
 //   * konto - sesja z `requireSupabaseAuth` (wołający podaje `userId`);
 //   * adres - `requestRateSubject` (solony skrót, nigdy surowy adres).
 //
-// BEZ ŚCIEŻKI ZAPASOWEJ (walidacja i rezerwacja). Kod wyszedł przed migracją,
-// więc brak funkcji `*_for_user` (PGRST202/42883) cofał wywołanie do starego
-// RPC z JWT kupującego. To okno jest zamknięte: produkcja ma wszystkie funkcje
-// `*_for_user` z 20261007120200 i 20261007120600 - typy regenerowane z bazy
-// produkcji przez bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026)
-// usuwały obiekty, których produkcja nie ma, a te zostawiły z argumentami, które
-// wysyła ten moduł. Stara ścieżka i tak nie miała czego ratować: te same
-// migracje odbierają `authenticated` EXECUTE starych funkcji, więc na bazie
-// z nimi klient kupującego dostaje 42501 (pomiar kontraktu TS<->SQL na PG16).
-// Brak funkcji to teraz awaria wdrożenia - idzie do wołającego jak każdy inny
-// błąd, nigdy po cichu starą drogą. Zwolnienie użycia (`releaseCouponForUser`)
-// ma własną ścieżkę zapasową, opisaną przy funkcji.
-import type { SupabaseClient } from "@supabase/supabase-js";
+// BEZ ŚCIEŻKI ZAPASOWEJ (walidacja, rezerwacja i zwolnienie). Kod wyszedł
+// przed migracją, więc brak funkcji `*_for_user` (PGRST202/42883) cofał
+// wywołanie do starego RPC klientem wołającego (JWT kupującego, przy
+// zwolnieniu także rolą serwisową realizacji). To okno jest zamknięte:
+// produkcja ma wszystkie funkcje `*_for_user` z 20261007120200,
+// 20261007120600 i 20261007140200 - typy regenerowane z bazy produkcji przez
+// bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7 z 25.10.2026) usuwały obiekty,
+// których produkcja nie ma, a te zostawiły z argumentami, które wysyła ten
+// moduł. Stara ścieżka i tak nie miała czego ratować: te same migracje
+// odbierają `authenticated` EXECUTE starych funkcji, więc na bazie z nimi
+// klient kupującego dostaje 42501 (pomiar kontraktu TS<->SQL na PG16). Brak
+// funkcji to teraz awaria wdrożenia - idzie do wołającego jak każdy inny błąd,
+// nigdy po cichu starą drogą.
 import { getRequest } from "@tanstack/react-start/server";
 
-import type { Database } from "@/integrations/supabase/types";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
-
-type UserClient = SupabaseClient<Database>;
 
 /** Odpowiedź RPC w kształcie, który czytają `parseCouponVerdict` i kasa. */
 export interface CouponRpcResult {
@@ -185,15 +181,8 @@ export async function redeemCouponForUser(input: CouponRedemption): Promise<Coup
  * zamówienia TEGO konta w TYM najemcy (20261007140200) - wcześniej każdy
  * zalogowany zwalniał realizację także opłaconego zamówienia i kod
  * jednorazowy był znów ważny.
- *
- * OKNO WDROŻENIA: dopóki `release_b2b_coupon_for_user` nie ma (PGRST202/42883),
- * wracamy do starego wywołania klientem, który podał wołający (sesja kasy albo
- * rola serwisowa realizacji). Każdy inny błąd idzie do wołającego.
  */
-export async function releaseCouponForUser(
-  userClient: UserClient,
-  input: CouponRelease,
-): Promise<CouponRpcResult> {
+export async function releaseCouponForUser(input: CouponRelease): Promise<CouponRpcResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
     _tenant_id: input.tenantId,
@@ -201,13 +190,7 @@ export async function releaseCouponForUser(
     _coupon_id: input.couponId,
     _order_id: input.orderId,
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const legacy = await userClient.rpc("release_b2b_coupon", {
-    _coupon_id: input.couponId,
-    _order_id: input.orderId,
-  });
-  return { data: legacy.data, error: legacy.error };
+  return { data, error };
 }
 
 /**

@@ -406,9 +406,8 @@ async function closeOpenOrder(
 async function releaseOrderCoupon(order: LifecycleOrder, scope: string): Promise<boolean> {
   const couponId = str(order.metadata, "coupon_id");
   if (!couponId || !order.user_id) return false;
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-  const { data, error } = await releaseCouponForUser(supabaseAdmin, {
+  const { data, error } = await releaseCouponForUser({
     tenantId: order.tenant_id,
     userId: order.user_id,
     couponId,
@@ -658,13 +657,12 @@ async function refundOversold(
       .update({ status: "canceled", updated_at: nowIso })
       .eq("id", order.id);
     if (flipErr) throw new Error(`one-time: free order cancel failed: ${flipErr.message}`);
-    // Wspólna ścieżka zwolnienia, jak `releaseOrderCoupon`. Gołe RPC
-    // `release_b2b_coupon_for_user` nie miało powrotu do starej funkcji, więc
-    // na bazie bez migracji 20261007140200 (pas produkcyjny przed 0305)
-    // użycie kodu przepadało - a anulowanego zamówienia nic już nie rozlicza
-    // ponownie (`_event_free_ticket_orders_unsettled` bierze pending/paid).
+    // Wspólna ścieżka zwolnienia, jak `releaseOrderCoupon`. Błąd - także brak
+    // funkcji (PGRST202/42883) - zostaje w logu, a kupujący nie słyszy, że kod
+    // wrócił: anulowanego zamówienia nic już nie rozlicza ponownie
+    // (`_event_free_ticket_orders_unsettled` bierze pending/paid).
     const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-    const { data, error: releaseErr } = await releaseCouponForUser(supabaseAdmin, {
+    const { data, error: releaseErr } = await releaseCouponForUser({
       tenantId: order.tenant_id,
       userId,
       couponId: mode.couponId,
