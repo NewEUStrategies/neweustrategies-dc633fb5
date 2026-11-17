@@ -60,3 +60,38 @@ if (typeof navigator !== "undefined") {
 if (typeof window !== "undefined") {
   Reflect.set(window, "__NES_GA_ANY_HOST__", true);
 }
+
+// SPECYFIKACYJNY `Node.prototype.nodeName` W HAPPY-DOM. DOMPurify od 3.4.8
+// czyta `nodeName` getterem z `Node.prototype` (hartowanie przed podmianą
+// prototypów). happy-dom definiuje właściwą wartość na klasach POCHODNYCH, a
+// getter bazowy zwraca "" - wtedy allowlista nie dopasowuje tagów i
+// `<script>` przeżywa sanityzację (opis: src/lib/sanitizeEngineGuard.ts).
+// Przeglądarki i jsdom są zgodne ze specyfikacją; tu wyrównujemy WYŁĄCZNIE
+// środowisko testowe, żeby suita mierzyła poprawioną bibliotekę, a nie usterkę
+// emulatora. Kod produkcyjny i kanarek fail-closed zostają bez zmian.
+if (typeof Node !== "undefined") {
+  const base = Object.getOwnPropertyDescriptor(Node.prototype, "nodeName");
+  const baseGet = base?.get;
+  if (baseGet && base.configurable === true) {
+    const inFlight = new WeakSet<object>();
+    Object.defineProperty(Node.prototype, "nodeName", {
+      configurable: true,
+      enumerable: base.enumerable,
+      get(this: Node): string {
+        if (inFlight.has(this)) return baseGet.call(this);
+        inFlight.add(this);
+        try {
+          let proto: object | null = Object.getPrototypeOf(this);
+          while (proto && proto !== Node.prototype) {
+            const own = Object.getOwnPropertyDescriptor(proto, "nodeName");
+            if (own?.get) return own.get.call(this);
+            proto = Object.getPrototypeOf(proto);
+          }
+          return baseGet.call(this);
+        } finally {
+          inFlight.delete(this);
+        }
+      },
+    });
+  }
+}

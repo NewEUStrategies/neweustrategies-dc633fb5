@@ -45,3 +45,4 @@
 - Keep admin compact typography out of widget frames and post titles so the builder canvas and live previews show entered values.
 - Gate club hub presentation and shared club-card viewer keys with useHydrated so settled auth cannot replace guest SSR markup before hydration.
 - Stop search overflow propagation before the mobile drawer scroll root so search labels cannot disable native menu scrolling or panel clipping.
+- Keep the happy-dom `Node.prototype.nodeName` shim in `vitest.setup.ts` so the pinned DOMPurify release is tested like real browsers; never pin the sanitizer below a security fix to suit the emulator.

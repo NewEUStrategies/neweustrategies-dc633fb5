@@ -343,3 +343,5 @@
 
 - [x] `SidebarListenCard`: „Pobierz MP3" bez podpisanego przycisku w stopce - ikona w rzędzie nagłówka obok słuchawek (ten sam krążek i akcent marki), tooltip po najechaniu oraz `aria-label`; stopka tylko dla stanu (błąd / etap syntezy).
 - [x] Testy: 63 przechodzi (`audioOrganisms`, `audioControlBorders`), `tsgo` bez błędów; w podglądzie tooltip „Pobierz MP3" nad ikoną, brak podpisu w karcie, brak błędów JS.
+
+- [x] Pełny skan bezpieczeństwa i naprawa krytycznych znalezisk przed szerokim udostępnieniem strony (dompurify 3.4.18, proxy-addr 2.0.8; 0 krytycznych)

@@ -153,13 +153,14 @@ describe("dompurify dependency pin", () => {
     expect(spec, `dompurify must be pinned exactly, got "${spec}"`).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("stays below the version that regressed on non-spec DOM engines", () => {
+  it("stays at or above the release that closes the SAFE_FOR_TEMPLATES bypass", () => {
+    // Krytyczna podatność (szablony w shadow root) jest zamknięta dopiero
+    // po 3.4.16. Wersje >= 3.4.8 czytają `nodeName` z `Node.prototype`;
+    // happy-dom wyrównuje to `vitest.setup.ts`, a kanarek pilnuje silnika.
     const [major, minor, patch] = pkg.dependencies.dompurify.split(".").map(Number);
-    const isBefore348 = major < 3 || (major === 3 && (minor < 4 || (minor === 4 && patch < 8)));
-    expect(
-      isBefore348,
-      "dompurify >= 3.4.8 reads nodeName off Node.prototype; re-verify the engine canary " +
-        "against happy-dom before raising this pin",
-    ).toBe(true);
+    const isAtLeast3417 = major > 3 || (major === 3 && (minor > 4 || (minor === 4 && patch >= 17)));
+    expect(isAtLeast3417, "dompurify must be > 3.4.16 (critical SAFE_FOR_TEMPLATES bypass)").toBe(
+      true,
+    );
   });
 });
