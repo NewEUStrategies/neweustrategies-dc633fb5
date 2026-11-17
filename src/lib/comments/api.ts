@@ -47,14 +47,19 @@ function collectAuthorIds(rows: readonly CommentRow[]): string[] {
   );
 }
 
-async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, CommentAuthor>> {
-  const byId = new Map<string, CommentAuthor>();
-  if (ids.length === 0) return byId;
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, slug")
-    .in("id", ids as string[]);
-  for (const p of profiles ?? []) {
+interface AuthorProfileRow {
+  id: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  slug: string | null;
+}
+
+function addAuthors(
+  byId: Map<string, CommentAuthor>,
+  rows: readonly AuthorProfileRow[] | null,
+): void {
+  for (const p of rows ?? []) {
+    if (p.id === null) continue;
     byId.set(p.id, {
       id: p.id,
       display_name: p.display_name ?? null,
@@ -62,6 +67,47 @@ async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, Com
       slug: p.slug ?? null,
     });
   }
+}
+
+/**
+ * Autorzy komentarzy: nazwa, awatar i slug profilu.
+ *
+ * DWA ZRODLA, BO DWIE ROLE. Gosc (anon) nie ma SELECT na kolumnach profilu
+ * w `profiles` - zapytanie konczylo sie 42501, blad byl ignorowany i KAZDY
+ * komentarz czlonka podpisywal sie „Anonim", bez awatara i linku. Dla
+ * goscia czytamy wiec publiczna projekcje `profiles_public` (te sama co
+ * autorzy wpisow i podcasty): profile z publiczna obecnoscia najemcy
+ * (redakcja, autorzy, eksperci, prelegenci, prowadzacy), awatar `NULL`
+ * przy `hide_avatar`. Komentarz zwyklego czlonka zostaje u goscia
+ * anonimowy - pelna zgodnosc wymaga decyzji wlasciciela (RPC SECURITY
+ * DEFINER z podpisami autorow zatwierdzonych komentarzy), nie kodu klienta.
+ *
+ * Zalogowany czyta WYLACZNIE `profiles`, dokladnie jak dotad (redakcja
+ * widzi wszystkich z surowym awatarem, czlonek - siebie), bez drugiego
+ * zapytania o `profiles_public`. Zachowanie zalogowanego ma zostac bez
+ * zmian; czlonek nadal widzi „Anonim" przy autorze, ktorego gosc widzi
+ * z nazwiskiem z projekcji - czy to dopelniac, decyduje wlasciciel.
+ *
+ * Role rozstrzyga sesja klienta (`getSession`) - ta sama, z ktora pojdzie
+ * zapytanie; klient i tak czyta ja przed kazdym zadaniem.
+ */
+async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, CommentAuthor>> {
+  const byId = new Map<string, CommentAuthor>();
+  if (ids.length === 0) return byId;
+  const { data: auth } = await supabase.auth.getSession();
+  if (auth.session !== null) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, slug")
+      .in("id", ids as string[]);
+    addAuthors(byId, profiles);
+    return byId;
+  }
+  const { data: publicProfiles } = await supabase
+    .from("profiles_public")
+    .select("id, display_name, avatar_url, slug")
+    .in("id", ids as string[]);
+  addAuthors(byId, publicProfiles);
   return byId;
 }
 

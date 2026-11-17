@@ -84,7 +84,16 @@ function OutcomeMark({ outcome }: { outcome: ClubNoticeOutcome }) {
   );
 }
 
-export function ClubBoardScreen({ clubId, canPost }: { clubId: string; canPost: boolean }) {
+export function ClubBoardScreen({
+  clubId,
+  canPost,
+  enabled = true,
+}: {
+  clubId: string;
+  canPost: boolean;
+  /** `false` = szkielet bez żądania, dopóki trasa nie wie, kto czyta. */
+  enabled?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
   const lang = uiLang(i18n.language);
@@ -101,6 +110,7 @@ export function ClubBoardScreen({ clubId, canPost }: { clubId: string; canPost: 
     scope,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
+    enabled,
   });
   const close = useCloseClubBoardNotice(clubId);
 

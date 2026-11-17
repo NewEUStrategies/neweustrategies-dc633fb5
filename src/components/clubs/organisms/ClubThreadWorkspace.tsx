@@ -143,6 +143,7 @@ export function ClubThreadWorkspace({
                 lang={lang}
                 canContribute={summary.canContribute}
                 canGoAnonymous={canGoAnonymous}
+                canVote={userId !== null}
               />
             ) : active === "polls" ? (
               <PollsPanel

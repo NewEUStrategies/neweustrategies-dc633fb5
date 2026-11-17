@@ -173,16 +173,19 @@ function PinForm({ clubId }: { clubId: string }) {
 export function ClubSpotlightScreen({
   clubId,
   canModerate,
+  enabled = true,
 }: {
   clubId: string;
   canModerate: boolean;
+  /** `false` = szkielet bez żądania, dopóki trasa nie wie, kto czyta. */
+  enabled?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { topics } = useClubTopics();
   const lang = uiLang(i18n.language);
 
-  const currentQ = useClubSpotlight(clubId);
-  const historyQ = useClubSpotlightHistory({ clubId });
+  const currentQ = useClubSpotlight(clubId, enabled);
+  const historyQ = useClubSpotlightHistory({ clubId, enabled });
   const remove = useDeleteClubSpotlight(clubId);
 
   const current = currentQ.data ?? null;

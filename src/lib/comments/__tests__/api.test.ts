@@ -338,6 +338,150 @@ describe("fetchPostComments - paginacja po WĄTKACH", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Autorzy a rola czytelnika (gość / członek / redakcja)
+// ---------------------------------------------------------------------------
+//
+// Gość (anon) nie ma SELECT na kolumnach `profiles` - zapytanie kończyło się
+// 42501 i KAŻDY komentarz członka podpisywał się „Anonim". Gość czyta więc
+// projekcję `profiles_public` (publiczna obecność, awatar po `hide_avatar`).
+// Zalogowany czyta WYŁĄCZNIE `profiles`, jak dotąd - bez dopełniania z projekcji
+// (zachowanie zalogowanego ma zostać bez zmian).
+
+describe("fetchPostComments - autorzy według roli czytelnika", () => {
+  const MEMBER_ID = "user-member";
+
+  it("GOŚĆ nie pyta `profiles` (anon bez grantu) - autorów bierze z `profiles_public`", async () => {
+    setCommentsSession(null);
+    commentsDb.setThreads(
+      [
+        commentRow({ id: "p1", user_id: USER_ID.author }),
+        commentRow({ id: "p2", user_id: MEMBER_ID }),
+      ],
+      [],
+      [],
+    );
+    // Gdyby kod pytał `profiles`, dostałby te wiersze - test by to wychwycił.
+    commentsDb.setAuthors([authorRow({ id: USER_ID.author, display_name: "Z profiles" })]);
+    commentsDb.setPublicAuthors([
+      authorRow({ id: USER_ID.author, display_name: "Anna Nowak", avatar_url: null }),
+    ]);
+
+    const page = await fetchPostComments(POST_ID);
+
+    expect(commentsDb.stub.chainsFor("profiles")).toHaveLength(0);
+    expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(1);
+    expect(commentsDb.stub.chainsFor("profiles_public")[0]?.argsOf("select")).toEqual([
+      "id, display_name, avatar_url, slug",
+    ]);
+    expect(commentsDb.stub.chainsFor("profiles_public")[0]?.argsOf("in")).toEqual([
+      "id",
+      [USER_ID.author, MEMBER_ID],
+    ]);
+    // Autor z publiczną obecnością - z nazwiskiem i slugiem; zwykły członek,
+    // którego projekcja gościowi nie pokazuje, zostaje bez autora (jak dotąd).
+    expect(page.comments.find((c) => c.id === "p1")?.author).toEqual({
+      id: USER_ID.author,
+      display_name: "Anna Nowak",
+      avatar_url: null,
+      slug: "anna-nowak",
+    });
+    expect(page.comments.find((c) => c.id === "p2")?.author).toBeNull();
+  });
+
+  it("GOŚĆ: odmowa projekcji nie wywraca listy - komentarze bez autorów, jak dotąd", async () => {
+    setCommentsSession(null);
+    commentsDb.setThreads([commentRow({ id: "p1", user_id: USER_ID.author })], [], []);
+    commentsDb.failTable("profiles_public", "denied", "42501");
+
+    const page = await fetchPostComments(POST_ID);
+
+    expect(page.comments.map((c) => c.id)).toEqual(["p1"]);
+    expect(page.comments[0]?.author).toBeNull();
+  });
+
+  it("CZŁONEK: tylko `profiles`, jak dotąd - braków NIE dopełnia z `profiles_public`", async () => {
+    setCommentsSession(MEMBER_ID);
+    commentsDb.setThreads(
+      [
+        commentRow({ id: "own", user_id: MEMBER_ID }),
+        commentRow({ id: "expert", user_id: USER_ID.author }),
+        commentRow({ id: "hidden", user_id: USER_ID.stranger }),
+      ],
+      [],
+      [],
+    );
+    // RLS `profiles` pokazuje członkowi tylko jego własny wiersz (z surowym
+    // awatarem, choćby ukrył go publicznie).
+    commentsDb.setAuthors([
+      authorRow({ id: MEMBER_ID, display_name: "Ja", avatar_url: "own.webp", slug: "ja" }),
+    ]);
+    // Projekcja zna eksperta - gdyby kod dopełniał braki, „expert" dostałby
+    // nazwisko, a drugie zapytanie by się pojawiło. Test to wychwyci.
+    commentsDb.setPublicAuthors([
+      authorRow({ id: MEMBER_ID, display_name: "Ja", avatar_url: null, slug: "ja" }),
+      authorRow({ id: USER_ID.author, display_name: "Ekspertka", slug: "ekspertka" }),
+    ]);
+
+    const page = await fetchPostComments(POST_ID);
+
+    expect(commentsDb.stub.chainsFor("profiles")).toHaveLength(1);
+    expect(commentsDb.stub.chainsFor("profiles")[0]?.argsOf("in")).toEqual([
+      "id",
+      [MEMBER_ID, USER_ID.author, USER_ID.stranger],
+    ]);
+    expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(0);
+    expect(page.comments.find((c) => c.id === "own")?.author).toEqual({
+      id: MEMBER_ID,
+      display_name: "Ja",
+      avatar_url: "own.webp",
+      slug: "ja",
+    });
+    // Jak na bazie: autor spoza RLS `profiles` zostaje bez podpisu („Anonim").
+    expect(page.comments.find((c) => c.id === "expert")?.author).toBeNull();
+    expect(page.comments.find((c) => c.id === "hidden")?.author).toBeNull();
+  });
+
+  it("REDAKCJA: komplet z `profiles` - bez drugiego zapytania, wynik jak dotąd", async () => {
+    setCommentsSession(USER_ID.moderator);
+    commentsDb.setThreads(
+      [
+        commentRow({ id: "p1", user_id: USER_ID.author }),
+        commentRow({ id: "p2", user_id: USER_ID.stranger }),
+      ],
+      [],
+      [],
+    );
+    commentsDb.setAuthors([
+      authorRow({ id: USER_ID.author, display_name: "Anna", avatar_url: "a.webp" }),
+      authorRow({ id: USER_ID.stranger, display_name: "Piotr", avatar_url: "p.webp" }),
+    ]);
+    commentsDb.setPublicAuthors([
+      authorRow({ id: USER_ID.author, display_name: "Anna", avatar_url: null }),
+    ]);
+
+    const page = await fetchPostComments(POST_ID);
+
+    expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(0);
+    expect(page.comments.map((c) => c.author?.avatar_url)).toEqual(["a.webp", "p.webp"]);
+  });
+
+  it("ZALOGOWANY przy odmowie `profiles`: nadal bez `profiles_public`, jak dotąd", async () => {
+    setCommentsSession(USER_ID.moderator);
+    commentsDb.setThreads([commentRow({ id: "p1", user_id: USER_ID.author })], [], []);
+    commentsDb.setPublicAuthors([authorRow({ id: USER_ID.author, display_name: "Anna" })]);
+    // Po `setPublicAuthors` - każdy setter przeinstalowuje router odpowiedzi.
+    commentsDb.failTable("profiles", "denied", "42501");
+
+    const page = await fetchPostComments(POST_ID);
+
+    expect(commentsDb.stub.chainsFor("profiles")).toHaveLength(1);
+    expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(0);
+    expect(page.comments.map((c) => c.id)).toEqual(["p1"]);
+    expect(page.comments[0]?.author).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Zapis, edycja, moderacja
 // ---------------------------------------------------------------------------
 

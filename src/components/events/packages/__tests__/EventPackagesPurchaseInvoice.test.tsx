@@ -49,6 +49,16 @@ const funnel = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({
   sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
 }));
+// Zakup pakietu robi kupujacy Z KONTEM - sekcje oferty i faktury montuja sie
+// dopiero z sesja (opcje faktury to RPC zalogowanego). Domyslnie zalogowany;
+// przypadek goscia przestawia sesje wprost.
+const auth = vi.hoisted(() => ({
+  current: { session: null, loading: false } as {
+    session: { user: { id: string } } | null;
+    loading: boolean;
+  },
+}));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => auth.current }));
 
 const { toast } = await import("sonner");
 const { EventPackagesPurchase } =
@@ -56,6 +66,7 @@ const { EventPackagesPurchase } =
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.current = { session: { user: { id: "buyer-1" } }, loading: false };
   admission.fetchPackagesOffer.mockResolvedValue([
     {
       id: "pkg-1",
@@ -193,5 +204,24 @@ describe("EventPackagesPurchase + faktura na firme", () => {
       expect(toast.error).toHaveBeenCalledWith("eventInvoices.request.saveFailedAfterPurchase"),
     );
     expect(toast.success).toHaveBeenCalledWith("eventPackages.toasts.purchased");
+  });
+});
+
+describe("EventPackagesPurchase + faktura: gosc", () => {
+  it("gosc NIE pyta o opcje faktury (`event_invoice_public_options` to RPC zalogowanego)", async () => {
+    auth.current = { session: null, loading: false };
+    renderWithQueryClient(<EventPackagesPurchase slug="kongres-27" />);
+
+    expect(screen.getByText("eventPackages.signInRequired")).toBeInTheDocument();
+    await act(async () => {});
+    expect(invoices.fetchInvoicePublicOptions).not.toHaveBeenCalled();
+    expect(admission.fetchPackagesOffer).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("eventInvoices.request.toggle")).toBeNull();
+  });
+
+  it("zalogowany kupujacy pyta o opcje faktury jak dotad", async () => {
+    renderWithQueryClient(<EventPackagesPurchase slug="kongres-27" />);
+
+    await waitFor(() => expect(invoices.fetchInvoicePublicOptions).toHaveBeenCalledTimes(1));
   });
 });

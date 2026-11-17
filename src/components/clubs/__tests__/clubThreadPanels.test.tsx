@@ -127,12 +127,14 @@ vi.mock("@/components/clubs/molecules/ClubDocumentForm", () => ({
 vi.mock("@/components/clubs/molecules/ClubQuestionCard", () => ({
   ClubQuestionCard: ({
     row,
+    canVote,
     votePending,
     answerPending,
     onVote,
     onAnswer,
   }: {
     row: { id: string; body: string; status: string };
+    canVote: boolean;
     votePending: boolean;
     answerPending: boolean;
     onVote: (on: boolean) => void;
@@ -141,6 +143,7 @@ vi.mock("@/components/clubs/molecules/ClubQuestionCard", () => ({
     <li
       data-testid={`q-${row.id}`}
       data-status={row.status}
+      data-can-vote={String(canVote)}
       data-vote-pending={String(votePending)}
       data-answer-pending={String(answerPending)}
     >
@@ -466,13 +469,14 @@ describe("ClubThreadDocumentsPanel", () => {
 // ---------------------------------------------------------------------------
 
 describe("ClubThreadQuestionsPanel", () => {
-  const renderPanel = (canContribute = true, canGoAnonymous = false) =>
+  const renderPanel = (canContribute = true, canGoAnonymous = false, canVote = true) =>
     renderWithQueryClient(
       <ClubThreadQuestionsPanel
         threadId={THREAD}
         lang="pl"
         canContribute={canContribute}
         canGoAnonymous={canGoAnonymous}
+        canVote={canVote}
       />,
     );
 
@@ -584,6 +588,26 @@ describe("ClubThreadQuestionsPanel", () => {
     });
     // Udany głos nie krzyczy - liczba na karcie mówi wszystko.
     expect(h.toasts).toHaveLength(0);
+  });
+
+  it("prawo głosu idzie do KAŻDEJ karty - gość dostaje wygaszony głos, czytający członek nie", async () => {
+    // Głos wymaga sesji, nie prawa zapisu: `canContribute=false` z sesją
+    // nadal głosuje, a gość (bez EXECUTE na `club_thread_question_vote`) nie.
+    threadApiMock.fetchClubThreadQuestions.mockResolvedValue([
+      threadQuestionRow(),
+      threadQuestionRow({ id: "question-2" }),
+    ]);
+    const canVoteOfCards = () =>
+      screen.getAllByTestId(/^q-/).map((card) => card.getAttribute("data-can-vote"));
+
+    const { unmount } = renderPanel(false, false, false);
+    await screen.findByTestId("q-question-2");
+    expect(canVoteOfCards()).toEqual(["false", "false"]);
+    unmount();
+
+    renderPanel(false, false, true);
+    await screen.findByTestId("q-question-2");
+    expect(canVoteOfCards()).toEqual(["true", "true"]);
   });
 
   it("odmowa głosu wraca jako KOD błędu", async () => {

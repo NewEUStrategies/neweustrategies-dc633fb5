@@ -6,11 +6,20 @@
 // KONKRETNĄ osobę razem z tym, czego jej brakuje. Wypuszczenie tego do
 // wyszukiwarki zamienia mechanizm sieciujący w źródło leadów dla obcych -
 // ta sama doktryna, co przy składzie klubu i /people.
+//
+// GOŚĆ DOSTAJE KARTĘ LOGOWANIA, NIE EKRAN. `club_board_notices_list` nie ma
+// EXECUTE dla `anon`, a kafelek tablicy stoi w szynie także dla gościa - który
+// dostawał komunikat awarii z ponowieniem kończącym się tym samym 42501.
+// Trzy stany czytelnika (`useClubViewer`): dopóki nie wiadomo, kto czyta
+// (SSR, pierwszy render klienta, sesja w drodze), stoi ekran z WYŁĄCZONYM
+// zapytaniem - ten sam szkielet, który serwer zawsze tu rysował, więc członek
+// nie widzi mignięcia karty dla gościa; gość dostaje kartę, członek ekran.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubBoardScreen } from "@/components/clubs/organisms/ClubBoardScreen";
-import { useAuth } from "@/hooks/useAuth";
+import { ClubMembersOnlyCard } from "@/components/clubs/molecules/ClubGuestCards";
+import { useClubViewer } from "@/lib/clubs/useClubViewer";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
@@ -33,7 +42,7 @@ function ClubBoardRoute() {
   ensureClubI18n();
   const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
-  const { session } = useAuth();
+  const viewer = useClubViewer();
 
   return (
     <ClubWorkspaceLayout
@@ -41,7 +50,17 @@ function ClubBoardRoute() {
       title={t("club.network.board.title")}
       lead={t("club.network.board.lead")}
     >
-      {(club) => <ClubBoardScreen clubId={club.id} canPost={session !== null && club.can_reply} />}
+      {(club) =>
+        viewer === "guest" ? (
+          <ClubMembersOnlyCard />
+        ) : (
+          <ClubBoardScreen
+            clubId={club.id}
+            canPost={viewer === "signedIn" && club.can_reply}
+            enabled={viewer === "signedIn"}
+          />
+        )
+      }
     </ClubWorkspaceLayout>
   );
 }

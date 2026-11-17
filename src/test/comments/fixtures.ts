@@ -115,6 +115,8 @@ interface CommentsState {
   grandchildren: CommentRow[];
   adminList: CommentRow[] | null;
   authors: CommentAuthor[];
+  /** Wiersze projekcji `profiles_public` (gość; braki zalogowanego). */
+  publicAuthors: CommentAuthor[];
   posts: ReturnType<typeof postRow>[];
   topLevelCount: number | null;
   approvedCount: number | null;
@@ -126,6 +128,7 @@ const state: CommentsState = {
   grandchildren: [],
   adminList: null,
   authors: [],
+  publicAuthors: [],
   posts: [],
   topLevelCount: null,
   approvedCount: null,
@@ -174,6 +177,13 @@ function installRouter(): void {
     return ok(state.adminList ?? []);
   });
   stub.setResponse("profiles", () => ok(state.authors));
+  // Projekcja odpowiada TYLKO o identyfikatory z `.in("id", ...)` - test
+  // „pytamy wyłącznie o braki" ma z czego wyjść.
+  stub.setResponse("profiles_public", (chain) => {
+    const inCall = chain.calls.find((c) => c.method === "in" && c.args[0] === "id");
+    const asked = inCall === undefined ? [] : (inCall.args[1] as string[]);
+    return ok(state.publicAuthors.filter((row) => asked.includes(row.id)));
+  });
   stub.setResponse("posts", () => ok(state.posts));
 }
 
@@ -201,6 +211,11 @@ export const commentsDb = {
     state.authors = rows;
     installRouter();
   },
+  /** Wiersze `profiles_public` (awatar już po `hide_avatar`, jak w widoku). */
+  setPublicAuthors(rows: CommentAuthor[]): void {
+    state.publicAuthors = rows;
+    installRouter();
+  },
   setPosts(rows: ReturnType<typeof postRow>[]): void {
     state.posts = rows;
     installRouter();
@@ -225,6 +240,7 @@ export function resetCommentsDb(): void {
   state.grandchildren = [];
   state.adminList = null;
   state.authors = [];
+  state.publicAuthors = [];
   state.posts = [];
   state.topLevelCount = null;
   state.approvedCount = null;

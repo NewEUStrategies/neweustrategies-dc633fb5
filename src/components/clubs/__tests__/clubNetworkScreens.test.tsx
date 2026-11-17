@@ -201,6 +201,29 @@ describe("ClubBoardScreen - stany zapytania", () => {
   });
 });
 
+describe("ClubBoardScreen - wyłącznik czytelnika (`enabled`)", () => {
+  // Trasa montuje ekran z `enabled={false}`, dopóki nie wie, kto czyta (SSR,
+  // pierwszy render klienta, sesja w drodze): szkielet z HTML-u serwera,
+  // ale BEZ żądania - `club_board_notices_list` jest dla `anon` zamknięte.
+  it("wyłączony: szkielet bez żądania i bez komunikatu o pustce", async () => {
+    networkApiMock.fetchClubBoardNotices.mockResolvedValue(boardPage([]));
+    renderWithQueryClient(
+      <ClubBoardScreen clubId={NET_IDS.club} canPost={false} enabled={false} />,
+    );
+
+    expect(screen.getByRole("generic", { busy: true }).children).toHaveLength(4);
+    await Promise.resolve();
+    expect(networkApiMock.fetchClubBoardNotices).not.toHaveBeenCalled();
+    expect(screen.queryByText("club.network.board.empty")).not.toBeInTheDocument();
+  });
+
+  it("domyślnie włączony: ekran pyta jak dotąd", async () => {
+    networkApiMock.fetchClubBoardNotices.mockResolvedValue(boardPage([]));
+    renderBoard();
+    await waitFor(() => expect(networkApiMock.fetchClubBoardNotices).toHaveBeenCalled());
+  });
+});
+
 describe("ClubBoardScreen - uprawnienia", () => {
   it("bez prawa pisania nie ma kompozytora", async () => {
     networkApiMock.fetchClubBoardNotices.mockResolvedValue(boardPage([]));
@@ -593,6 +616,31 @@ function renderExperts(canDeclare = true) {
     <ClubExpertsScreen clubId={NET_IDS.club} canDeclare={canDeclare} locale="pl-PL" />,
   );
 }
+
+describe("ClubExpertsScreen - wyłącznik czytelnika (`enabled`)", () => {
+  // Jak tablica: `club_experts_list` i `club_expertise_areas` są dla `anon`
+  // zamknięte, więc do rozstrzygnięcia sesji ekran stoi bez żądań.
+  it("wyłączony: szkielet bez żądań o ekspertów i obszary", async () => {
+    networkApiMock.fetchClubExperts.mockResolvedValue(expertsPage([]));
+    networkApiMock.fetchClubExpertiseAreas.mockResolvedValue([]);
+    renderWithQueryClient(
+      <ClubExpertsScreen clubId={NET_IDS.club} canDeclare={false} locale="pl-PL" enabled={false} />,
+    );
+
+    expect(screen.getByRole("generic", { busy: true }).children).toHaveLength(4);
+    await Promise.resolve();
+    expect(networkApiMock.fetchClubExperts).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubExpertiseAreas).not.toHaveBeenCalled();
+  });
+
+  it("domyślnie włączony: oba odczyty idą jak dotąd", async () => {
+    networkApiMock.fetchClubExperts.mockResolvedValue(expertsPage([]));
+    networkApiMock.fetchClubExpertiseAreas.mockResolvedValue([]);
+    renderExperts();
+    await waitFor(() => expect(networkApiMock.fetchClubExperts).toHaveBeenCalled());
+    expect(networkApiMock.fetchClubExpertiseAreas).toHaveBeenCalledWith(NET_IDS.club);
+  });
+});
 
 describe("ClubExpertsScreen - stany zapytania", () => {
   beforeEach(() => {

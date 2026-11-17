@@ -123,7 +123,9 @@ function EventCard({
   row: ClubEventRow;
   clubSlug: string;
   now: number;
-  onRsvp: (eventId: string, state: ClubRsvpState) => void;
+  /** Podane tylko zalogowanemu - brak funkcji chowa pasek obecności
+   *  (`club_event_rsvp` jest dla `anon` zamknięte). */
+  onRsvp?: (eventId: string, state: ClubRsvpState) => void;
   rsvpPending: boolean;
   /** Podane tylko kuratorowi - brak funkcji chowa cały pasek redakcji. */
   onEdit?: (row: ClubEventRow) => void;
@@ -222,7 +224,7 @@ function EventCard({
         </Button>
       ) : null}
 
-      {row.rsvp_enabled && status === "scheduled" ? (
+      {onRsvp !== undefined && row.rsvp_enabled && status === "scheduled" ? (
         <div
           className="mt-3 flex flex-wrap gap-1.5"
           role="group"
@@ -285,11 +287,15 @@ export function ClubCalendar({
   clubId,
   clubSlug,
   canManage = false,
+  canRsvp = false,
 }: {
   clubId: string;
   clubSlug: string;
   /** Kurator klubu: tworzenie, redakcja i usuwanie terminów. */
   canManage?: boolean;
+  /** Zalogowany czytelnik (po hydratacji): przyciski obecności. Domyślnie
+   *  `false` - gość dostawał „Będę / Może / Nie będę” i cichą porażkę RPC. */
+  canRsvp?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -517,7 +523,12 @@ export function ClubCalendar({
               clubSlug={clubSlug}
               now={now}
               rsvpPending={rsvp.isPending}
-              onRsvp={(eventId, state) => rsvp.mutate({ eventId, state })}
+              {...(canRsvp
+                ? {
+                    onRsvp: (eventId: string, state: ClubRsvpState) =>
+                      rsvp.mutate({ eventId, state }),
+                  }
+                : {})}
               {...(canManage
                 ? {
                     onEdit: (event: ClubEventRow) => {

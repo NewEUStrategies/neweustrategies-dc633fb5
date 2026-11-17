@@ -164,6 +164,30 @@ describe("ClubSpotlightScreen - stany odczytu", () => {
   });
 });
 
+describe("ClubSpotlightScreen - wyłącznik czytelnika (`enabled`)", () => {
+  // `club_member_spotlight_current` i `_history` są dla `anon` zamknięte;
+  // trasa trzyma ekran bez żądań, dopóki nie wie, kto czyta.
+  it("wyłączony: szkielet karty bez żądań o osobę tygodnia i archiwum", async () => {
+    given(spotlightRow(), [spotlightHistoryRow()]);
+    renderWithQueryClient(
+      <ClubSpotlightScreen clubId={NET_IDS.club} canModerate={false} enabled={false} />,
+    );
+
+    expect(screen.getByRole("generic", { busy: true })).toBeInTheDocument();
+    await Promise.resolve();
+    expect(networkApiMock.fetchClubSpotlight).not.toHaveBeenCalled();
+    expect(networkApiMock.fetchClubSpotlightHistory).not.toHaveBeenCalled();
+    expect(screen.queryByText("club.error.title")).not.toBeInTheDocument();
+  });
+
+  it("domyślnie włączony: oba odczyty idą jak dotąd", async () => {
+    given(null, []);
+    renderSpotlight();
+    await waitFor(() => expect(networkApiMock.fetchClubSpotlight).toHaveBeenCalled());
+    expect(networkApiMock.fetchClubSpotlightHistory).toHaveBeenCalled();
+  });
+});
+
 describe("ClubSpotlightScreen - osoba tygodnia", () => {
   it("przypięcie redakcyjne jest podpisane jako decyzja, nie jako rotacja", async () => {
     given(spotlightRow({ curated: true }));

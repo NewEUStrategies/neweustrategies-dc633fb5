@@ -3,10 +3,15 @@
 // Indeksowalność warunkowa (patrz `buildClubHead`): kalendarz klubu `public`
 // jest zapowiedzią wydarzeń, kalendarz klubu zamkniętego - rozkładem zajęć
 // grona, które nie zgodziło się na publiczność.
+//
+// OBECNOŚĆ TYLKO DLA ZALOGOWANEGO. `club_event_rsvp` nie ma EXECUTE dla
+// `anon`, a gość widział „Będę / Może / Nie będę” i cichą porażkę po kliku.
+// Sesja przez `useClubViewer` (po hydratacji), jak panel spotkania w hubie.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubCalendar } from "@/components/clubs/organisms/ClubCalendar";
+import { useClubViewer } from "@/lib/clubs/useClubViewer";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
@@ -28,6 +33,7 @@ function ClubCalendarRoute() {
   ensureClubI18n();
   const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
+  const canRsvp = useClubViewer() === "signedIn";
 
   return (
     <ClubWorkspaceLayout
@@ -35,7 +41,14 @@ function ClubCalendarRoute() {
       title={t("club.calendar.title")}
       lead={t("club.calendar.lead")}
     >
-      {(club) => <ClubCalendar clubId={club.id} clubSlug={clubSlug} canManage={club.can_manage} />}
+      {(club) => (
+        <ClubCalendar
+          clubId={club.id}
+          clubSlug={clubSlug}
+          canManage={club.can_manage}
+          canRsvp={canRsvp}
+        />
+      )}
     </ClubWorkspaceLayout>
   );
 }

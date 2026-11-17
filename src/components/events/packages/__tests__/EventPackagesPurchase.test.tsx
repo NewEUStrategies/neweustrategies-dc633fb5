@@ -20,6 +20,15 @@
 //    sama suma rabatu czytała się jak „kod odjął się raz od pakietu" - dokładnie
 //    zgłoszenie właściciela.
 //
+// 7. GOŚĆ NIE DOSTAJE ALARMU, TYLKO ZAPROSZENIE DO LOGOWANIA. Oferta,
+//    zamówienia i opcje faktury to RPC zalogowanego (anon nie ma EXECUTE),
+//    a trasa jest otwierana z reklamy - gość widział czerwone „nie udało się
+//    wczytać pakietów". Sekcje z zapytaniami montują się dopiero z sesją, więc
+//    gość nie wysyła żadnego z tych RPC.
+//
+// SESJA JEST ATRAPĄ `useAuth` (domyślnie zalogowany kupujący - przypadki 1-6
+// opisują płatnika z kontem); przypadki gościa przestawiają ją wprost.
+//
 // ATRAPA OBEJMUJE WYŁĄCZNIE SIEĆ (`admissionApi`), a nie haki: `useQuery`
 // i `useMutation` jadą prawdziwe, w prawdziwym `QueryClientProvider`, bo to
 // one decydują o stanach „wczytywanie", „odmowa" i „zapis w toku", które ten
@@ -27,7 +36,7 @@
 // osobna bramka słowników, a KWOTY liczy `Intl`, nie słownik, więc kwoty
 // asertujemy dosłownie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import type {
   AdmissionQuote,
@@ -64,6 +73,21 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+
+const SIGNED_IN = { session: { user: { id: "buyer-1" } }, loading: false } as const;
+const auth = vi.hoisted(() => ({
+  current: { session: null, loading: false } as {
+    session: { user: { id: string } } | null;
+    loading: boolean;
+  },
+}));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => auth.current }));
+
+// Okno logowania aplikacji - rejestrujemy, z czym jest otwierane.
+const login = vi.hoisted(() => ({ open: vi.fn() }));
+vi.mock("@/lib/loginPopupBus", () => ({
+  openLoginPopup: (options: unknown) => login.open(options),
+}));
 
 // Lejek Google Ads: zakup pakietu to krok "rozpoczecie platnosci" (bramka zgody
 // i deduplikacja mieszkaja w beaconie - tu tylko, ze i z czym jest wolany).
@@ -209,6 +233,7 @@ function buyButton(): HTMLElement {
 beforeEach(() => {
   vi.clearAllMocks();
   lang.current = "pl";
+  auth.current = { ...SIGNED_IN };
   api.fetchPackagesOffer.mockResolvedValue([offer()]);
   api.fetchMyPackageOrders.mockResolvedValue([]);
   api.fetchMyPackageSeats.mockResolvedValue([]);
@@ -898,5 +923,73 @@ describe("EventPackagesPurchase - moje zamówienia i miejsca", () => {
     // o treść: awaria NIE MOŻE mówić „to wydarzenie nie oferuje pakietów".
     await waitFor(() => expect(screen.queryAllByText("eventPackages.loading")).toHaveLength(0));
     expect(screen.queryByText("eventPackages.empty")).toBeNull();
+  });
+});
+
+describe("EventPackagesPurchase - gość bez konta", () => {
+  // Wszystkie trzy RPC tej strony są wyłącznie dla `authenticated`
+  // (`event_packages_offer`, `event_my_package_orders`,
+  // `event_invoice_public_options`) - u gościa kończyły się 42501.
+  const rpc = async () =>
+    (await import("@/integrations/supabase/client")).supabase.rpc as unknown as ReturnType<
+      typeof vi.fn
+    >;
+
+  it("gość widzi zaproszenie do logowania i NIE woła żadnego RPC tej strony", async () => {
+    auth.current = { session: null, loading: false };
+    renderPurchase();
+
+    expect(screen.getByRole("heading", { name: "eventPackages.heading" })).toBeInTheDocument();
+    expect(screen.getByText("eventPackages.signInRequired")).toBeInTheDocument();
+    // Ani alarmu o ofercie/zamówieniach, ani „wydarzenie nie oferuje pakietów".
+    await act(async () => {});
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("eventPackages.offerFailed")).toBeNull();
+    expect(screen.queryByText("eventPackages.ordersFailed")).toBeNull();
+    expect(screen.queryByText("eventPackages.empty")).toBeNull();
+    expect(screen.queryByText("eventPackages.ordersTitle")).toBeNull();
+
+    expect(api.fetchPackagesOffer).not.toHaveBeenCalled();
+    expect(api.fetchMyPackageOrders).not.toHaveBeenCalled();
+    // Opcje faktury (`fetchInvoicePublicOptions`) idą prosto w `supabase.rpc`.
+    expect(await rpc()).not.toHaveBeenCalled();
+  });
+
+  it("przycisk logowania otwiera okno aplikacji z kontekstem strony pakietów", () => {
+    auth.current = { session: null, loading: false };
+    renderPurchase();
+
+    fireEvent.click(screen.getByRole("button", { name: "eventPackages.signIn" }));
+
+    expect(login.open).toHaveBeenCalledWith({
+      mode: "signin",
+      title: "eventPackages.heading",
+      description: "eventPackages.signInRequired",
+    });
+  });
+
+  it("dopóki sesja się nie rozstrzygnie, ekran mówi, że pracuje - bez zapytań i bez CTA", async () => {
+    auth.current = { session: null, loading: true };
+    renderPurchase();
+
+    expect(screen.getByText("eventPackages.loading")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventPackages.signIn" })).toBeNull();
+    await act(async () => {});
+    expect(api.fetchPackagesOffer).not.toHaveBeenCalled();
+    expect(api.fetchMyPackageOrders).not.toHaveBeenCalled();
+    expect(await rpc()).not.toHaveBeenCalled();
+  });
+
+  it("zalogowany kupujący dostaje ofertę i zamówienia jak dotąd (te same RPC)", async () => {
+    // Sesja jest, role jeszcze się wczytują (`loading`) - sekcje nie czekają.
+    auth.current = { ...SIGNED_IN, loading: true };
+    api.fetchMyPackageOrders.mockResolvedValue([order()]);
+    renderPurchase();
+
+    expect(await screen.findByRole("button", { name: /Pakiet firmowy/ })).toBeInTheDocument();
+    expect(await screen.findByText("Kongres CEE 2026 · 4999,00 zł")).toBeInTheDocument();
+    expect(api.fetchPackagesOffer).toHaveBeenCalledWith(SLUG);
+    expect(api.fetchMyPackageOrders).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "eventPackages.signIn" })).toBeNull();
   });
 });

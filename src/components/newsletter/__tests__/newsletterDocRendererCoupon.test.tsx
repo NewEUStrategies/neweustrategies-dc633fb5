@@ -30,7 +30,15 @@ const h = vi.hoisted(() => ({
   fromCalls: [] as string[],
   /** Surowy HTML, który renderer oddał do oczyszczenia. */
   sanitized: [] as string[],
+  /**
+   * Role czytelnika (`useAuth`). Liczbę zapisanych RLS pokazuje wyłącznie
+   * adminowi i redaktorowi najemcy, więc przypadki o samej liczbie grają
+   * redaktora; gość i zwykły członek mają osobne przypadki niżej.
+   */
+  roles: [] as string[],
 }));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ roles: h.roles }) }));
 
 vi.mock("@/integrations/supabase/client", () => {
   interface CountChain extends PromiseLike<{
@@ -101,6 +109,7 @@ beforeEach(() => {
   h.countRejects = null;
   h.fromCalls = [];
   h.sanitized = [];
+  h.roles = ["editor"];
   clipboard.writeText.mockReset();
   clipboard.writeText.mockResolvedValue(undefined);
   // ŻADNEGO PRAWDZIWEGO SCHOWKA: happy-dom nie ma uprawnień przeglądarki,
@@ -351,5 +360,65 @@ describe("licznik subskrybentów", () => {
     ]);
 
     await waitFor(() => expect(el(".text-muted-foreground").textContent).toBe("Juz 0 osob"));
+  });
+
+  it("odmowa odczytu liczby (RLS/42501) zostawia liczbę zapasową z panelu, a nie zero", async () => {
+    // Redaktor z rolą z innego najemcy albo zmieniona polityka: baza odpowiada
+    // `count: null` z błędem - to „nie wiemy", a nie „nikt się nie zapisał".
+    h.count = null;
+    h.countError = { message: "permission denied for table newsletter_subscribers" };
+    mount([
+      makeSocialProof({ fallbackCount: 2500, text: { pl: "Juz {count} osob", en: "{count}" } }),
+    ]);
+
+    await waitFor(() => expect(h.fromCalls).toEqual(["newsletter_subscribers"]));
+    await act(async () => {});
+
+    expect(el(".text-muted-foreground").textContent).toBe("Juz 2500 osob");
+  });
+});
+
+describe("licznik subskrybentów - czytelnik spoza redakcji", () => {
+  // Gość nie ma do `newsletter_subscribers` żadnego grantu (401/42501),
+  // a zwykłemu członkowi RLS odsiewa wszystkie wiersze (poprawne zero). Obaj
+  // widzieli po hydratacji „Już 0 osób" zamiast liczby zapasowej z SSR.
+
+  it("GOŚĆ nie pyta bazy i widzi liczbę zapasową z panelu", async () => {
+    h.roles = [];
+    h.count = 0;
+    mount([
+      makeSocialProof({ fallbackCount: 2500, text: { pl: "Juz {count} osob", en: "{count}" } }),
+    ]);
+
+    await act(async () => {});
+    await act(async () => {});
+
+    expect(h.fromCalls).toEqual([]);
+    expect(el(".text-muted-foreground").textContent).toBe("Juz 2500 osob");
+  });
+
+  it("zwykły członek (i autor) też nie pyta - RLS dałby mu zero zamiast liczby", async () => {
+    h.roles = ["user", "author"];
+    h.count = 0;
+    mount([
+      makeSocialProof({ fallbackCount: 2500, text: { pl: "Juz {count} osob", en: "{count}" } }),
+    ]);
+
+    await act(async () => {});
+    await act(async () => {});
+
+    expect(h.fromCalls).toEqual([]);
+    expect(el(".text-muted-foreground").textContent).toBe("Juz 2500 osob");
+  });
+
+  it("admin najemcy pyta bazę i widzi liczbę z bazy, jak redaktor", async () => {
+    h.roles = ["admin"];
+    h.count = 321;
+    mount([
+      makeSocialProof({ fallbackCount: 2500, text: { pl: "Juz {count} osob", en: "{count}" } }),
+    ]);
+
+    await waitFor(() => expect(el(".text-muted-foreground").textContent).toBe("Juz 321 osob"));
+    expect(h.fromCalls).toEqual(["newsletter_subscribers"]);
   });
 });
