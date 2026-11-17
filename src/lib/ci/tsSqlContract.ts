@@ -69,8 +69,10 @@
 //   * rola klienta szerzej niż reguły bramki: fabryki klienta serwisowego
 //     (`await admin()`), `createClient(…, klucz)`, `const x = ...`
 //     i parametr klienta - przez WSZYSTKIE wywołania funkcji (inaczej
-//     `unknown`; nigdy zgadywanie); fakt z rolą nieustaloną - wyłącznie
-//     z wpisem `UNKNOWN_ROLE_REVIEWED`;
+//     `unknown`; nigdy zgadywanie). Rola nieustalona z WIDOCZNYMI kandydatami
+//     (wołający o różnych rolach, widoczne wywołania funkcji przekazywanej
+//     dalej, `Authorization` z warunku) - uprawnienia i sondy dla każdego
+//     kandydata; bez kandydata - wyłącznie z wpisem `UNKNOWN_ROLE_REVIEWED`;
 //   * zasoby osadzone list `select`, sondy wykonania (widok
 //     `security_invoker`, funkcja SECURITY INVOKER) i gość (`anon`) klienta
 //     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`).
@@ -229,11 +231,30 @@ export interface RoleResolution {
    * sprawdza wtedy OBIE role: wiersz z rolą zmierzoną i drugi z `anon`.
    */
   readonly guest?: boolean;
+  /**
+   * Rola `unknown`: role, które miara WIDZI wśród wartości (wywołania
+   * pomocnika z różnymi klientami, widoczne wywołania funkcji, której nie
+   * każde odwołanie jest wywołaniem, `createClient` z warunkowym
+   * `Authorization`). Każda to prawdziwa ścieżka wykonania, więc bramka
+   * sprawdza uprawnienia i sondy DLA KAŻDEJ; bez kandydatów (`[]` albo brak)
+   * fakt sprawdza tylko istnienie i musi być na liście UNKNOWN_ROLE_REVIEWED.
+   */
+  readonly candidates?: readonly RoleCandidate[];
+}
+
+/** Widoczna rola wartości o roli `unknown` (`RoleResolution.candidates`). */
+export interface RoleCandidate {
+  readonly role: Exclude<MeasuredRole, "unknown">;
+  readonly via: string;
+  /** Klient przeglądarki - z sesją, a bez niej jako gość (`anon`). */
+  readonly guest: boolean;
 }
 
 interface ObservedCommon {
   readonly role: MeasuredRole;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości (`RoleResolution.candidates`), posortowane. */
+  readonly candidates?: readonly RoleCandidate[];
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
   readonly enforcedRole: ClientRole;
   /** Klient przeglądarki: miara sprawdza też `anon` (`RoleResolution.guest`). */
@@ -332,6 +353,8 @@ export interface ObservedStatement {
   /** Klient przeglądarki: sonda także jako `anon`. */
   readonly guest: boolean;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości - sonda jako każda z nich. */
+  readonly candidates?: readonly RoleCandidate[];
   readonly site: string;
   readonly fn: string;
   /** Kolumny `select` - przy zapisie lista RETURNING; `star` - `*`. */
@@ -1897,14 +1920,54 @@ interface RoleEnv {
   moduleRefs: Map<string, ModuleRef[]> | null;
   readonly memo: Map<string, RoleResolution>;
   readonly sites: Map<ts.Node, readonly CallSite[] | null>;
+  /** Wywołania widoczne funkcji, której nie każde odwołanie jest wywołaniem (`visibleCallSitesOf`). */
+  readonly visibleSites: Map<ts.Node, readonly CallSite[]>;
   /** Licznik cięć głębokości - wynik z cięciem nie trafia do `memo`. */
   depthCuts: number;
 }
 
 const MAX_VIA = 400;
 
-function unknownRole(via: string): RoleResolution {
-  return { role: "unknown", via: via.slice(0, MAX_VIA) };
+function unknownRole(via: string, candidates: readonly RoleCandidate[] = []): RoleResolution {
+  const merged = mergeCandidates(candidates);
+  return merged.length === 0
+    ? { role: "unknown", via: via.slice(0, MAX_VIA) }
+    : { role: "unknown", via: via.slice(0, MAX_VIA), candidates: merged };
+}
+
+/** Widoczne role wartości: ustalona rola albo kandydaci roli `unknown`. */
+function candidatesOf(r: RoleResolution): readonly RoleCandidate[] {
+  return r.role === "unknown"
+    ? (r.candidates ?? [])
+    : [{ role: r.role, via: r.via, guest: r.guest === true }];
+}
+
+/**
+ * Kandydaci bez powtórzeń (rola, gość), posortowani; z kilku dróg do tej
+ * samej pary - leksykograficznie pierwsza (wynik nie zależy od kolejności
+ * plików wejścia).
+ */
+function mergeCandidates(xs: readonly RoleCandidate[]): RoleCandidate[] {
+  const best = new Map<string, RoleCandidate>();
+  for (const x of xs) {
+    const key = `${x.role}|${x.guest}`;
+    const via = x.via.slice(0, MAX_VIA);
+    const known = best.get(key);
+    if (known === undefined || via < known.via) best.set(key, { ...x, via });
+  }
+  return [...best.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => c);
+}
+
+/** Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi kandydatami. */
+function candidateField(r: RoleResolution): { readonly candidates?: readonly RoleCandidate[] } {
+  return r.role === "unknown" && r.candidates !== undefined && r.candidates.length > 0
+    ? { candidates: r.candidates }
+    : {};
+}
+
+/** Kandydaci z przedrostkiem drogi (`etykieta <- droga kandydata`). */
+function labelled(label: string, xs: readonly RoleCandidate[]): RoleCandidate[] {
+  return xs.map((c) => ({ ...c, via: `${label} <- ${c.via}` }));
 }
 
 function compactText(node: ts.Node, scope: FileScope, max = 60): string {
@@ -1934,8 +1997,11 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
   const distinct = [...new Set(roles.map((r) => r.role))];
   if (distinct.length !== 1 || distinct[0] === "unknown") {
     const first = roles.find((r) => r.role === "unknown");
+    // Każda widoczna wartość to ścieżka wykonania - jej rola zostaje
+    // kandydatem (sprawdzanym), nawet gdy inne wartości są nieustalone.
     return unknownRole(
       `${label}: role [${distinct.join(", ")}]${first === undefined ? "" : ` - ${first.via}`}`,
+      labelled(label, roles.flatMap(candidatesOf)),
     );
   }
   const vias = [...new Set(roles.map((r) => r.via))];
@@ -2009,7 +2075,10 @@ function measuredRole(
         if (bound.role === "unknown") {
           return bound.absent === true
             ? bound
-            : unknownRole(`reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`);
+            : unknownRole(
+                `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
+                bound.candidates,
+              );
         }
         if (bound.role !== legacy) {
           return {
@@ -2326,6 +2395,39 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
   if (ts.isBindingElement(decl)) {
     const pattern = decl.parent;
     const vd = pattern.parent;
+    // `const [{ createClient }, { x }] = await Promise.all([import("m"), ...])`
+    // - element tablicy to przestrzeń nazw modułu, jak `const { x } = await import("m")`.
+    if (ts.isObjectBindingPattern(pattern) && ts.isBindingElement(vd)) {
+      const list = vd.parent;
+      const all = list.parent;
+      const init =
+        ts.isArrayBindingPattern(list) && ts.isVariableDeclaration(all) && all.initializer
+          ? unwrap(all.initializer)
+          : null;
+      const items =
+        init !== null && ts.isCallExpression(init) && init.arguments.length === 1
+          ? unwrap(init.arguments[0])
+          : null;
+      const item =
+        items !== null && ts.isArrayLiteralExpression(items)
+          ? items.elements[(list as ts.ArrayBindingPattern).elements.indexOf(vd)]
+          : undefined;
+      const spec = item === undefined ? null : dynamicImportSpec(item);
+      const viaAll = spec === null ? null : promiseAllImportPattern(unwrap(item as ts.Expression));
+      const prop = decl.propertyName ? propName(decl.propertyName) : name;
+      if (
+        spec !== null &&
+        viaAll?.pattern === pattern &&
+        prop !== null &&
+        decl.dotDotDotToken === undefined &&
+        decl.initializer === undefined &&
+        ts.isVariableDeclarationList(viaAll.decl.parent) &&
+        viaAll.decl.parent.flags & ts.NodeFlags.Const
+      ) {
+        return { kind: "import", module: spec, name: prop };
+      }
+      return noBinding(`${name}: element rozkładu poza regułą`);
+    }
     if (
       !ts.isObjectBindingPattern(pattern) ||
       !ts.isVariableDeclaration(vd) ||
@@ -2595,20 +2697,27 @@ function envKeyOf(expr: ts.Expression | undefined, scope: FileScope, depth = 0):
   return null;
 }
 
-/** Czy opcje `createClient` mogą nieść nagłówek `Authorization`; `null` - nie wiadomo. */
+/**
+ * Czy opcje `createClient` niosą nagłówek `Authorization`: `always`, `never`,
+ * `maybe` (zależnie od warunku - np. `bearer === null ? {...} : { headers }`);
+ * `null` - nie wiadomo.
+ */
 function mayCarryAuthorization(
   expr: ts.Expression | undefined,
   path: readonly string[],
-): boolean | null {
-  if (expr === undefined) return false;
+): "always" | "never" | "maybe" | null {
+  if (expr === undefined) return "never";
   const node = unwrap(expr);
   if (ts.isConditionalExpression(node)) {
     const a = mayCarryAuthorization(node.whenTrue, path);
     const b = mayCarryAuthorization(node.whenFalse, path);
-    return a === null || b === null ? null : a || b;
+    return a === null || b === null ? null : a === b ? a : "maybe";
   }
   if (!ts.isObjectLiteralExpression(node)) return null;
-  let carries = false;
+  let carries: "always" | "never" | "maybe" = "never";
+  const add = (x: "always" | "never" | "maybe"): void => {
+    if (x === "always" || (x === "maybe" && carries === "never")) carries = x;
+  };
   for (const p of node.properties) {
     if (ts.isSpreadAssignment(p)) return null;
     const key = p.name === undefined ? null : propName(p.name as ts.PropertyName);
@@ -2618,14 +2727,14 @@ function mayCarryAuthorization(
     }
     if (path.length === 0) {
       // `accessToken` (funkcja tokenu) na najwyższym poziomie opcji.
-      if (key === "accessToken") carries = true;
+      if (key === "accessToken") add("always");
     }
-    if (path.length === 2 && key.toLowerCase() === "authorization") carries = true;
+    if (path.length === 2 && key.toLowerCase() === "authorization") add("always");
     const next = ["global", "headers"][path.length];
     if (key === next && ts.isPropertyAssignment(p)) {
       const inner = mayCarryAuthorization(p.initializer, [...path, key]);
       if (inner === null) return null;
-      carries ||= inner;
+      add(inner);
     }
   }
   return carries;
@@ -2648,9 +2757,21 @@ function createClientRole(call: ts.CallExpression, scope: FileScope): RoleResolu
   if (/PUBLISHABLE|ANON/.test(key)) {
     const auth = mayCarryAuthorization(call.arguments[2], []);
     if (auth === null) return unknownRole(`createClient(…, ${key}): opcje nieczytelne`);
-    return auth
-      ? { role: "authenticated", via: `createClient(…, ${key}) z nagłówkiem Authorization` }
-      : { role: "anon", via: `createClient(…, ${key})` };
+    const withHeader: RoleResolution = {
+      role: "authenticated",
+      via: `createClient(…, ${key}) z nagłówkiem Authorization`,
+    };
+    const without: RoleResolution = { role: "anon", via: `createClient(…, ${key})` };
+    // Nagłówek z warunku (token wołającego albo gość) - obie role to ścieżki
+    // wykonania: kandydaci, nie zgadywanie jednej.
+    return auth === "always"
+      ? withHeader
+      : auth === "never"
+        ? without
+        : unknownRole(`createClient(…, ${key}): nagłówek Authorization z warunku`, [
+            { role: "anon", via: `${without.via} bez nagłówka`, guest: false },
+            { role: "authenticated", via: withHeader.via, guest: false },
+          ]);
   }
   return unknownRole(`createClient: klucz ${key}`);
 }
@@ -2839,11 +2960,16 @@ function isValueReference(id: ts.Identifier): boolean {
   return true;
 }
 
-/** Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem wprost; inaczej `null`. */
+/**
+ * Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem
+ * wprost; inaczej `null`. `partial` - same wywołania widoczne, odwołania inne
+ * niż wywołanie (wartość, callback) pominięte.
+ */
 function directCallReferences(
   root: ts.Node,
   name: string,
   declaration: ts.Node | null,
+  partial = false,
 ): ts.CallExpression[] | null {
   const calls: ts.CallExpression[] = [];
   let complete = true;
@@ -2854,7 +2980,7 @@ function directCallReferences(
         const outer = outermostWrapper(node);
         if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
           calls.push(outer.parent);
-        } else complete = false;
+        } else if (!partial) complete = false;
       }
       return;
     }
@@ -2864,10 +2990,9 @@ function directCallReferences(
   return complete ? calls : null;
 }
 
-/** Wywołania przez `import()`: rozkład `const { f } = await import(...)` albo `(await import(...)).f(...)`. */
-function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
-  if (!ts.isCallExpression(ref.node)) return null; // przestrzeń nazw, reeksport
-  let outer: ts.Node = ref.node;
+/** Wyrażenie razem z owijkami `await`, nawiasy, `as`, `!` nad nim. */
+function outermostAwaited(node: ts.Node): ts.Node {
+  let outer = node;
   while (
     (ts.isAwaitExpression(outer.parent) ||
       ts.isParenthesizedExpression(outer.parent) ||
@@ -2877,42 +3002,120 @@ function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
   ) {
     outer = outer.parent;
   }
+  return outer;
+}
+
+/**
+ * Wzorzec rozkładu przestrzeni nazw modułu z `import()` w `Promise.all`:
+ * `const [{ a }, { b }] = await Promise.all([import("x"), import("y")])` -
+ * dla elementu `import("y")` wzorzec `{ b }` i deklaracja; `null` - inny kształt.
+ */
+function promiseAllImportPattern(
+  importCall: ts.Node,
+): { readonly pattern: ts.ObjectBindingPattern; readonly decl: ts.VariableDeclaration } | null {
+  const item = outermostWrapper(importCall as ts.Expression);
+  const list = item.parent;
+  if (!ts.isArrayLiteralExpression(list)) return null;
+  const index = list.elements.indexOf(item);
+  if (index === -1 || list.elements.slice(0, index + 1).some(ts.isSpreadElement)) return null;
+  const all = outermostWrapper(list).parent;
+  if (!ts.isCallExpression(all) || all.arguments.length !== 1) return null;
+  const callee = unwrap(all.expression);
+  if (
+    !ts.isPropertyAccessExpression(callee) ||
+    callee.name.text !== "all" ||
+    !ts.isIdentifier(callee.expression) ||
+    callee.expression.text !== "Promise"
+  ) {
+    return null;
+  }
+  const decl = outermostAwaited(all).parent;
+  if (
+    !ts.isVariableDeclaration(decl) ||
+    decl.initializer === undefined ||
+    unwrap(decl.initializer) !== all ||
+    !ts.isArrayBindingPattern(decl.name)
+  ) {
+    return null;
+  }
+  const el = decl.name.elements[index];
+  return el !== undefined &&
+    ts.isBindingElement(el) &&
+    el.dotDotDotToken === undefined &&
+    el.initializer === undefined &&
+    ts.isObjectBindingPattern(el.name) &&
+    decl.name.elements.slice(0, index).every((e) => !ts.isBindingElement(e) || !e.dotDotDotToken)
+    ? { pattern: el.name, decl }
+    : null;
+}
+
+/**
+ * Wywołania przez `import()`: rozkład `const { f } = await import(...)`
+ * (także element `await Promise.all([import(...), ...])`) albo
+ * `(await import(...)).f(...)`. `partial` - kształt nieczytelny i odwołania
+ * inne niż wywołanie pominięte zamiast `null`.
+ */
+function dynamicImportCalls(ref: ModuleRef, name: string, partial = false): CallSite[] | null {
+  const none = partial ? [] : null;
+  if (!ts.isCallExpression(ref.node)) return none; // przestrzeń nazw, reeksport
+  const outer = outermostAwaited(ref.node);
   const parent = outer.parent;
   if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) {
     if (parent.name.text !== name) return [];
     const wrapped = outermostWrapper(parent);
     return ts.isCallExpression(wrapped.parent) && wrapped.parent.expression === wrapped
       ? [{ call: wrapped.parent, scope: ref.scope }]
-      : null;
+      : none;
   }
+  let pattern: ts.ObjectBindingPattern | null = null;
+  let decl: ts.VariableDeclaration | null = null;
   if (
     ts.isVariableDeclaration(parent) &&
     parent.initializer === outer &&
-    ts.isObjectBindingPattern(parent.name) &&
-    ts.isVariableDeclarationList(parent.parent) &&
-    parent.parent.flags & ts.NodeFlags.Const &&
-    ts.isVariableStatement(parent.parent.parent)
+    ts.isObjectBindingPattern(parent.name)
   ) {
-    const block = parent.parent.parent.parent;
-    const sites: CallSite[] = [];
-    for (const el of parent.name.elements) {
-      if (el.dotDotDotToken) return null;
-      const source = el.propertyName
-        ? propName(el.propertyName)
-        : ts.isIdentifier(el.name)
-          ? el.name.text
-          : null;
-      if (source !== name) continue;
-      if (!ts.isIdentifier(el.name)) return null;
-      const local = el.name.text;
-      if (bindingCount(block, local) !== 1 || isAssigned(block, local)) return null;
-      const calls = directCallReferences(block, local, el.name);
-      if (calls === null) return null;
-      sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
-    }
-    return sites;
+    pattern = parent.name;
+    decl = parent;
+  } else {
+    const viaAll = promiseAllImportPattern(ref.node);
+    if (viaAll !== null) ({ pattern, decl } = viaAll);
   }
-  return null;
+  if (
+    pattern === null ||
+    decl === null ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent)
+  ) {
+    return none;
+  }
+  const block = decl.parent.parent.parent;
+  const sites: CallSite[] = [];
+  for (const el of pattern.elements) {
+    if (el.dotDotDotToken) {
+      if (partial) continue;
+      return null;
+    }
+    const source = el.propertyName
+      ? propName(el.propertyName)
+      : ts.isIdentifier(el.name)
+        ? el.name.text
+        : null;
+    if (source !== name) continue;
+    if (!ts.isIdentifier(el.name)) {
+      if (partial) continue;
+      return null;
+    }
+    const local = el.name.text;
+    if (bindingCount(block, local) !== 1 || isAssigned(block, local)) {
+      if (partial) continue;
+      return null;
+    }
+    const calls = directCallReferences(block, local, el.name, partial);
+    if (calls === null) return null;
+    sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
+  }
+  return sites;
 }
 
 /**
@@ -2926,83 +3129,113 @@ function callSitesOf(
   env: RoleEnv,
 ): readonly CallSite[] | null {
   if (env.sites.has(fn)) return env.sites.get(fn) ?? null;
-  const compute = (): CallSite[] | null => {
-    let name: string;
-    let statement: ts.Statement;
-    let declaration: ts.Node;
-    if (ts.isFunctionDeclaration(fn)) {
-      if (fn.name === undefined || fn.body === undefined) return null;
-      name = fn.name.text;
-      statement = fn;
-      declaration = fn.name;
-    } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
-      const outer = outermostWrapper(fn);
-      const decl = outer.parent;
-      // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
-      // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
-      // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
-      if (ts.isCallExpression(decl) && decl.expression !== outer) {
-        const k = decl.arguments.indexOf(outer);
-        const callee = unwrap(decl.expression);
-        if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return null;
-        const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
-        const param = target?.fn.parameters[k];
-        if (
-          target == null ||
-          param === undefined ||
-          !ts.isIdentifier(param.name) ||
-          param.dotDotDotToken !== undefined ||
-          param.initializer !== undefined ||
-          isAssigned(target.fn, param.name.text)
-        ) {
-          return null;
-        }
-        const invocations = directCallReferences(target.fn, param.name.text, param.name);
-        return invocations === null
-          ? null
-          : invocations.map((call) => ({ call, scope: target.scope }));
-      }
+  const sites = collectCallSites(fn, scope, env, false);
+  env.sites.set(fn, sites);
+  return sites;
+}
+
+/**
+ * Wywołania funkcji WIDOCZNE w źródłach - także gdy nie każde odwołanie jest
+ * wywołaniem (`callSitesOf` daje wtedy `null`). Każde to prawdziwa ścieżka
+ * wykonania: rola jego argumentu jest kandydatem roli parametru.
+ */
+function visibleCallSitesOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+): readonly CallSite[] {
+  const all = callSitesOf(fn, scope, env);
+  if (all !== null) return all;
+  let visible = env.visibleSites.get(fn);
+  if (visible === undefined) {
+    visible = collectCallSites(fn, scope, env, true) ?? [];
+    env.visibleSites.set(fn, visible);
+  }
+  return visible;
+}
+
+function collectCallSites(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+  partial: boolean,
+): CallSite[] | null {
+  const none = partial ? [] : null;
+  let name: string;
+  let statement: ts.Statement;
+  let declaration: ts.Node;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined || fn.body === undefined) return none;
+    name = fn.name.text;
+    statement = fn;
+    declaration = fn.name;
+  } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+    const outer = outermostWrapper(fn);
+    const decl = outer.parent;
+    // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
+    // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
+    // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
+    if (ts.isCallExpression(decl) && decl.expression !== outer) {
+      const k = decl.arguments.indexOf(outer);
+      const callee = unwrap(decl.expression);
+      if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return none;
+      const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
+      const param = target?.fn.parameters[k];
       if (
-        !ts.isVariableDeclaration(decl) ||
-        decl.initializer !== outer ||
-        !ts.isIdentifier(decl.name) ||
-        !ts.isVariableDeclarationList(decl.parent) ||
-        !(decl.parent.flags & ts.NodeFlags.Const) ||
-        !ts.isVariableStatement(decl.parent.parent)
+        target == null ||
+        param === undefined ||
+        !ts.isIdentifier(param.name) ||
+        param.dotDotDotToken !== undefined ||
+        param.initializer !== undefined ||
+        isAssigned(target.fn, param.name.text)
       ) {
-        return null;
+        return none;
       }
-      name = decl.name.text;
-      statement = decl.parent.parent;
-      declaration = decl.name;
-    } else {
+      const invocations = directCallReferences(target.fn, param.name.text, param.name, partial);
+      return invocations === null
+        ? null
+        : invocations.map((call) => ({ call, scope: target.scope }));
+    }
+    if (
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== outer ||
+      !ts.isIdentifier(decl.name) ||
+      !ts.isVariableDeclarationList(decl.parent) ||
+      !(decl.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(decl.parent.parent)
+    ) {
+      return none;
+    }
+    name = decl.name.text;
+    statement = decl.parent.parent;
+    declaration = decl.name;
+  } else {
+    return none;
+  }
+  const container = statement.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return none;
+  const own = directCallReferences(container, name, declaration, partial);
+  if (own === null) return null;
+  const sites: CallSite[] = own.map((call) => ({ call, scope }));
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return sites;
+  }
+  if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return partial ? sites : null;
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    const more = dynamicImportCalls(ref, name, partial);
+    if (more === null) return null;
+    sites.push(...more);
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name) continue;
+    if (bindingCount(imp.scope.sf, imp.local) !== 0) {
+      if (partial) continue;
       return null;
     }
-    const container = statement.parent;
-    if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return null;
-    const own = directCallReferences(container, name, declaration);
-    if (own === null) return null;
-    const sites: CallSite[] = own.map((call) => ({ call, scope }));
-    if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
-      return sites;
-    }
-    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return null;
-    for (const ref of moduleRefsOf(scope.file, env)) {
-      const more = dynamicImportCalls(ref, name);
-      if (more === null) return null;
-      sites.push(...more);
-    }
-    for (const imp of importersOf(scope.file, env.flow)) {
-      if (imp.imported !== name) continue;
-      if (bindingCount(imp.scope.sf, imp.local) !== 0) return null;
-      const more = directCallReferences(imp.scope.sf, imp.local, null);
-      if (more === null) return null;
-      sites.push(...more.map((call) => ({ call, scope: imp.scope })));
-    }
-    return sites;
-  };
-  const sites = compute();
-  env.sites.set(fn, sites);
+    const more = directCallReferences(imp.scope.sf, imp.local, null, partial);
+    if (more === null) return null;
+    sites.push(...more.map((call) => ({ call, scope: imp.scope })));
+  }
   return sites;
 }
 
@@ -3028,7 +3261,23 @@ function paramRole(
   const sites = callSitesOf(fn, scope, env);
   let result: RoleResolution;
   if (sites === null) {
-    result = unknownRole(`${label}: nie każde odwołanie do funkcji to widoczne wywołanie`);
+    // Rola parametru nieustalona (nie każdy wołający widoczny), ale każde
+    // WIDOCZNE wywołanie to ścieżka wykonania - jego rola jest kandydatem.
+    const visible = visibleCallSitesOf(fn, scope, env);
+    const roles: RoleResolution[] = [];
+    for (const site of visible) {
+      const arg = argumentAt(site.call, index);
+      if (arg === "spread" || arg === undefined) continue;
+      roles.push(
+        prop === null
+          ? measuredRole(arg, site.scope, env, depth + 1)
+          : memberRole(arg, prop, site.scope, env, depth + 1),
+      );
+    }
+    result = unknownRole(
+      `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
+      labelled(`${label} (widoczne: ${visible.length})`, roles.flatMap(candidatesOf)),
+    );
   } else {
     const roles: RoleResolution[] = [];
     let spread = false;
@@ -4023,6 +4272,7 @@ function visitFile(
             via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
             enforcedRole: "unknown",
             guest: builder.role.guest === true,
+            ...candidateField(builder.role),
             gateRole: builder.gate,
             file: column.file,
             site: scope.file,
@@ -4088,6 +4338,7 @@ function handleRpc(
     via: measured.via,
     enforcedRole: role,
     guest: measured.guest === true,
+    ...candidateField(measured),
     file: scope.file,
     site: scope.file,
     fn: enclosingFunctionPath(node),
@@ -4200,6 +4451,7 @@ function handleBuilder(
       enforcedRole: withheld ? "unknown" : f.role,
       withheld,
       guest: measure.role.guest === true,
+      ...candidateField(measure.role),
       site: scope.file,
       fn: enclosingFunctionPath(call),
     };
@@ -4420,6 +4672,7 @@ function observeEmbeds(
         role.role,
         role.guest === true,
         role.via,
+        role.candidates ?? [],
         gateRole,
         file,
       ]);
@@ -4441,6 +4694,7 @@ function observeEmbeds(
           via: role.via,
           enforcedRole: "unknown",
           guest: role.guest === true,
+          ...candidateField(role),
           gateRole,
           file,
           site: scope.file,
@@ -4517,6 +4771,7 @@ function observeStatements(
                 role: role.role,
                 enforcedRole: enforcedOf(selects),
                 guest,
+                ...candidateField(role),
                 via: role.via,
                 site,
                 fn,
@@ -4536,6 +4791,7 @@ function observeStatements(
               role: role.role,
               enforcedRole: enforcedOf([w, ...selects]),
               guest,
+              ...candidateField(role),
               via: role.via,
               site,
               fn: w.fn,
@@ -4624,6 +4880,7 @@ function observeChainFilters(
           via: measure.role.via,
           enforcedRole: "unknown",
           guest: measure.role.guest === true,
+          ...candidateField(measure.role),
           gateRole,
           file: column.file,
           site: scope.file,
@@ -4910,6 +5167,7 @@ export function extractSeamFacts(
             moduleRefs: null,
             memo: new Map(),
             sites: new Map(),
+            visibleSites: new Map(),
             depthCuts: 0,
           },
           filters: measureFlow,
@@ -5187,8 +5445,10 @@ export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
 // (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
 // wykonania). Teraz te fakty idą do pgTAP (asercje 10-19, `renderContractTest`):
 //   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
-//     `unknown` - tam, gdzie się różni od roli bramki; fakty z rolą wciąż
-//     nieustaloną wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`,
+//     `unknown` - tam, gdzie się różni od roli bramki; rola wciąż
+//     nieustalona - KAŻDA widoczna rola-kandydat (`checkedRoles`), a fakty
+//     bez kandydata wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`
+//     (z kształtem przejrzanym),
 //   * kolumny filtrów, sortowania i celu upsertu oraz zasoby osadzone list
 //     `select` - istnienie i SELECT roli,
 //   * sondy wykonania (zapytanie jako rola w podtransakcji, wycofane),
@@ -5226,264 +5486,270 @@ export function unknownRoleKey(site: string, fn: string, call: string): string {
 }
 
 /**
- * Wszechświat ról nieustalonych: fakty RPC i tabel z rolą zmierzoną `unknown`
- * (liczone) oraz łańcuchy z taką rolą bez faktu tabeli (sam filtr, zapytanie
- * sondy, osadzenie) - klucz musi być na liście, liczba faktów może być 0.
+ * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
+ * (`checkedRoles` puste; liczone) oraz łańcuchy z taką rolą bez faktu tabeli
+ * (sam filtr, zapytanie sondy, osadzenie) - klucz musi być na liście, liczba
+ * faktów może być 0. Kształt (`unknownRoleShape`) to odcisk tego, co pod
+ * kluczem idzie do pgTAP bez sprawdzenia uprawnień: operacja i kolumny
+ * faktów, klucze RPC, kolumny filtrów, sortowania i celu upsertu (także
+ * osadzeń) i osadzenia z kolumnami.
  */
-function unknownRoleUniverse(facts: SeamFacts): Map<string, number> {
+function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
   const o = facts.observed;
-  const out = new Map<string, number>();
-  const add = (key: string, n: number): void => {
-    out.set(key, (out.get(key) ?? 0) + n);
+  const acc = new Map<string, { count: number; parts: Set<string> }>();
+  const none = (x: Parameters<typeof checkedRoles>[0]): boolean => checkedRoles(x).length === 0;
+  const add = (key: string, n: number, part: string | null): void => {
+    const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
+    at.count += n;
+    if (part !== null) at.parts.add(part);
+    acc.set(key, at);
   };
+  const cols = (columns: readonly string[], star: boolean): string =>
+    [...columns, ...(star ? ["*"] : [])].join(",");
   for (const r of o.rpcs) {
-    if (r.role === "unknown") add(unknownRoleKey(r.site, r.fn, `.rpc(${r.name})`), 1);
+    if (none(r)) {
+      add(unknownRoleKey(r.site, r.fn, `.rpc(${r.name})`), 1, `rpc(${r.keys?.join(",") ?? "?"})`);
+    }
   }
   for (const t of o.tables) {
-    if (t.role === "unknown") add(unknownRoleKey(t.site, t.fn, `.from(${t.table})`), 1);
+    if (none(t)) {
+      add(
+        unknownRoleKey(t.site, t.fn, `.from(${t.table})`),
+        1,
+        `${t.op}[${cols(t.columns, t.star)}]`,
+      );
+    }
   }
-  for (const x of [...o.filters.filter((f) => f.embed === null), ...o.statements, ...o.embeds]) {
-    if (x.role === "unknown") add(unknownRoleKey(x.site, x.fn, `.from(${x.table})`), 0);
+  // Filtr osadzenia (`rel.kolumna`) - pod tabelą łańcucha jego osadzenia.
+  const chainOf = new Map(o.embeds.map((e) => [`${e.site}|${e.fn}|${e.path}`, e.table]));
+  for (const f of o.filters) {
+    // Kolumny `EXCLUDED` upsertu to jego ładunek - już w kształcie faktu zapisu.
+    if (!none(f) || f.method === "upsert(EXCLUDED)") continue;
+    const rel =
+      f.embed === null ? f.table : (chainOf.get(`${f.site}|${f.fn}|${f.embed}`) ?? f.table);
+    add(
+      unknownRoleKey(f.site, f.fn, `.from(${rel})`),
+      0,
+      `${f.method}(${f.embed === null ? "" : `${f.embed}.`}${f.column})`,
+    );
   }
-  return out;
+  for (const e of o.embeds) {
+    if (none(e)) {
+      add(
+        unknownRoleKey(e.site, e.fn, `.from(${e.table})`),
+        0,
+        `${e.path}:${e.rel}${e.hint === null ? "" : `!${e.hint}`}(${cols(e.columns, e.star)})`,
+      );
+    }
+  }
+  for (const x of o.statements) {
+    if (none(x)) add(unknownRoleKey(x.site, x.fn, `.from(${x.table})`), 0, null);
+  }
+  return new Map(
+    [...acc].map(([key, { count, parts }]) => [key, { count, shape: [...parts].sort().join(" ") }]),
+  );
 }
 
+/**
+ * Wpis UNKNOWN_ROLE_REVIEWED: liczba faktów RPC i tabel, kształt przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny faktów, klucze RPC, kolumny
+ * filtrów i osadzeń - posortowane) i powód.
+ */
+export type UnknownRoleEntry = readonly [count: number, shape: string, reason: string];
+
 const NOT_EVERY_REFERENCE =
-  "klient z parametru funkcji, której nie każde odwołanie jest widocznym wywołaniem (`const { f } = await import(...)`, funkcja w tablicy źródeł albo obiekcie pomocników, callback) - reguła parametru nie zna wszystkich klientów, więc rola faktu byłaby zgadywaniem";
-const MIXED_CALLERS =
-  "parametr klienta, który wywołania podają z RÓŻNYMI rolami (sesja użytkownika i `service_role`, albo z rolą nieustaloną) - jedna rola faktu byłaby zgadywaniem; każdy wołający ma własne fakty, ten zostaje bez uprawnień";
+  "klient z parametru funkcji bez ŻADNEGO widocznego wywołania (funkcja w tablicy źródeł albo obiekcie pomocników, callback wołany dynamicznie) - nie ma kandydata roli do sprawdzenia, a rola faktu byłaby zgadywaniem";
 const MEMO_CLIENT =
   "klient z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`, `let cachedPublicClient`), także przez parametr pomocnika albo wartość domyślną - wiązanie przypisywane, reguła roli go nie śledzi";
-const HOST_ANON_CLIENT =
-  "`hostAnonClient(bearer)` składa `createClient(url, klucz publiczny)` z opcjonalnym `Authorization` wołającego - `anon` albo `authenticated` zależnie od sesji żądania, więc rola jednego faktu nie istnieje";
 const LET_CLIENT =
   "klient w `let` ustawianym w gałęziach (`let admin` / `let client` przypisywane warunkowo) - reguła roli śledzi tylko `const` i pojedyncze `=`";
 const MEMBER_CLIENT =
   "klient z pola obiektu albo instancji (`this.supabase`, `.client` wyniku `callerSupabase()`, element rozkładu `Promise.all`) - reguła roli nie czyta pól wyniku funkcji";
 
 /**
- * Fakty, których rola klienta jest NIEUSTALONA także dla miary (parametr
- * pomocnika z różnymi wołającymi, klient z pamięci modułu, funkcja jako
- * wartość) - pgTAP sprawdza ich istnienie, a uprawnienia wyłącznie wtedy,
- * gdy rolę dała reguła bramki (asercje 2 i 5; dziś tak jest tylko
- * w `ticket.server.ts`, gdzie reguła nazwy mówi `authenticated`). Klucz: plik
- * wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`; wartość: ile
- * faktów RPC i tabel (łańcuch bez faktu - 0) i dlaczego. Lista może TYLKO
- * maleć: nowy fakt z rolą nieustaloną (albo nowy w znanym kluczu) czerwieni
- * `check:ts-sql-contract`, a wpis, któremu ubyło faktów - też (zdejmij go
- * albo zmniejsz licznik). Naprawa: klient wprost (`supabaseAdmin`, klient
- * przeglądarki, `context.supabase`) albo parametr z jedną rolą we wszystkich
- * wywołaniach.
+ * Fakty, których rola klienta jest NIEUSTALONA także dla miary i które nie
+ * mają ŻADNEJ widocznej roli-kandydata (klient z pamięci modułu, pole obiektu,
+ * `let` z mutacją, funkcja bez widocznych wywołań) - pgTAP sprawdza ich
+ * istnienie, a uprawnienia wyłącznie wtedy, gdy rolę dała reguła bramki
+ * (asercje 2 i 5). Fakt z kandydatami (wołający o różnych rolach, widoczne
+ * wywołania funkcji przekazywanej dalej, `createClient` z `Authorization`
+ * z warunku) idzie do pgTAP z KAŻDĄ widoczną rolą i wpisu nie potrzebuje.
+ * Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`;
+ * wartość: ile faktów RPC i tabel (łańcuch bez faktu - 0), KSZTAŁT przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny, klucze RPC, kolumny filtrów
+ * i osadzeń) i dlaczego. Lista może TYLKO maleć: nowy fakt bez roli, nowy
+ * w znanym kluczu albo zmiana kształtu (dopisana kolumna, filtr, zamieniony
+ * łańcuch) czerwieni `check:ts-sql-contract`, a wpis, któremu ubyło faktów -
+ * też (zdejmij go albo zmniejsz licznik). Naprawa: klient wprost
+ * (`supabaseAdmin`, klient przeglądarki, `context.supabase`) albo parametr
+ * z jedną rolą we wszystkich wywołaniach.
  */
-export const UNKNOWN_ROLE_REVIEWED: Readonly<
-  Record<string, readonly [count: number, reason: string]>
-> = {
+export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> = {
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: clubs: .rpc(admin_revenue_clubs_summary)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: email: .rpc(admin_revenue_email_health)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: events: .rpc(admin_revenue_events_summary)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: funnel: .rpc(admin_revenue_funnel)": [
     1,
+    "rpc(p_segment,p_since,p_track,p_until)",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: snapshot: .rpc(admin_revenue_semantic_snapshot)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/billing/catalogAutoSync.server.ts: recordManualSync: .from(payment_integration_state)": [
     1,
+    "onConflict(environment) upsert[catalog_fingerprint,environment,fingerprint,last_error,last_reason,last_report,last_status,last_synced_at]",
     MEMBER_CLIENT,
-  ],
-  "src/lib/billing/checkoutSettings.server.ts: loadCheckoutSettings: .from(checkout_settings)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/billing/couponRpc.server.ts: releaseCouponForUser: .rpc(release_b2b_coupon)": [
-    1,
-    MIXED_CALLERS,
-  ],
-  "src/lib/email/queueDrain.server.ts: alreadySent: .from(email_send_log)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: deleteMessage: .rpc(delete_email)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: loadConfig: .from(email_send_state)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: loadFailedAttempts: .from(email_send_log)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: logSend: .from(email_send_log)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: moveToDlq: .rpc(move_to_dlq)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: readBatch: .rpc(read_email_batch)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: recheckAccountBound: .rpc(email_queue_send_recheck)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: startCooldown: .from(email_send_state)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(name_dictionary)": [
-    1,
-    MEMO_CLIENT,
-  ],
-  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(newsletter_subscribers)": [
-    1,
-    MEMO_CLIENT,
-  ],
-  "src/lib/email/suppression.server.ts: applyDeliveryEvent: .rpc(email_apply_delivery_event)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/suppression.server.ts: fetchSuppressedEmails: .rpc(email_filter_suppressed)": [
-    1,
-    NOT_EVERY_REFERENCE,
   ],
   "src/lib/email/suppression.server.ts: isEmailSuppressed: .rpc(email_is_suppressed)": [
     1,
+    "rpc(p_email,p_tenant)",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/email/suppression.server.ts: recordSuppression: .rpc(email_record_suppression)": [
     1,
+    "rpc(p_campaign,p_diagnostic,p_email,p_event_id,p_meta,p_provider,p_provider_message_id,p_reason,p_source,p_subscriber,p_tenant)",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/email/suppression.server.ts: releaseUnsubscribeOnOptIn: .from(email_suppressions)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/suppression.server.ts: resolveAccountTenantForAddress: .rpc(email_account_tenant_for_address)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/suppression.server.ts: resolveTenantForAddress: .rpc(email_resolve_tenant_for_address)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/suppression.server.ts: unsubscribeByToken.call: .rpc(email_unsubscribe_by_token)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/transactional.server.ts: alreadyHandled: .from(email_send_log)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: enqueueRawEmail: .from(email_send_log)": [2, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: enqueueRawEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: sendTxEmail: .from(email_send_log)": [2, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: sendTxEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: suppressionGate: .from(email_send_log)": [1, MEMO_CLIENT],
-  "src/lib/email/txOverrides.server.ts: loadTxOverrides: .from(site_settings)": [1, MIXED_CALLERS],
-  "src/lib/email/unsubscribeToken.server.ts: ensureUnsubscribeToken: .from(email_unsubscribe_tokens)":
-    [4, MEMO_CLIENT],
   "src/lib/events/eventConsent.server.ts: listMyEventConsentsForCaller: .rpc(event_my_consent_state)":
-    [1, MEMBER_CLIENT],
-  "src/lib/events/eventRegistration.server.ts: attachAttribution: .rpc(event_registration_attribution_attach)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/eventRegistration.server.ts: legacyRegister: .rpc(event_register)": [
-    1,
-    HOST_ANON_CLIENT,
-  ],
-  "src/lib/events/groupGuests.server.ts: legacyRegisterGuests: .rpc(event_register_group_guests)": [
-    1,
-    HOST_ANON_CLIENT,
-  ],
-  "src/lib/events/groupTicketCodes.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/registrationSelfNotify.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/ticket.server.ts: assertSeatAvailable: .from(event_rsvps)": [1, MIXED_CALLERS],
-  "src/lib/events/ticket.server.ts: legacySeatsFor: .from(events)": [1, MIXED_CALLERS],
-  "src/lib/events/ticket.server.ts: legacySeatsFor: .rpc(get_event_rsvp_counts)": [
-    1,
-    MIXED_CALLERS,
-  ],
-  "src/lib/events/ticket.server.ts: seatsFor: .rpc(event_seat_state)": [1, MIXED_CALLERS],
+    [1, "rpc()", MEMBER_CLIENT],
   "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_issue_ticket_codes)":
-    [1, LET_CLIENT],
+    [1, "rpc(p_registration_id)", LET_CLIENT],
   "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_ticket_code_confirm)":
-    [1, LET_CLIENT],
+    [1, "rpc(?)", LET_CLIENT],
   "src/lib/events/wallet/walletRoutes.server.ts: loadTicket: .rpc(event_ticket_wallet_payload)": [
     1,
+    "rpc(p_payload)",
     LET_CLIENT,
   ],
-  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [1, MEMO_CLIENT],
-  "src/lib/privacy/measurementStatus.server.ts: fetchMeasuredEmails: .rpc(email_measurement_status)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_alerts)": [
-    3,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_checks)": [
-    0,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(user_roles)": [
+  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [
     1,
+    "in(id) in(slug) or(id) or(slug) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [
+    1,
+    "rpc(_page_ids)",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [
+    1,
+    "in(id) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [
+    1,
+    "in(slug) select[parent_id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(outbound_link_checks)": [
-    2,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(posts)": [2, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [1, NOT_EVERY_REFERENCE],
   "src/lib/server/sitemapEntries.server.ts: experts: .from(author_profiles)": [
     1,
+    "eq(tenant_id) in(user_id) order(id) select[is_public,user_id]",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/server/sitemapEntries.server.ts: experts: .from(profile_badges)": [
     1,
+    "eq(badge) eq(tenant_id) order(id) select[user_id]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [
+    1,
+    "eq(tenant_id) in(id) order(id) select[id,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcast_shows)": [
     1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [
+    1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) select[parent_page_id,published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: programs: .from(research_programs)": [
     1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [
+    1,
+    "eq(tenant_id) neq(status) order(id) select[opens_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: readHomepageReading.work: .from(site_settings)": [
     1,
+    "eq(key) eq(tenant_id) select[value]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,kind,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) post_categories:post_categories(category_id) post_tags:post_tags(tag_id) select[id,published_at,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: tracker: .from(eu_policy_items)": [
     1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/userTenant.server.ts: readUserTenantId: .from(profiles)": [
+  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [
     1,
-    NOT_EVERY_REFERENCE,
+    "eq(id) select[log]",
+    MEMBER_CLIENT,
   ],
-  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [1, MEMBER_CLIENT],
-  "src/lib/wordpress-import.functions.ts: patchJob: .from(wp_import_jobs)": [0, MIXED_CALLERS],
 };
 
 /**
- * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy albo
- * z większą liczbą faktów; `stale` - klucz z mniejszą liczbą albo bez faktu
- * z rolą nieustaloną (naprawiony - zdejmij). Oba czerwienią bramkę.
+ * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy,
+ * z większą liczbą faktów albo z INNYM kształtem niż przejrzany (nowa
+ * kolumna, filtr, osadzenie, zamiana łańcucha - wpis przegląda się na nowo);
+ * `stale` - klucz z mniejszą liczbą albo bez faktu bez widocznej roli
+ * (naprawiony - zdejmij). Oba czerwienią bramkę.
  */
 export function unknownRoleDrift(
   facts: SeamFacts,
-  reviewed: Readonly<Record<string, readonly [number, string]>> = UNKNOWN_ROLE_REVIEWED,
+  reviewed: Readonly<Record<string, UnknownRoleEntry>> = UNKNOWN_ROLE_REVIEWED,
 ): { fresh: string[]; stale: string[] } {
   const universe = unknownRoleUniverse(facts);
   const fresh: string[] = [];
   const stale: string[] = [];
-  for (const [key, count] of universe) {
+  for (const [key, { count, shape }] of universe) {
     const entry = reviewed[key];
     if (entry === undefined || count > entry[0]) {
-      fresh.push(`${key} (${count}, przejrzanych: ${entry?.[0] ?? "-"})`);
+      fresh.push(`${key} (${count}, kształt "${shape}", przejrzanych: ${entry?.[0] ?? "-"})`);
+    } else if (entry[1] !== shape) {
+      fresh.push(`${key} (kształt "${shape}", przejrzany "${entry[1]}")`);
     }
   }
   for (const [key, [allowed]] of Object.entries(reviewed)) {
-    const count = universe.get(key);
+    const count = universe.get(key)?.count;
     if (count === undefined || count < allowed) {
       stale.push(`${key} (${count ?? "brak faktu z rolą nieustaloną"}, przejrzanych: ${allowed})`);
     }
@@ -5590,7 +5856,7 @@ export interface ContractEnforcement {
 /** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
 export interface ObservedCoverage {
   readonly reach: ReadonlyMap<string, SiteReach>;
-  readonly unknownRole?: Readonly<Record<string, readonly [number, string]>>;
+  readonly unknownRole?: Readonly<Record<string, UnknownRoleEntry>>;
   readonly guestLoginOnly?: Readonly<Record<string, string>>;
 }
 
@@ -6132,6 +6398,32 @@ const GATE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THE
                           ELSE 'inny blad ' || v_state END
 `;
 
+/** Fakt miary w wierszach bramki (RPC, tabela, filtr, osadzenie, zapytanie sondy). */
+interface GateFact {
+  readonly guest: boolean;
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly site: string;
+  readonly fn: string;
+}
+
+/**
+ * Role, z którymi bramka sprawdza fakt miary: rola zmierzona, a przy
+ * `unknown` - każdy widoczny kandydat (`RoleResolution.candidates`). Pusta
+ * lista - tylko istnienie (fakt na liście UNKNOWN_ROLE_REVIEWED).
+ */
+export function checkedRoles(x: {
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly guest: boolean;
+  readonly candidates?: readonly RoleCandidate[];
+}): readonly RoleCandidate[] {
+  return x.role === "unknown"
+    ? (x.candidates ?? [])
+    : [{ role: x.role, via: x.via, guest: x.guest }];
+}
+
 interface ObservedGate {
   /** Nagłówek (komentarz SQL) z liczbami wierszy i zwolnień gościa. */
   readonly header: string;
@@ -6150,33 +6442,30 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
-  const guestOn = (x: {
-    readonly guest: boolean;
-    readonly role: MeasuredRole;
-    readonly site: string;
-    readonly fn: string;
-  }): boolean =>
-    x.guest &&
-    x.role === "authenticated" &&
+  const guestOn = (x: GateFact, c: RoleCandidate): boolean =>
+    c.guest &&
+    c.role === "authenticated" &&
     !GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
     reviewed[guestKey(x.site, x.fn)] === undefined;
-  /** Wiersz faktu i - gdy gość sprawdzany - jego wiersz `anon` (`render(fakt, gość)`). */
-  const rows = <
-    T extends {
-      readonly guest: boolean;
-      readonly role: MeasuredRole;
-      readonly site: string;
-      readonly fn: string;
-    },
-  >(
+  /**
+   * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
+   * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
+   * sprawdzany, wiersz `anon`; bez kandydatów - jeden wiersz `unknown`
+   * (gdy `own` go chce: istnienie kolumn filtra i osadzenia).
+   */
+  const rows = <T extends GateFact>(
     xs: readonly T[],
-    own: (x: T) => boolean,
-    render: (x: T, role: MeasuredRole, guest: boolean) => string,
+    own: (x: T, role: MeasuredRole) => boolean,
+    render: (x: T, role: MeasuredRole, guest: boolean, via: string) => string,
   ): string[] =>
-    xs.flatMap((x) => [
-      ...(own(x) ? [render(x, x.role, false)] : []),
-      ...(guestOn(x) ? [render(x, "anon", true)] : []),
-    ]);
+    xs.flatMap((x) => {
+      const roles = checkedRoles(x);
+      if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
+      return roles.flatMap((c) => [
+        ...(own(x, c.role) ? [render(x, c.role, false, c.via)] : []),
+        ...(guestOn(x, c) ? [render(x, "anon", true, c.via)] : []),
+      ]);
+    });
   const sorted = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
   const guestVia = (via: string, guest: boolean): string =>
     guest ? `${GUEST_VIA} <- ${via}`.slice(0, MAX_VIA) : via;
@@ -6184,14 +6473,14 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const rpcRows = sorted(
     rows(
       o.rpcs,
-      (r) => CLIENT_ROLES.has(r.role),
-      (r, role, guest) =>
+      (_r, role) => CLIENT_ROLES.has(role),
+      (r, role, guest, via) =>
         [
           sqlString(r.name),
           sqlTextArray(r.keys),
           sqlString(role),
           sqlString(r.enforcedRole),
-          sqlString(guestVia(r.via, guest)),
+          sqlString(guestVia(via, guest)),
           guest ? "true" : "false",
           sqlString(r.site),
           sqlString(r.fn),
@@ -6203,8 +6492,8 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const tableRows = sorted(
     rows(
       o.tables.filter((t) => !t.withheld),
-      (t) => CLIENT_ROLES.has(t.role) && t.role !== t.enforcedRole,
-      (t, role, guest) =>
+      (t, role) => CLIENT_ROLES.has(role) && role !== t.enforcedRole,
+      (t, role, guest, via) =>
         [
           sqlString(t.table),
           sqlString(t.op),
@@ -6212,7 +6501,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
           sqlString(t.enforcedRole),
           sqlTextArray(t.columns),
           t.star ? "true" : "false",
-          sqlString(guestVia(t.via, guest)),
+          sqlString(guestVia(via, guest)),
           guest ? "true" : "false",
           sqlString(t.file),
           sqlString(t.site),
@@ -6271,7 +6560,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const statementRows = sorted(
     rows(
       o.statements.filter((s) => !s.withheld),
-      (s) => CLIENT_ROLES.has(s.role),
+      (_s, role) => CLIENT_ROLES.has(role),
       (s, role, guest) =>
         [
           sqlString(s.table),
@@ -6293,7 +6582,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
   const guestKeys = new Map<string, string>();
   for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
-    if (!x.guest || x.role !== "authenticated") continue;
+    if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
     const key = guestKey(x.site, x.fn);
     const cls = clsOf(x.site);
     guestKeys.set(
@@ -6307,7 +6596,10 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   }
   const byClass = (label: string): number =>
     [...guestKeys.values()].filter((v) => v === label).length;
-  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length;
+  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length;
+  const candidateFacts = [...o.rpcs, ...o.tables].filter(
+    (x) => x.role === "unknown" && checkedRoles(x).length > 0,
+  ).length;
   const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
   const roles = "('anon', 'authenticated', 'service_role')";
 
@@ -6316,7 +6608,10 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
 -- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
 -- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
--- Rola nieustalona takze dla miary: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
+-- Rola nieustalona z widocznymi kandydatami (wolajacy o roznych rolach, widoczne
+-- wywolania, naglowek Authorization z warunku): ${candidateFacts} faktow RPC i tabel -
+-- uprawnienia i sondy dla KAZDEJ widocznej roli.
+-- Rola nieustalona bez kandydatow: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
 -- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract).
 -- Gosc (anon): ${guestKeys.size} par (plik wywolania, funkcja) z faktami klienta przegladarki.
 --   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.

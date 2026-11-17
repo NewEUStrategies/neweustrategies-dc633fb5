@@ -32,6 +32,7 @@ import {
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
   UNKNOWN_ROLE_REVIEWED,
+  checkedRoles,
   embeddedTable,
   extractSeamFacts,
   filterColumnPath,
@@ -3383,35 +3384,162 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
   });
 });
 
-describe("bramka z miary: role nieustalone - lista UNKNOWN_ROLE_REVIEWED tylko maleje", () => {
+describe("bramka z miary: rola nieustalona z widocznymi kandydatami - uprawnienia i sondy dla każdej roli", () => {
+  // Pomocnik z wołającymi o RÓŻNYCH rolach: każdy wołający to ścieżka
+  // wykonania, więc fakt idzie do pgTAP z każdą widoczną rolą (dawniej -
+  // samo istnienie i wpis UNKNOWN_ROLE_REVIEWED).
   const MIXED = `${ADMIN_FILE}
     ${AUTH_IMPORT}
     async function count(client) { return client.from("event_rsvps").select("id").eq("event_id", 1); }
     export const a = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => count(context.supabase));
     export async function b() { return count(supabaseAdmin); }
   `;
-  const KEY = "src/lib/seats.server.ts: count: .from(event_rsvps)";
 
-  it("parametr z wołającymi o różnych rolach - fakt bez uprawnień, klucz (plik, funkcja, relacja) musi być na liście z liczbą faktów", () => {
+  it("wołający `context.supabase` i `supabaseAdmin` - kandydaci `authenticated` i `service_role`; wiersze faktu, filtra i sondy dla obu, bez wpisu listy", () => {
     const f = observed({ "src/lib/seats.server.ts": MIXED });
     expect(f.observed.tables.map((t) => `${t.table} ${t.role}`)).toEqual(["event_rsvps unknown"]);
+    expect(f.observed.tables[0].candidates?.map((c) => `${c.role} ${c.guest}`)).toEqual([
+      "authenticated false",
+      "service_role false",
+    ]);
+    expect(f.observed.tables[0].candidates?.[0].via).toBe(
+      "parametr 1 funkcji count (2 wywołań) <- bramka: context.supabase",
+    );
+    expect(unknownRoleDrift(f, {})).toEqual({ fresh: [], stale: [] });
+    const sql = renderContractTest(f);
+    for (const role of ["authenticated", "service_role"]) {
+      expect(sql).toContain(
+        `('event_rsvps', 'select', '${role}', 'unknown', ARRAY['id']::text[], false, 'parametr 1 funkcji count (2 wywołań) <- `,
+      );
+      expect(sql).toContain(
+        `('event_rsvps', 'event_id', NULL, 'eq', 'select', '${role}', 'unknown', false,`,
+      );
+      expect(sql).toContain(
+        `('event_rsvps', 'select', '${role}', 'unknown', ARRAY['id']::text[], false, '{}'::text[], ARRAY['event_id']::text[], NULL::text[], false, 'src/lib/seats.server.ts', 'count')`,
+      );
+    }
+    // Bez wiersza `unknown` (samo istnienie) - kandydaci go zastępują.
+    expect(sql).not.toContain("('event_rsvps', 'event_id', NULL, 'eq', 'select', 'unknown'");
+    expect(sql).toContain("Rola nieustalona z widocznymi kandydatami");
+    expect(sql).toContain("uprawnienia i sondy dla KAZDEJ widocznej roli.");
+  });
+
+  it("funkcja, której nie każde odwołanie jest wywołaniem - WIDOCZNE wywołania dają kandydatów (także `import()` w `Promise.all`)", () => {
+    const f = observed({
+      "src/lib/u/tenant.server.ts": `
+        export async function readTenant(client, id) { return client.from("profiles").select("tenant_id").eq("id", id); }
+        export const registry = [readTenant];
+      `,
+      "src/lib/u/a.functions.ts": `${AUTH_IMPORT}
+        import { readTenant } from "./tenant.server";
+        export const a = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => readTenant(context.supabase, 1));
+      `,
+      "src/lib/u/b.server.ts": `
+        export async function b() {
+          const [{ supabaseAdmin }, { readTenant }] = await Promise.all([
+            import("@/integrations/supabase/client.server"),
+            import("./tenant.server"),
+          ]);
+          return readTenant(supabaseAdmin, 2);
+        }
+      `,
+    });
+    const t = f.observed.tables[0];
+    expect(t.role).toBe("unknown");
+    expect(t.via).toBe(
+      "parametr 1 funkcji readTenant: nie każde odwołanie do funkcji to widoczne wywołanie",
+    );
+    expect(t.candidates?.map((c) => c.role)).toEqual(["authenticated", "service_role"]);
+    expect(t.candidates?.[0].via).toContain("(widoczne: 2)");
+    expect(unknownRoleDrift(f, {})).toEqual({ fresh: [], stale: [] });
+    // Kolumna bez grantu dla `authenticated` dopisana do łańcucha idzie do
+    // pgTAP z tą rolą (asercja 11), nie tylko jako istnienie.
+    const mutated = observed({
+      "src/lib/u/tenant.server.ts": `
+        export async function readTenant(client, id) { return client.from("profiles").select("tenant_id, email").eq("id", id); }
+        export const registry = [readTenant];
+      `,
+      "src/lib/u/a.functions.ts": `${AUTH_IMPORT}
+        import { readTenant } from "./tenant.server";
+        export const a = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => readTenant(context.supabase, 1));
+      `,
+    });
+    expect(renderContractTest(mutated)).toContain(
+      "('profiles', 'select', 'authenticated', 'unknown', ARRAY['email', 'tenant_id']::text[], false,",
+    );
+  });
+
+  it("`createClient` z `Authorization` z warunku (`hostAnonClient(bearer)`, import w `Promise.all`) - kandydaci `anon` i `authenticated`", () => {
+    const f = observed({
+      "src/lib/e/host.server.ts": `
+        export async function hostAnonClient(bearer: string | null = null) {
+          const url = process.env.SUPABASE_URL;
+          const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+          if (!url || !key) return null;
+          const [{ createClient }, { fetchWithTenantHost }] = await Promise.all([
+            import("@supabase/supabase-js"),
+            import("@/integrations/supabase/tenant-host-fetch"),
+          ]);
+          return createClient(url, key, {
+            global: bearer === null ? { fetch: fetchWithTenantHost } : { fetch: fetchWithTenantHost, headers: { Authorization: \`Bearer \${bearer}\` } },
+          });
+        }
+        export async function legacyRegister(bearer) {
+          const legacy = await hostAnonClient(bearer);
+          return legacy.rpc("event_register", { p_payload: {} });
+        }
+      `,
+    });
+    const r = f.observed.rpcs[0];
+    expect(r.role).toBe("unknown");
+    expect(r.candidates?.map((c) => `${c.role}: ${c.via}`)).toEqual([
+      "anon: hostAnonClient() <- createClient(…, SUPABASE_PUBLISHABLE_KEY) bez nagłówka",
+      "authenticated: hostAnonClient() <- createClient(…, SUPABASE_PUBLISHABLE_KEY) z nagłówkiem Authorization",
+    ]);
+    const sql = renderContractTest(f);
+    expect(sql).toContain(
+      "('event_register', ARRAY['p_payload']::text[], 'anon', 'unknown', 'hostAnonClient() <- createClient(…, SUPABASE_PUBLISHABLE_KEY) bez nagłówka', false, 'src/lib/e/host.server.ts', 'legacyRegister')",
+    );
+    expect(sql).toContain(
+      "('event_register', ARRAY['p_payload']::text[], 'authenticated', 'unknown', 'hostAnonClient() <- createClient(…, SUPABASE_PUBLISHABLE_KEY) z nagłówkiem Authorization', false, 'src/lib/e/host.server.ts', 'legacyRegister')",
+    );
+  });
+});
+
+describe("bramka z miary: role bez kandydata - lista UNKNOWN_ROLE_REVIEWED tylko maleje, z kształtem", () => {
+  // Pomocnik w obiekcie wołanym dynamicznie (`COLLECTORS[k](...)`) - żadnego
+  // widocznego wywołania, żadnego kandydata roli.
+  const DYNAMIC = `${ADMIN_FILE}
+    const COLLECTORS = {
+      async count(client) { return client.from("event_rsvps").select("id").eq("event_id", 1); },
+    };
+    export async function run(k) { return COLLECTORS[k](supabaseAdmin); }
+  `;
+  const KEY = "src/lib/seats.server.ts: count: .from(event_rsvps)";
+  const SHAPE = "eq(event_id) select[id]";
+
+  it("fakt bez kandydata - bez uprawnień, klucz (plik, funkcja, relacja) na liście z liczbą faktów i kształtem", () => {
+    const f = observed({ "src/lib/seats.server.ts": DYNAMIC });
+    expect(f.observed.tables.map((t) => `${t.table} ${t.role} ${t.candidates}`)).toEqual([
+      "event_rsvps unknown undefined",
+    ]);
     expect(unknownRoleDrift(f, {})).toEqual({
-      fresh: [`${KEY} (1, przejrzanych: -)`],
+      fresh: [`${KEY} (1, kształt "${SHAPE}", przejrzanych: -)`],
       stale: [],
     });
-    expect(unknownRoleDrift(f, { [KEY]: [1, "powód"] })).toEqual({ fresh: [], stale: [] });
+    expect(unknownRoleDrift(f, { [KEY]: [1, SHAPE, "powód"] })).toEqual({ fresh: [], stale: [] });
     // Więcej faktów niż w przeglądzie - nowe; mniej - nieaktualne.
-    expect(unknownRoleDrift(f, { [KEY]: [2, "powód"] }).stale).toEqual([
+    expect(unknownRoleDrift(f, { [KEY]: [2, SHAPE, "powód"] }).stale).toEqual([
       `${KEY} (1, przejrzanych: 2)`,
     ]);
     const twice = observed({
-      "src/lib/seats.server.ts": MIXED.replace(
+      "src/lib/seats.server.ts": DYNAMIC.replace(
         'select("id")',
         'select("id"); await client.from("event_rsvps").delete().eq("id", 2)',
       ),
     });
-    expect(unknownRoleDrift(twice, { [KEY]: [1, "powód"] }).fresh).toEqual([
-      `${KEY} (2, przejrzanych: 1)`,
+    expect(unknownRoleDrift(twice, { [KEY]: [1, SHAPE, "powód"] }).fresh).toEqual([
+      `${KEY} (2, kształt "delete[] eq(event_id) eq(id) select[id]", przejrzanych: 1)`,
     ]);
     // Rola w pgTAP: istnienie tak (asercje 4 i 12), uprawnienia nie.
     const sql = renderContractTest(f);
@@ -3424,12 +3552,50 @@ describe("bramka z miary: role nieustalone - lista UNKNOWN_ROLE_REVIEWED tylko m
     expect(sql).toContain("-- ts_obs_stmt: brak wierszy");
   });
 
+  it("zmiana kształtu przejrzanego łańcucha przy tej samej liczbie faktów (kolumna, filtr, osadzenie, zamiana łańcucha) - wpis do ponownego przeglądu", () => {
+    const reviewed = { [KEY]: [1, SHAPE, "powód"] as const };
+    const shapeOf = (code: string): string[] =>
+      unknownRoleDrift(observed({ "src/lib/seats.server.ts": code }), reviewed).fresh;
+    // Nowa kolumna (`readUserTenantId` + `email`, recenzja S2).
+    expect(shapeOf(DYNAMIC.replace('select("id")', 'select("id, email")'))).toEqual([
+      `${KEY} (kształt "eq(event_id) select[email,id]", przejrzany "${SHAPE}")`,
+    ]);
+    // Inna kolumna filtra.
+    expect(shapeOf(DYNAMIC.replace('eq("event_id", 1)', 'eq("user_id", 1)'))).toEqual([
+      `${KEY} (kształt "eq(user_id) select[id]", przejrzany "${SHAPE}")`,
+    ]);
+    // Osadzenie i filtr osadzenia.
+    expect(
+      shapeOf(
+        DYNAMIC.replace('select("id")', 'select("id, events(title)")').replace(
+          'eq("event_id", 1)',
+          'eq("events.status", "x")',
+        ),
+      ),
+    ).toEqual([
+      `${KEY} (kształt "eq(events.status) events:events(title) select[id]", przejrzany "${SHAPE}")`,
+    ]);
+    // Zamiana łańcucha: odczyt zamiast odczytu z inną listą przy tym samym liczniku.
+    expect(
+      shapeOf(
+        DYNAMIC.replace(
+          '.select("id").eq("event_id", 1)',
+          '.update({ status: "x" }).eq("event_id", 1)',
+        ),
+      ),
+    ).toEqual([`${KEY} (kształt "eq(event_id) update[status]", przejrzany "${SHAPE}")`]);
+    expect(shapeOf(DYNAMIC)).toEqual([]);
+  });
+
   it("naprawione (klient wprost) - wpis nieaktualny czerwieni bramkę; nowy klucz bez wpisu też", () => {
     const fixed = observed({
-      "src/lib/seats.server.ts": MIXED.replace("count(context.supabase)", "count(supabaseAdmin)"),
+      "src/lib/seats.server.ts": DYNAMIC.replace(
+        'client.from("event_rsvps")',
+        'supabaseAdmin.from("event_rsvps")',
+      ),
     });
     expect(fixed.observed.tables.map((t) => t.role)).toEqual(["service_role"]);
-    expect(unknownRoleDrift(fixed, { [KEY]: [1, "powód"] })).toEqual({
+    expect(unknownRoleDrift(fixed, { [KEY]: [1, SHAPE, "powód"] })).toEqual({
       fresh: [],
       stale: [`${KEY} (brak faktu z rolą nieustaloną, przejrzanych: 1)`],
     });
@@ -3438,14 +3604,14 @@ describe("bramka z miary: role nieustalone - lista UNKNOWN_ROLE_REVIEWED tylko m
       {},
       {
         reach: new Map(),
-        unknownRole: { [KEY]: [1, "powód"] },
+        unknownRole: { [KEY]: [1, SHAPE, "powód"] },
         guestLoginOnly: {},
       },
     );
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("UNKNOWN_ROLE_REVIEWED nieaktualnych");
     const fresh = seamCoverageProblems(
-      observed({ "src/lib/seats.server.ts": MIXED }),
+      observed({ "src/lib/seats.server.ts": DYNAMIC }),
       {},
       {
         reach: new Map(),
@@ -3454,19 +3620,24 @@ describe("bramka z miary: role nieustalone - lista UNKNOWN_ROLE_REVIEWED tylko m
       },
     );
     expect(fresh).toHaveLength(1);
-    expect(fresh[0]).toContain(`${KEY} (1, przejrzanych: -)`);
+    expect(fresh[0]).toContain(`${KEY} (1, kształt "${SHAPE}", przejrzanych: -)`);
   });
 
-  it("łańcuch bez faktu tabeli (ładunek nieczytelny, same filtry) z rolą nieustaloną - klucz z liczbą 0", () => {
+  it("łańcuch bez faktu tabeli (ładunek nieczytelny, same filtry) bez kandydata - klucz z liczbą 0 i kształtem filtrów", () => {
     const f = observed({
-      "src/lib/seats.server.ts": MIXED.replace(
+      "src/lib/seats.server.ts": DYNAMIC.replace(
         'return client.from("event_rsvps").select("id").eq("event_id", 1);',
         'return client.from("event_rsvps").update(patch).eq("event_id", 1);',
       ),
     });
     expect(f.observed.tables).toEqual([]);
-    expect(unknownRoleDrift(f, {}).fresh).toEqual([`${KEY} (0, przejrzanych: -)`]);
-    expect(unknownRoleDrift(f, { [KEY]: [0, "powód"] })).toEqual({ fresh: [], stale: [] });
+    expect(unknownRoleDrift(f, {}).fresh).toEqual([
+      `${KEY} (0, kształt "eq(event_id)", przejrzanych: -)`,
+    ]);
+    expect(unknownRoleDrift(f, { [KEY]: [0, "eq(event_id)", "powód"] })).toEqual({
+      fresh: [],
+      stale: [],
+    });
   });
 });
 
@@ -3524,10 +3695,15 @@ describe("stan repozytorium - miara poza bramką", () => {
   it("bramka z miary: lista ról nieustalonych DOKŁADNIE jak fakty, lista gościa bez rozjazdu, zapadki filtrów w granicy (i schodzą razem z liczbą)", () => {
     expect(seamCoverageProblems(measured, undefined, { reach })).toEqual([]);
     expect(unknownRoleDrift(measured)).toEqual({ fresh: [], stale: [] });
-    expect(Object.values(UNKNOWN_ROLE_REVIEWED).reduce((sum, [count]) => sum + count, 0)).toBe(
-      [...measured.observed.rpcs, ...measured.observed.tables].filter((x) => x.role === "unknown")
-        .length,
+    // Lista liczy WYŁĄCZNIE fakty bez widocznej roli; fakty `unknown`
+    // z kandydatami idą do pgTAP z każdą widoczną rolą.
+    const unknownFacts = [...measured.observed.rpcs, ...measured.observed.tables].filter(
+      (x) => x.role === "unknown",
     );
+    expect(Object.values(UNKNOWN_ROLE_REVIEWED).reduce((sum, [count]) => sum + count, 0)).toBe(
+      unknownFacts.filter((x) => checkedRoles(x).length === 0).length,
+    );
+    expect(unknownFacts.filter((x) => checkedRoles(x).length > 0).length).toBeGreaterThan(0);
     expect(guestLoginOnlyDrift(measured, reach)).toEqual({ stale: [], invalid: [] });
     expect(measured.observed.unresolvedFilters.length).toBe(MAX_UNRESOLVED_FILTER_SITES);
     expect(measured.observed.filtersOutsideChains.length).toBe(MAX_FILTERS_OUTSIDE_CHAINS);

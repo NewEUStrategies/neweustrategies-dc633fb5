@@ -60,6 +60,7 @@
 import { writeFileSync } from "node:fs";
 import { guestReach } from "../src/lib/ci/guestReach";
 import {
+  checkedRoles,
   extractSeamFacts,
   renderContractTest,
   renderGuestGaps,
@@ -168,6 +169,7 @@ function main(): void {
     `${facts.publicColumns.length} stałych kolumn publicznych; miara: ${o.filters.length} kolumn filtrów, ` +
     `${o.embeds.length} osadzeń, ${o.statements.length} zapytań do sond, ` +
     `${[...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length} faktów z rolą nieustaloną ` +
+    `(bez kandydata roli: ${[...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length}) ` +
     `(${c.files} plików, ${c.parseErrors.length} z błędami składni, ${elapsed})`;
 
   const problems = seamCoverageProblems(facts, undefined, { reach });
