@@ -16,6 +16,7 @@
 // from the client bundle (see the warning in vite.config.ts).
 import { normalizeHost } from "./host";
 import { browserTenantAssertion } from "./tenantAssertion";
+import { loadRequestHostServer } from "./serverOnlyLoaders";
 
 /**
  * RAW host from an explicit Request: X-Forwarded-Host first, then Host,
@@ -42,7 +43,7 @@ export async function trustedPublicHost(request: Request): Promise<string | null
     // client bundle (Vite's import protection denies src/lib/server/** even
     // behind an `import.meta.env.SSR` dynamic import, so we hop through the
     // co-located server module instead).
-    const mod = await import("./requestHost.server");
+    const mod = await loadRequestHostServer();
     return await mod.trustedHostFromRequest(request);
   } catch {
     // Directory layer unavailable (tests, warmup) - degrade to the raw
@@ -66,7 +67,7 @@ export async function currentTenantHost(): Promise<string | null> {
   try {
     // The *.server.ts suffix keeps @tanstack/react-start/server out of the
     // client bundle (Vite's import protection denies that specifier).
-    const mod = await import("./requestHost.server");
+    const mod = await loadRequestHostServer();
     return await mod.currentServerHost();
   } catch {
     // Outside a request scope (warmup, tests) - no host, callers fall back.
@@ -94,7 +95,7 @@ export async function currentTenantAssertion(): Promise<string | null> {
   }
   if (!import.meta.env.SSR) return null;
   try {
-    const mod = await import("./requestHost.server");
+    const mod = await loadRequestHostServer();
     return await mod.currentServerAssertion();
   } catch {
     return null;

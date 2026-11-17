@@ -86,6 +86,7 @@ import {
   type L2Store,
 } from "@/lib/http/documentCacheL2.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { loadSsrTimingServer } from "@/lib/http/serverOnlyLoaders";
 import {
   buildServerTimingValue,
   type DegradationStage,
@@ -106,7 +107,7 @@ import {
 async function readDbTimingSafe(request: Request): Promise<SsrDbTiming | null> {
   if (!import.meta.env.SSR) return null;
   try {
-    const mod = await import("@/lib/http/ssrTiming.server");
+    const mod = await loadSsrTimingServer();
     return mod.readDbTiming(request);
   } catch {
     return null;
@@ -125,7 +126,7 @@ async function readDbTimingSafe(request: Request): Promise<SsrDbTiming | null> {
 async function readPhasesSafe(request: Request): Promise<SsrPhaseTiming[]> {
   if (!import.meta.env.SSR) return [];
   try {
-    const mod = await import("@/lib/http/ssrTiming.server");
+    const mod = await loadSsrTimingServer();
     return mod.readRequestPhases(request);
   } catch {
     return [];

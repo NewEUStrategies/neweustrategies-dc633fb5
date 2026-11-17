@@ -18,6 +18,8 @@
 
 - Keep `governance/release/main-ruleset.json` applicable to the Lovable direct-push channel (Lovable app bypass `always`, no approval a sole code owner cannot give, status checks pinned to GitHub Actions) and apply it only via `governance:apply-ruleset`; give every `main` commit its own uncancelled CI run and run `post-deploy` only after a green `Required release checks`, failing without credentials, so no green status claims an unchecked release.
 - Use `tsgo --noEmit` for the preview timeout.
+- Load server-only modules from client-reachable code only through `createServerOnlyFn` loaders in `src/lib/http/serverOnlyLoaders.ts`, never a raw `import()` behind an SSR guard, because the preview bundler resolves dead branches and rejects the whole client bundle.
+- Keep modules loaded by `import()` under a top-level await (locale cores) in their own client chunk group above `app-initial`, so a facade re-exporting the awaiting chunk cannot deadlock hydration.
 - Share date/time/select atoms and sizing tokens; preserve local dates and native form values to prevent date shifts and corrupt submissions.
 - Use section-specific `adminPageHead` metadata on private admin screens to avoid generic titles.
 

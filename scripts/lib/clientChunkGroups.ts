@@ -310,6 +310,16 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
     CHUNK_PRIORITY.app,
     (id) => id.endsWith("/src/components/ui/sonner.tsx") || id.includes("/node_modules/sonner/"),
   ),
+  // Rdzenie słownika (`lib/locale/pl.ts`, `lib/locale/en.ts`): `lib/i18n.ts` ładuje AKTYWNY
+  // język przez `import()` pod top-level await. Słownik nie może nigdy trafić do `app-initial` -
+  // fasada `export{…}from"./app-initial-*.js"` za `await` w tym samym chunku to cykl TLA, w którym
+  // chunk czeka na fasadę, a fasada na niego: hydratacja nie rusza (zmierzone na podglądzie, który
+  // nie liczy tagu `$initial` i brał słowniki do bootu). Własna grupa PRZED `app-initial` robi z
+  // granicy kontrakt, a nie skutek uboczny tagu. Moduły nie mają importów, więc grupa niczego
+  // nie zabiera; nazwy `pl`/`en` zostawiają pliki `pl-*.js`/`en-*.js` (hint słownika w
+  // `localeChunkPlugin`, asercja `/assets/pl-` w e2e/boot-timing.spec.ts).
+  group("pl", CHUNK_PRIORITY.app, endsWith("/src/lib/locale/pl.ts")),
+  group("en", CHUNK_PRIORITY.app, endsWith("/src/lib/locale/en.ts")),
   // Statyczne domknięcie wejścia poza grupami wyżej (kod aplikacji, moduły opcji tras, runtime
   // bootstrapu Start, drobne pakiety bez grupy) - w JEDEN chunk zamiast setek chunków wspólnych
   // (nagłówek pliku, „DOMKNIĘCIE BOOTU W JEDNYM CHUNKU"). Test łapie każdy moduł, zawęża go tag
