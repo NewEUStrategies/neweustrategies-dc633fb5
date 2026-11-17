@@ -682,7 +682,8 @@ describe("bilety ukryte spoza listy formularza (REG-05)", () => {
     });
   });
 
-  it("stary serwer bez wierszy (okno wdrożenia) oddaje rodzicowi pustą listę, nie `undefined`", async () => {
+  it("odpowiedź bez listy wierszy - rodzic dostaje pustą listę, nie `undefined`", async () => {
+    // Serwer oddaje wiersze zawsze; to test obronnego `?? []` wybieraka.
     h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"] });
     wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
 
