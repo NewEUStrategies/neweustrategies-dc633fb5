@@ -59,7 +59,7 @@ function addAuthors(
   rows: readonly AuthorProfileRow[] | null,
 ): void {
   for (const p of rows ?? []) {
-    if (p.id === null || byId.has(p.id)) continue;
+    if (p.id === null) continue;
     byId.set(p.id, {
       id: p.id,
       display_name: p.display_name ?? null,
@@ -82,13 +82,11 @@ function addAuthors(
  * anonimowy - pelna zgodnosc wymaga decyzji wlasciciela (RPC SECURITY
  * DEFINER z podpisami autorow zatwierdzonych komentarzy), nie kodu klienta.
  *
- * Zalogowany czyta `profiles` jak dotad (redakcja widzi wszystkich
- * z surowym awatarem, czlonek - siebie), a BRAKI dopelnia z
- * `profiles_public`, ktora ta sama rola juz dzis moze czytac: bez tego
- * czlonek widzialby „Anonim" przy ekspercie, ktorego gosc widzi
- * z nazwiskiem. Wiersz z `profiles` zawsze wygrywa, wiec kazdy autor
- * rozpoznany dzis wyglada identycznie; redakcja (komplet z `profiles`) nie
- * wysyla drugiego zapytania.
+ * Zalogowany czyta WYLACZNIE `profiles`, dokladnie jak dotad (redakcja
+ * widzi wszystkich z surowym awatarem, czlonek - siebie), bez drugiego
+ * zapytania o `profiles_public`. Zachowanie zalogowanego ma zostac bez
+ * zmian; czlonek nadal widzi „Anonim" przy autorze, ktorego gosc widzi
+ * z nazwiskiem z projekcji - czy to dopelniac, decyduje wlasciciel.
  *
  * Role rozstrzyga sesja klienta (`getSession`) - ta sama, z ktora pojdzie
  * zapytanie; klient i tak czyta ja przed kazdym zadaniem.
@@ -103,15 +101,13 @@ async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, Com
       .select("id, display_name, avatar_url, slug")
       .in("id", ids as string[]);
     addAuthors(byId, profiles);
+    return byId;
   }
-  const missing = ids.filter((id) => !byId.has(id));
-  if (missing.length > 0) {
-    const { data: publicProfiles } = await supabase
-      .from("profiles_public")
-      .select("id, display_name, avatar_url, slug")
-      .in("id", missing);
-    addAuthors(byId, publicProfiles);
-  }
+  const { data: publicProfiles } = await supabase
+    .from("profiles_public")
+    .select("id, display_name, avatar_url, slug")
+    .in("id", ids as string[]);
+  addAuthors(byId, publicProfiles);
   return byId;
 }
 

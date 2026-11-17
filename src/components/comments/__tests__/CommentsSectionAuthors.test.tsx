@@ -139,4 +139,25 @@ describe("CommentsSection - podpis autora", () => {
     expect(screen.queryByText("comments.anonymous")).toBeNull();
     expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(0);
   });
+
+  it("CZŁONEK widzi podpisy z `profiles` jak dotąd - bez dopełniania z `profiles_public`", async () => {
+    // Członek pisze „c-member"; RLS `profiles` oddaje mu tylko jego wiersz.
+    h.user = { id: USER_ID.stranger };
+    setCommentsSession(USER_ID.stranger);
+    commentsDb.setAuthors([
+      authorRow({ id: USER_ID.stranger, display_name: "Piotr Zieliński", slug: "piotr" }),
+    ]);
+    // Projekcja zna eksperta - dopełnienie braków dałoby link „Anna Nowak".
+    commentsDb.setPublicAuthors([
+      authorRow({ id: USER_ID.author, display_name: "Anna Nowak", slug: "anna-nowak" }),
+    ]);
+
+    section();
+
+    expect(await screen.findByRole("link", { name: "Piotr Zieliński" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Anna Nowak" })).toBeNull();
+    expect(screen.getAllByText("comments.anonymous")).toHaveLength(1);
+    expect(commentsDb.stub.chainsFor("profiles")).toHaveLength(1);
+    expect(commentsDb.stub.chainsFor("profiles_public")).toHaveLength(0);
+  });
 });
