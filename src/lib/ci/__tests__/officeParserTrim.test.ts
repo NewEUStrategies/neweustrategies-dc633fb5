@@ -10,8 +10,9 @@
 // ścieżkę otworzy. Bez niego podbicie wersji mammoth mogłoby po cichu wpiąć
 // wycięty moduł w ścieżkę podglądu, a pierwszym sygnałem byłby błąd u czytelnika.
 //
-// Bluebird, underscore, xmldom i tablica `dingbat-to-unicode` są zastąpione,
-// a nie wycięte - tu test pilnuje, że mammoth i lop nie wołają niczego, czego
+// Moduł obietnic mammoth, underscore, xmldom i tablica `dingbat-to-unicode` są
+// zastąpione, a nie wycięte - tu test pilnuje, że mammoth i lop nie wołają
+// niczego, czego
 // zastępca nie ma, i że zastępca daje te same wyniki co pakiet (xmldom:
 // natywny `DOMParser`, w teście w roli przeglądarki jsdom). Czytnik archiwów
 // zamiast jszip ma własny test: `src/lib/files/__tests__/officeZip.test.ts`.
@@ -141,7 +142,10 @@ describe("założenia o źródłach mammoth i xmldom (pilnują aktualizacji paki
       ...jsFiles(join(NM, "mammoth/lib")),
       ...jsFiles(join(NM, "mammoth/browser")),
     ]) {
-      for (const m of readFileSync(file, "utf8").matchAll(/\bpromises\.(\w+)/g)) used.add(m[1]);
+      // `fs.promises.readFile` to Node'owy moduł `fs`, nie moduł mammoth -
+      // wyrażenie odrzuca sięgnięcia po `promises` poprzedzone kropką.
+      for (const m of readFileSync(file, "utf8").matchAll(/(?<![\w.])promises\.(\w+)/g))
+        used.add(m[1]);
     }
     const exported = Object.keys(mammothPromises);
     for (const name of used) expect(exported, name).toContain(name);
@@ -151,46 +155,41 @@ describe("założenia o źródłach mammoth i xmldom (pilnują aktualizacji paki
       expect(exported, m[1]).toContain(m[1]);
   });
 
-  it("metody łańcucha bluebirda, których używa mammoth - migawka do przeglądu przy aktualizacji", () => {
-    // Nazwy z prototypu bluebirda spoza `Promise.prototype`, które występują
-    // w źródłach jako `.nazwa(`. Na obietnicach mammoth woła tylko `caught`
-    // i `tap` (oba ma `MammothPromise`); reszta to TE SAME NAZWY na czym innym:
-    // `_.any/_.some/_.filter/_.map` (underscore), `Result.map/value/error`,
-    // `Function#bind/call`, tablice, `promises.mapSeries/props` (funkcje modułu).
-    // Nowa nazwa w migawce = sprawdź, czy to nie metoda obietnicy.
-    const bluebird = (require("bluebird/js/release/promise") as () => { prototype: object })();
-    const methods = Object.getOwnPropertyNames(bluebird.prototype).filter(
-      (name) => !(name in Promise.prototype) && !name.startsWith("_"),
-    );
+  it("metody łańcucha obietnic spoza `Promise.prototype` - migawka do przeglądu przy aktualizacji", () => {
+    // Od 1.13.0 mammoth stoi na natywnych obietnicach (bluebird wypadł z jego
+    // zależności), więc JEDYNĄ metodą łańcucha spoza `Promise.prototype`, jaką
+    // woła, jest `also` z jego własnego `promises.js`. `done` (też stamtąd) woła
+    // tylko CLI `lib/main.js`, którego w bundlu przeglądarki nie ma. Lista
+    // niżej to nazwy, które w 1.12.3 były metodami bluebirda; nowa pozycja
+    // w migawce znaczy, że pakiet sięgnął po cudzą metodę obietnicy.
     const root = join(NM, "mammoth");
     const files = [...jsFiles(join(root, "lib")), ...jsFiles(join(root, "browser"))].filter(
       (file) => !file.endsWith("lib/main.js") && !file.endsWith("lib/promises.js"),
     );
-    const sources = files.map((file) => readFileSync(file, "utf8")).join("\n");
-    const used = methods.filter((name) =>
-      new RegExp(`\\.\\s*${name.replace(/\$/g, "\\$")}\\s*\\(`).test(sources),
-    );
-    expect(used.sort()).toEqual([
-      "any",
-      "bind",
-      "call",
+    const sources = files
+      .map((file) => readFileSync(file, "utf8"))
+      .join("\n")
+      // `promises.nazwa(` to funkcje modułu, nie metody łańcucha - ich komplet
+      // pilnuje osobny test wyżej.
+      .replace(/\bpromises\.\w+\s*\(/g, "(");
+    const used = [
+      "also",
+      "attempt",
+      "cancel",
       "caught",
-      "error",
-      "filter",
-      "map",
+      "done",
+      "fail",
+      "finally",
       "mapSeries",
-      "props",
-      "some",
+      "nfcall",
+      "promisify",
+      "spread",
       "tap",
-      "value",
-    ]);
-    for (const name of ["caught", "fail", "tap", "also"]) {
-      expect(
-        typeof (mammothPromises.MammothPromise.prototype as unknown as Record<string, unknown>)[
-          name
-        ],
-      ).toBe("function");
-    }
+      "timeout",
+    ].filter((name) => new RegExp(`\\.\\s*${name}\\s*\\(`).test(sources));
+    expect(used).toEqual(["also"]);
+    expect(typeof mammothPromises.PropsPromise.prototype.also).toBe("function");
+    expect(typeof mammothPromises.ExternalPromise.prototype.done).toBe("function");
   });
 
   it("body-reader pyta `dingbat-to-unicode` wyłącznie o `hex`", () => {
@@ -579,65 +578,85 @@ describe("moduły zastępcze", () => {
     expect(result).not.toBe(source);
   });
 
-  it("promises: `mapSeries` idzie po kolei i podaje (wartość, indeks, długość)", async () => {
-    const calls: string[] = [];
-    const result = await mammothPromises.mapSeries(
-      [Promise.resolve("a"), "b", "c"],
-      async (value: string, index, length) => {
-        calls.push(`start ${value} ${index}/${length}`);
-        await new Promise((ok) => setTimeout(ok, value === "a" ? 5 : 0));
-        calls.push(`end ${value}`);
-        return value.toUpperCase();
-      },
-    );
-    expect(result).toEqual(["A", "B", "C"]);
-    expect(calls).toEqual(["start a 0/3", "end a", "start b 1/3", "end b", "start c 2/3", "end c"]);
+  it("promises: `props` odrzuca razem z pierwszym polem, które się nie uda", async () => {
+    await expect(
+      mammothPromises.props({ a: 1, b: Promise.reject(new Error("boom")) }),
+    ).rejects.toThrow("boom");
   });
 
-  it("promises: `attempt` woła synchronicznie i zamienia wyjątek w odrzucenie", async () => {
+  it("promises: `also` dokłada pola i czeka na ich wartości (łańcuch z `docx-reader.js`)", async () => {
+    const merged = await mammothPromises
+      .props({ a: 1 })
+      .also((value) => ({ b: Promise.resolve((value.a as number) + 1) }))
+      .also(() => ({ c: "trzecie" }));
+    expect(merged).toEqual({ a: 1, b: 2, c: "trzecie" });
+    expect(Object.keys(merged)).toEqual(["a", "b", "c"]);
+  });
+
+  it("promises: `forEachSeries` idzie po kolei i przerywa przy pierwszym błędzie", async () => {
+    const calls: string[] = [];
+    const settled = await mammothPromises.forEachSeries(["a", "b", "c"], async (value) => {
+      calls.push(`start ${value}`);
+      await new Promise((ok) => setTimeout(ok, value === "a" ? 5 : 0));
+      calls.push(`end ${value}`);
+    });
+    expect(settled).toBeUndefined();
+    expect(calls).toEqual(["start a", "end a", "start b", "end b", "start c", "end c"]);
+
+    const seen: string[] = [];
+    await expect(
+      mammothPromises.forEachSeries(["a", "b", "c"], async (value) => {
+        seen.push(value);
+        if (value === "b") throw new Error("stop");
+      }),
+    ).rejects.toThrow("stop");
+    expect(seen).toEqual(["a", "b"]);
+  });
+
+  it("promises: `try` woła synchronicznie i zamienia wyjątek w odrzucenie", async () => {
     let called = false;
-    const ok = mammothPromises.attempt(() => {
+    const ok = mammothPromises.try(() => {
       called = true;
       return 1;
     });
     expect(called).toBe(true);
     await expect(ok).resolves.toBe(1);
-    const failed = mammothPromises.attempt(() => {
-      throw new Error("boom");
-    });
-    await expect(failed.caught((error) => (error as Error).message)).resolves.toBe("boom");
+    await expect(
+      mammothPromises.try(() => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
   });
 
-  it("promises: `tap`, `also`, `fail` i `resolve` zachowują się jak w mammoth na bluebirdzie", async () => {
-    const order: string[] = [];
-    const tapped = await mammothPromises.resolve(5).tap(async (value) => {
-      await Promise.resolve();
-      order.push(`tap ${value}`);
-      return "ignored";
-    });
-    expect(tapped).toBe(5);
-    expect(order).toEqual(["tap 5"]);
-
-    const merged = await mammothPromises
-      .props({ a: 1 })
-      .also((value) => ({ b: Promise.resolve((value.a as number) + 1) }));
-    expect(merged).toEqual({ a: 1, b: 2 });
-
-    const same = mammothPromises.resolve(1);
-    expect(mammothPromises.resolve(same)).toBe(same);
-    expect(mammothPromises.when).toBe(mammothPromises.resolve);
-    const chained = same.then((value) => value + 1);
-    expect(chained).toBeInstanceOf(mammothPromises.MammothPromise);
-
-    await expect(
-      mammothPromises.reject(new Error("x")).fail((error) => (error as Error).message),
-    ).resolves.toBe("x");
-    await expect(
-      mammothPromises.all(mammothPromises.resolve([1, Promise.resolve(2)])),
-    ).resolves.toEqual([1, 2]);
+  it("promises: `defer`, `Promise`, `resolve` i `reject` to natywny `Promise`", async () => {
+    expect(mammothPromises.Promise).toBe(Promise);
     const deferred = mammothPromises.defer<number>();
     deferred.resolve(3);
     await expect(deferred.promise).resolves.toBe(3);
+    const same = mammothPromises.resolve(1);
+    expect(mammothPromises.resolve(same)).toBe(same);
+    await expect(mammothPromises.reject(new Error("x"))).rejects.toThrow("x");
+  });
+
+  it("promises: `toExternalPromise` oddaje nową obietnicę z `done`, a błąd rzuca asynchronicznie", async () => {
+    const source = Promise.resolve(7);
+    const external = mammothPromises.toExternalPromise(source);
+    expect(external).not.toBe(source);
+    expect(external).toBeInstanceOf(Promise);
+    expect(typeof external.done).toBe("function");
+    await expect(external).resolves.toBe(7);
+    // `done()` bez uchwytów przepuszcza wartość - tak samo jak oryginał
+    // (`this.then(resolve, reject).catch(...)`).
+    await expect(external.done()).resolves.toBe(7);
+
+    vi.useFakeTimers();
+    try {
+      const failed = mammothPromises.toExternalPromise(Promise.reject(new Error("boom")));
+      await expect(failed.done()).resolves.toBeUndefined();
+      expect(() => vi.runAllTimers()).toThrow(/boom/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
