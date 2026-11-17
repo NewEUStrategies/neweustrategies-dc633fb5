@@ -5264,7 +5264,9 @@ const MEMBER_CLIENT =
 /**
  * Fakty, których rola klienta jest NIEUSTALONA także dla miary (parametr
  * pomocnika z różnymi wołającymi, klient z pamięci modułu, funkcja jako
- * wartość) - pgTAP sprawdza ich istnienie, ale nie uprawnienia. Klucz: plik
+ * wartość) - pgTAP sprawdza ich istnienie, a uprawnienia wyłącznie wtedy,
+ * gdy rolę dała reguła bramki (asercje 2 i 5; dziś tak jest tylko
+ * w `ticket.server.ts`, gdzie reguła nazwy mówi `authenticated`). Klucz: plik
  * wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`; wartość: ile
  * faktów RPC i tabel (łańcuch bez faktu - 0) i dlaczego. Lista może TYLKO
  * maleć: nowy fakt z rolą nieustaloną (albo nowy w znanym kluczu) czerwieni
