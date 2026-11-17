@@ -15,7 +15,7 @@ import {
   type LeadEmailRow,
   type ProfileAvatarRow,
 } from "../leadAvatars";
-import { decodeOrParam, filterMatches, pgLower } from "@/test/supabase/postgrestGrammar";
+import { decodeOrParam, pgLower } from "@/test/supabase/postgrestGrammar";
 import { urlEncodedLength } from "@/lib/supabase/postgrestFilterValue";
 
 const lead = (
