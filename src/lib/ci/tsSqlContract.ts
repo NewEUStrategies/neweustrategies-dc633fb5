@@ -61,7 +61,7 @@
 // MIARA W BRAMCE (`SeamFacts.observed`). Do listopada 2026 dwie luki tej
 // bramki były tylko MIERZONE (`generate:ts-sql-contract --measure`) - i to
 // miara, nie CI, złapała defekty tego miesiąca. Teraz fakty miary idą do
-// pgTAP (asercje 10-19, sekcja „Bramka z miary" niżej):
+// pgTAP (asercje 10-20, sekcja „Bramka z miary" niżej):
 //   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...)
 //     i celu upsertu - istnienie i SELECT roli. Postgres wymaga SELECT na
 //     kolumnie z WHERE/ORDER BY także w UPDATE i DELETE, więc filtr po kolumnie
@@ -201,13 +201,13 @@ export interface SeamFacts {
     readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
   /**
-   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-19 pgTAP i listy
+   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-20 pgTAP i listy
    * `check:ts-sql-contract`; bez `observe` puste.
    */
   readonly observed: ObservedFacts;
 }
 
-// ── Miara (asercje 10-19): typy ─────────────────────────────────────────────
+// ── Miara (asercje 10-20): typy ─────────────────────────────────────────────
 
 /** Rola zmierzona: jak `ClientRole`, plus `anon` z klienta z kluczem publicznym. */
 export type MeasuredRole = ClientRole | "anon";
@@ -5185,7 +5185,7 @@ export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
 // `profiles(...)` czytane klientem przeglądarki przez GOŚCIA, widoki
 // `security_invoker` i funkcje SECURITY INVOKER czytające kolumny bez grantu
 // (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
-// wykonania). Teraz te fakty idą do pgTAP (asercje 10-19, `renderContractTest`):
+// wykonania). Teraz te fakty idą do pgTAP (asercje 10-20, `renderContractTest`):
 //   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
 //     `unknown` - tam, gdzie się różni od roli bramki; fakty z rolą wciąż
 //     nieustaloną wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`,
@@ -5577,6 +5577,137 @@ export function guestLoginOnlyDrift(
  */
 export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
 
+/** Wpis przeglądu wyzwalacza SECURITY INVOKER: md5 `prosrc` z przeglądu i powód. */
+export interface InvokerTriggerReviewed {
+  readonly md5: string;
+  readonly reason: string;
+}
+
+/**
+ * Funkcje wyzwalaczy SECURITY INVOKER odpalanych zapisem klienta (`schemat.nazwa`
+ * -> md5 ciała i powód). Sondy zapisu to `EXPLAIN` - planowanie nie wykonuje
+ * wyzwalaczy, więc funkcja wyzwalacza czytająca (albo zapisująca) kolumnę bez
+ * grantu roli klienta psuje KAŻDY taki zapis 42501, a sondy tego nie widzą.
+ * Asercja 20 wymaga dla każdego wyzwalacza (wierszowego i instrukcji, BEFORE,
+ * AFTER), który odpala INSERT/UPDATE/upsert/DELETE faktu zapisu `anon` albo
+ * `authenticated` (UPDATE OF kolumny - tylko gdy ładunek je zawiera): funkcji
+ * SECURITY DEFINER albo wpisu tutaj z md5 bieżącego ciała - zmiana ciała to
+ * ponowny przegląd, a wpis bez takiego wyzwalacza jest nieaktualny.
+ *
+ * Wykonanie prawdziwego INSERT w podtransakcji (BEFORE ROW przed RLS
+ * i ograniczeniami) sprawdzone na PG16 z seedem: 127 zapisów klienta bez
+ * nowej odmowy uprawnień i bez przesunięcia sekwencji, ale odpala tylko
+ * wyzwalacze INSERT (13 z 59), a UPDATE/DELETE potrzebują istniejącego wiersza
+ * (dane ma 67 z 381 tabel) - stąd przegląd, nie sonda.
+ */
+// Przegląd listopad 2026 (10a7ea59, PG16 po wszystkich migracjach): ciało
+// każdej funkcji przeczytane; funkcje wołane z ciała - EXECUTE sprawdzony
+// `has_function_privilege` dla anon i authenticated (EXECUTE samej funkcji
+// wyzwalacza Postgres sprawdza tylko przy CREATE TRIGGER).
+const TOUCH_ONLY = "tylko `NEW.updated_at := now()` - bez odczytu relacji i bez innych funkcji";
+const NEW_OLD_ONLY = "pola NEW/OLD i `now()` - bez odczytu relacji i bez innych funkcji";
+
+export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {
+  "public._tg_touch_updated_at": { md5: "d649a110c6bbd423f02e7d4c848573a9", reason: TOUCH_ONLY },
+  "public.check_page_parent_no_cycle": {
+    md5: "eb0e2ea48f838a1974f2fecd0faf6e36",
+    reason:
+      "czyta wyłącznie `pages.parent_id` i `pages.id` (pętla po przodkach) - SELECT obu kolumn mają anon i authenticated; RLS ogranicza widoczne strony, a niewidoczny przodek kończy pętlę bez błędu",
+  },
+  "public.crm_leads_sync_phone_norm": {
+    md5: "a22fede17786433ff68e03026b4a8e9a",
+    reason:
+      "woła `crm_normalize_phone(text)` (SQL IMMUTABLE, operacje na tekście, bez relacji; EXECUTE anon i authenticated)",
+  },
+  "public.nes_messages_search_vector": {
+    md5: "e2708e4027a89a075b630833e5690175",
+    reason:
+      "`to_tsvector('public.nes_polish', ...)` na polach NEW - konfiguracja wyszukiwania nie ma uprawnień, bez odczytu relacji",
+  },
+  "public.pages_search_vector_refresh": {
+    md5: "2d9b5c9548124bca2ba4526e6c28577e",
+    reason:
+      "woła `nes_pages_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.pages_validate_takeaways": {
+    md5: "904c446040b8462df52c3558f1cb3af0",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.post_sidebar_layouts_enforce_default": {
+    md5: "cddf64708a5640370d283a699b9f224c",
+    reason:
+      "przy `NEW.is_default` UPDATE `post_sidebar_layouts.is_default` po `tenant_id`, `id`, `is_default` - authenticated ma UPDATE(is_default) i SELECT tych kolumn, a zapis klienta (SidebarBuilderPane) działa na tej samej tabeli pod tymi samymi politykami RLS",
+  },
+  "public.posts_search_vector_refresh": {
+    md5: "42be6881709f0f4ff943894498d4e4c4",
+    reason:
+      "woła `nes_posts_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
+  },
+  "public.posts_validate_takeaways": {
+    md5: "904c446040b8462df52c3558f1cb3af0",
+    reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decided_at_pin": {
+    md5: "97aedf893d97674eeab283fb4e58a225",
+    reason: "`NEW.discoverable_decided_at := OLD.discoverable_decided_at` - bez odczytu relacji",
+  },
+  "public.profiles_discoverable_decision_stamp": {
+    md5: "39f0fbd4335def0922ca7e15ab190d57",
+    reason:
+      "pola NEW, `now()` i `auth.uid()` (SQL na `current_setting`; EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.profiles_mirror_bio": {
+    md5: "b825457aae90e5e772d2efac9d6ee9c0",
+    reason: "`btrim`/`NULLIF` na polach NEW - bez odczytu relacji",
+  },
+  "public.profiles_pin_tenant": {
+    md5: "8b5c406f3fda297cf67911db8d3b824d",
+    reason:
+      "przy zmianie `tenant_id` woła `is_service_role_caller()` i `has_role(...)` (obie SECURITY DEFINER; authenticated ma EXECUTE obu). anon nie ma EXECUTE `is_service_role_caller`, ale nie ma też UPDATE na profiles - zapis profilu jako anon pada na uprawnieniu tabeli przed wyzwalaczem (asercje 17/19)",
+  },
+  "public.saved_searches_alert_defaults": {
+    md5: "99d894bfb66c2dd054f4b7d0172a2110",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.set_updated_at": { md5: "301a884953d37769916294bb60562e05", reason: TOUCH_ONLY },
+  "public.tg_crm_scoring_settings_touch": {
+    md5: "db79ec82248998564a64ee07f421b3da",
+    reason: "`now()` i `auth.uid()` (EXECUTE anon i authenticated) - bez odczytu relacji",
+  },
+  "public.tg_crm_tasks_normalize": {
+    md5: "fac8dfea8acb21625cd1ed066b8d3725",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle": {
+    md5: "f18b7e727b25bdab3e26dcb7aa2fc6d0",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_events_stamp_lifecycle_insert": {
+    md5: "8aa7542eb68118827ea75c75669a3d2c",
+    reason: NEW_OLD_ONLY,
+  },
+  "public.tg_notification_preferences_touch": {
+    md5: "5b733ab523bad442e4b10f836de9e4ba",
+    reason: TOUCH_ONLY,
+  },
+  "public.tg_payment_orders_stamp_retention": {
+    md5: "c2e88776bfa1746564b0620032a493f5",
+    reason:
+      "woła `accounting_retention_until(timestamptz)` (SQL IMMUTABLE, `make_date`/`EXTRACT` - bez relacji; EXECUTE anon i authenticated)",
+  },
+};
+
+/**
+ * Funkcje RPC, których sondy (argumenty NULL i syntetyczne) kończą się bez
+ * błędu i bez odczytu ŻADNEJ relacji (liczniki `pg_stat_get_xact_*` sesji) -
+ * nazwa -> powód. Taka sonda nie sprawdziła ciała (strażnik argumentu,
+ * wczesny RETURN), więc bez wpisu to naruszenie asercji 16/19; wpis tylko dla
+ * funkcji, która z natury nie czyta relacji. Na 10a7ea59 żadna sonda nie jest
+ * pusta - lista pusta; wpis funkcji, której sonda pusta nie jest, czerwieni
+ * asercję 16 (nieaktualny).
+ */
+export const RPC_PROBE_VACUOUS_REVIEWED: Readonly<Record<string, string>> = {};
+
 /** Wejście bramki z miary (`renderContractTest`, `renderGuestGaps`). */
 export interface ContractEnforcement {
   /**
@@ -5586,6 +5717,10 @@ export interface ContractEnforcement {
   readonly reach: ReadonlyMap<string, SiteReach>;
   readonly guestLoginOnly?: Readonly<Record<string, string>>;
   readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
+  /** Funkcje z pustą sondą RPC przejrzane; domyślnie `RPC_PROBE_VACUOUS_REVIEWED`. */
+  readonly rpcProbeVacuous?: Readonly<Record<string, string>>;
+  /** Wyzwalacze SECURITY INVOKER przejrzane; domyślnie `INVOKER_TRIGGERS_REVIEWED`. */
+  readonly invokerTriggers?: Readonly<Record<string, InvokerTriggerReviewed>>;
 }
 
 /** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
@@ -5762,7 +5897,7 @@ export function renderContractTest(
     readonly serverOnlyRpc?: Readonly<Record<string, string>>;
   } = {},
   /**
-   * Wejście asercji miary (10-19). Domyślnie bez mapy osiągalności: każdy
+   * Wejście asercji miary (10-20). Domyślnie bez mapy osiągalności: każdy
    * plik to `none`, więc wiersze gościa są sprawdzane wszędzie.
    */
   enforcement: ContractEnforcement = { reach: new Map() },
@@ -5865,7 +6000,7 @@ export function renderContractTest(
 -- Zasieg: ${facts.coverage.files} plikow, ${facts.coverage.rpcCalls} wywolan .rpc (nazwa nieczytelna:
 -- ${facts.coverage.rpcCallsWithUnknownName}), ${facts.coverage.tableChains} lancuchow .from (tabela nieczytelna: ${facts.coverage.tableChainsWithUnknownTable}).
 -- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza
--- (asercje 10-19 - z plikiem i funkcja wywolania).
+-- (asercje 10-20 - z plikiem i funkcja wywolania).
 ${gate.header}-- ============================================================================
 BEGIN;
 SELECT plan(${9 + OBSERVED_ASSERTIONS});
@@ -6120,10 +6255,10 @@ ROLLBACK;
 `;
 }
 
-// ── Render bramki z miary (asercje 10-19 i raport `--guest-gaps`) ───────────
+// ── Render bramki z miary (asercje 10-20 i raport `--guest-gaps`) ───────────
 
 /** Asercje pgTAP bramki z miary - plan pliku to 9 + tyle. */
-const OBSERVED_ASSERTIONS = 10;
+const OBSERVED_ASSERTIONS = 11;
 
 /**
  * Klasyfikacja wyniku sondy bramki: odmowa uprawnień, brak obiektu i limit
@@ -6155,6 +6290,12 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const o = facts.observed;
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
+  const triggerRows = Object.entries(enforcement.invokerTriggers ?? INVOKER_TRIGGERS_REVIEWED)
+    .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
+    .sort();
+  const vacuousReviewed = Object.keys(
+    enforcement.rpcProbeVacuous ?? RPC_PROBE_VACUOUS_REVIEWED,
+  ).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
   const guestOn = (x: {
     readonly guest: boolean;
@@ -6318,7 +6459,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const roles = "('anon', 'authenticated', 'service_role')";
 
   const header = `--
--- Asercje 10-19 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
+-- Asercje 10-20 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
 -- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
 -- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
 -- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
@@ -6335,10 +6476,14 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- 42883) i brak werdyktu (limit czasu 57014 albo blokady 55P03, sonda
 -- nieuruchomiona); inny blad (np. P0001 albo ASSERT P0004 funkcji) przechodzi.
 -- Odczyt to SELECT ... LIMIT 1 (wiersz z danych liczy kolumny widoku i funkcje
--- wiersza); RPC dwie sondy - argumenty NULL i syntetyczne (cialo za straznikiem NULL).
+-- wiersza); RPC dwie sondy - argumenty NULL i syntetyczne (cialo za straznikiem
+-- NULL); obie bez bledu i bez odczytu zadnej relacji - sonda pusta, naruszenie
+-- (przejrzane RPC_PROBE_VACUOUS_REVIEWED: ${vacuousReviewed.length === 0 ? "brak" : vacuousReviewed.join(", ")}).
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta - sondy zapisu (EXPLAIN)
+-- ich nie wykonuja: asercja 20, przejrzane INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}.
 `;
 
-  const setup = `-- ── Fakty miary (asercje 10-19) ─────────────────────────────────────────────
+  const setup = `-- ── Fakty miary (asercje 10-20) ─────────────────────────────────────────────
 CREATE TEMP TABLE ts_obs_rpc (fn text, keys text[], role text, enforced text, via text, guest boolean, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, guest boolean, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
@@ -6376,7 +6521,7 @@ ${probeSql({
   rpcExcluded: excluded,
   outcome: GATE_PROBE_OUTCOME,
 })}
--- ── Naruszenia (kind, guest, site, func, msg): asercje 10-19 i --guest-gaps ──
+-- ── Naruszenia (kind, guest, site, func, msg): asercje 10-20 i --guest-gaps ──
 -- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
 -- asercje 2 i 5) oraz wiersze goscia.
 CREATE TEMP VIEW ts_v_fact AS
@@ -6497,6 +6642,51 @@ SELECT DISTINCT m.guest, m.site, m.func,
  WHERE m.role IN ${roles}
    AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
 
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (anon/authenticated):
+-- INSERT - insert/upsert, UPDATE - update/upsert (UPDATE OF kolumny tylko gdy
+-- ladunek je zawiera), DELETE - delete. Sondy zapisu (EXPLAIN) ich nie
+-- wykonuja, wiec funkcja: SECURITY DEFINER albo wpis INVOKER_TRIGGERS_REVIEWED
+-- z md5 biezacego ciala; wpis bez takiego wyzwalacza - nieaktualny.
+CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text) ON COMMIT DROP;
+${valuesBlock("ts_trigger_reviewed", "fn, md5", triggerRows)}
+CREATE TEMP VIEW ts_v_trigger AS
+WITH t AS (
+  SELECT n.nspname || '.' || p.proname AS fn, md5(p.prosrc) AS md5, c.relname::text AS rel,
+         tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
+         ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
+                 JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols
+    FROM pg_trigger tg
+    JOIN pg_class c ON c.oid = tg.tgrelid
+    JOIN pg_proc p ON p.oid = tg.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
+     AND tg.tgenabled <> 'D' AND NOT p.prosecdef
+), fired AS (
+  SELECT t.*, s.op, s.role, s.site, s.func
+    FROM t
+    JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')
+   WHERE ((t.tgtype & 4) <> 0 AND s.op IN ('insert', 'upsert', 'upsert_ignore'))
+      OR ((t.tgtype & 16) <> 0 AND s.op IN ('update', 'upsert')
+          AND (cardinality(t.cols) = 0 OR t.cols && s.payload))
+      OR ((t.tgtype & 8) <> 0 AND s.op = 'delete')
+)
+SELECT DISTINCT format('%s: %s: %s %s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
+         f.site, f.func, f.rel, f.op, f.role, f.tgname,
+         CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
+         concat_ws('/', CASE WHEN (f.tgtype & 4) <> 0 THEN 'INSERT' END,
+                        CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
+                        CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
+         CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
+         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 ' || f.md5 || ')'
+              ELSE format('cialo zmienione od przegladu (md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
+  FROM fired f
+  LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
+ WHERE r.md5 IS DISTINCT FROM f.md5
+UNION
+SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)', r.fn)
+  FROM ts_trigger_reviewed r
+ WHERE NOT EXISTS (SELECT 1 FROM fired f WHERE f.fn = r.fn);
+
 -- Sondy wykonania: odmowa uprawnien, brak obiektu i sonda bez werdyktu
 -- (limit czasu albo blokada, sonda nieuruchomiona w zadnej partii).
 CREATE TEMP VIEW ts_v_probe AS
@@ -6504,7 +6694,26 @@ SELECT DISTINCT p.guest, p.site, p.func,
        format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
               coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg
   FROM ts_probe p
- WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona');
+ WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona')
+UNION
+-- Sonda RPC pusta: wszystkie sondy funkcji tego miejsca i roli (argumenty NULL
+-- i syntetyczne) bez bledu i bez odczytu zadnej relacji - cialo niesprawdzone.
+SELECT p.guest, p.site, p.func,
+       format('%s: %s: probe-rpc %s [%s] jako %s: sonda pusta - argumenty NULL i syntetyczne bez bledu i bez odczytu zadnej relacji (cialo funkcji niesprawdzone; RPC_PROBE_VACUOUS_REVIEWED)',
+              p.site, p.func, p.rel, p.cols, p.role)
+  FROM ts_probe p
+ WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (${sqlTextArray(vacuousReviewed)})
+ GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
+HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
+UNION
+SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn,
+       format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
+  FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
+ WHERE current_setting('track_counts')::boolean
+   AND NOT EXISTS (SELECT 1 FROM ts_probe p
+                    WHERE p.kind LIKE 'probe-rpc%' AND p.rel = r.fn
+                    GROUP BY p.site, p.func, p.role
+                   HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0);
 `;
   return { header, setup };
 }
@@ -6573,6 +6782,12 @@ SELECT is(
   ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE guest ORDER BY 1),
   ARRAY[]::text[],
   'Gosc (anon): sondy wykonania klienta przegladarki bez odmowy uprawnien i bez braku obiektu');
+
+-- 20. Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (sondy ich nie wykonuja).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_trigger ORDER BY 1),
+  ARRAY[]::text[],
+  'Wyzwalacze SECURITY INVOKER zapisow klienta: wpis INVOKER_TRIGGERS_REVIEWED z md5 biezacego ciala albo SECURITY DEFINER');
 `;
 
 /**
@@ -6617,7 +6832,7 @@ ROLLBACK;
 /**
  * Zapytania miary (`generate:ts-sql-contract --measure`): zwykły SQL, nie
  * pgTAP - narzędzie przeglądu (te same fakty sprawdza pgTAP bramki w asercjach
- * 10-19, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
+ * 10-20, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
  * Na bazie po wszystkich
  * migracjach zwraca listę naruszeń (rodzaj, plik, funkcja, relacja, kolumna,
  * rola zmierzona i rola bramki, problem, droga ustalenia roli) dla:
@@ -7208,7 +7423,8 @@ function probeSql(n: ProbeSqlNames): string {
   return `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
 CREATE TEMP TABLE ${n.probe} (
   id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
-  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text
+  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text,
+  touched bigint
 ) ON COMMIT DROP;
 
 ${PROBE_HELPERS_SQL}-- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 1 - kolumny widoku i funkcje
@@ -7320,6 +7536,10 @@ DECLARE
   v_ids int[];
   v_roles text[];
   v_sqls text[];
+  v_rpc boolean[];
+  v_rels oid[];
+  v_before bigint;
+  v_touched bigint[] := '{}';
   v_done int[] := '{}';
   v_states text[] := '{}';
   v_msgs text[] := '{}';
@@ -7353,10 +7573,20 @@ BEGIN
   -- Ta sama instrukcja tej samej roli (inne miejsce wywolania) wykonuje sie
   -- RAZ - wynik dostaja wszystkie jej wiersze (kazda sonda jest wycofywana,
   -- wiec stan bazy miedzy sondami sie nie zmienia).
-  SELECT array_agg(g.id ORDER BY g.id), array_agg(g.role ORDER BY g.id), array_agg(g.sql ORDER BY g.id)
-    INTO v_ids, v_roles, v_sqls
-    FROM (SELECT min(id) AS id, role, sql FROM ${n.probe}
+  SELECT array_agg(g.id ORDER BY g.id), array_agg(g.role ORDER BY g.id), array_agg(g.sql ORDER BY g.id),
+         array_agg(g.rpc ORDER BY g.id)
+    INTO v_ids, v_roles, v_sqls, v_rpc
+    FROM (SELECT min(id) AS id, role, sql, bool_or(kind LIKE 'probe-rpc%') AS rpc FROM ${n.probe}
            WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;
+  -- Relacje poza katalogiem: liczniki odczytow tej sesji (pg_stat_get_xact_*,
+  -- nietransakcyjne - przezywaja wycofanie sondy) mowia, czy cialo RPC
+  -- przeczytalo cokolwiek; NULL przy track_counts = off.
+  IF current_setting('track_counts')::boolean THEN
+    SELECT array_agg(c.oid ORDER BY c.oid) INTO v_rels
+      FROM pg_class c JOIN pg_namespace s ON s.oid = c.relnamespace
+     WHERE c.relkind IN ('r', 'p', 'm', 'i')
+       AND s.nspname NOT IN ('pg_catalog', 'information_schema') AND s.nspname !~ '^pg_(toast|temp)';
+  END IF;
   FOR i IN 1 .. coalesce(cardinality(v_ids), 0) LOOP
     -- Oslona: limit instrukcji trafiajacy MIEDZY sondami nie przerywa pliku -
     -- sonda zostaje bez wyniku dla nastepnej partii.
@@ -7372,6 +7602,11 @@ BEGIN
         PERFORM set_config('request.jwt.claim.role', v_roles[i], true);
         PERFORM set_config('request.headers', json_build_object('x-tenant-host', v_host)::text, true);
         PERFORM set_config('role', v_roles[i], true);
+        IF v_rpc[i] THEN
+          SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                     + pg_stat_get_xact_tuples_fetched(o))
+            INTO v_before FROM unnest(v_rels) o;
+        END IF;
         EXECUTE v_sqls[i];
         -- Wartownik: wycofuje podtransakcje (zapisy funkcji, role, roszczenia, lock_timeout).
         RAISE SQLSTATE 'PRB00';
@@ -7393,6 +7628,9 @@ ${n.outcome}      v_done := v_done || v_ids[i];
       v_msgs := v_msgs || v_msg;
       v_ctxs := v_ctxs || left(v_ctx, 400);
       v_outcomes := v_outcomes || v_outcome;
+      v_touched := v_touched || CASE WHEN v_rpc[i] THEN
+        (SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)
+                    + pg_stat_get_xact_tuples_fetched(o)) FROM unnest(v_rels) o) - v_before END;
       -- Limit tej instrukcji zuzyty - dalsze sondy w nastepnej partii.
       v_stop := v_state = '57014';
     EXCEPTION WHEN query_canceled THEN
@@ -7406,8 +7644,8 @@ ${n.outcome}      v_done := v_done || v_ids[i];
   -- Wyniki partii jednym UPDATE (podtransakcje sond bez wlasnych zapisow),
   -- na kazdy wiersz tej samej roli i instrukcji.
   BEGIN
-    UPDATE ${n.probe} p SET state = x.state, msg = x.msg, ctx = x.ctx, outcome = x.outcome
-      FROM unnest(v_done, v_states, v_msgs, v_ctxs, v_outcomes) AS x(id, state, msg, ctx, outcome)
+    UPDATE ${n.probe} p SET state = x.state, msg = x.msg, ctx = x.ctx, outcome = x.outcome, touched = x.touched
+      FROM unnest(v_done, v_states, v_msgs, v_ctxs, v_outcomes, v_touched) AS x(id, state, msg, ctx, outcome, touched)
       JOIN ${n.probe} d ON d.id = x.id
      WHERE p.role = d.role AND p.sql = d.sql AND p.state IS NULL;
   EXCEPTION WHEN query_canceled THEN

@@ -22,12 +22,14 @@ import {
   COLUMN_FLOW_MAX_DEPTH,
   GUEST_LOGIN_ONLY_REVIEWED,
   GUEST_VIA,
+  INVOKER_TRIGGERS_REVIEWED,
   MAX_FILTERS_OUTSIDE_CHAINS,
   MAX_UNRESOLVED_FILTER_SITES,
   MAX_UNRESOLVED_SITES,
   LOOSE_CLIENT,
   LOOSE_TABLE,
   PRIMARY_KEY_COLUMNS,
+  RPC_PROBE_VACUOUS_REVIEWED,
   SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
@@ -1451,9 +1453,9 @@ describe("renderContractTest", () => {
       "('join_us_link_and_backfill', ARRAY['_user_id']::text[], 'service_role', 'src/lib/admin/invitations.functions.ts')",
     );
     expect(sql).toContain("('b2b_coupon_campaigns', 'status', 'it''s', 'src/b.tsx')");
-    // 9 asercji faktów bramki + 10 asercji faktów miary (rola zmierzona,
-    // filtry, osadzenia, sondy, gość).
-    expect(sql).toContain("SELECT plan(19);");
+    // 9 asercji faktów bramki + 11 asercji faktów miary (rola zmierzona,
+    // filtry, osadzenia, sondy, gość, wyzwalacze SECURITY INVOKER).
+    expect(sql).toContain("SELECT plan(20);");
   });
 
   it("deterministyczny - kolejność plików wejścia nie zmienia wyniku", () => {
@@ -2829,7 +2831,7 @@ describe("sondy wykonania: limit czasu, ASSERT i argumenty syntetyczne", () => {
       expect(sql).toContain("WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'");
     }
     expect(gate).toContain(
-      "coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg\n  FROM ts_probe p\n WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona');",
+      "coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg\n  FROM ts_probe p\n WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona')\nUNION",
     );
     // P0004 nie ma własnej gałęzi klasyfikacji - to „inny blad”, nie naruszenie.
     expect(gate).not.toContain("'P0004'");
@@ -2858,6 +2860,90 @@ describe("sondy wykonania: limit czasu, ASSERT i argumenty syntetyczne", () => {
       expect(sql).toContain("   AND a.differs;");
       expect(sql).not.toMatch(/random|clock_timestamp\(\)::text|now\(\)::text/);
     }
+  });
+});
+
+describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisów klienta", () => {
+  const BROWSER = `import { supabase } from "@/integrations/supabase/client";`;
+  const f = observed({
+    "src/lib/x/bookmarks.ts": `${BROWSER}
+      export async function toggle(id: string) {
+        await supabase.from("user_bookmarks").insert({ entity_id: id, entity_type: "post" });
+        await supabase.from("profiles").update({ bio_pl: "x" }).eq("id", id);
+        await supabase.rpc("resolve_path", { _segments: ["a"] });
+      }
+    `,
+  });
+  const reach = new Map([["src/lib/x/bookmarks.ts", { cls: "public", entry: "/", path: [] }]]);
+
+  it("liczniki odczytów relacji sesji (`pg_stat_get_xact_*`) dla sond RPC; pusta sonda (NULL i syntetyczne bez błędu i bez odczytu) - naruszenie 16/19, chyba że wpis RPC_PROBE_VACUOUS_REVIEWED (nieaktualny - też naruszenie)", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    expect(sql).toContain("bool_or(kind LIKE 'probe-rpc%') AS rpc FROM ts_probe");
+    expect(sql).toContain("IF current_setting('track_counts')::boolean THEN");
+    expect(sql).toContain(
+      "SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)\n                     + pg_stat_get_xact_tuples_fetched(o))\n            INTO v_before FROM unnest(v_rels) o;",
+    );
+    expect(sql).toContain("touched = x.touched");
+    // Gałąź naruszenia (przed gałęzią wpisów nieaktualnych listy).
+    expect(sql).toContain(
+      "HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0\nUNION\nSELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn,",
+    );
+    expect(sql).toContain("WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL ('{}'::text[])");
+    const reviewed = renderContractTest(f, {}, { reach, rpcProbeVacuous: { pure_fn: "test" } });
+    expect(reviewed).toContain(
+      "WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (ARRAY['pure_fn']::text[])",
+    );
+    expect(reviewed).toContain("RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny");
+    expect(RPC_PROBE_VACUOUS_REVIEWED).toEqual({});
+  });
+
+  it("asercja 20: wyzwalacz SECURITY INVOKER odpalany operacją zapisu klienta (UPDATE OF - tylko z kolumną w ładunku) - wpis z md5 bieżącego ciała albo SECURITY DEFINER; wpis bez wyzwalacza - nieaktualny", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    expect(sql).toContain("CREATE TEMP VIEW ts_v_trigger AS");
+    expect(sql).toContain("tg.tgenabled <> 'D' AND NOT p.prosecdef");
+    expect(sql).toContain(
+      "JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')",
+    );
+    expect(sql).toContain(
+      "WHERE ((t.tgtype & 4) <> 0 AND s.op IN ('insert', 'upsert', 'upsert_ignore'))\n      OR ((t.tgtype & 16) <> 0 AND s.op IN ('update', 'upsert')\n          AND (cardinality(t.cols) = 0 OR t.cols && s.payload))\n      OR ((t.tgtype & 8) <> 0 AND s.op = 'delete')",
+    );
+    expect(sql).toContain("WHERE r.md5 IS DISTINCT FROM f.md5");
+    expect(sql).toContain("'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 ' || f.md5 || ')'");
+    expect(sql).toContain(
+      "wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)",
+    );
+    expect(sql).toContain("ARRAY(SELECT DISTINCT msg FROM ts_v_trigger ORDER BY 1)");
+    // Zapis klienta niesie wiersz zapytania - wejście asercji 20 (także gość).
+    expect(sql).toContain("('user_bookmarks', 'insert', 'authenticated',");
+    expect(sql).toContain("('user_bookmarks', 'insert', 'anon',");
+    // Lista z repozytorium trafia do pliku; własna lista wejścia zastępuje ją.
+    expect(sql).toContain("('public.set_updated_at', '301a884953d37769916294bb60562e05')");
+    const own = renderContractTest(
+      f,
+      {},
+      {
+        reach,
+        invokerTriggers: { "public.rev_trg": { md5: "0".repeat(32), reason: "test" } },
+      },
+    );
+    expect(own).toContain("('public.rev_trg', '00000000000000000000000000000000')");
+    expect(own).not.toContain("'public.set_updated_at'");
+  });
+
+  it("lista INVOKER_TRIGGERS_REVIEWED: klucz `schemat.funkcja`, md5 32 znaki hex, powód; posortowana i bez powtórzeń w pliku", () => {
+    const entries = Object.entries(INVOKER_TRIGGERS_REVIEWED);
+    expect(entries.length).toBe(21);
+    for (const [key, entry] of entries) {
+      expect(key).toMatch(/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/);
+      expect(entry.md5).toMatch(/^[0-9a-f]{32}$/);
+      expect(entry.reason.length).toBeGreaterThan(20);
+    }
+    const sql = renderContractTest(f, {}, { reach });
+    const rows = sql
+      .split("\n")
+      .filter((line) => /^\s*\('public\.[a-z_0-9]+', '[0-9a-f]{32}'\)/.test(line));
+    expect(rows).toHaveLength(entries.length);
+    expect([...rows].sort()).toEqual(rows);
   });
 });
 
@@ -3063,7 +3149,7 @@ describe("miara: zasoby osadzone listy `select` jako fakty relacji osadzonej", (
     expect(sql).toContain("CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END");
     // Sondy bez wyniku, każda para (rola, instrukcja) raz, w partiach.
     expect(sql).toContain(
-      "FROM (SELECT min(id) AS id, role, sql FROM obs_probe\n           WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;",
+      "FROM (SELECT min(id) AS id, role, sql, bool_or(kind LIKE 'probe-rpc%') AS rpc FROM obs_probe\n           WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;",
     );
     expect(sql).toContain("DO $run$ BEGIN PERFORM pg_temp.obs_probe_run(); END $run$;");
   });
@@ -3172,7 +3258,7 @@ describe("miara: rola bramki w wierszach sond i kolumn filtra", () => {
 
 /** Część pliku pgTAP z asercjami 1-9 (od `BEGIN;` do faktów miary) - bez nagłówka z liczbami miary. */
 function gateAssertions(sql: string): string {
-  return sql.slice(sql.indexOf("BEGIN;\n"), sql.indexOf("-- ── Fakty miary (asercje 10-19)"));
+  return sql.slice(sql.indexOf("BEGIN;\n"), sql.indexOf("-- ── Fakty miary (asercje 10-20)"));
 }
 
 describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
@@ -3189,7 +3275,7 @@ describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
   };
   const sources = Object.entries(files).map(([file, code]) => ({ file, code }));
 
-  it("bez `observe` - `observed` puste; z `observe` - te same fakty i zasięg, asercje 1-9 bajt w bajt, rola zmierzona w asercjach 10-19", () => {
+  it("bez `observe` - `observed` puste; z `observe` - te same fakty i zasięg, asercje 1-9 bajt w bajt, rola zmierzona w asercjach 10-20", () => {
     const plain = extractSeamFacts(sources, NO_CONTRACTS, []);
     const measured = extractSeamFacts(sources, NO_CONTRACTS, [], { observe: true });
     expect(plain.observed).toEqual({
@@ -3238,7 +3324,7 @@ describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
   });
 });
 
-// ── Bramka z miary (asercje 10-19) ──────────────────────────────────────────
+// ── Bramka z miary (asercje 10-20) ──────────────────────────────────────────
 //
 // Klasa defektów z listopada 2026, której bramka nie widziała (złapała ją
 // dopiero miara): kolumna sortowania, której nie ma (`views_count`), odczyt
@@ -3354,7 +3440,7 @@ describe("bramka z miary: fakty listopadowych defektów idą do pgTAP z rolą", 
     ).toContain("AND p.proname <> ALL (ARRAY['slow_fn']::text[])");
   });
 
-  it("plan(19), deterministyczny: kolejność plików wejścia nie zmienia pliku", () => {
+  it("plan(20), deterministyczny: kolejność plików wejścia nie zmienia pliku", () => {
     const backward = extractSeamFacts(
       Object.entries(NOVEMBER)
         .reverse()
@@ -3363,8 +3449,8 @@ describe("bramka z miary: fakty listopadowych defektów idą do pgTAP z rolą", 
       [],
       { observe: true },
     );
-    expect(sql).toContain("SELECT plan(19);");
-    expect((sql.match(/\nSELECT is\(/g) ?? []).length).toBe(19);
+    expect(sql).toContain("SELECT plan(20);");
+    expect((sql.match(/\nSELECT is\(/g) ?? []).length).toBe(20);
     expect(renderContractTest(backward, {}, { reach: PUBLIC_REACH, guestLoginOnly: {} })).toBe(sql);
   });
 
