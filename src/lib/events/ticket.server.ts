@@ -18,7 +18,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 import { ticketCodeFrom } from "./ticketCode";
 import type { EventSeatState, MyEventTicket, TicketEntryMode } from "./ticketTypes";
@@ -76,33 +75,13 @@ function seatState(eventId: string, row: SeatRow | null): EventSeatState {
   };
 }
 
-/** Dawna reguła (pula legacy) - WYŁĄCZNIE w oknie wdrożenia migracji. */
-async function legacySeatsFor(supabase: SupabaseClient, eventId: string): Promise<EventSeatState> {
-  const [{ data: event }, { data: counts }] = await Promise.all([
-    supabase.from("events").select("capacity").eq("id", eventId).maybeSingle(),
-    supabase.rpc("get_event_rsvp_counts", { p_event_ids: [eventId] }),
-  ]);
-  const row = (Array.isArray(counts) ? counts[0] : null) as SeatRow | null;
-  const capacity = Number(event?.capacity);
-  const going = countOf(row?.going);
-  return seatState(eventId, {
-    capacity: event?.capacity ?? null,
-    seats_left: Number.isFinite(capacity) && capacity > 0 ? capacity - going : null,
-    going,
-    waitlist: row?.waitlist,
-  });
-}
-
 async function seatsFor(supabase: SupabaseClient, eventId: string): Promise<EventSeatState> {
   const { data, error } = await supabase.rpc("event_seat_state", { p_event_id: eventId });
   if (error) {
-    // PostgREST nie zna funkcji albo Postgres jej nie ma - migracja
-    // 20261002210000 jeszcze nie weszła. Tylko w tym oknie wdrożenia liczymy
-    // dawną regułą (pula legacy), żeby kasa nie stanęła; każdy inny błąd odczytu
-    // miejsc RZUCA - bramka sprzedaży nie może czytać awarii jako „bez limitu".
-    if (isMigrationPending(error)) {
-      return legacySeatsFor(supabase, eventId);
-    }
+    // Każdy błąd odczytu miejsc RZUCA, także brak funkcji (PGRST202/42883) -
+    // bramka sprzedaży nie może czytać awarii jako „bez limitu". Dawnej reguły
+    // puli legacy już nie ma: 20261002210000 (dziennik 0131) jest na produkcji
+    // - typy regenerowane z jej bazy przez bota Lovable (68ba76e1, bb61b8b7).
     throw new Error(`seat_state_unavailable: ${error.message}`);
   }
   // Brak wiersza = wydarzenie nieopublikowane albo innego najemcy: o jego
