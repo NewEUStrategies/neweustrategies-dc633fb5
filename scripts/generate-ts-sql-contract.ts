@@ -36,7 +36,11 @@
  * wiersze każdego faktu: `authenticated` (z sesją) i `anon` (gość, SSR,
  * handler serwera - klient bez sesji idzie z kluczem publicznym). Zasoby
  * osadzone list `select` (`profiles(slug, ...)`) to osobne fakty na relacji
- * osadzonej, sprawdzane i sondowane ze złączeniem po kluczu obcym.
+ * osadzonej, sprawdzane i sondowane ze złączeniem po kluczu obcym. Kolumna
+ * `reach` naruszeń to osiągalność pliku wywołania dla gościa
+ * (`scripts/lib/guestReach.ts`): `public` - kandydat na defekt widoczny dla
+ * gościa (do przeczytania: `enabled: !!user`, render tylko z sesją),
+ * `session-gate`/`admin` - za logowaniem, `none` - bez ścieżki z trasy.
  */
 import { writeFileSync } from "node:fs";
 import {
@@ -45,12 +49,15 @@ import {
   renderObservedQueries,
   seamCoverageProblems,
 } from "../src/lib/ci/tsSqlContract";
+import { guestReach } from "./lib/guestReach";
 import { loadProductionSources } from "./lib/onConflictArbitersInputs";
 
 const OUTPUT = "supabase/tests/ts_sql_contract_test.sql";
 
 function measure(): void {
-  const facts = extractSeamFacts(loadProductionSources(), undefined, undefined, { observe: true });
+  const sources = loadProductionSources();
+  const facts = extractSeamFacts(sources, undefined, undefined, { observe: true });
+  const reach = guestReach(sources);
   const o = facts.observed;
   const all = [...o.rpcs, ...o.tables];
   const count = <T>(xs: readonly T[], key: (x: T) => string): string =>
@@ -72,13 +79,23 @@ function measure(): void {
       `  zasoby osadzone: ${o.embeds.length} (${count(o.embeds, (e) => e.role)})`,
       `  fakty klienta przeglądarki (także jako gość anon): RPC ${o.rpcs.filter((x) => x.guest).length}, tabele ${o.tables.filter((x) => x.guest).length}, filtry ${o.filters.filter((x) => x.guest).length}, osadzenia ${o.embeds.filter((x) => x.guest).length}, zapytania sond ${o.statements.filter((x) => x.guest).length}`,
       `  zapytania do sond wykonania: ${o.statements.length} (${count(o.statements, (s) => s.role)})`,
+      `  pliki z faktami gościa wg osiągalności: ${count(
+        [
+          ...new Set(
+            [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds]
+              .filter((x) => x.guest)
+              .map((x) => x.site),
+          ),
+        ],
+        (site) => reach.get(site)?.cls ?? "none",
+      )}`,
       `  miejsca filtrów nieczytelne: ${o.unresolvedFilters.length}`,
       `  wywołania filtra poza rozpoznanym budowniczym: ${o.filtersOutsideChains.length}`,
       ...o.unresolvedFilters.map((x) => `    ? ${x}`),
       ...o.filtersOutsideChains.map((x) => `    ~ ${x}`),
     ].join("\n"),
   );
-  process.stdout.write(renderObservedQueries(facts));
+  process.stdout.write(renderObservedQueries(facts, reach));
 }
 
 function main(): void {

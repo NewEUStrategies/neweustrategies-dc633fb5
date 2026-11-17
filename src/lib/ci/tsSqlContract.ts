@@ -5666,7 +5666,21 @@ export function withGuestRows<
   );
 }
 
-export function renderObservedQueries(facts: SeamFacts): string {
+/**
+ * Osiągalność pliku wywołania dla gościa (`scripts/lib/guestReach.ts`):
+ * klasa wejścia (`public`, `session-gate`, `admin`, `none`), URL wejścia
+ * i najkrótsza ścieżka importów - kolumna `reach` naruszeń miary.
+ */
+export interface SiteReach {
+  readonly cls: string;
+  readonly entry: string | null;
+  readonly path: readonly string[];
+}
+
+export function renderObservedQueries(
+  facts: SeamFacts,
+  reach: ReadonlyMap<string, SiteReach> = new Map(),
+): string {
   const o = facts.observed;
   const rpcRows = withGuestRows(o.rpcs).map((r) =>
     [
@@ -5742,6 +5756,24 @@ export function renderObservedQueries(facts: SeamFacts): string {
       sqlString(e.fn),
     ].join(", "),
   );
+  const sites = [
+    ...new Set(
+      [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements].map((x) => x.site),
+    ),
+  ].sort();
+  const reachRows = sites.flatMap((site) => {
+    const r = reach.get(site);
+    return r === undefined
+      ? []
+      : [
+          [
+            sqlString(site),
+            sqlString(r.cls),
+            r.entry === null ? "NULL" : sqlString(r.entry),
+            sqlString(r.path.join(" > ")),
+          ].join(", "),
+        ];
+  });
   const guests =
     rpcRows.length -
     o.rpcs.length +
@@ -5763,7 +5795,9 @@ export function renderObservedQueries(facts: SeamFacts): string {
 -- osadzenia: ${o.embeds.length}, zapytania do sond wykonania: ${o.statements.length};
 -- wiersze goscia (klient przegladarki takze jako anon): ${guests}.
 -- Najpierw podsumowanie sond (rodzaj | wynik | liczba), potem naruszenia
--- (kolumna caught_by: privilege-check albo execution-probe).
+-- (kolumna caught_by: privilege-check albo execution-probe; kolumna reach:
+-- osiagalnosc pliku wywolania dla goscia - klasa wejscia, URL i najkrotsza
+-- sciezka importow; '-' bez miary osiagalnosci).
 -- WYLACZNIE baza jednorazowa: sondy RPC wykonuja ciala funkcji (wycofane, ale
 -- np. sekwencje i wywolania zewnetrzne nie cofaja sie) - nigdy produkcja.
 -- ============================================================================
@@ -5775,12 +5809,14 @@ CREATE TEMP TABLE obs_table (rel text, op text, role text, enforced text, cols t
 CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_reach (site text PRIMARY KEY, cls text, entry text, path text) ON COMMIT DROP;
 
 ${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
 ${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
 ${valuesBlock("obs_filter", "rel, col, embed, method, op, role, enforced, via, file, site, func", filterRows)}
 ${valuesBlock("obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
 ${valuesBlock("obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, via, file, site, func", embedRows)}
+${valuesBlock("obs_reach", "site, cls, entry, path", reachRows)}
 ${RPC_MATCH_SQL}
 ${EMBED_SQL}
 -- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
@@ -5909,7 +5945,9 @@ SELECT p.kind, coalesce(p.outcome, 'nie uruchomiona') AS outcome, count(*) AS pr
  GROUP BY 1, 2
  ORDER BY 1, 2;
 
-SELECT kind, site, func, rel, col, role, enforced, problem, via, caught_by FROM (
+SELECT x.kind, x.site, x.func, x.rel, x.col, x.role, x.enforced, x.problem, x.via, x.caught_by,
+       coalesce(r.cls || ' ' || coalesce(r.entry, '') || ': ' || r.path, '-') AS reach
+  FROM (
   SELECT kind, site, func, rel, col, role, enforced, problem, via, 'privilege-check' AS caught_by
     FROM obs_violation
   UNION ALL
@@ -5922,7 +5960,8 @@ SELECT kind, site, func, rel, col, role, enforced, problem, via, caught_by FROM 
     FROM obs_probe p
    WHERE p.outcome = 'brak uprawnienia'
 ) x
-ORDER BY caught_by DESC, kind, site, func, rel, col, role;
+LEFT JOIN obs_reach r ON r.site = x.site
+ORDER BY x.caught_by DESC, x.kind, x.site, x.func, x.rel, x.col, x.role;
 ROLLBACK;
 `;
 }

@@ -2912,6 +2912,38 @@ describe("miara: zasoby osadzone listy `select` jako fakty relacji osadzonej", (
   });
 });
 
+describe("miara: osiągalność pliku wywołania dla gościa w wierszach naruszeń", () => {
+  it("wiersz `obs_reach` dla pliku z faktami (klasa, URL wejścia, ścieżka importów); bez miary osiągalności - kolumna `reach` to `-`", () => {
+    const f = observed({
+      "src/lib/x/public.ts": `import { supabase } from "@/integrations/supabase/client";
+        export async function read() { await supabase.from("posts").select("id"); }
+      `,
+    });
+    const reach = new Map([
+      [
+        "src/lib/x/public.ts",
+        {
+          cls: "public",
+          entry: "/podcast/$slug",
+          path: ["src/routes/podcast.$slug.tsx", "src/lib/x/public.ts"],
+        },
+      ],
+      ["src/lib/x/other.ts", { cls: "admin", entry: "/admin", path: ["src/routes/admin.tsx"] }],
+    ]);
+    const sql = renderObservedQueries(f, reach);
+    expect(sql).toContain(
+      "INSERT INTO obs_reach (site, cls, entry, path) VALUES\n  ('src/lib/x/public.ts', 'public', '/podcast/$slug', 'src/routes/podcast.$slug.tsx > src/lib/x/public.ts');",
+    );
+    // Plik bez faktów miary nie trafia do tabeli.
+    expect(sql).not.toContain("src/lib/x/other.ts");
+    expect(sql).toContain(
+      "coalesce(r.cls || ' ' || coalesce(r.entry, '') || ': ' || r.path, '-') AS reach",
+    );
+    expect(sql).toContain("LEFT JOIN obs_reach r ON r.site = x.site");
+    expect(renderObservedQueries(f)).toContain("-- obs_reach: brak wierszy");
+  });
+});
+
 describe("miara: rola bramki w wierszach sond i kolumn filtra", () => {
   it("zapytanie sondy niesie rolę bramki swoich faktów (zapis i RETURNING; sam `head: true` - rola klienta łańcucha); filtr i osadzenie - rolę bramki klienta łańcucha", () => {
     const f = observed({

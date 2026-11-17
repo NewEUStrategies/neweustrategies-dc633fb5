@@ -1457,3 +1457,84 @@ export function renderPublicRouteLoaderReport(report: PublicRouteLoaderReport): 
 
   return lines.join("\n");
 }
+
+// --- bramki tras dla miary gościa -------------------------------------------
+
+/** Trasa z drzewa i jej bramka - wejście miary osiągalności gościa (`guestReach.ts`). */
+export interface RouteTreeEntry {
+  /** Plik trasy względem korzenia repo. */
+  readonly file: string;
+  /** URL trasy złożony z segmentów rodziców. */
+  readonly fullPath: string;
+  /** Gałąź panelu `/admin` (przekierowanie bez `isStaff`). */
+  readonly admin: boolean;
+  /**
+   * Trasa (pełna ścieżka), której bramka sesji obejmuje tę trasę - ona sama
+   * albo przodek (`<AuthGate>`, nawigacja na `/login`); `null` - bez bramki.
+   */
+  readonly sessionGateFrom: string | null;
+}
+
+/**
+ * Trasy `routeTree.gen.ts` z bramką panelu i bramką sesji (dziedziczoną po
+ * drzewie) - te same kryteria co w spisie wyżej, ale BEZ kolejności wykluczeń
+ * spisu SSR: `ssr: false` nie zasłania tu bramki sesji, bo miara gościa pyta
+ * o to, kto trasę OTWIERA, a nie o SSR-owy HTML.
+ */
+export function routeTreeEntries(input: PublicRouteLoaderInput): RouteTreeEntry[] {
+  const { routeTree, sources } = input;
+  const fileByImportIdent = new Map<string, string>();
+  for (const match of routeTree.matchAll(IMPORT_RE)) {
+    const resolved = resolveInSources(`${ROUTE_DIR}${match[2]}`, sources);
+    if (resolved !== null) fileByImportIdent.set(match[1], resolved);
+  }
+  const nodes = new Map<string, RawNode>();
+  for (const match of routeTree.matchAll(DECL_RE)) {
+    nodes.set(match[1], {
+      ident: match[1],
+      importIdent: match[2],
+      path: match[4],
+      parent: match[5].replace(/WithChildren$/, ""),
+    });
+  }
+  const fullPathOf = new Map<string, string>();
+  const fullPath = (ident: string): string => {
+    const cached = fullPathOf.get(ident);
+    if (cached !== undefined) return cached;
+    const node = nodes.get(ident);
+    if (node === undefined) return "";
+    fullPathOf.set(ident, node.path);
+    const value = joinRoutePath(fullPath(node.parent), node.path);
+    fullPathOf.set(ident, value);
+    return value;
+  };
+  const gated = (ident: string): boolean => {
+    const file = fileByImportIdent.get(nodes.get(ident)?.importIdent ?? "");
+    const source = file === undefined ? undefined : sources.get(file);
+    return source !== undefined && hasSessionGate(source);
+  };
+  const out: RouteTreeEntry[] = [];
+  for (const node of nodes.values()) {
+    const file = fileByImportIdent.get(node.importIdent);
+    if (file === undefined) continue;
+    const path = fullPath(node.ident);
+    let gateFrom: string | null = null;
+    const seen = new Set<string>();
+    for (let cursor: string | undefined = node.ident; cursor !== undefined && nodes.has(cursor);) {
+      if (seen.has(cursor)) throw new Error(`Cykl w drzewie tras: ${cursor}`);
+      seen.add(cursor);
+      if (gated(cursor)) {
+        gateFrom = fullPath(cursor);
+        break;
+      }
+      cursor = nodes.get(cursor)?.parent;
+    }
+    out.push({
+      file,
+      fullPath: path,
+      admin: path === ADMIN_PATH_PREFIX || path.startsWith(`${ADMIN_PATH_PREFIX}/`),
+      sessionGateFrom: gateFrom,
+    });
+  }
+  return out.sort((a, b) => a.file.localeCompare(b.file));
+}
