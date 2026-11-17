@@ -18,7 +18,7 @@
 // Atrapami są tylko odczyty TREŚCI wątku (karta klubu, wątek, odpowiedzi,
 // reakcje), bo ich zachowanie ma własny plik i nie jest tu przedmiotem dowodu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
@@ -141,9 +141,29 @@ async function mount() {
   });
 }
 
-/** Kilka obrotów pętli zdarzeń - leniwy panel i zapytania mają czas wystartować. */
-async function settle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 30));
+/**
+ * Budżet, w którym zalogowany MUSI zobaczyć zapytanie panelu ekspertów - i ten
+ * sam, przez który gość musi go NIE zobaczyć, liczony od tego samego punktu
+ * (karta wątku na ekranie, moduł panelu w cache'u importów). Czas jest nośny:
+ * panel to `lazy()` za `Suspense`, a React 19 odsłania treść granicy
+ * z dławieniem (~300 ms), więc dawne 30 ms kończyło się, zanim nieobramkowany
+ * panel zdążył się zamontować i zapytać - asercja „nie wywołano” była pusta.
+ * Przypadek zalogowany dowodzi, że budżet wystarcza.
+ */
+const LAZY_PANEL_BUDGET_MS = 1500;
+
+/** Wspólny punkt startu budżetu: moduł leniwego panelu jest już załadowany. */
+async function preloadExpertsPanel(): Promise<void> {
+  await act(async () => {
+    await import("@/components/clubs/organisms/ClubThreadExpertsPanel");
+  });
+}
+
+/** Gość: przez CAŁY budżet wywołanie nie może się pojawić. */
+async function expectNotCalledWithinBudget(fn: (...args: never[]) => unknown): Promise<void> {
+  await expect(
+    waitFor(() => expect(fn).toHaveBeenCalled(), { timeout: LAZY_PANEL_BUDGET_MS }),
+  ).rejects.toThrow();
 }
 
 beforeEach(() => {
@@ -166,10 +186,10 @@ describe("strona wątku - gość nie woła RPC bez EXECUTE dla `anon`", () => {
     h.user = null;
     await mount();
     expect(await screen.findByTestId("club-thread-lead")).toBeTruthy();
-    // Leniwy moduł panelu ekspertów jest w cache'u importów - gdyby trasa go
-    // montowała, jego zapytanie wystartowałoby w tym oknie.
-    await import("@/components/clubs/organisms/ClubThreadExpertsPanel");
-    await settle();
+    // Gdyby trasa montowała panel, jego zapytanie przyszłoby w budżecie - tym
+    // samym, w którym zalogowany je widzi.
+    await preloadExpertsPanel();
+    await expectNotCalledWithinBudget(networkApiMock.fetchClubThreadExperts);
 
     expect(screen.queryByRole("button", { name: "club.subscription.follow" })).toBeNull();
     expect(clubApiMock.fetchMyThreadSubscription).not.toHaveBeenCalled();
@@ -182,11 +202,14 @@ describe("strona wątku - gość nie woła RPC bez EXECUTE dla `anon`", () => {
     await mount();
     expect(await screen.findByTestId("club-thread-lead")).toBeTruthy();
 
-    await waitFor(() =>
-      expect(clubApiMock.fetchMyThreadSubscription).toHaveBeenCalledWith(CLUB_IDS.thread),
+    // Ten sam punkt startu i ten sam budżet co u gościa.
+    await preloadExpertsPanel();
+    await waitFor(
+      () => expect(networkApiMock.fetchClubThreadExperts).toHaveBeenCalledWith(CLUB_IDS.thread, 6),
+      { timeout: LAZY_PANEL_BUDGET_MS },
     );
     await waitFor(() =>
-      expect(networkApiMock.fetchClubThreadExperts).toHaveBeenCalledWith(CLUB_IDS.thread, 6),
+      expect(clubApiMock.fetchMyThreadSubscription).toHaveBeenCalledWith(CLUB_IDS.thread),
     );
 
     // Dzwonek jest WYGASZONY, dopóki stan subskrypcji nie dojdzie - potem czynny.
