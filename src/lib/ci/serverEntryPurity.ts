@@ -759,7 +759,7 @@ export const LAZY_ONLY_PACKAGES: readonly LazyOnlyPackage[] = [
       "paczkę współdzieloną z SDK (dotąd `zod` i `unenv`) dopisz do " +
       "`SERVER_BASELINE_VENDOR_GROUPS` w `scripts/lib/serverVendorChunks.ts`, żeby Rolldown " +
       "nie dokładał jej do chunku SDK; samo SDK importuj wyłącznie przez `import()` w handlerze " +
-      "(`routes/mcp.ts`, `routes/[.mcp]/*`)",
+      "(`lib/mcp/routeHandlers.ts`, wołany z `routes/mcp.ts` i trasy metadanych OAuth)",
   },
 ];
 

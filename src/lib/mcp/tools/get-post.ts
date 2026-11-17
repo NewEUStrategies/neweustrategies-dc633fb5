@@ -1,63 +1,64 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { mcpSupabase } from "@/lib/mcp/supabaseClient";
+
+import {
+  langInput,
+  pickLocalized,
+  postSummaryOutput,
+  publishedPosts,
+  queryFailed,
+  resolveTenantId,
+  toPostSummaryJson,
+} from "@/lib/mcp/posts";
+import { supabaseForCaller } from "@/lib/mcp/supabase";
+
+/** Górna granica sluga - dłuższy nie istnieje w bazie, a limit chroni zapytanie. */
+const SLUG_MAX_LENGTH = 200;
 
 export default defineTool({
   name: "get_post",
   title: "Get post by slug",
-  description: "Fetch a single published post by its slug, including body content.",
+  description:
+    "Fetch one published New European Strategies article by its slug, including the full body when the signed-in account has access to it.",
   inputSchema: {
-    slug: z.string().trim().min(1).describe("Post slug."),
-    lang: z.enum(["pl", "en"]).default("pl").describe("Language variant."),
+    slug: z.string().trim().min(1).max(SLUG_MAX_LENGTH).describe("Post slug."),
+    lang: langInput,
+  },
+  outputSchema: {
+    post: postSummaryOutput
+      .extend({
+        body: z.string().nullable(),
+        body_available: z.boolean(),
+      })
+      .nullable(),
   },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-  handler: async ({ slug, lang }) => {
-    const sb = await mcpSupabase();
-    if (!sb) {
-      return { content: [{ type: "text", text: "Backend not configured" }], isError: true };
-    }
-    const t = lang === "en" ? "en" : "pl";
-    // Metadata columns only - the posts body columns are revoked from anon.
-    const { data: meta, error } = await sb
-      .from("posts")
-      .select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)
-      .eq("slug", slug)
-      .not("published_at", "is", null)
-      .lte("published_at", new Date().toISOString())
-      .maybeSingle();
-    if (error) {
-      return { content: [{ type: "text", text: error.message }], isError: true };
-    }
-    if (!meta) {
-      return { content: [{ type: "text", text: `No published post with slug "${slug}"` }] };
+  handler: async ({ slug, lang }, ctx) => {
+    const sb = await supabaseForCaller(ctx);
+    const tenantId = await resolveTenantId(sb);
+    const { data: row, error } = await publishedPosts(sb, tenantId).eq("slug", slug).maybeSingle();
+    if (error) throw queryFailed("get_post", error);
+    // „Nie ma takiego wpisu" to poprawna odpowiedź, nie awaria - bez `isError`,
+    // żeby model nie ponawiał wywołania.
+    if (!row) {
+      return {
+        content: [{ type: "text", text: `No published post with slug "${slug}".` }],
+        structuredContent: { post: null },
+      };
     }
 
-    // Body is served only through the gated SECURITY DEFINER RPC (re-checks
-    // tenant + published + access); it returns a null body for premium/gated
-    // posts, which is the correct result for an anonymous MCP caller.
-    const row = meta as Record<string, unknown>;
-    const { data: bodyRows } = await sb.rpc("get_entity_content", {
+    // Ciało wyłącznie przez bramkowane RPC (SECURITY DEFINER): przelicza
+    // najemcę, publikację i dostęp WOŁAJĄCEGO. Pusty wynik = brak dostępu
+    // (wpis płatny) - metadane zostają, ciało nie.
+    const { data: bodyRows, error: bodyError } = await sb.rpc("get_entity_content", {
       _entity_type: "post",
-      _entity_id: row.id as string,
+      _entity_id: row.id,
     });
-    const body = Array.isArray(bodyRows)
-      ? (bodyRows[0] as { content_pl: string | null; content_en: string | null } | undefined)
-      : null;
-    const content = body
-      ? t === "en"
-        ? (body.content_en ?? body.content_pl ?? null)
-        : (body.content_pl ?? body.content_en ?? null)
-      : null;
+    if (bodyError) throw queryFailed("get_post body", bodyError);
+    const bodyRow = bodyRows?.[0];
+    const body = bodyRow ? pickLocalized(bodyRow.content_pl, bodyRow.content_en, lang) : null;
 
-    const post = {
-      slug: row.slug,
-      title: row[`title_${t}`],
-      excerpt: row[`excerpt_${t}`],
-      cover_image_url: row.cover_image_url,
-      published_at: row.published_at,
-      post_format: row.post_format,
-      body: content,
-    };
+    const post = { ...toPostSummaryJson(row, lang), body, body_available: body !== null };
     return {
       content: [{ type: "text", text: JSON.stringify(post, null, 2) }],
       structuredContent: { post },

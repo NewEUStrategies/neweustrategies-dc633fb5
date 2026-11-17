@@ -1,22 +1,13 @@
-// Request-time boundary: the optional MCP SDK must not initialize with the
-// global SSR route graph and take unrelated document/asset requests down.
-
+// Punkt końcowy protokołu MCP (streamable HTTP). Logika i granica ładowania
+// SDK: `src/lib/mcp/routeHandlers.ts`.
 import { createFileRoute } from "@tanstack/react-router";
+
+import { handleMcpRequest } from "@/lib/mcp/routeHandlers";
 
 export const Route = createFileRoute("/mcp")({
   server: {
     handlers: {
-      ANY: async (context) => {
-        const [{ createTanStackMcpHandler }, { default: mcp }] = await Promise.all([
-          import("@lovable.dev/mcp-js/stacks/tanstack"),
-          import("../lib/mcp/index"),
-        ]);
-        return createTanStackMcpHandler(mcp, {
-          resourcePath: "/mcp",
-          metadataPath: "/.well-known/oauth-protected-resource",
-          trustForwardedHost: true,
-        })(context);
-      },
+      ANY: ({ request }) => handleMcpRequest({ request }),
     },
   },
 });

@@ -2281,8 +2281,6 @@ const LOCAL_CONST =
   "stała `const` WEWNĄTRZ funkcji z literałem kolumn - generator czyta stałe modułu i importów, nie funkcji";
 const ENTITY_COLS_PROPERTY =
   "właściwość stałej obiektowej `ENTITY_SELECT_COLS` (wprost, przez stałą lokalną albo w szablonie `POST_RESOLVE_SELECT`) - generator czyta tylko stałe napisowe";
-const LANG_SUFFIX =
-  "kolumny zależne od języka czasu działania (`title_${t}`, `titleCol` z warunku) - dwa warianty, generator nie rozgałęzia";
 const TERNARY = 'warunek `a ? "…" : "…"` z dwoma literałami - generator nie rozgałęzia';
 
 const LOOSE_VIEW =
@@ -2341,12 +2339,6 @@ export const UNCHECKED_SELECTS_REVIEWED: Readonly<
     LOCAL_CONST,
   ],
   "src/lib/experts/queries.ts: fetchMaterials: .from(posts).select(POST_COLS)": [2, LOCAL_CONST],
-  "src/lib/mcp/tools/get-post.ts: handler: .from(posts).select(`id, slug, title_${t}, excerpt_${t}, cover_image_url, published_at, post_format`)":
-    [1, LANG_SUFFIX],
-  "src/lib/mcp/tools/list-recent-posts.ts: handler: .from(posts).select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)":
-    [1, LANG_SUFFIX],
-  "src/lib/mcp/tools/search-posts.ts: handler: .from(posts).select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)":
-    [1, LANG_SUFFIX],
   'src/lib/newsletter-campaigns.functions.ts: countCampaignAudience: .from(newsletter_subscribers).select(data.segment ? "email, meta" : "email")':
     [1, TERNARY],
   'src/lib/newsletter-campaigns.functions.ts: runCampaignSend: .from(newsletter_subscribers).select(filter.segment ? "id, email, first_name, last_name, language, unsubscribe_token, meta" : "id, email, first_name, last_name, language, unsubscribe_token")':

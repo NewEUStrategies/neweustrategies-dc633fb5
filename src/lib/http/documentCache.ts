@@ -112,6 +112,8 @@ export const PUBLIC_DOCUMENT_DENY_PREFIXES = [
   "/preview",
   "/mcp",
   "/.well-known",
+  // Strona zgody OAuth (`/.lovable/oauth/consent`) - decyzja per użytkownik.
+  "/.lovable",
   "/_",
   // Powierzchnie z POŚWIADCZENIEM w ścieżce (S26): link przekazania biletu
   // (`/tickets/transfer/<token>`) i weryfikacja certyfikatu

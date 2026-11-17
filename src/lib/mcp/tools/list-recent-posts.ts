@@ -1,35 +1,38 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { mcpSupabase } from "@/lib/mcp/supabaseClient";
+
+import {
+  langInput,
+  limitInput,
+  postSummaryOutput,
+  publishedPosts,
+  queryFailed,
+  resolveTenantId,
+  toPostSummaryJson,
+} from "@/lib/mcp/posts";
+import { supabaseForCaller } from "@/lib/mcp/supabase";
 
 export default defineTool({
   name: "list_recent_posts",
   title: "List recent posts",
-  description: "List the most recently published posts.",
+  description: "List the most recently published New European Strategies articles, newest first.",
   inputSchema: {
-    lang: z.enum(["pl", "en"]).default("pl").describe("Language variant."),
-    limit: z.number().int().min(1).max(50).default(10).describe("Maximum posts to return."),
+    lang: langInput,
+    limit: limitInput,
   },
+  outputSchema: { results: z.array(postSummaryOutput) },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-  handler: async ({ lang, limit }) => {
-    const sb = await mcpSupabase();
-    if (!sb) {
-      return { content: [{ type: "text", text: "Backend not configured" }], isError: true };
-    }
-    const t = lang === "en" ? "en" : "pl";
-    const { data, error } = await sb
-      .from("posts")
-      .select(`slug, title_${t}, excerpt_${t}, cover_image_url, published_at`)
-      .not("published_at", "is", null)
-      .lte("published_at", new Date().toISOString())
+  handler: async ({ lang, limit }, ctx) => {
+    const sb = await supabaseForCaller(ctx);
+    const tenantId = await resolveTenantId(sb);
+    const { data, error } = await publishedPosts(sb, tenantId)
       .order("published_at", { ascending: false })
       .limit(limit);
-    if (error) {
-      return { content: [{ type: "text", text: error.message }], isError: true };
-    }
+    if (error) throw queryFailed("list_recent_posts", error);
+    const results = (data ?? []).map((row) => toPostSummaryJson(row, lang));
     return {
-      content: [{ type: "text", text: JSON.stringify(data ?? [], null, 2) }],
-      structuredContent: { results: data ?? [] },
+      content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+      structuredContent: { results },
     };
   },
 });

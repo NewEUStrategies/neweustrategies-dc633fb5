@@ -66,7 +66,6 @@ import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ZarzadzaniePolitykaPrywatnosciRouteImport } from './routes/zarzadzanie-polityka-prywatnosci'
 import { Route as ZatrudniamyRouteImport } from './routes/zatrudniamy'
 import { Route as ZwrotyIReklamacjeRouteImport } from './routes/zwroty-i-reklamacje'
-import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport } from './routes/[.well-known]/gpc[.]json'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -218,7 +217,7 @@ import { Route as TrackerExplorerRouteImport } from './routes/tracker.explorer'
 import { Route as TrackerRssDotxmlRouteImport } from './routes/tracker.rss[.]xml'
 import { Route as WebStoriesIndexRouteImport } from './routes/web-stories.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AdminAnalyticsIndexRouteImport } from './routes/admin.analytics.index'
 import { Route as AdminAnalyticsBiRouteImport } from './routes/admin.analytics.bi'
 import { Route as AdminAppearanceCategoryArchiveRouteImport } from './routes/admin.appearance.category-archive'
@@ -730,12 +729,6 @@ const ZwrotyIReklamacjeRoute = ZwrotyIReklamacjeRouteImport.update({
   path: '/zwroty-i-reklamacje',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute =
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRouteImport.update({
     id: '/.well-known/gpc.json',
@@ -1493,12 +1486,11 @@ const WebStoriesSlugRoute = WebStoriesSlugRouteImport.update({
   path: '/web-stories/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAnalyticsIndexRoute = AdminAnalyticsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -2750,7 +2742,6 @@ export interface FileRoutesByFullPath {
   '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -2902,7 +2893,7 @@ export interface FileRoutesByFullPath {
   '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
@@ -3177,7 +3168,6 @@ export interface FileRoutesByTo {
   '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -3316,7 +3306,7 @@ export interface FileRoutesByTo {
   '/programs': typeof ProgramsIndexRoute
   '/tracker': typeof TrackerIndexRoute
   '/web-stories': typeof WebStoriesIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
@@ -3595,7 +3585,6 @@ export interface FileRoutesById {
   '/zarzadzanie-polityka-prywatnosci': typeof ZarzadzaniePolitykaPrywatnosciRoute
   '/zatrudniamy': typeof ZatrudniamyRoute
   '/zwroty-i-reklamacje': typeof ZwrotyIReklamacjeRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/gpc.json': typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -3747,7 +3736,7 @@ export interface FileRoutesById {
   '/programs/': typeof ProgramsIndexRoute
   '/tracker/': typeof TrackerIndexRoute
   '/web-stories/': typeof WebStoriesIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/analytics/bi': typeof AdminAnalyticsBiRoute
   '/admin/appearance/category-archive': typeof AdminAppearanceCategoryArchiveRoute
   '/admin/appearance/font-sizes': typeof AdminAppearanceFontSizesRoute
@@ -4029,7 +4018,6 @@ export interface FileRouteTypes {
     | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
-    | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -4181,7 +4169,7 @@ export interface FileRouteTypes {
     | '/programs/'
     | '/tracker/'
     | '/web-stories/'
-    | '/.mcp/invoke-tool/$tool'
+    | '/.lovable/oauth/consent'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/font-sizes'
@@ -4456,7 +4444,6 @@ export interface FileRouteTypes {
     | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
-    | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -4595,7 +4582,7 @@ export interface FileRouteTypes {
     | '/programs'
     | '/tracker'
     | '/web-stories'
-    | '/.mcp/invoke-tool/$tool'
+    | '/.lovable/oauth/consent'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/font-sizes'
@@ -4873,7 +4860,6 @@ export interface FileRouteTypes {
     | '/zarzadzanie-polityka-prywatnosci'
     | '/zatrudniamy'
     | '/zwroty-i-reklamacje'
-    | '/.mcp/list-tools'
     | '/.well-known/gpc.json'
     | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
@@ -5025,7 +5011,7 @@ export interface FileRouteTypes {
     | '/programs/'
     | '/tracker/'
     | '/web-stories/'
-    | '/.mcp/invoke-tool/$tool'
+    | '/.lovable/oauth/consent'
     | '/admin/analytics/bi'
     | '/admin/appearance/category-archive'
     | '/admin/appearance/font-sizes'
@@ -5306,7 +5292,6 @@ export interface RootRouteChildren {
   ZarzadzaniePolitykaPrywatnosciRoute: typeof ZarzadzaniePolitykaPrywatnosciRoute
   ZatrudniamyRoute: typeof ZatrudniamyRoute
   ZwrotyIReklamacjeRoute: typeof ZwrotyIReklamacjeRoute
-  Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiSttRoute: typeof ApiSttRoute
@@ -5349,7 +5334,7 @@ export interface RootRouteChildren {
   ProgramsIndexRoute: typeof ProgramsIndexRoute
   TrackerIndexRoute: typeof TrackerIndexRoute
   WebStoriesIndexRoute: typeof WebStoriesIndexRoute
-  Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicAdEventRoute: typeof ApiPublicAdEventRoute
   ApiPublicBillingCronRoute: typeof ApiPublicBillingCronRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
@@ -5791,13 +5776,6 @@ declare module '@tanstack/react-router' {
       path: '/zwroty-i-reklamacje'
       fullPath: '/zwroty-i-reklamacje'
       preLoaderRoute: typeof ZwrotyIReklamacjeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.mcp/list-tools': {
-      id: '/.mcp/list-tools'
-      path: '/.mcp/list-tools'
-      fullPath: '/.mcp/list-tools'
-      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/gpc.json': {
@@ -6857,11 +6835,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebStoriesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.mcp/invoke-tool/$tool': {
-      id: '/.mcp/invoke-tool/$tool'
-      path: '/.mcp/invoke-tool/$tool'
-      fullPath: '/.mcp/invoke-tool/$tool'
-      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/analytics/': {
@@ -9368,7 +9346,6 @@ const rootRouteChildren: RootRouteChildren = {
   ZarzadzaniePolitykaPrywatnosciRoute: ZarzadzaniePolitykaPrywatnosciRoute,
   ZatrudniamyRoute: ZatrudniamyRoute,
   ZwrotyIReklamacjeRoute: ZwrotyIReklamacjeRoute,
-  Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute:
     Char91DotwellKnownChar93GpcChar91DotChar93jsonRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
@@ -9413,7 +9390,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProgramsIndexRoute: ProgramsIndexRoute,
   TrackerIndexRoute: TrackerIndexRoute,
   WebStoriesIndexRoute: WebStoriesIndexRoute,
-  Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicAdEventRoute: ApiPublicAdEventRoute,
   ApiPublicBillingCronRoute: ApiPublicBillingCronRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,

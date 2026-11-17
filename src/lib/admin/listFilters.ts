@@ -2,7 +2,7 @@
 // client-side filtering of a full fetch to server-side PostgREST filtering +
 // pagination. `escapeLike` strips LIKE wildcards and PostgREST .or()
 // metacharacters so a user's search phrase can never inject extra filter
-// conditions (same guard as src/lib/mcp/tools/search-posts.ts and
+// conditions (same guard as src/lib/mcp/posts.ts and
 // src/lib/crm.functions.ts). `*` też wylatuje: PostgREST przyjmuje go
 // w `like`/`ilike` jako alias `%` (żeby wzorzec nie wymagał kodowania w URL),
 // więc fraza „a*b" działała jak wildcard mimo usunięcia `%`.

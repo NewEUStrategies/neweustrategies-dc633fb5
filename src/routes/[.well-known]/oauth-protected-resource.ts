@@ -1,22 +1,13 @@
-// Request-time MCP boundary - see /mcp.
-
+// Metadane chronionego zasobu OAuth (RFC 9728) dla /mcp. Logika i granica
+// ładowania SDK: `src/lib/mcp/routeHandlers.ts`.
 import { createFileRoute } from "@tanstack/react-router";
+
+import { handleProtectedResourceMetadataRequest } from "@/lib/mcp/routeHandlers";
 
 export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
   server: {
     handlers: {
-      ANY: async (context) => {
-        const [{ createTanStackOAuthProtectedResourceMetadataHandler }, { default: mcp }] =
-          await Promise.all([
-            import("@lovable.dev/mcp-js/stacks/tanstack"),
-            import("../../lib/mcp/index"),
-          ]);
-        return createTanStackOAuthProtectedResourceMetadataHandler(mcp, {
-          resourcePath: "/mcp",
-          metadataPath: "/.well-known/oauth-protected-resource",
-          trustForwardedHost: true,
-        })(context);
-      },
+      ANY: ({ request }) => handleProtectedResourceMetadataRequest({ request }),
     },
   },
 });

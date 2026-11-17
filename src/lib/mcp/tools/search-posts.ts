@@ -1,50 +1,56 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { mcpSupabase } from "@/lib/mcp/supabaseClient";
+
+import {
+  MCP_MAX_QUERY_LENGTH,
+  langInput,
+  limitInput,
+  postSummaryOutput,
+  publishedPosts,
+  queryFailed,
+  resolveTenantId,
+  toIlikePattern,
+  toPostSummaryJson,
+} from "@/lib/mcp/posts";
+import { supabaseForCaller } from "@/lib/mcp/supabase";
 
 export default defineTool({
   name: "search_posts",
   title: "Search posts",
   description:
-    "Search published posts by keyword across titles and excerpts. Returns slug, title, excerpt, publish date and cover image.",
+    "Search published New European Strategies articles by keyword in titles and excerpts of the chosen language. Returns slug, title, excerpt, publish date, format and cover image.",
   inputSchema: {
-    query: z.string().trim().min(1).describe("Search phrase."),
-    lang: z.enum(["pl", "en"]).default("pl").describe("Language variant to search."),
-    limit: z.number().int().min(1).max(50).default(10).describe("Maximum posts to return."),
+    query: z.string().trim().min(1).max(MCP_MAX_QUERY_LENGTH).describe("Search phrase."),
+    lang: langInput,
+    limit: limitInput,
   },
+  outputSchema: { results: z.array(postSummaryOutput) },
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-  handler: async ({ query, lang, limit }) => {
-    const sb = await mcpSupabase();
-    if (!sb) {
-      return { content: [{ type: "text", text: "Backend not configured" }], isError: true };
+  handler: async ({ query, lang, limit }, ctx) => {
+    const pattern = toIlikePattern(query);
+    // Fraza z samych metaznaków nie jest wyszukiwaniem - pusty wynik zamiast
+    // `%%`, które dopasowałoby każdy wpis.
+    if (!pattern) {
+      return {
+        content: [{ type: "text", text: "[]" }],
+        structuredContent: { results: [] },
+      };
     }
-    const titleCol = lang === "en" ? "title_en" : "title_pl";
-    const excerptCol = lang === "en" ? "excerpt_en" : "excerpt_pl";
-    // Strip LIKE wildcards and PostgREST .or() metacharacters (comma separates
-    // filters, parens group, quotes escape) so the phrase can't inject extra
-    // filter conditions into the .or() below.
-    const like = `%${query.replace(/[%_,()"\\]/g, "")}%`;
-    const { data, error } = await sb
-      .from("posts")
-      .select(`id, slug, ${titleCol}, ${excerptCol}, cover_image_url, published_at`)
-      .not("published_at", "is", null)
-      .lte("published_at", new Date().toISOString())
-      .or(`${titleCol}.ilike.${like},${excerptCol}.ilike.${like}`)
+    const sb = await supabaseForCaller(ctx);
+    const tenantId = await resolveTenantId(sb);
+    const filter =
+      lang === "en"
+        ? `title_en.ilike.${pattern},excerpt_en.ilike.${pattern}`
+        : `title_pl.ilike.${pattern},excerpt_pl.ilike.${pattern}`;
+    const { data, error } = await publishedPosts(sb, tenantId)
+      .or(filter)
       .order("published_at", { ascending: false })
       .limit(limit);
-    if (error) {
-      return { content: [{ type: "text", text: error.message }], isError: true };
-    }
-    const rows = (data ?? []).map((r: Record<string, unknown>) => ({
-      slug: r.slug,
-      title: r[titleCol],
-      excerpt: r[excerptCol],
-      cover_image_url: r.cover_image_url,
-      published_at: r.published_at,
-    }));
+    if (error) throw queryFailed("search_posts", error);
+    const results = (data ?? []).map((row) => toPostSummaryJson(row, lang));
     return {
-      content: [{ type: "text", text: JSON.stringify(rows, null, 2) }],
-      structuredContent: { results: rows },
+      content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+      structuredContent: { results },
     };
   },
 });
