@@ -16,7 +16,15 @@ export const getMyEventTicket = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { loadMyEventTicket } = await import("@/lib/events/ticket.server");
-    return loadMyEventTicket(context.supabase, context.userId, data.eventId);
+    // Adres posiadacza z claimu zweryfikowanego tokenu - `profiles.email` nie
+    // ma grantu SELECT dla `authenticated` (poprawka PII 20260724090100).
+    const email: unknown = context.claims?.email;
+    return loadMyEventTicket(
+      context.supabase,
+      context.userId,
+      data.eventId,
+      typeof email === "string" ? email : null,
+    );
   });
 
 /** Aktualna dostępność miejsc - autorytatywnie z backendu, bez cache klienta. */
