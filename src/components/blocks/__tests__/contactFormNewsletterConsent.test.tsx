@@ -56,6 +56,9 @@ const newsletterBox = () => {
   expect(boxes).toHaveLength(1);
   return boxes[0];
 };
+/** Etykieta pola - rodzeństwo atomu, powiązana przez `for` (nie przodek). */
+const labelOf = (box: HTMLElement) =>
+  document.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`);
 /** Osobne pole zgody na pomiar (I9d-Y2b). */
 const measurementBox = () =>
   document.querySelector<HTMLElement>('[data-consent="email_measurement"] [role="checkbox"]');
@@ -86,7 +89,7 @@ describe("contact-form: zgoda na newsletter z jednego źródła", () => {
 
   it("etykieta domyślna pokazuje i zapisuje pełną treść zgody (b) z wersją", async () => {
     const { field } = renderForm({});
-    expect(newsletterBox().closest("label")?.textContent).toBe(newsletterConsentPlain("pl"));
+    expect(labelOf(newsletterBox())?.textContent).toBe(newsletterConsentPlain("pl"));
     fillAndSend(field);
     await waitFor(() => expect(h.submit).toHaveBeenCalledTimes(1));
     expect(sentConsents()).toEqual([
@@ -134,9 +137,9 @@ describe("contact-form: zgoda na newsletter z jednego źródła", () => {
       "href",
       "/komunikacja-i-marketing#rezygnacja",
     );
-    // Zakres: wiersz zgody na newsletter (pola tekstowe formularza mają
-    // własne testy etykiet).
-    const row = container.querySelector("label.cf-consent")!;
+    // Zakres: wiersz zgody na newsletter - atom i jego etykieta `for` (pola
+    // tekstowe formularza mają własne testy etykiet).
+    const row = container.querySelector("label.cf-consent")!.parentElement!;
     const violations = await axeViolations(row);
     expect(violations, summarize(violations)).toEqual([]);
   });
@@ -188,8 +191,8 @@ describe("contact-form: osobne pole zgody na pomiar (I9d-Y2b)", () => {
       try {
         renderForm({});
         fireEvent.click(newsletterBox());
-        const row = newsletterBox().closest("label");
-        if (!row) throw new Error("Missing newsletter consent");
+        const row = newsletterBox().parentElement;
+        if (!row || !labelOf(newsletterBox())) throw new Error("Missing newsletter consent");
         const violations = await axeViolations(row);
         expect(violations, summarize(violations)).toEqual([]);
       } finally {

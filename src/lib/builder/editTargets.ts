@@ -9,6 +9,8 @@
 // surfaces from drifting apart (e.g. join-us uses `buttonSize` while
 // contact-form uses `buttonFontSize`).
 
+import { CONSENT_MIN_FONT_PX } from "@/lib/forms/consentTypography";
+
 export interface EditTargetMeta {
   label: string;
   min: number;
@@ -25,7 +27,9 @@ export const EDIT_TARGET_META: Record<string, EditTargetMeta> = {
   placeholderSize: { label: "Pola / placeholder", min: 8, max: 24, fallbackPx: 14 },
   buttonSize: { label: "Przycisk", min: 8, max: 28, fallbackPx: 14 },
   buttonFontSize: { label: "Przycisk", min: 8, max: 28, fallbackPx: 14 },
-  consentSize: { label: "Zgody / stopka", min: 8, max: 20, fallbackPx: 11 },
+  // Minimum = próg czytelności zgód (RODO art. 7 ust. 2) - formularze i tak
+  // podnoszą mniejszą wartość do progu, więc edytor jej nie proponuje.
+  consentSize: { label: "Zgody / stopka", min: CONSENT_MIN_FONT_PX, max: 20, fallbackPx: 11 },
   // Ikony (✓ przy korzyściach, ikona przycisku, chevron listy). Puste = ikona
   // skaluje się razem z tekstem, przy którym stoi.
   iconSize: { label: "Ikony", min: 8, max: 64, fallbackPx: 16 },

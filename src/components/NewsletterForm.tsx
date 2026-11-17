@@ -7,7 +7,7 @@
 // custom fields zdefiniowane w builderze - całość leci do CRM przez server.
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import * as React from "react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -405,7 +405,6 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={100}
                       required={requireFirstName}
-                      aria-required={requireFirstName || undefined}
                     />
                   </FieldWrap>
                 )}
@@ -424,7 +423,6 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={100}
                       required={requireLastName}
-                      aria-required={requireLastName || undefined}
                     />
                   </FieldWrap>
                 )}
@@ -443,7 +441,6 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={200}
                       required={requireCompany}
-                      aria-required={requireCompany || undefined}
                     />
                   </FieldWrap>
                 )}
@@ -461,7 +458,6 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={200}
                       required={requirePosition}
-                      aria-required={requirePosition || undefined}
                     />
                   </FieldWrap>
                 )}
@@ -479,7 +475,6 @@ export function NewsletterForm({
                       className={inputCls}
                       maxLength={40}
                       required={requirePhone}
-                      aria-required={requirePhone || undefined}
                     />
                   </FieldWrap>
                 )}
@@ -493,7 +488,6 @@ export function NewsletterForm({
                   <input
                     type="email"
                     required={requireEmail}
-                    aria-required={requireEmail || undefined}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={P.email}
@@ -676,7 +670,6 @@ function CustomFieldRender({
           name={name}
           rows={4}
           required={field.required}
-          aria-required={field.required || undefined}
           className={`${inputCls} resize-y`}
           placeholder={placeholder}
           maxLength={field.maxLength ?? 500}
@@ -690,7 +683,6 @@ function CustomFieldRender({
         name={name}
         type={field.type}
         required={field.required}
-        aria-required={field.required || undefined}
         className={inputCls}
         placeholder={placeholder}
         maxLength={field.maxLength ?? 500}
@@ -706,6 +698,9 @@ function CustomFieldRender({
  * animacja zaznaczenia jest identyczna w całym serwisie. Tekst zgody jest
  * wyjustowany w pionie do środka wysokości checkboxa (`items-center`).
  * Ukryty input przenosi wartość do FormData (`collectCustomValues`).
+ * Atom stoi OBOK etykiety (`htmlFor`): w formularzu Radix dokłada ukryty
+ * natywny checkbox, a `<label>` może mieć tylko jedną kontrolkę. Klasa koloru
+ * `nl-check-label` celuje w `label`, więc siedzi na etykiecie z tekstem.
  */
 function ConsentCheckboxField({
   name,
@@ -719,24 +714,27 @@ function ConsentCheckboxField({
   err?: string;
 }) {
   const [checked, setChecked] = useState(false);
+  const boxId = useId();
   return (
     <div className="sm:col-span-2">
-      <label className="widget-align-row nl-fineprint nl-check-label flex cursor-pointer items-center gap-2">
+      <div className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
         <Checkbox
+          id={boxId}
           checked={checked}
           onCheckedChange={(v) => setChecked(v === true)}
           aria-required={required || undefined}
           className="h-[16px] w-[16px] shrink-0"
         />
-        <span
-          className="min-w-0"
+        <label
+          htmlFor={boxId}
+          className="nl-check-label min-w-0"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(label) }}
           onClick={(e) => {
             // Klik w link (np. „warunki korzystania") nie może przełączać zgody.
             if ((e.target as HTMLElement).closest("a")) e.stopPropagation();
           }}
         />
-      </label>
+      </div>
       {checked && <input type="hidden" name={name} value="1" />}
       {err && <span className="mt-1 block text-[11px] text-destructive">{err}</span>}
     </div>

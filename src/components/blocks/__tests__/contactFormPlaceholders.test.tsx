@@ -182,9 +182,13 @@ function renderSubmittable(data: Cfg = {}, lang: "pl" | "en" = "pl"): FormEls {
 
 /** Zaznacza pole wyboru o danej nazwie (zgoda RODO / newsletter / custom). */
 function check(name: string): void {
+  // `name` niesie ukryty natywny checkbox Radiksa (`pointer-events:none`,
+  // poza etykietą); użytkownik klika widoczny atom z tego samego wiersza.
   const el = document.querySelector<HTMLElement>(`[name="${name}"]`);
   expect(el, `pole wyboru [name="${name}"]`).toBeTruthy();
-  fireEvent.click(el as HTMLElement);
+  const box = el?.parentElement?.querySelector<HTMLElement>('[role="checkbox"]');
+  expect(box, `atom pola wyboru [name="${name}"]`).toBeTruthy();
+  fireEvent.click(box as HTMLElement);
 }
 
 /** Wypełnia minimalny poprawny zestaw pól i zaznacza zgodę. */
@@ -896,6 +900,20 @@ describe("contact-form: styl i tło z panelu", () => {
   });
 
   it.each([
+    [8, "11px"],
+    [14, "14px"],
+  ])("rozmiar zgód %i px nie schodzi poniżej progu czytelności (%s)", (consentSize, px) => {
+    const { container } = render(<ContactFormView data={{ consentSize }} lang="pl" />);
+    const style = container.querySelector("style")?.textContent ?? "";
+    expect(style).toContain(`.cf-consent{font-size:${px} !important;}`);
+  });
+
+  it("bez rozmiaru zgód zostaje domyślny (brak reguły)", () => {
+    const { container } = render(<ContactFormView data={{}} lang="pl" />);
+    expect(container.querySelector("style")?.textContent ?? "").not.toContain(".cf-consent{");
+  });
+
+  it.each([
     ["javascript:alert(1)", "schemat javascript"],
     ["data:text/html,<b>x</b>", "schemat data"],
   ])("tło %s (%s) jest odrzucane, nie wstrzykiwane do stylu", (bgImage) => {
@@ -933,6 +951,65 @@ describe("contact-form: styl i tło z panelu", () => {
       <ContactFormView data={{ iconUrl: "https://cdn.test/ikona.svg" }} lang="pl" />,
     );
     expect(container.innerHTML).toContain("cdn.test/ikona.svg");
+  });
+});
+
+describe("contact-form: znaczniki pól (Nu Html Checker)", () => {
+  const DATA: Cfg = {
+    showNewsletterOptIn: true,
+    showPhone: true,
+    requirePhone: true,
+    customFields: [
+      { id: "nip", type: "text", labelPl: "NIP", required: true },
+      { id: "zgoda 2", type: "checkbox", labelPl: "Druga zgoda" },
+    ],
+  };
+
+  it("żadna etykieta nie zawiera więcej niż jednej kontrolki", () => {
+    // W formularzu Radix dokłada ukryty natywny checkbox obok przycisku -
+    // atom w `<label>` dawał etykietę z dwiema kontrolkami.
+    const { container } = render(<ContactFormView data={DATA} lang="pl" />);
+    const labels = Array.from(container.querySelectorAll("label"));
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      const controls = label.querySelectorAll(
+        "button, input, meter, output, progress, select, textarea",
+      );
+      expect(controls.length, label.outerHTML).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("każde pole wyboru ma etykietę `for` w tym samym wierszu, a klik w nią przełącza pole", () => {
+    const { container } = render(<ContactFormView data={DATA} lang="pl" />);
+    const boxes = Array.from(container.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+    // Zgoda RODO, newsletter i pole dodatkowe typu checkbox.
+    expect(boxes).toHaveLength(3);
+    const ids = boxes.map((box) => box.id);
+    expect(new Set(ids).size).toBe(3);
+    for (const box of boxes) {
+      // Id z `useId` + pozycja pola - bez spacji z `id` pola w CMS.
+      expect(box.id).not.toMatch(/\s/);
+      const label = container.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`);
+      expect(label, box.id).toBeTruthy();
+      expect(label?.parentElement).toBe(box.parentElement);
+      expect(box.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(label!);
+      expect(box.getAttribute("aria-checked")).toBe("true");
+    }
+    // Rozmiar zgód i znacznik buildera (`.cf-consent`) niesie etykieta z tekstem.
+    for (const consent of container.querySelectorAll(".cf-consent")) {
+      expect(consent.tagName).toBe("LABEL");
+    }
+  });
+
+  it("kontrolki z natywnym `required` nie powtarzają `aria-required`", () => {
+    const { container } = render(<ContactFormView data={DATA} lang="pl" />);
+    const required = Array.from(container.querySelectorAll("[required]"));
+    // Imię, e-mail, telefon, wiadomość i wymagane pole dodatkowe.
+    expect(required.map((el) => el.getAttribute("name")).sort()).toEqual(
+      ["custom_nip", "email", "firstName", "message", "phone"].sort(),
+    );
+    for (const el of required) expect(el.hasAttribute("aria-required")).toBe(false);
   });
 });
 

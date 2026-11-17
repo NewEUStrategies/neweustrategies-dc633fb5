@@ -242,10 +242,12 @@ describe("widget join-us - węzeł bez domyślnych rejestru", () => {
     expect(email?.hasAttribute("required")).toBe(false);
   });
 
-  it("jawne włączenie wymagalności adresu dokłada required i aria-required", async () => {
+  it("jawne włączenie wymagalności adresu dokłada natywne required (bez zbędnego aria-required)", async () => {
     const { container } = await renderJoinUsRaw({ variant: "card", requireEmail: "1" });
     const email = container.querySelector('input[type="email"]');
     expect(email?.hasAttribute("required")).toBe(true);
-    expect(email?.getAttribute("aria-required")).toBe("true");
+    // Natywne `required` samo trafia do drzewa dostępności; `aria-required`
+    // na tym samym polu Nu Html Checker oznacza jako zbędne.
+    expect(email?.hasAttribute("aria-required")).toBe(false);
   });
 });

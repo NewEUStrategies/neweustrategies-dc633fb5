@@ -34,6 +34,7 @@ import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trackFormConversion } from "@/lib/analytics/conversions";
 import { CONTACT_FIELD_LIMITS } from "@/lib/forms/contactLimits";
+import { legibleConsentFontPx } from "@/lib/forms/consentTypography";
 import { CharacterCounter } from "@/components/forms/CharacterCounter";
 
 type Lang = "pl" | "en";
@@ -233,7 +234,9 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const labelSize = num(data, "labelSize", 0);
   const placeholderSize = num(data, "placeholderSize", 0);
   const buttonFontSize = num(data, "buttonFontSize", 0);
-  const consentSize = num(data, "consentSize", 0);
+  // Zgody nie schodzą poniżej progu czytelności (RODO art. 7 ust. 2);
+  // 0 / brak = domyślny rozmiar bez reguły.
+  const consentSize = legibleConsentFontPx(num(data, "consentSize", 0)) ?? 0;
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
@@ -516,7 +519,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <input
                 name="firstName"
                 required={requireFirstName}
-                aria-required={requireFirstName || undefined}
                 className="cf-input"
                 autoComplete="given-name"
                 placeholder={P.firstName}
@@ -534,7 +536,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <input
                 name="lastName"
                 required={requireLastName}
-                aria-required={requireLastName || undefined}
                 className="cf-input"
                 autoComplete="family-name"
                 placeholder={P.lastName}
@@ -553,7 +554,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 name="email"
                 type="email"
                 required={requireEmail}
-                aria-required={requireEmail || undefined}
                 className="cf-input"
                 autoComplete="email"
                 placeholder={P.email}
@@ -573,7 +573,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 name="phone"
                 type="tel"
                 required={requirePhone}
-                aria-required={requirePhone || undefined}
                 className="cf-input"
                 autoComplete="tel"
                 placeholder={P.phone}
@@ -591,7 +590,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <input
                 name="company"
                 required={requireCompany}
-                aria-required={requireCompany || undefined}
                 className="cf-input"
                 autoComplete="organization"
                 placeholder={P.company}
@@ -609,7 +607,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <input
                 name="subject"
                 required={requireSubject}
-                aria-required={requireSubject || undefined}
                 className="cf-input"
                 placeholder={P.subject}
               />
@@ -627,26 +624,28 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 name="message"
                 rows={10}
                 required={requireMessage}
-                aria-required={requireMessage || undefined}
                 className="cf-input resize-y"
                 placeholder={P.message}
               />
             </Field>
           )}
 
-          {customFields.map((f) => {
+          {customFields.map((f, index) => {
             const label = pickLabel(f, lang);
             const placeholder = pickPlaceholder(f, lang);
             const err = errors[f.id];
             const name = `custom_${f.id}`;
             const span = widthCls(f.type === "textarea" ? (columns === 3 ? 3 : 2) : 1);
             if (f.type === "checkbox") {
+              // Id z `useId` + pozycja pola: `f.id` z CMS może nie być
+              // poprawnym id HTML.
+              const boxId = `${formId}-cf${index}`;
               return (
                 <div key={f.id} className={span}>
-                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90 cursor-pointer">
-                    <Checkbox name={name} className="mt-0.5 shrink-0" />
-                    <span>{label}</span>
-                  </label>
+                  <div className="widget-align-row flex items-start gap-2 text-xs opacity-90 cursor-pointer">
+                    <Checkbox id={boxId} name={name} className="mt-0.5 shrink-0" />
+                    <label htmlFor={boxId}>{label}</label>
+                  </div>
                   {err && <span className="block text-[11px] text-destructive">{err}</span>}
                 </div>
               );
@@ -664,7 +663,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   <PlatformSelect
                     name={name}
                     required={f.required}
-                    aria-required={f.required || undefined}
                     className="cf-input"
                     defaultValue=""
                   >
@@ -694,7 +692,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                     name={name}
                     rows={5}
                     required={f.required}
-                    aria-required={f.required || undefined}
                     className="cf-input resize-y"
                     placeholder={placeholder}
                     maxLength={Math.min(
@@ -718,7 +715,6 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   name={name}
                   type={f.type}
                   required={f.required}
-                  aria-required={f.required || undefined}
                   className="cf-input"
                   placeholder={placeholder}
                   maxLength={Math.min(
@@ -739,19 +735,29 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         </div>
 
         {(() => {
+          // Atom zgody stoi OBOK etykiety (`htmlFor`), nie w niej: w formularzu
+          // Radix dokłada ukryty natywny checkbox, a `<label>` może mieć tylko
+          // jedną kontrolkę (Nu Html Checker). `cf-consent` (rozmiar zgód,
+          // znacznik buildera, styl linków) niesie etykieta z tekstem - globalna
+          // reguła `label` nie daje odziedziczyć rozmiaru z wiersza. Id z
+          // `useId` + krótki sufiks (`-c` zgoda, `-n` newsletter) - mniej
+          // bajtów HTML-u.
           const consentBlock =
             requireConsent || showNewsletter ? (
               <div className="space-y-1.5">
                 {requireConsent && (
-                  <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
                     <Checkbox
+                      id={`${formId}-c`}
                       name="consent"
                       className="shrink-0"
                       aria-invalid={errors.consent ? true : undefined}
                       aria-describedby={errors.consent ? `${formId}-consent-error` : undefined}
                     />
-                    <span>{renderConsentText(consentTextRaw)}</span>
-                  </label>
+                    <label htmlFor={`${formId}-c`} className="cf-consent">
+                      {renderConsentText(consentTextRaw)}
+                    </label>
+                  </div>
                 )}
                 {/* Zgoda nie ma ścieżki `Field` (etykieta-komunikat), więc błąd
                     wymaganej zgody stoi pod polem wyboru - inaczej odmowa
@@ -767,8 +773,9 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 )}
 
                 {showNewsletter && (
-                  <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
+                  <div className="widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
                     <Checkbox
+                      id={`${formId}-n`}
                       name="newsletter_optin"
                       className="shrink-0"
                       checked={newsletterOptIn}
@@ -776,14 +783,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                         setNewsletterOptIn(next === true);
                       }}
                     />
-                    <span>
+                    <label htmlFor={`${formId}-n`} className="cf-consent">
                       {newsletterConsent.isDefault ? (
                         <NewsletterConsentText lang={lang} />
                       ) : (
                         newsletterConsent.text
                       )}
-                    </span>
-                  </label>
+                    </label>
+                  </div>
                 )}
                 {/* Osobne pole zgody na pomiar (I9d-Y2b) - pod polem
                     newslettera, ta sama geometria; bez newslettera wyłączone. */}

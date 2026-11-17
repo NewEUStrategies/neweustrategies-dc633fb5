@@ -447,14 +447,18 @@ describe("kontrakt pola formularza", () => {
     expect(screen.getByLabelText("Kraj zamieszkania")).toBe(input());
   });
 
-  it("wymagalność jedzie do DOM i do drzewa dostępności", () => {
+  it("wymagalność jedzie do DOM jako natywne `required` (bez zbędnego `aria-required`)", () => {
+    // Natywne `required` samo trafia do drzewa dostępności; `aria-required`
+    // na tym samym polu walidator oznacza jako zbędne.
     mount("", { required: true });
     expect(input().required).toBe(true);
-    expect(input().getAttribute("aria-required")).toBe("true");
+    expect(input()).toBeRequired();
+    expect(input().hasAttribute("aria-required")).toBe(false);
   });
 
-  it("pole nieobowiązkowe nie kłamie `aria-required=false`", () => {
+  it("pole nieobowiązkowe nie jest wymagane ani nie kłamie `aria-required=false`", () => {
     mount();
+    expect(input()).not.toBeRequired();
     expect(input().getAttribute("aria-required")).toBeNull();
   });
 

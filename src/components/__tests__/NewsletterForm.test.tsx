@@ -517,6 +517,55 @@ describe("NewsletterForm - walidacja przed wysyłką", () => {
   });
 });
 
+describe("NewsletterForm - znaczniki pól (Nu Html Checker)", () => {
+  it("pola z natywnym `required` nie powtarzają `aria-required`", () => {
+    const customFields = [
+      JSON.stringify({ id: "rola", type: "text", labelPl: "Rola", required: true }),
+      JSON.stringify({ id: "opis", type: "textarea", labelPl: "Opis", required: true }),
+    ];
+    renderForm({
+      widgetConfig: {
+        ...ALL_FIELDS,
+        requireFirstName: true,
+        requireLastName: true,
+        requireCompany: true,
+        requirePosition: true,
+        requirePhone: true,
+        customFields,
+      },
+    });
+    const required = Array.from(document.querySelectorAll("form [required]"));
+    // Pięć pól dodatkowych, e-mail i dwa wymagane pola custom.
+    expect(required).toHaveLength(8);
+    for (const el of required) expect(el.hasAttribute("aria-required")).toBe(false);
+  });
+
+  it("zgoda custom: atom obok etykiety `for`, etykieta bez kontrolki, klik w treść przełącza", () => {
+    const { container } = renderForm({
+      widgetConfig: {
+        customFields: [
+          JSON.stringify({ id: "zgoda", type: "checkbox", labelPl: "Zgadzam się", required: true }),
+        ],
+      },
+    });
+    const box = customConsentBox();
+    // Atom bez natywnego `required` - wymagalność niesie `aria-required`.
+    expect(box.getAttribute("aria-required")).toBe("true");
+    const label = container.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`);
+    expect(box.id).not.toBe("");
+    expect(label?.textContent).toBe("Zgadzam się");
+    expect(label?.parentElement).toBe(box.parentElement);
+    expect(
+      label?.querySelectorAll("button, input, meter, output, progress, select, textarea"),
+    ).toHaveLength(0);
+    // Kolor etykiety w popupie (`.nlp label.nl-check-label`) celuje w etykietę.
+    expect(label?.classList.contains("nl-check-label")).toBe(true);
+
+    fireEvent.click(label!);
+    expect(box.getAttribute("aria-checked")).toBe("true");
+  });
+});
+
 // --- Ładunek wysyłki ---------------------------------------------------------
 
 describe("NewsletterForm - co dokładnie leci na serwer", () => {

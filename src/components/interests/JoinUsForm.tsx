@@ -36,6 +36,7 @@ import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
+import { CONSENT_MIN_FONT_PX, legibleConsentFontPx } from "@/lib/forms/consentTypography";
 import { missingFieldsMessage, subscribeErrorMessage } from "@/lib/newsletter/subscribeFeedback";
 import type { NewsletterFieldKey } from "@/lib/newsletter/newsletterFieldLabels";
 
@@ -613,6 +614,10 @@ export function JoinUsForm({
           : `rounded-xl border border-border ${bgClass} p-6 sm:p-8`) +
     ` join-us-shell join-us-shell--${variant}`;
 
+  // Rozmiar zgód z CMS nie schodzi poniżej progu czytelności (RODO art. 7
+  // ust. 2) - ten sam w regule scoped CSS i w stylu wiersza zgody.
+  const consentPx = legibleConsentFontPx(consentSize);
+
   // Scoped <style>: tło + rozmiary czcionek. Rozmiary muszą lecieć przez CSS
   // (a nie tylko inline), żeby wygrać z globalnymi regułami platformy i dawać
   // ten sam efekt w podglądzie buildera oraz na stronie publicznej.
@@ -623,7 +628,7 @@ export function JoinUsForm({
     labelSize,
     placeholderSize,
     buttonSize,
-    consentSize,
+    consentSize: consentPx,
     iconSize,
   });
   const bgCss = hasCustomBg
@@ -650,9 +655,12 @@ export function JoinUsForm({
   // z tych dwóch atrybutów i skaluje się wyłącznie przez `em`.
   const iconStyle: CSSProperties = { width: `${ICON_EM}em`, height: `${ICON_EM}em` };
   const iconTargetProps = { "data-jus-icon": true, "data-edit-target": "iconSize" } as const;
-  // Rozmiar zgód (`consentSize`) w stylu KAŻDEGO wiersza zgody: globalna
-  // reguła `label` widżetów nie pozwala odziedziczyć go z rodzica.
-  const consentStyle: CSSProperties = { fontSize: consentSize ? `${consentSize}px` : "11px" };
+  // Rozmiar zgód (`consentSize`, z progiem czytelności) na etykiecie zgody:
+  // globalna reguła `label` nie pozwala odziedziczyć go z rodzica.
+  const consentStyle: CSSProperties = { fontSize: `${consentPx ?? CONSENT_MIN_FONT_PX}px` };
+  // Stabilne id pola zgody (z `useId`, ta sama wartość w SSR i po hydratacji)
+  // dla `<label htmlFor>` obok atomu; krótki sufiks = mniej bajtów HTML-u.
+  const consentId = `${jusId}-c`;
 
   /** Jeden bulletpoint korzyści - wspólny atom wariantów split / split-image.
    *  `data-keep-color` chroni własny kolor ikony przed globalnym override'em
@@ -711,7 +719,6 @@ export function JoinUsForm({
         key="email"
         type="email"
         required={requireEmail}
-        aria-required={requireEmail || undefined}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         label={withMark(phEmail, requireEmail)}
@@ -731,7 +738,6 @@ export function JoinUsForm({
         value={extra.position}
         onChange={(e) => updateExtra("position", e.target.value)}
         label={withMark(phPosition, requirePosition)}
-        aria-required={requirePosition || undefined}
         required={requirePosition}
         maxLength={200}
         style={inputStyle}
@@ -749,7 +755,6 @@ export function JoinUsForm({
         value={extra.linkedin}
         onChange={(e) => updateExtra("linkedin", e.target.value)}
         label={withMark(phLinkedin, requireLinkedin)}
-        aria-required={requireLinkedin || undefined}
         required={requireLinkedin}
         maxLength={300}
         style={inputStyle}
@@ -767,7 +772,6 @@ export function JoinUsForm({
         value={extra.phone}
         onChange={(e) => updateExtra("phone", e.target.value)}
         label={withMark(phPhone, requirePhone)}
-        aria-required={requirePhone || undefined}
         required={requirePhone}
         maxLength={40}
         style={inputStyle}
@@ -785,7 +789,6 @@ export function JoinUsForm({
         value={extra.company}
         onChange={(e) => updateExtra("company", e.target.value)}
         label={withMark(phCompany, requireCompany)}
-        aria-required={requireCompany || undefined}
         required={requireCompany}
         maxLength={200}
         style={inputStyle}
@@ -821,7 +824,6 @@ export function JoinUsForm({
               value={extra.firstName}
               onChange={(e) => updateExtra("firstName", e.target.value)}
               label={withMark(phFirst, requireFirstName)}
-              aria-required={requireFirstName || undefined}
               required={requireFirstName}
               maxLength={100}
               style={inputStyle}
@@ -836,7 +838,6 @@ export function JoinUsForm({
               value={extra.lastName}
               onChange={(e) => updateExtra("lastName", e.target.value)}
               label={withMark(phLast, requireLastName)}
-              aria-required={requireLastName || undefined}
               required={requireLastName}
               maxLength={100}
               style={inputStyle}
@@ -862,7 +863,6 @@ export function JoinUsForm({
           <FloatingInput
             type="email"
             required={requireEmail}
-            aria-required={requireEmail || undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             label={withMark(phEmail, requireEmail)}
@@ -922,30 +922,30 @@ export function JoinUsForm({
 
       {/* Zgody i przycisk w jednym rzędzie - kolumna zgód wyśrodkowana
           w pionie względem wysokości przycisku (na mobile układ kolumnowy).
-          Osobne pole pomiaru (I9d-Y2b) stoi pod wymaganą zgodą na newsletter,
-          w tej samej geometrii i tym samym rozmiarze `consentSize`. */}
+          Atom stoi OBOK etykiety (`htmlFor`), nie w niej: w formularzu Radix
+          dokłada ukryty natywny checkbox, a `<label>` może mieć tylko jedną
+          kontrolkę (Nu Html Checker). Rozmiar i `data-edit-target` niesie
+          etykieta - to ona trzyma tekst, a globalna reguła `label` nie daje
+          go odziedziczyć z wiersza. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <label
-            className="flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground"
-            style={consentStyle}
-            data-edit-target="consentSize"
-          >
+          <div className="flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground">
             <Checkbox
+              id={consentId}
               checked={consentAccepted}
               onCheckedChange={(v) => setConsentAccepted(v === true)}
               aria-required="true"
               className="h-[16px] w-[16px] shrink-0"
             />
-            <span>
+            <label htmlFor={consentId} style={consentStyle} data-edit-target="consentSize">
               {resolvedConsent.isDefault ? (
                 <NewsletterConsentText lang={lang} />
               ) : (
                 resolvedConsent.text
               )}
               <span className="ml-1 text-destructive">*</span>
-            </span>
-          </label>
+            </label>
+          </div>
         </div>
 
         <SubscribeButton

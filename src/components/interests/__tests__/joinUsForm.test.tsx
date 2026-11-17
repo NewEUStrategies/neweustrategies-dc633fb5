@@ -232,6 +232,13 @@ const consent = () => {
   return boxes[0];
 };
 const submit = () => fireEvent.submit(form());
+/** Etykieta zgody - rodzeństwo atomu, powiązana przez `for` (nie przodek). */
+const consentLabel = () => {
+  const box = consent();
+  const label = document.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`);
+  if (!box.id || !label) throw new Error("test: zgoda bez etykiety `for`");
+  return label;
+};
 
 /** Wypełnia minimum potrzebne do przejścia walidacji. */
 function fillMinimum(email = "osoba@example.com") {
@@ -323,6 +330,75 @@ describe("widoczność widgetu", () => {
     mount();
     expect(field("email")).toBeTruthy();
     expect(consent()).toBeTruthy();
+  });
+});
+
+describe("znaczniki zgody i pól (Nu Html Checker)", () => {
+  it("etykieta zgody nie zawiera kontrolki - atom stoi obok, powiązany przez `for`", () => {
+    // W formularzu Radix dokłada ukryty natywny checkbox, więc atom w środku
+    // `<label>` dawał etykietę z DWIEMA kontrolkami (błąd walidatora).
+    mount();
+    const label = consentLabel();
+    expect(label.contains(consent())).toBe(false);
+    expect(
+      label.querySelectorAll("button, input, meter, output, progress, select, textarea"),
+    ).toHaveLength(0);
+    // Ten sam wiersz flex co dotąd; rozmiar i znacznik buildera niesie etykieta.
+    const row = label.parentElement!;
+    expect(consent().parentElement).toBe(row);
+    expect(row.className).toBe(
+      "flex cursor-pointer items-center gap-2 font-sans leading-relaxed text-muted-foreground",
+    );
+    expect(label.getAttribute("data-edit-target")).toBe("consentSize");
+  });
+
+  it("klik w treść zgody przełącza pole", () => {
+    mount();
+    expect(consent().getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(consentLabel());
+    expect(consent().getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("pola z natywnym `required` nie powtarzają `aria-required`", () => {
+    mount({
+      showFirstName: true,
+      showLastName: true,
+      showPhone: true,
+      showCompany: true,
+      requireFirstName: true,
+      requireLastName: true,
+      requirePhone: true,
+      requireCompany: true,
+    });
+    for (const autocomplete of ["given-name", "family-name", "email", "tel", "organization"]) {
+      expect(field(autocomplete)).toBeRequired();
+      expect(field(autocomplete).hasAttribute("aria-required")).toBe(false);
+    }
+    // Atom zgody to przycisk `role="checkbox"` bez natywnego `required`.
+    expect(consent().getAttribute("aria-required")).toBe("true");
+  });
+});
+
+describe("próg czytelności tekstu zgody (`consentSize`)", () => {
+  /** Rozmiar zgody z reguły scoped CSS widgetu (`undefined` = brak reguły). */
+  const consentRulePx = (container: HTMLElement) =>
+    /\[data-edit-target="consentSize"\]\{font-size:(\d+)px !important;\}/.exec(
+      container.querySelector("style")?.textContent ?? "",
+    )?.[1];
+
+  it.each([
+    [8, "11px", "11"],
+    [14, "14px", "14"],
+  ])("consentSize=%i daje %s w etykiecie i regule", (consentSize, inline, rulePx) => {
+    const { container } = mount({ consentSize });
+    expect(consentLabel().style.fontSize).toBe(inline);
+    expect(consentRulePx(container)).toBe(rulePx);
+  });
+
+  it("bez rozmiaru zostaje domyślne 11px i brak reguły rozmiaru", () => {
+    const { container } = mount();
+    expect(consentLabel().style.fontSize).toBe("11px");
+    expect(consentRulePx(container)).toBeUndefined();
   });
 });
 
@@ -427,7 +503,7 @@ describe("kształt payloadu", () => {
   it("zapisuje DOKŁADNIE treść pokazaną przy polu zgody - domyślną (b) z wersją (I9d-Y2b)", async () => {
     mount();
     // Widoczna treść = jedno źródło treści domyślnej (bez zaszytej kopii).
-    expect(consent().closest("label")?.textContent).toContain(newsletterConsentPlain("pl"));
+    expect(consentLabel().textContent).toContain(newsletterConsentPlain("pl"));
     fillMinimum();
     submit();
     await waitFor(() => expect(h.subscribePayloads).toHaveLength(1));
