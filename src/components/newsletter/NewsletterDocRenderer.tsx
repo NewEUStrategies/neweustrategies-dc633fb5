@@ -22,6 +22,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { formatNumber } from "@/lib/i18n/format";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth, type Role } from "@/hooks/useAuth";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import {
   newsletterConsentPayload,
@@ -85,18 +86,42 @@ function normalizeLinkedin(raw: string): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-// Zliczanie subskrybentow z publicznej perspektywy - do widgetu social-proof.
-// RLS moze zablokowac; wtedy uzywamy fallback z widgetu.
+/**
+ * Czy RLS pokaze temu czytelnikowi WSZYSTKIE wiersze `newsletter_subscribers`.
+ *
+ * Lustro jedynej polityki odczytu tabeli ("newsletter staff read": admin albo
+ * redaktor najemcy, `has_role` bez dziedziczenia rol). Gosc nie ma do tabeli
+ * zadnego grantu (zapytanie konczy sie 401/42501), a kazdemu innemu
+ * zalogowanemu RLS odsiewa wszystkie wiersze - `count` wraca wtedy jako
+ * POPRAWNE zero, nieodroznialne od „nikt sie jeszcze nie zapisal".
+ */
+function canCountNewsletterSubscribers(roles: readonly Role[]): boolean {
+  return roles.includes("admin") || roles.includes("editor");
+}
+
+// Licznik subskrybentow do widgetu social-proof.
+//
+// LICZBA ALBO NIC. Zapytanie wysylamy tylko od roli, ktorej polityka pokazuje
+// cala tabele; gosc i zwykly czlonek dostaja liczbe zapasowa z panelu
+// (`fallbackCount`) - wczesniej po hydratacji „Dolacz do 1 200 czytelnikow"
+// z SSR przeskakiwalo im na „Dolacz do 0 czytelnikow". Odmowa odczytu
+// (`error`) to „nie wiemy", wiec tez `null` (zapas), a nie zero. Prawdziwe
+// zero z udanego odczytu redakcji zostaje zerem, jak dotad.
+//
+// Pierwszy render nie zalezy od sesji: dopoki zapytanie nie odpowie (albo
+// nie ruszy), `data` jest `undefined` - tak samo na serwerze i u klienta.
 function useSubscriberCount(enabled: boolean): number | null {
+  const { roles } = useAuth();
   const q = useQuery({
     queryKey: ["newsletter-subscribers-count-public"],
-    enabled,
+    enabled: enabled && canCountNewsletterSubscribers(roles),
     staleTime: 5 * 60 * 1000,
-    queryFn: async (): Promise<number> => {
-      const { count } = await supabase
+    queryFn: async (): Promise<number | null> => {
+      const { count, error } = await supabase
         .from("newsletter_subscribers")
         .select("id", { count: "exact", head: true })
         .eq("status", "subscribed");
+      if (error) return null;
       return count ?? 0;
     },
   });
