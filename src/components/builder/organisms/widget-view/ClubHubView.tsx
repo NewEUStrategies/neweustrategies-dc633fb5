@@ -37,6 +37,7 @@ import {
   formatClubHubDate,
 } from "@/lib/builder/clubHub";
 import { clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
+import { useClubViewer } from "@/lib/clubs/useClubViewer";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
@@ -125,6 +126,12 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   const club = useQuery(clubCardQueryOptions(slug)).data ?? null;
   const clubId = club?.id ?? "";
+  // Lista zapisanych to `club_members_list` - bez EXECUTE dla `anon`. Gość
+  // dostawał po hydratacji jedno odrzucone żądanie na widok, a widział to
+  // samo, co przy pustej liście: licznik z karty klubu i „Dołącz”. Sesja
+  // dopiero po hydratacji (`useClubViewer`), więc HTML serwera się nie zmienia
+  // - listy i tak nigdy w nim nie było (sekcji zapisów prefetch nie grzeje).
+  const viewerSignedIn = useClubViewer() === "signedIn";
 
   const articles =
     useQuery({
@@ -139,7 +146,7 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const members =
     useQuery({
       ...clubHubMembersQueryOptions(clubId, signupsLimit),
-      enabled: showSignups && clubId !== "",
+      enabled: showSignups && clubId !== "" && viewerSignedIn,
     }).data ?? [];
 
   if (!club) return null;
