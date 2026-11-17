@@ -2947,6 +2947,84 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
   });
 });
 
+describe("miara: kolumny wyniku funkcji w łańcuchu `.rpc(...)`", () => {
+  const rpcKeys = (x: SeamFacts): string[] =>
+    x.observed.rpcColumns.map(
+      (c) => `${c.name}(${(c.keys ?? ["?"]).join(",")}).${c.column}:${c.method} ${c.fn}`,
+    );
+
+  it("filtry, sortowanie i `select` wyniku - wprost i przez zmienną; kolumna nieczytelna i osadzenie - miejsce nieczytelne; nazwa RPC nieczytelna - filtr wyniku nieczytelny (nie znika po cichu)", () => {
+    const x = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function direct() {
+          await supabaseAdmin.rpc("seating_export", { p_payload: {} }).order("section_sort").eq("seat_id", 1).select("seat_id, label:section_label");
+        }
+        export async function bound(col: string) {
+          const q = supabaseAdmin.rpc("list_rows");
+          await q.or("a.eq.1,b.eq.2");
+          await q.order(col);
+          await q.eq("rel.col", 1);
+        }
+        export async function unnamed(name: string) {
+          await supabaseAdmin.rpc(name).order("x");
+        }
+      `,
+    });
+    expect(rpcKeys(x)).toEqual([
+      "seating_export(p_payload).section_sort:order direct",
+      "seating_export(p_payload).seat_id:eq direct",
+      "seating_export(p_payload).seat_id:select direct",
+      "seating_export(p_payload).section_label:select direct",
+      "list_rows().a:or bound",
+      "list_rows().b:or bound",
+    ]);
+    expect(x.observed.unresolvedFilters).toEqual([
+      "src/a.server.ts: bound: .rpc(list_rows).eq(rel.col): osadzenie na wyniku funkcji",
+      "src/a.server.ts: bound: .rpc(list_rows).order(col): kolumna ${…}",
+      'src/a.server.ts: unnamed: .order("x"): wynik .rpc() poza obejrzanym łańcuchem',
+    ]);
+    expect(x.observed.filtersOutsideChains).toEqual([]);
+    // Bramka bez miary - bez faktów wyniku.
+    expect(
+      extractSeamFacts([
+        { file: "src/a.server.ts", code: `${ADMIN_FILE} supabaseAdmin.rpc("f").order("x");` },
+      ]).observed.rpcColumns,
+    ).toEqual([]);
+  });
+
+  it("render: istnienie kolumny w TABLE/OUT albo atrybutach zwracanego typu złożonego przeciążenia z kluczy (asercja 12); wynik bez kolumn - naruszenie; brak funkcji - asercja 2", () => {
+    const x = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function direct() {
+          await supabaseAdmin.rpc("seating_export", { p_payload: {} }).order("section_sort");
+        }
+      `,
+    });
+    for (const sql of [renderContractTest(x), renderObservedQueries(x)]) {
+      expect(sql).toContain("CREATE FUNCTION pg_temp.ts_result_cols(p_oid oid)");
+      expect(sql).toContain("WHERE p.oid = p_oid AND a.mode IN ('o', 'b', 't')),");
+      expect(sql).toContain("WHERE p.oid = p_oid AND t.typtype = 'c'))");
+      expect(sql).toContain(
+        "SELECT pg_temp.ts_rpc_match(c.fn, c.keys) AS oid WHERE c.keys IS NOT NULL",
+      );
+      expect(sql).toContain("'wynik bez kolumn (skalar, json) - kolumny nie da sie sprawdzic'");
+      expect(sql).toContain("WHERE r.has_cols IS NOT NULL AND NOT coalesce(r.found, false)");
+    }
+    const gate = renderContractTest(x);
+    expect(gate).toContain(
+      "('seating_export', ARRAY['p_payload']::text[], 'section_sort', 'order', 'src/a.server.ts', 'src/a.server.ts', 'direct')",
+    );
+    // Część widoku asercji 12.
+    expect(gate).toContain(
+      "                 AND a.attnum > 0 AND NOT a.attisdropped)))\nUNION\nSELECT c.site, c.func,",
+    );
+    expect(gate).toContain("FROM ts_obs_rpc_col c");
+    expect(renderObservedQueries(x)).toContain(
+      "SELECT 'rpc-result-column', r.site, r.func, NULL, NULL, NULL, NULL, r.msg, '-'",
+    );
+  });
+});
+
 describe("miara: klient przeglądarki - z sesją (`authenticated`) i jako gość (`anon`)", () => {
   const BROWSER = `import { supabase } from "@/integrations/supabase/client";`;
   const guestKeys = (f: SeamFacts): string[] => [
@@ -3284,6 +3362,7 @@ describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
       filters: [],
       embeds: [],
       statements: [],
+      rpcColumns: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
     });

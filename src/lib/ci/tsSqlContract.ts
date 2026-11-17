@@ -350,6 +350,26 @@ export interface ObservedStatement {
   readonly withheld: boolean;
 }
 
+/**
+ * Kolumna WYNIKU funkcji w filtrze, sortowaniu albo liście `select` łańcucha
+ * `.rpc(...)` (`.rpc("f").order("x")`): PostgREST składa z niej WHERE/ORDER BY
+ * na wyniku funkcji, więc kolumna musi być w TABLE/OUT funkcji albo atrybutach
+ * zwracanego typu złożonego - inaczej 42703 w czasie działania. Uprawnień
+ * kolumn wynik funkcji nie ma, sprawdzane jest samo istnienie (asercja 12).
+ */
+export interface ObservedRpcColumn {
+  readonly name: string;
+  /** Klucze argumentów wywołania (przeciążenie); `null` - nieczytelne. */
+  readonly keys: readonly string[] | null;
+  readonly column: string;
+  /** Metoda łańcucha (`eq`, `order`, `select`, ...). */
+  readonly method: string;
+  /** Plik, w którym rozwiązał się literał kolumny. */
+  readonly file: string;
+  readonly site: string;
+  readonly fn: string;
+}
+
 export interface ObservedFacts {
   /** Każdy fakt RPC bramki z rolą zmierzoną (ta sama kolejność co `rpcs`). */
   readonly rpcs: readonly ObservedRpc[];
@@ -360,6 +380,8 @@ export interface ObservedFacts {
   readonly embeds: readonly ObservedEmbed[];
   /** Zapytania łańcuchów `.from()`/`looseTable` do sond wykonania (bez powtórzeń). */
   readonly statements: readonly ObservedStatement[];
+  /** Kolumny wyniku funkcji w łańcuchach `.rpc(...)` (filtry, sortowanie, `select`). */
+  readonly rpcColumns: readonly ObservedRpcColumn[];
   /**
    * Filtry na rozpoznanym budowniczym, których kolumny (albo tabeli
    * osadzenia) nie da się ustalić statycznie, oraz filtry budowniczego
@@ -3749,6 +3771,7 @@ interface Collector {
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
+    rpcColumns: ObservedRpcColumn[];
     unresolvedFilters: string[];
     filtersOutsideChains: string[];
     /** Wywołania filtra obejrzane na rozpoznanym budowniczym (fakt albo miejsce nieczytelne). */
@@ -3982,10 +4005,13 @@ function visitFile(
     const root = filterChainRoot(receiver);
     // `Object.is(a, b)`, `Array.from(...)` - konstruktory globalne, nie klient.
     if (ts.isIdentifier(root) && /^[A-Z]/.test(root.text)) continue;
-    // Filtr i sortowanie wyniku `.rpc(...)` to kolumny wyniku funkcji, nie
-    // tabeli - uprawnień kolumn nie wymagają.
-    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") continue;
     const where = `${scope.file}: ${enclosingFunctionPath(call)}: .${method}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)})`;
+    // Filtr wyniku `.rpc(...)` poza obejrzanym łańcuchem (`observeRpcChain`):
+    // kolumny wyniku funkcji, których miara nie wiąże - miejsce nieczytelne.
+    if (ts.isCallExpression(root) && callMethod(root)?.name === "rpc") {
+      out.observed.unresolvedFilters.push(`${where}: wynik .rpc() poza obejrzanym łańcuchem`);
+      continue;
+    }
     // Budowniczy przez wartość: parametr pomocnika (`applyFilters(q)`),
     // funkcja zwracająca budowniczego, `let` przedłużany samym sobą.
     const builders = builderOf(receiver, scope, measure, exportsIndex, known, 0, {
@@ -4092,6 +4118,73 @@ function handleRpc(
     site: scope.file,
     fn: enclosingFunctionPath(node),
   });
+  observeRpcChain(node, name, keys, scope, exportsIndex, known, out, measure);
+}
+
+/**
+ * Miara: kolumny wyniku funkcji w łańcuchu `.rpc(...)` - wprost i przez
+ * zmienną z wywołaniem (jak łańcuchy budowniczego). Kolumna nieczytelna,
+ * osadzenie na wyniku albo lista `select` z wartości czasu działania - miejsce
+ * nieczytelne (zapadka `MAX_UNRESOLVED_FILTER_SITES`).
+ */
+function observeRpcChain(
+  node: ts.CallExpression,
+  name: string,
+  keys: readonly string[] | null,
+  scope: FileScope,
+  exportsIndex: ExportIndex,
+  known: ReadonlySet<string>,
+  out: Collector,
+  measure: MeasureEnv,
+): void {
+  const direct = chainAbove(node);
+  const top = direct.length > 0 ? direct[direct.length - 1] : node;
+  const chains = [...(direct.length > 0 ? [direct] : []), ...boundChains(top)];
+  for (const chain of chains) {
+    for (const call of chain) {
+      const method = callMethod(call)?.name ?? "";
+      const fn = enclosingFunctionPath(call);
+      const where = `${scope.file}: ${fn}: .rpc(${name}).${method}`;
+      const push = (column: string, file: string): void => {
+        out.observed.rpcColumns.push({ name, keys, column, method, file, site: scope.file, fn });
+      };
+      if (method === "select") {
+        const arg = call.arguments[0];
+        if (arg === undefined) continue;
+        const text = resolveString(arg, scope, exportsIndex, known);
+        if (text === null) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): lista \`select\` wyniku nieczytelna`,
+          );
+          continue;
+        }
+        if (splitTopLevel(text).some((item) => selectEmbedItem(item) !== null)) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${compactText(arg, scope)}): osadzenie na wyniku funkcji`,
+          );
+        }
+        for (const column of parseSelectColumns(text).columns) push(column, scope.file);
+        continue;
+      }
+      if (!FILTER_METHODS.has(method)) continue;
+      out.observed.visitedFilters.add(call);
+      const found = filterCallColumns(call, method, scope, exportsIndex, known, measure.filters);
+      for (const why of found.unresolved) {
+        out.observed.unresolvedFilters.push(
+          `${where}(${call.arguments[0] === undefined ? "" : compactText(call.arguments[0], scope)}): ${why}`,
+        );
+      }
+      for (const column of found.columns) {
+        if (column.embed.length > 0) {
+          out.observed.unresolvedFilters.push(
+            `${where}(${column.embed.join(".")}.${column.column}): osadzenie na wyniku funkcji`,
+          );
+          continue;
+        }
+        push(column.column, column.file);
+      }
+    }
+  }
 }
 
 function handleFrom(
@@ -4889,6 +4982,7 @@ export function extractSeamFacts(
       embedKeys: new Map(),
       statements: [],
       statementKeys: new Set(),
+      rpcColumns: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
       visitedFilters: new Set(),
@@ -4949,6 +5043,7 @@ export function extractSeamFacts(
       filters: out.observed.filters,
       embeds: out.observed.embeds,
       statements: out.observed.statements,
+      rpcColumns: out.observed.rpcColumns,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
       unresolvedFilters: [
@@ -6415,6 +6510,20 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
       ),
     ),
   ];
+  // Kolumny wyniku RPC: bez roli (wynik funkcji nie ma uprawnień kolumn).
+  const rpcColumnRows = sorted(
+    o.rpcColumns.map((c) =>
+      [
+        sqlString(c.name),
+        sqlTextArray(c.keys),
+        sqlString(c.column),
+        sqlString(c.method),
+        sqlString(c.file),
+        sqlString(c.site),
+        sqlString(c.fn),
+      ].join(", "),
+    ),
+  );
   const statementRows = sorted(
     rows(
       o.statements.filter((s) => !s.withheld),
@@ -6489,12 +6598,15 @@ CREATE TEMP TABLE ts_obs_table (rel text, op text, role text, enforced text, col
 CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], guest boolean, site text, func text, via text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("ts_obs_rpc", "fn, keys, role, enforced, via, guest, site, func", rpcRows)}
 ${valuesBlock("ts_obs_table", "rel, op, role, enforced, cols, star, via, guest, file, site, func", tableRows)}
 ${valuesBlock("ts_obs_filter", "rel, col, embed, method, op, role, enforced, guest, file, site, func", filterRows)}
 ${valuesBlock("ts_obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, guest, site, func", statementRows)}
 ${valuesBlock("ts_obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, guest, file, site, func", embedRows)}
+${valuesBlock("ts_obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
+${RESULT_COLUMNS_SQL}
 -- Relacje osadzen (tabela ts_obs_embed_rel: id, rodzic, relacja, klucz obcy).
 ${EMBED_FUNCTIONS_SQL}
 ${embedRelSql("ts_obs_embed", "ts_obs_embed_rel")}
@@ -6583,7 +6695,9 @@ SELECT DISTINCT f.site, f.func,
         AND (f.col IS NULL OR NOT EXISTS (
               SELECT 1 FROM pg_attribute a
                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
-                 AND a.attnum > 0 AND NOT a.attisdropped)));
+                 AND a.attnum > 0 AND NOT a.attisdropped)))
+UNION
+${rpcResultMissingSql("ts_obs_rpc_col")};
 
 -- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
 -- w UPDATE i DELETE). Kolumna przez zlaczenie z pg_attribute, uprawnienie po
@@ -6731,11 +6845,12 @@ SELECT is(
   ARRAY[]::text[],
   'Tabele z TS: rola zmierzona klienta (inna niz rola bramki) ma uprawnienie do operacji na kazdej kolumnie');
 
--- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST).
+-- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST), takze
+--     kolumny wyniku funkcji w lancuchu .rpc(...).
 SELECT is(
   ARRAY(SELECT DISTINCT msg FROM ts_v_filter_missing ORDER BY 1),
   ARRAY[]::text[],
-  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu i klucz glowny celu istnieja');
+  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu, klucz glowny celu i kolumna wyniku RPC istnieja');
 
 -- 13. Kolumny filtrow: rola ma SELECT (42501 takze w UPDATE/DELETE).
 SELECT is(
@@ -6968,6 +7083,17 @@ export function renderObservedQueries(
       sqlString(e.fn),
     ].join(", "),
   );
+  const rpcColumnRows = o.rpcColumns.map((c) =>
+    [
+      sqlString(c.name),
+      sqlTextArray(c.keys),
+      sqlString(c.column),
+      sqlString(c.method),
+      sqlString(c.file),
+      sqlString(c.site),
+      sqlString(c.fn),
+    ].join(", "),
+  );
   const sites = [
     ...new Set(
       [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements].map((x) => x.site),
@@ -7022,6 +7148,7 @@ CREATE TEMP TABLE obs_filter (rel text, col text, embed text, method text, op te
 CREATE TEMP TABLE obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], via text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, via text, file text, site text, func text) ON COMMIT DROP;
 CREATE TEMP TABLE obs_reach (site text PRIMARY KEY, cls text, entry text, path text) ON COMMIT DROP;
+CREATE TEMP TABLE obs_rpc_col (fn text, keys text[], col text, method text, file text, site text, func text) ON COMMIT DROP;
 
 ${valuesBlock("obs_rpc", "fn, keys, role, enforced, via, site, func", rpcRows)}
 ${valuesBlock("obs_table", "rel, op, role, enforced, cols, star, via, file, site, func", tableRows)}
@@ -7029,7 +7156,9 @@ ${valuesBlock("obs_filter", "rel, col, embed, method, op, role, enforced, via, f
 ${valuesBlock("obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, via, site, func", statementRows)}
 ${valuesBlock("obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, via, file, site, func", embedRows)}
 ${valuesBlock("obs_reach", "site, cls, entry, path", reachRows)}
+${valuesBlock("obs_rpc_col", "fn, keys, col, method, file, site, func", rpcColumnRows)}
 ${RPC_MATCH_SQL}
+${RESULT_COLUMNS_SQL}
 ${EMBED_SQL}
 -- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
 CREATE TEMP VIEW obs_filter_cols AS
@@ -7154,6 +7283,9 @@ SELECT DISTINCT kind, site, func, rel, col, role, enforced, problem, via FROM (
                         AND a.attnum > 0 AND NOT a.attisdropped)
       OR (m.role IN ${roles}
           AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))
+  UNION ALL
+  SELECT 'rpc-result-column', r.site, r.func, NULL, NULL, NULL, NULL, r.msg, '-'
+    FROM (${rpcResultMissingSql("obs_rpc_col")}) r
 ) v;
 ${PROBE_SQL}
 SELECT p.kind, coalesce(p.outcome, 'nie uruchomiona') AS outcome, count(*) AS probes
@@ -7180,6 +7312,53 @@ LEFT JOIN obs_reach r ON r.site = x.site
 ORDER BY x.caught_by DESC, x.kind, x.site, x.func, x.rel, x.col, x.role;
 ROLLBACK;
 `;
+}
+
+/**
+ * Kolumny wyniku funkcji (filtry, sortowanie i `select` łańcucha `.rpc(...)`):
+ * nazwy parametrów TABLE/OUT/INOUT, a bez nich atrybuty zwracanego typu
+ * złożonego (`SETOF tabela`); `NULL` - wynik bez kolumn (skalar, json).
+ */
+const RESULT_COLUMNS_SQL = `-- Kolumny wyniku funkcji: TABLE/OUT/INOUT albo atrybuty zwracanego typu zlozonego;
+-- NULL - wynik bez kolumn (skalar, json).
+CREATE FUNCTION pg_temp.ts_result_cols(p_oid oid)
+RETURNS text[] LANGUAGE sql STABLE AS $f$
+  SELECT coalesce(
+    (SELECT array_agg(a.name ORDER BY a.o)
+       FROM pg_proc p
+       CROSS JOIN LATERAL unnest(p.proargnames, p.proargmodes::text[]) WITH ORDINALITY a(name, mode, o)
+      WHERE p.oid = p_oid AND a.mode IN ('o', 'b', 't')),
+    (SELECT array_agg(a.attname::text ORDER BY a.attnum)
+       FROM pg_proc p
+       JOIN pg_type t ON t.oid = p.prorettype
+       JOIN pg_attribute a ON a.attrelid = t.typrelid AND a.attnum > 0 AND NOT a.attisdropped
+      WHERE p.oid = p_oid AND t.typtype = 'c'))
+$f$;
+`;
+
+/**
+ * Naruszenia kolumn wyniku RPC (site, func, msg): kolumna spoza wyniku
+ * przeciążenia, które PostgREST wybierze (klucze nieczytelne - którekolwiek
+ * przeciążenie o tej nazwie), albo wynik bez kolumn. Funkcji bez przeciążenia
+ * nie ma tu - brak funkcji zgłasza asercja 2.
+ */
+function rpcResultMissingSql(source: string): string {
+  return `SELECT c.site, c.func,
+       format('%s: %s: %s(%s).%s (%s, wynik funkcji%s): %s', c.site, c.func, c.fn,
+              coalesce(array_to_string(c.keys, ','), '?'), c.col, c.method,
+              CASE WHEN c.file <> c.site THEN ', literal w ' || c.file ELSE '' END,
+              CASE WHEN r.has_cols THEN 'kolumna wyniku nie istnieje'
+                   ELSE 'wynik bez kolumn (skalar, json) - kolumny nie da sie sprawdzic' END) AS msg
+  FROM ${source} c
+  CROSS JOIN LATERAL (
+    SELECT bool_or(x.cols IS NOT NULL) AS has_cols, bool_or(c.col = ANY (x.cols)) AS found
+      FROM (SELECT pg_temp.ts_rpc_match(c.fn, c.keys) AS oid WHERE c.keys IS NOT NULL
+            UNION ALL
+            SELECT q.oid FROM pg_proc q
+             WHERE c.keys IS NULL AND q.pronamespace = 'public'::regnamespace AND q.proname = c.fn) o
+      CROSS JOIN LATERAL (SELECT pg_temp.ts_result_cols(o.oid) AS cols) x
+     WHERE o.oid IS NOT NULL) r
+ WHERE r.has_cols IS NOT NULL AND NOT coalesce(r.found, false)`;
 }
 
 /**

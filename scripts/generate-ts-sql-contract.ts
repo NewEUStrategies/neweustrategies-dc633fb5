@@ -92,6 +92,7 @@ function measure(): void {
       `  fakty RPC i tabel z rolą unknown: bramka ${all.filter((x) => x.enforcedRole === "unknown").length}, miara ${all.filter((x) => x.role === "unknown").length}`,
       `  rola bramka->miara: ${count(all, (x) => `${x.enforcedRole}->${x.role}`)}`,
       `  kolumny filtrów: ${o.filters.length} (${count(o.filters, (f) => f.role)})`,
+      `  kolumny wyniku RPC (filtry, sortowanie, select łańcucha .rpc): ${o.rpcColumns.length}`,
       `  zasoby osadzone: ${o.embeds.length} (${count(o.embeds, (e) => e.role)})`,
       `  fakty klienta przeglądarki (także jako gość anon): RPC ${o.rpcs.filter((x) => x.guest).length}, tabele ${o.tables.filter((x) => x.guest).length}, filtry ${o.filters.filter((x) => x.guest).length}, osadzenia ${o.embeds.filter((x) => x.guest).length}, zapytania sond ${o.statements.filter((x) => x.guest).length}`,
       `  zapytania do sond wykonania: ${o.statements.length} (${count(o.statements, (s) => s.role)})`,
@@ -166,6 +167,7 @@ function main(): void {
     `(+${facts.withheld.length} wstrzymanych w przeglądzie: bez uprawnień), ` +
     `${facts.literals.length} literałów, ${facts.conflicts.length} celów onConflict, ` +
     `${facts.publicColumns.length} stałych kolumn publicznych; miara: ${o.filters.length} kolumn filtrów, ` +
+    `${o.rpcColumns.length} kolumn wyniku RPC, ` +
     `${o.embeds.length} osadzeń, ${o.statements.length} zapytań do sond, ` +
     `${[...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length} faktów z rolą nieustaloną ` +
     `(${c.files} plików, ${c.parseErrors.length} z błędami składni, ${elapsed})`;
