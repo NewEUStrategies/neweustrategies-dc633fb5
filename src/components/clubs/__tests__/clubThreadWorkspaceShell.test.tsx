@@ -359,13 +359,16 @@ const PELNE = summary({
   canCurate: true,
 });
 
-function workspace(over: Partial<ClubWorkspaceSummary> | ClubWorkspaceSummary = PELNE) {
+function workspace(
+  over: Partial<ClubWorkspaceSummary> | ClubWorkspaceSummary = PELNE,
+  userId: string | null = CLUB_IDS.me,
+) {
   const merged = "threadId" in over ? (over as ClubWorkspaceSummary) : summary(over);
   return (
     <ClubThreadWorkspace
       threadId={CLUB_IDS.thread}
       lang="pl"
-      userId={CLUB_IDS.me}
+      userId={userId}
       summary={merged}
       canGoAnonymous
     >
@@ -448,7 +451,13 @@ describe("ClubThreadWorkspace - belka, wybór panelu i granica leniwego ładowan
     ["schedule", { threadId: CLUB_IDS.thread, lang: "pl", canCurate: true }],
     [
       "questions",
-      { threadId: CLUB_IDS.thread, lang: "pl", canContribute: true, canGoAnonymous: true },
+      {
+        threadId: CLUB_IDS.thread,
+        lang: "pl",
+        canContribute: true,
+        canGoAnonymous: true,
+        canVote: true,
+      },
     ],
     ["polls", { threadId: CLUB_IDS.thread, lang: "pl", userId: CLUB_IDS.me, canCurate: true }],
     ["links", { threadId: CLUB_IDS.thread, lang: "pl" }],
@@ -463,6 +472,26 @@ describe("ClubThreadWorkspace - belka, wybór panelu i granica leniwego ładowan
     expect(h.panel[panel]).toEqual(oczekiwane);
     // Dyskusja schodzi z ekranu - panele nie stoją obok siebie.
     expect(screen.queryByTestId("dyskusja")).toBeNull();
+  });
+
+  it("gość dostaje pytania BEZ prawa głosu - głos wymaga sesji, nie prawa zapisu", async () => {
+    // `club_thread_question_vote` nie ma EXECUTE dla `anon`. Prawo głosu idzie
+    // z tożsamości (`userId`), a nie z `canContribute`: czytający członek
+    // głosuje, gość nie.
+    render(workspace({ ...PELNE, canContribute: false }, null));
+
+    fireEvent.click(tab("questions"));
+    await screen.findByTestId("panel-questions");
+
+    expect(h.panel.questions).toMatchObject({ canContribute: false, canVote: false });
+    cleanup();
+    h.panel = {};
+
+    render(workspace({ ...PELNE, canContribute: false }, CLUB_IDS.me));
+    fireEvent.click(tab("questions"));
+    await screen.findByTestId("panel-questions");
+
+    expect(h.panel.questions).toMatchObject({ canContribute: false, canVote: true });
   });
 
   it("wybrana zakładka ogłasza się czytnikowi ekranu nazwą panelu", async () => {

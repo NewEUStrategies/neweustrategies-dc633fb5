@@ -67,6 +67,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow({ vote_count: 5 })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -86,6 +87,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow({ my_vote: false })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={onVote}
@@ -101,6 +103,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow({ my_vote: true })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={onVote}
@@ -118,6 +121,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow()}
         lang="pl"
+        canVote
         votePending
         answerPending={false}
         onVote={() => undefined}
@@ -127,11 +131,34 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
     expect(screen.getByRole("button", { name: "club.workspace.questions.vote" })).toBeDisabled();
   });
 
+  it("gość widzi licznik i WYGASZONY głos - kliknięcie nie woła głosowania", () => {
+    // `club_thread_question_vote` nie ma EXECUTE dla `anon`: aktywny przycisk
+    // gościa kończył się 42501 i ogólnym toastem błędu.
+    const onVote = vi.fn();
+    render(
+      <ClubQuestionCard
+        row={threadQuestionRow({ vote_count: 7 })}
+        lang="pl"
+        canVote={false}
+        votePending={false}
+        answerPending={false}
+        onVote={onVote}
+        onAnswer={() => undefined}
+      />,
+    );
+    const glos = screen.getByRole("button", { name: "club.workspace.questions.vote" });
+    expect(glos).toBeDisabled();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    fireEvent.click(glos);
+    expect(onVote).not.toHaveBeenCalled();
+  });
+
   it("pytanie z autorem anonimowym bierze alias, a bez aliasu - konto usunięte", () => {
     const { rerender } = render(
       <ClubQuestionCard
         row={threadQuestionRow({ author_name: null, author_alias: "Uczestnik 3" })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -144,6 +171,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow({ author_name: "", author_alias: "" })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -164,6 +192,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
           can_answer: false,
         })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -190,6 +219,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
           can_answer: false,
         })}
         lang="en"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -206,6 +236,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
       <ClubQuestionCard
         row={threadQuestionRow({ can_answer: true })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending={false}
         onVote={() => undefined}
@@ -240,6 +271,7 @@ describe("ClubQuestionCard - pytanie w kolejce", () => {
           can_answer: true,
         })}
         lang="pl"
+        canVote
         votePending={false}
         answerPending
         onVote={() => undefined}
