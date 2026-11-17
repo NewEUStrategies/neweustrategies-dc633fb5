@@ -496,8 +496,8 @@ export function visibleTickets(
 
 /**
  * Wynik odsłonięcia biletów kodem (`revealEventCodeTickets`): kod po
- * normalizacji, identyfikatory i - od B1a - pełne wiersze biletów. Przed
- * migracją serwer zna tylko identyfikatory, a wiersze ma formularz.
+ * normalizacji, identyfikatory i - od B1a - pełne wiersze biletów. Serwer nie
+ * ma już ścieżki z samymi identyfikatorami (brak funkcji to błąd odsłonięcia).
  */
 export interface TicketReveal {
   code: string;
