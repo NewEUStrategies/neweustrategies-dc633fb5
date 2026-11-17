@@ -750,14 +750,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * wiersza wydarzenia (TIX-08). Dwa webhooki o ostatnie miejsce nie przejdą
  * już obu odczytów przed zapisem. `full` = zwrot.
  *
- * OKNO WDROŻENIA: bez funkcji w bazie (migracja przed kodem) zostaje dawny
- * odczyt + zapis - bez blokady, ale nie gorszy niż przed zmianą.
+ * Brak funkcji (PGRST202/42883) i każdy inny błąd RPC to porażka zamówienia
+ * (webhook ponawia, zadanie darmowych zamówień wraca w następnym takcie) -
+ * nigdy decyzja o miejscu w TS bez blokady.
  */
-async function claimPaidRsvpSeat(
-  order: FulfilOrderRow,
-  userId: string,
-  eventId: string,
-): Promise<"seated" | "full"> {
+async function claimPaidRsvpSeat(order: FulfilOrderRow): Promise<"seated" | "full"> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.rpc("_event_rsvp_claim_paid_seat", {
     p_order_id: order.id,
@@ -768,29 +765,7 @@ async function claimPaidRsvpSeat(
     if (verdict?.reason === "event_full") return "full";
     throw new Error(`one-time: rsvp seat claim refused (${order.id}): ${String(verdict?.reason)}`);
   }
-  if (!isMigrationPending(error)) {
-    throw new Error(`one-time: rsvp seat claim failed (${order.id}): ${error.message}`);
-  }
-
-  const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
-  try {
-    await assertSeatAvailable(supabaseAdmin, eventId, userId);
-  } catch (err) {
-    if (err instanceof Error && err.message === "event_full") return "full";
-    throw err;
-  }
-  const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(
-    {
-      tenant_id: order.tenant_id,
-      event_id: eventId,
-      user_id: userId,
-      status: "going",
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "event_id,user_id" },
-  );
-  if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
-  return "seated";
+  throw new Error(`one-time: rsvp seat claim failed (${order.id}): ${error.message}`);
 }
 
 /**
@@ -1558,7 +1533,7 @@ async function settleOrder(
       if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
       seated = true;
     } else if (verdict === "rsvp") {
-      if ((await claimPaidRsvpSeat(order, userId, eventId)) === "full") {
+      if ((await claimPaidRsvpSeat(order)) === "full") {
         await refundOversold(txn, order, userId, amountCents, currency, mode);
         return { outcome: "oversold_refunded", seated: false };
       }

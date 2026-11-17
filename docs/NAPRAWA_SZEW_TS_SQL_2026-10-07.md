@@ -89,8 +89,10 @@ zapisu i bilety grupy (`event_registration_notify_payload_for_tenant`,
 usunięcia osobną migracją), formularz z kluczem biletu z linku
 (`event_registration_form(p_event_slug, p_ticket_key)`, `20261012140100`; bez
 klucza to zwykła ścieżka, nie powrót), stan miejsc (`event_seat_state`,
-`20261002210000`, dziennik 0131; bez dawnej reguły puli legacy) i portfel
-Google/Apple (`_event_wallet_pass_note` z sześcioma argumentami
+`20261002210000`, dziennik 0131; bez dawnej reguły puli legacy), miejsce RSVP
+biletu bez zgłoszenia (`_event_rsvp_claim_paid_seat`, `20261012130001`,
+dziennik 0165; bez decyzji o miejscu w TS bez blokady) i portfel Google/Apple
+(`_event_wallet_pass_note` z sześcioma argumentami
 i `_event_wallet_pass_state`, `20261013111600`; ani obiekt w starym kształcie,
 ani czteroargumentowy dziennik); brak funkcji to teraz błąd zwracany
 wołającemu, więc kolumna „Kolejność” opisuje stan sprzed tej zmiany. Dowód:

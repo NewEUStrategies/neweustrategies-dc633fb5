@@ -737,9 +737,9 @@ describe("wyprzedana sala", () => {
   // JAK ZOSTAŁO NAPRAWIONE. Wywołanie `assertSeatAvailable` stoi w `try`,
   // a wyjątek o komunikacie `event_full` (i TYLKO on) zamienia się w odmowę
   // `{ ok: false, error: "event_full" }`. Kod odmowy zostaje ten sam, którym
-  // moduł biletów posługuje się od zawsze - dzięki temu drugie wywołanie
-  // `assertSeatAvailable` (`oneTimeFulfilment.server.ts`), które celowo ŁAPIE
-  // ten wyjątek po nazwie komunikatu, działa bez zmian. Każdy inny wyjątek
+  // moduł biletów posługuje się od zawsze - dzięki temu kasa biletowa
+  // (`checkout.functions.ts`), która woła `assertSeatAvailable` bez `try`
+  // i oddaje ten komunikat wprost, działa bez zmian. Każdy inny wyjątek
   // (np. awaria odczytu miejsc) leci dalej: to nie jest odmowa i nie wolno go
   // pokazywać kupującemu jako „brak miejsc".
   it("brak wolnych miejsc wraca KANAŁEM ODMOWY, a nie wyjątkiem", async () => {
