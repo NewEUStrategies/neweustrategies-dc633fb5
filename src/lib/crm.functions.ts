@@ -1243,9 +1243,15 @@ const LEAD_AVATAR_CHUNK = 100;
 // Schemat NIE ogranicza długości `crm_leads.email` ani `profiles.contact_email`
 // (tylko CHECK formatu kontaktu). Granice dają walidatory aplikacji - formularze
 // 254 znaki, import leadów 320 (`LEAD_IMPORT_VALUE_MAX.email`) - a nie każda
-// ścieżka zapisu leada przez nie przechodzi. Adres 320 znaków z samych `\`
-// kosztuje ~3,8 tys., ale z jedną literą spoza ASCII idzie w DWÓCH postaciach
-// (klucz JS i zapis leada) - ponad 7 tys. Klucz droższy niż budżet
+// ścieżka zapisu leada przez nie przechodzi. Budżet przekracza adres długi
+// I pełen znaków, które liść mnoży - nie sama długość: `\` po ucieczce LIKE,
+// cytowaniu PostgREST i kodowaniu URL to 12 znaków (`%`, `_`, `"` też po
+// kilka), zwykła litera - 1. Adres 320 znaków z samych `\` to ~3,8 tys.
+// w jednym liściu. Drugi liść `ilike` adres dostaje tylko wtedy, gdy zapis
+// leada i jego klucz (`normalizeEmail`) leżą w różnych klasach `pgCaseFold`:
+// `İ`, `Σ` na końcu słowa, wielkie litery spoza zaufanych zakresów - nie `Ł`
+// czy `Ż` (postaci z `*` idą tańszą listą dokładną `in`). Wtedy już 254 znaki
+// (limit RFC 5321) z `İ` i 248 `\` to ponad 6 tys. Klucz droższy niż budżet
 // `avatarLookupChunks` więc pomija (lead bez zdjęcia), zamiast wysłać
 // zapytanie, które proxy odrzuci razem z lookupem całej strony.
 const LEAD_AVATAR_FILTER_URL_BUDGET = 6000;

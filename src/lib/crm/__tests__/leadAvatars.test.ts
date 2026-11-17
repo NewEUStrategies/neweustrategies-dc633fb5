@@ -214,6 +214,14 @@ describe("avatarLookupChunks", () => {
         maxEncodedLength: budget,
       }),
     ).toEqual([]);
+    // Za drogi bywa już adres w limicie RFC 5321 (254 znaki): `İ` (dwa liście)
+    // i 248 `\`. Ta sama długość w jednym liściu mieści się z zapasem.
+    const costOf = (email: string) =>
+      avatarLookupKeyCost(avatarLookupKeys([lead("l4", email)])[0] as (typeof keys)[number]);
+    const rfcMax = `İ${"\\".repeat(248)}@x.pl`;
+    expect([...rfcMax]).toHaveLength(254);
+    expect(costOf(rfcMax)).toBeGreaterThan(budget);
+    expect(costOf(`Ł${"\\".repeat(248)}@x.pl`)).toBeLessThan(budget / 2 + 100);
     // Każdy klucz w limicie mieści się sam - nic poza za drogimi nie znika.
     const tight = avatarLookupChunks(keysFor(3), { maxItems: 100, maxEncodedLength: 60 });
     expect(tight.flat()).toEqual(keysFor(3));

@@ -208,8 +208,11 @@ export function avatarLookupKeyCost(key: AvatarLookupKey): number {
  * Klucz droższy niż `maxEncodedLength` jest POMIJANY - lead zostaje bez
  * zdjęcia na liście i na karcie. Wysłany nawet sam przekroczyłby limit linii
  * żądania, a odrzucone zapytanie wywróciłoby lookup całej strony (lista -
- * błąd, karta - log). Taki adres nie jest poprawnym e-mailem (RFC 5321: 254
- * znaki); schemat bazy długości adresu nie ogranicza, więc limit trzymamy tu.
+ * błąd, karta - log). Za drogi jest adres długi i pełen znaków, które liść
+ * mnoży (`\` to 12 znaków po ucieczce LIKE, cytowaniu i kodowaniu URL), nie
+ * sam długi - i nie tylko ponad limitem RFC 5321: 254 znaki z `İ` (dwa
+ * liście, zob. `AvatarLookupKey`) i 248 `\` to już ponad 6 tys. Schemat bazy
+ * długości adresu nie ogranicza, więc limit trzymamy tu.
  */
 export function avatarLookupChunks(
   keys: readonly AvatarLookupKey[],
