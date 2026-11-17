@@ -3,6 +3,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.functions";
+import { getArchiveFeaturedSection } from "@/lib/archive/featuredSection.functions";
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
@@ -191,19 +192,57 @@ export interface TaxonomyMeta {
   description_en: string | null;
   featured_template_id: string | null;
   featured_section: SectionNode | null;
+  /**
+   * `true`, gdy termin MA szablon wyróżniony, ale jego odczyt się nie udał -
+   * archiwum renderuje się wtedy bez sekcji, a loader trasy wie, że dokument
+   * jest niepełny (krótka polityka cache zamiast pełnej). Odróżnia awarię
+   * od „redakcja nic nie ustawiła" (`featured_section: null`, flaga `false`).
+   */
+  featured_section_degraded: boolean;
 }
 
-async function fetchFeaturedSection(templateId: string | null): Promise<SectionNode | null> {
-  if (!templateId) return null;
-  const { data, error: dataError } = await supabase
-    .from("builder_templates")
-    .select("data")
-    .eq("id", templateId)
-    .maybeSingle();
-  if (dataError) throw dataError;
-  const d = data?.data as SectionNode | undefined;
-  if (!d || typeof d !== "object" || d.kind !== "section") return null;
-  return d;
+/** Wynik odczytu sekcji wyróżnionej: sekcja (albo jej brak) i to, czy odczyt padł. */
+interface FeaturedSectionRead {
+  section: SectionNode | null;
+  degraded: boolean;
+}
+
+/**
+ * Sekcja wyróżniona terminu - przez funkcję serwerową, nie klientem
+ * przeglądarki.
+ *
+ * DLACZEGO NIE `supabase.from("builder_templates")`. Do 17.11.2026 tak było:
+ * `anon` nie ma na tej tabeli grantu, odczyt kończył się 42501, a wyjątek
+ * przez `Promise.all` odrzucał CAŁE archiwum - goście dostawali na każdej
+ * kategorii i tagu z ustawionym szablonem stronę „brak danych". Funkcja
+ * (`lib/archive/featuredSection.functions.ts`) czyta spod service-role
+ * WYŁĄCZNIE szablon wskazany przez publiczny wiersz terminu, w najemcy
+ * z hosta żądania.
+ *
+ * NIE RZUCA. Sekcja wyróżniona to dodatek redakcji nad listą wpisów, a nie
+ * treść archiwum: jej awaria degraduje stronę do archiwum bez sekcji
+ * (ostrzeżenie w logu + `degraded`), zamiast odbierać czytelnikowi listę.
+ */
+async function fetchFeaturedSection(
+  kind: TaxonomyKind,
+  termId: string,
+  templateId: string | null,
+): Promise<FeaturedSectionRead> {
+  if (!templateId) return { section: null, degraded: false };
+  try {
+    const { json } = await getArchiveFeaturedSection({ data: { kind, termId } });
+    const d = json ? (JSON.parse(json) as SectionNode | null) : null;
+    if (!d || typeof d !== "object" || d.kind !== "section") {
+      return { section: null, degraded: false };
+    }
+    return { section: d, degraded: false };
+  } catch (err) {
+    console.warn(
+      "[archive] sekcja wyróżniona niedostępna - archiwum renderuje się bez niej:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { section: null, degraded: true };
+  }
 }
 
 export interface TaxonomyArchiveParams {
@@ -473,8 +512,8 @@ async function fetchTaxonomyArchive(
   // a pierwsze rosło z liczbą wpisów w kategorii aż do przekroczenia limitu
   // linii żądania. Szczegóły i powód takiego, a nie innego kształtu naprawy:
   // nagłówek `lib/queries/taxonomyPivot.ts`.
-  const [featured_section, listing] = await Promise.all([
-    fetchFeaturedSection(taxRow.featured_template_id),
+  const [featured, listing] = await Promise.all([
+    fetchFeaturedSection(kind, taxRow.id, taxRow.featured_template_id),
     fetchTaxonomyPage(kind, taxRow.id, page, pageSize, sort, popularRanking),
   ]);
   const { posts, total } = listing;
@@ -489,7 +528,8 @@ async function fetchTaxonomyArchive(
       description_pl: taxRow.description_pl ?? null,
       description_en: taxRow.description_en ?? null,
       featured_template_id: taxRow.featured_template_id,
-      featured_section,
+      featured_section: featured.section,
+      featured_section_degraded: featured.degraded,
     },
     posts,
     total,

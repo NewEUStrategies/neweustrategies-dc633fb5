@@ -101,12 +101,13 @@ export const Route = createFileRoute("/tag/$slug")({
     // `category.$slug.tsx`: brak treści/404 -> `no-store`; treść prawdziwa na
     // domyślnym layoucie -> krótka świeżość z rewalidacją (dokument kompletny,
     // więc dzielimy go 30 s zamiast renderować od zera każdemu czytelnikowi
-    // zimnej konfiguracji); render czysty -> polityka treści.
+    // zimnej konfiguracji); render czysty -> polityka treści. Padnięty odczyt
+    // sekcji wyróżnionej to stan środkowy (lista prawdziwa, brak dodatku).
     if (import.meta.env.SSR || import.meta.env.DEV)
       setCacheControlHeader(
         archive.degraded || archive.data === null
           ? resilientCacheControl(true)
-          : settings.degraded
+          : settings.degraded || archive.data.taxonomy.featured_section_degraded
             ? chromeDegradedCacheControl()
             : resilientCacheControl(false),
       );

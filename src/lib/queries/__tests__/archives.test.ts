@@ -95,6 +95,12 @@ const h = vi.hoisted(() => ({
   cache: [] as Array<{ key: string; ttl: number }>,
   jezyk: "pl",
   semantyka: vi.fn<(input: { data: { q: string } }) => Promise<{ hits: SemanticHit[] }>>(),
+  /** Funkcja serwerowa sekcji wyróżnionej (odczyt szablonu spod service-role). */
+  wyroznione: vi.fn<
+    (input: { data: { kind: "category" | "tag"; termId: string } }) => Promise<{
+      json: string | null;
+    }>
+  >(),
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -120,6 +126,10 @@ vi.mock("@/lib/ssrCache", () => ({
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => h.jezyk }));
 
 vi.mock("@/lib/search/semantic.functions", () => ({ semanticSearch: h.semantyka }));
+
+vi.mock("@/lib/archive/featuredSection.functions", () => ({
+  getArchiveFeaturedSection: h.wyroznione,
+}));
 
 import {
   ARCHIVE_PAGE_SIZE,
@@ -323,10 +333,14 @@ beforeEach(() => {
   h.jezyk = "pl";
   h.semantyka.mockReset();
   h.semantyka.mockResolvedValue({ hits: [] });
+  h.wyroznione.mockReset();
+  h.wyroznione.mockResolvedValue({ json: null });
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  // Szpiedzy `console.warn` z przypadków degradacji nie przeciekają dalej.
+  vi.restoreAllMocks();
 });
 
 // ==========================================================================
@@ -892,77 +906,97 @@ describe("archiwum taksonomii: dokładne okno strony", () => {
 // ==========================================================================
 
 describe("sekcja wyróżniona archiwum", () => {
+  // DEFEKT (17.11.2026). Szablon był czytany KLIENTEM PRZEGLĄDARKI z
+  // `builder_templates`, na której `anon` nie ma grantu: 42501, a wyjątek przez
+  // `Promise.all` odrzucał CAŁE archiwum - goście dostawali stronę „brak
+  // danych" na każdej kategorii i tagu z ustawionym szablonem. Odczyt idzie
+  // teraz przez funkcję serwerową (`lib/archive/featuredSection.functions.ts`),
+  // a jej awaria degraduje archiwum do listy BEZ sekcji, z flagą degradacji.
   const KATEGORIA_Z_SZABLONEM = { ...WIERSZ_KATEGORII, featured_template_id: "szablon-1" };
+  const TAG_Z_SZABLONEM = { ...WIERSZ_TAGU, featured_template_id: "szablon-1" };
 
-  it("brak szablonu w taksonomii oznacza ZERO zapytań o szablony", async () => {
+  it("brak szablonu w taksonomii oznacza ZERO odczytów szablonu", async () => {
     planujArchiwum({ kind: "category" });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
+    expect(h.wyroznione).not.toHaveBeenCalled();
     expect(baza().chainsFor("builder_templates")).toHaveLength(0);
   });
 
-  it("szablon jest czytany po id i oddaje sekcję do renderu", async () => {
+  it("szablon idzie przez funkcję serwerową po RODZAJU i ID TERMINU - nigdy klientem przeglądarki", async () => {
     const sekcja = { kind: "section", id: "s1", children: [] };
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: sekcja }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify(sekcja) });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    const szablon = lancuch("builder_templates");
-    expect(szablon.argsOf("select")?.[0]).toBe("data");
-    expect(szablon.argsOf("eq")).toEqual(["id", "szablon-1"]);
-    expect(szablon.has("maybeSingle")).toBe(true);
+    expect(h.wyroznione).toHaveBeenCalledTimes(1);
+    expect(h.wyroznione).toHaveBeenCalledWith({ data: { kind: "category", termId: "kat-1" } });
+    // Gość nie ma grantu na `builder_templates` - klient przeglądarki nie
+    // może o nią pytać ani razu.
+    expect(baza().chainsFor("builder_templates")).toHaveLength(0);
     expect(wynik?.taxonomy.featured_section).toEqual(sekcja);
     expect(wynik?.taxonomy.featured_template_id).toBe("szablon-1");
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
+  });
+
+  it("archiwum TAGU pyta funkcję o tag, nie o kategorię", async () => {
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify({ kind: "section", id: "s1" }) });
+    planujArchiwum({ kind: "tag", taksonomia: ok(TAG_Z_SZABLONEM) });
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("tag", "nato"));
+    expect(h.wyroznione).toHaveBeenCalledWith({ data: { kind: "tag", termId: "tag-1" } });
+    expect(baza().chainsFor("builder_templates")).toHaveLength(0);
   });
 
   it("dokument innego rodzaju niż „section” nie jest wpuszczany do renderu archiwum", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: { kind: "row", id: "r1" } }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify({ kind: "row", id: "r1" }) });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
   });
 
   it("dokument, który nie jest obiektem, też jest odrzucany", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: "to nie jest sekcja" }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify("to nie jest sekcja") });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
   });
 
-  it("PUSTKA: usunięty szablon (brak wiersza) daje archiwum bez sekcji wyróżnionej", async () => {
-    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM), szablon: ok(null) });
+  it("PUSTKA: usunięty szablon (funkcja oddaje `null`) daje archiwum bez sekcji, BEZ flagi degradacji", async () => {
+    h.wyroznione.mockResolvedValue({ json: null });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa odczytu builder_templates", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: fail("odmowa odczytu builder_templates", "42501"),
-    });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toMatchObject({ message: "odmowa odczytu builder_templates" });
+  it("AWARIA odczytu szablonu NIE odbiera listy: archiwum z wpisami, bez sekcji, z ostrzeżeniem w logu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.wyroznione.mockRejectedValue(new Error("permission denied for table builder_templates"));
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
+    const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["p1"]);
+    expect(wynik?.total).toBe(1);
+    expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("sekcja wyróżniona niedostępna"),
+      "permission denied for table builder_templates",
+    );
   });
 
-  it("AWARIA szablonu wyróżnionego POWINNA być odróżnialna od „operator nic nie ustawił”", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: fail("odmowa odczytu builder_templates", "42501"),
-    });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toThrow("odmowa odczytu builder_templates");
+  it("AWARIA szablonu wyróżnionego jest odróżnialna od „operator nic nie ustawił” (flaga degradacji)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.wyroznione.mockRejectedValue(new Error("odmowa"));
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
+    const awaria = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(awaria?.taxonomy.featured_section).toBeNull();
+    expect(awaria?.taxonomy.featured_section_degraded).toBe(true);
+
+    h.wyroznione.mockReset();
+    planujArchiwum({ kind: "category" });
+    const nic = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(nic?.taxonomy.featured_section).toBeNull();
+    expect(nic?.taxonomy.featured_section_degraded).toBe(false);
   });
 });
 
