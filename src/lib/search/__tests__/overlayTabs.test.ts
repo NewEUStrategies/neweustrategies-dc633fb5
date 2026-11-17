@@ -14,6 +14,10 @@
 // Sekcja klubów niesie dodatkowo regułę prywatności: RPC filtruje po
 // uprawnieniach per wątek, więc overlay nie może zdradzić istnienia klubu
 // zamkniętego. Test przypina, że warstwa TS nie dokłada tu własnego obejścia.
+//
+// Sekcja osób jest wyłącznie dla sesji (`search_people`: anon bez EXECUTE,
+// ciało filtruje `auth.uid() IS NOT NULL`). Przypadki źródeł grają
+// ZALOGOWANEGO (`run` niżej); gość ma własny blok.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
 
@@ -33,14 +37,22 @@ import {
   firstNonEmptyTab,
   orIlikeValue,
   overlaySearchQueryOptions,
+  overlayTabsFor,
   type OverlayResults,
 } from "@/lib/search/overlayTabs";
 
 type QueryFn = () => Promise<OverlayResults>;
 
-/** Uruchamia `queryFn` opcji zapytania - to ona scala pięć źródeł. */
+const SIGNED_IN = { signedIn: true } as const;
+const GUEST = { signedIn: false } as const;
+
+/** Uruchamia `queryFn` opcji zapytania (zalogowany) - to ona scala pięć źródeł. */
 const run = (q = "energia", lang: "pl" | "en" = "pl", limit = 5) =>
-  (overlaySearchQueryOptions(q, lang, limit).queryFn as unknown as QueryFn)();
+  (overlaySearchQueryOptions(q, lang, limit, SIGNED_IN).queryFn as unknown as QueryFn)();
+
+/** To samo dla gościa (bez sesji). */
+const runAsGuest = (q = "energia", lang: "pl" | "en" = "pl", limit = 5) =>
+  (overlaySearchQueryOptions(q, lang, limit, GUEST).queryFn as unknown as QueryFn)();
 
 /** Domyślnie KAŻDE RPC odpowiada pustką; test podmienia tylko to, co bada. */
 function rpcRouter(byFn: Record<string, unknown> = {}) {
@@ -69,17 +81,34 @@ describe("overlayTabs - kontrakt zakładek", () => {
   });
 
   it("fraza krótsza niż dwa znaki NIE odpala zapytania", () => {
-    expect(overlaySearchQueryOptions("a", "pl", 5).enabled).toBe(false);
-    expect(overlaySearchQueryOptions("ab", "pl", 5).enabled).toBe(true);
+    expect(overlaySearchQueryOptions("a", "pl", 5, SIGNED_IN).enabled).toBe(false);
+    expect(overlaySearchQueryOptions("ab", "pl", 5, SIGNED_IN).enabled).toBe(true);
   });
 
   it("klucz cache niesie frazę, język i limit - inaczej wynik EN pokazałby się w PL", () => {
-    expect(overlaySearchQueryOptions("gaz", "en", 8).queryKey).toEqual([
+    // Ostatni element to „zalogowany?" - patrz przypadek niżej.
+    expect(overlaySearchQueryOptions("gaz", "en", 8, SIGNED_IN).queryKey).toEqual([
       "search-overlay-tabs",
       "gaz",
       "en",
       8,
+      true,
     ]);
+  });
+
+  it("klucz cache odróżnia gościa od zalogowanego - wynik bez osób nie przeżyje logowania", () => {
+    expect(overlaySearchQueryOptions("gaz", "en", 8, GUEST).queryKey).toEqual([
+      "search-overlay-tabs",
+      "gaz",
+      "en",
+      8,
+      false,
+    ]);
+  });
+
+  it("gość nie ma zakładki „Osoby”, zalogowany ma wszystkie pięć w tej samej kolejności", () => {
+    expect(overlayTabsFor(SIGNED_IN)).toEqual(OVERLAY_TABS);
+    expect(overlayTabsFor(GUEST)).toEqual(["posts", "topics", "clubs", "experts"]);
   });
 });
 
@@ -323,6 +352,64 @@ describe("overlayTabs - osoby", () => {
   it("BŁĄD funkcji osób daje pustą sekcję", async () => {
     rpcRouter({ search_people: { data: null, error: { message: "42725" } } });
     expect((await run()).people).toEqual([]);
+  });
+
+  it("zalogowany pyta katalog osób z frazą i limitem (pełny zestaw argumentów)", async () => {
+    await run("energia", "pl", 7);
+
+    const calls = h.rpc.mock.calls.filter(([fn]) => fn === "search_people");
+    expect(calls).toEqual([
+      ["search_people", { p_query: "energia", p_limit: 7, p_offset: 0, p_verified_only: false }],
+    ]);
+  });
+});
+
+describe("overlayTabs - gość bez sesji", () => {
+  it("gość NIE woła `search_people` (anon bez EXECUTE) i dostaje pustą sekcję osób", async () => {
+    rpcRouter({
+      search_people: [{ id: "u-1", display_name: "Jan", slug: "jan" }],
+      search_posts: [
+        {
+          id: "p-1",
+          slug: "raport",
+          title_pl: "Raport",
+          title_en: "Report",
+          excerpt_pl: null,
+          excerpt_en: null,
+        },
+      ],
+    });
+
+    const r = await runAsGuest();
+
+    expect(h.rpc.mock.calls.map(([fn]) => fn)).not.toContain("search_people");
+    expect(r.people).toEqual([]);
+  });
+
+  it("pozostałe źródła gość pyta jak dotąd", async () => {
+    rpcRouter({
+      search_posts: [
+        {
+          id: "p-1",
+          slug: "raport",
+          title_pl: "Raport",
+          title_en: "Report",
+          excerpt_pl: null,
+          excerpt_en: null,
+        },
+      ],
+    });
+
+    const r = await runAsGuest();
+
+    expect(h.rpc.mock.calls.map(([fn]) => fn).sort()).toEqual([
+      "club_search",
+      "search_people_orgs",
+      "search_posts",
+    ]);
+    expect(stubs.from?.chainsFor("categories")).toHaveLength(1);
+    expect(stubs.from?.chainsFor("tags")).toHaveLength(1);
+    expect(r.posts.map((p) => p.id)).toEqual(["p-1"]);
   });
 });
 

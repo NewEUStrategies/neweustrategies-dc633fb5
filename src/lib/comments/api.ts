@@ -47,20 +47,70 @@ function collectAuthorIds(rows: readonly CommentRow[]): string[] {
   );
 }
 
-async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, CommentAuthor>> {
-  const byId = new Map<string, CommentAuthor>();
-  if (ids.length === 0) return byId;
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, display_name, avatar_url, slug")
-    .in("id", ids as string[]);
-  for (const p of profiles ?? []) {
+interface AuthorProfileRow {
+  id: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  slug: string | null;
+}
+
+function addAuthors(
+  byId: Map<string, CommentAuthor>,
+  rows: readonly AuthorProfileRow[] | null,
+): void {
+  for (const p of rows ?? []) {
+    if (p.id === null || byId.has(p.id)) continue;
     byId.set(p.id, {
       id: p.id,
       display_name: p.display_name ?? null,
       avatar_url: p.avatar_url ?? null,
       slug: p.slug ?? null,
     });
+  }
+}
+
+/**
+ * Autorzy komentarzy: nazwa, awatar i slug profilu.
+ *
+ * DWA ZRODLA, BO DWIE ROLE. Gosc (anon) nie ma SELECT na kolumnach profilu
+ * w `profiles` - zapytanie konczylo sie 42501, blad byl ignorowany i KAZDY
+ * komentarz czlonka podpisywal sie „Anonim", bez awatara i linku. Dla
+ * goscia czytamy wiec publiczna projekcje `profiles_public` (te sama co
+ * autorzy wpisow i podcasty): profile z publiczna obecnoscia najemcy
+ * (redakcja, autorzy, eksperci, prelegenci, prowadzacy), awatar `NULL`
+ * przy `hide_avatar`. Komentarz zwyklego czlonka zostaje u goscia
+ * anonimowy - pelna zgodnosc wymaga decyzji wlasciciela (RPC SECURITY
+ * DEFINER z podpisami autorow zatwierdzonych komentarzy), nie kodu klienta.
+ *
+ * Zalogowany czyta `profiles` jak dotad (redakcja widzi wszystkich
+ * z surowym awatarem, czlonek - siebie), a BRAKI dopelnia z
+ * `profiles_public`, ktora ta sama rola juz dzis moze czytac: bez tego
+ * czlonek widzialby „Anonim" przy ekspercie, ktorego gosc widzi
+ * z nazwiskiem. Wiersz z `profiles` zawsze wygrywa, wiec kazdy autor
+ * rozpoznany dzis wyglada identycznie; redakcja (komplet z `profiles`) nie
+ * wysyla drugiego zapytania.
+ *
+ * Role rozstrzyga sesja klienta (`getSession`) - ta sama, z ktora pojdzie
+ * zapytanie; klient i tak czyta ja przed kazdym zadaniem.
+ */
+async function fetchAuthorsById(ids: readonly string[]): Promise<Map<string, CommentAuthor>> {
+  const byId = new Map<string, CommentAuthor>();
+  if (ids.length === 0) return byId;
+  const { data: auth } = await supabase.auth.getSession();
+  if (auth.session !== null) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url, slug")
+      .in("id", ids as string[]);
+    addAuthors(byId, profiles);
+  }
+  const missing = ids.filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    const { data: publicProfiles } = await supabase
+      .from("profiles_public")
+      .select("id, display_name, avatar_url, slug")
+      .in("id", missing);
+    addAuthors(byId, publicProfiles);
   }
   return byId;
 }

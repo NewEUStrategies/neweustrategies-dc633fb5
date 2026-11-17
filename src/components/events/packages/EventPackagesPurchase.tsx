@@ -19,6 +19,18 @@
 //
 // TOKEN ZAPROSZENIA POKAZUJEMY RAZ. Baza trzyma tylko jego skrot, wiec
 // odnosnik zostaje na ekranie do skopiowania i mowi to wprost.
+//
+// GOSC WIDZI ZAPROSZENIE DO LOGOWANIA, NIE ALARM. Oferta, zamowienia i opcje
+// faktury to RPC wylacznie dla `authenticated` (anon nie ma EXECUTE, a cialo
+// `event_packages_offer` i tak nic nie oddaje bez `auth.uid()`). Trasa ma
+// `ssr: false` i wchodzi sie na nia z reklamy, wiec gosc dostawal czerwone
+// „nie udalo sie wczytac pakietow" i „...zamowien", ktorych odswiezenie nigdy
+// nie naprawi. Bramka jest na poziomie RENDERU: sekcje z zapytaniami montuja
+// sie dopiero z sesja - samo `enabled: false` zostawiloby zapytanie w stanie
+// `isPending` bez pobierania, a ekran pokazalby „wydarzenie nie oferuje
+// pakietow". Do rozstrzygniecia sesji stoi ta sama linia „Wczytywanie" co
+// przy ofercie; po zalogowaniu w oknie `openLoginPopup` kupujacy zostaje na
+// tej samej stronie, a sekcje montuja sie same.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -29,7 +41,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+import { openLoginPopup } from "@/lib/loginPopupBus";
 import { packageInviteUrl } from "@/lib/events/packagesApi";
 import {
   admissionQuoteMessageKey,
@@ -66,6 +80,64 @@ function localized(pl: string | null, en: string | null, isEnglish: boolean): st
 export function EventPackagesPurchase({ slug }: { slug: string }) {
   ensureEventRegistrationI18n();
   ensureEventInvoicesI18n();
+  const { t } = useTranslation();
+  const { session, loading } = useAuth();
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold">{t("eventPackages.heading")}</h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">{t("eventPackages.subheading")}</p>
+      </header>
+
+      {/* Sesja rozstrzyga sie przed rolami, wiec zalogowany kupujacy nie czeka
+          na `loading` (role) - sekcje z zapytaniami montuja sie od razu. */}
+      {session !== null ? (
+        <PackagesBuyerSections slug={slug} />
+      ) : loading ? (
+        <LoadingNote />
+      ) : (
+        <PackagesSignInPrompt />
+      )}
+    </div>
+  );
+}
+
+function LoadingNote() {
+  const { t } = useTranslation();
+  return (
+    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      {t("eventPackages.loading")}
+    </p>
+  );
+}
+
+/** Gosc: zdanie, PO CO konto, i okno logowania aplikacji (wzor `CfpSubmitPage`). */
+function PackagesSignInPrompt() {
+  const { t } = useTranslation();
+  return (
+    <section className="space-y-3 rounded-[6px] border border-border bg-muted/30 p-6">
+      <p className="text-sm text-muted-foreground">{t("eventPackages.signInRequired")}</p>
+      <Button
+        type="button"
+        size="sm"
+        onClick={() =>
+          openLoginPopup({
+            mode: "signin",
+            title: t("eventPackages.heading"),
+            description: t("eventPackages.signInRequired"),
+          })
+        }
+      >
+        {t("eventPackages.signIn")}
+      </Button>
+    </section>
+  );
+}
+
+/** Oferta, zakup i zamowienia - montowane WYLACZNIE z sesja (patrz naglowek pliku). */
+function PackagesBuyerSections({ slug }: { slug: string }) {
   const { t, i18n } = useTranslation();
   const isEnglish = i18n.language.startsWith("en");
   const locale = isEnglish ? "en" : "pl";
@@ -82,6 +154,8 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   const [invoiceNote, setInvoiceNote] = useState("");
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   // Pakiet oplaca sie przelewem - blok faktury, gdy organizator fakturuje.
+  // `enabled: true` jest prawda tylko dlatego, ze te sekcje montuja sie
+  // wylacznie z sesja (`event_invoice_public_options` to RPC zalogowanego).
   const invoice = useInvoiceRequestController({ target: null, enabled: true, payment: "transfer" });
 
   const offers = offerQ.data ?? [];
@@ -145,19 +219,11 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">{t("eventPackages.heading")}</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">{t("eventPackages.subheading")}</p>
-      </header>
-
+    <>
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{t("eventPackages.offerTitle")}</h2>
         {offerQ.isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t("eventPackages.loading")}
-          </p>
+          <LoadingNote />
         ) : /* AWARIA NIE UDAJE PUSTKI. Bez tej gałęzi padnięte zapytanie -
                wygasła sesja, brak sieci, odmowa uprawnień - wyglądało
                dokładnie jak wydarzenie bez pakietów: „to wydarzenie nie
@@ -267,10 +333,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">{t("eventPackages.ordersTitle")}</h2>
         {ordersQ.isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t("eventPackages.loading")}
-          </p>
+          <LoadingNote />
         ) : ordersQ.isError ? (
           // Ta sama zasada co przy ofercie: „nie masz zamówień" powiedziane
           // komuś, kto ma zamówienie, kończy się drugim zakupem tego samego
@@ -295,7 +358,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           </ul>
         )}
       </section>
-    </div>
+    </>
   );
 }
 

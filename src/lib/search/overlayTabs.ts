@@ -3,11 +3,31 @@
 // dzięki czemu liczniki przy zakładkach są prawdziwe, a przełączanie zakładek
 // nie odpala nowych round-tripów. Każde źródło jest odporne na brak funkcji
 // w bazie (fallback do pustej sekcji) - overlay nie może się wywracać.
+//
+// OSOBY TYLKO Z SESJĄ. Katalog osób (`search_people`) jest dla zalogowanych:
+// anon nie ma EXECUTE, a ciało funkcji filtruje `auth.uid() IS NOT NULL`, więc
+// gość dostawał przy każdej frazie odmowę 42501 i zawsze pustą sekcję. Kto
+// szuka, mówi `OverlaySearchViewer`; gość nie wysyła tego RPC, a zakładki
+// „Osoby" nie widzi (`overlayTabsFor`). Flaga siedzi w kluczu cache, żeby
+// wynik gościa (bez osób) nie przeżył zalogowania w tej samej karcie.
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export const OVERLAY_TABS = ["posts", "topics", "clubs", "people", "experts"] as const;
 export type OverlayTab = (typeof OVERLAY_TABS)[number];
+
+/** Kto szuka - wyznacza źródła, do których wolający ma dostęp. */
+export interface OverlaySearchViewer {
+  /** Sesja w przeglądarce; bez niej katalog osób (`search_people`) odpada. */
+  readonly signedIn: boolean;
+}
+
+const GUEST_TABS: readonly OverlayTab[] = OVERLAY_TABS.filter((tab) => tab !== "people");
+
+/** Zakładki, które ten czytelnik może w ogóle wypełnić (gość - bez „Osoby"). */
+export function overlayTabsFor(viewer: OverlaySearchViewer): readonly OverlayTab[] {
+  return viewer.signedIn ? OVERLAY_TABS : GUEST_TABS;
+}
 
 export interface OverlayHit {
   id: string;
@@ -156,9 +176,14 @@ async function fetchExperts(q: string, lang: Lang, limit: number): Promise<Overl
     }));
 }
 
-export const overlaySearchQueryOptions = (q: string, lang: Lang, limit: number) =>
+export const overlaySearchQueryOptions = (
+  q: string,
+  lang: Lang,
+  limit: number,
+  viewer: OverlaySearchViewer,
+) =>
   queryOptions({
-    queryKey: ["search-overlay-tabs", q, lang, limit] as const,
+    queryKey: ["search-overlay-tabs", q, lang, limit, viewer.signedIn] as const,
     enabled: q.length >= 2,
     staleTime: 60_000,
     queryFn: async (): Promise<OverlayResults> => {
@@ -166,7 +191,7 @@ export const overlaySearchQueryOptions = (q: string, lang: Lang, limit: number) 
         fetchPosts(q, lang, limit).catch(() => []),
         fetchTopics(q, lang, limit).catch(() => []),
         fetchClubs(q, limit).catch(() => []),
-        fetchPeople(q, limit).catch(() => []),
+        viewer.signedIn ? fetchPeople(q, limit).catch(() => []) : Promise.resolve([]),
         fetchExperts(q, lang, limit).catch(() => []),
       ]);
       return { posts, topics, clubs, people, experts };

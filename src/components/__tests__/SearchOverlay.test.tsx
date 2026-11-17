@@ -43,6 +43,9 @@
  *    synchroniczna i nic nie importuje: skrót `await import("@/test/i18nReal")`
  *    zakleszcza plik, bo ten moduł dochodzi do `react-i18next` (ten sam wniosek
  *    stoi w nagłówku `Header.test.tsx`).
+ *  * `@/hooks/useAuth` - sesja czytelnika. Katalog osób (`search_people`) jest
+ *    tylko dla zalogowanych (anon bez EXECUTE), więc przypadki ogólne grają
+ *    ZALOGOWANEGO (pięć sekcji, jak dotąd), a gość ma własny blok.
  *  * `@/lib/analytics/track` - `trackSearch` normalnie kolejkuje beacon do
  *    `/api/public/track`; tutaj rejestruje wywołanie, żeby test mógł
  *    zaasertować liczbę wyników i źródło ZDARZENIA, nie wychodząc do sieci.
@@ -107,7 +110,11 @@ const h = vi.hoisted(() => ({
   navigations: [] as string[],
   preloads: [] as string[],
   searchEvents: [] as Array<{ query: string; meta: Record<string, unknown> | undefined }>,
+  /** Sesja z `useAuth` - `null` to gość. */
+  session: null as null | { user: { id: string } },
 }));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -308,6 +315,7 @@ beforeEach(() => {
   h.preloads.length = 0;
   h.searchEvents.length = 0;
   h.gate = null;
+  h.session = { user: { id: "reader-1" } };
   window.localStorage.clear();
 });
 
@@ -646,6 +654,46 @@ describe("SearchOverlay - wyniki i zakładki", () => {
 });
 
 // --- Pasek wyszukiwania ------------------------------------------------------
+
+describe("SearchOverlay - gość bez sesji", () => {
+  it("gość NIE woła `search_people` i nie widzi zakładki „Osoby”, reszta sekcji jak dotąd", async () => {
+    h.session = null;
+    h.rpcRows["search_posts"] = [postRow("p1", "raport-ue", "Raport o UE", "EU report")];
+    h.rpcRows["search_people"] = [{ id: "u1", display_name: "Jan", slug: "jan" }];
+
+    renderOverlay({ limit: 5 });
+    await search("ue");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /Wpisy/ })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(h.rpcCalls.map((c) => c.name).sort()).toEqual([
+      "club_search",
+      "search_people_orgs",
+      "search_posts",
+    ]);
+    expect(screen.queryByRole("tab", { name: /Osoby/ })).toBeNull();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent?.replace(/\d+$/, ""))).toEqual([
+      "Wpisy",
+      "Tematyka",
+      "Kluby",
+      "Eksperci",
+    ]);
+  });
+
+  it("zalogowany ma zakładkę „Osoby” z wynikami katalogu", async () => {
+    h.rpcRows["search_people"] = [{ id: "u1", display_name: "Jan Kowalski", slug: "jan" }];
+
+    renderOverlay({});
+    await search("jan");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /Osoby/ })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("tab", { name: /Osoby/ })).toHaveTextContent("1");
+    expect(screen.getByRole("option")).toHaveTextContent("Jan Kowalski");
+  });
+});
 
 describe("SearchOverlay - pole zapytania", () => {
   it("czyszczenie pola chowa link do pełnych wyników", async () => {
