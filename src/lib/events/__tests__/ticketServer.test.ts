@@ -29,7 +29,6 @@ import {
   ok,
   paymentOrderRow,
   profileRow,
-  rsvpCountsRow,
   rsvpRow,
   seatStateRow,
   supabaseClientStub,
@@ -242,35 +241,25 @@ describe("loadEventSeatState - arytmetyka miejsc", () => {
   });
 
   it.each(["PGRST202", "42883"])(
-    "okno wdrożenia (%s): bez nowej funkcji liczy dawną regułą, zamiast stawać",
+    "brak funkcji (%s) RZUCA - bez dawnej reguły puli legacy",
     async (code) => {
-      // Kod może wejść przed migracją 20261002210000. Kasa nie może wtedy
-      // stanąć dla wszystkich biletów - liczymy tak jak przed zmianą.
+      // Odpowiedzi dawnej reguły czekają: gdyby kod znów po nią sięgnął,
+      // odczyt oddałby `seatsLeft: 6` z tabeli i licznika RSVP zamiast awarii.
       const stub = supabaseClientStub();
       stub.setRpc("event_seat_state", fail("Could not find the function", code));
       stub.db.setResponse("events", ok({ capacity: 10 }));
-      stub.setRpc("get_event_rsvp_counts", ok(rsvpCountsRow(4, 2)));
+      stub.setRpc("get_event_rsvp_counts", ok([{ going: 4, waitlist: 2 }]));
       h.client = stub.client;
 
-      const state = await loadEventSeatState(EVENT_IDS.event);
-
-      expect(state).toMatchObject({ capacity: 10, going: 4, waitlist: 2, seatsLeft: 6 });
-      expect(stub.rpcCalls.map((call) => call.fn)).toEqual([
-        "event_seat_state",
-        "get_event_rsvp_counts",
+      await expect(loadEventSeatState(EVENT_IDS.event)).rejects.toThrow(
+        "seat_state_unavailable: Could not find the function",
+      );
+      expect(stub.rpcCalls).toEqual([
+        { fn: "event_seat_state", args: { p_event_id: EVENT_IDS.event } },
       ]);
+      expect(stub.db.chainsFor("events")).toHaveLength(0);
     },
   );
-
-  it("okno wdrożenia zachowuje dawne brzegi: brak liczników to zero zajętych", async () => {
-    const stub = supabaseClientStub();
-    stub.setRpc("event_seat_state", fail("Could not find the function", "PGRST202"));
-    stub.db.setResponse("events", ok({ capacity: 3 }));
-    stub.setRpc("get_event_rsvp_counts", ok(null));
-    h.client = stub.client;
-
-    expect((await loadEventSeatState(EVENT_IDS.event)).seatsLeft).toBe(3);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -455,6 +444,22 @@ describe("assertSeatAvailable - bramka przed sprzedażą biletu", () => {
       (error: unknown) => (error instanceof Error ? error.message : String(error)),
     );
     expect(outcome).toMatch(/^seat_state_unavailable: /);
+  });
+
+  it("brak funkcji stanu miejsc (PGRST202) to awaria, NIE `event_full` i nie dawna reguła", async () => {
+    // Dawna reguła puli legacy (tabela + licznik RSVP) policzyłaby tu wolne
+    // miejsce; brak funkcji ma iść do wołającego tak jak każda inna awaria.
+    const stub = supabaseClientStub();
+    stub.db.setResponse("event_rsvps", ok(null));
+    stub.setRpc("event_seat_state", fail("Could not find the function", "PGRST202"));
+    stub.db.setResponse("events", ok({ capacity: 10 }));
+    stub.setRpc("get_event_rsvp_counts", ok([{ going: 4, waitlist: 0 }]));
+    const outcome = await assertSeatAvailable(asClient(stub), EVENT_IDS.event, EVENT_IDS.user).then(
+      () => "przepuszczono",
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(outcome).toMatch(/^seat_state_unavailable: /);
+    expect(stub.rpcCalls.map((call) => call.fn)).toEqual(["event_seat_state"]);
   });
 
   it("czyta WŁASNY wiersz RSVP - filtruje po wydarzeniu i po użytkowniku", async () => {

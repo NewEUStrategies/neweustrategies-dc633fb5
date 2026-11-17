@@ -67,11 +67,6 @@ vi.mock("@/lib/billing/grant.server", () => ({
   },
 }));
 let seatsFull = false;
-vi.mock("@/lib/events/ticket.server", () => ({
-  assertSeatAvailable: async () => {
-    if (seatsFull) throw new Error("event_full");
-  },
-}));
 const refunds: string[] = [];
 vi.mock("@/lib/billing/refundProvider.server", () => ({
   refundTransactionFully: async (_env: string, txnId: string) => {

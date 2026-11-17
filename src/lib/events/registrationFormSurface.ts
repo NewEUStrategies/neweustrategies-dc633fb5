@@ -480,12 +480,12 @@ export function requiredTermIds(form: RegistrationForm): string[] {
 }
 
 /**
- * Bilety widoczne dla uczestnika. Bilet ukryty pojawia się wyłącznie wtedy,
- * gdy link rejestracyjny wskazuje go kluczem (`?ticket=klucz`) albo kod go
- * odsłonił. Od REG-05 to SIATKA BEZPIECZEŃSTWA na okno wdrożenia: nowy
- * formularz biletów ukrytych w ogóle nie oddaje (wyjątek: bilet za kodem
- * dostępu wskazany kluczem - i tak wymaga kodu przy zapisie), a stary oddawał
- * je wszystkie.
+ * Bilety widoczne dla uczestnika. Bilet ukryty przechodzi ten filtr wyłącznie
+ * wtedy, gdy link rejestracyjny wskazuje go kluczem (`?ticket=klucz`); bilety
+ * odsłonięte kodem (wiersze z `withRevealedTickets`) wybierak dokleja osobno,
+ * po identyfikatorach z odpowiedzi odsłonięcia. Dla listy z formularza to filtr
+ * obronny: od REG-05 formularz nie oddaje biletów ukrytych poza biletem za
+ * kodem dostępu wskazanym kluczem (zapis i tak wymaga kodu).
  */
 export function visibleTickets(
   tickets: RegistrationFormTicket[],
@@ -496,8 +496,8 @@ export function visibleTickets(
 
 /**
  * Wynik odsłonięcia biletów kodem (`revealEventCodeTickets`): kod po
- * normalizacji, identyfikatory i - od B1a - pełne wiersze biletów. Przed
- * migracją serwer zna tylko identyfikatory, a wiersze ma formularz.
+ * normalizacji, identyfikatory i - od B1a - pełne wiersze biletów. Serwer nie
+ * ma już ścieżki z samymi identyfikatorami (brak funkcji to błąd odsłonięcia).
  */
 export interface TicketReveal {
   code: string;
@@ -507,9 +507,10 @@ export interface TicketReveal {
 
 /**
  * Bilety ukryte odsłonięte kodem, dołączone do formularza - jedna lista dla
- * wyboru, walidacji szkicu i wysyłki. Bilet już obecny na liście zostaje
- * w wersji formularza (stary backend oddaje tam też bilety ukryte), nowy
- * dochodzi na koniec w kolejności z bazy. Pusta lista nie zmienia formularza.
+ * wyboru, walidacji szkicu i wysyłki. Bilet już obecny na liście (bilet ukryty
+ * wskazany kluczem z linku, który kod też odsłania) zostaje w wersji
+ * formularza, nowy dochodzi na koniec w kolejności z bazy. Pusta lista nie
+ * zmienia formularza.
  */
 export function withRevealedTickets(
   form: RegistrationForm,

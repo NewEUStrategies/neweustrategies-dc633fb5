@@ -11,8 +11,9 @@
 //      jest publiczna (formularz zapisu jest dla anonimów) i jest POST.
 //   5. SAME IDENTYFIKATORY PRZY FORMULARZU BEZ BILETÓW UKRYTYCH (REG-05) - od
 //      B1a formularz ich nie oddaje, więc odsłonięcie MUSI nieść pełne wiersze
-//      (`event_registration_revealed_tickets`), a stara funkcja z samymi
-//      identyfikatorami zostaje wyłącznie na okno wdrożenia.
+//      (`event_registration_revealed_tickets`); brak tej funkcji
+//      (PGRST202/42883) to `error`, nigdy stara funkcja z samymi
+//      identyfikatorami, których formularz nie zamieni na bilety.
 //   6. SUROWY ADRES W BAZIE - skrót adresu to `ip:<32 hex>`, nie nagłówek.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -183,33 +184,25 @@ describe("revealTicketsForEventCode", () => {
   });
 
   it.each(["PGRST202", "42883"])(
-    "okno wdrożenia (%s): stara funkcja oddaje same identyfikatory",
+    "brak funkcji (%s) to `error` - bez starej funkcji z samymi identyfikatorami",
     async (code) => {
+      // Stara nazwa odpowiada identyfikatorami: gdyby kod znów po nią sięgnął,
+      // wynik byłby `ok: true` z „znaleziono 1" bez biletu w formularzu.
       h.rpc.mockImplementation(async (name: string) =>
         name === "event_registration_revealed_tickets"
           ? { data: null, error: { code, message: "function not found" } }
-          : { data: ["t-vip", 7, null], error: null },
+          : { data: ["t-vip"], error: null },
       );
       expect(await revealTicketsForEventCode(EVENT, " vip10 ")).toEqual({
-        ok: true,
-        ticketIds: ["t-vip"],
-        tickets: [],
+        ok: false,
+        reason: "error",
       });
-      expect(h.rpc.mock.calls[1]).toEqual([
-        "event_coupon_revealed_tickets",
-        { p_tenant: TENANT, p_event_id: EVENT, p_code: "VIP10" },
+      expect(h.rpc).toHaveBeenCalledTimes(1);
+      expect(h.rpc.mock.calls.map((call) => call[0])).toEqual([
+        "event_registration_revealed_tickets",
       ]);
     },
   );
-
-  it("błąd starej funkcji w oknie wdrożenia to też `error`", async () => {
-    h.rpc.mockImplementation(async (name: string) =>
-      name === "event_registration_revealed_tickets"
-        ? { data: null, error: { code: "PGRST202", message: "x" } }
-        : { data: null, error: { message: "permission denied" } },
-    );
-    expect(await revealTicketsForEventCode(EVENT, "VIP10")).toEqual({ ok: false, reason: "error" });
-  });
 
   it("brak najemcy albo awaria katalogu to `error` bez pytania bazy", async () => {
     h.tenant = null;

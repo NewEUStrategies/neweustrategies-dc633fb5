@@ -113,14 +113,6 @@ export function profileRow(overrides: Partial<ProfileRow> = {}): ProfileRow {
   };
 }
 
-/**
- * Wiersz `get_event_rsvp_counts` - RPC zwraca TABLICĘ, kod czyta `[0]`.
- * Dziś wyłącznie ścieżka okna wdrożenia (`event_seat_state` jeszcze nie istnieje).
- */
-export function rsvpCountsRow(going: number, waitlist = 0): Array<Record<string, unknown>> {
-  return [{ going, waitlist }];
-}
-
 export interface SeatStateRow {
   event_id: string;
   capacity: number | string | null;

@@ -26,7 +26,6 @@ import {
 } from "@/lib/supabase/looseQuery";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 import { CRM_TAG_MAX, type STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   avatarLookupChunks,
   avatarLookupKeys,
@@ -1034,8 +1033,9 @@ const BulkUpdateInput = z.object({
 // następnym wywołaniu widział dowód z księgi zgód i włączał zgodę z powrotem.
 // Dlatego `false` idzie przez RPC `crm_leads_marketing_consent_withdraw`:
 // UPDATE i wiersz given=false (źródło: personel) w JEDNEJ transakcji, najemca
-// z profilu wołającego. Przy starej bazie (42883/PGRST202 - kod przed
-// migracją) wracamy do dotychczasowego UPDATE.
+// z profilu wołającego. Każdy błąd RPC, także brak funkcji (PGRST202/42883),
+// przerywa całą zmianę - wycofanie zgody nigdy nie jest łatką bez śladu
+// w rejestrze zgód.
 export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => BulkUpdateInput.parse(d))
@@ -1059,12 +1059,8 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
         "crm_leads_marketing_consent_withdraw",
         { p_lead_ids: ids },
       );
-      if (withdrawError) {
-        if (!isMigrationPending(withdrawError)) throw new Error(withdrawError.message);
-        flatPatch.marketing_consent = false;
-      } else {
-        touched = ids.length;
-      }
+      if (withdrawError) throw new Error(withdrawError.message);
+      touched = ids.length;
     }
 
     if (Object.keys(flatPatch).length > 0) {
@@ -1103,7 +1099,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
           count: touched,
           // Odznaczenie zgody idzie RPC, nie łatką - pole i tak trafia do śladu.
           fields:
-            marketingConsent === false && !("marketing_consent" in flatPatch)
+            marketingConsent === false
               ? [...Object.keys(flatPatch), "marketing_consent"]
               : Object.keys(flatPatch),
           add_tags: addTags ?? [],

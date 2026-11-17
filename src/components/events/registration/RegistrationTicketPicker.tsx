@@ -110,8 +110,8 @@ export function RegistrationTicketPicker({
       const result = await reveal({ data: { eventId, code: normalized } });
       if (result.ok) {
         setRevealed(result.ticketIds);
-        // Wiersze biletów (B1a) idą do rodzica; przed migracją lista jest
-        // pusta, a bilety ukryte ma jeszcze sam formularz.
+        // Wiersze biletów (B1a) idą do rodzica; serwer oddaje je zawsze razem
+        // z identyfikatorami, `?? []` chroni tylko przed odpowiedzią bez listy.
         onReveal?.({
           code: normalized,
           ticketIds: result.ticketIds,

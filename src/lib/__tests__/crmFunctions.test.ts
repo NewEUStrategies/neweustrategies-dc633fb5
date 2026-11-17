@@ -986,16 +986,23 @@ describe("operacje zbiorcze", () => {
   });
 
   it.each(["PGRST202", "42883"])(
-    "okno wdrożenia (%s): baza bez RPC - dotychczasowy UPDATE",
+    "brak RPC wycofania (%s) wychodzi na zewnątrz - bez łatki bez śladu w rejestrze zgód",
     async (code) => {
+      // Zapis `crm_leads` by przeszedł: gdyby kod znów łatał flagę sam,
+      // zgoda zniknęłaby bez wiersza given=false, a most wydarzeń by ją
+      // przywrócił (R12). Etap w tym samym żądaniu też nie może wejść.
       rpcResults.crm_leads_marketing_consent_withdraw = fail("function not found", code);
       lead.setResponse("crm_leads", () => ok(null));
       lead.setResponse("audit_log", () => ok(null));
-      await callServerFn(crm.bulkUpdateCrmLeads, {
-        data: { ids: [LEAD_ID], marketing_consent: false },
-        context: context(),
-      });
-      expect(lead.lastChain("crm_leads")?.argsOf("update")).toEqual([{ marketing_consent: false }]);
+      await expect(
+        callServerFn(crm.bulkUpdateCrmLeads, {
+          data: { ids: [LEAD_ID], stage: "contacted", marketing_consent: false },
+          context: context(),
+        }),
+      ).rejects.toThrow("function not found");
+      expect(rpcCalls.map((call) => call.fn)).toEqual(["crm_leads_marketing_consent_withdraw"]);
+      expect(lead.chainsFor("crm_leads")).toHaveLength(0);
+      expect(lead.chainsFor("audit_log")).toHaveLength(0);
     },
   );
 

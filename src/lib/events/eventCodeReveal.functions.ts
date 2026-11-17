@@ -4,9 +4,10 @@
 // odsłania bilet" mówi, że kod istnieje - bez limitu prób to wyrocznia do
 // zgadywania kodów. Limit po IP zna wyłącznie serwer, a najemca ma pochodzić
 // z ZAUFANEGO hosta, a nie z nagłówka zapytania do bazy. Dlatego RPC
-// `event_registration_revealed_tickets` (B1a; w oknie wdrożenia
-// `event_coupon_revealed_tickets`, migracja 20261001100000) jest wykonywalne
-// tylko dla `service_role` i przyjmuje najemcę jawnie.
+// `event_registration_revealed_tickets` (B1a, migracja 20261012140100) jest
+// wykonywalne tylko dla `service_role` i przyjmuje najemcę jawnie. Serwer woła
+// wyłącznie je - brak funkcji to błąd odsłonięcia, a stara
+// `event_coupon_revealed_tickets` nie ma wołającego w TS.
 //
 // BILETY, NIE IDENTYFIKATORY (REG-05). Formularz publiczny nie oddaje już
 // biletów ukrytych, więc odpowiedź niesie pełne wiersze biletów w kształcie

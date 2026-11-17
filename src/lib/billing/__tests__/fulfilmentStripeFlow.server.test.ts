@@ -73,12 +73,6 @@ vi.mock("@/lib/email/transactional.server", async () => {
 
 vi.mock("@/lib/analytics/ga4Mp.server", () => ({ sendGa4Purchase: async () => undefined }));
 
-vi.mock("@/lib/events/ticket.server", () => ({
-  assertSeatAvailable: async () => {
-    if (h.seatsFull) throw new Error("event_full");
-  },
-}));
-
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: async () => ({

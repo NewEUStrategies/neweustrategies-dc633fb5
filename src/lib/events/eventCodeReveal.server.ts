@@ -15,9 +15,10 @@
 // PEŁNE WIERSZE, NIE SAME IDENTYFIKATORY (REG-05, decyzja D6). Od B1a
 // formularz publiczny nie oddaje biletów ukrytych wcale, więc identyfikator
 // nie miałby do czego się odnieść - odsłonięty bilet przychodzi tym samym
-// obiektem co bilet formularza (`parseRegistrationFormTickets`). W oknie
-// wdrożenia (PGRST202/42883) pytamy starą `event_coupon_revealed_tickets`,
-// która oddaje identyfikatory, a wiersze ma jeszcze stary formularz.
+// obiektem co bilet formularza (`parseRegistrationFormTickets`). Brak funkcji
+// (PGRST202/42883) to awaria z powodem `error` jak każdy błąd bazy - stara
+// `event_coupon_revealed_tickets` (same identyfikatory, których wdrożony
+// formularz nie zamieni już na bilety) nie ma wołającego w TS.
 //
 // JEDNA ODPOWIEDŹ DLA PUDŁA. Kod nieistniejący, z innego wydarzenia albo
 // z innego najemcy to ta sama pusta lista - baza nie odróżnia ich w wyniku,
@@ -37,7 +38,6 @@ import {
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 export type EventCodeRevealResult =
   | { ok: true; ticketIds: string[]; tickets: RegistrationFormTicket[] }
@@ -77,20 +77,7 @@ export async function revealTicketsForEventCode(
     p_event_id: eventId,
     p_code: normalized,
   });
-  if (!error) {
-    const tickets = parseRegistrationFormTickets(data);
-    return { ok: true, ticketIds: tickets.map((ticket) => ticket.id), tickets };
-  }
-  if (!isMigrationPending(error)) return { ok: false, reason: "error" };
-
-  const legacy = await supabaseAdmin.rpc("event_coupon_revealed_tickets", {
-    p_tenant: tenantId,
-    p_event_id: eventId,
-    p_code: normalized,
-  });
-  if (legacy.error) return { ok: false, reason: "error" };
-  const ticketIds = Array.isArray(legacy.data)
-    ? legacy.data.filter((id): id is string => typeof id === "string")
-    : [];
-  return { ok: true, ticketIds, tickets: [] };
+  if (error) return { ok: false, reason: "error" };
+  const tickets = parseRegistrationFormTickets(data);
+  return { ok: true, ticketIds: tickets.map((ticket) => ticket.id), tickets };
 }

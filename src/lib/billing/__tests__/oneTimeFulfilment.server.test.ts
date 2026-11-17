@@ -49,20 +49,12 @@ const h = vi.hoisted(() => ({
    * `already` - sala pełna, ale RSVP 'going' TEGO kupującego już stoi
    * (pierwsza dostawa zajęła miejsce), więc baza odpowiada `already: true`
    * (pgTAP: event_rsvp_claim_paid_seat_replay_test.sql), `broken` - błąd
-   * RPC, `refused` - odmowa bazy z powodem innym niż pełna sala; `legacy-*` -
-   * funkcji jeszcze nie ma (migracja przed kodem), więc idzie dawny odczyt
-   * `assertSeatAvailable` z danym skutkiem.
+   * RPC, `refused` - odmowa bazy z powodem innym niż pełna sala, `missing` -
+   * brak funkcji z kodem `missingCode` (PGRST202/42883), `thrown-string` -
+   * rzut bez obiektu `Error` z warstwy RPC.
    */
-  seat: "free" as
-    | "free"
-    | "full"
-    | "already"
-    | "broken"
-    | "refused"
-    | "legacy-free"
-    | "legacy-full"
-    | "legacy-broken"
-    | "legacy-thrown-string",
+  seat: "free" as "free" | "full" | "already" | "broken" | "refused" | "missing" | "thrown-string",
+  missingCode: "PGRST202" as "PGRST202" | "42883",
   claimCalls: [] as Array<Record<string, unknown>>,
   refusals: [] as unknown[],
   refund: { ok: true, adjustmentId: "adj_1" } as
@@ -134,9 +126,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         if (h.seat === "refused") {
           return { data: { ok: false, reason: "order_not_paid" }, error: null };
         }
-        if (h.seat.startsWith("legacy-")) {
-          return { data: null, error: { code: "PGRST202", message: "test: brak funkcji" } };
+        if (h.seat === "missing") {
+          return { data: null, error: { code: h.missingCode, message: "test: brak funkcji" } };
         }
+        if (h.seat === "thrown-string") throw "test: rzut bez obiektu Error";
         return { data: { ok: true, seated: true, already: false }, error: null };
       }
       h.log.push(`rpc:${String(args["p_outcome"])}`);
@@ -167,12 +160,12 @@ vi.mock("@/lib/billing/grant.server", () => ({
   },
 }));
 
+// Potykacz: realizacja nie decyduje o miejscu w TS (`assertSeatAvailable` bez
+// blokady wiersza wydarzenia) - nawet gdy funkcji bazy brakuje.
 vi.mock("@/lib/events/ticket.server", () => ({
   assertSeatAvailable: async () => {
     h.log.push("seat:legacy");
-    if (h.seat === "legacy-full") throw new Error("event_full");
-    if (h.seat === "legacy-broken") throw new Error("test: odczyt pojemności padł");
-    if (h.seat === "legacy-thrown-string") throw "test: rzut bez obiektu Error";
+    throw new Error("test: assertSeatAvailable nie może być wołane");
   },
 }));
 
@@ -373,6 +366,7 @@ beforeEach(() => {
   h.rpcCalls.length = 0;
   h.rpcReplies.length = 0;
   h.seat = "free";
+  h.missingCode = "PGRST202";
   h.claimCalls.length = 0;
   h.refusals.length = 0;
   h.refund = { ok: true, adjustmentId: "adj_1" };
@@ -885,35 +879,20 @@ describe("miejsce RSVP zakupu bez zgłoszenia - decyzja bazy pod blokadą", () =
     expect(h.eventMails).toHaveLength(0);
   });
 
-  it("okno wdrożenia (brak funkcji w bazie): dawny odczyt miejsc i RSVP z kodu", async () => {
-    h.seat = "legacy-free";
+  it.each(["PGRST202", "42883"] as const)(
+    "brak funkcji zajęcia miejsca (%s) to porażka zamówienia - bez decyzji o miejscu w TS, RSVP, zwrotu i maila",
+    async (code) => {
+      h.seat = "missing";
+      h.missingCode = code;
 
-    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
-    expect(h.log).toContain("seat:legacy");
-    expect(rsvpRows()[0]).toMatchObject({ event_id: EVENT, user_id: USER, status: "going" });
-    expect(h.eventMails).toHaveLength(1);
-  });
-
-  it("okno wdrożenia przy pełnej sali: zwrot", async () => {
-    h.seat = "legacy-full";
-
-    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("oversold_refunded");
-    expect(h.log).toContain("refund");
-    expect(rsvpRows()).toHaveLength(0);
-  });
-
-  it.each([
-    ["inny błąd odczytu pojemności", "legacy-broken" as const, "test: odczyt pojemności padł"],
-    ["rzut bez obiektu Error", "legacy-thrown-string" as const, "test: rzut bez obiektu Error"],
-  ])(
-    "okno wdrożenia: %s NIE jest pełną salą - rzuca dalej, bez zwrotu",
-    async (_l, seat, message) => {
-      h.seat = seat;
-
-      await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toSatisfy((err: unknown) =>
-        err instanceof Error ? err.message === message : err === message,
+      await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+        `one-time: rsvp seat claim failed (${ORDER_ID}): test: brak funkcji`,
       );
+      expect(h.claimCalls).toHaveLength(1);
+      expect(h.log).not.toContain("seat:legacy");
       expect(h.log).not.toContain("refund");
+      expect(rsvpRows()).toHaveLength(0);
+      expect(h.eventMails).toHaveLength(0);
     },
   );
 
@@ -3096,15 +3075,23 @@ describe("miejsce RSVP - odmowy bazy inne niż pełna sala", () => {
     expect(h.eventMails).toHaveLength(0);
   });
 
-  it("okno wdrożenia: nieudany zapis RSVP z kodu RZUCA - webhook dokończy potwierdzenie", async () => {
-    h.seat = "legacy-free";
-    rsvpResponse = fail("test: zapis RSVP odrzucony");
+  it.each(["PGRST202", "42883"] as const)(
+    "brak funkcji (%s) RZUCA przed jakimkolwiek zapisem RSVP - webhook ponowi całość",
+    async (code) => {
+      h.seat = "missing";
+      h.missingCode = code;
+      // Zapis RSVP by padł - gdyby kod sam zapisywał miejsce, błąd byłby
+      // „rsvp confirm failed”, a nie porażka decyzji bazy.
+      rsvpResponse = fail("test: zapis RSVP odrzucony");
 
-    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
-      "one-time: rsvp confirm failed: test: zapis RSVP odrzucony",
-    );
-    expect(h.eventMails).toHaveLength(0);
-  });
+      await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+        `one-time: rsvp seat claim failed (${ORDER_ID}): test: brak funkcji`,
+      );
+      expect(stub().chainsFor("event_rsvps")).toHaveLength(0);
+      expect(h.refundCalls).toHaveLength(0);
+      expect(h.eventMails).toHaveLength(0);
+    },
+  );
 });
 
 describe("bilet za zero przy pełnej sali - zapisy po stronie bazy", () => {
@@ -3343,7 +3330,7 @@ describe("runUnsettledFreeTicketOrders - termin i nietypowe odpowiedzi", () => {
   });
 
   it("rzut bez obiektu `Error` też jest porażką zamówienia z czytelnym logiem", async () => {
-    h.seat = "legacy-thrown-string";
+    h.seat = "thrown-string";
 
     expect(await runUnsettledFreeTicketOrders(lister([ORDER_ID]))).toMatchObject({
       claimed: 1,

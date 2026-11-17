@@ -1,7 +1,7 @@
 // usePasswordUnlock: odblokowanie wpisu chronionego hasłem (tryb `password`).
-// Hasło weryfikuje serwer (verify_content_password przez server fn), hook
-// trzyma odblokowane body i pamięta hasło w sessionStorage karty, żeby
-// odświeżenie nie pytało ponownie.
+// Hasło weryfikuje serwer (verify_content_password_for_tenant przez server
+// fn), hook trzyma odblokowane body i pamięta hasło w sessionStorage karty,
+// żeby odświeżenie nie pytało ponownie.
 //
 // Trzy kontrakty, których pilnuje ta suita:
 //  1. ODMOWA MA POWÓD. Złe hasło, serwerowy limit prób i awaria transportu to
