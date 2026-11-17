@@ -2962,7 +2962,7 @@ export function filterColumnPath(raw: string): { embed: string[]; column: string
   return { embed: parts.slice(0, -1), column: parts[parts.length - 1] };
 }
 
-/** Warunki listy `or`/`and` na najwyższym poziomie (nawiasy i cudzysłowy chronią przecinek). */
+/** Warunki listy `or`/`and` na najwyższym poziomie (nawiasy, klamry i cudzysłowy chronią przecinek). */
 function splitFilterConditions(text: string): string[] {
   const out: string[] = [];
   let depth = 0;
@@ -2978,8 +2978,9 @@ function splitFilterConditions(text: string): string[] {
       }
       if (ch === '"') quoted = false;
     } else if (ch === '"') quoted = true;
-    else if (ch === "(") depth += 1;
-    else if (ch === ")") depth -= 1;
+    // `in.(a,b)`, `and(...)` i tablice `cs.{a,b}` / `like(any).{a,b}`.
+    else if (ch === "(" || ch === "{") depth += 1;
+    else if (ch === ")" || ch === "}") depth -= 1;
     else if (ch === "," && depth === 0) {
       out.push(current);
       current = "";
@@ -3184,7 +3185,13 @@ function mappedItemVariants(
   return [[RUNTIME_PART]];
 }
 
-/** Napisy filtra (z plikiem literału) dla wyrażenia; `why` - dlaczego część nieczytelna. */
+/**
+ * Napisy filtra (z plikiem literału) dla wyrażenia; `why` - dlaczego część
+ * nieczytelna. Parametr najbliższej funkcji bierze wartości z wywołań (reguła
+ * przepływu kolumn), a gdy wywołań nie widać albo parametrów jest kilka -
+ * zostaje wartością czasu działania: kolumna z niego jest wtedy nieczytelna,
+ * a kolumny z literału (`email.ilike.${term}`) - nie.
+ */
 function filterTexts(
   expr: ts.Expression,
   call: ts.CallExpression,
@@ -3193,25 +3200,22 @@ function filterTexts(
 ): { values: FlowValue[]; why: string | null } {
   const fn = enclosingFunction(call);
   const variants = filterVariants(expr, { scope, fn, lambdas: [] }, env, 0);
-  if (variants === null)
-    return { values: [], why: "wiązanie poza regułą albo zbyt wiele wariantów" };
+  if (variants === null) return { values: [], why: "zbyt wiele wariantów napisu" };
   const values: FlowValue[] = [];
-  let why: string | null = null;
   for (const variant of variants) {
     const params = flowParams(variant);
-    if (params.length === 0) {
-      values.push({ text: flowSubstitute(variant, ""), file: scope.file });
-    } else if (params.length === 1 && fn !== null) {
-      const flowed = flowParamValues(fn, params[0], scope, env, 1, new Set());
-      if (flowed.length === 0) why = "parametr bez widocznych wartości";
-      for (const v of flowed) {
-        values.push({ text: flowSubstitute(variant, v.text), file: v.file });
-      }
-    } else {
-      why = "kilka parametrów w jednym napisie";
+    const flowed =
+      params.length === 1 && fn !== null
+        ? flowParamValues(fn, params[0], scope, env, 1, new Set())
+        : [];
+    if (flowed.length === 0) {
+      values.push({ text: flowSubstitute(variant, RUNTIME_PART), file: scope.file });
+    }
+    for (const v of flowed) {
+      values.push({ text: flowSubstitute(variant, v.text), file: v.file });
     }
   }
-  return { values, why };
+  return { values, why: null };
 }
 
 /** Opcja `referencedTable`/`foreignTable` (literał) - ścieżka osadzenia; `undefined` - brak opcji. */

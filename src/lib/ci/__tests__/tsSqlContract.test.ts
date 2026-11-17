@@ -22,17 +22,23 @@ import {
   MAX_UNRESOLVED_SITES,
   LOOSE_CLIENT,
   LOOSE_TABLE,
+  PRIMARY_KEY_COLUMNS,
   SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
+  embeddedTable,
   extractSeamFacts,
+  filterColumnPath,
+  parseOrFilterColumns,
   parseSelectColumns,
   renderContractTest,
+  renderObservedQueries,
   seamCoverageProblems,
   uncheckedSelectDrift,
   withPostParentPageEmbed,
   withheldKey,
   type PublicColumnContract,
+  type SeamFacts,
   type WithheldFactReviewed,
 } from "../tsSqlContract";
 import { loadProductionSources } from "../../../../scripts/lib/onConflictArbitersInputs";
@@ -1780,5 +1786,701 @@ describe("stan repozytorium", () => {
     expect(repo.coverage.uncheckedSelects).toHaveLength(
       Object.values(UNCHECKED_SELECTS_REVIEWED).reduce((sum, [count]) => sum + count, 0),
     );
+  });
+});
+
+// ── Miara poza bramką (`observe`) ───────────────────────────────────────────
+//
+// Kolumny filtrów i rola klienta ustalona szerzej NIE idą do pgTAP: bramka
+// zostaje tak samo surowa jak przed miarą, a miara daje listę naruszeń do
+// przeglądu (`generate:ts-sql-contract --measure`).
+
+function observed(files: Record<string, string>): SeamFacts {
+  return extractSeamFacts(
+    Object.entries(files).map(([file, code]) => ({ file, code })),
+    NO_CONTRACTS,
+    [],
+    { observe: true },
+  );
+}
+
+const filterKeys = (f: SeamFacts): string[] =>
+  f.observed.filters.map(
+    (x) =>
+      `${x.table}.${x.column}:${x.method}:${x.op}:${x.role}${x.embed === null ? "" : `@${x.embed}`}`,
+  );
+
+const roleKeys = (f: SeamFacts): string[] => [
+  ...f.observed.rpcs.map((r) => `rpc ${r.name}: ${r.enforcedRole} -> ${r.role}`),
+  ...f.observed.tables.map((t) => `${t.op} ${t.table}: ${t.enforcedRole} -> ${t.role}`),
+];
+
+const ADMIN_FILE = `
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+`;
+
+describe("miara: składnia filtrów PostgREST", () => {
+  it("ścieżka kolumny: osadzenie, ścieżka json, `rel(kol)` z `.order`; reszta - nie kolumna", () => {
+    expect(filterColumnPath("status")).toEqual({ embed: [], column: "status" });
+    expect(filterColumnPath("meta->>segment")).toEqual({ embed: [], column: "meta" });
+    expect(filterColumnPath("slot.status")).toEqual({ embed: ["slot"], column: "status" });
+    expect(filterColumnPath("a.b.c")).toEqual({ embed: ["a", "b"], column: "c" });
+    expect(filterColumnPath("section(name)")).toEqual({ embed: ["section"], column: "name" });
+    expect(filterColumnPath("Bad-Col")).toBeNull();
+    expect(filterColumnPath("a..b")).toBeNull();
+  });
+
+  it("`or`: warunki z `and(...)`/`not.or(...)`, przecinek w nawiasie i cudzysłowie, osadzenie, operator z `(any)`", () => {
+    expect(
+      parseOrFilterColumns(
+        'a.eq.1,and(b.gt.2,not.or(c.is.null,d.in.(1,2))),e.ilike."x,y",emb.f.eq.z,g.like(any).{a,b}',
+      ),
+    ).toEqual({ paths: ["a", "b", "c", "d", "e", "emb.f", "g"], unresolved: [] });
+    // Warunek bez operatora - nieczytelny, nie zgadnięta kolumna.
+    expect(parseOrFilterColumns("a.eq.1,bogus")).toEqual({ paths: ["a"], unresolved: ["bogus"] });
+  });
+
+  it("tabela osadzenia z listy `select`: alias, podpowiedź FK, `!inner`, rozkład, zagnieżdżenie; agregat to nie osadzenie", () => {
+    const select =
+      "id, slot:ad_slots!slot_fk!inner(status, owner:profiles(id)), event_people!inner(user_id), ...authors(name), count()";
+    expect(embeddedTable(select, ["slot"])).toBe("ad_slots");
+    expect(embeddedTable(select, ["ad_slots"])).toBe("ad_slots");
+    expect(embeddedTable(select, ["slot", "owner"])).toBe("profiles");
+    expect(embeddedTable(select, ["event_people"])).toBe("event_people");
+    expect(embeddedTable(select, ["authors"])).toBe("authors");
+    expect(embeddedTable(select, ["count"])).toBeNull();
+    expect(embeddedTable(select, ["nope"])).toBeNull();
+    expect(embeddedTable(null, ["slot"])).toBeNull();
+  });
+});
+
+describe("miara: kolumny filtrów i sortowania (SELECT także w UPDATE/DELETE)", () => {
+  it("pierwszy argument metod filtra, klucze `.match`, `.order` i operacja łańcucha; `head: true` też filtruje", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function f() {
+          await supabaseAdmin.from("orders").select("id").eq("tenant_id", t).in("status", s)
+            .ilike("email", e).order("created_at", { ascending: false });
+          await supabaseAdmin.from("orders").update({ status: "x" }).eq("id", id).is("deleted_at", null);
+          await supabaseAdmin.from("orders").delete().match({ tenant_id: t, kind: "k" });
+          await supabaseAdmin.from("orders").select("id", { count: "exact", head: true })
+            .not("ref", "is", null).filter("meta->>key", "eq", v).textSearch("fts", q);
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "orders.tenant_id:eq:select:service_role",
+      "orders.status:in:select:service_role",
+      "orders.email:ilike:select:service_role",
+      "orders.created_at:order:select:service_role",
+      "orders.id:eq:update:service_role",
+      "orders.deleted_at:is:update:service_role",
+      "orders.kind:match:delete:service_role",
+      "orders.tenant_id:match:delete:service_role",
+      "orders.ref:not:select:service_role",
+      "orders.meta:filter:select:service_role",
+      "orders.fts:textSearch:select:service_role",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([]);
+    // Fakt filtra nie ma roli bramki - to nowy rodzaj faktu.
+    expect(new Set(f.observed.filters.map((x) => x.enforcedRole))).toEqual(new Set(["unknown"]));
+  });
+
+  it("`or`: literał, szablon z kolumną w literale, `xs.map(cb).join`; kolumna z parametru bez wywołań - nieczytelna", () => {
+    const f = observed({
+      "src/b.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function g(term: string, terms: string[], col: string) {
+          await supabase.from("leads").select("id").or("a.eq.1,and(b.gt.2,c.is.null)");
+          await supabase.from("leads").select("id").or(\`email.ilike.\${term},contact_email.ilike.\${term}\`);
+          await supabase.from("leads").select("id").or(terms.map((t) => \`name.ilike.%\${t}%\`).join(","));
+          await supabase.from("leads").select("id").or(\`\${col}.eq.1\`);
+          await supabase.from("leads").select("id").or(\`kind.eq.\${(() => "x")()}\`);
+          let stamp = new Date().toISOString();
+          if (col) stamp = col;
+          await supabase.from("leads").select("id").or(\`due_at.is.null,due_at.lt.\${stamp}\`);
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "leads.a:or:select:authenticated",
+      "leads.b:or:select:authenticated",
+      "leads.c:or:select:authenticated",
+      "leads.email:or:select:authenticated",
+      "leads.contact_email:or:select:authenticated",
+      "leads.name:or:select:authenticated",
+      // \`let\` na miejscu WARTOŚCI nie czyni warunku nieczytelnym.
+      "leads.kind:or:select:authenticated",
+      "leads.due_at:or:select:authenticated",
+      "leads.due_at:or:select:authenticated",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([
+      "src/b.tsx: g: .from(leads).or(`${col}.eq.1`): warunek ${…}.eq.1",
+    ]);
+  });
+
+  it("parametr z wartością domyślną na miejscu wartości `or` - wartość czasu działania, kolumny zostają", () => {
+    const f = observed({
+      "src/b2.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function g2(term = "") {
+          await supabase.from("leads").select("id").or(\`email.ilike.\${term}\`);
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual(["leads.email:or:select:authenticated"]);
+    expect(f.observed.unresolvedFilters).toEqual([]);
+  });
+
+  it("osadzenie z warunku: ta sama nazwa osadzenia na RÓŻNYCH tabelach w wariantach `select` - nieczytelne, nie pierwszy wariant", () => {
+    const f = observed({
+      "src/b3.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function g3(flag: boolean, cols: string) {
+          await supabase.from("posts").select(flag ? \`\${cols}, x:tags(id)\` : \`\${cols}, x:categories(id)\`).eq("x.id", 1);
+        }
+        g3(true, "id");
+      `,
+    });
+    expect(f.observed.filters).toEqual([]);
+    expect(f.observed.unresolvedFilters).toEqual([
+      "src/b3.tsx: g3: .from(posts).eq(x.id): osadzenie bez tabeli w liście `select`",
+    ]);
+  });
+
+  it("osadzenie: tabela z listy `select` łańcucha (także `referencedTable`); osadzenie spoza listy - nieczytelne", () => {
+    const f = observed({
+      "src/c.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function h() {
+          await supabase.from("ads").select("id, slot:ad_slots!inner(status)").eq("slot.status", "active").eq("nope.x", 1);
+          await supabase.from("menus").select("*, items:menu_items(*)").order("position", { referencedTable: "items" });
+          await supabase.from("menus").select("id").or("name.eq.x", { foreignTable: "missing" });
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "ad_slots.status:eq:select:authenticated@slot",
+      "menu_items.position:order:select:authenticated@items",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([
+      "src/c.tsx: h: .from(ads).eq(nope.x): osadzenie bez tabeli w liście `select`",
+      "src/c.tsx: h: .from(menus).or(missing.name): osadzenie bez tabeli w liście `select`",
+    ]);
+  });
+
+  it("osadzenie z listy `select` składanej z parametru i stałej modułu (kształt `taxonomyPivot.ts`) - tabela ze stałej", () => {
+    const f = observed({
+      "src/lib/n/pivot.ts": `
+        import { supabase } from "@/integrations/supabase/client";
+        const EMBED = "post_categories!inner(category_id)";
+        export function narrowed(cols: string, ids: string[]) {
+          return supabase.from("posts").select(\`\${cols}, \${EMBED}\`).in("post_categories.category_id", ids);
+        }
+      `,
+      "src/lib/n/use.ts": `
+        import { narrowed } from "@/lib/n/pivot";
+        narrowed("id, slug", []);
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "post_categories.category_id:in:select:authenticated@post_categories",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([]);
+  });
+
+  it("upsert: SELECT na celu `onConflict` (bez niego - klucz główny) i na kolumnach ładunku (`EXCLUDED`), chyba że `ignoreDuplicates`", () => {
+    const f = observed({
+      "src/d.server.ts": `${ADMIN_FILE}
+        export async function u(row: object) {
+          await supabaseAdmin.from("prefs").upsert({ user_id: u, theme: "dark" }, { onConflict: "user_id" });
+          await supabaseAdmin.from("prefs").upsert({ user_id: u }, { onConflict: "user_id", ignoreDuplicates: true });
+          await supabaseAdmin.from("prefs").upsert({ id: i, theme: "x" });
+          await supabaseAdmin.from("prefs").upsert(row, { onConflict: "user_id" });
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "prefs.user_id:onConflict:upsert:service_role",
+      "prefs.theme:upsert(EXCLUDED):upsert:service_role",
+      "prefs.user_id:upsert(EXCLUDED):upsert:service_role",
+      "prefs.user_id:onConflict:upsert:service_role",
+      `prefs.${PRIMARY_KEY_COLUMNS}:onConflict:upsert:service_role`,
+      "prefs.id:upsert(EXCLUDED):upsert:service_role",
+      "prefs.theme:upsert(EXCLUDED):upsert:service_role",
+      "prefs.user_id:onConflict:upsert:service_role",
+    ]);
+    expect(f.observed.unresolvedFilters).toEqual([
+      "src/d.server.ts: u: .from(prefs).upsert: kolumny ładunku nieczytelne (EXCLUDED)",
+    ]);
+  });
+
+  it("kolumna z warunku - oba warianty; z parametru - wartości z wywołań, plik literału", () => {
+    const f = observed({
+      "src/lib/e/by.ts": `
+        import { supabase } from "@/integrations/supabase/client";
+        export function byColumn(col: string) {
+          return supabase.from("t").select("id").eq(col, 1);
+        }
+        export function byFlag(flag: boolean) {
+          return supabase.from("t").select("id").eq(flag ? "a" : "b", 1);
+        }
+      `,
+      "src/lib/e/use.ts": `
+        import { byColumn } from "@/lib/e/by";
+        byColumn("from_caller");
+      `,
+    });
+    expect(f.observed.filters.map((x) => `${x.table}.${x.column}@${x.file}<-${x.site}`)).toEqual([
+      "t.from_caller@src/lib/e/use.ts<-src/lib/e/by.ts",
+      "t.a@src/lib/e/by.ts<-src/lib/e/by.ts",
+      "t.b@src/lib/e/by.ts<-src/lib/e/by.ts",
+    ]);
+  });
+
+  it("budowniczy przez wartość: parametr pomocnika (wszystkie wywołania), funkcja zwracająca budowniczego, `let` przypisywany", () => {
+    const f = observed({
+      "src/lib/f/apply.ts": `
+        export function applyStatus<B>(q: B): B {
+          return q.eq("status", "published");
+        }
+        export function applyAll<B>(q: B, lang: string): B {
+          let out = q.is("deleted_at", null);
+          out = applyLang(out, lang);
+          return out;
+        }
+        function applyLang<B>(q: B, lang: string): B {
+          return lang === "pl" ? q.not("title_pl", "is", null) : q;
+        }
+      `,
+      "src/lib/f/use.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        import { applyStatus, applyAll } from "@/lib/f/apply";
+        export function a() { return applyStatus(supabase.from("posts").select("id")); }
+        export function b() { return applyStatus(postsBase()); }
+        function postsBase() { return supabase.from("pages").select("id"); }
+        export function c() { return applyAll(supabase.from("posts").select("id"), "pl"); }
+      `,
+    });
+    expect(filterKeys(f).sort()).toEqual([
+      "pages.status:eq:select:authenticated",
+      "posts.deleted_at:is:select:authenticated",
+      "posts.status:eq:select:authenticated",
+      "posts.title_pl:not:select:authenticated",
+    ]);
+    expect(f.observed.filtersOutsideChains).toEqual([]);
+  });
+
+  it("budowniczy przez wartość: wywołanie z wartością nieczytelną albo funkcja bez widocznych wywołań - bez faktu, na liście luk", () => {
+    const f = observed({
+      "src/lib/g/apply.ts": `
+        export function applyStatus<B>(q: B): B {
+          return q.eq("status", "published");
+        }
+        export function orphan<B>(q: B): B {
+          return q.eq("orphan_col", 1);
+        }
+      `,
+      "src/lib/g/use.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        import { applyStatus } from "@/lib/g/apply";
+        export function a(t: string) { return applyStatus(supabase.from("posts").select("id")); }
+        export function b(other: unknown) { return applyStatus(other); }
+      `,
+    });
+    expect(f.observed.filters).toEqual([]);
+    expect(f.observed.filtersOutsideChains).toEqual([
+      'src/lib/g/apply.ts: applyStatus: .eq("status")',
+      'src/lib/g/apply.ts: orphan: .eq("orphan_col")',
+    ]);
+  });
+
+  it("`let` przesłonięty w bloku wewnętrznym: przypisanie wewnętrznej zmiennej NIE przenosi kolumn na budowniczego zewnętrznego", () => {
+    // Kształt `TaxonomyPicker` (LinkPicker.tsx): dwie zmienne `query` w dwóch
+    // blokach. Pierwsza wersja miary przypisywała `name` do `categories`.
+    const f = observed({
+      "src/h.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function pick(kind: string, term: string) {
+          if (kind === "category") {
+            let query = supabase.from("categories").select("id, name_pl");
+            if (term) query = query.or(\`name_pl.ilike.%\${term}%\`);
+            return query;
+          }
+          let query = supabase.from("tags").select("id, name");
+          if (term) query = query.or(\`name.ilike.%\${term}%\`);
+          return query;
+        }
+      `,
+    });
+    expect(filterKeys(f)).toEqual([
+      "categories.name_pl:or:select:authenticated",
+      "tags.name:or:select:authenticated",
+    ]);
+  });
+
+  it("filtr wyniku `.rpc()` i `Object.is(a, b)` to nie kolumny tabeli - ani faktu, ani luki", () => {
+    const f = observed({
+      "src/i.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function r(a: unknown, b: unknown) {
+          await supabase.rpc("admin_export").order("section_sort").range(0, 9);
+          document.documentElement.classList.contains("dark");
+          return Object.is(a, b);
+        }
+      `,
+    });
+    expect(f.observed.filters).toEqual([]);
+    expect(f.observed.filtersOutsideChains).toEqual([]);
+    expect(f.observed.unresolvedFilters).toEqual([]);
+  });
+
+  it("tabela nieczytelna (`.from(table)`) - filtry na liście luk, nie fakty", () => {
+    const f = observed({
+      "src/j.tsx": `
+        import { supabase } from "@/integrations/supabase/client";
+        export async function s(table: string) {
+          await supabase.from(table).select("id").eq("slug", "x");
+        }
+      `,
+    });
+    expect(f.observed.filters).toEqual([]);
+    expect(f.observed.unresolvedFilters).toEqual([
+      "src/j.tsx: s: .from(table).eq(…): tabela nieczytelna",
+    ]);
+  });
+
+  it("listopad 2026: filtry `user_reports.reporter_id` (eksport RODO) i `profiles.current_company_id` (karta firmy CRM) są faktami z rolą klienta", () => {
+    const f = observed({
+      "src/lib/profile/export.functions.ts": `
+        export const exportMyData = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+          const { supabase, userId } = context;
+          await supabase.from("user_reports").select("id, reason").eq("reporter_id", userId).order("created_at");
+        });
+      `,
+      "src/lib/crm-companies.functions.ts": `
+        import { looseTable } from "@/lib/supabase/looseQuery";
+        export const getCrmCompany = createServerFn().handler(async ({ context, data }) => {
+          await looseTable(context, "profiles").select("id").eq("current_company_id", data.id);
+        });
+      `,
+      "src/lib/supabase/looseQuery.ts":
+        "export function looseClient() {}\nexport function looseTable() {}",
+    });
+    expect(filterKeys(f)).toEqual([
+      "user_reports.reporter_id:eq:select:authenticated",
+      "user_reports.created_at:order:select:authenticated",
+      "profiles.current_company_id:eq:select:authenticated",
+    ]);
+  });
+});
+
+describe("miara: rola klienta ustalona szerzej (nigdy zgadywana)", () => {
+  it("fabryka klienta serwisowego (`await admin()`) - każdy `return` daje `service_role`", () => {
+    const f = observed({
+      "src/lib/x/admin.server.ts": `
+        async function admin() {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          return supabaseAdmin;
+        }
+        async function maybeAdmin(flag: boolean) {
+          if (flag) return null;
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          return supabaseAdmin;
+        }
+        async function mixed(flag: boolean) {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          return flag ? supabaseAdmin : other;
+        }
+        export async function a() {
+          const supabase = await admin();
+          await supabase.from("t_factory").select("id");
+          await (await admin()).rpc("fn_factory");
+          await (await maybeAdmin(true))!.from("t_nullable").select("id");
+          await (await mixed(true)).from("t_mixed").select("id");
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "rpc fn_factory: unknown -> service_role",
+      "select t_factory: unknown -> service_role",
+      "select t_nullable: unknown -> service_role",
+      "select t_mixed: unknown -> unknown",
+    ]);
+    expect(f.observed.tables[0].via).toBe("const supabase <- admin() <- bramka: supabaseAdmin");
+  });
+
+  it("parametr klienta: WSZYSTKIE wywołania (także z innego pliku i `await import`) muszą dać tę samą rolę", () => {
+    const f = observed({
+      "src/lib/x/load.server.ts": `
+        import type { SupabaseClient } from "@supabase/supabase-js";
+        export async function load(supabase: SupabaseClient) { await supabase.from("t_param").select("id"); }
+        export async function loadMixed(supabase: SupabaseClient) { await supabase.from("t_mixed").select("id"); }
+        export async function loadDyn(supabase: SupabaseClient) { await supabase.from("t_dyn").select("id"); }
+        export async function loadOpts(opts: { supabase: SupabaseClient }) { await opts.supabase.from("t_opts").select("id"); }
+        export async function loadNone(supabase: SupabaseClient) { await supabase.from("t_none").select("id"); }
+      `,
+      "src/lib/x/a.functions.ts": `
+        import { load, loadMixed, loadOpts } from "@/lib/x/load.server";
+        export const f = createServerFn().handler(async ({ context }) => {
+          await load(context.supabase);
+          await loadMixed(context.supabase);
+          const { loadDyn } = await import("@/lib/x/load.server");
+          await loadDyn(context.supabase);
+          await loadOpts({ supabase: context.supabase });
+        });
+      `,
+      "src/lib/x/b.server.ts": `
+        import { loadMixed } from "@/lib/x/load.server";
+        export async function g() {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await loadMixed(supabaseAdmin);
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_param: unknown -> authenticated",
+      "select t_mixed: unknown -> unknown",
+      "select t_dyn: unknown -> authenticated",
+      "select t_opts: unknown -> authenticated",
+      "select t_none: unknown -> unknown",
+    ]);
+    expect(f.observed.tables[1].via).toContain("role [authenticated, service_role]");
+    expect(f.observed.tables[4].via).toContain("argument pominięty we wszystkich wywołaniach");
+  });
+
+  it("funkcja z odwołaniem innym niż wywołanie (wartość, `export { f }`, przestrzeń nazw, `import()` bez rozkładu) - `unknown`", () => {
+    const base = `
+      import type { SupabaseClient } from "@supabase/supabase-js";
+      export async function load(supabase: SupabaseClient) { await supabase.from("t").select("id"); }
+    `;
+    const caller = `
+      import { load } from "@/lib/x/load.server";
+      export const f = createServerFn().handler(async ({ context }) => { await load(context.supabase); });
+    `;
+    const roleWith = (extra: Record<string, string>): string =>
+      observed({ "src/lib/x/load.server.ts": base, "src/lib/x/a.functions.ts": caller, ...extra })
+        .observed.tables[0].role;
+    expect(roleWith({})).toBe("authenticated");
+    expect(
+      roleWith({
+        "src/lib/x/c.ts": `import { load } from "@/lib/x/load.server";\n[db].map(load);`,
+      }),
+    ).toBe("unknown");
+    expect(
+      roleWith({ "src/lib/x/c.ts": `import * as m from "@/lib/x/load.server";\nm.load(db);` }),
+    ).toBe("unknown");
+    expect(roleWith({ "src/lib/x/c.ts": `export { load } from "@/lib/x/load.server";` })).toBe(
+      "unknown",
+    );
+    expect(
+      roleWith({
+        "src/lib/x/c.ts": `export async function g(db: unknown) {\n  const mod = await import("@/lib/x/load.server");\n  await mod.load(db);\n}`,
+      }),
+    ).toBe("unknown");
+    expect(
+      roleWith({
+        "src/lib/x/c.ts": `export const g = createServerFn().handler(async ({ context }) => {
+          await (await import("@/lib/x/load.server")).load(context.supabase);
+        });`,
+      }),
+    ).toBe("authenticated");
+  });
+
+  it("`createClient`: klucz serwisowy - `service_role`, publiczny - `anon`, publiczny z `Authorization` - `authenticated`, opcje nieczytelne - `unknown`", () => {
+    const f = observed({
+      "src/lib/y/clients.server.ts": `
+        import { createClient } from "@supabase/supabase-js";
+        const svc = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+        const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
+        const pub = createClient(process.env.SUPABASE_URL!, key, { auth: { persistSession: false } });
+        export async function h(token: string, opts: object, host: string | null) {
+          const user = createClient(process.env.SUPABASE_URL!, key, { global: { headers: { Authorization: \`Bearer \${token}\` } } });
+          const odd = createClient(process.env.SUPABASE_URL!, key, opts);
+          const tagged = createClient(process.env.SUPABASE_URL!, key, { global: host ? { headers: { "x-tenant-host": host } } : {} });
+          const other = createClient(process.env.SUPABASE_URL!, process.env.SOMETHING_ELSE!);
+          await svc.from("t_svc").select("id");
+          await pub.from("t_pub").select("id");
+          await user.from("t_user").select("id");
+          await odd.from("t_odd").select("id");
+          await tagged.from("t_tagged").select("id");
+          await other.from("t_other").select("id");
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_svc: unknown -> service_role",
+      "select t_pub: unknown -> anon",
+      "select t_user: unknown -> authenticated",
+      "select t_odd: unknown -> unknown",
+      "select t_tagged: unknown -> anon",
+      "select t_other: unknown -> unknown",
+    ]);
+  });
+
+  it("przelotka (`rpcClient(admin)`), argument opcjonalny pomijany przez wywołujących i callback wołany w funkcji, której go oddano", () => {
+    const f = observed({
+      "src/lib/z/jobs.server.ts": `
+        type Db = unknown;
+        function rpcClient(admin: Db) { return admin as unknown as { rpc: Function }; }
+        async function adminClient(client?: Db): Promise<Db> {
+          if (client) return client;
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          return supabaseAdmin;
+        }
+        export async function tick(client?: Db) {
+          const db = await adminClient(client);
+          await rpcClient(db).rpc("fn_tick");
+        }
+        export async function route() { await tick(); }
+        function withAdmin<T>(fn: (c: Db) => T): T {
+          const { supabaseAdmin } = globalThis as never;
+          return fn(supabaseAdmin);
+        }
+        export function useIt() {
+          return withAdmin((c) => c.from("t_cb").select("id"));
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "rpc fn_tick: unknown -> service_role",
+      "select t_cb: unknown -> service_role",
+    ]);
+  });
+
+  it("przelotka wołana różnymi klientami: rola z argumentu TEGO wywołania, nie zgodność wszystkich wywołań", () => {
+    const f = observed({
+      "src/lib/z/pass.functions.ts": `
+        function asRpc(client: unknown) { return client as { rpc: Function }; }
+        export const user = createServerFn().handler(async ({ context }) => {
+          await asRpc(context.supabase).rpc("fn_user");
+        });
+        export async function job() {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await asRpc(supabaseAdmin).rpc("fn_job");
+        }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "rpc fn_user: unknown -> authenticated",
+      "rpc fn_job: unknown -> service_role",
+    ]);
+  });
+
+  it("reguła nazwy `supabase` bramki a wiązanie: parametr wołany WYŁĄCZNIE klientem serwisowym - miara pokazuje rozjazd", () => {
+    const f = observed({
+      "src/lib/k/helper.functions.ts": `
+        import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+        async function helper(supabase: unknown) { await supabase.from("t_helper").select("id"); }
+        export const f = createServerFn().middleware([requireSupabaseAuth]).handler(async () => {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await helper(supabaseAdmin);
+        });
+      `,
+    });
+    expect(roleKeys(f)).toEqual(["select t_helper: authenticated -> service_role"]);
+    expect(f.tables.map((t) => t.role)).toEqual(["authenticated"]);
+    expect(f.observed.tables[0].via).toContain("wiązanie zamiast reguły nazwy");
+  });
+
+  it("cykl wywołań i parametr przypisywany - `unknown`, przebieg się kończy", () => {
+    const f = observed({
+      "src/lib/m/cycle.server.ts": `
+        export async function a(c: unknown) { await c.from("t_cycle").select("id"); await b(c); }
+        export async function b(c: unknown) { await a(c); }
+        export async function d(c: unknown) { c = other; await c.from("t_assigned").select("id"); }
+        export async function e() { const { supabaseAdmin } = await import("@/integrations/supabase/client.server"); await d(supabaseAdmin); }
+      `,
+    });
+    expect(roleKeys(f)).toEqual([
+      "select t_cycle: unknown -> unknown",
+      "select t_assigned: unknown -> unknown",
+    ]);
+  });
+});
+
+describe("miara poza bramką nie zmienia bramki", () => {
+  const files = {
+    "src/a.server.ts": `${ADMIN_FILE}
+      async function admin() { return supabaseAdmin; }
+      export async function f() {
+        const db = await admin();
+        await db.from("orders").select("id, total").eq("tenant_id", t).order("created_at");
+        await db.rpc("fn_x", { p: 1 });
+        await supabaseAdmin.from("prefs").upsert({ user_id: u, theme: "dark" }, { onConflict: "user_id" });
+      }
+    `,
+  };
+  const sources = Object.entries(files).map(([file, code]) => ({ file, code }));
+
+  it("bez `observe` - `observed` puste; z `observe` - te same fakty, zasięg i pgTAP bajt w bajt", () => {
+    const plain = extractSeamFacts(sources, NO_CONTRACTS, []);
+    const measured = extractSeamFacts(sources, NO_CONTRACTS, [], { observe: true });
+    expect(plain.observed).toEqual({
+      rpcs: [],
+      tables: [],
+      filters: [],
+      unresolvedFilters: [],
+      filtersOutsideChains: [],
+    });
+    expect(measured.observed.filters.length).toBeGreaterThan(0);
+    expect(measured.observed.tables.map((t) => t.role)).toEqual(["service_role", "service_role"]);
+    const { observed: _a, ...plainRest } = plain;
+    const { observed: _b, ...measuredRest } = measured;
+    expect(measuredRest).toEqual(plainRest);
+    expect(renderContractTest(measured)).toBe(renderContractTest(plain));
+    // Rola zmierzona nie przecieka do pgTAP: `db` jest tam nadal `unknown`.
+    expect(renderContractTest(measured)).toContain("'orders', 'select', 'unknown'");
+    expect(renderContractTest(measured)).not.toContain("obs_");
+  });
+
+  it("zapytania miary niosą fakty filtrów (klucz główny jako NULL), role zmierzone i sprawdzają SELECT", () => {
+    const measured = observed({
+      ...files,
+      "src/b.server.ts": `${ADMIN_FILE}\nawait supabaseAdmin.from("prefs").upsert({ id: i });`,
+    });
+    const sql = renderObservedQueries(measured);
+    expect(sql).toContain("('orders', 'tenant_id', NULL, 'eq', 'select', 'service_role'");
+    expect(sql).toContain("('prefs', NULL, NULL, 'onConflict', 'upsert', 'service_role'");
+    expect(sql).toContain(
+      "('orders', 'select', 'service_role', 'unknown', ARRAY['id', 'total']::text[]",
+    );
+    expect(sql).toContain(
+      "has_column_privilege(f.role, to_regclass('public.' || quote_ident(f.rel)), f.col, 'SELECT')",
+    );
+    expect(sql).toContain("i.indisprimary");
+    expect(sql).toContain("('anon', 'authenticated', 'service_role')");
+  });
+});
+
+describe("stan repozytorium - miara poza bramką", () => {
+  const sources = loadProductionSources();
+  const plain = extractSeamFacts(sources);
+  const measured = extractSeamFacts(sources, undefined, undefined, { observe: true });
+
+  it("`observe` nie zmienia faktów, zasięgu ani pgTAP bramki", () => {
+    const { observed: _a, ...plainRest } = plain;
+    const { observed: _b, ...measuredRest } = measured;
+    expect(measuredRest).toEqual(plainRest);
+    expect(renderContractTest(measured)).toBe(renderContractTest(plain));
+  });
+
+  it("każdy fakt bramki ma lustro w mierze z tą samą rolą bramki; miara tylko DOPOWIADA rolę `unknown`", () => {
+    const o = measured.observed;
+    expect(o.rpcs.map((r) => [r.name, r.enforcedRole, r.site])).toEqual(
+      measured.rpcs.map((r) => [r.name, r.role, r.file]),
+    );
+    expect(o.tables.filter((t) => t.enforcedRole !== "unknown").length).toBe(
+      measured.tables.filter((t) => t.role !== "unknown").length,
+    );
+    // Rola bramki rozstrzygnięta - miara jej nie zmienia (rozjazd byłby
+    // błędem reguły nazwy, do przeglądu).
+    const conflicts = [...o.rpcs, ...o.tables].filter(
+      (x) => x.enforcedRole !== "unknown" && x.role !== x.enforcedRole,
+    );
+    expect(conflicts).toEqual([]);
+    const unknownBefore = [...o.rpcs, ...o.tables].filter((x) => x.enforcedRole === "unknown");
+    const unknownAfter = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown");
+    expect(unknownAfter.length).toBeLessThan(unknownBefore.length / 4);
   });
 });
