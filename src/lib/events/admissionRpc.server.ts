@@ -9,17 +9,20 @@
 // (`requireSupabaseAuth`) i solony skrót adresu (`requestRateSubject`); baza
 // liczy pudła w kubełku konta I adresu (wspólnym z kodami planu i biletu).
 //
-// OKNO WDROŻENIA. Kod wychodzi przed migracją: dopóki funkcji `*_for_user` nie
-// ma (PGRST202/42883), wracamy do starego wywołania JWT kupującego, które do
-// wejścia migracji nadal działa. Każdy inny błąd idzie do wołającego -
-// z kodem i treścią, które ekran mapuje tym samym słownikiem co dotąd.
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-import type { Database, Json } from "@/integrations/supabase/types";
+// BEZ ŚCIEŻKI ZAPASOWEJ. Kod wyszedł przed migracjami, więc brak funkcji
+// `*_for_user` (PGRST202/42883) cofał wywołanie do starego RPC z JWT
+// kupującego. To okno jest zamknięte: produkcja ma
+// `event_admission_quote_for_user`, `event_package_purchase_for_user`
+// (20261007120600) i `event_ticket_checkout_quote_for_user` (20261007140400) -
+// typy regenerowane z bazy produkcji przez bota Lovable (68ba76e1 z 22.10.2026,
+// bb61b8b7 z 25.10.2026) usuwały obiekty, których produkcja nie ma, a te
+// zostawiły z argumentami, które wysyła ten moduł. Te same migracje odbierają
+// `authenticated` EXECUTE starych funkcji, więc na bazie z nimi stara ścieżka
+// kończy się 42501 (pomiar kontraktu TS<->SQL na PG16). Każdy błąd - także brak
+// funkcji - idzie do wołającego z kodem i treścią, które ekran mapuje tym samym
+// słownikiem co dotąd.
+import type { Json } from "@/integrations/supabase/types";
 import { requestProbeIdentity } from "@/lib/billing/couponRpc.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
-
-type UserClient = SupabaseClient<Database>;
 
 /** Odpowiedź RPC w kształcie PostgREST - przechodzi przez granicę funkcji serwerowej. */
 export interface AdmissionRpcResult {
@@ -43,7 +46,6 @@ const TENANT_UNRESOLVED: AdmissionRpcResult = {
 
 /** `event_admission_quote_for_user` dla konta z sesji (skalar jsonb). */
 export async function quoteAdmissionForUser(
-  userClient: UserClient,
   userId: string,
   payload: { [key: string]: Json | undefined },
 ): Promise<AdmissionRpcResult> {
@@ -58,15 +60,11 @@ export async function quoteAdmissionForUser(
     _probe_subject: probeSubject,
     p_payload: payload,
   });
-  if (!isMigrationPending(error)) return { data, error: plainError(error) };
-
-  const legacy = await userClient.rpc("event_admission_quote", { p_payload: payload });
-  return { data: legacy.data, error: plainError(legacy.error) };
+  return { data, error: plainError(error) };
 }
 
 /** `event_package_purchase_for_user` dla konta z sesji (skalar jsonb). */
 export async function purchasePackageForUser(
-  userClient: UserClient,
   userId: string,
   payload: { [key: string]: Json | undefined },
 ): Promise<AdmissionRpcResult> {
@@ -80,10 +78,7 @@ export async function purchasePackageForUser(
     _probe_subject: probeSubject,
     p_payload: payload,
   });
-  if (!isMigrationPending(error)) return { data, error: plainError(error) };
-
-  const legacy = await userClient.rpc("event_package_purchase", { p_payload: payload });
-  return { data: legacy.data, error: plainError(legacy.error) };
+  return { data, error: plainError(error) };
 }
 
 /**
@@ -97,7 +92,6 @@ export async function purchasePackageForUser(
  * zalogowanego wyrocznią bez żadnego licznika.
  */
 export async function quoteTicketCheckoutForUser(
-  userClient: UserClient,
   userId: string,
   input: { ticketTypeId: string; accessCode?: string },
 ): Promise<AdmissionRpcResult> {
@@ -114,11 +108,5 @@ export async function quoteTicketCheckoutForUser(
     p_ticket_type_id: input.ticketTypeId,
     p_access_code: accessCode,
   });
-  if (!isMigrationPending(error)) return { data, error: plainError(error) };
-
-  const legacy = await userClient.rpc("event_ticket_checkout_quote", {
-    p_ticket_type_id: input.ticketTypeId,
-    p_access_code: accessCode,
-  });
-  return { data: legacy.data, error: plainError(legacy.error) };
+  return { data, error: plainError(error) };
 }

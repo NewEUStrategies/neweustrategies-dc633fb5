@@ -1,8 +1,8 @@
 // Cienkie wrappery serwerowe (tss-serverfn-split) nad wyceną wejściówki/pakietu
 // i zakupem pakietu - ekran zakupu NIE woła już tych RPC z przeglądarki.
 //
-// Powód i okno wdrożenia: `admissionRpc.server.ts` (migracja 20261007120600 -
-// sonda kodu z przeglądarki omijała kubełek pudeł po adresie). Wynik wraca
+// Powód: `admissionRpc.server.ts` (migracja 20261007120600 - sonda kodu
+// z przeglądarki omijała kubełek pudeł po adresie). Wynik wraca
 // w kształcie PostgREST (`{ data, error }`), więc `admissionApi.ts` mapuje
 // odmowy i błędy tym samym słownikiem co dotąd.
 //
@@ -45,7 +45,7 @@ export const quoteEventAdmission = createServerFn({ method: "POST" })
   .validator((input: unknown) => quoteSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdmissionRpcResult> => {
     const { quoteAdmissionForUser } = await import("@/lib/events/admissionRpc.server");
-    return quoteAdmissionForUser(context.supabase, context.userId, data);
+    return quoteAdmissionForUser(context.userId, data);
   });
 
 export const purchaseEventPackage = createServerFn({ method: "POST" })
@@ -53,5 +53,5 @@ export const purchaseEventPackage = createServerFn({ method: "POST" })
   .validator((input: unknown) => purchaseSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdmissionRpcResult> => {
     const { purchasePackageForUser } = await import("@/lib/events/admissionRpc.server");
-    return purchasePackageForUser(context.supabase, context.userId, data);
+    return purchasePackageForUser(context.userId, data);
   });

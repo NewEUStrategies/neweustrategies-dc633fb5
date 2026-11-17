@@ -214,14 +214,10 @@ export async function priceEventTicket(
   // Kod dostępu to sonda - wycena idzie funkcją serwerową z kubełkiem pudeł
   // konta, adresu i biletu (`quoteTicketCheckoutForUser`, 20261007140400).
   const { quoteTicketCheckoutForUser } = await import("@/lib/events/admissionRpc.server");
-  const { data: quote, error: quoteErr } = await quoteTicketCheckoutForUser(
-    supabase,
-    input.userId,
-    {
-      ticketTypeId: input.ticketTypeId,
-      accessCode: input.accessCode,
-    },
-  );
+  const { data: quote, error: quoteErr } = await quoteTicketCheckoutForUser(input.userId, {
+    ticketTypeId: input.ticketTypeId,
+    accessCode: input.accessCode,
+  });
   if (quoteErr) throw new Error(quoteErr.message);
   const parsed = objectOf(quote);
   if (parsed === null) throw new Error("ticket_not_available");
