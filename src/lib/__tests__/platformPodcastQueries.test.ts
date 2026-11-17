@@ -143,6 +143,9 @@ describe("public podcast read contracts", () => {
     expect(db.chains).toHaveLength(0);
   });
   it("maps participant overrides, profile fallback and missing profiles without leaking joined objects", async () => {
+    // Profil przychodzi z projekcji `profiles_public` (osadzenie `profiles(...)`
+    // kończyło się dla anona 42501); profil, którego projekcja nie oddaje,
+    // jest „brakującym profilem".
     const base = {
       id: "person",
       episode_id: "episode",
@@ -154,18 +157,16 @@ describe("public podcast read contracts", () => {
     db.setResponse(
       "podcast_episode_people",
       ok([
-        {
-          ...base,
-          display_name: "Override",
-          profiles: { display_name: "Profile", slug: "slug", avatar_url: "avatar" },
-        },
-        {
-          ...base,
-          display_name: "",
-          role: "guest",
-          profiles: { display_name: "Profile", slug: null, avatar_url: null },
-        },
-        { ...base, display_name: "", profiles: null },
+        { ...base, profile_id: "profile-a", display_name: "Override" },
+        { ...base, profile_id: "profile-b", display_name: "", role: "guest" },
+        { ...base, profile_id: "profile-missing", display_name: "" },
+      ]),
+    );
+    db.setResponse(
+      "profiles_public",
+      ok([
+        { id: "profile-a", display_name: "Profile", slug: "slug", avatar_url: "avatar" },
+        { id: "profile-b", display_name: "Profile", slug: null, avatar_url: null },
       ]),
     );
     const people = await qc.fetchQuery(q.episodePeopleQueryOptions("episode"));
