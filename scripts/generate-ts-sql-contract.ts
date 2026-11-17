@@ -34,7 +34,7 @@
  * migracjach (`psql -f`) zwraca klucze (plik wywołania, funkcja, relacja),
  * które jako gość padają, ze szkieletem wpisu (liczba faktów, kształt) -
  * wejście przeglądu `GUEST_LOGIN_ONLY_REVIEWED` (wpis wyłącznie dla miejsca
- * tylko po zalogowaniu, z dowodem bramki `plik:linia`; reszta to defekty do
+ * tylko po zalogowaniu, z fragmentem warunku bramki w pliku klucza; reszta to defekty do
  * naprawy).
  *
  * `--measure` drukuje zwykły SQL (nie pgTAP) pełnej miary - wszystkie
@@ -174,7 +174,8 @@ function main(): void {
     `${o.rpcColumns.length} kolumn wyniku RPC, ` +
     `${o.embeds.length} osadzeń, ${o.statements.length} zapytań do sond, ` +
     `${[...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length} faktów z rolą nieustaloną ` +
-    `(bez kandydata roli: ${[...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length}) ` +
+    `(bez kandydata roli: ${[...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length}, ` +
+    `z kandydatem i ścieżką bez roli: ${[...o.rpcs, ...o.tables].filter((x) => x.residual !== undefined).length}) ` +
     `(${c.files} plików, ${c.parseErrors.length} z błędami składni, ${elapsed})`;
 
   // Trasy z bramką sesji zwalniają poddrzewo z wierszy gościa - lista

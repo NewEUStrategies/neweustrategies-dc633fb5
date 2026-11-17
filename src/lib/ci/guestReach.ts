@@ -16,12 +16,17 @@
 //     gałęzi `/admin` bez bramki sesji (także trasa serwerowa bez komponentu
 //     i trasa z `ssr: false` - gość otwiera ją tak samo);
 //   * wejście ZA BRAMKĄ SESJI: trasa z bramką na poziomie TRASY
-//     (`routeSessionGate`: `<AuthGate>` obejmujący drzewo zwracane przez
-//     komponent trasy, nawigacja na `/login` w `useEffect` komponentu trasy,
-//     `throw redirect` na `/login` w `beforeLoad`/`loader`) ORAZ wpisem
-//     `GATED_ROUTES_REVIEWED` z powodem - sama albo przez przodka w drzewie
-//     tras. Przycisk logowania w handlerze czy bramka wokół jednego widżetu
-//     bramką trasy nie są, a nowa bramka bez wpisu (i wpis bez bramki)
+//     (`routeGateAnalysis`: `<AuthGate>` obejmujący drzewo zwracane przez
+//     komponent trasy - także przez stałą lokalną, wczesne wyjście bez sesji
+//     `if (!user) return <Navigate to="/login" />`, nawigacja na `/login`
+//     w `useEffect` komponentu trasy, `throw redirect` na `/login`
+//     w `beforeLoad`/`loader`) ORAZ wpisem `GATED_ROUTES_REVIEWED` z powodem -
+//     sama albo przez przodka w drzewie tras (`<Outlet />` za bramką).
+//     Bramka w drzewie komponentu zwalnia WYŁĄCZNIE kod za nią: import użyty
+//     poza nią (komponent obok `<AuthGate>`, hook przed bramką, `head`) jest
+//     wejściem gościa, a fakty pliku trasy poza zakresami bramki (`gated`) -
+//     `public`. Przycisk logowania w handlerze czy bramka wokół jednego
+//     widżetu bramką trasy nie są, a nowa bramka bez wpisu (i wpis bez bramki)
 //     czerwieni `check:ts-sql-contract` (`gatedRouteDrift`);
 //   * wejście PANELU: gałąź `/admin` (przekierowanie bez `isStaff`);
 //   * krawędzie: importy wartości, STATYCZNE i `import()` (moduł leniwy też
@@ -37,17 +42,19 @@
 //     może renderować się tylko z sesją (`{user && <X/>}`), a zapytanie mieć
 //     `enabled: !!user` - takie miejsce trzeba przeczytać i dopiero z dowodem
 //     wpisać do `GUEST_LOGIN_ONLY_REVIEWED` (`tsSqlContract.ts`);
-//   * `session-gate` nie jest dowodem logowania dla kodu PLIKU TRASY poza
-//     `<AuthGate>` (hook wołany przed bramką wykonuje się u gościa) - plik
-//     trasy z bramką i hooki wołane przed nią trzeba przeczytać;
+//   * kod za bramką liczony jest SKŁADNIOWO (zakresy dzieci `<AuthGate>`,
+//     reszta bloku po wyjściu bez sesji, funkcje lokalne wołane tylko
+//     stamtąd); element JSX zbudowany w stałej poza bramką, a renderowany za
+//     nią, liczy się jako kod gościa (nadmiar sprawdzeń, nie luka);
 //   * `none` - plik bez ścieżki z żadnej trasy (martwy kod, wejście spoza
 //     drzewa) - niepewne.
 //
 // Moduł jest CZYSTY (bez I/O): źródła wchodzą parametrem.
 import ts from "typescript";
 
-import { buildImportGraph } from "./moduleImportGraph";
+import { buildImportGraph, resolveImport } from "./moduleImportGraph";
 import { routeTreeEntries } from "./publicRouteLoaders";
+import { type GuardSpan, sessionCondition, sessionGuardRegions } from "./sessionGuard";
 
 export type GuestReachClass = "public" | "session-gate" | "admin" | "none";
 
@@ -60,6 +67,15 @@ export interface GuestReach {
   readonly path: readonly string[];
   /** Ścieżka URL wejścia (`/podcast/$slug`, `(powłoka)`, `(serwer)`); `null` przy `none`. */
   readonly entry: string | null;
+  /**
+   * Plik trasy z WŁASNĄ bramką w drzewie komponentu (`routeGateAnalysis`):
+   * zakresy kodu `[start, end)` za bramką (dzieci `<AuthGate>`, reszta
+   * komponentu po `if (!user) return`, funkcje lokalne wołane wyłącznie stamtąd).
+   * Klasa `session-gate` dotyczy WYŁĄCZNIE tych zakresów - kod pliku poza nimi
+   * (hook przed bramką, komponent obok niej) wykonuje się u gościa (`public`).
+   * Brak pola - klasa obejmuje cały plik.
+   */
+  readonly gated?: readonly GuardSpan[];
 }
 
 export const ROUTE_TREE_FILE = "src/routeTree.gen.ts";
@@ -98,6 +114,8 @@ export const GATED_ROUTES_REVIEWED: Readonly<Record<string, string>> = {
     "profil członka (noindex) - treść pod `<AuthGate>`, gość widzi CTA logowania",
   "src/routes/people.index.tsx": "katalog członków - cały ekran pod `<AuthGate>`",
   "src/routes/profile.organization.tsx": "profil organizacji - cały ekran pod `<AuthGate>`",
+  "src/routes/profile.edit.tsx":
+    "edycja profilu - `if (loading || !user) return null` w komponencie trasy (gość nie widzi nic), także pod `<AuthGate>` układu `/profile`",
   "src/routes/profile.personality.tsx": "profil osobowości - cały ekran pod `<AuthGate>`",
   "src/routes/profile.tsx":
     "układ `/profile` - `<AuthGate>` wokół `<Outlet />` obejmuje 21 tras potomnych",
@@ -186,20 +204,102 @@ function jsxGate(expr: ts.Expression): ts.Node | null {
   return null;
 }
 
+/** Nazwa tagu elementu JSX. */
+function jsxTag(el: ts.JsxElement | ts.JsxSelfClosingElement): string {
+  return (ts.isJsxElement(el) ? el.openingElement.tagName : el.tagName).getText();
+}
+
+/**
+ * Statyczny znacznik bez danych (np. `<div aria-busy />` na czas ładowania):
+ * same elementy wbudowane (tag małą literą), tekst i wyrażenia bez funkcji
+ * i wywołań (poza `t(...)` tłumaczenia) - gość nie wykona przez niego zapytania.
+ */
+function staticMarkup(node: ts.Node): boolean {
+  if (ts.isParenthesizedExpression(node)) return staticMarkup(node.expression);
+  if (ts.isJsxText(node)) return true;
+  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+    if (!/^[a-z]/.test(jsxTag(node))) return false;
+    const attrs = ts.isJsxElement(node) ? node.openingElement.attributes : node.attributes;
+    if (!attrs.properties.every((a) => staticMarkup(a))) return false;
+    return ts.isJsxSelfClosingElement(node) || node.children.every((c) => staticMarkup(c));
+  }
+  if (ts.isJsxFragment(node)) return node.children.every((c) => staticMarkup(c));
+  if (ts.isJsxAttribute(node))
+    return node.initializer === undefined || staticMarkup(node.initializer);
+  if (ts.isJsxExpression(node))
+    return node.expression === undefined || staticMarkup(node.expression);
+  if (ts.isCallExpression(node)) {
+    return (
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "t" &&
+      node.arguments.every((a) => staticMarkup(a))
+    );
+  }
+  if (ts.isFunctionLike(node) || ts.isJsxSpreadAttribute(node)) return false;
+  return (
+    ts.isStringLiteralLike(node) ||
+    ts.isNumericLiteral(node) ||
+    ts.isIdentifier(node) ||
+    ts.isPropertyAccessExpression(node) ||
+    node.kind === ts.SyntaxKind.TrueKeyword ||
+    node.kind === ts.SyntaxKind.FalseKeyword ||
+    node.kind === ts.SyntaxKind.NullKeyword ||
+    (ts.isTemplateExpression(node) && node.templateSpans.every((x) => staticMarkup(x.expression)))
+  );
+}
+
+/** `<Navigate to="/login" ... />` - przekierowanie gościa na logowanie zamiast treści. */
+function loginNavigate(node: ts.Node): boolean {
+  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  return (
+    ts.isJsxSelfClosingElement(node) &&
+    node.tagName.getText() === "Navigate" &&
+    node.attributes.properties.some(
+      (a) =>
+        ts.isJsxAttribute(a) &&
+        a.name.getText() === "to" &&
+        a.initializer !== undefined &&
+        ts.isStringLiteral(a.initializer) &&
+        a.initializer.text === "/login",
+    )
+  );
+}
+
+/** Opis bramki trasy i zakresy kodu, które obejmuje. */
+export interface RouteGateAnalysis {
+  /** Opis bramki z `plik:linia`. */
+  readonly gate: string;
+  /**
+   * `null` - bramka obejmuje CAŁY plik (`throw redirect` w `beforeLoad`/`loader`,
+   * nawigacja w `useEffect`); inaczej - zakresy kodu za bramką.
+   */
+  readonly gated: readonly GuardSpan[] | null;
+  /** Specyfikatory importów użytych w kodzie wykonywanym u gościa (poza bramką). */
+  readonly publicImports: ReadonlySet<string>;
+  /** `<Outlet />` (trasy potomne) poza bramką - potomkowie nie dziedziczą bramki. */
+  readonly outletOutside: boolean;
+}
+
 /**
  * Bramka sesji na poziomie TRASY (węższa niż `hasSessionGate` spisu SSR,
  * która łapie `navigate({ to: "/login" })` gdziekolwiek w pliku):
  *   * `throw redirect({ to: "/login" })` w `beforeLoad`/`loader` opcji trasy;
  *   * komponent trasy (`component: X`, funkcja w tym pliku albo wprost),
  *     którego KAŻDE `return` to `null`, statyczny komunikat bez atrybutów
- *     z `STATIC_ROUTE_NOTICES` (`<CommunityDisabled />` - moduł wyłączony,
- *     bez zapytań) albo drzewo JSX
- *     z `<AuthGate>` osiągalnym przez same elementy JSX (co najmniej jedno
- *     z bramką);
+ *     z `STATIC_ROUTE_NOTICES`, statyczny znacznik bez komponentów i wywołań
+ *     (`<div aria-busy />` na czas ładowania), `<Navigate to="/login" />`,
+ *     drzewo JSX z `<AuthGate>` osiągalnym przez same elementy JSX (także
+ *     przez stałą lokalną: `const content = (...); return content;`) albo
+ *     `return` za wczesnym wyjściem bez sesji (`if (!user) return
+ *     <Navigate to="/login" />` w ciele komponentu) - i co najmniej jedno
+ *     z bramką albo takie wyjście;
  *   * `useEffect` wprost w ciele komponentu trasy z nawigacją na `/login`.
- * Wynik - opis z `plik:linia`; `null` - brak bramki trasy.
+ * Zakresy kodu za bramką (`gated`): dzieci `<AuthGate>` i reszta bloku po
+ * wyjściu bez sesji (`sessionGuardRegions`) oraz funkcje i stałe lokalne
+ * pliku wołane WYŁĄCZNIE stamtąd; kod poza nimi (hook przed bramką, komponent
+ * obok niej, `head`) i jego importy wykonują się u gościa.
  */
-export function routeSessionGate(file: string, source: string): string | null {
+export function routeGateAnalysis(file: string, source: string): RouteGateAnalysis | null {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const options = containsNode(sf, (node) => {
     if (!ts.isCallExpression(node) || node.arguments.length !== 1) return false;
@@ -212,6 +312,12 @@ export function routeSessionGate(file: string, source: string): string | null {
     );
   }) as ts.CallExpression | null;
   if (options === null) return null;
+  const whole = (gate: string): RouteGateAnalysis => ({
+    gate,
+    gated: null,
+    publicImports: new Set(),
+    outletOutside: false,
+  });
   const obj = options.arguments[0] as ts.ObjectLiteralExpression;
   const prop = (name: string): ts.Node | null => {
     for (const p of obj.properties) {
@@ -231,7 +337,7 @@ export function routeSessionGate(file: string, source: string): string | null {
             value,
             (n) => ts.isThrowStatement(n) && isLoginNavigation(n.expression, "redirect"),
           );
-    if (hit !== null) return gateAt(sf, hit, `throw redirect na /login w ${name}`);
+    if (hit !== null) return whole(gateAt(sf, hit, `throw redirect na /login w ${name}`));
   }
   let component = prop("component");
   if (component !== null && ts.isIdentifier(component)) {
@@ -259,32 +365,203 @@ export function routeSessionGate(file: string, source: string): string | null {
     return null;
   }
   const fn = component;
-  if (fn.body !== undefined && ts.isBlock(fn.body)) {
-    for (const stmt of fn.body.statements) {
-      if (!ts.isExpressionStatement(stmt) || !ts.isCallExpression(stmt.expression)) continue;
-      const call = stmt.expression;
-      if (!ts.isIdentifier(call.expression) || call.expression.text !== "useEffect") continue;
-      const hit = containsNode(call, (n) => isLoginNavigation(n, "navigate"));
-      if (hit !== null) return gateAt(sf, hit, "nawigacja na /login w useEffect komponentu trasy");
+  const body = fn.body !== undefined && ts.isBlock(fn.body) ? fn.body : null;
+  for (const stmt of body?.statements ?? []) {
+    if (!ts.isExpressionStatement(stmt) || !ts.isCallExpression(stmt.expression)) continue;
+    const call = stmt.expression;
+    if (!ts.isIdentifier(call.expression) || call.expression.text !== "useEffect") continue;
+    const hit = containsNode(call, (n) => isLoginNavigation(n, "navigate"));
+    if (hit !== null)
+      return whole(gateAt(sf, hit, "nawigacja na /login w useEffect komponentu trasy"));
+  }
+  // Stałe ciała komponentu (`const content = (<main>...</main>)`) - `return content`.
+  const locals = new Map<string, ts.Expression>();
+  for (const stmt of body?.statements ?? []) {
+    if (!ts.isVariableStatement(stmt) || !(stmt.declarationList.flags & ts.NodeFlags.Const))
+      continue;
+    for (const d of stmt.declarationList.declarations) {
+      if (ts.isIdentifier(d.name) && d.initializer !== undefined)
+        locals.set(d.name.text, d.initializer);
     }
   }
-  const returns = returnsOf(fn);
-  const bare = (r: ts.Expression): boolean => {
+  // Wczesne wyjście bez sesji wprost w ciele komponentu: reszta ciała za bramką.
+  const exits = (body?.statements ?? []).filter(
+    (st): st is ts.IfStatement =>
+      ts.isIfStatement(st) &&
+      st.elseStatement === undefined &&
+      sessionCondition(st.expression, true) &&
+      (ts.isReturnStatement(st.thenStatement) ||
+        (ts.isBlock(st.thenStatement) &&
+          st.thenStatement.statements.some((x) => ts.isReturnStatement(x)))),
+  );
+  const exitAfter = exits.length === 0 ? null : Math.min(...exits.map((x) => x.getEnd()));
+  const preserving = (r: ts.Expression): boolean => {
     let node: ts.Node = r;
     while (ts.isParenthesizedExpression(node)) node = node.expression;
     return (
-      ts.isJsxSelfClosingElement(node) &&
-      node.attributes.properties.length === 0 &&
-      STATIC_ROUTE_NOTICES.has(node.tagName.getText())
+      node.kind === ts.SyntaxKind.NullKeyword ||
+      (ts.isJsxSelfClosingElement(node) &&
+        node.attributes.properties.length === 0 &&
+        STATIC_ROUTE_NOTICES.has(node.tagName.getText())) ||
+      staticMarkup(node) ||
+      loginNavigate(node)
     );
   };
-  const gates = returns.map((r) =>
-    r.kind === ts.SyntaxKind.NullKeyword || bare(r) ? ("null" as const) : jsxGate(r),
-  );
-  const first = gates.find((g): g is ts.Node => g !== null && g !== "null");
-  return first !== undefined && gates.every((g) => g !== null)
-    ? gateAt(sf, first, "<AuthGate> obejmuje drzewo komponentu trasy")
-    : null;
+  const returns = returnsOf(fn);
+  let gateNode: ts.Node | null = null;
+  for (const r of returns) {
+    if (exitAfter !== null && r.getStart(sf) >= exitAfter) continue;
+    const resolved = ts.isIdentifier(r) ? (locals.get(r.text) ?? r) : r;
+    const found = jsxGate(resolved);
+    if (found !== null) {
+      gateNode ??= found;
+      continue;
+    }
+    if (!preserving(r)) return null;
+  }
+  if (gateNode === null && exits.length === 0) return null;
+  const gate =
+    gateNode !== null
+      ? gateAt(sf, gateNode, "<AuthGate> obejmuje drzewo komponentu trasy")
+      : gateAt(sf, exits[0], "wczesne wyjście bez sesji w komponencie trasy");
+  return { gate, ...gatedCode(sf) };
+}
+
+/**
+ * Kod pliku trasy wykonywany u gościa: kod modułu, a w nim odwołania do
+ * funkcji i stałych lokalnych (te - w całości) i importów; zakresy bramek
+ * sesji (`sessionGuardRegions`) są pomijane. Wynik: zakresy za bramką
+ * (bramki i ciała deklaracji lokalnych bez odwołania z kodu gościa)
+ * i specyfikatory importów użytych przez gościa.
+ */
+function gatedCode(sf: ts.SourceFile): {
+  gated: GuardSpan[];
+  publicImports: Set<string>;
+  outletOutside: boolean;
+} {
+  const regions = sessionGuardRegions(sf);
+  const imports = new Map<string, string>();
+  const publicImports = new Set<string>();
+  const decls = new Map<string, ts.Node[]>();
+  for (const stmt of sf.statements) {
+    if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
+      const spec = stmt.moduleSpecifier.text;
+      const clause = stmt.importClause;
+      if (clause === undefined) {
+        publicImports.add(spec);
+        continue;
+      }
+      if (clause.isTypeOnly) continue;
+      if (clause.name !== undefined) imports.set(clause.name.text, spec);
+      const named = clause.namedBindings;
+      if (named !== undefined && ts.isNamespaceImport(named)) imports.set(named.name.text, spec);
+      if (named !== undefined && ts.isNamedImports(named)) {
+        for (const el of named.elements) if (!el.isTypeOnly) imports.set(el.name.text, spec);
+      }
+      continue;
+    }
+    if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined) {
+      if (ts.isStringLiteral(stmt.moduleSpecifier)) publicImports.add(stmt.moduleSpecifier.text);
+      continue;
+    }
+    // Funkcja, klasa i stała z funkcją - wykonuje się dopiero przez odwołanie.
+    const deferred = (name: string | undefined, node: ts.Node): void => {
+      if (name === undefined) return;
+      decls.set(name, [...(decls.get(name) ?? []), node]);
+    };
+    if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt))
+      deferred(stmt.name?.text, stmt);
+    if (ts.isVariableStatement(stmt)) {
+      for (const d of stmt.declarationList.declarations) {
+        let init: ts.Node | undefined = d.initializer;
+        // `memo(() => ...)`, `forwardRef(function X() {...})` - wciąż funkcja.
+        while (init !== undefined && ts.isCallExpression(init) && init.arguments.length > 0) {
+          const first: ts.Expression = init.arguments[0];
+          if (!ts.isArrowFunction(first) && !ts.isFunctionExpression(first)) break;
+          init = first;
+        }
+        if (
+          ts.isIdentifier(d.name) &&
+          init !== undefined &&
+          (ts.isArrowFunction(init) || ts.isFunctionExpression(init) || ts.isClassExpression(init))
+        ) {
+          deferred(d.name.text, d.initializer ?? init);
+        }
+      }
+    }
+  }
+  const deferredNodes = new Set([...decls.values()].flat());
+  const reached = new Set<ts.Node>();
+  let outletOutside = false;
+  const queue: ts.Node[] = [sf];
+  const visit = (node: ts.Node): void => {
+    if (node !== sf && deferredNodes.has(node) && !reached.has(node)) return;
+    const start = node.getStart(sf);
+    if (regions.some(([a, b]) => a <= start && node.getEnd() <= b)) return;
+    if (ts.isIdentifier(node) && valueReference(node)) {
+      const spec = imports.get(node.text);
+      if (spec !== undefined) publicImports.add(spec);
+      if (node.text === "Outlet") outletOutside = true;
+      for (const d of decls.get(node.text) ?? []) {
+        if (reached.has(d)) continue;
+        reached.add(d);
+        queue.push(d);
+      }
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] !== undefined &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      publicImports.add(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  while (queue.length > 0) {
+    const next = queue.shift() as ts.Node;
+    if (ts.isSourceFile(next)) ts.forEachChild(next, visit);
+    else visit(next);
+  }
+  const unreached = [...deferredNodes].filter((d) => !reached.has(d));
+  return {
+    gated: [...regions, ...unreached.map((d) => [d.getStart(sf), d.getEnd()] as const)],
+    publicImports,
+    outletOutside,
+  };
+}
+
+/** Identyfikator jako odwołanie do wartości (nie nazwa deklaracji, klucz obiektu ani `.pole`). */
+function valueReference(id: ts.Identifier): boolean {
+  const parent = id.parent;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === id) return false;
+  if (ts.isPropertyAssignment(parent) && parent.name === id) return false;
+  if (ts.isJsxAttribute(parent) && parent.name === id) return false;
+  if (
+    (ts.isFunctionDeclaration(parent) ||
+      ts.isClassDeclaration(parent) ||
+      ts.isVariableDeclaration(parent) ||
+      ts.isParameter(parent) ||
+      ts.isBindingElement(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isPropertyDeclaration(parent) ||
+      ts.isImportSpecifier(parent) ||
+      ts.isImportClause(parent) ||
+      ts.isNamespaceImport(parent)) &&
+    parent.name === id
+  ) {
+    return false;
+  }
+  if (ts.isTypeReferenceNode(parent) || ts.isQualifiedName(parent)) return false;
+  return true;
+}
+
+/**
+ * Bramka sesji na poziomie TRASY (`routeGateAnalysis`) - opis z `plik:linia`;
+ * `null` - brak bramki trasy.
+ */
+export function routeSessionGate(file: string, source: string): string | null {
+  return routeGateAnalysis(file, source)?.gate ?? null;
 }
 
 /**
@@ -346,10 +623,29 @@ export function guestReach(
 ): Map<string, GuestReach> {
   const byFile = new Map(sources.map((s) => [s.file, s.code]));
   const routeTree = byFile.get(ROUTE_TREE_FILE) ?? "";
-  // Bramka trasy zwalnia poddrzewo wyłącznie z wpisem i z bramką w kodzie.
+  // Bramka trasy zwalnia poddrzewo wyłącznie z wpisem i z bramką w kodzie;
+  // trasy potomne - tylko gdy `<Outlet />` leży za bramką.
+  const analyses = new Map<string, RouteGateAnalysis | null>();
+  const analysis = (file: string, source: string): RouteGateAnalysis | null => {
+    if (gatedRoutes[file] === undefined) return null;
+    if (!analyses.has(file)) analyses.set(file, routeGateAnalysis(file, source));
+    return analyses.get(file) ?? null;
+  };
+  const childGate = (file: string, source: string): boolean => {
+    const a = analysis(file, source);
+    return a !== null && !a.outletOutside;
+  };
   const routes = routeTreeEntries(
     { routeTree, sources: byFile },
-    (file, source) => gatedRoutes[file] !== undefined && routeSessionGate(file, source) !== null,
+    (file, source) => analysis(file, source) !== null,
+    childGate,
+  );
+  // Trasa pod bramką przodka (`<Outlet />` za nią) jest za bramką CAŁA -
+  // jej własna bramka nie zawęża zwolnienia do zakresów.
+  const inherited = new Set(
+    routeTreeEntries({ routeTree, sources: byFile }, () => false, childGate)
+      .filter((r) => r.sessionGateFrom !== null)
+      .map((r) => r.file),
   );
   const routeFiles = new Set([...routes.map((r) => r.file), SHELL_FILE]);
 
@@ -384,12 +680,31 @@ export function guestReach(
     })),
   ];
 
+  // Trasa z własną bramką w drzewie komponentu: importy użyte w kodzie poza
+  // bramką (komponent obok `<AuthGate>`, hook przed nią) są wejściami GOŚCIA.
+  const known = new Set(byFile.keys());
+  const outside: { route: string; label: string; to: string }[] = [];
+  const gatedSpans = new Map<string, readonly GuardSpan[]>();
+  for (const r of routes) {
+    if (r.admin || r.sessionGateFrom !== r.fullPath || inherited.has(r.file)) continue;
+    const a = analyses.get(r.file) ?? null;
+    if (a === null || a.gated === null) continue;
+    gatedSpans.set(r.file, a.gated);
+    for (const spec of [...a.publicImports].sort()) {
+      const to = resolveImport(r.file, spec, (path) => known.has(path));
+      if (to === null || to === r.file || to === ROUTE_TREE_FILE || routeFiles.has(to)) continue;
+      outside.push({ route: r.file, label: `${r.fullPath} (poza bramką)`, to });
+    }
+  }
+
   const out = new Map<string, GuestReach>();
   // BFS wielu źródeł - osobno dla każdej klasy, od najlepszej: plik dostaje
   // klasę pierwszego przebiegu, który go osiąga, i najkrótszą ścieżkę w nim.
   for (const cls of ["public", "session-gate", "admin"] as const) {
     const parent = new Map<string, string | null>();
     const label = new Map<string, string>();
+    // Rodzic importu spoza bramki - plik trasy (sam plik zostaje za bramką).
+    const via = new Map<string, string>();
     let frontier: string[] = [];
     for (const e of entries
       .filter((x) => x.cls === cls)
@@ -398,6 +713,15 @@ export function guestReach(
       parent.set(e.file, null);
       label.set(e.file, e.label);
       frontier.push(e.file);
+    }
+    if (cls === "public") {
+      for (const o of outside) {
+        if (parent.has(o.to)) continue;
+        parent.set(o.to, null);
+        via.set(o.to, o.route);
+        label.set(o.to, o.label);
+        frontier.push(o.to);
+      }
     }
     while (frontier.length > 0) {
       const after: string[] = [];
@@ -415,8 +739,18 @@ export function guestReach(
       const known = out.get(file);
       if (known !== undefined && RANK[known.cls] <= RANK[cls]) continue;
       const path: string[] = [];
-      for (let at: string | null | undefined = file; at != null; at = parent.get(at)) path.push(at);
-      out.set(file, { cls, path: path.reverse(), entry: label.get(file) ?? null });
+      for (let at: string | null | undefined = file; at != null; at = parent.get(at)) {
+        path.push(at);
+        const route = parent.get(at) === null ? via.get(at) : undefined;
+        if (route !== undefined) path.push(route);
+      }
+      const spans = cls === "session-gate" ? gatedSpans.get(file) : undefined;
+      out.set(file, {
+        cls,
+        path: path.reverse(),
+        entry: label.get(file) ?? null,
+        ...(spans === undefined ? {} : { gated: spans }),
+      });
     }
   }
   for (const { file } of sources) {

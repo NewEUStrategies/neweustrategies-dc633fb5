@@ -8,6 +8,7 @@ import {
   gatedRouteDrift,
   gatedRouteProblems,
   guestReach,
+  routeGateAnalysis,
   routeSessionGate,
 } from "@/lib/ci/guestReach";
 import { routeTreeEntries } from "@/lib/ci/publicRouteLoaders";
@@ -233,6 +234,132 @@ describe("bramka sesji trasy (`routeSessionGate`) i lista GATED_ROUTES_REVIEWED"
         ),
       ),
     ).toBeNull();
+  });
+
+  it('refaktory bez zmiany dostępu gościa zostają bramką (r1 CI-1): drzewo w stałej lokalnej, wczesny `return` statycznego znacznika, `if (!user) return <Navigate to="/login" />`', () => {
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { const content = (<main><AuthGate><Inner /></AuthGate></main>); return content; }",
+        ),
+      ),
+    ).toBe("<AuthGate> obejmuje drzewo komponentu trasy (src/routes/x.tsx:4)");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { const { t } = useT(); if (!t) return <div aria-busy className="p-4">{t("x")}</div>; return (<AuthGate><Inner /></AuthGate>); }',
+        ),
+      ),
+    ).toContain("<AuthGate> obejmuje drzewo komponentu trasy");
+    expect(
+      routeSessionGate(
+        "src/routes/x.tsx",
+        route(
+          'function Page() { const { user } = useAuth(); if (!user) return <Navigate to="/login" />; return <main><Inner /></main>; }',
+        ),
+      ),
+    ).toBe("wczesne wyjście bez sesji w komponencie trasy (src/routes/x.tsx:4)");
+    // Nadal NIE bramka: wczesny `return` komponentu (dane gościa), znacznik
+    // z handlerem albo wywołaniem, wyjście na warunku bez sesji.
+    for (const body of [
+      "function Page() { if (!t) return <Spinner />; return (<AuthGate><Inner /></AuthGate>); }",
+      "function Page() { if (!t) return <div onClick={() => load()} />; return (<AuthGate><Inner /></AuthGate>); }",
+      "function Page() { if (!t) return <div>{renderTeaser()}</div>; return (<AuthGate><Inner /></AuthGate>); }",
+      'function Page() { if (!ready) return <Navigate to="/login" />; return <main><Inner /></main>; }',
+    ]) {
+      expect(routeSessionGate("src/routes/x.tsx", route(body))).toBeNull();
+    }
+  });
+
+  it("zakresy za bramką (r1 F5): komponent OBOK `<AuthGate>`, hook przed nią i `head` - kod gościa; dzieci bramki i funkcje wołane wyłącznie z nich - za bramką", () => {
+    const code = `
+      import { AuthGate } from "@/components/profile/AuthGate";
+      import { MemberProfileTeaser } from "@/components/people/MemberProfileTeaser";
+      import { memberProfileQueryOptions } from "@/lib/profile/memberProfile";
+      import { useT } from "@/lib/i18n";
+      import { SITE } from "@/lib/seo/meta";
+      export const Route = createFileRoute("/people/$slug")({ head: () => ({ title: SITE }), component: Page });
+      function Page() {
+        const { t } = useT();
+        return (
+          <main>
+            <MemberProfileTeaser />
+            <AuthGate fallbackTitle={t("x")}><Body /></AuthGate>
+          </main>
+        );
+      }
+      function Body() { const q = useQuery(memberProfileQueryOptions()); return <p>{q.data}</p>; }
+    `;
+    const a = routeGateAnalysis("src/routes/people.$slug.tsx", code);
+    expect(a?.gate).toContain("<AuthGate> obejmuje drzewo komponentu trasy");
+    expect([...(a?.publicImports ?? [])].sort()).toEqual([
+      "@/components/people/MemberProfileTeaser",
+      "@/components/profile/AuthGate",
+      "@/lib/i18n",
+      "@/lib/seo/meta",
+    ]);
+    const spans = a?.gated ?? [];
+    const at = (needle: string): number => code.indexOf(needle);
+    const inside = (needle: string): boolean =>
+      spans.some(([x, y]) => x <= at(needle) && at(needle) < y);
+    expect(inside("<Body />")).toBe(true);
+    expect(inside("useQuery(memberProfileQueryOptions())")).toBe(true);
+    expect(inside("<MemberProfileTeaser />")).toBe(false);
+    expect(inside("useT();")).toBe(false);
+    // `throw redirect` w `beforeLoad` - cały plik za bramką.
+    expect(
+      routeGateAnalysis(
+        "src/routes/x.tsx",
+        route(
+          "function Page() { return <div />; }",
+          'beforeLoad: ({ context }) => { if (!context.user) throw redirect({ to: "/login" }); },',
+        ),
+      )?.gated,
+    ).toBeNull();
+  });
+
+  it("osiągalność: import użyty poza bramką trasy jest wejściem gościa; `<Outlet />` poza bramką - potomkowie bez bramki (r1 F5)", () => {
+    const teaser = sources.map((x) =>
+      x.file === "src/routes/profile.tsx"
+        ? {
+            file: x.file,
+            code: `
+    import { AuthGate } from "@/components/AuthGate";
+    import { Teaser } from "@/components/Teaser";
+    export const Route = createFileRoute("/profile")({ component: L });
+    function L() { return <main><Teaser /><AuthGate><Outlet /></AuthGate></main>; }`,
+          }
+        : x,
+    );
+    teaser.push({
+      file: "src/components/Teaser.tsx",
+      code: `import { q } from "@/lib/teaserQuery";`,
+    });
+    teaser.push({ file: "src/lib/teaserQuery.ts", code: "export const q = 1;" });
+    const r = guestReach(teaser, GATED);
+    expect(r.get("src/lib/teaserQuery.ts")).toEqual({
+      cls: "public",
+      entry: "/profile (poza bramką)",
+      path: ["src/routes/profile.tsx", "src/components/Teaser.tsx", "src/lib/teaserQuery.ts"],
+    });
+    expect(r.get("src/routes/profile.tsx")?.cls).toBe("session-gate");
+    expect(r.get("src/routes/profile.tsx")?.gated?.length).toBeGreaterThan(0);
+    // Dziecko pod `<Outlet />` za bramką - nadal za bramką.
+    expect(r.get("src/lib/account.ts")?.cls).toBe("session-gate");
+    const outside = teaser.map((x) =>
+      x.file === "src/routes/profile.tsx"
+        ? {
+            file: x.file,
+            code: x.code.replace(
+              "<AuthGate><Outlet /></AuthGate>",
+              "<AuthGate><Teaser /></AuthGate><Outlet />",
+            ),
+          }
+        : x,
+    );
+    expect(guestReach(outside, GATED).get("src/lib/account.ts")?.cls).toBe("public");
   });
 
   it("zwolnienie poddrzewa wymaga bramki w kodzie I wpisu; rozjazd w obie strony czerwieni `check:ts-sql-contract`", () => {

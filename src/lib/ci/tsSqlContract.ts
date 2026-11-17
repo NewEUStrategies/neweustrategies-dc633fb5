@@ -72,10 +72,15 @@
 //     `unknown`; nigdy zgadywanie). Rola nieustalona z WIDOCZNYMI kandydatami
 //     (wołający o różnych rolach, widoczne wywołania funkcji przekazywanej
 //     dalej, `Authorization` z warunku) - uprawnienia i sondy dla każdego
-//     kandydata; bez kandydata - wyłącznie z wpisem `UNKNOWN_ROLE_REVIEWED`;
+//     kandydata; bez kandydata albo z wartością bez widocznej roli obok
+//     kandydata - także wpis `UNKNOWN_ROLE_REVIEWED`;
 //   * zasoby osadzone list `select`, sondy wykonania (widok
 //     `security_invoker`, funkcja SECURITY INVOKER) i gość (`anon`) klienta
-//     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`).
+//     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`);
+//   * funkcje SECURITY INVOKER, których sondy nie wykonują w całości
+//     (asercja 20): wyzwalacze zapisów klienta (także z ładunkiem
+//     nieczytelnym) z przeglądem domknięcia, ciała RPC i funkcje wierszy
+//     widoków i polityk - statycznie (domknięcie bez blokad albo przegląd).
 // Fakt bramki zachowuje swoją rolę (`enforcedRole`): asercje 1-9 i ich
 // tabele są te same co przed miarą, a rola zmierzona sprawdzana jest tam,
 // gdzie się od niej różni.
@@ -84,6 +89,8 @@
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
 // wycinkami kodu.
 import ts from "typescript";
+
+import { guardRegion, inSpans } from "./sessionGuard";
 
 // ── Fakty szwu ──────────────────────────────────────────────────────────────
 
@@ -241,6 +248,15 @@ export interface RoleResolution {
    */
   readonly candidates?: readonly RoleCandidate[];
   /**
+   * Rola `unknown` Z kandydatami, ale nie wszystkie wartości mają widoczną
+   * rolę: odwołanie do funkcji, które nie jest wywołaniem (tablica źródeł,
+   * callback, obiekt pomocników), klient bez roli (pole obiektu, pamięć
+   * modułu, `let`), rozkład argumentów, cięcie głębokości. Kandydaci są
+   * sprawdzani, ale tych ścieżek nikt nie sprawdził - fakt zostaje we
+   * wszechświecie UNKNOWN_ROLE_REVIEWED (pierwszy powód; kandydaci w kształcie).
+   */
+  readonly residual?: string;
+  /**
    * Klient przeglądarki (`guest`) wykonywany także NA SERWERZE: droga do
    * kontekstu serwera (handler `createServerFn`, middleware, moduł
    * `*.server.ts`, handler trasy serwerowej, `loader`/`beforeLoad` trasy
@@ -266,6 +282,8 @@ interface ObservedCommon {
   readonly via: string;
   /** Rola `unknown`: widoczne role wartości (`RoleResolution.candidates`), posortowane. */
   readonly candidates?: readonly RoleCandidate[];
+  /** Kandydaci nie wyczerpują wartości (`RoleResolution.residual`) - fakt na liście przejrzanej. */
+  readonly residual?: string;
   /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
   readonly server?: string;
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
@@ -378,6 +396,8 @@ export interface ObservedStatement {
   readonly via: string;
   /** Rola `unknown`: widoczne role wartości - sonda jako każda z nich. */
   readonly candidates?: readonly RoleCandidate[];
+  /** Kandydaci nie wyczerpują wartości (`RoleResolution.residual`). */
+  readonly residual?: string;
   /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
   readonly server?: string;
   readonly site: string;
@@ -418,6 +438,26 @@ export interface ObservedRpcColumn {
   readonly fn: string;
 }
 
+/**
+ * Zapis klienta z ŁADUNKIEM NIECZYTELNYM (`.insert(row)`, `.update(patch)`,
+ * `.upsert(payload)` - obiekt spoza literału): kolumn nie widać, więc nie ma
+ * faktu zapisu ani sondy, ale wyzwalacze tabeli odpalają się tak samo -
+ * asercja 20 traktuje ładunek jak WSZYSTKIE kolumny (`UPDATE OF` też), a liczba
+ * takich miejsc ma zapadkę (`MAX_DYNAMIC_PAYLOAD_WRITES`).
+ */
+export interface ObservedDynamicWrite {
+  readonly table: string;
+  readonly op: TableOp;
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly guest: boolean;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly residual?: string;
+  readonly server?: string;
+  readonly site: string;
+  readonly fn: string;
+}
+
 export interface ObservedFacts {
   /** Każdy fakt RPC bramki z rolą zmierzoną (ta sama kolejność co `rpcs`). */
   readonly rpcs: readonly ObservedRpc[];
@@ -430,6 +470,8 @@ export interface ObservedFacts {
   readonly statements: readonly ObservedStatement[];
   /** Kolumny wyniku funkcji w łańcuchach `.rpc(...)` (filtry, sortowanie, `select`). */
   readonly rpcColumns: readonly ObservedRpcColumn[];
+  /** Zapisy z ładunkiem nieczytelnym (wyzwalacze - asercja 20; zapadka). */
+  readonly dynamicWrites: readonly ObservedDynamicWrite[];
   /**
    * Filtry na rozpoznanym budowniczym, których kolumny (albo tabeli
    * osadzenia) nie da się ustalić statycznie, oraz filtry budowniczego
@@ -1987,11 +2029,21 @@ interface RoleEnv {
 
 const MAX_VIA = 400;
 
-function unknownRole(via: string, candidates: readonly RoleCandidate[] = []): RoleResolution {
+function unknownRole(
+  via: string,
+  candidates: readonly RoleCandidate[] = [],
+  residual?: string,
+): RoleResolution {
   const merged = mergeCandidates(candidates);
-  return merged.length === 0
-    ? { role: "unknown", via: via.slice(0, MAX_VIA) }
-    : { role: "unknown", via: via.slice(0, MAX_VIA), candidates: merged };
+  if (merged.length === 0) return { role: "unknown", via: via.slice(0, MAX_VIA) };
+  return residual === undefined
+    ? { role: "unknown", via: via.slice(0, MAX_VIA), candidates: merged }
+    : {
+        role: "unknown",
+        via: via.slice(0, MAX_VIA),
+        candidates: merged,
+        residual: residual.slice(0, MAX_VIA),
+      };
 }
 
 /** Widoczne role wartości: ustalona rola albo kandydaci roli `unknown`. */
@@ -1999,6 +2051,16 @@ function candidatesOf(r: RoleResolution): readonly RoleCandidate[] {
   return r.role === "unknown"
     ? (r.candidates ?? [])
     : [{ role: r.role, via: r.via, guest: r.guest === true, ...serverField(r.server) }];
+}
+
+/**
+ * Ścieżka wartości BEZ widocznej roli: rola `unknown` bez kandydatów (cała
+ * wartość nieustalona - powód `via`) albo z kandydatami niewyczerpującymi
+ * (`residual`); `undefined` - każda ścieżka ma widoczną rolę.
+ */
+function residualOf(r: RoleResolution): string | undefined {
+  if (r.role !== "unknown" || r.absent === true) return undefined;
+  return r.candidates !== undefined && r.candidates.length > 0 ? r.residual : r.via;
 }
 
 function serverField(server: string | undefined): { readonly server?: string } {
@@ -2034,13 +2096,20 @@ function mergeCandidates(xs: readonly RoleCandidate[]): RoleCandidate[] {
   return [...best.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => c);
 }
 
-/** Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi kandydatami. */
+/**
+ * Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi
+ * kandydatami (z resztą `residual`, gdy kandydaci nie wyczerpują wartości).
+ */
 function candidateField(r: RoleResolution): {
   readonly candidates?: readonly RoleCandidate[];
   readonly server?: string;
+  readonly residual?: string;
 } {
   if (r.role !== "unknown") return serverField(r.server);
-  return r.candidates !== undefined && r.candidates.length > 0 ? { candidates: r.candidates } : {};
+  if (r.candidates === undefined || r.candidates.length === 0) return {};
+  return r.residual === undefined
+    ? { candidates: r.candidates }
+    : { candidates: r.candidates, residual: r.residual };
 }
 
 /** Kandydaci z przedrostkiem drogi (`etykieta <- droga kandydata`). */
@@ -2076,10 +2145,14 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
   if (distinct.length !== 1 || distinct[0] === "unknown") {
     const first = roles.find((r) => r.role === "unknown");
     // Każda widoczna wartość to ścieżka wykonania - jej rola zostaje
-    // kandydatem (sprawdzanym), nawet gdy inne wartości są nieustalone.
+    // kandydatem (sprawdzanym), nawet gdy inne wartości są nieustalone;
+    // wartość BEZ widocznej roli zostaje resztą (`residual`) - fakt nie
+    // opuszcza listy przejrzanej przez to, że inna wartość ma kandydata.
+    const rest = roles.map(residualOf).find((x) => x !== undefined);
     return unknownRole(
       `${label}: role [${distinct.join(", ")}]${first === undefined ? "" : ` - ${first.via}`}`,
       labelled(label, roles.flatMap(candidatesOf)),
+      rest === undefined ? undefined : `${label}: ${rest}`,
     );
   }
   const vias = [...new Set(roles.map((r) => r.via))];
@@ -2184,6 +2257,7 @@ function measuredRoleAt(
             : unknownRole(
                 `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
                 bound.candidates,
+                bound.residual,
               );
         }
         if (bound.role !== legacy) {
@@ -2370,17 +2444,22 @@ function serverFunctionKind(fn: ts.SignatureDeclaration | ts.Expression): string
 /**
  * Nazwa, pod którą żyje funkcja najbardziej zewnętrzna (deklaracja,
  * `const f = () => ...`, callback we właściwości obiektu przypisanego do
- * stałej - także przez owijkę `queryOptions({ queryFn })`). `null` - funkcja
- * bez nazwy (callback oddany wywołaniu, eksport domyślny).
+ * stałej - także przez owijkę `queryOptions({ queryFn })`, metoda klasy -
+ * nazwa klasy). `member` - funkcja jest właściwością obiektu albo metodą
+ * klasy (przestrzeń nazw, nie komponent ani hook). `null` - funkcja bez
+ * nazwy (callback oddany wywołaniu, eksport domyślny).
  */
-function functionHolder(
-  fn: ts.SignatureDeclaration,
-): { readonly name: ts.Identifier; readonly statement: ts.Statement } | null {
+function functionHolder(fn: ts.SignatureDeclaration): {
+  readonly name: ts.Identifier;
+  readonly statement: ts.Statement;
+  readonly member: boolean;
+} | null {
   if (ts.isFunctionDeclaration(fn)) {
-    return fn.name === undefined ? null : { name: fn.name, statement: fn };
+    return fn.name === undefined ? null : { name: fn.name, statement: fn, member: false };
   }
   let node: ts.Node =
     ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) ? outermostWrapper(fn) : fn;
+  let member = false;
   for (let hops = 0; hops < 8; hops += 1) {
     const parent: ts.Node = node.parent;
     if (ts.isVariableDeclaration(parent) && parent.initializer === node) {
@@ -2388,17 +2467,37 @@ function functionHolder(
         ts.isVariableDeclarationList(parent.parent) &&
         parent.parent.flags & ts.NodeFlags.Const &&
         ts.isVariableStatement(parent.parent.parent)
-        ? { name: parent.name, statement: parent.parent.parent }
+        ? { name: parent.name, statement: parent.parent.parent, member }
         : null;
     }
     if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(parent)) {
+      member = true;
       node = outermostWrapper(parent);
     } else if (
       ts.isPropertyAssignment(parent) &&
       parent.initializer === node &&
       ts.isObjectLiteralExpression(parent.parent)
     ) {
+      member = true;
       node = outermostWrapper(parent.parent);
+    } else if (
+      ts.isClassElement(node) &&
+      (ts.isClassDeclaration(parent) || ts.isClassExpression(parent))
+    ) {
+      // Metoda, konstruktor albo akcesor klasy: odwołania do KLASY (`new X()`,
+      // `X.metoda()`) to drogi wykonania jej metod.
+      member = true;
+      if (ts.isClassDeclaration(parent)) {
+        return parent.name === undefined ? null : { name: parent.name, statement: parent, member };
+      }
+      node = outermostWrapper(parent);
+    } else if (
+      ts.isPropertyDeclaration(parent) &&
+      parent.initializer === node &&
+      (ts.isClassDeclaration(parent.parent) || ts.isClassExpression(parent.parent))
+    ) {
+      // Pole klasy z funkcją strzałkową (`load = async () => ...`).
+      node = parent;
     } else if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === node)) {
       // Owijka `queryOptions({ ... })` - obiekt jako argument wywołania,
       // które samo jest wartością stałej.
@@ -2408,6 +2507,54 @@ function functionHolder(
     }
   }
   return null;
+}
+
+/**
+ * Czy funkcja wygląda na komponent React: zawiera element JSX albo woła hook
+ * (`useX(...)`, `React.useX(...)` - reguły hooków: wyłącznie komponent albo
+ * hook, poza renderem pada).
+ */
+function componentBody(fn: ts.Node): boolean {
+  return (
+    containsNodeOf(fn, (n) => {
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) return true;
+      if (!ts.isCallExpression(n)) return false;
+      const callee = unwrap(n.expression);
+      const name = ts.isIdentifier(callee)
+        ? callee.text
+        : ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : "";
+      return /^use[A-Z0-9]/.test(name);
+    }) !== null
+  );
+}
+
+function containsNodeOf(root: ts.Node, test: (node: ts.Node) => boolean): ts.Node | null {
+  let found: ts.Node | null = null;
+  const visit = (node: ts.Node): void => {
+    if (found !== null) return;
+    if (test(node)) found = node;
+    else ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return found;
+}
+
+/**
+ * Kontekst wyłącznie przeglądarki: komponent (nazwa wielką literą, funkcja
+ * związana wprost z nazwą - nie właściwość obiektu ani metoda klasy - z JSX
+ * albo wywołaniem hooka w ciele) albo hook (`useX` związany wprost).
+ * Przestrzeń nazw `Api = { f }`, klasa i funkcja `Nazwa()` bez JSX i hooków -
+ * nie: ich odwołania się śledzi.
+ */
+function browserOnlyHolder(
+  holder: { readonly name: ts.Identifier; readonly member: boolean },
+  fn: ts.SignatureDeclaration,
+): boolean {
+  if (holder.member) return false;
+  if (/^use[A-Z0-9]/.test(holder.name.text)) return true;
+  return /^[A-Z]/.test(holder.name.text) && componentBody(fn);
 }
 
 /**
@@ -2516,10 +2663,12 @@ function serverPathOf(
     return null;
   }
   const holder = functionHolder(outermost);
-  // Komponent (`Nazwa`) i hook (`useX`) to konteksty wyłącznie przeglądarki:
-  // render w SSR nie uruchamia `queryFn`/efektów, a odwołanie do komponentu
-  // (`component: X`, `.server(() => X)`) nie wykonuje jego zapytań.
-  if (holder === null || /^(?:[A-Z]|use[A-Z0-9])/.test(holder.name.text)) return null;
+  // Komponent (`Nazwa` z JSX) i hook (`useX`) to konteksty wyłącznie
+  // przeglądarki: render w SSR nie uruchamia `queryFn`/efektów, a odwołanie
+  // do komponentu (`component: X`, `.server(() => X)`) nie wykonuje jego
+  // zapytań. Przestrzeń nazw i klasa (`RevApi.read()`, `new Reader()`) - nie:
+  // ich odwołania prowadzą do handlera serwera tak samo jak `api.read()`.
+  if (holder === null || browserOnlyHolder(holder, outermost)) return null;
   env.serverPaths.set(outermost, null);
   env.serverPathsPending.add(outermost);
   const cutsBefore = env.serverCuts;
@@ -3690,9 +3839,12 @@ function paramRole(
         ),
       );
     }
+    // Odwołanie, które nie jest wywołaniem (tablica, callback, obiekt), to
+    // ścieżka BEZ widocznej roli - reszta zostaje na liście przejrzanej.
     result = unknownRole(
       `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
       labelled(`${label} (widoczne: ${visible.length})`, roles.flatMap(candidatesOf)),
+      `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
     );
   } else {
     const roles: RoleResolution[] = [];
@@ -4385,6 +4537,19 @@ function filterChainRoot(expr: ts.Expression): ts.Expression {
 
 // ── Przebieg po wywołaniach ─────────────────────────────────────────────────
 
+/**
+ * Miejsce wywołania faktu miary (przesunięcie w pliku `site`): dowód bramki
+ * wpisu GUEST_LOGIN_ONLY_REVIEWED musi OBEJMOWAĆ każde wywołanie pod kluczem
+ * (`guestLoginOnlyDrift`). Poza obiektem faktu - fakty, ich klucze
+ * i wyrenderowany SQL zostają bez zmian.
+ */
+const FACT_AT = new WeakMap<object, number>();
+
+function placed<T extends object>(fact: T, node: ts.Node): T {
+  FACT_AT.set(fact, node.getStart(node.getSourceFile()));
+  return fact;
+}
+
 interface Collector {
   rpcs: RpcSite[];
   tables: TableSite[];
@@ -4418,6 +4583,7 @@ interface Collector {
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
+    dynamicWrites: ObservedDynamicWrite[];
     rpcColumns: ObservedRpcColumn[];
     unresolvedFilters: string[];
     filtersOutsideChains: string[];
@@ -4686,22 +4852,27 @@ function visitFile(
             }
             rel = embedded;
           }
-          out.observed.filters.push({
-            table: rel,
-            column: column.column,
-            embed: column.embed.length > 0 ? column.embed.join(".") : null,
-            method,
-            op: builder.op,
-            role: builder.role.role,
-            via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
-            enforcedRole: "unknown",
-            guest: builder.role.guest === true,
-            ...candidateField(builder.role),
-            gateRole: builder.gate,
-            file: column.file,
-            site: scope.file,
-            fn: enclosingFunctionPath(call),
-          });
+          out.observed.filters.push(
+            placed(
+              {
+                table: rel,
+                column: column.column,
+                embed: column.embed.length > 0 ? column.embed.join(".") : null,
+                method,
+                op: builder.op,
+                role: builder.role.role,
+                via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
+                enforcedRole: "unknown",
+                guest: builder.role.guest === true,
+                ...candidateField(builder.role),
+                gateRole: builder.gate,
+                file: column.file,
+                site: scope.file,
+                fn: enclosingFunctionPath(call),
+              },
+              call,
+            ),
+          );
         }
       }
       continue;
@@ -4755,18 +4926,23 @@ function handleRpc(
   out.rpcs.push({ name, keys, role, file: scope.file });
   if (measure === null) return;
   const measured = measuredRole(receiver, scope, measure.roles, 0);
-  out.observed.rpcs.push({
-    name,
-    keys,
-    role: measured.role,
-    via: measured.via,
-    enforcedRole: role,
-    guest: measured.guest === true,
-    ...candidateField(measured),
-    file: scope.file,
-    site: scope.file,
-    fn: enclosingFunctionPath(node),
-  });
+  out.observed.rpcs.push(
+    placed(
+      {
+        name,
+        keys,
+        role: measured.role,
+        via: measured.via,
+        enforcedRole: role,
+        guest: measured.guest === true,
+        ...candidateField(measured),
+        file: scope.file,
+        site: scope.file,
+        fn: enclosingFunctionPath(node),
+      },
+      node,
+    ),
+  );
   observeRpcChain(node, name, keys, scope, exportsIndex, known, out, measure);
 }
 
@@ -4935,17 +5111,20 @@ function handleBuilder(
   const fact = (f: TableSite, call: ts.CallExpression): boolean => {
     const withheld = pushTableFact(out, f, call, scope);
     if (measure === null) return withheld;
-    const observedFact: ObservedTable = {
-      ...f,
-      role: measure.role.role,
-      via: measure.role.via,
-      enforcedRole: withheld ? "unknown" : f.role,
-      withheld,
-      guest: measure.role.guest === true,
-      ...candidateField(measure.role),
-      site: scope.file,
-      fn: enclosingFunctionPath(call),
-    };
+    const observedFact: ObservedTable = placed(
+      {
+        ...f,
+        role: measure.role.role,
+        via: measure.role.via,
+        enforcedRole: withheld ? "unknown" : f.role,
+        withheld,
+        guest: measure.role.guest === true,
+        ...candidateField(measure.role),
+        site: scope.file,
+        fn: enclosingFunctionPath(call),
+      },
+      call,
+    );
     out.observed.tables.push(observedFact);
     chainFacts.push({ fact: observedFact, chain: chainIndex });
     return withheld;
@@ -5077,7 +5256,26 @@ function handleBuilder(
             }
           }
         }
-        if (objects === null) continue;
+        if (objects === null) {
+          if (measure !== null) {
+            out.observed.dynamicWrites.push(
+              placed(
+                {
+                  table,
+                  op: kind,
+                  role: measure.role.role,
+                  via: measure.role.via,
+                  guest: measure.role.guest === true,
+                  ...candidateField(measure.role),
+                  site: scope.file,
+                  fn: enclosingFunctionPath(call),
+                },
+                call,
+              ),
+            );
+          }
+          continue;
+        }
         const shape = objectShape(objects, scope, exportsIndex, known);
         site(call, kind, shape.keys, false);
         for (const lit of shape.literals) {
@@ -5119,6 +5317,8 @@ function handleBuilder(
       for (const [i, entry] of chainFilters.entries()) {
         if (!held(entry.chain)) continue;
         const filter: FilterSite = { ...entry.filter, withheld: true };
+        const position = FACT_AT.get(entry.filter);
+        if (position !== undefined) FACT_AT.set(filter, position);
         const at = out.observed.filters.lastIndexOf(entry.filter);
         if (at !== -1) out.observed.filters[at] = filter;
         chainFilters[i] = { filter, chain: entry.chain };
@@ -5204,6 +5404,7 @@ function observeEmbeds(
         role.guest === true,
         role.via,
         role.candidates ?? [],
+        role.residual ?? null,
         gateRole,
         file,
       ]);
@@ -5211,26 +5412,31 @@ function observeEmbeds(
       if (id === undefined) {
         id = out.observed.embeds.length;
         out.observed.embedKeys.set(key, id);
-        out.observed.embeds.push({
-          id,
-          parentId,
-          table,
-          path,
-          rel: item.rel,
-          hint: item.hint,
-          columns,
-          star: parsed.star,
-          op: "select",
-          role: role.role,
-          via: role.via,
-          enforcedRole: "unknown",
-          guest: role.guest === true,
-          ...candidateField(role),
-          gateRole,
-          file,
-          site: scope.file,
-          fn,
-        });
+        out.observed.embeds.push(
+          placed(
+            {
+              id,
+              parentId,
+              table,
+              path,
+              rel: item.rel,
+              hint: item.hint,
+              columns,
+              star: parsed.star,
+              op: "select",
+              role: role.role,
+              via: role.via,
+              enforcedRole: "unknown",
+              guest: role.guest === true,
+              ...candidateField(role),
+              gateRole,
+              file,
+              site: scope.file,
+              fn,
+            },
+            call,
+          ),
+        );
       }
       ids.push(id);
       walk(item.inner, id, path, depth + 1);
@@ -5337,10 +5543,14 @@ function observeStatements(
               withheld: [w, ...selects].some((f) => f.withheld),
             };
           });
+    // Miejsce zapytania - miejsce pierwszego faktu albo filtra jego łańcuchów.
+    const first: object | undefined = gFacts[0] ?? gFilters[0];
+    const anchor = first === undefined ? undefined : FACT_AT.get(first);
     for (const statement of statements) {
       const key = JSON.stringify(statement);
       if (out.observed.statementKeys.has(key)) continue;
       out.observed.statementKeys.add(key);
+      if (anchor !== undefined) FACT_AT.set(statement, anchor);
       out.observed.statements.push(statement);
     }
   }
@@ -5419,7 +5629,7 @@ function observeChainFilters(
           site: scope.file,
           fn: enclosingFunctionPath(call),
         };
-        out.observed.filters.push(filter);
+        out.observed.filters.push(placed(filter, call));
         pushed.push({ filter, chain: chainIndex });
       };
       if (method === "upsert") {
@@ -5680,6 +5890,7 @@ export function extractSeamFacts(
       embedUses: new Map(),
       statements: [],
       statementKeys: new Set(),
+      dynamicWrites: [],
       rpcColumns: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
@@ -5753,6 +5964,7 @@ export function extractSeamFacts(
       }),
       statements: out.observed.statements,
       rpcColumns: out.observed.rpcColumns,
+      dynamicWrites: out.observed.dynamicWrites,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
       unresolvedFilters: [
@@ -6026,6 +6238,15 @@ export const MAX_UNRESOLVED_FILTER_SITES = 64;
  */
 export const MAX_FILTERS_OUTSIDE_CHAINS = 8;
 
+/**
+ * Zapadka zapisów klienta z ładunkiem nieczytelnym (`observed.dynamicWrites`:
+ * `.insert(row)`, `.update(patch)`, `.upsert(payload)` z obiektem spoza
+ * literału): kolumn zapisu nie sprawdza żadna asercja uprawnień (2, 5, 11)
+ * ani sonda - widzi je tylko asercja 20 (wyzwalacze). Liczba może TYLKO
+ * maleć; naprawa: ładunek w literale obiektu (kolumny widać) albo obniżenie.
+ */
+export const MAX_DYNAMIC_PAYLOAD_WRITES = 135;
+
 /** Klucz listy ról nieustalonych: plik wywołania, ścieżka funkcji, `.rpc(fn)` albo `.from(tabela)`. */
 export function unknownRoleKey(site: string, fn: string, call: string): string {
   return `${site}: ${fn}: ${call}`;
@@ -6084,6 +6305,7 @@ function factCallOf(o: ObservedFacts): (x: KeyedFact) => string {
 function shapeUniverse(
   o: ObservedFacts,
   pick: (x: KeyedFact) => boolean,
+  withCandidates = false,
 ): Map<string, { count: number; shape: string }> {
   const callOf = factCallOf(o);
   const acc = new Map<string, { count: number; parts: Set<string> }>();
@@ -6095,6 +6317,14 @@ function shapeUniverse(
     if (x.kind === "filter" && x.method === "upsert(EXCLUDED)") continue;
     const key = unknownRoleKey(x.site, x.fn, callOf(x));
     const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
+    // Role sprawdzane faktu z resztą (`residual`) - wpis przegląda też je:
+    // zmiana widocznego wołającego to ponowny przegląd.
+    const checked = withCandidates ? checkedRoles(x) : [];
+    if (checked.length > 0) {
+      at.parts.add(
+        `kandydaci(${[...new Set(checked.map((c) => (c.guest ? `${c.role}+anon` : c.role)))].sort().join(",")})`,
+      );
+    }
     if (x.kind === "rpc") {
       at.count += 1;
       at.parts.add(`rpc(${x.keys?.join(",") ?? "?"})`);
@@ -6117,12 +6347,19 @@ function shapeUniverse(
 
 /**
  * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
- * (`checkedRoles` puste; liczone) oraz łańcuchy z taką rolą bez faktu tabeli
- * (sam filtr, zapytanie sondy, osadzenie) - klucz musi być na liście, liczba
- * faktów może być 0. Kształt - `shapeUniverse`.
+ * (`checkedRoles` puste) albo z kandydatami, które nie wyczerpują wartości
+ * (`residual`: wołający niewidoczny obok widocznego - jego ścieżki nikt nie
+ * sprawdził; liczone) oraz łańcuchy z taką rolą bez faktu tabeli (sam filtr,
+ * zapytanie sondy, osadzenie) - klucz musi być na liście, liczba faktów może
+ * być 0. Kształt - `shapeUniverse`, z rolami sprawdzanych kandydatów
+ * (`kandydaci(...)`).
  */
 function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
-  return shapeUniverse(facts.observed, (x) => checkedRoles(x).length === 0);
+  return shapeUniverse(
+    facts.observed,
+    (x) => checkedRoles(x).length === 0 || x.residual !== undefined,
+    true,
+  );
 }
 
 /**
@@ -6140,6 +6377,14 @@ const LET_CLIENT =
   "klient w `let` ustawianym w gałęziach (`let admin` / `let client` przypisywane warunkowo) - reguła roli śledzi tylko `const` i pojedyncze `=`";
 const MEMBER_CLIENT =
   "klient z pola obiektu albo instancji (`this.supabase`, `.client` wyniku `callerSupabase()`, element rozkładu `Promise.all`) - reguła roli nie czyta pól wyniku funkcji";
+// Reszta (`residual`): rola widocznego wołającego (`kandydaci(...)` w kształcie)
+// jest sprawdzana, ale obok niej jest ścieżka bez widocznej roli.
+const REST_REFERENCE =
+  "kandydat z widocznych wywołań sprawdzany, ale nie każde odwołanie do funkcji jest wywołaniem (`const [{ f }] = await Promise.all([import(...)])`, funkcja w obiekcie pomocników) - klienta pozostałych ścieżek reguła roli nie widzi";
+const REST_MEMO =
+  "kandydat sprawdzany (świeży klient `createClient(…, SERVICE_ROLE)`), ale ta sama wartość bywa klientem z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`) - wiązanie przypisywane, reguła roli go nie śledzi";
+const REST_MEMBER =
+  "kandydat sprawdzany (`supabase` handlera z sesją), ale logger importu woła ten sam pomocnik z `this.supabase` (pole instancji) - reguła roli nie czyta pól";
 
 /**
  * Fakty, których rola klienta jest NIEUSTALONA także dla miary i które nie
@@ -6148,7 +6393,11 @@ const MEMBER_CLIENT =
  * istnienie, a uprawnienia wyłącznie wtedy, gdy rolę dała reguła bramki
  * (asercje 2 i 5). Fakt z kandydatami (wołający o różnych rolach, widoczne
  * wywołania funkcji przekazywanej dalej, `createClient` z `Authorization`
- * z warunku) idzie do pgTAP z KAŻDĄ widoczną rolą i wpisu nie potrzebuje.
+ * z warunku) idzie do pgTAP z KAŻDĄ widoczną rolą; wpisu nie potrzebuje
+ * wyłącznie wtedy, gdy kandydaci wyczerpują wartości. Gdy obok widocznego
+ * wołającego jest ścieżka bez roli (`RoleResolution.residual`: odwołanie,
+ * które nie jest wywołaniem, klient z pamięci modułu albo pola) - wpis
+ * zostaje, a kształt niesie sprawdzane role (`kandydaci(...)`).
  * Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`;
  * wartość: ile faktów RPC i tabel (łańcuch bez faktu - 0), KSZTAŁT przejrzany
  * (`unknownRoleUniverse`: operacja i kolumny, klucze RPC, kolumny filtrów
@@ -6178,6 +6427,26 @@ export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> =
     "onConflict(environment) upsert[catalog_fingerprint,environment,fingerprint,last_error,last_reason,last_report,last_status,last_synced_at]",
     MEMBER_CLIENT,
   ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(name_dictionary)": [
+    1,
+    "kandydaci(service_role) or(key) or(name_normalized) select[gender,vocative_pl]",
+    REST_MEMO,
+  ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(newsletter_subscribers)": [
+    1,
+    "ilike(email) kandydaci(service_role) order(created_at) select[display_name,first_name]",
+    REST_MEMO,
+  ],
+  "src/lib/email/suppression.server.ts: applyDeliveryEvent: .rpc(email_apply_delivery_event)": [
+    1,
+    "kandydaci(service_role) rpc(p_bounce_class,p_campaign_hint,p_diagnostic,p_email,p_event_id,p_event_type,p_kind,p_occurred_at,p_payload,p_provider,p_provider_message_id,p_subscriber_hint,p_tenant_hint)",
+    REST_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: fetchSuppressedEmails: .rpc(email_filter_suppressed)": [
+    1,
+    "kandydaci(service_role) rpc(p_emails,p_tenant)",
+    REST_REFERENCE,
+  ],
   "src/lib/email/suppression.server.ts: isEmailSuppressed: .rpc(email_is_suppressed)": [
     1,
     "rpc(p_email,p_tenant)",
@@ -6188,6 +6457,58 @@ export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> =
     "rpc(p_campaign,p_diagnostic,p_email,p_event_id,p_meta,p_provider,p_provider_message_id,p_reason,p_source,p_subscriber,p_tenant)",
     NOT_EVERY_REFERENCE,
   ],
+  "src/lib/email/suppression.server.ts: releaseUnsubscribeOnOptIn: .from(email_suppressions)": [
+    1,
+    "eq(email_norm) eq(reason) eq(tenant_id) is(released_at) kandydaci(service_role) update[expires_at,released_at]",
+    REST_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: resolveAccountTenantForAddress: .rpc(email_account_tenant_for_address)":
+    [1, "kandydaci(service_role) rpc(p_email)", REST_REFERENCE],
+  "src/lib/email/suppression.server.ts: resolveTenantForAddress: .rpc(email_resolve_tenant_for_address)":
+    [1, "kandydaci(service_role) rpc(p_email)", REST_REFERENCE],
+  "src/lib/email/suppression.server.ts: unsubscribeByToken.call: .rpc(email_unsubscribe_by_token)":
+    [1, "kandydaci(service_role) rpc(p_token)", REST_REFERENCE],
+  "src/lib/email/transactional.server.ts: alreadyHandled: .from(email_send_log)": [
+    1,
+    "eq(message_id) in(status) kandydaci(service_role) select[id]",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .from(email_send_log)": [
+    2,
+    "insert[error_message,message_id,recipient_email,status,template_name] insert[message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .rpc(enqueue_email)": [
+    1,
+    "kandydaci(service_role) rpc(payload,queue_name)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .from(email_send_log)": [
+    2,
+    "insert[error_message,message_id,recipient_email,status,template_name] insert[message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .rpc(enqueue_email)": [
+    1,
+    "kandydaci(service_role) rpc(payload,queue_name)",
+    REST_MEMO,
+  ],
+  "src/lib/email/transactional.server.ts: suppressionGate: .from(email_send_log)": [
+    1,
+    "insert[error_message,message_id,recipient_email,status,template_name] kandydaci(service_role)",
+    REST_MEMO,
+  ],
+  "src/lib/email/txOverrides.server.ts: loadTxOverrides: .from(site_settings)": [
+    1,
+    "eq(key) eq(tenant_id) kandydaci(authenticated,service_role) select[value]",
+    REST_MEMO,
+  ],
+  "src/lib/email/unsubscribeToken.server.ts: ensureUnsubscribeToken: .from(email_unsubscribe_tokens)":
+    [
+      4,
+      "eq(email) kandydaci(service_role) onConflict(email) select[token,used_at] select[token] update[token,used_at] upsert_ignore[email,token]",
+      REST_MEMO,
+    ],
   "src/lib/events/eventConsent.server.ts: listMyEventConsentsForCaller: .rpc(event_my_consent_state)":
     [1, "rpc()", MEMBER_CLIENT],
   "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_issue_ticket_codes)":
@@ -6299,6 +6620,11 @@ export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> =
     "eq(id) select[log]",
     MEMBER_CLIENT,
   ],
+  "src/lib/wordpress-import.functions.ts: patchJob: .from(wp_import_jobs)": [
+    0,
+    "eq(id) kandydaci(authenticated)",
+    REST_MEMBER,
+  ],
 };
 
 /**
@@ -6353,8 +6679,8 @@ export function guestKey(site: string, fn: string): string {
 /**
  * Wpis GUEST_LOGIN_ONLY_REVIEWED: liczba faktów RPC i tabel gościa pod
  * kluczem, kształt przejrzany (jak w UNKNOWN_ROLE_REVIEWED: operacja
- * i kolumny, klucze RPC, kolumny filtrów i osadzeń) i dowód bramki
- * `plik:linia` z rozpoznaną bramką w tej linii (±2).
+ * i kolumny, klucze RPC, kolumny filtrów i osadzeń) i dowód bramki -
+ * fragment warunku bramki sesji w odwrotnych apostrofach (`guardEvidenceProblem`).
  */
 export type GuestLoginOnlyEntry = readonly [count: number, shape: string, evidence: string];
 
@@ -6369,44 +6695,75 @@ export type GuestLoginOnlyEntry = readonly [count: number, shape: string, eviden
  * `.from(tabela)` - ten sam kształt co w UNKNOWN_ROLE_REVIEWED, bo ścieżka
  * funkcji bywa wspólna dla rodzeństwa (`queryFn` kilku `queryOptions`
  * w module, kilka `useQuery` w komponencie). Wartość: liczba faktów, kształt
- * i dowód bramki `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`).
- * `check:ts-sql-contract` czerwieni wpis: bez faktu gościa pod kluczem
- * w pliku `public`, z innym kształtem albo liczbą (dopisane zapytanie pod tym
- * samym kluczem), z dowodem, którego plik albo linia nie istnieje albo nie
- * ma w niej bramki. Fakt klienta wykonanego na serwerze (`server`) jest
+ * i dowód bramki - fragment jej warunku w odwrotnych apostrofach (np.
+ * `` `enabled: !!user` - dzwonek tylko z sesją ``), szukany w pliku klucza bez
+ * numeru linii. `check:ts-sql-contract` czerwieni wpis: bez faktu gościa pod
+ * kluczem w pliku `public`, z innym kształtem albo liczbą (dopisane zapytanie
+ * pod tym samym kluczem), z dowodem, którego fragmentu nie ma w pliku klucza
+ * w WARUNKU bramki sesji (`enabled:` opcji zapytania, `user && ...`, `?:`,
+ * `if (!user) return`, `<AuthGate>`; `typeof window`, `user?.id` w kluczu
+ * zapytania - nie), albo z bramką, której region nie obejmuje KAŻDEGO
+ * wywołania pod kluczem. Fakt klienta wykonanego na serwerze (`server`) jest
  * anonimowy dla każdego - wpis go nie zdejmuje. Listę wypełnia przegląd
  * wyniku `bun run generate:ts-sql-contract --guest-gaps` (gotowe klucze,
  * liczby i kształty tego, co jako gość pada na bazie po migracjach).
  */
 export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, GuestLoginOnlyEntry>> = {};
 
+/** Odwołania do pliku źródeł w dowodzie (linia opcjonalna - nie jest sprawdzana). */
+const EVIDENCE_FILE_RE = /(?:^|[\s('"])([\w@.\-/$]+\.tsx?)(?::\d+)?/g;
+
+/** Wyrażenie regularne fragmentu dowodu - białe znaki dowolne. */
+function snippetRe(snippet: string): RegExp {
+  const tokens = snippet
+    .trim()
+    .replace(/[,;]+$/, "")
+    .split(/\s+/)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(tokens.join("\\s*"), "g");
+}
+
 /**
- * Bramka sesji rozpoznawana w linii dowodu (±2): `enabled:` zapytania,
- * `user &&` / `session &&` / `isAuthenticated &&`, `!user` / `!session`
- * (wczesny `return` bez sesji), `<AuthGate`, `requireSupabaseAuth`,
- * `redirect`/`navigate` na `/login`.
+ * Problem dowodu bramki wpisu gościa (`null` - dowód sprawdzony w źródłach).
+ * Dowód to fragment(y) kodu bramki w odwrotnych apostrofach
+ * (`` `enabled: !!user` ``), szukany w PLIKU KLUCZA bez numeru linii (edycja
+ * nad bramką nie psuje wpisu). Fragment musi leżeć w warunku bramki SESJI
+ * (`guardRegion`), a jej region - obejmować KAŻDE wywołanie faktu pod kluczem
+ * (`positions`). Plik wskazany w dowodzie musi istnieć i być plikiem klucza
+ * (bramka u wołającego komponent w innym pliku nie obejmuje innych miejsc
+ * renderu - nie jest dowodem).
  */
-export const GUARD_TOKEN_RE =
-  /enabled\s*:|\b(?:user|session|isAuthenticated|isLoggedIn)\s*(?:&&|\?)|!\s*!?\s*(?:user|session|isAuthenticated|isLoggedIn)\b|<AuthGate\b|requireSupabaseAuth|(?:redirect|navigate)\(\s*\{[^}]*["'`]\/login/;
-
-/** Odwołania `plik:linia` w dowodzie wpisu gościa. */
-const EVIDENCE_REF_RE = /(?:^|[\s(`'"])([\w@.\-/$]+\.(?:tsx?|sql)):(\d+)/g;
-
-/** Problem dowodu bramki wpisu gościa (`null` - dowód sprawdzony w źródłach). */
 function guardEvidenceProblem(
+  site: string,
   evidence: string,
   sources: ReadonlyMap<string, string> | undefined,
+  positions: readonly number[],
 ): string | null {
-  const refs = [...evidence.matchAll(EVIDENCE_REF_RE)];
-  if (refs.length === 0) return "powód bez dowodu bramki plik:linia";
-  for (const [, file, at] of refs) {
-    const code = sources?.get(file);
-    if (code === undefined) return `${file}:${at} - pliku nie ma w źródłach`;
-    const lines = code.split("\n");
-    const line = Number(at);
-    if (line < 1 || line > lines.length) return `${file}:${at} - linii nie ma w pliku`;
-    if (!GUARD_TOKEN_RE.test(lines.slice(Math.max(0, line - 3), line + 2).join("\n"))) {
-      return `${file}:${at} (±2) - brak rozpoznanej bramki (enabled:, user &&, !user, <AuthGate>, requireSupabaseAuth, redirect/navigate na /login)`;
+  for (const [, file] of evidence.replace(/`[^`]*`/g, " ").matchAll(EVIDENCE_FILE_RE)) {
+    if (sources?.get(file) === undefined) return `${file} - pliku nie ma w źródłach`;
+    if (file !== site) {
+      return `${file} - dowód spoza pliku wywołania ${site} (bramka musi obejmować wywołanie w pliku klucza)`;
+    }
+  }
+  const snippets = [...evidence.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  if (snippets.length === 0) return "powód bez fragmentu bramki w `...` (np. `enabled: !!user`)";
+  const code = sources?.get(site);
+  if (code === undefined) return `${site} - pliku nie ma w źródłach`;
+  const sf = ts.createSourceFile(site, code, ts.ScriptTarget.Latest, true, scriptKindOf(site));
+  const regions: (readonly [number, number])[] = [];
+  for (const snippet of snippets) {
+    const found = [...code.matchAll(snippetRe(snippet))]
+      .map((m) => guardRegion(sf, m.index ?? 0, (m.index ?? 0) + m[0].length))
+      .filter((r): r is readonly [number, number] => r !== null);
+    if (found.length === 0) {
+      return `\`${snippet}\` - w ${site} nie ma takiego warunku bramki sesji (enabled: z sesją w opcjach zapytania, user && ..., warunek ?:, if (!user) return, <AuthGate>)`;
+    }
+    regions.push(...found);
+  }
+  for (const at of positions) {
+    if (!regions.some(([a, b]) => a <= at && at < b)) {
+      const line = sf.getLineAndCharacterOfPosition(at).line + 1;
+      return `wywołanie ${site}:${line} poza regionem bramki z dowodu`;
     }
   }
   return null;
@@ -6427,8 +6784,9 @@ function exemptableGuest(
  * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę) albo
  * z mniejszą liczbą faktów - zdejmij lub zmniejsz; `fresh` - pod kluczem
  * przybyło faktów albo zmienił się kształt (przegląd od nowa); `invalid` -
- * dowód bez `plik:linia`, plik albo linia, których nie ma, albo linia bez
- * rozpoznanej bramki.
+ * dowód bez fragmentu bramki, z plikiem spoza źródeł albo innym niż plik
+ * klucza, fragment poza warunkiem bramki sesji albo bramka nieobejmująca
+ * któregoś wywołania (`guardEvidenceProblem`).
  */
 export function guestLoginOnlyDrift(
   facts: SeamFacts,
@@ -6437,6 +6795,26 @@ export function guestLoginOnlyDrift(
   sources?: ReadonlyMap<string, string>,
 ): { stale: string[]; fresh: string[]; invalid: string[] } {
   const universe = shapeUniverse(facts.observed, exemptableGuest);
+  // Miejsca wywołań faktów, które wpis zdejmuje - każde musi być pod bramką dowodu.
+  const callOf = factCallOf(facts.observed);
+  const positions = new Map<string, number[]>();
+  const o = facts.observed;
+  // Zapytania sond pochodzą z faktów i filtrów tych samych łańcuchów - ich
+  // miejsca to miejsca tamtych.
+  const placedFacts: KeyedFact[] = [
+    ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x, source: x })),
+    ...o.tables.map((x) => ({ kind: "table" as const, ...x, source: x })),
+    ...o.filters.map((x) => ({ kind: "filter" as const, ...x, source: x })),
+    ...o.embeds.map((x) => ({ kind: "embed" as const, ...x, source: x })),
+  ];
+  for (const x of placedFacts as (KeyedFact & { readonly source: object })[]) {
+    if (!exemptableGuest(x)) continue;
+    const key = unknownRoleKey(x.site, x.fn, callOf(x));
+    const list = positions.get(key) ?? [];
+    // Fakt bez miejsca (zbudowany poza ekstrakcją) - nic go nie obejmuje.
+    list.push(FACT_AT.get(x.source) ?? -1);
+    positions.set(key, list);
+  }
   const stale: string[] = [];
   const fresh: string[] = [];
   const invalid: string[] = [];
@@ -6453,7 +6831,7 @@ export function guestLoginOnlyDrift(
     } else if (now.count > count || now.shape !== shape) {
       fresh.push(`${key} (${now.count}, kształt "${now.shape}"; przejrzany: ${count}, "${shape}")`);
     }
-    const problem = guardEvidenceProblem(evidence, sources);
+    const problem = guardEvidenceProblem(site, evidence, sources, positions.get(key) ?? []);
     if (problem !== null) invalid.push(`${key} (${problem})`);
   }
   return { stale: stale.sort(), fresh: fresh.sort(), invalid: invalid.sort() };
@@ -6482,7 +6860,11 @@ export function guestLoginOnlyCandidates(
  */
 export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
 
-/** Wpis przeglądu wyzwalacza SECURITY INVOKER: md5 `prosrc` z przeglądu i powód. */
+/**
+ * Wpis przeglądu funkcji SECURITY INVOKER: md5 DOMKNIĘCIA z przeglądu
+ * (`ts_closure_md5`: ciało i funkcje `public` wołane z ciała, rekurencyjnie
+ * przez INVOKER - zmiana funkcji wołanej to ponowny przegląd) i powód.
+ */
 export interface InvokerTriggerReviewed {
   readonly md5: string;
   readonly reason: string;
@@ -6495,9 +6877,11 @@ export interface InvokerTriggerReviewed {
  * grantu roli klienta psuje KAŻDY taki zapis 42501, a sondy tego nie widzą.
  * Asercja 20 wymaga dla każdego wyzwalacza (wierszowego i instrukcji, BEFORE,
  * AFTER), który odpala INSERT/UPDATE/upsert/DELETE faktu zapisu `anon` albo
- * `authenticated` (UPDATE OF kolumny - tylko gdy ładunek je zawiera): funkcji
- * SECURITY DEFINER albo wpisu tutaj z md5 bieżącego ciała - zmiana ciała to
- * ponowny przegląd, a wpis bez takiego wyzwalacza jest nieaktualny.
+ * `authenticated` (UPDATE OF kolumny - tylko gdy ładunek je zawiera; zapis
+ * z ładunkiem nieczytelnym - wszystkie kolumny): funkcji SECURITY DEFINER albo
+ * wpisu tutaj z md5 bieżącego DOMKNIĘCIA (ciało i funkcje `public` wołane
+ * z ciała) - zmiana ciała albo funkcji wołanej to ponowny przegląd, a wpis
+ * bez takiego wyzwalacza to diagnostyka pgTAP (nieaktualny), nie niepowodzenie.
  *
  * Wykonanie prawdziwego INSERT w podtransakcji (BEFORE ROW przed RLS
  * i ograniczeniami) sprawdzone na PG16 z seedem: 127 zapisów klienta bez
@@ -6508,99 +6892,135 @@ export interface InvokerTriggerReviewed {
 // Przegląd listopad 2026 (10a7ea59, PG16 po wszystkich migracjach): ciało
 // każdej funkcji przeczytane; funkcje wołane z ciała - EXECUTE sprawdzony
 // `has_function_privilege` dla anon i authenticated (EXECUTE samej funkcji
-// wyzwalacza Postgres sprawdza tylko przy CREATE TRIGGER).
+// wyzwalacza Postgres sprawdza tylko przy CREATE TRIGGER). Recenzja r1: md5
+// to odcisk domknięcia (`ts_closure_md5` na tej samej bazie - treść bez zmian),
+// a pięć wyzwalaczy tabel zapisywanych wyłącznie ładunkiem nieczytelnym
+// (`.upsert(payload)`, `.update(patch)`) przejrzanych od nowa; `ts_closure_blockers`
+// bez blokad dla authenticated (anon: brak UPDATE `post_sidebar_layouts`
+// i EXECUTE `is_service_role_caller` - zapis anon pada wcześniej na grancie tabeli).
 const TOUCH_ONLY = "tylko `NEW.updated_at := now()` - bez odczytu relacji i bez innych funkcji";
 const NEW_OLD_ONLY = "pola NEW/OLD i `now()` - bez odczytu relacji i bez innych funkcji";
 
 export const INVOKER_TRIGGERS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {
-  "public._tg_touch_updated_at": { md5: "d649a110c6bbd423f02e7d4c848573a9", reason: TOUCH_ONLY },
+  "public._tg_touch_updated_at": { md5: "187c3e01006da42a451b40528fdb731c", reason: TOUCH_ONLY },
   "public.check_page_parent_no_cycle": {
-    md5: "eb0e2ea48f838a1974f2fecd0faf6e36",
+    md5: "9603d3e95380bacfafaf7128de59c9a4",
     reason:
       "czyta wyłącznie `pages.parent_id` i `pages.id` (pętla po przodkach) - SELECT obu kolumn mają anon i authenticated; RLS ogranicza widoczne strony, a niewidoczny przodek kończy pętlę bez błędu",
   },
   "public.crm_leads_sync_phone_norm": {
-    md5: "a22fede17786433ff68e03026b4a8e9a",
+    md5: "dd29d59a64a3f7c423faf91570484a3e",
     reason:
       "woła `crm_normalize_phone(text)` (SQL IMMUTABLE, operacje na tekście, bez relacji; EXECUTE anon i authenticated)",
   },
   "public.nes_messages_search_vector": {
-    md5: "e2708e4027a89a075b630833e5690175",
+    md5: "48172a186400c5b66794f45da2979827",
     reason:
       "`to_tsvector('public.nes_polish', ...)` na polach NEW - konfiguracja wyszukiwania nie ma uprawnień, bez odczytu relacji",
   },
   "public.pages_search_vector_refresh": {
-    md5: "2d9b5c9548124bca2ba4526e6c28577e",
+    md5: "84a0d97062ba1cf4ad11fd0c463f77a5",
     reason:
       "woła `nes_pages_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
   },
   "public.pages_validate_takeaways": {
-    md5: "904c446040b8462df52c3558f1cb3af0",
+    md5: "08557f6c61d7c397aed3716b069b27f1",
     reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
   },
   "public.post_sidebar_layouts_enforce_default": {
-    md5: "cddf64708a5640370d283a699b9f224c",
+    md5: "1cb41928714f9a12d3ceab29cca7004c",
     reason:
       "przy `NEW.is_default` UPDATE `post_sidebar_layouts.is_default` po `tenant_id`, `id`, `is_default` - authenticated ma UPDATE(is_default) i SELECT tych kolumn, a zapis klienta (SidebarBuilderPane) działa na tej samej tabeli pod tymi samymi politykami RLS",
   },
   "public.posts_search_vector_refresh": {
-    md5: "42be6881709f0f4ff943894498d4e4c4",
+    md5: "7c2f70feaaa5af0953d6a1d2ce001893",
     reason:
       "woła `nes_posts_search_vector(...)` (SQL STABLE: `to_tsvector`, `unaccent`, `nes_jsonb_text` - bez relacji; EXECUTE wszystkich dla anon i authenticated)",
   },
   "public.posts_validate_takeaways": {
-    md5: "904c446040b8462df52c3558f1cb3af0",
+    md5: "4ffab09c24e0205f42994b57f675d1b4",
     reason: "walidacja tablic `takeaways_*` z NEW (RAISE przy przekroczeniu) - bez odczytu relacji",
   },
   "public.profiles_discoverable_decided_at_pin": {
-    md5: "97aedf893d97674eeab283fb4e58a225",
+    md5: "ceb9cf3ea6497f0ebf6576b039b06cd0",
     reason: "`NEW.discoverable_decided_at := OLD.discoverable_decided_at` - bez odczytu relacji",
   },
   "public.profiles_discoverable_decision_stamp": {
-    md5: "39f0fbd4335def0922ca7e15ab190d57",
+    md5: "f585c6131b9113753c063c250bf63f18",
     reason:
       "pola NEW, `now()` i `auth.uid()` (SQL na `current_setting`; EXECUTE anon i authenticated) - bez odczytu relacji",
   },
   "public.profiles_mirror_bio": {
-    md5: "b825457aae90e5e772d2efac9d6ee9c0",
+    md5: "08a17e7c8f5dcab5e8ca887ee7a58b55",
     reason: "`btrim`/`NULLIF` na polach NEW - bez odczytu relacji",
   },
   "public.profiles_pin_tenant": {
-    md5: "8b5c406f3fda297cf67911db8d3b824d",
+    md5: "87ac656abaa9711cfdcb1e554b483b15",
     reason:
       "przy zmianie `tenant_id` woła `is_service_role_caller()` i `has_role(...)` (obie SECURITY DEFINER; authenticated ma EXECUTE obu). anon nie ma EXECUTE `is_service_role_caller`, ale nie ma też UPDATE na profiles - zapis profilu jako anon pada na uprawnieniu tabeli przed wyzwalaczem (asercje 17/19)",
   },
   "public.saved_searches_alert_defaults": {
-    md5: "99d894bfb66c2dd054f4b7d0172a2110",
+    md5: "a886958c9bc4b1c94e1520a603edbd00",
     reason: NEW_OLD_ONLY,
   },
-  "public.set_updated_at": { md5: "301a884953d37769916294bb60562e05", reason: TOUCH_ONLY },
+  "public.set_updated_at": { md5: "3d4d1916c6c7ceb45278184b27b9406b", reason: TOUCH_ONLY },
   "public.tg_crm_scoring_settings_touch": {
-    md5: "db79ec82248998564a64ee07f421b3da",
+    md5: "5d9fa885f86883bf68f5bea79622fe68",
     reason: "`now()` i `auth.uid()` (EXECUTE anon i authenticated) - bez odczytu relacji",
   },
   "public.tg_crm_tasks_normalize": {
-    md5: "fac8dfea8acb21625cd1ed066b8d3725",
+    md5: "b4268425a0ed289772aac390477354cc",
     reason: NEW_OLD_ONLY,
   },
   "public.tg_events_stamp_lifecycle": {
-    md5: "f18b7e727b25bdab3e26dcb7aa2fc6d0",
+    md5: "36904d5aaab86bce78184f60b481b372",
     reason: NEW_OLD_ONLY,
   },
   "public.tg_events_stamp_lifecycle_insert": {
-    md5: "8aa7542eb68118827ea75c75669a3d2c",
+    md5: "509e0bae0121193466113370df7bb296",
     reason: NEW_OLD_ONLY,
   },
   "public.tg_notification_preferences_touch": {
-    md5: "5b733ab523bad442e4b10f836de9e4ba",
+    md5: "dc5b9ac60bc85f087ad1aaa47474808e",
     reason: TOUCH_ONLY,
   },
   "public.tg_payment_orders_stamp_retention": {
-    md5: "c2e88776bfa1746564b0620032a493f5",
+    md5: "5bad83936696ee5b4fcb8c27ee786f55",
     reason:
       "woła `accounting_retention_until(timestamptz)` (SQL IMMUTABLE, `make_date`/`EXTRACT` - bez relacji; EXECUTE anon i authenticated)",
   },
+  "public._tg_events_discussion_club_cleared": {
+    md5: "727c0f9d639dd9a0dfb7c2b9e982a10e",
+    reason: "`NEW.discussion_group_id := NULL` - bez odczytu relacji i bez innych funkcji",
+  },
+  "public.career_cv_path_guard": {
+    md5: "efdbba5cbe706c72cfd258005344d7c5",
+    reason:
+      "pola NEW/OLD (`custom ->> 'cv_path'`, `tenant_id`) i `career_cv_path_tenant(text)` (SQL IMMUTABLE, wyrażenie regularne na tekście - bez relacji; EXECUTE anon i authenticated); RAISE check_violation przy obcym najemcy",
+  },
+  "public.set_archive_layout_settings_updated_at": {
+    md5: "519f61d12d55a2667a4a6118d06caf25",
+    reason: TOUCH_ONLY,
+  },
+  "public.set_updated_at_now": { md5: "1aa84e8b3b676aec778c326cc53ea8ce", reason: TOUCH_ONLY },
+  "public.tg_programs_status_active_sync": {
+    md5: "39b05743e94d16ca8ca2fdc6d66bba58",
+    reason: NEW_OLD_ONLY,
+  },
 };
+
+/**
+ * Funkcje SECURITY INVOKER wykonywane jako rola klienta POZA wyzwalaczami
+ * (RPC `anon`/`authenticated`, funkcje widoków i polityk RLS relacji klienta),
+ * których domknięcie ma blokadę (`ts_closure_blockers`: relacja bez pełnego
+ * SELECT roli, zapis bez uprawnienia, dynamiczny SQL) - `schemat.nazwa` ->
+ * md5 domknięcia i powód: przegląd potwierdza, że KAŻDA gałąź ciała czyta
+ * tylko kolumny z grantem roli. Sondy wykonują jedną ścieżkę ciała (argumenty
+ * NULL i syntetyczne), a funkcję wiersza widoku - tylko dla istniejącego
+ * wiersza, więc to przegląd, nie sonda. Na 10a7ea59 żadne domknięcie nie ma
+ * blokady - lista pusta; wpis bez blokady to diagnostyka (nieaktualny).
+ */
+export const INVOKER_FUNCTIONS_REVIEWED: Readonly<Record<string, InvokerTriggerReviewed>> = {};
 
 /**
  * Funkcje RPC, których sondy (argumenty NULL i syntetyczne) kończą się bez
@@ -6626,6 +7046,8 @@ export interface ContractEnforcement {
   readonly rpcProbeVacuous?: Readonly<Record<string, string>>;
   /** Wyzwalacze SECURITY INVOKER przejrzane; domyślnie `INVOKER_TRIGGERS_REVIEWED`. */
   readonly invokerTriggers?: Readonly<Record<string, InvokerTriggerReviewed>>;
+  /** Funkcje SECURITY INVOKER (RPC, widok, polityka) przejrzane; domyślnie `INVOKER_FUNCTIONS_REVIEWED`. */
+  readonly invokerFunctions?: Readonly<Record<string, InvokerTriggerReviewed>>;
 }
 
 /** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
@@ -6634,7 +7056,7 @@ export interface ObservedCoverage {
   readonly unknownRole?: Readonly<Record<string, UnknownRoleEntry>>;
   readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
   /**
-   * Źródła (plik -> kod) do sprawdzenia dowodów `plik:linia` listy gościa;
+   * Źródła (plik -> kod) do sprawdzenia dowodów bramki listy gościa;
    * bez nich każdy wpis listy jest nie do sprawdzenia (czerwono).
    */
   readonly sources?: ReadonlyMap<string, string>;
@@ -6655,7 +7077,7 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
   const unknown = unknownRoleDrift(facts, input.unknownRole);
   if (unknown.fresh.length > 0) {
     problems.push(
-      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną bez kandydata (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED albo z kształtem innym niż przejrzany - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z liczbą, kształtem i powodem:\n` +
+      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną bez kandydata albo ze ścieżką bez widocznej roli obok kandydata (tej ścieżki uprawnień nikt nie sprawdza) spoza listy UNKNOWN_ROLE_REVIEWED albo z kształtem innym niż przejrzany - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z liczbą, kształtem i powodem:\n` +
         unknown.fresh.map((x) => `        ${x}`).join("\n"),
     );
   }
@@ -6669,7 +7091,7 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
   const guestIssues = [...guest.stale, ...guest.fresh, ...guest.invalid];
   if (guestIssues.length > 0) {
     problems.push(
-      `${guestIssues.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla klucza plik/funkcja/relacja z faktem gościa w pliku klasy public, z liczbą i kształtem jak w kodzie i z dowodem bramki plik:linia, który w tej linii jest):\n` +
+      `${guestIssues.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla klucza plik/funkcja/relacja z faktem gościa w pliku klasy public, z liczbą i kształtem jak w kodzie i z fragmentem warunku bramki sesji w pliku klucza, którego region obejmuje każde wywołanie):\n` +
         guestIssues.map((x) => `        ${x}`).join("\n"),
     );
   }
@@ -6683,6 +7105,15 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
     problems.push(
       `${o.filtersOutsideChains.length} wywołań filtra poza rozpoznanym budowniczym (zapadka MAX_FILTERS_OUTSIDE_CHAINS: ${MAX_FILTERS_OUTSIDE_CHAINS}):\n` +
         o.filtersOutsideChains.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.dynamicWrites.length > MAX_DYNAMIC_PAYLOAD_WRITES) {
+    problems.push(
+      `${o.dynamicWrites.length} zapisów klienta z ładunkiem nieczytelnym - kolumn nie sprawdza asercja uprawnień ani sonda (zapadka MAX_DYNAMIC_PAYLOAD_WRITES: ${MAX_DYNAMIC_PAYLOAD_WRITES}); ładunek w literale obiektu:\n` +
+        o.dynamicWrites
+          .map((w) => `        ${w.site}: ${w.fn}: .from(${w.table}).${w.op}(…)`)
+          .sort()
+          .join("\n"),
     );
   }
   return problems;
@@ -7238,10 +7669,21 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const triggerRows = Object.entries(enforcement.invokerTriggers ?? INVOKER_TRIGGERS_REVIEWED)
     .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
     .sort();
+  const functionRows = Object.entries(enforcement.invokerFunctions ?? INVOKER_FUNCTIONS_REVIEWED)
+    .map(([fn, entry]) => [sqlString(fn), sqlString(entry.md5)].join(", "))
+    .sort();
   const vacuousReviewed = Object.keys(
     enforcement.rpcProbeVacuous ?? RPC_PROBE_VACUOUS_REVIEWED,
   ).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
+  // Klasa miejsca faktu: plik trasy z bramką w drzewie komponentu zwalnia
+  // tylko fakty w zakresach za bramką (`SiteReach.gated`), reszta - `public`.
+  const factCls = (x: { readonly site: string }): string => {
+    const r = enforcement.reach.get(x.site);
+    if (r?.gated === undefined) return r?.cls ?? "none";
+    const at = FACT_AT.get(x);
+    return at !== undefined && inSpans(at, r.gated) ? r.cls : "public";
+  };
   // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
   // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
   // Wpis listy zdejmuje wiersz gościa faktu POD SWOIM KLUCZEM (plik,
@@ -7250,7 +7692,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     c.guest &&
     c.role === "authenticated" &&
     (c.server !== undefined ||
-      (!GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
+      (!GUEST_EXEMPT_CLASSES.has(factCls(x)) &&
         reviewed[unknownRoleKey(x.site, x.fn, call)] === undefined));
   /**
    * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
@@ -7418,6 +7860,26 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
         ].join(", "),
     ),
   );
+  // Zapisy z ładunkiem nieczytelnym: rola i - gdy gość sprawdzany - `anon`,
+  // tylko do asercji 20 (wyzwalacze, ładunek = wszystkie kolumny).
+  const dynamicWriteRows = sorted(
+    o.dynamicWrites.flatMap((w) =>
+      checkedRoles(w).flatMap((c) =>
+        [
+          ...(c.role === "anon" || c.role === "authenticated" ? [c.role] : []),
+          ...(guestOn(w, c, `.from(${w.table})`) ? ["anon"] : []),
+        ].map((role) =>
+          [
+            sqlString(w.table),
+            sqlString(w.op),
+            sqlString(role),
+            sqlString(w.site),
+            sqlString(w.fn),
+          ].join(", "),
+        ),
+      ),
+    ),
+  );
 
   // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
   const guestKeys = new Map<string, string>();
@@ -7425,7 +7887,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     if ("withheld" in x && x.withheld === true) continue;
     if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
     const key = guestKey(x.site, x.fn);
-    const cls = clsOf(x.site);
+    const cls = factCls(x);
     guestKeys.set(key, GUEST_EXEMPT_CLASSES.has(cls) ? cls : `sprawdzane ${cls}`);
   }
   // Klucze listy, które zdejmują wiersze gościa (fakt pod kluczem w pliku public).
@@ -7449,6 +7911,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     return v !== undefined && !v.startsWith("sprawdzane");
   }).length;
   const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length;
+  const residualFacts = [...o.rpcs, ...o.tables].filter((x) => x.residual !== undefined).length;
   const candidateFacts = [...o.rpcs, ...o.tables].filter(
     (x) => x.role === "unknown" && checkedRoles(x).length > 0,
   ).length;
@@ -7464,7 +7927,8 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- wywolania, naglowek Authorization z warunku): ${candidateFacts} faktow RPC i tabel -
 -- uprawnienia i sondy dla KAZDEJ widocznej roli.
 -- Rola nieustalona bez kandydatow: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
--- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract).
+-- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract); z kandydatami, ale ze
+-- sciezka bez widocznej roli: ${residualFacts} - kandydaci sprawdzani, klucz takze na liscie.
 -- Gosc (anon): ${guestKeys.size} par (plik wywolania, funkcja) z faktami klienta przegladarki.
 --   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.
 --   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
@@ -7483,8 +7947,12 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- wiersza); RPC dwie sondy - argumenty NULL i syntetyczne (cialo za straznikiem
 -- NULL); obie bez bledu i bez odczytu zadnej relacji - sonda pusta, naruszenie
 -- (przejrzane RPC_PROBE_VACUOUS_REVIEWED: ${vacuousReviewed.length === 0 ? "brak" : vacuousReviewed.join(", ")}).
--- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta - sondy zapisu (EXPLAIN)
--- ich nie wykonuja: asercja 20, przejrzane INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}.
+-- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (takze ${o.dynamicWrites.length} zapisow z ladunkiem
+-- nieczytelnym - wszystkie kolumny) - sondy zapisu (EXPLAIN) ich nie wykonuja:
+-- asercja 20, md5 domkniecia (cialo i funkcje wolane), przejrzane
+-- INVOKER_TRIGGERS_REVIEWED: ${triggerRows.length}. RPC, funkcje widokow i polityk relacji klienta:
+-- domkniecie bez blokad (relacja bez pelnego SELECT roli, zapis bez uprawnienia,
+-- dynamiczny SQL) albo wpis INVOKER_FUNCTIONS_REVIEWED: ${functionRows.length}. Wpis bez przedmiotu - diag.
 `;
 
   const setup = `-- ── Fakty miary (asercje 10-20) ─────────────────────────────────────────────
@@ -7655,16 +8123,22 @@ SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
  WHERE m.role IN ${roles}
    AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
 
+${INVOKER_CLOSURE_SQL}
 -- Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (anon/authenticated):
 -- INSERT - insert/upsert, UPDATE - update/upsert (UPDATE OF kolumny tylko gdy
--- ladunek je zawiera), DELETE - delete. Sondy zapisu (EXPLAIN) ich nie
--- wykonuja, wiec funkcja: SECURITY DEFINER albo wpis INVOKER_TRIGGERS_REVIEWED
--- z md5 biezacego ciala; wpis bez takiego wyzwalacza - nieaktualny.
+-- ladunek je zawiera; ladunek nieczytelny - wszystkie kolumny), DELETE - delete.
+-- Sondy zapisu (EXPLAIN) ich nie wykonuja, wiec funkcja: SECURITY DEFINER albo
+-- wpis INVOKER_TRIGGERS_REVIEWED z md5 biezacego DOMKNIECIA (cialo i funkcje
+-- wolane z ciala - ts_closure_md5).
+CREATE TEMP TABLE ts_obs_dynwrite (rel text, op text, role text, site text, func text) ON COMMIT DROP;
+${valuesBlock("ts_obs_dynwrite", "rel, op, role, site, func", dynamicWriteRows)}
 CREATE TEMP TABLE ts_trigger_reviewed (fn text, md5 text) ON COMMIT DROP;
 ${valuesBlock("ts_trigger_reviewed", "fn, md5", triggerRows)}
-CREATE TEMP VIEW ts_v_trigger AS
+CREATE TEMP TABLE ts_invoker_reviewed (fn text, md5 text) ON COMMIT DROP;
+${valuesBlock("ts_invoker_reviewed", "fn, md5", functionRows)}
+CREATE TEMP TABLE ts_trigger_fired ON COMMIT DROP AS
 WITH t AS (
-  SELECT n.nspname || '.' || p.proname AS fn, md5(p.prosrc) AS md5, c.relname::text AS rel,
+  SELECT n.nspname || '.' || p.proname AS fn, pg_temp.ts_closure_md5(p.oid) AS md5, c.relname::text AS rel,
          tg.tgname::text AS tgname, tg.tgtype::int AS tgtype,
          ARRAY(SELECT a.attname::text FROM unnest(tg.tgattr::int2[]) k(attnum)
                  JOIN pg_attribute a ON a.attrelid = tg.tgrelid AND a.attnum = k.attnum) AS cols
@@ -7674,15 +8148,19 @@ WITH t AS (
     JOIN pg_namespace n ON n.oid = p.pronamespace
    WHERE c.relnamespace = 'public'::regnamespace AND NOT tg.tgisinternal
      AND tg.tgenabled <> 'D' AND NOT p.prosecdef
-), fired AS (
-  SELECT t.*, s.op, s.role, s.site, s.func
-    FROM t
-    JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')
-   WHERE ((t.tgtype & 4) <> 0 AND s.op IN ('insert', 'upsert', 'upsert_ignore'))
-      OR ((t.tgtype & 16) <> 0 AND s.op IN ('update', 'upsert')
-          AND (cardinality(t.cols) = 0 OR t.cols && s.payload))
-      OR ((t.tgtype & 8) <> 0 AND s.op = 'delete')
+), w AS (
+  SELECT rel, op, role, site, func, payload FROM ts_obs_stmt
+  UNION ALL
+  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite
 )
+SELECT t.*, w.op, w.role, w.site, w.func
+  FROM t
+  JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')
+ WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))
+    OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')
+        AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))
+    OR ((t.tgtype & 8) <> 0 AND w.op = 'delete');
+CREATE TEMP VIEW ts_v_trigger AS
 SELECT DISTINCT format('%s: %s: %s %s jako %s -> wyzwalacz %s (%s %s %s) -> %s() SECURITY INVOKER: %s',
          f.site, f.func, f.rel, f.op, f.role, f.tgname,
          CASE WHEN (f.tgtype & 2) <> 0 THEN 'BEFORE' WHEN (f.tgtype & 64) <> 0 THEN 'INSTEAD OF' ELSE 'AFTER' END,
@@ -7690,15 +8168,101 @@ SELECT DISTINCT format('%s: %s: %s %s jako %s -> wyzwalacz %s (%s %s %s) -> %s()
                         CASE WHEN (f.tgtype & 16) <> 0 THEN 'UPDATE' END,
                         CASE WHEN (f.tgtype & 8) <> 0 THEN 'DELETE' END),
          CASE WHEN (f.tgtype & 1) <> 0 THEN 'ROW' ELSE 'STATEMENT' END, f.fn,
-         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 ' || f.md5 || ')'
-              ELSE format('cialo zmienione od przegladu (md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
-  FROM fired f
+         CASE WHEN r.fn IS NULL THEN 'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'
+              ELSE format('domkniecie zmienione od przegladu (cialo albo funkcja wolana; md5 %s, wpis %s)', f.md5, r.md5) END) AS msg
+  FROM ts_trigger_fired f
   LEFT JOIN ts_trigger_reviewed r ON r.fn = f.fn
- WHERE r.md5 IS DISTINCT FROM f.md5
+ WHERE r.md5 IS DISTINCT FROM f.md5;
+
+-- Funkcje SECURITY INVOKER wykonywane jako rola klienta poza wyzwalaczami:
+-- RPC (anon/authenticated z EXECUTE) oraz funkcje widokow (takze zagniezdzonych)
+-- i polityk RLS relacji czytanych albo zapisywanych przez klienta - funkcja
+-- widoku liczy sie dla KAZDEGO wiersza jako wywolujacy, takze w widoku
+-- definera. Tylko funkcje public (migracje) - auth.uid() itp. to platforma. Sondy wykonuja tylko jedna sciezke ciala (RPC: argumenty NULL
+-- i syntetyczne) albo zaden wiersz (relacja bez danych), wiec domkniecie
+-- sprawdza sie statycznie (ts_closure_blockers: relacja bez pelnego SELECT
+-- roli, zapis bez uprawnienia tabeli, dynamiczny SQL); z blokada - wpis
+-- INVOKER_FUNCTIONS_REVIEWED z md5 domkniecia albo naprawa.
+CREATE TEMP TABLE ts_invoker_root ON COMMIT DROP AS
+SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn AS via, r.role, p.oid
+  FROM ts_obs_rpc r
+  CROSS JOIN LATERAL (
+         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
+         UNION ALL
+         SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
+          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
+  JOIN pg_proc p ON p.oid = o.oid
+ WHERE r.role IN ('anon', 'authenticated')
+   AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
+   AND has_function_privilege(r.role, p.oid, 'EXECUTE');
+INSERT INTO ts_invoker_root (site, func, via, role, oid)
+WITH RECURSIVE c AS (
+  SELECT DISTINCT s.role, ${rel("s.rel")} AS rel, min(s.site) AS site, min(s.func) AS func
+    FROM (SELECT rel, role, site, func FROM ts_obs_stmt
+          UNION ALL SELECT rel, role, site, func FROM ts_obs_table
+          UNION ALL SELECT rel, role, site, func FROM ts_obs_dynwrite
+          UNION ALL SELECT pc.relname::text, m.role, m.site, m.func
+                      FROM ts_obs_embed m JOIN ts_obs_embed_rel x ON x.id = m.id
+                      JOIN pg_class pc ON pc.oid = x.target) s
+   WHERE s.role IN ('anon', 'authenticated') AND ${rel("s.rel")} IS NOT NULL
+   GROUP BY s.role, ${rel("s.rel")}
+), v AS (
+  SELECT role, rel, site, func FROM c
+  UNION
+  SELECT v.role, d.refobjid, v.site, v.func
+    FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+    JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid
+                    AND d.refclassid = 'pg_class'::regclass AND d.refobjid <> v.rel
+    JOIN pg_class k ON k.oid = d.refobjid AND k.relkind IN ('v', 'm')
+)
+SELECT DISTINCT v.site, v.func, 'widok ' || v.rel::regclass::text, v.role, p.oid
+  FROM v JOIN pg_rewrite rw ON rw.ev_class = v.rel
+  JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = rw.oid AND d.refclassid = 'pg_proc'::regclass
+  JOIN pg_proc p ON p.oid = d.refobjid AND NOT p.prosecdef
+  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public'
 UNION
-SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)', r.fn)
+SELECT DISTINCT c.site, c.func, 'polityka ' || pol.polname || ' na ' || c.rel::regclass::text, c.role, p.oid
+  FROM c JOIN pg_policy pol ON pol.polrelid = c.rel
+                           AND (0 = ANY (pol.polroles) OR to_regrole(c.role)::oid = ANY (pol.polroles))
+  JOIN pg_depend d ON d.classid = 'pg_policy'::regclass AND d.objid = pol.oid AND d.refclassid = 'pg_proc'::regclass
+  JOIN pg_proc p ON p.oid = d.refobjid AND NOT p.prosecdef
+  JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'public';
+CREATE TEMP TABLE ts_invoker_check ON COMMIT DROP AS
+SELECT x.oid, x.role, pg_namespace.nspname || '.' || pg_proc.proname AS fn,
+       pg_temp.ts_closure_md5(x.oid) AS md5,
+       ARRAY(SELECT pg_temp.ts_closure_blockers(x.oid, x.role) ORDER BY 1) AS blockers
+  FROM (SELECT DISTINCT oid, role FROM ts_invoker_root) x
+  JOIN pg_proc ON pg_proc.oid = x.oid
+  JOIN pg_namespace ON pg_namespace.oid = pg_proc.pronamespace;
+CREATE TEMP VIEW ts_v_invoker AS
+SELECT DISTINCT format('%s: %s: %s jako %s -> %s() SECURITY INVOKER: %s - %s', r.site, r.func, r.via, r.role, k.fn,
+         array_to_string(k.blockers, '; '),
+         CASE WHEN e.fn IS NULL THEN 'brak wpisu INVOKER_FUNCTIONS_REVIEWED (md5 domkniecia ' || k.md5 || ')'
+              ELSE format('domkniecie zmienione od przegladu (md5 %s, wpis %s)', k.md5, e.md5) END) AS msg
+  FROM ts_invoker_root r
+  JOIN ts_invoker_check k ON k.oid = r.oid AND k.role = r.role
+  LEFT JOIN ts_invoker_reviewed e ON e.fn = k.fn
+ WHERE cardinality(k.blockers) > 0 AND e.md5 IS DISTINCT FROM k.md5;
+
+-- Wpisy przejrzane bez przedmiotu (zapis klienta zniknal, funkcja bez blokady,
+-- sonda juz nie pusta): diagnostyka pgTAP, NIE niepowodzenie - zaleza od kodu
+-- TS, a sam ich brak nie jest bledem schematu (zdejmij wpis w przegladzie).
+CREATE TEMP VIEW ts_v_stale AS
+SELECT format('INVOKER_TRIGGERS_REVIEWED: %s - wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)', r.fn) AS msg
   FROM ts_trigger_reviewed r
- WHERE NOT EXISTS (SELECT 1 FROM fired f WHERE f.fn = r.fn);
+ WHERE NOT EXISTS (SELECT 1 FROM ts_trigger_fired f WHERE f.fn = r.fn)
+UNION
+SELECT format('INVOKER_FUNCTIONS_REVIEWED: %s - wpis nieaktualny (funkcja nie jest wykonywana przez klienta albo jej domkniecie nie ma blokad)', e.fn)
+  FROM ts_invoker_reviewed e
+ WHERE NOT EXISTS (SELECT 1 FROM ts_invoker_check k WHERE k.fn = e.fn AND cardinality(k.blockers) > 0)
+UNION
+SELECT format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
+  FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
+ WHERE current_setting('track_counts')::boolean
+   AND NOT EXISTS (SELECT 1 FROM ts_probe p
+                    WHERE p.kind LIKE 'probe-rpc%' AND p.rel = r.fn
+                    GROUP BY p.site, p.func, p.role
+                   HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0);
 
 -- Sondy wykonania: odmowa uprawnien, brak obiektu i sonda bez werdyktu
 -- (limit czasu albo blokada, sonda nieuruchomiona w zadnej partii).
@@ -7728,16 +8292,7 @@ SELECT p.guest, p.site, p.func, '.rpc(' || p.rel || ')',
   FROM ts_probe p
  WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (${sqlTextArray(vacuousReviewed)})
  GROUP BY p.guest, p.site, p.func, p.rel, p.cols, p.role
-HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0
-UNION
-SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn, '.rpc(' || r.fn || ')',
-       format('RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny (zadna sonda tej funkcji nie jest pusta)', r.fn)
-  FROM unnest(${sqlTextArray(vacuousReviewed)}) AS r(fn)
- WHERE current_setting('track_counts')::boolean
-   AND NOT EXISTS (SELECT 1 FROM ts_probe p
-                    WHERE p.kind LIKE 'probe-rpc%' AND p.rel = r.fn
-                    GROUP BY p.site, p.func, p.role
-                   HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0);
+HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0;
 `;
   return { header, setup };
 }
@@ -7808,11 +8363,16 @@ SELECT is(
   ARRAY[]::text[],
   'Gosc (anon): sondy wykonania klienta przegladarki bez odmowy uprawnien i bez braku obiektu');
 
--- 20. Wyzwalacze SECURITY INVOKER odpalane zapisem klienta (sondy ich nie wykonuja).
+-- 20. Funkcje SECURITY INVOKER wykonywane jako klient poza zasiegiem sond:
+--     wyzwalacze zapisow klienta (takze z ladunkiem nieczytelnym) - wpis z md5
+--     domkniecia; RPC, funkcje widokow i polityk - domkniecie bez blokad albo wpis.
 SELECT is(
-  ARRAY(SELECT DISTINCT msg FROM ts_v_trigger ORDER BY 1),
+  ARRAY(SELECT DISTINCT msg FROM (SELECT msg FROM ts_v_trigger UNION ALL SELECT msg FROM ts_v_invoker) m ORDER BY 1),
   ARRAY[]::text[],
-  'Wyzwalacze SECURITY INVOKER zapisow klienta: wpis INVOKER_TRIGGERS_REVIEWED z md5 biezacego ciala albo SECURITY DEFINER');
+  'Funkcje SECURITY INVOKER klienta poza sondami: wyzwalacz z wpisem INVOKER_TRIGGERS_REVIEWED (md5 domkniecia), RPC/widok/polityka bez blokad albo z wpisem INVOKER_FUNCTIONS_REVIEWED');
+
+-- Wpisy przejrzane bez przedmiotu - diagnostyka, nie niepowodzenie.
+SELECT diag(msg) FROM ts_v_stale ORDER BY 1;
 `;
 
 /**
@@ -7821,8 +8381,8 @@ SELECT is(
  * i widoki naruszeń co pgTAP bramki, a wynik to klucze (plik, funkcja,
  * relacja), które jako gość (`anon`) padają, z liczbą naruszeń i pierwszym
  * z nich. Kolumna `key` to klucz `GUEST_LOGIN_ONLY_REVIEWED`, a `entry` -
- * szkielet wpisu z liczbą faktów i kształtem (dowód bramki `plik:linia`
- * dopisuje przegląd); wpis dostaje WYŁĄCZNIE miejsce tylko po zalogowaniu.
+ * szkielet wpisu z liczbą faktów i kształtem (dowód - fragment warunku
+ * bramki sesji w pliku klucza - dopisuje przegląd); wpis dostaje WYŁĄCZNIE miejsce tylko po zalogowaniu.
  * Klucz bez szkieletu (fakt wykonywany na serwerze, plik spoza `public`) to
  * defekt do naprawy w kodzie albo w grantach - wpis by go nie zdjął.
  */
@@ -7851,7 +8411,7 @@ CREATE TEMP TABLE ts_guest_key (key text, n int, shape text) ON COMMIT DROP;
 ${valuesBlock("ts_guest_key", "key, n, shape", candidates)}
 SELECT v.site || ': ' || v.func || ': ' || v.call AS key, v.site, v.func, v.call,
        count(*) AS violations, min(v.msg) AS first_violation,
-       coalesce(format('[%s, %s, "<plik:linia bramki>"]', k.n, to_json(k.shape)),
+       coalesce(format('[%s, %s, "\`<fragment warunku bramki>\` - <powód>"]', k.n, to_json(k.shape)),
                 'brak - fakt wykonywany na serwerze albo plik spoza public: napraw kod albo grant')
          AS entry
   FROM (
@@ -7930,6 +8490,12 @@ export interface SiteReach {
   readonly cls: string;
   readonly entry: string | null;
   readonly path: readonly string[];
+  /**
+   * Plik trasy z własną bramką w drzewie komponentu (`guestReach.ts`): klasa
+   * obejmuje wyłącznie te zakresy kodu; fakt poza nimi (komponent obok
+   * `<AuthGate>`, hook przed bramką) jest `public`.
+   */
+  readonly gated?: readonly (readonly [number, number])[];
 }
 
 export function renderObservedQueries(
@@ -8247,6 +8813,106 @@ ROLLBACK;
  * nazwy parametrów TABLE/OUT/INOUT, a bez nich atrybuty zwracanego typu
  * złożonego (`SETOF tabela`); `NULL` - wynik bez kolumn (skalar, json).
  */
+/**
+ * Domknięcie funkcji SECURITY INVOKER (asercja 20): ciało, funkcje `public`
+ * wołane z ciała (nazwa przed `(` w `prosrc` albo ciele SQL standardowym -
+ * nadzbiór: każde przeciążenie), rekurencyjnie przez funkcje INVOKER (definer
+ * działa jako właściciel - liczy się tylko jego nagłówek), do głębokości 6.
+ * Funkcje spoza `public` (`auth.uid()`, `extensions.unaccent`) należą do
+ * platformy, nie do migracji - lokalny harness ma ich zaślepki, więc ich ciała
+ * zmieniałyby odcisk między bazą lokalną a CI. `ts_closure_md5` - odcisk domknięcia (nazwa z typami,
+ * `prosecdef`, `proconfig`, md5 ciała), stały między bazami (`search_path`
+ * pusty w funkcji: nazwy zawsze ze schematem). `ts_closure_blockers` - powody,
+ * dla których rola wykonująca ciało może dostać 42501, a sonda tego nie
+ * zobaczy: relacja (słowo równe nazwie relacji `public`, `schemat.relacja`)
+ * bez PEŁNEGO SELECT roli (granty kolumnowe - przegląd), sekwencja bez USAGE,
+ * zapis (`INSERT INTO`, `UPDATE`, `DELETE FROM`) bez uprawnienia tabeli,
+ * funkcja wołana bez EXECUTE roli, dynamiczny SQL (`EXECUTE` w PL/pgSQL). Skan słów jest nadzbiorem (słowo
+ * w komentarzu też blokuje) - fałszywa blokada to wpis z powodem, nie luka.
+ */
+const INVOKER_CLOSURE_SQL = `-- Domkniecie funkcji SECURITY INVOKER (asercja 20).
+CREATE FUNCTION pg_temp.ts_fn_body(p_oid oid) RETURNS text LANGUAGE sql STABLE
+SET search_path = pg_catalog AS $f$
+  SELECT coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid), '') FROM pg_proc p WHERE p.oid = p_oid
+$f$;
+
+CREATE FUNCTION pg_temp.ts_closure(p_root oid) RETURNS TABLE(oid oid, depth int) LANGUAGE sql STABLE
+SET search_path = pg_catalog AS $f$
+  WITH RECURSIVE c(oid, depth) AS (
+    SELECT p_root, 0
+    UNION
+    SELECT q.oid, c.depth + 1
+      FROM c
+      JOIN pg_proc p ON p.oid = c.oid
+      CROSS JOIN LATERAL (
+        SELECT DISTINCT lower(m[1]) AS name
+          FROM regexp_matches(pg_temp.ts_fn_body(p.oid), '([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', 'g') m) w
+      JOIN pg_proc q ON q.proname = w.name
+      JOIN pg_namespace n ON n.oid = q.pronamespace
+     WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid AND n.nspname = 'public'
+       AND p.prolang IN (SELECT l.oid FROM pg_language l WHERE l.lanname IN ('sql', 'plpgsql'))
+  )
+  SELECT c.oid, min(c.depth)::int FROM c GROUP BY c.oid
+$f$;
+
+CREATE FUNCTION pg_temp.ts_closure_md5(p_root oid) RETURNS text LANGUAGE sql STABLE
+SET search_path = pg_catalog AS $f$
+  SELECT md5(string_agg(format('%s|%s|%s|%s', p.oid::regprocedure, p.prosecdef,
+                               coalesce(array_to_string(p.proconfig, ','), ''),
+                               CASE WHEN p.prosecdef AND c.depth > 0 THEN '' ELSE md5(pg_temp.ts_fn_body(p.oid)) END),
+                        E'\\n' ORDER BY p.oid::regprocedure::text))
+    FROM pg_temp.ts_closure(p_root) c JOIN pg_proc p ON p.oid = c.oid
+$f$;
+
+CREATE FUNCTION pg_temp.ts_closure_blockers(p_root oid, p_role text) RETURNS SETOF text LANGUAGE sql STABLE
+SET search_path = pg_catalog AS $f$
+  WITH c AS (
+    SELECT p.oid, pg_temp.ts_fn_body(p.oid) AS body, l.lanname
+      FROM pg_temp.ts_closure(p_root) x
+      JOIN pg_proc p ON p.oid = x.oid
+      JOIN pg_language l ON l.oid = p.prolang
+     WHERE (x.depth = 0 OR NOT p.prosecdef) AND l.lanname IN ('sql', 'plpgsql')
+  ), rels AS (
+    SELECT DISTINCT c.oid AS fn, k.oid AS rel, k.relkind
+      FROM c
+      CROSS JOIN LATERAL (SELECT DISTINCT lower(m[1]) AS w
+                            FROM regexp_matches(c.body, '([A-Za-z_][A-Za-z0-9_]*)', 'g') m) w
+      JOIN pg_class k ON k.relname = w.w AND k.relnamespace = 'public'::regnamespace
+                     AND k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+    UNION
+    SELECT DISTINCT c.oid, k.oid, k.relkind
+      FROM c
+      CROSS JOIN LATERAL regexp_matches(c.body, '([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)', 'g') m
+      JOIN pg_namespace n ON n.nspname = lower(m[1])
+                         AND n.nspname NOT IN ('public', 'pg_catalog', 'information_schema')
+      JOIN pg_class k ON k.relnamespace = n.oid AND k.relname = lower(m[2])
+                     AND k.relkind IN ('r', 'v', 'm', 'p', 'f', 'S')
+  )
+  SELECT format('%s czyta %s bez pelnego %s', r.fn::regprocedure, r.rel::regclass,
+                CASE r.relkind WHEN 'S' THEN 'USAGE' ELSE 'SELECT' END)
+    FROM rels r
+   WHERE CASE r.relkind WHEN 'S' THEN NOT has_sequence_privilege(p_role, r.rel, 'USAGE')
+                        ELSE NOT has_table_privilege(p_role, r.rel, 'SELECT') END
+  UNION
+  SELECT format('%s zapisuje %s bez %s', c.oid::regprocedure, k.oid::regclass, w.priv)
+    FROM c
+    CROSS JOIN LATERAL regexp_matches(c.body,
+      '\\m(insert\\s+into|update|delete\\s+from)\\s+(?:only\\s+)?(?:public\\.)?([A-Za-z_][A-Za-z0-9_]*)', 'gi') m
+    CROSS JOIN LATERAL (SELECT CASE WHEN lower(m[1]) LIKE 'insert%' THEN 'INSERT'
+                                    WHEN lower(m[1]) = 'update' THEN 'UPDATE' ELSE 'DELETE' END AS priv) w
+    JOIN pg_class k ON k.relname = lower(m[2]) AND k.relnamespace = 'public'::regnamespace
+   WHERE NOT has_table_privilege(p_role, k.oid, w.priv)
+  UNION
+  SELECT format('%s wykonuje dynamiczny SQL (EXECUTE)', c.oid::regprocedure)
+    FROM c
+   WHERE c.lanname = 'plpgsql' AND c.body ~* '\\mexecute\\M(?!\\s+(function|procedure)\\M)'
+  UNION
+  SELECT format('wola %s bez EXECUTE', x.oid::regprocedure)
+    FROM pg_temp.ts_closure(p_root) x
+   WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE')
+$f$;
+`;
+
 const RESULT_COLUMNS_SQL = `-- Kolumny wyniku funkcji: TABLE/OUT/INOUT albo atrybuty zwracanego typu zlozonego;
 -- NULL - wynik bez kolumn (skalar, json).
 CREATE FUNCTION pg_temp.ts_result_cols(p_oid oid)

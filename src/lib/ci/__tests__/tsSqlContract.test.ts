@@ -17,12 +17,14 @@ import { describe, expect, it } from "vitest";
 import * as postHrefModule from "@/lib/routing/postHref";
 import { POST_PARENT_PAGE_EMBED, postColumnsWithParentPage } from "@/lib/routing/postHref";
 import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
-import { guestReach } from "../guestReach";
+import { guestReach, routeGateAnalysis } from "../guestReach";
 import {
   COLUMN_FLOW_MAX_DEPTH,
   GUEST_LOGIN_ONLY_REVIEWED,
   GUEST_VIA,
+  INVOKER_FUNCTIONS_REVIEWED,
   INVOKER_TRIGGERS_REVIEWED,
+  MAX_DYNAMIC_PAYLOAD_WRITES,
   MAX_FILTERS_OUTSIDE_CHAINS,
   MAX_UNRESOLVED_FILTER_SITES,
   MAX_UNRESOLVED_SITES,
@@ -39,6 +41,7 @@ import {
   embeddedTable,
   extractSeamFacts,
   filterColumnPath,
+  guestLoginOnlyCandidates,
   guestLoginOnlyDrift,
   parseOrFilterColumns,
   parseSelectColumns,
@@ -2878,7 +2881,7 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
   });
   const reach = new Map([["src/lib/x/bookmarks.ts", { cls: "public", entry: "/", path: [] }]]);
 
-  it("liczniki odczytów relacji sesji (`pg_stat_get_xact_*`) dla sond RPC; pusta sonda (NULL i syntetyczne bez błędu i bez odczytu) - naruszenie 16/19, chyba że wpis RPC_PROBE_VACUOUS_REVIEWED (nieaktualny - też naruszenie)", () => {
+  it("liczniki odczytów relacji sesji (`pg_stat_get_xact_*`) dla sond RPC; pusta sonda (NULL i syntetyczne bez błędu i bez odczytu) - naruszenie 16/19, chyba że wpis RPC_PROBE_VACUOUS_REVIEWED (nieaktualny - diagnostyka pgTAP, r1 C3)", () => {
     const sql = renderContractTest(f, {}, { reach });
     expect(sql).toContain("bool_or(kind LIKE 'probe-rpc%') AS rpc FROM ts_probe");
     expect(sql).toContain("IF current_setting('track_counts')::boolean THEN");
@@ -2886,40 +2889,65 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
       "SELECT sum(pg_stat_get_xact_numscans(o) + pg_stat_get_xact_tuples_returned(o)\n                     + pg_stat_get_xact_tuples_fetched(o))\n            INTO v_before FROM unnest(v_rels) o;",
     );
     expect(sql).toContain("touched = x.touched");
-    // Gałąź naruszenia (przed gałęzią wpisów nieaktualnych listy).
-    expect(sql).toContain(
-      "HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0\nUNION\nSELECT false, 'RPC_PROBE_VACUOUS_REVIEWED', r.fn,",
-    );
+    // Gałąź naruszenia - ostatnia w widoku sond; wpis nieaktualny to
+    // diagnostyka (`ts_v_stale`), nie naruszenie asercji 16.
+    expect(sql).toContain("HAVING bool_and(p.state = '00000') AND sum(p.touched) = 0;\n");
+    expect(sql).not.toContain("SELECT false, 'RPC_PROBE_VACUOUS_REVIEWED'");
     expect(sql).toContain("WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL ('{}'::text[])");
     const reviewed = renderContractTest(f, {}, { reach, rpcProbeVacuous: { pure_fn: "test" } });
     expect(reviewed).toContain(
       "WHERE p.kind LIKE 'probe-rpc%' AND p.rel <> ALL (ARRAY['pure_fn']::text[])",
     );
     expect(reviewed).toContain("RPC_PROBE_VACUOUS_REVIEWED: %s - wpis nieaktualny");
+    const stale = reviewed.slice(
+      reviewed.indexOf("CREATE TEMP VIEW ts_v_stale AS"),
+      reviewed.indexOf("CREATE TEMP VIEW ts_v_probe AS"),
+    );
+    expect(stale).toContain("FROM unnest(ARRAY['pure_fn']::text[]) AS r(fn)");
+    expect(reviewed).toContain("SELECT diag(msg) FROM ts_v_stale ORDER BY 1;");
     expect(RPC_PROBE_VACUOUS_REVIEWED).toEqual({});
   });
 
-  it("asercja 20: wyzwalacz SECURITY INVOKER odpalany operacją zapisu klienta (UPDATE OF - tylko z kolumną w ładunku) - wpis z md5 bieżącego ciała albo SECURITY DEFINER; wpis bez wyzwalacza - nieaktualny", () => {
+  it("asercja 20: wyzwalacz SECURITY INVOKER odpalany operacją zapisu klienta (UPDATE OF - tylko z kolumną w ładunku, ładunek nieczytelny - każda) - wpis z md5 bieżącego DOMKNIĘCIA albo SECURITY DEFINER; wpis bez wyzwalacza - diagnostyka (r1 T1, T2, C3)", () => {
     const sql = renderContractTest(f, {}, { reach });
     expect(sql).toContain("CREATE TEMP VIEW ts_v_trigger AS");
     expect(sql).toContain("tg.tgenabled <> 'D' AND NOT p.prosecdef");
+    // Odcisk domknięcia (ciało i funkcje `public` wołane z ciała), nie samo ciało.
+    expect(sql).toContain("pg_temp.ts_closure_md5(p.oid) AS md5");
+    expect(sql).not.toContain("md5(p.prosrc)");
     expect(sql).toContain(
-      "JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')",
+      "SELECT rel, op, role, site, func, payload FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite",
     );
+    expect(sql).toContain("JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')");
     expect(sql).toContain(
-      "WHERE ((t.tgtype & 4) <> 0 AND s.op IN ('insert', 'upsert', 'upsert_ignore'))\n      OR ((t.tgtype & 16) <> 0 AND s.op IN ('update', 'upsert')\n          AND (cardinality(t.cols) = 0 OR t.cols && s.payload))\n      OR ((t.tgtype & 8) <> 0 AND s.op = 'delete')",
+      "WHERE ((t.tgtype & 4) <> 0 AND w.op IN ('insert', 'upsert', 'upsert_ignore'))\n    OR ((t.tgtype & 16) <> 0 AND w.op IN ('update', 'upsert')\n        AND (cardinality(t.cols) = 0 OR w.payload IS NULL OR t.cols && w.payload))\n    OR ((t.tgtype & 8) <> 0 AND w.op = 'delete')",
     );
     expect(sql).toContain("WHERE r.md5 IS DISTINCT FROM f.md5");
-    expect(sql).toContain("'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 ' || f.md5 || ')'");
     expect(sql).toContain(
+      "'brak wpisu INVOKER_TRIGGERS_REVIEWED (md5 domkniecia ' || f.md5 || ')'",
+    );
+    // Wpis bez wyzwalacza - widok diagnostyki, poza asercją 20.
+    const stale = sql.slice(
+      sql.indexOf("CREATE TEMP VIEW ts_v_stale AS"),
+      sql.indexOf("CREATE TEMP VIEW ts_v_probe AS"),
+    );
+    expect(stale).toContain(
       "wpis nieaktualny (zaden wyzwalacz SECURITY INVOKER tej funkcji nie odpala sie zapisem klienta)",
     );
-    expect(sql).toContain("ARRAY(SELECT DISTINCT msg FROM ts_v_trigger ORDER BY 1)");
+    const triggerView = sql.slice(
+      sql.indexOf("CREATE TEMP VIEW ts_v_trigger AS"),
+      sql.indexOf("CREATE TEMP TABLE ts_invoker_root"),
+    );
+    expect(triggerView).not.toContain("wpis nieaktualny");
+    expect(sql).toContain(
+      "ARRAY(SELECT DISTINCT msg FROM (SELECT msg FROM ts_v_trigger UNION ALL SELECT msg FROM ts_v_invoker) m ORDER BY 1)",
+    );
+    expect(sql).toContain("SELECT diag(msg) FROM ts_v_stale ORDER BY 1;");
     // Zapis klienta niesie wiersz zapytania - wejście asercji 20 (także gość).
     expect(sql).toContain("('user_bookmarks', 'insert', 'authenticated',");
     expect(sql).toContain("('user_bookmarks', 'insert', 'anon',");
     // Lista z repozytorium trafia do pliku; własna lista wejścia zastępuje ją.
-    expect(sql).toContain("('public.set_updated_at', '301a884953d37769916294bb60562e05')");
+    expect(sql).toContain("('public.set_updated_at', '3d4d1916c6c7ceb45278184b27b9406b')");
     const own = renderContractTest(
       f,
       {},
@@ -2934,7 +2962,7 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
 
   it("lista INVOKER_TRIGGERS_REVIEWED: klucz `schemat.funkcja`, md5 32 znaki hex, powód; posortowana i bez powtórzeń w pliku", () => {
     const entries = Object.entries(INVOKER_TRIGGERS_REVIEWED);
-    expect(entries.length).toBe(21);
+    expect(entries.length).toBe(26);
     for (const [key, entry] of entries) {
       expect(key).toMatch(/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/);
       expect(entry.md5).toMatch(/^[0-9a-f]{32}$/);
@@ -2946,6 +2974,121 @@ describe("sondy wykonania: sonda RPC pusta i wyzwalacze SECURITY INVOKER zapisó
       .filter((line) => /^\s*\('public\.[a-z_0-9]+', '[0-9a-f]{32}'\)/.test(line));
     expect(rows).toHaveLength(entries.length);
     expect([...rows].sort()).toEqual(rows);
+  });
+});
+
+describe("asercja 20 po recenzji r1: ładunek nieczytelny, domknięcie funkcji, RPC/widok/polityka (T1, T2, P1, V)", () => {
+  const FILE = "src/components/admin/archiveLayout/ArchiveLayoutAdmin.tsx";
+  const code = `${BROWSER_IMPORT}
+    export function ArchiveLayoutAdmin() {
+      const m = useMutation({ mutationFn: async (payload) =>
+        supabase.from("archive_layout_settings").upsert(payload, { onConflict: "tenant_id,archive_type" }) });
+      const n = useMutation({ mutationFn: async (patch) => supabase.from("posts").update(patch).eq("id", 1) });
+      const k = useMutation({ mutationFn: async () => supabase.from("posts").update({ title_pl: "x" }).eq("id", 1) });
+      return null;
+    }
+  `;
+  const f = observed({ [FILE]: code });
+  const reach = new Map([[FILE, { cls: "admin", entry: "/admin", path: [] }]]);
+
+  it("zapis z ładunkiem nieczytelnym (`.upsert(payload)`, `.update(patch)`) - fakt `dynamicWrites` z rolą, wiersz `ts_obs_dynwrite` do asercji 20 (ładunek = wszystkie kolumny); literał - zwykłe zapytanie", () => {
+    expect(f.observed.dynamicWrites.map((w) => `${w.table} ${w.op} ${w.role} ${w.fn}`)).toEqual([
+      "archive_layout_settings upsert authenticated ArchiveLayoutAdmin.mutationFn",
+      "posts update authenticated ArchiveLayoutAdmin.mutationFn",
+    ]);
+    const sql = renderContractTest(f, {}, { reach });
+    expect(sql).toContain(
+      `('archive_layout_settings', 'upsert', 'authenticated', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+    );
+    expect(sql).toContain(
+      `('posts', 'update', 'authenticated', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+    );
+    // Literał ładunku - zapytanie sondy jak dotąd.
+    expect(
+      f.observed.statements.some((x) => x.op === "update" && x.payload.includes("title_pl")),
+    ).toBe(true);
+    // Plik `admin`: bez wiersza gościa; plik `public` - z wierszem `anon`.
+    expect(sql).not.toContain(`('posts', 'update', 'anon', '${FILE}'`);
+    const pub = renderContractTest(
+      f,
+      {},
+      {
+        reach: new Map([[FILE, { cls: "public", entry: "/", path: [] }]]),
+      },
+    );
+    expect(pub).toContain(
+      `('posts', 'update', 'anon', '${FILE}', 'ArchiveLayoutAdmin.mutationFn')`,
+    );
+  });
+
+  it("zapadka MAX_DYNAMIC_PAYLOAD_WRITES: więcej zapisów z ładunkiem nieczytelnym niż przejrzane - czerwono", () => {
+    const writes = Array.from(
+      { length: MAX_DYNAMIC_PAYLOAD_WRITES + 1 },
+      (_, i) => `export const w${i} = (p) => supabase.from("posts").update(p).eq("id", ${i});`,
+    ).join("\n");
+    const many = observed({ "src/lib/admin/bulk.ts": `${BROWSER_IMPORT}\n${writes}` });
+    expect(many.observed.dynamicWrites).toHaveLength(MAX_DYNAMIC_PAYLOAD_WRITES + 1);
+    const problems = seamCoverageProblems(
+      many,
+      {},
+      {
+        reach: new Map(),
+        unknownRole: {},
+        guestLoginOnly: {},
+      },
+    );
+    expect(
+      problems.some((x) =>
+        x.includes(`zapadka MAX_DYNAMIC_PAYLOAD_WRITES: ${MAX_DYNAMIC_PAYLOAD_WRITES}`),
+      ),
+    ).toBe(true);
+  });
+
+  it("domknięcie funkcji: funkcje `public` wołane z ciała (rekurencyjnie przez INVOKER), odcisk stały między bazami (search_path pg_catalog), blokady: relacja bez pełnego SELECT, zapis bez uprawnienia, funkcja bez EXECUTE, dynamiczny SQL", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    const closure = sql.slice(
+      sql.indexOf("CREATE FUNCTION pg_temp.ts_fn_body"),
+      sql.indexOf("CREATE TEMP TABLE ts_obs_dynwrite"),
+    );
+    expect(closure).toContain("pg_get_function_sqlbody(p.oid)");
+    expect(closure).toContain("'([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', 'g'");
+    expect(closure).toContain(
+      "WHERE c.depth < 6 AND NOT p.prosecdef AND q.oid <> c.oid AND n.nspname = 'public'",
+    );
+    expect(closure.match(/SET search_path = pg_catalog AS \$f\$/g)).toHaveLength(4);
+    expect(closure).toContain(
+      "CASE WHEN p.prosecdef AND c.depth > 0 THEN '' ELSE md5(pg_temp.ts_fn_body(p.oid)) END",
+    );
+    expect(closure).toContain("ELSE NOT has_table_privilege(p_role, r.rel, 'SELECT') END");
+    expect(closure).toContain("WHERE NOT has_table_privilege(p_role, k.oid, w.priv)");
+    expect(closure).toContain(
+      "WHERE x.depth > 0 AND NOT has_function_privilege(p_role, x.oid, 'EXECUTE')",
+    );
+    expect(closure).toContain("\\mexecute\\M(?!\\s+(function|procedure)\\M)");
+  });
+
+  it("RPC SECURITY INVOKER (każda gałąź ciała, nie tylko sondy), funkcje widoków (także zagnieżdżonych) i polityk RLS relacji klienta - blokada domknięcia bez wpisu INVOKER_FUNCTIONS_REVIEWED to naruszenie asercji 20; wpis bez blokady - diagnostyka", () => {
+    const sql = renderContractTest(f, {}, { reach });
+    expect(sql).toContain("CREATE TEMP TABLE ts_invoker_root ON COMMIT DROP AS");
+    expect(sql).toContain("SELECT DISTINCT r.site, r.func, 'rpc ' || r.fn AS via, r.role, p.oid");
+    expect(sql).toContain("'widok ' || v.rel::regclass::text");
+    expect(sql).toContain("JOIN pg_rewrite rw ON rw.ev_class = v.rel");
+    expect(sql).toContain("'polityka ' || pol.polname || ' na ' || c.rel::regclass::text");
+    expect(sql).toContain("to_regrole(c.role)::oid = ANY (pol.polroles)");
+    expect(sql).toContain("WHERE cardinality(k.blockers) > 0 AND e.md5 IS DISTINCT FROM k.md5;");
+    expect(sql).toContain(
+      "INVOKER_FUNCTIONS_REVIEWED: %s - wpis nieaktualny (funkcja nie jest wykonywana przez klienta albo jej domkniecie nie ma blokad)",
+    );
+    expect(INVOKER_FUNCTIONS_REVIEWED).toEqual({});
+    const own = renderContractTest(
+      f,
+      {},
+      {
+        reach,
+        invokerFunctions: { "public.resolve_path": { md5: "a".repeat(32), reason: "test" } },
+      },
+    );
+    expect(own).toContain(`('public.resolve_path', '${"a".repeat(32)}')`);
   });
 });
 
@@ -3365,6 +3508,7 @@ describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
       embeds: [],
       statements: [],
       rpcColumns: [],
+      dynamicWrites: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
     });
@@ -3693,7 +3837,7 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     const reach = new Map([[PODCASTS, { cls: "public", entry: "/podcasts", path: [] }]]);
     const settingsKey = `${PODCASTS}: queryFn: .from(podcast_settings)`;
     const entry = {
-      [settingsKey]: [1, "eq(tenant_id) select[id,layout]", `${PODCASTS}:2 enabled: !!user`],
+      [settingsKey]: [1, "eq(tenant_id) select[id,layout]", `${PODCASTS} \`enabled: !!user\``],
     } as const;
     const sources = (c: string) => new Map([[PODCASTS, c]]);
     // Recenzja: `queryFn` wszystkich trzech opcji to ta sama ścieżka funkcji.
@@ -3708,8 +3852,8 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     expect(anonOf("podcast_settings")).toBe(false);
     expect(anonOf("podcast_shows")).toBe(true);
     expect(anonOf("profiles")).toBe(true);
-    // Brak rozjazdu dla wpisu zgodnego z kodem (dowód z bramką w linii 2 - `enabled:`
-    // w kodzie fikstury nie ma, więc dowód wskazuje linię z komentarzem bramki).
+    // Brak rozjazdu dla wpisu zgodnego z kodem: `enabled: !!user` w opcjach
+    // zapytania tej relacji obejmuje jej wywołanie.
     const guarded = code.replace('queryKey: ["s"],', 'queryKey: ["s"], enabled: !!user,');
     expect(
       guestLoginOnlyDrift(observed({ [PODCASTS]: guarded }), reach, entry, sources(guarded)),
@@ -3738,16 +3882,14 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
   });
 
   it("rozjazd listy: wpis bez faktu pod kluczem, w pliku spoza `public`, z mniejszą liczbą - nieaktualny; czerwono w `check:ts-sql-contract`", () => {
-    const evidence = `${FILE}:3 \`enabled: !!user\``;
-    const guarded = new Map([
-      [
-        FILE,
-        NOVEMBER[FILE].replace(
-          '.eq("slot", "archive_featured")',
-          '.eq("slot", "archive_featured") /* enabled: !!user */',
-        ),
-      ],
-    ]);
+    // Bramka w kodzie (wczesny `return` bez sesji), nie komentarz z jej tekstem.
+    const evidence = `${FILE} \`if (!user) return null\` - wyróżnione tylko z sesją`;
+    const guardedCode = NOVEMBER[FILE].replace(
+      "export async function featured() { return",
+      "export async function featured(user) { if (!user) return null; return",
+    );
+    const guarded = new Map([[FILE, guardedCode]]);
+    const f = observed({ [FILE]: guardedCode });
     expect(guestLoginOnlyDrift(f, PUBLIC_REACH, { [KEY]: [1, SHAPE, evidence] }, guarded)).toEqual({
       stale: [],
       fresh: [],
@@ -3790,33 +3932,161 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     expect(problems[0]).toContain(`${FILE}: gone: .from(builder_templates)`);
   });
 
-  it("dowód bramki sprawdzany w źródłach (recenzja S9): plik i linia muszą istnieć, a linia (±2) mieć rozpoznaną bramkę; usunięta bramka - czerwono", () => {
-    const drift = (evidence: string, sources?: ReadonlyMap<string, string>): string[] =>
-      guestLoginOnlyDrift(f, PUBLIC_REACH, { [KEY]: [1, SHAPE, evidence] }, sources).invalid;
+  it("dowód bramki sprawdzany w źródłach (recenzja S9, r1 F4): fragment warunku bramki sesji w pliku klucza; plik spoza źródeł, sam komentarz albo usunięta bramka - czerwono", () => {
     const guardedCode = NOVEMBER[FILE].replace(
+      "export async function featured() { return",
+      "export async function featured(user) { if (!user) return null; return",
+    );
+    const g = observed({ [FILE]: guardedCode });
+    const drift = (
+      evidence: string,
+      sources?: ReadonlyMap<string, string>,
+      facts: SeamFacts = g,
+    ): string[] =>
+      guestLoginOnlyDrift(facts, PUBLIC_REACH, { [KEY]: [1, SHAPE, evidence] }, sources).invalid;
+    const sources = new Map([[FILE, guardedCode]]);
+    expect(drift("`if (!user) return null`", sources)).toEqual([]);
+    expect(drift(`${FILE}:4 \`if (!user) return null\``, sources)).toEqual([]);
+    expect(drift("tylko po zalogowaniu", sources)).toEqual([
+      `${KEY} (powód bez fragmentu bramki w \`...\` (np. \`enabled: !!user\`))`,
+    ]);
+    expect(drift("x.ts:1 brak", sources)).toEqual([`${KEY} (x.ts - pliku nie ma w źródłach)`]);
+    expect(drift("src/does/not/exist.tsx:99999 brak", sources)).toEqual([
+      `${KEY} (src/does/not/exist.tsx - pliku nie ma w źródłach)`,
+    ]);
+    // Komentarz z tekstem bramki to nie bramka.
+    const commented = NOVEMBER[FILE].replace(
       "export async function featured()",
       "// enabled: !!user - wołane wyłącznie z panelu zalogowanego\n    export async function featured()",
     );
-    const sources = new Map([[FILE, guardedCode]]);
-    expect(drift(`${FILE}:4 enabled: !!user`, sources)).toEqual([]);
-    expect(drift("tylko po zalogowaniu", sources)).toEqual([
-      `${KEY} (powód bez dowodu bramki plik:linia)`,
-    ]);
-    expect(drift("x.ts:1 brak", sources)).toEqual([`${KEY} (x.ts:1 - pliku nie ma w źródłach)`]);
-    expect(drift("src/does/not/exist.tsx:99999 brak", sources)).toEqual([
-      `${KEY} (src/does/not/exist.tsx:99999 - pliku nie ma w źródłach)`,
-    ]);
-    expect(drift(`${FILE}:99999 enabled: !!user`, sources)).toEqual([
-      `${KEY} (${FILE}:99999 - linii nie ma w pliku)`,
-    ]);
+    expect(
+      drift("`enabled: !!user`", new Map([[FILE, commented]]), observed({ [FILE]: commented }))[0],
+    ).toContain("nie ma takiego warunku bramki sesji");
     // Bramka usunięta z kodu - ten sam wpis przestaje być ważny.
-    expect(drift(`${FILE}:4 enabled: !!user`, new Map([[FILE, NOVEMBER[FILE]]]))[0]).toContain(
-      `${FILE}:4 (±2) - brak rozpoznanej bramki`,
+    expect(drift("`if (!user) return null`", new Map([[FILE, NOVEMBER[FILE]]]), f)[0]).toContain(
+      "nie ma takiego warunku bramki sesji",
     );
     // Bez źródeł dowodu nie da się sprawdzić.
-    expect(drift(`${FILE}:4 enabled: !!user`)).toEqual([
-      `${KEY} (${FILE}:4 - pliku nie ma w źródłach)`,
+    expect(drift("`if (!user) return null`")).toEqual([
+      `${KEY} (${FILE} - pliku nie ma w źródłach)`,
     ]);
+  });
+
+  it("dowód bramki zakotwiczony w kodzie, nie w numerze linii (r1 F4, CI-2, S9 reszta): przesunięcie, zamiana `enabled`, sam `user?.id`, plik obcy, rodzeństwo bez bramki", () => {
+    const HOOK = "src/hooks/useFollows.ts";
+    const OTHER = "src/hooks/useBookmarks.ts";
+    const hook = `${BROWSER_IMPORT}
+      import { useAuth } from "@/hooks/useAuth";
+      export function useFollows() {
+        const { user } = useAuth();
+        return useQuery({
+          queryKey: ["follows", user?.id],
+          enabled: !!user,
+          queryFn: async () => {
+            const { data, error } = await supabase
+              .from("user_follows")
+              .select("id, target_type, target_id, created_at")
+              .order("created_at", { ascending: false });
+            return data;
+          },
+        });
+      }
+    `;
+    const reach = new Map([[HOOK, { cls: "public", entry: "/", path: [] }]]);
+    const key = `${HOOK}: useFollows.queryFn: .from(user_follows)`;
+    const shape = "order(created_at) select[created_at,id,target_id,target_type]";
+    const evidence = `${HOOK}:19 \`enabled: !!user\` - lista obserwowanych tylko z sesją`;
+    const check = (code: string, ev: string = evidence) =>
+      guestLoginOnlyDrift(
+        observed({ [HOOK]: code }),
+        reach,
+        { [key]: [1, shape, ev] },
+        new Map([[HOOK, code]]),
+      );
+    expect(check(hook)).toEqual({ stale: [], fresh: [], invalid: [] });
+    // CI-2: 8 linii komentarza nad hookiem (numer linii w dowodzie się nie zgadza) - nadal ważny.
+    const shifted = hook.replace(
+      "export function useFollows()",
+      `${"// opis\n      ".repeat(8)}export function useFollows()`,
+    );
+    expect(check(shifted).invalid).toEqual([]);
+    // F4: `enabled` bez sesji (refaktor pod SSR) - zapytanie idzie dla gościa.
+    const ssr = hook.replace("enabled: !!user,", 'enabled: typeof window !== "undefined",');
+    expect(check(ssr).invalid[0]).toContain("nie ma takiego warunku bramki sesji");
+    // ... także gdy dowód cytuje nowy warunek dosłownie - to nie bramka sesji.
+    expect(check(ssr, '`enabled: typeof window !== "undefined"`').invalid[0]).toContain(
+      "nie ma takiego warunku bramki sesji",
+    );
+    // Bramka z sesją w koniunkcji zostaje bramką.
+    const both = hook.replace(
+      "enabled: !!user,",
+      'enabled: !!user && typeof window !== "undefined",',
+    );
+    expect(check(both, '`enabled: !!user && typeof window !== "undefined"`').invalid).toEqual([]);
+    // S9 reszta: bramka usunięta, `user?.id` zostaje w kluczu zapytania.
+    const removed = hook.replace("enabled: !!user,", "");
+    expect(check(removed).invalid[0]).toContain("nie ma takiego warunku bramki sesji");
+    const keyOnly = { [key]: [1, shape, "`user?.id` - klucz zapytania"] } as const;
+    expect(
+      guestLoginOnlyDrift(observed({ [HOOK]: removed }), reach, keyOnly, new Map([[HOOK, removed]]))
+        .invalid[0],
+    ).toContain("nie ma takiego warunku bramki sesji");
+    // `enabled: !user` - prawdziwe wyłącznie BEZ sesji.
+    expect(
+      check(hook.replace("enabled: !!user,", "enabled: !user,"), "`enabled: !user`").invalid[0],
+    ).toContain("nie ma takiego warunku bramki sesji");
+    // Dowód z bramką innego pliku nie obejmuje tego wywołania.
+    const foreign = { [key]: [1, shape, `${OTHER}:18 \`enabled: !!user\``] } as const;
+    expect(
+      guestLoginOnlyDrift(
+        observed({ [HOOK]: removed }),
+        reach,
+        foreign,
+        new Map([
+          [HOOK, removed],
+          [OTHER, hook],
+        ]),
+      ).invalid[0],
+    ).toContain(`${OTHER} - dowód spoza pliku wywołania ${HOOK}`);
+    // Drugie zapytanie tej samej relacji pod tym samym kluczem, bez bramki -
+    // bramka pierwszego go nie obejmuje.
+    const sibling = hook
+      .replace(
+        "        });\n      }",
+        `        });
+      }
+      export function useFollows2() { return useFollows(); }`,
+      )
+      .replace(
+        "return useQuery({",
+        'useQuery({ queryKey: ["x"], queryFn: async () => supabase.from("user_follows").select("id, target_type, target_id, created_at").order("created_at") });\n        return useQuery({',
+      );
+    const two = observed({ [HOOK]: sibling });
+    expect(
+      guestLoginOnlyDrift(two, reach, { [key]: [2, shape, evidence] }, new Map([[HOOK, sibling]]))
+        .invalid[0],
+    ).toContain("poza regionem bramki z dowodu");
+    // Wczesne wyjście bez sesji (`if (!user) throw`) obejmuje resztę bloku.
+    const mutation = `${BROWSER_IMPORT}
+      export function useToggle(user) {
+        return useMutation({ mutationFn: async () => {
+          if (!user) throw new Error("Not authenticated");
+          return supabase.from("user_follows").delete().eq("id", 1);
+        } });
+      }
+    `;
+    const mkey = `${HOOK}: useToggle.mutationFn: .from(user_follows)`;
+    const m = observed({ [HOOK]: mutation });
+    const mshape = [...guestLoginOnlyCandidates(m).entries()].find(([k]) => k === mkey)?.[1];
+    expect(mshape).toBeDefined();
+    expect(
+      guestLoginOnlyDrift(
+        m,
+        reach,
+        { [mkey]: [mshape?.count ?? 0, mshape?.shape ?? "", "`if (!user) throw`"] },
+        new Map([[HOOK, mutation]]),
+      ),
+    ).toEqual({ stale: [], fresh: [], invalid: [] });
   });
 
   it("lista w repozytorium jest pusta - wypełnia ją przegląd wyniku `--guest-gaps`", () => {
@@ -3908,7 +4178,18 @@ describe("bramka z miary: rola nieustalona z widocznymi kandydatami - uprawnieni
     );
     expect(t.candidates?.map((c) => c.role)).toEqual(["authenticated", "service_role"]);
     expect(t.candidates?.[0].via).toContain("(widoczne: 2)");
-    expect(unknownRoleDrift(f, {})).toEqual({ fresh: [], stale: [] });
+    // Odwołanie `registry = [readTenant]` to ścieżka BEZ widocznej roli
+    // (reszta): kandydaci są sprawdzani, ale klucz zostaje na liście
+    // przejrzanej, z rolami kandydatów w kształcie.
+    expect(t.residual).toBe(
+      "parametr 1 funkcji readTenant: nie każde odwołanie do funkcji to widoczne wywołanie",
+    );
+    expect(unknownRoleDrift(f, {})).toEqual({
+      fresh: [
+        'src/lib/u/tenant.server.ts: readTenant: .from(profiles) (1, kształt "eq(id) kandydaci(authenticated,service_role) select[tenant_id]", przejrzanych: -)',
+      ],
+      stale: [],
+    });
     // Kolumna bez grantu dla `authenticated` dopisana do łańcucha idzie do
     // pgTAP z tą rolą (asercja 11), nie tylko jako istnienie.
     const mutated = observed({
@@ -4071,6 +4352,84 @@ describe("bramka z miary: klient przeglądarki wykonany na serwerze - anon zawsz
     expect(server("v_table")).toBeUndefined();
   });
 
+  it("przestrzeń nazw i klasa nazwane wielką literą (`RevCouponApi.read()`, `new Reader()`) w handlerze serwera - anon jak `revCouponApi`; komponent z JSX albo hookiem - nie (r1 F6)", () => {
+    const FILE = "src/lib/admin/couponQueries.ts";
+    const f = observed({
+      [FILE]: `${BROWSER_IMPORT}
+        import { createServerFn as revCreateServerFn } from "@tanstack/react-start";
+        export const RevCouponApi = {
+          readTemplates: async () => supabase.from("builder_templates").select("id, data"),
+        };
+        export const revAdminServerRead2 = revCreateServerFn().handler(async () => RevCouponApi.readTemplates());
+        export const revCouponApi = {
+          readTemplatesCtl: async () => supabase.from("tags").select("id"),
+        };
+        export const revAdminServerRead3 = revCreateServerFn().handler(async () => revCouponApi.readTemplatesCtl());
+        export class TemplateReader {
+          read() { return supabase.from("pages").select("id"); }
+        }
+        export const revAdminServerRead4 = revCreateServerFn().handler(async () => new TemplateReader().read());
+        export function PlainLoader() { return supabase.from("posts").select("id"); }
+        export const revAdminServerRead5 = revCreateServerFn().handler(async () => PlainLoader());
+        export function CouponCard() { const q = useQuery({ queryKey: ["c"], queryFn: () => supabase.from("coupons").select("id") }); return <div />; }
+        export function CouponHook() { const q = useQuery({ queryKey: ["d"], queryFn: () => supabase.from("events").select("id") }); return null; }
+        export const revAdminServerRead6 = revCreateServerFn().handler(async () => [CouponCard, CouponHook]);
+      `,
+    });
+    const server = (table: string): string | undefined =>
+      f.observed.tables.find((t) => t.table === table)?.server;
+    expect(server("builder_templates")).toBe(`RevCouponApi <- createServerFn().handler (${FILE})`);
+    expect(server("tags")).toBe(`revCouponApi <- createServerFn().handler (${FILE})`);
+    expect(server("pages")).toBe(`TemplateReader <- createServerFn().handler (${FILE})`);
+    expect(server("posts")).toBe(`PlainLoader <- createServerFn().handler (${FILE})`);
+    // Komponent (JSX) i funkcja wołająca hook - kontekst przeglądarki, także
+    // gdy handler serwera oddaje je jako wartość.
+    expect(server("coupons")).toBeUndefined();
+    expect(server("events")).toBeUndefined();
+    const sql = renderContractTest(f, {}, { reach: reachOf("admin", FILE), guestLoginOnly: {} });
+    expect(anonRows(sql, FILE, "readTemplates").length).toBeGreaterThan(0);
+    expect(anonRows(sql, FILE, "CouponCard.queryFn")).toEqual([]);
+  });
+
+  it("plik trasy z bramką w drzewie komponentu: fakt obok `<AuthGate>` - wiersz `anon`; fakt za bramką - zwolniony (r1 F5)", () => {
+    const ROUTE = "src/routes/people.$slug.tsx";
+    const code = `${BROWSER_IMPORT}
+      import { AuthGate } from "@/components/profile/AuthGate";
+      export const Route = createFileRoute("/people/$slug")({ component: Page });
+      function Page() {
+        return (<main><Teaser /><AuthGate><Body /></AuthGate></main>);
+      }
+      function Teaser() {
+        const q = useQuery({ queryKey: ["t"], queryFn: () => supabase.from("profiles").select("display_name") });
+        return <p>{q.data}</p>;
+      }
+      function Body() {
+        const q = useQuery({ queryKey: ["b"], queryFn: () => supabase.from("user_follows").select("id") });
+        return <p>{q.data}</p>;
+      }
+    `;
+    const gated = routeGateAnalysis(ROUTE, code)?.gated ?? undefined;
+    expect(gated?.length).toBeGreaterThan(0);
+    const f = observed({ [ROUTE]: code });
+    const reach = new Map([
+      [ROUTE, { cls: "session-gate", entry: "/people/$slug", path: [ROUTE], gated }],
+    ]);
+    const sql = renderContractTest(f, {}, { reach, guestLoginOnly: {} });
+    expect(anonRows(sql, ROUTE, "Teaser.queryFn").length).toBeGreaterThan(0);
+    expect(anonRows(sql, ROUTE, "Body.queryFn")).toEqual([]);
+    // Bez zakresów (bramka na cały plik) - oba zwolnione, jak dotąd.
+    const whole = new Map([
+      [ROUTE, { cls: "session-gate", entry: "/people/$slug", path: [ROUTE] }],
+    ]);
+    expect(
+      anonRows(
+        renderContractTest(f, {}, { reach: whole, guestLoginOnly: {} }),
+        ROUTE,
+        "Teaser.queryFn",
+      ),
+    ).toEqual([]);
+  });
+
   it("wpis GUEST_LOGIN_ONLY_REVIEWED nie zdejmuje wiersza `anon` klienta wykonanego na serwerze", () => {
     const FILE = "src/lib/queries/srv.ts";
     const f = observed({
@@ -4089,6 +4448,99 @@ describe("bramka z miary: klient przeglądarki wykonany na serwerze - anon zawsz
       },
     );
     expect(anonRows(sql, FILE, "read").length).toBeGreaterThan(0);
+  });
+});
+
+describe("bramka z miary: kandydat obok ścieżki bez roli - klucz zostaje na liście (reszta `residual`)", () => {
+  // Mutacja z recenzji r1 (F1): pomocnik z JEDNYM widocznym wołającym
+  // z sesją i dwiema ścieżkami, których reguła roli nie widzi - funkcja
+  // w tablicy (`LOADERS[0](...)`) i pole instancji (`this.db`). Kandydat
+  // `authenticated` jest sprawdzany, ale fakt nie opuszcza listy przejrzanej.
+  const HELPER = `
+    export async function readTemplateData(db, id) {
+      return db.from("builder_templates").select("id, data").eq("id", id);
+    }
+  `;
+  const EDITOR = `${AUTH_IMPORT}
+    import { readTemplateData } from "./readTemplate";
+    export const revEditorTemplate = createServerFn()
+      .middleware([requireSupabaseAuth])
+      .handler(async ({ context }) => readTemplateData(context.supabase, "x"));
+  `;
+  const KEY = "src/lib/revcand/readTemplate.ts: readTemplateData: .from(builder_templates)";
+
+  it("funkcja w tablicy (odwołanie, które nie jest wywołaniem) obok wywołania z sesją - kandydat sprawdzany, klucz świeży bez wpisu", () => {
+    const f = observed({
+      "src/lib/revcand/readTemplate.ts": HELPER,
+      "src/lib/revcand/templateEditor.functions.ts": EDITOR,
+      "src/lib/revcand/publicTemplates.server.ts": `
+        import { hostAnonClient } from "@/lib/events/registrationSelfNotify.server";
+        import { readTemplateData } from "./readTemplate";
+        const LOADERS = [readTemplateData] as const;
+        export async function revPublicTemplate(id: string) {
+          return LOADERS[0](await hostAnonClient(), id);
+        }
+      `,
+    });
+    const t = f.observed.tables[0];
+    expect(t.role).toBe("unknown");
+    expect(checkedRoles(t).map((c) => c.role)).toEqual(["authenticated"]);
+    expect(t.residual).toContain("nie każde odwołanie do funkcji to widoczne wywołanie");
+    const drift = unknownRoleDrift(f, {});
+    expect(drift.fresh).toEqual([
+      `${KEY} (1, kształt "eq(id) kandydaci(authenticated) select[data,id]", przejrzanych: -)`,
+    ]);
+    // Wpis z tym kształtem zamyka klucz; uprawnienia kandydata nadal idą do pgTAP.
+    const reviewed = {
+      [KEY]: [1, "eq(id) kandydaci(authenticated) select[data,id]", "powód"],
+    } as const;
+    expect(unknownRoleDrift(f, reviewed)).toEqual({ fresh: [], stale: [] });
+    expect(renderContractTest(f)).toContain(
+      "('builder_templates', 'select', 'authenticated', 'unknown', ARRAY['data', 'id']::text[], false,",
+    );
+  });
+
+  it("wywołania widoczne wszystkie, ale jeden argument to pole instancji (`this.db`) - reszta z `agreeingRole`", () => {
+    const f = observed({
+      "src/lib/revcand/readTemplate.ts": HELPER,
+      "src/lib/revcand/templateEditor.functions.ts": EDITOR,
+      "src/lib/revcand/reader.server.ts": `
+        import { readTemplateData } from "./readTemplate";
+        export class TemplateReader {
+          constructor(private readonly db) {}
+          read(id: string) { return readTemplateData(this.db, id); }
+        }
+      `,
+    });
+    const t = f.observed.tables[0];
+    expect(checkedRoles(t).map((c) => c.role)).toEqual(["authenticated"]);
+    expect(t.residual).toMatch(/^parametr 1 funkcji readTemplateData \(2 wywołań\): /);
+    expect(unknownRoleDrift(f, {}).fresh).toEqual([
+      `${KEY} (1, kształt "eq(id) kandydaci(authenticated) select[data,id]", przejrzanych: -)`,
+    ]);
+    // Zmiana widocznego wołającego (inna rola kandydata) zmienia kształt -
+    // wpis przegląda się na nowo.
+    const reviewed = {
+      [KEY]: [1, "eq(id) kandydaci(service_role) select[data,id]", "powód"],
+    } as const;
+    expect(unknownRoleDrift(f, reviewed).fresh).toEqual([
+      `${KEY} (kształt "eq(id) kandydaci(authenticated) select[data,id]", przejrzany "eq(id) kandydaci(service_role) select[data,id]")`,
+    ]);
+  });
+
+  it("kontrola: wszystkie wartości z widoczną rolą (dwa wywołania, dwie role) - bez reszty i bez wpisu", () => {
+    const f = observed({
+      "src/lib/revcand/readTemplate.ts": HELPER,
+      "src/lib/revcand/templateEditor.functions.ts": EDITOR,
+      "src/lib/revcand/admin.server.ts": `${ADMIN_FILE}
+        import { readTemplateData } from "./readTemplate";
+        export async function adminTemplate(id: string) { return readTemplateData(supabaseAdmin, id); }
+      `,
+    });
+    const t = f.observed.tables[0];
+    expect(checkedRoles(t).map((c) => c.role)).toEqual(["authenticated", "service_role"]);
+    expect(t.residual).toBeUndefined();
+    expect(unknownRoleDrift(f, {})).toEqual({ fresh: [], stale: [] });
   });
 });
 
@@ -4286,13 +4738,20 @@ describe("stan repozytorium - miara poza bramką", () => {
     const unknownFacts = [...measured.observed.rpcs, ...measured.observed.tables].filter(
       (x) => x.role === "unknown",
     );
+    // ... i fakty z kandydatami, obok których jest ścieżka bez widocznej roli
+    // (`residual`) - te są sprawdzane z kandydatami I zostają na liście.
     expect(Object.values(UNKNOWN_ROLE_REVIEWED).reduce((sum, [count]) => sum + count, 0)).toBe(
-      unknownFacts.filter((x) => checkedRoles(x).length === 0).length,
+      unknownFacts.filter((x) => checkedRoles(x).length === 0 || x.residual !== undefined).length,
     );
     expect(unknownFacts.filter((x) => checkedRoles(x).length > 0).length).toBeGreaterThan(0);
+    expect(
+      unknownFacts.filter((x) => checkedRoles(x).length > 0 && x.residual === undefined).length,
+    ).toBeGreaterThan(0);
+    expect(unknownFacts.filter((x) => x.residual !== undefined).length).toBeGreaterThan(0);
     expect(guestLoginOnlyDrift(measured, reach)).toEqual({ stale: [], fresh: [], invalid: [] });
     expect(measured.observed.unresolvedFilters.length).toBe(MAX_UNRESOLVED_FILTER_SITES);
     expect(measured.observed.filtersOutsideChains.length).toBe(MAX_FILTERS_OUTSIDE_CHAINS);
+    expect(measured.observed.dynamicWrites.length).toBe(MAX_DYNAMIC_PAYLOAD_WRITES);
     // Bez miary sprawdzenia miary nie przechodzą po cichu.
     expect(seamCoverageProblems(plain, undefined, { reach })[0]).toContain("miara nie uruchomiona");
   });
@@ -4551,8 +5010,10 @@ describe("scalenie pasów ról i sond: widoki naruszeń spójne, klucz sondy syn
       }
     }
     const views = unionQueries(mergeGate);
-    // Widok sond: odmowa/brak obiektu/limit czasu, sonda pusta, wpis nieaktualny.
-    expect(views.get("ts_v_probe")?.length).toBe(3);
+    // Widok sond: odmowa/brak obiektu/limit czasu, sonda pusta (wpis
+    // nieaktualny - diagnostyka `ts_v_stale`, r1 C3).
+    expect(views.get("ts_v_probe")?.length).toBe(2);
+    expect(views.get("ts_v_stale")?.length).toBe(3);
     expect(views.get("ts_v_fact")?.[0]).toEqual(["kind", "guest", "site", "func", "call", "msg"]);
     expect(views.get("ts_v_probe")?.[0]).toEqual(["guest", "site", "func", "call", "msg"]);
     for (const name of ["ts_v_filter_denied", "ts_v_embed_denied"]) {
@@ -4635,10 +5096,12 @@ describe("scalenie pasów ról i sond: role kandydackie i anon serwera w sondach
     expect(armed).toBeGreaterThan(probeStart);
     expect(firstBatch).toBeGreaterThan(armed);
     expect(mergeGate.lastIndexOf("INSERT INTO ts_probe (")).toBeLessThan(armed);
-    // Asercja 20: zapisy wszystkich ról klienta z ts_obs_stmt (kandydaci i anon serwera).
+    // Asercja 20: zapisy wszystkich ról klienta z ts_obs_stmt (kandydaci i anon
+    // serwera) i zapisy z ładunkiem nieczytelnym (ts_obs_dynwrite).
     expect(mergeGate).toContain(
-      "JOIN ts_obs_stmt s ON s.rel = t.rel AND s.role IN ('anon', 'authenticated')",
+      "SELECT rel, op, role, site, func, payload FROM ts_obs_stmt\n  UNION ALL\n  SELECT rel, op, role, site, func, NULL::text[] FROM ts_obs_dynwrite",
     );
+    expect(mergeGate).toContain("JOIN w ON w.rel = t.rel AND w.role IN ('anon', 'authenticated')");
     // Kolumna wyniku RPC klienta przeglądarki - istnienie (asercja 12), bez roli.
     expect(rows("ts_obs_rpc_col")).toEqual([
       `  ('resolve_path', ARRAY['_segments']::text[], 'page_id', 'order', '${MERGE_PUBLIC}', '${MERGE_PUBLIC}', 'pub')`,
