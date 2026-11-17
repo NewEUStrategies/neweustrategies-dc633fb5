@@ -1383,11 +1383,22 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
     member(15, null, { email: "login@firma.test" }),
     member(16, "Bez.Zdjecia@firma.test", { avatar_url: null }),
     member(18, "X*Y@FIRMA.TEST"),
+    // Poza ASCII baza porównuje SWOIM `lower()` (glibc, znak po znaku), nie
+    // JS `toLowerCase`: `lower('İ')` = `i`, `lower('ΟΔΟΣ')` = `οδοσ` (bez `ς`),
+    // `lower('ẞ')` = `ß`, `lower('ı')` = `ı` - sprawdzone na PG16.
+    member(17, "STRASSE@firma.test"), // `ss` to nie `ß` (mniejsze id niż p24)
+    member(19, "ΟΔΟΣ@firma.test"),
+    member(20, "ızmir@firma.test"), // kropka-nie-kropka: `ı` to nie `i` (mniejsze id niż p23)
+    member(21, "οδοΣ@firma.test"),
+    member(23, "İzmir@firma.test"),
+    member(24, "STRAẞE@firma.test"),
+    member(25, "ILGAZ@firma.test"),
+    member(26, "ılgaz@firma.test"),
   ];
   const lid = (n: number) => `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`;
   const HOSTILE = 'a",contact_email.ilike."%@firma.test';
-  // [adres leada, oczekiwany awatar albo null]
-  const CASES: ReadonlyArray<readonly [string, string | null]> = [
+  // [adres leada, oczekiwany awatar albo null, opcjonalnie `email_norm` z bazy]
+  const CASES: ReadonlyArray<readonly [string, string | null, string?]> = [
     ["anna.kowalska@firma.test", "https://cdn.test/7.png"], // tylko wielkość liter
     ["jan_kowalski@firma.test", "https://cdn.test/8.png"], // `_` nie trafia p1
     ["100%pewny@firma.test", "https://cdn.test/9.png"], // `%` nie trafia p2
@@ -1400,13 +1411,29 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
     ["login@firma.test", "https://cdn.test/15.png"], // logowanie wygrywa z kontaktem p0
     ["bez.zdjecia@firma.test", null], // członek bez zdjęcia
     [HOSTILE, null], // cytat nie domyka się w środku adresu
+    // Identyczny adres spoza ASCII. Klucz JS `i̇zmir@` (i + U+0307) w `ILIKE`
+    // nie trafia `İzmir@` w bazie - trafia liść z postacią zapisaną.
+    ["İzmir@firma.test", "https://cdn.test/23.png"],
+    // `email_norm` z `lower(btrim())` bazy (formularze), nie z JS.
+    ["İzmir@firma.test", "https://cdn.test/23.png", "izmir@firma.test"],
+    ["izmir@firma.test", "https://cdn.test/23.png"], // `lower('İzmir')` = `izmir`; p20 nie
+    ["ΟΔΟΣ@firma.test", "https://cdn.test/19.png"], // klucz JS `οδος@` (ς) - liść zapisany
+    ["οδοσ@firma.test", "https://cdn.test/19.png"], // p19 i p21 zrównane, najmniejsze id
+    // `ς` wpisane w leadzie: baza nie zrównuje go z `Σ` -> brak, choć JS
+    // `toLowerCase('ΟΔΟΣ@')` daje dokładnie ten adres.
+    ["οδος@firma.test", null],
+    ["straße@firma.test", "https://cdn.test/24.png"], // `ẞ` -> `ß`; p17 (`SS`) nie
+    ["strasse@firma.test", "https://cdn.test/17.png"], // p24 nie
+    ["ılgaz@firma.test", "https://cdn.test/26.png"], // p25 (`I` -> `i`) nie
+    ["Ilgaz@firma.test", "https://cdn.test/25.png"], // p26 (`ı`) nie
   ];
-  // Dwa leady z tym samym adresem `*` w różnej wielkości liter dzielą klucz:
-  // lookup dokładny dostaje OBIE zapisane postaci, więc oba trafiają p11.
-  const LEADS = CASES.map(([email], i) => ({
+  // Dwa leady z tym samym adresem `*` w różnej wielkości liter mają ten sam
+  // klucz `a*b@firma.test`, a klucz jest postacią KAŻDEGO z nich - lookup
+  // dokładny trafia p11 dla obu (każdy swoją listą, nie listą sąsiada).
+  const LEADS = CASES.map(([email, , norm], i) => ({
     id: lid(i),
     email,
-    email_norm: email.trim().toLowerCase(),
+    email_norm: norm ?? email.trim().toLowerCase(),
     tenant_id: TENANT,
   }));
   const expectedFor = (i: number) =>
@@ -1455,34 +1482,93 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
     }
   });
 
-  it("filtr kontaktu: jeden liść na adres, `ilike` bez wieloznaczników, `*` tylko dokładnie", async () => {
+  it("strona w kilku porcjach: wybór zdjęcia w obrębie porcji leada, jak na karcie", async () => {
+    // Lead `İzmir@` (klucz JS `i̇zmir@`) pasuje do dwóch członków: p30
+    // (`İzmir@` rozłożone, I + U+0307 - liść klucza) i p31 (`İzmir@` - liść
+    // postaci zapisanej). Lead `izmir@` w PIERWSZEJ porcji przynosi tylko p31
+    // (`lower('İ')` = `i`). Wybór po połączeniu porcji dałby leadowi `İzmir@`
+    // p31 (wcześniej na liście), karta - p30 (najmniejsze id).
+    const members = [member(30, "I\u0307zmir@firma.test"), member(31, "İzmir@firma.test")];
+    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, members)));
+    const row = (id: string, email: string) => ({ id, email, email_norm: email.toLowerCase() });
+    const first = row(lid(100), "izmir@firma.test");
+    const fillers = Array.from({ length: 100 }, (_, i) =>
+      row(lid(200 + i), `wypelniacz${String(i).padStart(3, "0")}@firma.test`),
+    );
+    const last = row(lid(101), "İzmir@firma.test");
+    const page = [first, ...fillers, last];
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(page));
+    const result = (await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: page.map((l) => l.id) },
+      context: context(),
+    })) as { avatars: Array<{ lead_id: string; avatar_url: string }> };
+    const list = new Map(result.avatars.map((a) => [a.lead_id, a.avatar_url]));
+
+    // Warunek scenariusza: `izmir@` i `İzmir@` w RÓŻNYCH porcjach.
+    const contact = admin
+      .chainsFor("profiles")
+      .filter((c) => avatarChainKind(c) === "contact_email")
+      .map((c) => contactLeaves(c).map((f) => (f.op === "ilike" ? f.value : "")));
+    expect(contact.length).toBeGreaterThan(1);
+    expect(contact.findIndex((v) => v.includes("izmir@firma.test"))).not.toBe(
+      contact.findIndex((v) => v.includes("İzmir@firma.test")),
+    );
+
+    expect(list.get(first.id)).toBe("https://cdn.test/31.png");
+    expect(list.get(last.id)).toBe("https://cdn.test/30.png");
+    expect(await cardAvatar({ ...last, tenant_id: TENANT })).toBe("https://cdn.test/30.png");
+    expect(await cardAvatar({ ...first, tenant_id: TENANT })).toBe("https://cdn.test/31.png");
+  });
+
+  it("filtr kontaktu: liść na postać adresu leada, `ilike` bez wieloznaczników, `*` tylko dokładnie", async () => {
     await listAvatars();
     const contact = admin
       .chainsFor("profiles")
       .filter((c) => avatarChainKind(c) === "contact_email");
     expect(contact).toHaveLength(1);
     const leaves = contactLeaves(contact[0] as RecordedChain);
-    const keys = [...new Set(LEADS.map((l) => l.email_norm))];
-    expect(leaves).toHaveLength(keys.length);
     expect(leaves.every((f) => f.column === "contact_email" && !f.negated)).toBe(true);
-    for (const [i, key] of keys.entries()) {
-      const leaf = leaves[i];
-      if (key.includes("*")) {
-        // Ścieżka dokładna: PostgREST zrobiłby z `*` w ilike wieloznacznik `%`.
-        expect(leaf?.op).toBe("in");
-      } else {
-        expect(leaf?.op).toBe("ilike");
+    for (const leaf of leaves) {
+      if (leaf.op === "ilike") {
         // Wzorzec nie ma ANI JEDNEGO wieloznacznika bez ucieczki.
-        const value = leaf?.op === "ilike" ? leaf.value : "";
-        expect(value.replace(/\\[\s\S]/g, "")).not.toMatch(/[%_*]/);
+        expect(leaf.value.replace(/\\[\s\S]/g, "")).not.toMatch(/[%_*]/);
+      } else {
+        // Ścieżka dokładna: PostgREST zrobiłby z `*` w ilike wieloznacznik `%`.
+        expect(leaf.op).toBe("in");
       }
     }
-    expect(leaves.find((f) => f.op === "in")).toEqual({
-      column: "contact_email",
-      negated: false,
-      op: "in",
-      values: ["a*b@firma.test", "A*b@Firma.test"],
-    });
+    // Wartości po stronie serwera (po zdjęciu cytowania PostgREST), w kolejności
+    // leadów; `in:` - lista dokładna, reszta - wzorce `ilike`. Postaci są
+    // WŁASNE dla leada: `A*b@Firma.test` i `a*b@firma.test` (ten sam klucz)
+    // mają osobne listy, a `οδος@` (lead z `ς`) nie dostaje `ΟΔΟΣ@` sąsiada.
+    expect(leaves.map((f) => (f.op === "in" ? `in:${f.values.join(" | ")}` : f.value))).toEqual([
+      "anna.kowalska@firma.test",
+      "jan\\_kowalski@firma.test",
+      "100\\%pewny@firma.test",
+      "a\\\\b@firma.test",
+      "in:a*b@firma.test | A*b@Firma.test",
+      "in:a*b@firma.test",
+      "in:x*y@firma.test",
+      'o"neil,(pr):x+1@firma.test',
+      "wspolny@firma.test",
+      "login@firma.test",
+      "bez.zdjecia@firma.test",
+      'a",contact\\_email.ilike."\\%@firma.test',
+      // `İzmir@` z kluczem JS: klucz `i̇zmir@` (i + U+0307) i postać zapisana -
+      // `lower()` bazy rozróżnia je, więc dwa liście.
+      "i\u0307zmir@firma.test",
+      "İzmir@firma.test",
+      // `İzmir@` z `email_norm` bazy i `izmir@`: `lower('İ')` = `i`, jeden liść.
+      "izmir@firma.test",
+      "οδος@firma.test",
+      "ΟΔΟΣ@firma.test",
+      "οδοσ@firma.test",
+      "straße@firma.test",
+      "strasse@firma.test",
+      "ılgaz@firma.test",
+      "ilgaz@firma.test",
+    ]);
   });
 
   it("oba zapytania karty i listy stoją na tenancie wołającego", async () => {

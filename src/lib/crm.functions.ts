@@ -31,7 +31,9 @@ import {
   avatarLookupChunks,
   avatarLookupKeys,
   chunked,
-  matchLeadAvatars,
+  contactFilter,
+  leadAvatarsByKey,
+  matchChunkAvatars,
   type LeadAvatar,
   type LeadEmailRow,
   type ProfileAvatarRow,
@@ -1277,7 +1279,9 @@ export const getCrmLeadAvatars = createServerFn({ method: "POST" })
  * `profiles.contact_email` BEZ wielkości liter - członek wpisuje go ręcznie,
  * a `Anna.Kowalska@Firma.pl` to ten sam adres co lead `anna.kowalska@firma.pl`.
  * Do 2026-11-16 oba szły dokładnym `.in()`, więc kontakt zapisany inną
- * wielkością liter nie dawał zdjęcia ani na liście, ani na karcie.
+ * wielkością liter nie dawał zdjęcia ani na liście, ani na karcie. Wielkość
+ * liter rozstrzyga `lower()` bazy (`ILIKE`), a przypisanie wiersza do leada
+ * - `pgCaseFold` z lib/crm/leadAvatars.ts, nigdy JS `toLowerCase`.
  */
 async function lookupLeadAvatars(
   tenantId: string,
@@ -1293,8 +1297,7 @@ async function lookupLeadAvatars(
     return rowsOf(res);
   };
 
-  const byEmail: ProfileAvatarRow[] = [];
-  const byContactEmail: ProfileAvatarRow[] = [];
+  const avatarByKey = new Map<string, string>();
   const chunks = avatarLookupChunks(keys, {
     maxItems: LEAD_AVATAR_CHUNK,
     maxEncodedLength: LEAD_AVATAR_FILTER_URL_BUDGET,
@@ -1311,36 +1314,30 @@ async function lookupLeadAvatars(
         .from("profiles")
         .select("email, contact_email, avatar_url")
         .eq("tenant_id", tenantId)
-        .or(`email.in.(${postgrestQuotedList(part.map((k) => k.key))})`)
+        .or(`email.in.(${postgrestQuotedList([...new Set(part.map((k) => k.key))])})`)
         .not("avatar_url", "is", null)
         .order("id", { ascending: true })
         .returns<ProfileAvatarRow>(),
       // Adres kontaktowy: wpisany ręcznie, dowolną wielkością liter - JEDNO
-      // zapytanie na porcję, liść na adres: `ilike` z wzorcem bez
-      // wieloznaczników albo (adres z `*`) dokładne `in`. Operandy są już
-      // zacytowane (lib/supabase/postgrestFilterValue.ts) - przecinek, kropka,
-      // nawias, dwukropek ani cudzysłów w adresie nie zmieniają filtra.
+      // zapytanie na porcję: `ilike` z wzorcem bez wieloznaczników na każdą
+      // zapisaną postać adresu (klucz i adres z leada - baza porównuje swoim
+      // `lower()`, nie JS-owym) albo (postać z `*`) dokładne `in`. Operandy
+      // są już zacytowane (lib/crm/leadAvatars.ts `contactFilter`).
       admin
         .from("profiles")
         .select("email, contact_email, avatar_url")
         .eq("tenant_id", tenantId)
-        .or(
-          part
-            .map((k) =>
-              k.ilike !== undefined
-                ? `contact_email.ilike.${k.ilike}`
-                : `contact_email.in.(${k.exact})`,
-            )
-            .join(","),
-        )
+        .or(contactFilter(part))
         .not("avatar_url", "is", null)
         .order("id", { ascending: true })
         .returns<ProfileAvatarRow>(),
     ]);
-    byEmail.push(...rowsOrThrow(primary));
-    byContactEmail.push(...rowsOrThrow(contact));
+    // Dopasowanie W OBRĘBIE porcji: wiersz z cudzej porcji nie zmienia
+    // wyboru (karta = jeden lead = jedna porcja, ten sam wynik co lista).
+    const matched = matchChunkAvatars(part, rowsOrThrow(primary), rowsOrThrow(contact));
+    for (const [key, avatar] of matched) avatarByKey.set(key, avatar);
   }
-  return matchLeadAvatars(leads, byEmail, byContactEmail);
+  return leadAvatarsByKey(leads, avatarByKey);
 }
 
 /** Lead karty kontaktu w zakresie potrzebnym do lookupu awatara. */

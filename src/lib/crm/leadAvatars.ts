@@ -49,69 +49,147 @@ function leadKey(lead: LeadEmailRow): string {
 }
 
 /**
- * Jeden adres leada w lookupie awatara - po kluczu, nie po wierszu leada
- * (ten sam adres w wielu leadach pyta bazę raz).
+ * Porównanie adresu kontaktowego BEZ wielkości liter - tak, jak robi to baza.
+ *
+ * `ILIKE` w PostgreSQL 16 (baza UTF-8) to `lower(tekst) LIKE lower(wzorzec)`,
+ * a `lower()` dostawcy libc to `towlower()` glibc ZNAK PO ZNAKU: prosta mapa
+ * 1:1 z UnicodeData, bez reguł kontekstowych. JS `toLowerCase()` całego
+ * napisu robi co innego: `İ` (U+0130) daje dwa znaki `i̇` (i + U+0307), a `Σ`
+ * na końcu słowa - `ς`. Sprawdzone na PG 16.15 (glibc 2.39, C.UTF-8):
+ * `lower('İ')` = `i`, `lower('ΟΔΟΣ')` = `οδοσ`, `lower('ẞ')` = `ß`,
+ * `lower('ı')` = `ı`; `'İzmir@x.tr' ILIKE 'i̇zmir@x.tr'` i
+ * `'ΟΔΟΣ@x.gr' ILIKE 'οδος@x.gr'` - fałsz.
+ *
+ * `pgCaseFold` to `lower()` bazy ZAWĘŻONY do znaków, w których JS i glibc
+ * zgadzają się na pewno: U+0000-U+058F (łacina z rozszerzeniami A i B, IPA,
+ * grecki, cyrylica z suplementem, ormiański) i U+1E00-U+1EFF (łacina
+ * rozszerzona dodatkowa, m.in. `ẞ`), plus `İ` -> `i` jak w glibc. Ostatnie
+ * pary wielkości liter w tych blokach doszły w Unicode 7.0 (2014). Pełne
+ * porównanie wszystkich punktów kodowych (PG16 vs JS z Unicode 17) różni się
+ * WYŁĄCZNIE w U+0130 i w literach z Unicode 16+, spoza tych zakresów. Poza
+ * zakresami - tożsamość.
+ *
+ * Dlaczego zawężony: z równości `pgCaseFold` wynika równość `lower()` w bazie
+ * (litera po literze), więc wiersz, któremu przypisujemy zdjęcie, zwraca ZAWSZE
+ * liść samego tego leada - karta (jeden lead) i lista (strona leadów) widzą to
+ * samo. Litera z nowszego Unicode, którą JS zna, a glibc bazy jeszcze nie,
+ * odwróciłaby tę implikację: wiersz przyniesiony na liście liściem innego
+ * leada i przypisany temu - zdjęcie na liście, brak na karcie. Odwrotnej
+ * różnicy (baza zrównuje, `pgCaseFold` nie) nie szkodzi: brak zdjęcia, ten sam
+ * w obu widokach.
+ */
+export function pgCaseFold(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp === 0x130) out += "i";
+    else if (cp <= 0x58f || (cp >= 0x1e00 && cp <= 0x1eff)) out += ch.toLowerCase();
+    else out += ch;
+  }
+  return out;
+}
+
+/**
+ * Jeden adres leada w lookupie awatara - po postaciach adresu, nie po wierszu
+ * leada (leady o tych samych postaciach pytają bazę raz).
  *
  * `profiles.email` pochodzi z auth (GoTrue zapisuje adres małymi literami),
  * więc pokrywa go dokładne `email.in.(<key>, ...)`. `contact_email` wpisuje
  * członek ręcznie, dowolną wielkością liter - porównujemy go BEZ wielkości
- * liter: `contact_email.ilike.<operand>`, gdzie operand to wzorzec bez
- * wieloznaczników w cudzysłowie PostgREST (lib/supabase/postgrestFilterValue.ts).
- * Wyjątek: adres z `*`. PostgREST zamienia `*` na `%` w każdym wzorcu
- * like/ilike i nie da się tego wyłączyć, więc taki adres idzie porównaniem
- * DOKŁADNYM (`contact_email.in.(...)`) na postaci znormalizowanej i zapisanej
- * w leadzie - jak przed zmianą, bez fałszywych trafień.
+ * liter (`contact_email.ilike.<operand>`, wzorzec bez wieloznaczników
+ * w cudzysłowie PostgREST, lib/supabase/postgrestFilterValue.ts) z KAŻDĄ
+ * zapisaną postacią adresu leada: kluczem i adresem z leada. Sam klucz nie
+ * wystarcza: to JS `toLowerCase`, a baza porównuje swoim `lower()`. Lead
+ * i kontakt `İzmir@x.tr` (U+0130) albo `ΟΔΟΣ@x.gr` dają klucz `i̇zmir@x.tr` /
+ * `οδος@x.gr`, którego `ILIKE` identycznego adresu w bazie NIE znajduje - przed
+ * 2026-11-16 znajdował go dokładny `in` z postacią zapisaną. Postaci o równym
+ * `pgCaseFold` dają ten sam wynik `ILIKE`, więc idzie jeden liść na klasę.
+ *
+ * Postaci są WŁASNE dla leada, nie wspólne dla klucza: `ΟΔΟΣ@x.gr`
+ * i `οδος@x.gr` mają ten sam klucz JS, ale baza zrównuje z kontaktem
+ * `ΟΔΟΣ@x.gr` tylko pierwszy. Postać pożyczona od innego leada strony dałaby
+ * zdjęcie na liście, którego karta (jeden lead) nie pokaże.
+ *
+ * Wyjątek: postać z `*`. PostgREST zamienia `*` na `%` w każdym wzorcu
+ * like/ilike i nie da się tego wyłączyć, więc taka postać idzie porównaniem
+ * DOKŁADNYM (`contact_email.in.(...)`) - bez fałszywych trafień.
  */
-export type AvatarLookupKey =
-  | {
-      /** `normalizeEmail` leada: wartość `email.in.(...)` i klucz mapowania wierszy. */
-      readonly key: string;
-      /** Operand `contact_email.ilike.<operand>` - równość bez wielkości liter. */
-      readonly ilike: string;
-      readonly exact?: undefined;
+export interface AvatarLookupKey {
+  /** Tożsamość wpisu (klucz i postaci) - po niej leady odbierają wynik. */
+  readonly id: string;
+  /** `normalizeEmail` leada: wartość `email.in.(...)`. */
+  readonly key: string;
+  /** Postaci bez `*`, po jednej na klasę `pgCaseFold` - liść `contact_email.ilike` na każdą. */
+  readonly ilike: readonly string[];
+  /** Postaci z `*` - jeden liść `contact_email.in.(...)`, porównanie dokładne. */
+  readonly exact: readonly string[];
+}
+
+function lookupKeyOf(lead: LeadEmailRow): AvatarLookupKey | null {
+  const key = leadKey(lead);
+  if (!key) return null;
+  const raw = (lead.email ?? "").trim();
+  const ilike: string[] = [];
+  const exact: string[] = [];
+  const folds = new Set<string>();
+  for (const form of new Set(raw ? [key, raw] : [key])) {
+    if (!ilikeEqualityExpressible(form)) {
+      exact.push(form);
+      continue;
     }
-  | {
-      readonly key: string;
-      readonly ilike?: undefined;
-      /** Lista `contact_email.in.(<lista>)` (cytowana) - dla adresu z `*`. */
-      readonly exact: string;
-    };
+    const fold = pgCaseFold(form);
+    if (folds.has(fold)) continue;
+    folds.add(fold);
+    ilike.push(form);
+  }
+  return { id: JSON.stringify([key, ilike, exact]), key, ilike, exact };
+}
 
 export function avatarLookupKeys(leads: readonly LeadEmailRow[]): AvatarLookupKey[] {
-  const forms = new Map<string, Set<string>>();
+  const byId = new Map<string, AvatarLookupKey>();
   for (const lead of leads) {
-    const key = leadKey(lead);
-    if (!key) continue;
-    const known = forms.get(key) ?? new Set<string>([key]);
-    const raw = (lead.email ?? "").trim();
-    if (raw) known.add(raw);
-    forms.set(key, known);
+    const entry = lookupKeyOf(lead);
+    if (entry && !byId.has(entry.id)) byId.set(entry.id, entry);
   }
-  return [...forms].map(([key, written]) =>
-    ilikeEqualityExpressible(key)
-      ? { key, ilike: ilikeEqualsOperand(key) }
-      : { key, exact: postgrestQuotedList([...written]) },
-  );
+  return [...byId.values()];
+}
+
+/** Liście `contact_email` jednego klucza w drzewie `or=(...)` - operandy już cytowane. */
+export function contactFilterLeaves(key: AvatarLookupKey): string[] {
+  const leaves = key.ilike.map((form) => `contact_email.ilike.${ilikeEqualsOperand(form)}`);
+  if (key.exact.length > 0) leaves.push(`contact_email.in.(${postgrestQuotedList(key.exact)})`);
+  return leaves;
 }
 
 /**
- * Narzut liścia `contact_email.<op>.<operand>` w drzewie `or=(...)` ponad sam
- * operand, po kodowaniu URL: `contact_email.ilike.` (20) albo
- * `contact_email.in.(` + `)` (17 + 2 x 3), plus przecinek `%2C` (3) - z zapasem.
+ * Filtr `contact_email` porcji - argument `.or()` (postgrest-js dokleja
+ * nawiasy). Przecinek, kropka, nawias, dwukropek ani cudzysłów w adresie nie
+ * zmieniają filtra: każdy operand jest cytowany. Identyczny liść dwóch wpisów
+ * (np. klucz `οδος@x.gr` leadów `ΟΔΟΣ@x.gr` i `οδος@x.gr`) idzie raz.
  */
-const CONTACT_TERM_OVERHEAD = 32;
+export function contactFilter(keys: readonly AvatarLookupKey[]): string {
+  return [...new Set(keys.flatMap(contactFilterLeaves))].join(",");
+}
+
+/**
+ * Narzut klucza ponad jego liście po kodowaniu URL: przecinek `%2C` (3) przed
+ * następnym kluczem i nawiasy `%28`/`%29` (6) parametru `or=(...)` - liczone
+ * przy każdym kluczu, z zapasem.
+ */
+const CONTACT_KEY_OVERHEAD = 9;
 
 /** Koszt klucza w adresie URL zapytania `contact_email` (to cięższe z dwóch). */
 export function avatarLookupKeyCost(key: AvatarLookupKey): number {
-  return urlEncodedLength(key.ilike ?? key.exact) + CONTACT_TERM_OVERHEAD;
+  return urlEncodedLength(contactFilterLeaves(key).join(",")) + CONTACT_KEY_OVERHEAD;
 }
 
 /**
  * Porcje kluczy: najwyżej `maxItems` i najwyżej `maxEncodedLength` znaków
  * filtra `contact_email` po kodowaniu URL. Liść `ilike` jest kilka razy
- * dłuższy niż wartość listy `in` (escapowanie LIKE, narzut liścia), więc sam
- * limit liczby wartości nie trzyma już długości adresu. Ta sama porcja idzie do
- * obu zapytań - lista `email.in.(...)` jest zawsze krótsza niż filtr kontaktowy.
+ * dłuższy niż wartość listy `in` (escapowanie LIKE, narzut liścia), a klucz
+ * może mieć kilka liści, więc sam limit liczby wartości nie trzyma długości
+ * adresu. Ta sama porcja idzie do obu zapytań - lista `email.in.(...)` jest
+ * zawsze krótsza niż filtr kontaktowy (klucz jest pierwszą postacią).
  * Klucz droższy niż limit dostaje porcję dla siebie (nie znika z lookupu).
  */
 export function avatarLookupChunks(
@@ -139,37 +217,93 @@ export function avatarLookupChunks(
 }
 
 /**
- * Lead -> awatar. Dopasowanie po adresie logowania (`email`) wygrywa
- * z dopasowaniem po adresie kontaktowym: logowanie jednoznacznie wskazuje
- * konto, a ten sam adres kontaktowy może wpisać więcej niż jedna osoba.
- * W obrębie jednej klasy wygrywa pierwszy wiersz - serwer zadaje kolejność
- * (`order("id")`), więc z kilku członków z tym samym adresem kontaktowym
- * (także zapisanym inną wielkością liter) wygrywa najmniejsze id profilu.
- * Obie strony porównania idą przez `normalizeEmail`: wiersz z bazy mapuje się
- * na leada wyłącznie po własnym adresie, nigdy po tym, którym filtrem przyszedł.
+ * Zdjęcie dla wpisów JEDNEJ porcji (mapa po `AvatarLookupKey.id`) - wyłącznie
+ * z wierszy, które przyniosły zapytania tej porcji, w kolejności serwera
+ * (`order("id")`).
+ *
+ * Dopasowanie po adresie logowania (`email`) wygrywa z dopasowaniem po
+ * adresie kontaktowym: logowanie jednoznacznie wskazuje konto, a ten sam
+ * adres kontaktowy może wpisać więcej niż jedna osoba. W obrębie klasy wygrywa
+ * pierwszy wiersz, więc z kilku członków z tym samym adresem kontaktowym
+ * (także zapisanym inną wielkością liter) - najmniejsze id profilu.
+ *
+ * Wiersz trafia do klucza tylko wtedy, gdy zwróciłby go SAM liść tego klucza:
+ * logowanie - `normalizeEmail(email)` równy kluczowi (`email.in` przynosi
+ * wyłącznie klucze porcji, a te są już znormalizowane); kontakt - adres równy
+ * postaci dokładnej albo `pgCaseFold` równy `pgCaseFold` postaci `ilike`.
+ * Nigdy po tym, którym filtrem wiersz przyszedł, i nigdy po JS
+ * `toLowerCase`: wiersz przyniesiony na liście liściem INNEGO leada (np.
+ * `ΟΔΟΣ@x.gr` liściem `οδοσ@x.gr`) dałby wtedy zdjęcie leadowi `οδος@x.gr`,
+ * którego karta (jeden lead) go nie widzi.
+ *
+ * Dlaczego per porcja: wiersz pasujący do klucza jest zawsze w porcji tego
+ * klucza, ale może przyjść też w innej (liściem innego leada). Wybór po
+ * połączeniu porcji oddałby pierwszy wiersz w kolejności porcji, a nie
+ * najmniejsze id - inne zdjęcie niż na karcie.
  */
+export function matchChunkAvatars(
+  keys: readonly AvatarLookupKey[],
+  byEmail: readonly ProfileAvatarRow[],
+  byContactEmail: readonly ProfileAvatarRow[],
+): Map<string, string> {
+  const login = new Map<string, string>();
+  for (const row of byEmail) {
+    const key = normalizeEmail(row.email);
+    if (row.avatar_url && key && !login.has(key)) login.set(key, row.avatar_url);
+  }
+  // Pierwszy wiersz (najmniejsze id) dla adresu dokładnego i dla klasy `pgCaseFold`.
+  const firstExact = new Map<string, number>();
+  const firstFold = new Map<string, number>();
+  byContactEmail.forEach((row, index) => {
+    if (!row.avatar_url || !row.contact_email) return;
+    if (!firstExact.has(row.contact_email)) firstExact.set(row.contact_email, index);
+    const fold = pgCaseFold(row.contact_email);
+    if (!firstFold.has(fold)) firstFold.set(fold, index);
+  });
+
+  const out = new Map<string, string>();
+  for (const key of keys) {
+    const own = login.get(key.key);
+    if (own) {
+      out.set(key.id, own);
+      continue;
+    }
+    let best: number | undefined;
+    const consider = (index: number | undefined) => {
+      if (index !== undefined && (best === undefined || index < best)) best = index;
+    };
+    for (const form of key.exact) consider(firstExact.get(form));
+    for (const form of key.ilike) consider(firstFold.get(pgCaseFold(form)));
+    const avatar = best === undefined ? null : byContactEmail[best]?.avatar_url;
+    if (avatar) out.set(key.id, avatar);
+  }
+  return out;
+}
+
+/** Lead -> awatar po jego wpisie lookupu (mapa `matchChunkAvatars` ze wszystkich porcji). */
+export function leadAvatarsByKey(
+  leads: readonly LeadEmailRow[],
+  avatarByKey: ReadonlyMap<string, string>,
+): LeadAvatar[] {
+  const out: LeadAvatar[] = [];
+  for (const lead of leads) {
+    const entry = lookupKeyOf(lead);
+    const avatar = entry ? avatarByKey.get(entry.id) : undefined;
+    if (avatar) out.push({ lead_id: lead.id, avatar_url: avatar });
+  }
+  return out;
+}
+
+/** Reguła dopasowania dla wszystkich leadów w JEDNEJ porcji (bez podziału zapytań). */
 export function matchLeadAvatars(
   leads: readonly LeadEmailRow[],
   byEmail: readonly ProfileAvatarRow[],
   byContactEmail: readonly ProfileAvatarRow[],
 ): LeadAvatar[] {
-  const avatarByKey = new Map<string, string>();
-  const take = (rows: readonly ProfileAvatarRow[], pick: (row: ProfileAvatarRow) => string) => {
-    for (const row of rows) {
-      if (!row.avatar_url) continue;
-      const key = normalizeEmail(pick(row));
-      if (key && !avatarByKey.has(key)) avatarByKey.set(key, row.avatar_url);
-    }
-  };
-  take(byEmail, (row) => row.email ?? "");
-  take(byContactEmail, (row) => row.contact_email ?? "");
-
-  const out: LeadAvatar[] = [];
-  for (const lead of leads) {
-    const avatar = avatarByKey.get(leadKey(lead));
-    if (avatar) out.push({ lead_id: lead.id, avatar_url: avatar });
-  }
-  return out;
+  return leadAvatarsByKey(
+    leads,
+    matchChunkAvatars(avatarLookupKeys(leads), byEmail, byContactEmail),
+  );
 }
 
 /** Podział na porcje - lista id w `.in()` idzie w adresie URL zapytania. */

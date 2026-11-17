@@ -194,13 +194,46 @@ export function decodeInParam(param: string): string[] {
 }
 
 /**
- * LIKE/ILIKE PostgreSQL: `_` dowolny znak, `%` dowolny ciąg, `\` ucieczka
- * (domyślna). Wzorzec kończący się `\` port odrzuca ZAWSZE; PostgreSQL 16
- * rzuca ten sam błąd, gdy dojdzie do takiego `\` z niewyczerpanym tekstem
- * (`'ab' ILIKE 'a\'`), a przy wyczerpanym zwraca fałsz (`'a' ILIKE 'a\'`) -
- * sprawdzone na PG16. `likeLiteral` takiego wzorca nie produkuje.
+ * `lower()` PostgreSQL 16 z dostawcą libc: `towlower()` glibc ZNAK PO ZNAKU
+ * (prosta mapa 1:1 z UnicodeData, bez reguł kontekstowych). JS `toLowerCase`
+ * POJEDYNCZEGO znaku daje to samo z jednym wyjątkiem: `İ` (U+0130) -> `i̇`
+ * (dwa znaki), glibc -> `i`. Porównane na WSZYSTKICH punktach kodowych
+ * z PG 16.15 (glibc 2.39, C.UTF-8): poza U+0130 różnią się tylko litery
+ * z Unicode 16+ (JS zna nowszy Unicode niż glibc), których testy nie używają.
+ * Celowo NIE `toLowerCase` całego napisu (`Σ` na końcu słowa -> `ς`) ani flaga
+ * `i` wyrażenia regularnego (zwijanie wielkości liter zrównuje `σ` z `ς` i `ſ`
+ * z `s`, a nie zrównuje `İ` z `i`) - baza robi inaczej.
  */
-export function likeMatches(text: string, pattern: string, caseInsensitive: boolean): boolean {
+export function pgLower(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    if (ch === "\u0130") {
+      out += "i";
+      continue;
+    }
+    const lower = ch.toLowerCase();
+    out += [...lower].length === 1 ? lower : ch;
+  }
+  return out;
+}
+
+/**
+ * LIKE/ILIKE PostgreSQL: `_` dowolny znak, `%` dowolny ciąg, `\` ucieczka
+ * (domyślna). ILIKE w bazie UTF-8 to `lower(tekst) LIKE lower(wzorzec)`
+ * (PG16 `Generic_Text_IC_like`) - stąd `pgLower` po obu stronach i dalej
+ * porównanie z rozróżnianiem wielkości liter. Wzorzec kończący się `\` port
+ * odrzuca ZAWSZE; PostgreSQL 16 rzuca ten sam błąd, gdy dojdzie do takiego `\`
+ * z niewyczerpanym tekstem (`'ab' ILIKE 'a\'`), a przy wyczerpanym zwraca
+ * fałsz (`'a' ILIKE 'a\'`) - sprawdzone na PG16. `likeLiteral` takiego
+ * wzorca nie produkuje.
+ */
+export function likeMatches(
+  rawText: string,
+  rawPattern: string,
+  caseInsensitive: boolean,
+): boolean {
+  const text = caseInsensitive ? pgLower(rawText) : rawText;
+  const pattern = caseInsensitive ? pgLower(rawPattern) : rawPattern;
   let source = "";
   for (let i = 0; i < pattern.length; i += 1) {
     const ch = pattern[i];
@@ -213,7 +246,7 @@ export function likeMatches(text: string, pattern: string, caseInsensitive: bool
     else if (ch === "_") source += "[\\s\\S]";
     else source += ch.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   }
-  return new RegExp(`^${source}$`, caseInsensitive ? "iu" : "u").test(text);
+  return new RegExp(`^${source}$`, "u").test(text);
 }
 
 /** Wynik liścia dla wiersza - z zamianą `*` -> `%` we wzorcach (SqlFragment.hs). */

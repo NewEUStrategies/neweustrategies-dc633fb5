@@ -7,12 +7,15 @@ import {
   avatarLookupKeyCost,
   avatarLookupKeys,
   chunked,
+  contactFilter,
+  matchChunkAvatars,
   matchLeadAvatars,
   normalizeEmail,
+  pgCaseFold,
   type LeadEmailRow,
   type ProfileAvatarRow,
 } from "../leadAvatars";
-import { decodeOrParam } from "@/test/supabase/postgrestGrammar";
+import { decodeOrParam, filterMatches, pgLower } from "@/test/supabase/postgrestGrammar";
 import { urlEncodedLength } from "@/lib/supabase/postgrestFilterValue";
 
 const lead = (
@@ -39,14 +42,6 @@ describe("normalizeEmail", () => {
     expect(normalizeEmail(undefined)).toBe("");
   });
 });
-
-/** Filtr `contact_email` porcji tak, jak składa go `lookupLeadAvatars`. */
-const contactFilter = (keys: ReturnType<typeof avatarLookupKeys>) =>
-  keys
-    .map((k) =>
-      k.ilike !== undefined ? `contact_email.ilike.${k.ilike}` : `contact_email.in.(${k.exact})`,
-    )
-    .join(",");
 
 describe("avatarLookupKeys", () => {
   it("jeden adres w wielu leadach pyta bazę raz, kluczem jest postać znormalizowana", () => {
@@ -80,18 +75,55 @@ describe("avatarLookupKeys", () => {
     ]);
   });
 
-  it("adres z `*`: wyłącznie dokładne `in` na postaci znormalizowanej i zapisanej, bez `ilike`", () => {
+  it("adres z `*`: wyłącznie dokładne `in` na postaci znormalizowanej i WŁASNEJ zapisanej, bez `ilike`", () => {
     const keys = avatarLookupKeys([lead("l1", "A*b@Example.test"), lead("l2", "a*B@example.test")]);
-    expect(keys).toHaveLength(1);
-    expect(keys[0]?.ilike).toBeUndefined();
+    expect(keys.map((k) => k.ilike)).toEqual([[], []]);
     expect(decodeOrParam(`(${contactFilter(keys)})`)).toEqual([
       {
         column: "contact_email",
         negated: false,
         op: "in",
-        values: ["a*b@example.test", "A*b@Example.test", "a*B@example.test"],
+        values: ["a*b@example.test", "A*b@Example.test"],
+      },
+      {
+        column: "contact_email",
+        negated: false,
+        op: "in",
+        values: ["a*b@example.test", "a*B@example.test"],
       },
     ]);
+  });
+
+  it("postaci spoza ASCII: liść na klasę `lower()` bazy, nie tylko klucz JS", () => {
+    const ilikeOf = (email: string, norm?: string) =>
+      avatarLookupKeys([lead("l1", email, norm)]).map((k) => k.ilike);
+    // JS `toLowerCase('İ')` = i + U+0307, a `lower('İ')` bazy = `i`: dwie klasy.
+    expect(ilikeOf("İzmir@example.test")).toEqual([
+      ["i\u0307zmir@example.test", "İzmir@example.test"],
+    ]);
+    // `email_norm` z `lower(btrim())` bazy: jedna klasa, jeden liść.
+    expect(ilikeOf("İzmir@example.test", "izmir@example.test")).toEqual([["izmir@example.test"]]);
+    // JS daje końcowe `ς`, baza `σ`: dwie klasy.
+    expect(ilikeOf("ΟΔΟΣ@example.test")).toEqual([["οδος@example.test", "ΟΔΟΣ@example.test"]]);
+    // ASCII i `ẞ`: wielkość liter nie tworzy osobnego liścia.
+    expect(ilikeOf("Anna@Example.TEST")).toEqual([["anna@example.test"]]);
+    expect(ilikeOf("STRAẞE@example.test")).toEqual([["straße@example.test"]]);
+  });
+
+  it("ten sam klucz JS, inne postaci - osobne wpisy (postać sąsiada nie przechodzi)", () => {
+    const keys = avatarLookupKeys([
+      lead("l1", "ΟΔΟΣ@example.test"),
+      lead("l2", "οδος@example.test"),
+      lead("l3", "ΟΔΟΣ@example.test"),
+    ]);
+    expect(keys.map((k) => [k.key, k.ilike])).toEqual([
+      ["οδος@example.test", ["οδος@example.test", "ΟΔΟΣ@example.test"]],
+      ["οδος@example.test", ["οδος@example.test"]],
+    ]);
+    // Wspólny liść klucza idzie w filtrze raz.
+    expect(
+      decodeOrParam(`(${contactFilter(keys)})`).map((f) => f.op === "ilike" && f.value),
+    ).toEqual(["οδος@example.test", "ΟΔΟΣ@example.test"]);
   });
 
   it("adresy ze znakami gramatyki dają DOKŁADNIE jeden liść na klucz", () => {
@@ -262,6 +294,106 @@ describe("matchLeadAvatars", () => {
       [],
     );
     expect(Object.keys(avatar ?? {}).sort()).toEqual(["avatar_url", "lead_id"]);
+  });
+});
+
+describe("pgCaseFold", () => {
+  it("jak `lower()` PostgreSQL 16 (glibc), nie jak JS `toLowerCase` napisu", () => {
+    expect(pgCaseFold("İzmir@X.tr")).toBe("izmir@x.tr");
+    expect(pgCaseFold("ΟΔΟΣ@X.gr")).toBe("οδοσ@x.gr"); // bez końcowego `ς`
+    expect(pgCaseFold("STRAẞE")).toBe("straße");
+    expect(pgCaseFold("ILGAZ ılgaz")).toBe("ilgaz ılgaz");
+    expect(pgCaseFold("Łukasz.ŻÓŁW")).toBe("łukasz.żółw");
+  });
+
+  it("w zakresach zaufanych to DOKŁADNIE port `lower()` bazy, znak po znaku", () => {
+    // Port (test/supabase/postgrestGrammar.ts `pgLower`) porównano z PG16 na
+    // wszystkich punktach kodowych; tu - że `pgCaseFold` go nie rozmija.
+    for (const [from, to] of [
+      [0, 0x58f],
+      [0x1e00, 0x1eff],
+    ] as const) {
+      for (let cp = from; cp <= to; cp += 1) {
+        const ch = String.fromCodePoint(cp);
+        expect([cp, pgCaseFold(ch)]).toEqual([cp, pgLower(ch)]);
+      }
+    }
+  });
+
+  it("poza zakresami - tożsamość, nawet gdy JS zna małą literę (Unicode nowszy niż glibc bazy)", () => {
+    for (const cp of [0x212a, 0x2126, 0x1c90, 0x1c89, 0xa7cb, 0x10d50, 0x13a0, 0x10400]) {
+      const ch = String.fromCodePoint(cp);
+      expect(ch.toLowerCase()).not.toBe(ch);
+      expect(pgCaseFold(ch)).toBe(ch);
+    }
+  });
+
+  it("równość `pgCaseFold` pociąga równość `lower()` bazy - dla KAŻDEGO znaku", () => {
+    // `pgCaseFold` zamienia znak na JEDEN znak, a `lower()` bazy działa znak po
+    // znaku - wystarczy więc `pgLower(c)` = `pgLower(pgCaseFold(c))` dla
+    // każdego c: z `pgCaseFold(a)` = `pgCaseFold(b)` = f wynika
+    // `pgLower(a)` = `pgLower(f)` = `pgLower(b)`. Bez tego wiersz przyniesiony
+    // liściem innego leada mógłby dostać zdjęcie, którego liść samego leada
+    // nie zwraca (port `pgLower` porównany z PG16 na wszystkich punktach).
+    let changed = 0;
+    for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      const fold = pgCaseFold(ch);
+      if (fold === ch) continue;
+      changed += 1;
+      if ([...fold].length !== 1 || pgLower(fold) !== pgLower(ch)) {
+        throw new Error(`U+${cp.toString(16)}: ${fold} / ${pgLower(ch)}`);
+      }
+    }
+    // Wszystkie wielkie litery łaciny, greki, cyrylicy i ormiańskiego - nie zero.
+    expect(changed).toBeGreaterThan(500);
+  });
+});
+
+describe("matchChunkAvatars", () => {
+  const avatarFor = (email: string, rows: ProfileAvatarRow[], norm?: string) => {
+    const keys = avatarLookupKeys([lead("l1", email, norm)]);
+    return matchChunkAvatars(keys, [], rows).get(keys[0]?.id ?? "") ?? null;
+  };
+
+  it("identyczny adres spoza ASCII trafia - także z kluczem JS `i̇zmir@`", () => {
+    const rows = [
+      profile({ contact_email: "İzmir@example.test", avatar_url: "https://cdn.test/i.png" }),
+    ];
+    expect(avatarFor("İzmir@example.test", rows)).toBe("https://cdn.test/i.png");
+    expect(avatarFor("İzmir@example.test", rows, "izmir@example.test")).toBe(
+      "https://cdn.test/i.png",
+    );
+    expect(avatarFor("izmir@example.test", rows)).toBe("https://cdn.test/i.png");
+    // `ı` (bez kropki) to inna litera także dla bazy.
+    expect(avatarFor("ızmir@example.test", rows)).toBeNull();
+  });
+
+  it("wiersz przypisuje się wyłącznie przez `lower()` bazy, nie przez JS `toLowerCase`", () => {
+    // JS: `toLowerCase('ΟΔΟΣ@')` = `οδος@` - ten sam napis co lead z `ς`.
+    // Baza: `lower('ΟΔΟΣ@')` = `οδοσ@` - liść leada `οδος@` go NIE zwraca,
+    // więc wiersz przyniesiony liściem innego leada nie może dać zdjęcia.
+    const rows = [
+      profile({ contact_email: "ΟΔΟΣ@example.test", avatar_url: "https://cdn.test/g.png" }),
+    ];
+    expect(avatarFor("οδος@example.test", rows)).toBeNull();
+    expect(avatarFor("οδοσ@example.test", rows)).toBe("https://cdn.test/g.png");
+    expect(avatarFor("ΟΔΟΣ@example.test", rows)).toBe("https://cdn.test/g.png");
+  });
+
+  it("z kilku pasujących wierszy porcji wygrywa pierwszy (najmniejsze id), z dowolnej postaci", () => {
+    const keys = avatarLookupKeys([lead("l1", "İzmir@example.test")]);
+    const rows = [
+      // Pasuje do klucza `i̇zmir@` (I + U+0307 -> i + U+0307).
+      profile({ contact_email: "I\u0307zmir@example.test", avatar_url: "https://cdn.test/1.png" }),
+      // Pasuje do postaci zapisanej.
+      profile({ contact_email: "İZMIR@example.test", avatar_url: "https://cdn.test/2.png" }),
+    ];
+    expect(matchChunkAvatars(keys, [], rows).get(keys[0]?.id ?? "")).toBe("https://cdn.test/1.png");
+    expect(matchChunkAvatars(keys, [], [...rows].reverse()).get(keys[0]?.id ?? "")).toBe(
+      "https://cdn.test/2.png",
+    );
   });
 });
 
