@@ -69,8 +69,10 @@
 //   * rola klienta szerzej niż reguły bramki: fabryki klienta serwisowego
 //     (`await admin()`), `createClient(…, klucz)`, `const x = ...`
 //     i parametr klienta - przez WSZYSTKIE wywołania funkcji (inaczej
-//     `unknown`; nigdy zgadywanie); fakt z rolą nieustaloną - wyłącznie
-//     z wpisem `UNKNOWN_ROLE_REVIEWED`;
+//     `unknown`; nigdy zgadywanie). Rola nieustalona z WIDOCZNYMI kandydatami
+//     (wołający o różnych rolach, widoczne wywołania funkcji przekazywanej
+//     dalej, `Authorization` z warunku) - uprawnienia i sondy dla każdego
+//     kandydata; bez kandydata - wyłącznie z wpisem `UNKNOWN_ROLE_REVIEWED`;
 //   * zasoby osadzone list `select`, sondy wykonania (widok
 //     `security_invoker`, funkcja SECURITY INVOKER) i gość (`anon`) klienta
 //     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`).
@@ -229,11 +231,43 @@ export interface RoleResolution {
    * sprawdza wtedy OBIE role: wiersz z rolą zmierzoną i drugi z `anon`.
    */
   readonly guest?: boolean;
+  /**
+   * Rola `unknown`: role, które miara WIDZI wśród wartości (wywołania
+   * pomocnika z różnymi klientami, widoczne wywołania funkcji, której nie
+   * każde odwołanie jest wywołaniem, `createClient` z warunkowym
+   * `Authorization`). Każda to prawdziwa ścieżka wykonania, więc bramka
+   * sprawdza uprawnienia i sondy DLA KAŻDEJ; bez kandydatów (`[]` albo brak)
+   * fakt sprawdza tylko istnienie i musi być na liście UNKNOWN_ROLE_REVIEWED.
+   */
+  readonly candidates?: readonly RoleCandidate[];
+  /**
+   * Klient przeglądarki (`guest`) wykonywany także NA SERWERZE: droga do
+   * kontekstu serwera (handler `createServerFn`, middleware, moduł
+   * `*.server.ts`, handler trasy serwerowej, `loader`/`beforeLoad` trasy
+   * z SSR, kod modułu). Na serwerze klient nie ma sesji, więc jego wiersz
+   * `anon` sprawdza bramka ZAWSZE - bez zwolnienia klasy pliku i bez wpisu
+   * GUEST_LOGIN_ONLY_REVIEWED.
+   */
+  readonly server?: string;
+}
+
+/** Widoczna rola wartości o roli `unknown` (`RoleResolution.candidates`). */
+export interface RoleCandidate {
+  readonly role: Exclude<MeasuredRole, "unknown">;
+  readonly via: string;
+  /** Klient przeglądarki - z sesją, a bez niej jako gość (`anon`). */
+  readonly guest: boolean;
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
 }
 
 interface ObservedCommon {
   readonly role: MeasuredRole;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości (`RoleResolution.candidates`), posortowane. */
+  readonly candidates?: readonly RoleCandidate[];
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
   readonly enforcedRole: ClientRole;
   /** Klient przeglądarki: miara sprawdza też `anon` (`RoleResolution.guest`). */
@@ -282,6 +316,11 @@ export interface FilterSite extends ObservedCommon {
    * Budowniczy przez wartość - rola bramki odbiorcy jego `.from()`.
    */
   readonly gateRole: ClientRole;
+  /**
+   * Filtr łańcucha, którego fakty wstrzymuje wpis `SEAM_FACTS_WITHHELD_REVIEWED`
+   * - tylko istnienie kolumny (asercja 12), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
@@ -313,6 +352,11 @@ export interface ObservedEmbed extends ObservedCommon {
   readonly file: string;
   /** Rola bramki dla klienta łańcucha (osadzeń bramka nie sprawdza - `enforcedRole` `unknown`). */
   readonly gateRole: ClientRole;
+  /**
+   * Każdy odczyt z tym osadzeniem to fakt wstrzymany w przeglądzie - tylko
+   * istnienie relacji i kolumn (asercja 14), bez SELECT roli i bez sondy.
+   */
+  readonly withheld?: true;
 }
 
 /**
@@ -332,6 +376,10 @@ export interface ObservedStatement {
   /** Klient przeglądarki: sonda także jako `anon`. */
   readonly guest: boolean;
   readonly via: string;
+  /** Rola `unknown`: widoczne role wartości - sonda jako każda z nich. */
+  readonly candidates?: readonly RoleCandidate[];
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   readonly site: string;
   readonly fn: string;
   /** Kolumny `select` - przy zapisie lista RETURNING; `star` - `*`. */
@@ -1897,14 +1945,85 @@ interface RoleEnv {
   moduleRefs: Map<string, ModuleRef[]> | null;
   readonly memo: Map<string, RoleResolution>;
   readonly sites: Map<ts.Node, readonly CallSite[] | null>;
+  /** Wywołania widoczne funkcji, której nie każde odwołanie jest wywołaniem (`visibleCallSitesOf`). */
+  readonly visibleSites: Map<ts.Node, readonly CallSite[]>;
   /** Licznik cięć głębokości - wynik z cięciem nie trafia do `memo`. */
   depthCuts: number;
+  /**
+   * Węzeł, którego kontekst wykonania mówi, gdzie działa klient przeglądarki:
+   * ostatnie wyrażenie przepływu roli wewnątrz funkcji (użycie aliasu
+   * `const db = supabase` w handlerze, argument w wywołaniu pomocnika).
+   */
+  anchor: ts.Node | null;
+  /** Funkcja najbardziej zewnętrzna -> droga do kontekstu serwera (`null` - brak). */
+  readonly serverPaths: Map<ts.Node, string | null>;
+  /** Funkcje, których drogę właśnie liczymy (cykl odwołań). */
+  readonly serverPathsPending: Set<ts.Node>;
+  /** Cięcia przepływu kontekstu (cykl, głębokość) - wynik z cięciem nie trafia do `serverPaths`. */
+  serverCuts: number;
 }
 
 const MAX_VIA = 400;
 
-function unknownRole(via: string): RoleResolution {
-  return { role: "unknown", via: via.slice(0, MAX_VIA) };
+function unknownRole(via: string, candidates: readonly RoleCandidate[] = []): RoleResolution {
+  const merged = mergeCandidates(candidates);
+  return merged.length === 0
+    ? { role: "unknown", via: via.slice(0, MAX_VIA) }
+    : { role: "unknown", via: via.slice(0, MAX_VIA), candidates: merged };
+}
+
+/** Widoczne role wartości: ustalona rola albo kandydaci roli `unknown`. */
+function candidatesOf(r: RoleResolution): readonly RoleCandidate[] {
+  return r.role === "unknown"
+    ? (r.candidates ?? [])
+    : [{ role: r.role, via: r.via, guest: r.guest === true, ...serverField(r.server) }];
+}
+
+function serverField(server: string | undefined): { readonly server?: string } {
+  return server === undefined ? {} : { server };
+}
+
+/** Pierwsza (leksykograficznie) droga do serwera - wynik niezależny od kolejności plików. */
+function firstServer(xs: readonly (string | undefined)[]): string | undefined {
+  return xs.reduce<string | undefined>(
+    (best, x) => (x !== undefined && (best === undefined || x < best) ? x : best),
+    undefined,
+  );
+}
+
+/**
+ * Kandydaci bez powtórzeń (rola, gość), posortowani; z kilku dróg do tej
+ * samej pary - leksykograficznie pierwsza (wynik nie zależy od kolejności
+ * plików wejścia).
+ */
+function mergeCandidates(xs: readonly RoleCandidate[]): RoleCandidate[] {
+  const best = new Map<string, RoleCandidate>();
+  for (const x of xs) {
+    const key = `${x.role}|${x.guest}`;
+    const via = x.via.slice(0, MAX_VIA);
+    const known = best.get(key);
+    const server = firstServer([known?.server, x.server]);
+    if (known === undefined || via < known.via) {
+      best.set(key, { role: x.role, via, guest: x.guest, ...serverField(server) });
+    } else {
+      best.set(key, { ...known, ...serverField(server) });
+    }
+  }
+  return [...best.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => c);
+}
+
+/** Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi kandydatami. */
+function candidateField(r: RoleResolution): {
+  readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
+} {
+  if (r.role !== "unknown") return serverField(r.server);
+  return r.candidates !== undefined && r.candidates.length > 0 ? { candidates: r.candidates } : {};
+}
+
+/** Kandydaci z przedrostkiem drogi (`etykieta <- droga kandydata`). */
+function labelled(label: string, xs: readonly RoleCandidate[]): RoleCandidate[] {
+  return xs.map((c) => ({ ...c, via: `${label} <- ${c.via}` }));
 }
 
 function compactText(node: ts.Node, scope: FileScope, max = 60): string {
@@ -1934,15 +2053,22 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
   const distinct = [...new Set(roles.map((r) => r.role))];
   if (distinct.length !== 1 || distinct[0] === "unknown") {
     const first = roles.find((r) => r.role === "unknown");
+    // Każda widoczna wartość to ścieżka wykonania - jej rola zostaje
+    // kandydatem (sprawdzanym), nawet gdy inne wartości są nieustalone.
     return unknownRole(
       `${label}: role [${distinct.join(", ")}]${first === undefined ? "" : ` - ${first.via}`}`,
+      labelled(label, roles.flatMap(candidatesOf)),
     );
   }
   const vias = [...new Set(roles.map((r) => r.via))];
   // Klient przeglądarki w KTÓRYMKOLWIEK wywołaniu - zapytanie idzie też jako
   // gość (`anon`); to suma wartości, nie zgadywanie.
   return withGuest(
-    { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) },
+    {
+      role: distinct[0],
+      via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA),
+      ...serverField(firstServer(roles.map((r) => r.server))),
+    },
     roles.some((r) => r.guest === true),
   );
 }
@@ -1956,8 +2082,28 @@ function withGuest(role: RoleResolution, guest: boolean | undefined): RoleResolu
   return guest === true ? { ...role, guest: true } : role;
 }
 
-/** Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary. */
+/**
+ * Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary.
+ * Wyrażenie wewnątrz funkcji staje się kotwicą kontekstu wykonania
+ * (`RoleEnv.anchor`) dla klienta przeglądarki rozstrzygniętego głębiej
+ * (alias modułu, import).
+ */
 function measuredRole(
+  expr: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const saved = env.anchor;
+  if (saved === null || enclosingFunction(expr) !== null) env.anchor = expr;
+  try {
+    return measuredRoleAt(expr, scope, env, depth);
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+function measuredRoleAt(
   expr: ts.Expression,
   scope: FileScope,
   env: RoleEnv,
@@ -1992,7 +2138,11 @@ function measuredRole(
         }
         if (imported.role === legacy) {
           return withGuest(
-            { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+            {
+              role: legacy,
+              via: `bramka: ${legacyRoleVia(expr, scope)}`,
+              ...serverField(imported.server),
+            },
             imported.guest,
           );
         }
@@ -2009,7 +2159,10 @@ function measuredRole(
         if (bound.role === "unknown") {
           return bound.absent === true
             ? bound
-            : unknownRole(`reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`);
+            : unknownRole(
+                `reguła nazwy nie zgaduje (bramka: ${legacy}): ${bound.via}`,
+                bound.candidates,
+              );
         }
         if (bound.role !== legacy) {
           return {
@@ -2021,7 +2174,11 @@ function measuredRole(
           };
         }
         return withGuest(
-          { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+          {
+            role: legacy,
+            via: `bramka: ${legacyRoleVia(expr, scope)}`,
+            ...serverField(bound.server),
+          },
           bound.guest,
         );
       }
@@ -2029,13 +2186,16 @@ function measuredRole(
     // Reguła nazwy bez wiązania w pliku: `supabase` w pliku z importem klienta
     // przeglądarki to ten klient (gość - `anon`); sam `requireSupabaseAuth`
     // to klient z sesją z żądania.
-    return withGuest(
-      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+    const browser =
       ts.isIdentifier(node) &&
-        node.text === "supabase" &&
-        !scope.adminAliases.has("supabase") &&
-        scope.browserClient,
+      node.text === "supabase" &&
+      !scope.adminAliases.has("supabase") &&
+      scope.browserClient;
+    const named = withGuest(
+      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+      browser,
     );
+    return browser ? browserOnServer(named, env) : named;
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -2054,6 +2214,304 @@ function measuredRole(
     );
   }
   return unknownRole(`wyrażenie ${compactText(node, scope)}`);
+}
+
+/**
+ * Wartość wyliczona przy kotwicy `node`: argument wywołania pomocnika
+ * wykonuje się w kontekście TEGO wywołania (wołającego), nie miejsca faktu.
+ */
+function atAnchor<T>(env: RoleEnv, node: ts.Node, f: () => T): T {
+  const saved = env.anchor;
+  env.anchor = node;
+  try {
+    return f();
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+/**
+ * Klient przeglądarki przy kotwicy kontekstu: wykonany (także) na serwerze -
+ * flaga `server` z drogą; tam nie ma sesji, więc idzie jako `anon` dla
+ * każdego, także zalogowanego i obsługi panelu.
+ */
+function browserOnServer(role: RoleResolution, env: RoleEnv): RoleResolution {
+  const path = env.anchor === null ? null : serverPathOf(env.anchor, env, 0);
+  return path === null ? role : { ...role, server: path.slice(0, MAX_VIA) };
+}
+
+/** Moduł wyłącznie serwerowy (TanStack Start nie wpuszcza go do przeglądarki). */
+const SERVER_MODULE_RE = /\.server\.tsx?$/;
+/** Budowniczowie funkcji serwera i ich metody z ciałem wykonywanym na serwerze. */
+const SERVER_BUILDER_METHODS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["createServerFn", new Set(["handler", "validator", "inputValidator"])],
+  ["createMiddleware", new Set(["server"])],
+  ["createIsomorphicFn", new Set(["server"])],
+]);
+/** Wywołania tworzące trasę - `loader` i `beforeLoad` ich opcji działają w SSR. */
+const ROUTE_BUILDERS: ReadonlySet<string> = new Set([
+  "createFileRoute",
+  "createRoute",
+  "createRootRoute",
+  "createRootRouteWithContext",
+]);
+const HTTP_METHODS: ReadonlySet<string> = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+  "ALL",
+]);
+
+/**
+ * Nazwa funkcji u korzenia łańcucha wywołań budowniczego
+ * (`createServerFn({...}).middleware([...])` -> `createServerFn`,
+ * `createFileRoute("/x")` -> `createFileRoute`); import pod inną nazwą
+ * (`import { createServerFn as f }`) - nazwa eksportu.
+ */
+function builderRootName(expr: ts.Expression): string | null {
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node)) node = unwrap(node.expression);
+    else if (ts.isPropertyAccessExpression(node)) node = unwrap(node.expression);
+    else break;
+  }
+  if (!ts.isIdentifier(node)) return null;
+  const binding = bindingOf(node, null);
+  return binding.kind === "import" ? binding.name : node.text;
+}
+
+/**
+ * Funkcja wykonywana na serwerze z samego miejsca w kodzie: handler
+ * i walidator `createServerFn`, `.server(...)` middleware'u
+ * i `createIsomorphicFn`, `createServerOnlyFn(...)`, `loader`/`beforeLoad`
+ * opcji trasy (SSR; `ssr: false` - tylko przeglądarka) i handler metody HTTP
+ * trasy serwerowej (`server: { handlers: { GET } }`). `null` - inna.
+ */
+function serverFunctionKind(fn: ts.SignatureDeclaration | ts.Expression): string | null {
+  const outer: ts.Node = ts.isMethodDeclaration(fn) ? fn : outermostWrapper(fn as ts.Expression);
+  const parent = outer.parent;
+  if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === outer)) {
+    const callee = unwrap(parent.expression);
+    if (ts.isIdentifier(callee) && builderRootName(callee) === "createServerOnlyFn") {
+      return "createServerOnlyFn";
+    }
+    if (ts.isPropertyAccessExpression(callee)) {
+      const root = builderRootName(callee.expression);
+      if (root !== null && SERVER_BUILDER_METHODS.get(root)?.has(callee.name.text) === true) {
+        return `${root}().${callee.name.text}`;
+      }
+    }
+    return null;
+  }
+  const prop = ts.isMethodDeclaration(fn)
+    ? fn
+    : ts.isPropertyAssignment(parent) && parent.initializer === outer
+      ? parent
+      : null;
+  if (prop === null || !ts.isObjectLiteralExpression(prop.parent)) return null;
+  const name = propName(prop.name);
+  const obj = prop.parent;
+  const holder = outermostWrapper(obj).parent;
+  if (name === "loader" || name === "beforeLoad") {
+    const ssrOff = obj.properties.some(
+      (p) =>
+        ts.isPropertyAssignment(p) &&
+        propName(p.name) === "ssr" &&
+        p.initializer.kind === ts.SyntaxKind.FalseKeyword,
+    );
+    return ts.isCallExpression(holder) &&
+      ROUTE_BUILDERS.has(builderRootName(holder.expression) ?? "") &&
+      !ssrOff
+      ? `${name} trasy`
+      : null;
+  }
+  if (name !== null && HTTP_METHODS.has(name)) {
+    if (ts.isPropertyAssignment(holder) && propName(holder.name) === "handlers") {
+      return `handler ${name} trasy serwerowej`;
+    }
+    const callee = ts.isCallExpression(holder) ? unwrap(holder.expression) : null;
+    if (
+      callee !== null &&
+      ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === "methods"
+    ) {
+      return `handler ${name} trasy serwerowej`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Nazwa, pod którą żyje funkcja najbardziej zewnętrzna (deklaracja,
+ * `const f = () => ...`, callback we właściwości obiektu przypisanego do
+ * stałej - także przez owijkę `queryOptions({ queryFn })`). `null` - funkcja
+ * bez nazwy (callback oddany wywołaniu, eksport domyślny).
+ */
+function functionHolder(
+  fn: ts.SignatureDeclaration,
+): { readonly name: ts.Identifier; readonly statement: ts.Statement } | null {
+  if (ts.isFunctionDeclaration(fn)) {
+    return fn.name === undefined ? null : { name: fn.name, statement: fn };
+  }
+  let node: ts.Node =
+    ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) ? outermostWrapper(fn) : fn;
+  for (let hops = 0; hops < 8; hops += 1) {
+    const parent: ts.Node = node.parent;
+    if (ts.isVariableDeclaration(parent) && parent.initializer === node) {
+      return ts.isIdentifier(parent.name) &&
+        ts.isVariableDeclarationList(parent.parent) &&
+        parent.parent.flags & ts.NodeFlags.Const &&
+        ts.isVariableStatement(parent.parent.parent)
+        ? { name: parent.name, statement: parent.parent.parent }
+        : null;
+    }
+    if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(parent)) {
+      node = outermostWrapper(parent);
+    } else if (
+      ts.isPropertyAssignment(parent) &&
+      parent.initializer === node &&
+      ts.isObjectLiteralExpression(parent.parent)
+    ) {
+      node = outermostWrapper(parent.parent);
+    } else if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === node)) {
+      // Owijka `queryOptions({ ... })` - obiekt jako argument wywołania,
+      // które samo jest wartością stałej.
+      node = outermostWrapper(parent);
+    } else {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * WIDOCZNE odwołania do nazwy (wywołania i wartości): w jej zasięgu
+ * i - eksport - w plikach importujących (import nazwany, rozkład `import()`
+ * także w `Promise.all`, `(await import(...)).nazwa`). Odwołanie w kodzie,
+ * którego reguła nie widzi, po prostu nie trafia na listę.
+ */
+function visibleReferencesOf(
+  name: ts.Identifier,
+  statement: ts.Statement,
+  scope: FileScope,
+  env: RoleEnv,
+): { readonly node: ts.Node; readonly scope: FileScope }[] {
+  const out: { node: ts.Node; scope: FileScope }[] = [];
+  const collect = (root: ts.Node, local: string, decl: ts.Node | null, at: FileScope): void => {
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        if (node.text === local && node !== decl && isValueReference(node)) {
+          out.push({ node, scope: at });
+        }
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+  };
+  const container = statement.parent;
+  if (bindingCount(container, name.text) === 1) collect(container, name.text, name, scope);
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return out;
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name.text || bindingCount(imp.scope.sf, imp.local) !== 0) continue;
+    collect(imp.scope.sf, imp.local, null, imp.scope);
+  }
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    if (!ts.isCallExpression(ref.node)) continue;
+    const outer = outermostAwaited(ref.node);
+    if (ts.isPropertyAccessExpression(outer.parent) && outer.parent.name.text === name.text) {
+      out.push({ node: outer.parent, scope: ref.scope });
+      continue;
+    }
+    const direct =
+      ts.isVariableDeclaration(outer.parent) && ts.isObjectBindingPattern(outer.parent.name)
+        ? { pattern: outer.parent.name, decl: outer.parent }
+        : promiseAllImportPattern(ref.node);
+    if (direct === null) continue;
+    const block = direct.decl.parent.parent?.parent;
+    for (const el of direct.pattern.elements) {
+      const source = el.propertyName
+        ? propName(el.propertyName)
+        : ts.isIdentifier(el.name)
+          ? el.name.text
+          : null;
+      if (source !== name.text || !ts.isIdentifier(el.name) || block === undefined) continue;
+      if (bindingCount(block, el.name.text) === 1) collect(block, el.name.text, el.name, ref.scope);
+    }
+  }
+  return out;
+}
+
+/**
+ * Droga do kontekstu SERWERA dla węzła: moduł `*.server.ts`, funkcja serwera
+ * nad węzłem (`serverFunctionKind`), kod modułu (wykonuje się przy imporcie,
+ * także w SSR), a dla funkcji bez takiego kontekstu - jej widoczne
+ * odwołania (wywołanie w `loader`, `queryFn` opcji zapytania rozgrzewanych
+ * w `loader`, pomocnik wołany z handlera). `null` - żadna widoczna droga
+ * (komponent, hook, handler zdarzenia - wyłącznie przeglądarka).
+ */
+function serverPathOf(
+  node: ts.Node,
+  env: RoleEnv,
+  depth: number,
+  reference = false,
+): string | null {
+  const scope = env.flow.scopes.get(node.getSourceFile().fileName);
+  if (scope === undefined) return null;
+  if (SERVER_MODULE_RE.test(scope.file)) return `moduł ${scope.file}`;
+  let outermost: ts.SignatureDeclaration | null = null;
+  for (let current = node.parent; current; current = current.parent) {
+    if (!ts.isFunctionLike(current)) continue;
+    const kind = serverFunctionKind(current);
+    if (kind !== null) return `${kind} (${scope.file})`;
+    outermost = current;
+  }
+  if (outermost === null) {
+    if (!reference) return `kod modułu ${scope.file} (import także w SSR)`;
+    // Odwołanie na poziomie modułu WYKONUJE funkcję tylko jako wywołanie
+    // (`f()` przy imporcie) albo jako ciało funkcji serwera / `loader`
+    // (`.handler(f)`, `loader: f`); `component: F`, eksport, mapa - nie.
+    const outer = outermostWrapper(node as ts.Expression);
+    if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
+      return `wywołanie w kodzie modułu ${scope.file} (import także w SSR)`;
+    }
+    const kind = ts.isExpression(node) ? serverFunctionKind(node) : null;
+    return kind === null ? null : `${kind} (${scope.file})`;
+  }
+  if (env.serverPaths.has(outermost)) {
+    const known = env.serverPaths.get(outermost) ?? null;
+    if (known === null && env.serverPathsPending.has(outermost)) env.serverCuts += 1;
+    return known;
+  }
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.serverCuts += 1;
+    return null;
+  }
+  const holder = functionHolder(outermost);
+  // Komponent (`Nazwa`) i hook (`useX`) to konteksty wyłącznie przeglądarki:
+  // render w SSR nie uruchamia `queryFn`/efektów, a odwołanie do komponentu
+  // (`component: X`, `.server(() => X)`) nie wykonuje jego zapytań.
+  if (holder === null || /^(?:[A-Z]|use[A-Z0-9])/.test(holder.name.text)) return null;
+  env.serverPaths.set(outermost, null);
+  env.serverPathsPending.add(outermost);
+  const cutsBefore = env.serverCuts;
+  const paths: string[] = [];
+  for (const ref of visibleReferencesOf(holder.name, holder.statement, scope, env)) {
+    if (within(ref.node, outermost)) continue;
+    const path = serverPathOf(ref.node, env, depth + 1, true);
+    if (path !== null) paths.push(`${holder.name.text} <- ${path}`.slice(0, MAX_VIA));
+  }
+  env.serverPathsPending.delete(outermost);
+  const found = paths.length === 0 ? null : paths.reduce((a, b) => (b < a ? b : a));
+  if (env.serverCuts === cutsBefore) env.serverPaths.set(outermost, found);
+  else env.serverPaths.delete(outermost);
+  return found;
 }
 
 type Binding =
@@ -2326,6 +2784,39 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
   if (ts.isBindingElement(decl)) {
     const pattern = decl.parent;
     const vd = pattern.parent;
+    // `const [{ createClient }, { x }] = await Promise.all([import("m"), ...])`
+    // - element tablicy to przestrzeń nazw modułu, jak `const { x } = await import("m")`.
+    if (ts.isObjectBindingPattern(pattern) && ts.isBindingElement(vd)) {
+      const list = vd.parent;
+      const all = list.parent;
+      const init =
+        ts.isArrayBindingPattern(list) && ts.isVariableDeclaration(all) && all.initializer
+          ? unwrap(all.initializer)
+          : null;
+      const items =
+        init !== null && ts.isCallExpression(init) && init.arguments.length === 1
+          ? unwrap(init.arguments[0])
+          : null;
+      const item =
+        items !== null && ts.isArrayLiteralExpression(items)
+          ? items.elements[(list as ts.ArrayBindingPattern).elements.indexOf(vd)]
+          : undefined;
+      const spec = item === undefined ? null : dynamicImportSpec(item);
+      const viaAll = spec === null ? null : promiseAllImportPattern(unwrap(item as ts.Expression));
+      const prop = decl.propertyName ? propName(decl.propertyName) : name;
+      if (
+        spec !== null &&
+        viaAll?.pattern === pattern &&
+        prop !== null &&
+        decl.dotDotDotToken === undefined &&
+        decl.initializer === undefined &&
+        ts.isVariableDeclarationList(viaAll.decl.parent) &&
+        viaAll.decl.parent.flags & ts.NodeFlags.Const
+      ) {
+        return { kind: "import", module: spec, name: prop };
+      }
+      return noBinding(`${name}: element rozkładu poza regułą`);
+    }
     if (
       !ts.isObjectBindingPattern(pattern) ||
       !ts.isVariableDeclaration(vd) ||
@@ -2352,7 +2843,7 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
  * (albo funkcja - parametry), który deklaruje nazwę WPROST. Parametr
  * przypisywany, `var`, zmienna pętli albo `catch` - poza regułą.
  */
-function bindingOf(id: ts.Identifier, _scope: FileScope): Binding {
+function bindingOf(id: ts.Identifier, _scope: FileScope | null): Binding {
   const name = id.text;
   for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
     const parent = node.parent;
@@ -2455,7 +2946,8 @@ function importRole(
   const target = resolveModule(scope.file, spec, env.flow.known);
   const knownExport = KNOWN_CLIENT_EXPORTS.find((k) => k.module === target && k.name === name);
   if (knownExport !== undefined) {
-    return withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    const known = withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    return knownExport.guest ? browserOnServer(known, env) : known;
   }
   const exported = moduleExport(spec, name, scope, env);
   if (exported === null || exported.binding.kind !== "local" || exported.binding.prop !== null) {
@@ -2595,20 +3087,27 @@ function envKeyOf(expr: ts.Expression | undefined, scope: FileScope, depth = 0):
   return null;
 }
 
-/** Czy opcje `createClient` mogą nieść nagłówek `Authorization`; `null` - nie wiadomo. */
+/**
+ * Czy opcje `createClient` niosą nagłówek `Authorization`: `always`, `never`,
+ * `maybe` (zależnie od warunku - np. `bearer === null ? {...} : { headers }`);
+ * `null` - nie wiadomo.
+ */
 function mayCarryAuthorization(
   expr: ts.Expression | undefined,
   path: readonly string[],
-): boolean | null {
-  if (expr === undefined) return false;
+): "always" | "never" | "maybe" | null {
+  if (expr === undefined) return "never";
   const node = unwrap(expr);
   if (ts.isConditionalExpression(node)) {
     const a = mayCarryAuthorization(node.whenTrue, path);
     const b = mayCarryAuthorization(node.whenFalse, path);
-    return a === null || b === null ? null : a || b;
+    return a === null || b === null ? null : a === b ? a : "maybe";
   }
   if (!ts.isObjectLiteralExpression(node)) return null;
-  let carries = false;
+  let carries: "always" | "never" | "maybe" = "never";
+  const add = (x: "always" | "never" | "maybe"): void => {
+    if (x === "always" || (x === "maybe" && carries === "never")) carries = x;
+  };
   for (const p of node.properties) {
     if (ts.isSpreadAssignment(p)) return null;
     const key = p.name === undefined ? null : propName(p.name as ts.PropertyName);
@@ -2618,14 +3117,14 @@ function mayCarryAuthorization(
     }
     if (path.length === 0) {
       // `accessToken` (funkcja tokenu) na najwyższym poziomie opcji.
-      if (key === "accessToken") carries = true;
+      if (key === "accessToken") add("always");
     }
-    if (path.length === 2 && key.toLowerCase() === "authorization") carries = true;
+    if (path.length === 2 && key.toLowerCase() === "authorization") add("always");
     const next = ["global", "headers"][path.length];
     if (key === next && ts.isPropertyAssignment(p)) {
       const inner = mayCarryAuthorization(p.initializer, [...path, key]);
       if (inner === null) return null;
-      carries ||= inner;
+      add(inner);
     }
   }
   return carries;
@@ -2648,9 +3147,21 @@ function createClientRole(call: ts.CallExpression, scope: FileScope): RoleResolu
   if (/PUBLISHABLE|ANON/.test(key)) {
     const auth = mayCarryAuthorization(call.arguments[2], []);
     if (auth === null) return unknownRole(`createClient(…, ${key}): opcje nieczytelne`);
-    return auth
-      ? { role: "authenticated", via: `createClient(…, ${key}) z nagłówkiem Authorization` }
-      : { role: "anon", via: `createClient(…, ${key})` };
+    const withHeader: RoleResolution = {
+      role: "authenticated",
+      via: `createClient(…, ${key}) z nagłówkiem Authorization`,
+    };
+    const without: RoleResolution = { role: "anon", via: `createClient(…, ${key})` };
+    // Nagłówek z warunku (token wołającego albo gość) - obie role to ścieżki
+    // wykonania: kandydaci, nie zgadywanie jednej.
+    return auth === "always"
+      ? withHeader
+      : auth === "never"
+        ? without
+        : unknownRole(`createClient(…, ${key}): nagłówek Authorization z warunku`, [
+            { role: "anon", via: `${without.via} bez nagłówka`, guest: false },
+            { role: "authenticated", via: withHeader.via, guest: false },
+          ]);
   }
   return unknownRole(`createClient: klucz ${key}`);
 }
@@ -2757,9 +3268,11 @@ function callRole(
       if (arg === undefined) continue;
       const member = prop ?? ref.prop;
       roles.push(
-        member === null
-          ? measuredRole(arg, scope, env, depth + 1)
-          : memberRole(arg, member, scope, env, depth + 1),
+        atAnchor(env, call, () =>
+          member === null
+            ? measuredRole(arg, scope, env, depth + 1)
+            : memberRole(arg, member, scope, env, depth + 1),
+        ),
       );
       continue;
     }
@@ -2839,11 +3352,16 @@ function isValueReference(id: ts.Identifier): boolean {
   return true;
 }
 
-/** Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem wprost; inaczej `null`. */
+/**
+ * Wywołania `name(...)`, gdy KAŻDE odwołanie do nazwy w `root` jest wywołaniem
+ * wprost; inaczej `null`. `partial` - same wywołania widoczne, odwołania inne
+ * niż wywołanie (wartość, callback) pominięte.
+ */
 function directCallReferences(
   root: ts.Node,
   name: string,
   declaration: ts.Node | null,
+  partial = false,
 ): ts.CallExpression[] | null {
   const calls: ts.CallExpression[] = [];
   let complete = true;
@@ -2854,7 +3372,7 @@ function directCallReferences(
         const outer = outermostWrapper(node);
         if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
           calls.push(outer.parent);
-        } else complete = false;
+        } else if (!partial) complete = false;
       }
       return;
     }
@@ -2864,10 +3382,9 @@ function directCallReferences(
   return complete ? calls : null;
 }
 
-/** Wywołania przez `import()`: rozkład `const { f } = await import(...)` albo `(await import(...)).f(...)`. */
-function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
-  if (!ts.isCallExpression(ref.node)) return null; // przestrzeń nazw, reeksport
-  let outer: ts.Node = ref.node;
+/** Wyrażenie razem z owijkami `await`, nawiasy, `as`, `!` nad nim. */
+function outermostAwaited(node: ts.Node): ts.Node {
+  let outer = node;
   while (
     (ts.isAwaitExpression(outer.parent) ||
       ts.isParenthesizedExpression(outer.parent) ||
@@ -2877,42 +3394,120 @@ function dynamicImportCalls(ref: ModuleRef, name: string): CallSite[] | null {
   ) {
     outer = outer.parent;
   }
+  return outer;
+}
+
+/**
+ * Wzorzec rozkładu przestrzeni nazw modułu z `import()` w `Promise.all`:
+ * `const [{ a }, { b }] = await Promise.all([import("x"), import("y")])` -
+ * dla elementu `import("y")` wzorzec `{ b }` i deklaracja; `null` - inny kształt.
+ */
+function promiseAllImportPattern(
+  importCall: ts.Node,
+): { readonly pattern: ts.ObjectBindingPattern; readonly decl: ts.VariableDeclaration } | null {
+  const item = outermostWrapper(importCall as ts.Expression);
+  const list = item.parent;
+  if (!ts.isArrayLiteralExpression(list)) return null;
+  const index = list.elements.indexOf(item);
+  if (index === -1 || list.elements.slice(0, index + 1).some(ts.isSpreadElement)) return null;
+  const all = outermostWrapper(list).parent;
+  if (!ts.isCallExpression(all) || all.arguments.length !== 1) return null;
+  const callee = unwrap(all.expression);
+  if (
+    !ts.isPropertyAccessExpression(callee) ||
+    callee.name.text !== "all" ||
+    !ts.isIdentifier(callee.expression) ||
+    callee.expression.text !== "Promise"
+  ) {
+    return null;
+  }
+  const decl = outermostAwaited(all).parent;
+  if (
+    !ts.isVariableDeclaration(decl) ||
+    decl.initializer === undefined ||
+    unwrap(decl.initializer) !== all ||
+    !ts.isArrayBindingPattern(decl.name)
+  ) {
+    return null;
+  }
+  const el = decl.name.elements[index];
+  return el !== undefined &&
+    ts.isBindingElement(el) &&
+    el.dotDotDotToken === undefined &&
+    el.initializer === undefined &&
+    ts.isObjectBindingPattern(el.name) &&
+    decl.name.elements.slice(0, index).every((e) => !ts.isBindingElement(e) || !e.dotDotDotToken)
+    ? { pattern: el.name, decl }
+    : null;
+}
+
+/**
+ * Wywołania przez `import()`: rozkład `const { f } = await import(...)`
+ * (także element `await Promise.all([import(...), ...])`) albo
+ * `(await import(...)).f(...)`. `partial` - kształt nieczytelny i odwołania
+ * inne niż wywołanie pominięte zamiast `null`.
+ */
+function dynamicImportCalls(ref: ModuleRef, name: string, partial = false): CallSite[] | null {
+  const none = partial ? [] : null;
+  if (!ts.isCallExpression(ref.node)) return none; // przestrzeń nazw, reeksport
+  const outer = outermostAwaited(ref.node);
   const parent = outer.parent;
   if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) {
     if (parent.name.text !== name) return [];
     const wrapped = outermostWrapper(parent);
     return ts.isCallExpression(wrapped.parent) && wrapped.parent.expression === wrapped
       ? [{ call: wrapped.parent, scope: ref.scope }]
-      : null;
+      : none;
   }
+  let pattern: ts.ObjectBindingPattern | null = null;
+  let decl: ts.VariableDeclaration | null = null;
   if (
     ts.isVariableDeclaration(parent) &&
     parent.initializer === outer &&
-    ts.isObjectBindingPattern(parent.name) &&
-    ts.isVariableDeclarationList(parent.parent) &&
-    parent.parent.flags & ts.NodeFlags.Const &&
-    ts.isVariableStatement(parent.parent.parent)
+    ts.isObjectBindingPattern(parent.name)
   ) {
-    const block = parent.parent.parent.parent;
-    const sites: CallSite[] = [];
-    for (const el of parent.name.elements) {
-      if (el.dotDotDotToken) return null;
-      const source = el.propertyName
-        ? propName(el.propertyName)
-        : ts.isIdentifier(el.name)
-          ? el.name.text
-          : null;
-      if (source !== name) continue;
-      if (!ts.isIdentifier(el.name)) return null;
-      const local = el.name.text;
-      if (bindingCount(block, local) !== 1 || isAssigned(block, local)) return null;
-      const calls = directCallReferences(block, local, el.name);
-      if (calls === null) return null;
-      sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
-    }
-    return sites;
+    pattern = parent.name;
+    decl = parent;
+  } else {
+    const viaAll = promiseAllImportPattern(ref.node);
+    if (viaAll !== null) ({ pattern, decl } = viaAll);
   }
-  return null;
+  if (
+    pattern === null ||
+    decl === null ||
+    !ts.isVariableDeclarationList(decl.parent) ||
+    !(decl.parent.flags & ts.NodeFlags.Const) ||
+    !ts.isVariableStatement(decl.parent.parent)
+  ) {
+    return none;
+  }
+  const block = decl.parent.parent.parent;
+  const sites: CallSite[] = [];
+  for (const el of pattern.elements) {
+    if (el.dotDotDotToken) {
+      if (partial) continue;
+      return null;
+    }
+    const source = el.propertyName
+      ? propName(el.propertyName)
+      : ts.isIdentifier(el.name)
+        ? el.name.text
+        : null;
+    if (source !== name) continue;
+    if (!ts.isIdentifier(el.name)) {
+      if (partial) continue;
+      return null;
+    }
+    const local = el.name.text;
+    if (bindingCount(block, local) !== 1 || isAssigned(block, local)) {
+      if (partial) continue;
+      return null;
+    }
+    const calls = directCallReferences(block, local, el.name, partial);
+    if (calls === null) return null;
+    sites.push(...calls.map((call) => ({ call, scope: ref.scope })));
+  }
+  return sites;
 }
 
 /**
@@ -2926,83 +3521,113 @@ function callSitesOf(
   env: RoleEnv,
 ): readonly CallSite[] | null {
   if (env.sites.has(fn)) return env.sites.get(fn) ?? null;
-  const compute = (): CallSite[] | null => {
-    let name: string;
-    let statement: ts.Statement;
-    let declaration: ts.Node;
-    if (ts.isFunctionDeclaration(fn)) {
-      if (fn.name === undefined || fn.body === undefined) return null;
-      name = fn.name.text;
-      statement = fn;
-      declaration = fn.name;
-    } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
-      const outer = outermostWrapper(fn);
-      const decl = outer.parent;
-      // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
-      // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
-      // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
-      if (ts.isCallExpression(decl) && decl.expression !== outer) {
-        const k = decl.arguments.indexOf(outer);
-        const callee = unwrap(decl.expression);
-        if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return null;
-        const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
-        const param = target?.fn.parameters[k];
-        if (
-          target == null ||
-          param === undefined ||
-          !ts.isIdentifier(param.name) ||
-          param.dotDotDotToken !== undefined ||
-          param.initializer !== undefined ||
-          isAssigned(target.fn, param.name.text)
-        ) {
-          return null;
-        }
-        const invocations = directCallReferences(target.fn, param.name.text, param.name);
-        return invocations === null
-          ? null
-          : invocations.map((call) => ({ call, scope: target.scope }));
-      }
+  const sites = collectCallSites(fn, scope, env, false);
+  env.sites.set(fn, sites);
+  return sites;
+}
+
+/**
+ * Wywołania funkcji WIDOCZNE w źródłach - także gdy nie każde odwołanie jest
+ * wywołaniem (`callSitesOf` daje wtedy `null`). Każde to prawdziwa ścieżka
+ * wykonania: rola jego argumentu jest kandydatem roli parametru.
+ */
+function visibleCallSitesOf(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+): readonly CallSite[] {
+  const all = callSitesOf(fn, scope, env);
+  if (all !== null) return all;
+  let visible = env.visibleSites.get(fn);
+  if (visible === undefined) {
+    visible = collectCallSites(fn, scope, env, true) ?? [];
+    env.visibleSites.set(fn, visible);
+  }
+  return visible;
+}
+
+function collectCallSites(
+  fn: ts.SignatureDeclaration,
+  scope: FileScope,
+  env: RoleEnv,
+  partial: boolean,
+): CallSite[] | null {
+  const none = partial ? [] : null;
+  let name: string;
+  let statement: ts.Statement;
+  let declaration: ts.Node;
+  if (ts.isFunctionDeclaration(fn)) {
+    if (fn.name === undefined || fn.body === undefined) return none;
+    name = fn.name.text;
+    statement = fn;
+    declaration = fn.name;
+  } else if (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) {
+    const outer = outermostWrapper(fn);
+    const decl = outer.parent;
+    // Callback oddany funkcji G jako argument k: wywołania to KAŻDE użycie
+    // parametru k w ciele G (wszystkie muszą być wywołaniami wprost) - dla
+    // wszystkich callbacków, jakie G dostaje, więc zbiór jest nadzbiorem.
+    if (ts.isCallExpression(decl) && decl.expression !== outer) {
+      const k = decl.arguments.indexOf(outer);
+      const callee = unwrap(decl.expression);
+      if (k === -1 || decl.arguments.slice(0, k).some(ts.isSpreadElement)) return none;
+      const target = ts.isIdentifier(callee) ? calledFunction(callee, scope, env) : null;
+      const param = target?.fn.parameters[k];
       if (
-        !ts.isVariableDeclaration(decl) ||
-        decl.initializer !== outer ||
-        !ts.isIdentifier(decl.name) ||
-        !ts.isVariableDeclarationList(decl.parent) ||
-        !(decl.parent.flags & ts.NodeFlags.Const) ||
-        !ts.isVariableStatement(decl.parent.parent)
+        target == null ||
+        param === undefined ||
+        !ts.isIdentifier(param.name) ||
+        param.dotDotDotToken !== undefined ||
+        param.initializer !== undefined ||
+        isAssigned(target.fn, param.name.text)
       ) {
-        return null;
+        return none;
       }
-      name = decl.name.text;
-      statement = decl.parent.parent;
-      declaration = decl.name;
-    } else {
+      const invocations = directCallReferences(target.fn, param.name.text, param.name, partial);
+      return invocations === null
+        ? null
+        : invocations.map((call) => ({ call, scope: target.scope }));
+    }
+    if (
+      !ts.isVariableDeclaration(decl) ||
+      decl.initializer !== outer ||
+      !ts.isIdentifier(decl.name) ||
+      !ts.isVariableDeclarationList(decl.parent) ||
+      !(decl.parent.flags & ts.NodeFlags.Const) ||
+      !ts.isVariableStatement(decl.parent.parent)
+    ) {
+      return none;
+    }
+    name = decl.name.text;
+    statement = decl.parent.parent;
+    declaration = decl.name;
+  } else {
+    return none;
+  }
+  const container = statement.parent;
+  if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return none;
+  const own = directCallReferences(container, name, declaration, partial);
+  if (own === null) return null;
+  const sites: CallSite[] = own.map((call) => ({ call, scope }));
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return sites;
+  }
+  if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return partial ? sites : null;
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    const more = dynamicImportCalls(ref, name, partial);
+    if (more === null) return null;
+    sites.push(...more);
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name) continue;
+    if (bindingCount(imp.scope.sf, imp.local) !== 0) {
+      if (partial) continue;
       return null;
     }
-    const container = statement.parent;
-    if (bindingCount(container, name) !== 1 || isAssigned(container, name)) return null;
-    const own = directCallReferences(container, name, declaration);
-    if (own === null) return null;
-    const sites: CallSite[] = own.map((call) => ({ call, scope }));
-    if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
-      return sites;
-    }
-    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return null;
-    for (const ref of moduleRefsOf(scope.file, env)) {
-      const more = dynamicImportCalls(ref, name);
-      if (more === null) return null;
-      sites.push(...more);
-    }
-    for (const imp of importersOf(scope.file, env.flow)) {
-      if (imp.imported !== name) continue;
-      if (bindingCount(imp.scope.sf, imp.local) !== 0) return null;
-      const more = directCallReferences(imp.scope.sf, imp.local, null);
-      if (more === null) return null;
-      sites.push(...more.map((call) => ({ call, scope: imp.scope })));
-    }
-    return sites;
-  };
-  const sites = compute();
-  env.sites.set(fn, sites);
+    const more = directCallReferences(imp.scope.sf, imp.local, null, partial);
+    if (more === null) return null;
+    sites.push(...more.map((call) => ({ call, scope: imp.scope })));
+  }
   return sites;
 }
 
@@ -3028,7 +3653,25 @@ function paramRole(
   const sites = callSitesOf(fn, scope, env);
   let result: RoleResolution;
   if (sites === null) {
-    result = unknownRole(`${label}: nie każde odwołanie do funkcji to widoczne wywołanie`);
+    // Rola parametru nieustalona (nie każdy wołający widoczny), ale każde
+    // WIDOCZNE wywołanie to ścieżka wykonania - jego rola jest kandydatem.
+    const visible = visibleCallSitesOf(fn, scope, env);
+    const roles: RoleResolution[] = [];
+    for (const site of visible) {
+      const arg = argumentAt(site.call, index);
+      if (arg === "spread" || arg === undefined) continue;
+      roles.push(
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
+      );
+    }
+    result = unknownRole(
+      `${label}: nie każde odwołanie do funkcji to widoczne wywołanie`,
+      labelled(`${label} (widoczne: ${visible.length})`, roles.flatMap(candidatesOf)),
+    );
   } else {
     const roles: RoleResolution[] = [];
     let spread = false;
@@ -3040,9 +3683,11 @@ function paramRole(
       }
       if (arg === undefined) continue;
       roles.push(
-        prop === null
-          ? measuredRole(arg, site.scope, env, depth + 1)
-          : memberRole(arg, prop, site.scope, env, depth + 1),
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
       );
     }
     result = spread
@@ -3746,6 +4391,8 @@ interface Collector {
     embeds: ObservedEmbed[];
     /** Klucz osadzenia (z kluczem rodzica) -> `id` - to samo osadzenie tylko raz. */
     embedKeys: Map<string, number>;
+    /** `id` osadzenia -> ile odczytów je niesie i ile z nich to fakty wstrzymane. */
+    embedUses: Map<number, { total: number; withheld: number }>;
     statements: ObservedStatement[];
     /** Klucze `statements` - to samo zapytanie z kilku przebiegów tylko raz. */
     statementKeys: Set<string>;
@@ -4023,6 +4670,7 @@ function visitFile(
             via: `budowniczy przez wartość <- ${builder.role.via}`.slice(0, MAX_VIA),
             enforcedRole: "unknown",
             guest: builder.role.guest === true,
+            ...candidateField(builder.role),
             gateRole: builder.gate,
             file: column.file,
             site: scope.file,
@@ -4088,6 +4736,7 @@ function handleRpc(
     via: measured.via,
     enforcedRole: role,
     guest: measured.guest === true,
+    ...candidateField(measured),
     file: scope.file,
     site: scope.file,
     fn: enclosingFunctionPath(node),
@@ -4190,9 +4839,9 @@ function handleBuilder(
   // Łańcuch (indeks w `chains`) każdego faktu miary - do zapytań sond.
   const chainFacts: { readonly fact: ObservedTable; readonly chain: number }[] = [];
   let chainIndex = 0;
-  const fact = (f: TableSite, call: ts.CallExpression): void => {
+  const fact = (f: TableSite, call: ts.CallExpression): boolean => {
     const withheld = pushTableFact(out, f, call, scope);
-    if (measure === null) return;
+    if (measure === null) return withheld;
     const observedFact: ObservedTable = {
       ...f,
       role: measure.role.role,
@@ -4200,19 +4849,29 @@ function handleBuilder(
       enforcedRole: withheld ? "unknown" : f.role,
       withheld,
       guest: measure.role.guest === true,
+      ...candidateField(measure.role),
       site: scope.file,
       fn: enclosingFunctionPath(call),
     };
     out.observed.tables.push(observedFact);
     chainFacts.push({ fact: observedFact, chain: chainIndex });
+    return withheld;
   };
   const site = (
     call: ts.CallExpression,
     op: TableOp,
     columns: readonly string[],
     star: boolean,
-  ): void => {
-    fact({ table, op, columns, star, role, file: scope.file }, call);
+  ): boolean => fact({ table, op, columns, star, role, file: scope.file }, call);
+  // Osadzenia odczytu niosą jego wstrzymanie (fakt bez kolumn - odczyt
+  // nie jest wstrzymany).
+  const embedUse = (ids: readonly number[], withheld: boolean): void => {
+    for (const id of ids) {
+      const use = out.observed.embedUses.get(id) ?? { total: 0, withheld: 0 };
+      use.total += 1;
+      if (withheld) use.withheld += 1;
+      out.observed.embedUses.set(id, use);
+    }
   };
 
   for (const [index, chain] of chains.entries()) {
@@ -4253,12 +4912,14 @@ function handleBuilder(
             ? resolveString(arg, scope, exportsIndex, known)
             : null;
         for (const value of flowed ?? []) {
-          if (measure !== null) {
-            observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(value.text, value.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(value.text);
+          let withheld = false;
           if (parsed.star || parsed.columns.length > 0) {
-            fact(
+            withheld = fact(
               {
                 table,
                 op: "select",
@@ -4270,6 +4931,7 @@ function handleBuilder(
               call,
             );
           }
+          embedUse(ids, withheld);
           if (hasRuntimeColumn(value.text)) {
             flow.unresolved.add(
               `${scope.file}: .select(${arg.getText(scope.sf).slice(0, 60)}) <- ${value.file}: kolumna z wartości czasu działania`,
@@ -4277,13 +4939,16 @@ function handleBuilder(
           }
         }
         for (const select of viaHelper ?? (text === null ? [] : [text])) {
-          if (measure !== null) {
-            observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
-          }
+          const ids =
+            measure === null
+              ? []
+              : observeEmbeds(select, scope.file, table, role, measure.role, call, scope, out);
           const parsed = parseSelectColumns(select);
-          if (parsed.star || parsed.columns.length > 0) {
-            site(call, "select", parsed.columns, parsed.star);
-          }
+          embedUse(
+            ids,
+            (parsed.star || parsed.columns.length > 0) &&
+              site(call, "select", parsed.columns, parsed.star),
+          );
         }
         // Ani napisu `select`, ani zgłoszonego miejsca nieczytelnego: kontrakt
         // tego odczytu nie widzi (zapadka `UNCHECKED_SELECTS_REVIEWED`).
@@ -4342,6 +5007,30 @@ function handleBuilder(
       out,
       measure,
     );
+    // Filtry łańcucha z faktem wstrzymanym: zapytanie (łańcuch wprost razem
+    // z łańcuchem użycia - grupy jak w `observeStatements`) niesie defekt
+    // przejrzany, więc jego filtry - tylko istnienie. Filtr łańcucha wprost
+    // wspólny z niewstrzymanym użyciem zostaje sprawdzany.
+    const withheldChains = new Set(chainFacts.filter((f) => f.fact.withheld).map((f) => f.chain));
+    if (withheldChains.size > 0) {
+      const hasDirect = direct.length > 0;
+      const bound = Array.from(
+        { length: Math.max(0, chains.length - (hasDirect ? 1 : 0)) },
+        (_, i) => (hasDirect ? 1 : 0) + i,
+      );
+      const groups = bound.length === 0 ? [[0]] : bound.map((i) => (hasDirect ? [0, i] : [i]));
+      const held = (chain: number): boolean => {
+        const mine = groups.filter((g) => g.includes(chain));
+        return mine.length > 0 && mine.every((g) => g.some((c) => withheldChains.has(c)));
+      };
+      for (const [i, entry] of chainFilters.entries()) {
+        if (!held(entry.chain)) continue;
+        const filter: FilterSite = { ...entry.filter, withheld: true };
+        const at = out.observed.filters.lastIndexOf(entry.filter);
+        if (at !== -1) out.observed.filters[at] = filter;
+        chainFilters[i] = { filter, chain: entry.chain };
+      }
+    }
     observeStatements(
       chains.length,
       direct.length > 0,
@@ -4397,8 +5086,9 @@ function observeEmbeds(
   call: ts.CallExpression,
   scope: FileScope,
   out: Collector,
-): void {
+): number[] {
   const fn = enclosingFunctionPath(call);
+  const ids: number[] = [];
   const walk = (list: string, parentId: number | null, prefix: string | null, depth: number) => {
     if (depth > 8) return;
     for (const raw of splitTopLevel(list)) {
@@ -4420,6 +5110,7 @@ function observeEmbeds(
         role.role,
         role.guest === true,
         role.via,
+        role.candidates ?? [],
         gateRole,
         file,
       ]);
@@ -4441,16 +5132,19 @@ function observeEmbeds(
           via: role.via,
           enforcedRole: "unknown",
           guest: role.guest === true,
+          ...candidateField(role),
           gateRole,
           file,
           site: scope.file,
           fn,
         });
       }
+      ids.push(id);
       walk(item.inner, id, path, depth + 1);
     }
   };
   walk(select, null, null, 0);
+  return ids;
 }
 
 /** Metody faktów filtra upsertu: cel `ON CONFLICT` i kolumny `EXCLUDED`. */
@@ -4517,6 +5211,7 @@ function observeStatements(
                 role: role.role,
                 enforcedRole: enforcedOf(selects),
                 guest,
+                ...candidateField(role),
                 via: role.via,
                 site,
                 fn,
@@ -4536,6 +5231,7 @@ function observeStatements(
               role: role.role,
               enforcedRole: enforcedOf([w, ...selects]),
               guest,
+              ...candidateField(role),
               via: role.via,
               site,
               fn: w.fn,
@@ -4624,6 +5320,7 @@ function observeChainFilters(
           via: measure.role.via,
           enforcedRole: "unknown",
           guest: measure.role.guest === true,
+          ...candidateField(measure.role),
           gateRole,
           file: column.file,
           site: scope.file,
@@ -4887,6 +5584,7 @@ export function extractSeamFacts(
       filters: [],
       embeds: [],
       embedKeys: new Map(),
+      embedUses: new Map(),
       statements: [],
       statementKeys: new Set(),
       unresolvedFilters: [],
@@ -4910,7 +5608,12 @@ export function extractSeamFacts(
             moduleRefs: null,
             memo: new Map(),
             sites: new Map(),
+            visibleSites: new Map(),
             depthCuts: 0,
+            anchor: null,
+            serverPaths: new Map(),
+            serverPathsPending: new Set(),
+            serverCuts: 0,
           },
           filters: measureFlow,
         }
@@ -4947,7 +5650,13 @@ export function extractSeamFacts(
       rpcs: out.observed.rpcs,
       tables: out.observed.tables,
       filters: out.observed.filters,
-      embeds: out.observed.embeds,
+      // Osadzenie wstrzymane: KAŻDY odczyt, który je niesie, to fakt wstrzymany.
+      embeds: out.observed.embeds.map((e) => {
+        const use = out.observed.embedUses.get(e.id);
+        return use !== undefined && use.total > 0 && use.withheld === use.total
+          ? { ...e, withheld: true as const }
+          : e;
+      }),
       statements: out.observed.statements,
       // Miejsca nieczytelne reguły przepływu kolumn wywołane z filtrów
       // (własny `FlowEnv` miary) dochodzą tutaj, nie do zapadki bramki.
@@ -5187,8 +5896,10 @@ export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
 // (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
 // wykonania). Teraz te fakty idą do pgTAP (asercje 10-19, `renderContractTest`):
 //   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
-//     `unknown` - tam, gdzie się różni od roli bramki; fakty z rolą wciąż
-//     nieustaloną wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`,
+//     `unknown` - tam, gdzie się różni od roli bramki; rola wciąż
+//     nieustalona - KAŻDA widoczna rola-kandydat (`checkedRoles`), a fakty
+//     bez kandydata wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`
+//     (z kształtem przejrzanym),
 //   * kolumny filtrów, sortowania i celu upsertu oraz zasoby osadzone list
 //     `select` - istnienie i SELECT roli,
 //   * sondy wykonania (zapytanie jako rola w podtransakcji, wycofane),
@@ -5225,265 +5936,300 @@ export function unknownRoleKey(site: string, fn: string, call: string): string {
   return `${site}: ${fn}: ${call}`;
 }
 
-/**
- * Wszechświat ról nieustalonych: fakty RPC i tabel z rolą zmierzoną `unknown`
- * (liczone) oraz łańcuchy z taką rolą bez faktu tabeli (sam filtr, zapytanie
- * sondy, osadzenie) - klucz musi być na liście, liczba faktów może być 0.
- */
-function unknownRoleUniverse(facts: SeamFacts): Map<string, number> {
-  const o = facts.observed;
-  const out = new Map<string, number>();
-  const add = (key: string, n: number): void => {
-    out.set(key, (out.get(key) ?? 0) + n);
-  };
-  for (const r of o.rpcs) {
-    if (r.role === "unknown") add(unknownRoleKey(r.site, r.fn, `.rpc(${r.name})`), 1);
-  }
-  for (const t of o.tables) {
-    if (t.role === "unknown") add(unknownRoleKey(t.site, t.fn, `.from(${t.table})`), 1);
-  }
-  for (const x of [...o.filters.filter((f) => f.embed === null), ...o.statements, ...o.embeds]) {
-    if (x.role === "unknown") add(unknownRoleKey(x.site, x.fn, `.from(${x.table})`), 0);
-  }
-  return out;
+/** Fakt miary z kluczem listy (plik wywołania, ścieżka funkcji, relacja łańcucha). */
+type KeyedFact =
+  | ({ readonly kind: "rpc" } & ObservedRpc)
+  | ({ readonly kind: "table" } & ObservedTable)
+  | ({ readonly kind: "filter" } & FilterSite)
+  | ({ readonly kind: "embed" } & ObservedEmbed)
+  | ({ readonly kind: "statement" } & ObservedStatement);
+
+function keyedFacts(o: ObservedFacts): KeyedFact[] {
+  return [
+    ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x })),
+    ...o.tables.map((x) => ({ kind: "table" as const, ...x })),
+    ...o.filters.map((x) => ({ kind: "filter" as const, ...x })),
+    ...o.embeds.map((x) => ({ kind: "embed" as const, ...x })),
+    ...o.statements.map((x) => ({ kind: "statement" as const, ...x })),
+  ];
 }
 
+/**
+ * Wywołanie łańcucha faktu w kluczach list (`.rpc(fn)` / `.from(tabela)`):
+ * filtr osadzenia (`rel.kolumna`) - pod tabelą łańcucha swojego osadzenia
+ * (ta sama ścieżka w funkcji - leksykograficznie pierwsza tabela, jak w SQL
+ * `--guest-gaps`); bez osadzenia - pod własną tabelą.
+ */
+function factCallOf(o: ObservedFacts): (x: KeyedFact) => string {
+  const chainOf = new Map<string, string>();
+  for (const e of o.embeds) {
+    const key = `${e.site}|${e.fn}|${e.path}`;
+    const known = chainOf.get(key);
+    if (known === undefined || e.table < known) chainOf.set(key, e.table);
+  }
+  return (x) => {
+    switch (x.kind) {
+      case "rpc":
+        return `.rpc(${x.name})`;
+      case "filter":
+        return `.from(${x.embed === null ? x.table : (chainOf.get(`${x.site}|${x.fn}|${x.embed}`) ?? x.table)})`;
+      default:
+        return `.from(${x.table})`;
+    }
+  };
+}
+
+/**
+ * Klucze list (plik, funkcja, relacja) wybranych faktów z liczbą faktów RPC
+ * i tabel (łańcuch bez faktu - 0) i KSZTAŁTEM: operacja i kolumny faktów,
+ * klucze RPC, kolumny filtrów, sortowania i celu upsertu (także osadzeń)
+ * i osadzenia z kolumnami - posortowane. Kształt jest odciskiem tego, co
+ * wpis zwalnia: dopisana kolumna, filtr albo zamieniony łańcuch go zmienia.
+ */
+function shapeUniverse(
+  o: ObservedFacts,
+  pick: (x: KeyedFact) => boolean,
+): Map<string, { count: number; shape: string }> {
+  const callOf = factCallOf(o);
+  const acc = new Map<string, { count: number; parts: Set<string> }>();
+  const cols = (columns: readonly string[], star: boolean): string =>
+    [...columns, ...(star ? ["*"] : [])].join(",");
+  for (const x of keyedFacts(o)) {
+    if (!pick(x)) continue;
+    // Kolumny `EXCLUDED` upsertu to jego ładunek - już w kształcie faktu zapisu.
+    if (x.kind === "filter" && x.method === "upsert(EXCLUDED)") continue;
+    const key = unknownRoleKey(x.site, x.fn, callOf(x));
+    const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
+    if (x.kind === "rpc") {
+      at.count += 1;
+      at.parts.add(`rpc(${x.keys?.join(",") ?? "?"})`);
+    } else if (x.kind === "table") {
+      at.count += 1;
+      at.parts.add(`${x.op}[${cols(x.columns, x.star)}]`);
+    } else if (x.kind === "filter") {
+      at.parts.add(`${x.method}(${x.embed === null ? "" : `${x.embed}.`}${x.column})`);
+    } else if (x.kind === "embed") {
+      at.parts.add(
+        `${x.path}:${x.rel}${x.hint === null ? "" : `!${x.hint}`}(${cols(x.columns, x.star)})`,
+      );
+    }
+    acc.set(key, at);
+  }
+  return new Map(
+    [...acc].map(([key, { count, parts }]) => [key, { count, shape: [...parts].sort().join(" ") }]),
+  );
+}
+
+/**
+ * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
+ * (`checkedRoles` puste; liczone) oraz łańcuchy z taką rolą bez faktu tabeli
+ * (sam filtr, zapytanie sondy, osadzenie) - klucz musi być na liście, liczba
+ * faktów może być 0. Kształt - `shapeUniverse`.
+ */
+function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(facts.observed, (x) => checkedRoles(x).length === 0);
+}
+
+/**
+ * Wpis UNKNOWN_ROLE_REVIEWED: liczba faktów RPC i tabel, kształt przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny faktów, klucze RPC, kolumny
+ * filtrów i osadzeń - posortowane) i powód.
+ */
+export type UnknownRoleEntry = readonly [count: number, shape: string, reason: string];
+
 const NOT_EVERY_REFERENCE =
-  "klient z parametru funkcji, której nie każde odwołanie jest widocznym wywołaniem (`const { f } = await import(...)`, funkcja w tablicy źródeł albo obiekcie pomocników, callback) - reguła parametru nie zna wszystkich klientów, więc rola faktu byłaby zgadywaniem";
-const MIXED_CALLERS =
-  "parametr klienta, który wywołania podają z RÓŻNYMI rolami (sesja użytkownika i `service_role`, albo z rolą nieustaloną) - jedna rola faktu byłaby zgadywaniem; każdy wołający ma własne fakty, ten zostaje bez uprawnień";
+  "klient z parametru funkcji bez ŻADNEGO widocznego wywołania (funkcja w tablicy źródeł albo obiekcie pomocników, callback wołany dynamicznie) - nie ma kandydata roli do sprawdzenia, a rola faktu byłaby zgadywaniem";
 const MEMO_CLIENT =
   "klient z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`, `let cachedPublicClient`), także przez parametr pomocnika albo wartość domyślną - wiązanie przypisywane, reguła roli go nie śledzi";
-const HOST_ANON_CLIENT =
-  "`hostAnonClient(bearer)` składa `createClient(url, klucz publiczny)` z opcjonalnym `Authorization` wołającego - `anon` albo `authenticated` zależnie od sesji żądania, więc rola jednego faktu nie istnieje";
 const LET_CLIENT =
   "klient w `let` ustawianym w gałęziach (`let admin` / `let client` przypisywane warunkowo) - reguła roli śledzi tylko `const` i pojedyncze `=`";
 const MEMBER_CLIENT =
   "klient z pola obiektu albo instancji (`this.supabase`, `.client` wyniku `callerSupabase()`, element rozkładu `Promise.all`) - reguła roli nie czyta pól wyniku funkcji";
 
 /**
- * Fakty, których rola klienta jest NIEUSTALONA także dla miary (parametr
- * pomocnika z różnymi wołającymi, klient z pamięci modułu, funkcja jako
- * wartość) - pgTAP sprawdza ich istnienie, a uprawnienia wyłącznie wtedy,
- * gdy rolę dała reguła bramki (asercje 2 i 5; dziś tak jest tylko
- * w `ticket.server.ts`, gdzie reguła nazwy mówi `authenticated`). Klucz: plik
- * wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`; wartość: ile
- * faktów RPC i tabel (łańcuch bez faktu - 0) i dlaczego. Lista może TYLKO
- * maleć: nowy fakt z rolą nieustaloną (albo nowy w znanym kluczu) czerwieni
- * `check:ts-sql-contract`, a wpis, któremu ubyło faktów - też (zdejmij go
- * albo zmniejsz licznik). Naprawa: klient wprost (`supabaseAdmin`, klient
- * przeglądarki, `context.supabase`) albo parametr z jedną rolą we wszystkich
- * wywołaniach.
+ * Fakty, których rola klienta jest NIEUSTALONA także dla miary i które nie
+ * mają ŻADNEJ widocznej roli-kandydata (klient z pamięci modułu, pole obiektu,
+ * `let` z mutacją, funkcja bez widocznych wywołań) - pgTAP sprawdza ich
+ * istnienie, a uprawnienia wyłącznie wtedy, gdy rolę dała reguła bramki
+ * (asercje 2 i 5). Fakt z kandydatami (wołający o różnych rolach, widoczne
+ * wywołania funkcji przekazywanej dalej, `createClient` z `Authorization`
+ * z warunku) idzie do pgTAP z KAŻDĄ widoczną rolą i wpisu nie potrzebuje.
+ * Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`;
+ * wartość: ile faktów RPC i tabel (łańcuch bez faktu - 0), KSZTAŁT przejrzany
+ * (`unknownRoleUniverse`: operacja i kolumny, klucze RPC, kolumny filtrów
+ * i osadzeń) i dlaczego. Lista może TYLKO maleć: nowy fakt bez roli, nowy
+ * w znanym kluczu albo zmiana kształtu (dopisana kolumna, filtr, zamieniony
+ * łańcuch) czerwieni `check:ts-sql-contract`, a wpis, któremu ubyło faktów -
+ * też (zdejmij go albo zmniejsz licznik). Naprawa: klient wprost
+ * (`supabaseAdmin`, klient przeglądarki, `context.supabase`) albo parametr
+ * z jedną rolą we wszystkich wywołaniach.
  */
-export const UNKNOWN_ROLE_REVIEWED: Readonly<
-  Record<string, readonly [count: number, reason: string]>
-> = {
+export const UNKNOWN_ROLE_REVIEWED: Readonly<Record<string, UnknownRoleEntry>> = {
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: clubs: .rpc(admin_revenue_clubs_summary)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: email: .rpc(admin_revenue_email_health)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: events: .rpc(admin_revenue_events_summary)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: funnel: .rpc(admin_revenue_funnel)": [
     1,
+    "rpc(p_segment,p_since,p_track,p_until)",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/analytics/semantic/revenueSnapshot.functions.ts: snapshot: .rpc(admin_revenue_semantic_snapshot)":
-    [1, NOT_EVERY_REFERENCE],
+    [1, "rpc(p_since,p_until)", NOT_EVERY_REFERENCE],
   "src/lib/billing/catalogAutoSync.server.ts: recordManualSync: .from(payment_integration_state)": [
     1,
+    "onConflict(environment) upsert[catalog_fingerprint,environment,fingerprint,last_error,last_reason,last_report,last_status,last_synced_at]",
     MEMBER_CLIENT,
-  ],
-  "src/lib/billing/checkoutSettings.server.ts: loadCheckoutSettings: .from(checkout_settings)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/billing/couponRpc.server.ts: releaseCouponForUser: .rpc(release_b2b_coupon)": [
-    1,
-    MIXED_CALLERS,
-  ],
-  "src/lib/email/queueDrain.server.ts: alreadySent: .from(email_send_log)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: deleteMessage: .rpc(delete_email)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: loadConfig: .from(email_send_state)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: loadFailedAttempts: .from(email_send_log)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: logSend: .from(email_send_log)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: moveToDlq: .rpc(move_to_dlq)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: readBatch: .rpc(read_email_batch)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/queueDrain.server.ts: recheckAccountBound: .rpc(email_queue_send_recheck)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/queueDrain.server.ts: startCooldown: .from(email_send_state)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(name_dictionary)": [
-    1,
-    MEMO_CLIENT,
-  ],
-  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(newsletter_subscribers)": [
-    1,
-    MEMO_CLIENT,
-  ],
-  "src/lib/email/suppression.server.ts: applyDeliveryEvent: .rpc(email_apply_delivery_event)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/suppression.server.ts: fetchSuppressedEmails: .rpc(email_filter_suppressed)": [
-    1,
-    NOT_EVERY_REFERENCE,
   ],
   "src/lib/email/suppression.server.ts: isEmailSuppressed: .rpc(email_is_suppressed)": [
     1,
+    "rpc(p_email,p_tenant)",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/email/suppression.server.ts: recordSuppression: .rpc(email_record_suppression)": [
     1,
+    "rpc(p_campaign,p_diagnostic,p_email,p_event_id,p_meta,p_provider,p_provider_message_id,p_reason,p_source,p_subscriber,p_tenant)",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/email/suppression.server.ts: releaseUnsubscribeOnOptIn: .from(email_suppressions)": [
-    1,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/email/suppression.server.ts: resolveAccountTenantForAddress: .rpc(email_account_tenant_for_address)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/suppression.server.ts: resolveTenantForAddress: .rpc(email_resolve_tenant_for_address)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/suppression.server.ts: unsubscribeByToken.call: .rpc(email_unsubscribe_by_token)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/email/transactional.server.ts: alreadyHandled: .from(email_send_log)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: enqueueRawEmail: .from(email_send_log)": [2, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: enqueueRawEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: sendTxEmail: .from(email_send_log)": [2, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: sendTxEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
-  "src/lib/email/transactional.server.ts: suppressionGate: .from(email_send_log)": [1, MEMO_CLIENT],
-  "src/lib/email/txOverrides.server.ts: loadTxOverrides: .from(site_settings)": [1, MIXED_CALLERS],
-  "src/lib/email/unsubscribeToken.server.ts: ensureUnsubscribeToken: .from(email_unsubscribe_tokens)":
-    [4, MEMO_CLIENT],
   "src/lib/events/eventConsent.server.ts: listMyEventConsentsForCaller: .rpc(event_my_consent_state)":
-    [1, MEMBER_CLIENT],
-  "src/lib/events/eventRegistration.server.ts: attachAttribution: .rpc(event_registration_attribution_attach)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/eventRegistration.server.ts: legacyRegister: .rpc(event_register)": [
-    1,
-    HOST_ANON_CLIENT,
-  ],
-  "src/lib/events/groupGuests.server.ts: legacyRegisterGuests: .rpc(event_register_group_guests)": [
-    1,
-    HOST_ANON_CLIENT,
-  ],
-  "src/lib/events/groupTicketCodes.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/registrationSelfNotify.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
-    [1, HOST_ANON_CLIENT],
-  "src/lib/events/ticket.server.ts: assertSeatAvailable: .from(event_rsvps)": [1, MIXED_CALLERS],
-  "src/lib/events/ticket.server.ts: legacySeatsFor: .from(events)": [1, MIXED_CALLERS],
-  "src/lib/events/ticket.server.ts: legacySeatsFor: .rpc(get_event_rsvp_counts)": [
-    1,
-    MIXED_CALLERS,
-  ],
-  "src/lib/events/ticket.server.ts: seatsFor: .rpc(event_seat_state)": [1, MIXED_CALLERS],
+    [1, "rpc()", MEMBER_CLIENT],
   "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_issue_ticket_codes)":
-    [1, LET_CLIENT],
+    [1, "rpc(p_registration_id)", LET_CLIENT],
   "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_ticket_code_confirm)":
-    [1, LET_CLIENT],
+    [1, "rpc(?)", LET_CLIENT],
   "src/lib/events/wallet/walletRoutes.server.ts: loadTicket: .rpc(event_ticket_wallet_payload)": [
     1,
+    "rpc(p_payload)",
     LET_CLIENT,
   ],
-  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [1, MEMO_CLIENT],
-  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [1, MEMO_CLIENT],
-  "src/lib/privacy/measurementStatus.server.ts: fetchMeasuredEmails: .rpc(email_measurement_status)":
-    [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_alerts)": [
-    3,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_checks)": [
-    0,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(user_roles)": [
+  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [
     1,
+    "in(id) in(slug) or(id) or(slug) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [
+    1,
+    "rpc(_page_ids)",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [
+    1,
+    "in(id) select[id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [
+    1,
+    "in(slug) select[parent_id,slug]",
+    MEMO_CLIENT,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(outbound_link_checks)": [
-    2,
-    NOT_EVERY_REFERENCE,
-  ],
-  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(posts)": [2, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [1, NOT_EVERY_REFERENCE],
   "src/lib/server/sitemapEntries.server.ts: experts: .from(author_profiles)": [
     1,
+    "eq(tenant_id) in(user_id) order(id) select[is_public,user_id]",
     NOT_EVERY_REFERENCE,
   ],
   "src/lib/server/sitemapEntries.server.ts: experts: .from(profile_badges)": [
     1,
+    "eq(badge) eq(tenant_id) order(id) select[user_id]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [
+    1,
+    "eq(tenant_id) in(id) order(id) select[id,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcast_shows)": [
     1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [
+    1,
+    "eq(status) eq(tenant_id) is(deleted_at) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) select[parent_page_id,published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: programs: .from(research_programs)": [
     1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [
+    1,
+    "eq(tenant_id) neq(status) order(id) select[opens_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: readHomepageReading.work: .from(site_settings)": [
     1,
+    "eq(key) eq(tenant_id) select[value]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [1, NOT_EVERY_REFERENCE],
-  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [
+    1,
+    "eq(status) eq(tenant_id) order(id) select[published_at,slug,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,kind,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [
+    1,
+    "eq(seo_noindex) eq(status) eq(tenant_id) is(deleted_at) order(id) post_categories:post_categories(category_id) post_tags:post_tags(tag_id) select[id,published_at,updated_at]",
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [
+    1,
+    "eq(tenant_id) order(id) select[created_at,id,slug]",
+    NOT_EVERY_REFERENCE,
+  ],
   "src/lib/server/sitemapEntries.server.ts: tracker: .from(eu_policy_items)": [
     1,
+    "eq(status) eq(tenant_id) order(id) select[created_at,slug,updated_at]",
     NOT_EVERY_REFERENCE,
   ],
-  "src/lib/server/userTenant.server.ts: readUserTenantId: .from(profiles)": [
+  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [
     1,
-    NOT_EVERY_REFERENCE,
+    "eq(id) select[log]",
+    MEMBER_CLIENT,
   ],
-  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [1, MEMBER_CLIENT],
-  "src/lib/wordpress-import.functions.ts: patchJob: .from(wp_import_jobs)": [0, MIXED_CALLERS],
 };
 
 /**
- * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy albo
- * z większą liczbą faktów; `stale` - klucz z mniejszą liczbą albo bez faktu
- * z rolą nieustaloną (naprawiony - zdejmij). Oba czerwienią bramkę.
+ * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy,
+ * z większą liczbą faktów albo z INNYM kształtem niż przejrzany (nowa
+ * kolumna, filtr, osadzenie, zamiana łańcucha - wpis przegląda się na nowo);
+ * `stale` - klucz z mniejszą liczbą albo bez faktu bez widocznej roli
+ * (naprawiony - zdejmij). Oba czerwienią bramkę.
  */
 export function unknownRoleDrift(
   facts: SeamFacts,
-  reviewed: Readonly<Record<string, readonly [number, string]>> = UNKNOWN_ROLE_REVIEWED,
+  reviewed: Readonly<Record<string, UnknownRoleEntry>> = UNKNOWN_ROLE_REVIEWED,
 ): { fresh: string[]; stale: string[] } {
   const universe = unknownRoleUniverse(facts);
   const fresh: string[] = [];
   const stale: string[] = [];
-  for (const [key, count] of universe) {
+  for (const [key, { count, shape }] of universe) {
     const entry = reviewed[key];
     if (entry === undefined || count > entry[0]) {
-      fresh.push(`${key} (${count}, przejrzanych: ${entry?.[0] ?? "-"})`);
+      fresh.push(`${key} (${count}, kształt "${shape}", przejrzanych: ${entry?.[0] ?? "-"})`);
+    } else if (entry[1] !== shape) {
+      fresh.push(`${key} (kształt "${shape}", przejrzany "${entry[1]}")`);
     }
   }
   for (const [key, [allowed]] of Object.entries(reviewed)) {
-    const count = universe.get(key);
+    const count = universe.get(key)?.count;
     if (count === undefined || count < allowed) {
       stale.push(`${key} (${count ?? "brak faktu z rolą nieustaloną"}, przejrzanych: ${allowed})`);
     }
@@ -5496,72 +6242,136 @@ export function unknownRoleDrift(
  * plik wywołania osiągalny wyłącznie z panelu (`/admin`, przekierowanie bez
  * `isStaff`) albo spod bramki sesji. `public` i `none` (plik bez ścieżki
  * z trasy - niepewne, więc sprawdzany) - wiersze `anon` idą do pgTAP.
+ * Zwolnienie dotyczy WYŁĄCZNIE wykonania w przeglądarce: klient przeglądarki
+ * wykonany na serwerze (`RoleResolution.server` - handler i middleware
+ * funkcji serwera, moduł `*.server.ts`, handler trasy serwerowej,
+ * `loader`/`beforeLoad` trasy z SSR, także przez pomocniki) nie ma sesji dla
+ * nikogo, więc jego wiersz `anon` idzie zawsze.
  */
 export const GUEST_EXEMPT_CLASSES: ReadonlySet<string> = new Set(["admin", "session-gate"]);
 
-/** Klucz listy gościa: plik wywołania i ścieżka funkcji. */
+/** Para (plik wywołania, ścieżka funkcji) - nagłówek pliku pgTAP i raport `--guest-gaps`. */
 export function guestKey(site: string, fn: string): string {
   return `${site}: ${fn}`;
 }
 
 /**
- * Funkcje w plikach klasy `public` (osiągalnych z trasy publicznej), które
+ * Wpis GUEST_LOGIN_ONLY_REVIEWED: liczba faktów RPC i tabel gościa pod
+ * kluczem, kształt przejrzany (jak w UNKNOWN_ROLE_REVIEWED: operacja
+ * i kolumny, klucze RPC, kolumny filtrów i osadzeń) i dowód bramki
+ * `plik:linia` z rozpoznaną bramką w tej linii (±2).
+ */
+export type GuestLoginOnlyEntry = readonly [count: number, shape: string, evidence: string];
+
+/**
+ * Fakty w plikach klasy `public` (osiągalnych z trasy publicznej), które
  * mimo to wykonują się WYŁĄCZNIE z sesją: zapytanie z `enabled: !!user`,
  * komponent renderowany pod `{user && ...}`, handler za `requireSupabaseAuth`.
  * Klasa `public` jest górnym oszacowaniem (`guestReach.ts`), więc takie
  * miejsce czerwieniłoby pgTAP jako gość bez defektu - wpis zdejmuje wiersze
- * `anon` faktów TEJ funkcji, nic poza nimi (rola z sesją zostaje
- * sprawdzana). Klucz: `plik: ścieżka funkcji` (`guestKey`); wartość: dowód
- * bramki z `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`) -
- * bez niego wpis czerwieni `check:ts-sql-contract`. Wpis, który nie trafia
- * w funkcję z faktem gościa w pliku `public`, też (naprawiony albo
- * przeniesiony - zdejmij). Listę wypełnia przegląd wyniku
- * `bun run generate:ts-sql-contract --guest-gaps` (klucze, które jako gość
- * padają na bazie po migracjach).
+ * `anon` faktów POD KLUCZEM, nic poza nimi (rola z sesją zostaje
+ * sprawdzana). Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` /
+ * `.from(tabela)` - ten sam kształt co w UNKNOWN_ROLE_REVIEWED, bo ścieżka
+ * funkcji bywa wspólna dla rodzeństwa (`queryFn` kilku `queryOptions`
+ * w module, kilka `useQuery` w komponencie). Wartość: liczba faktów, kształt
+ * i dowód bramki `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`).
+ * `check:ts-sql-contract` czerwieni wpis: bez faktu gościa pod kluczem
+ * w pliku `public`, z innym kształtem albo liczbą (dopisane zapytanie pod tym
+ * samym kluczem), z dowodem, którego plik albo linia nie istnieje albo nie
+ * ma w niej bramki. Fakt klienta wykonanego na serwerze (`server`) jest
+ * anonimowy dla każdego - wpis go nie zdejmuje. Listę wypełnia przegląd
+ * wyniku `bun run generate:ts-sql-contract --guest-gaps` (gotowe klucze,
+ * liczby i kształty tego, co jako gość pada na bazie po migracjach).
  */
-export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, string>> = {};
+export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, GuestLoginOnlyEntry>> = {};
 
-/** Dowód bramki we wpisie gościa: ścieżka pliku z numerem linii. */
-const GUARD_EVIDENCE_RE = /(?:^|[\s(`'"])[\w@.\-/]+\.(?:tsx?|sql):\d+/;
+/**
+ * Bramka sesji rozpoznawana w linii dowodu (±2): `enabled:` zapytania,
+ * `user &&` / `session &&` / `isAuthenticated &&`, `!user` / `!session`
+ * (wczesny `return` bez sesji), `<AuthGate`, `requireSupabaseAuth`,
+ * `redirect`/`navigate` na `/login`.
+ */
+export const GUARD_TOKEN_RE =
+  /enabled\s*:|\b(?:user|session|isAuthenticated|isLoggedIn)\s*(?:&&|\?)|!\s*!?\s*(?:user|session|isAuthenticated|isLoggedIn)\b|<AuthGate\b|requireSupabaseAuth|(?:redirect|navigate)\(\s*\{[^}]*["'`]\/login/;
 
-/** Fakty klienta przeglądarki (wiersze gościa) z kluczem i klasą osiągalności pliku. */
-function guestFactKeys(
-  facts: SeamFacts,
-  reach: ReadonlyMap<string, SiteReach>,
-): Map<string, string> {
-  const o = facts.observed;
-  const out = new Map<string, string>();
-  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
-    if (!x.guest || x.role !== "authenticated") continue;
-    out.set(guestKey(x.site, x.fn), reach.get(x.site)?.cls ?? "none");
+/** Odwołania `plik:linia` w dowodzie wpisu gościa. */
+const EVIDENCE_REF_RE = /(?:^|[\s(`'"])([\w@.\-/$]+\.(?:tsx?|sql)):(\d+)/g;
+
+/** Problem dowodu bramki wpisu gościa (`null` - dowód sprawdzony w źródłach). */
+function guardEvidenceProblem(
+  evidence: string,
+  sources: ReadonlyMap<string, string> | undefined,
+): string | null {
+  const refs = [...evidence.matchAll(EVIDENCE_REF_RE)];
+  if (refs.length === 0) return "powód bez dowodu bramki plik:linia";
+  for (const [, file, at] of refs) {
+    const code = sources?.get(file);
+    if (code === undefined) return `${file}:${at} - pliku nie ma w źródłach`;
+    const lines = code.split("\n");
+    const line = Number(at);
+    if (line < 1 || line > lines.length) return `${file}:${at} - linii nie ma w pliku`;
+    if (!GUARD_TOKEN_RE.test(lines.slice(Math.max(0, line - 3), line + 2).join("\n"))) {
+      return `${file}:${at} (±2) - brak rozpoznanej bramki (enabled:, user &&, !user, <AuthGate>, requireSupabaseAuth, redirect/navigate na /login)`;
+    }
   }
-  return out;
+  return null;
+}
+
+/** Fakt gościa, który wpis listy MOŻE zdjąć: klient przeglądarki wykonywany wyłącznie w przeglądarce. */
+function exemptableGuest(
+  x: Parameters<typeof checkedRoles>[0] & { readonly withheld?: boolean },
+): boolean {
+  return (
+    x.withheld !== true &&
+    checkedRoles(x).some((c) => c.guest && c.role === "authenticated" && c.server === undefined)
+  );
 }
 
 /**
- * Rozjazd listy gościa: `stale` - wpis bez funkcji z faktem gościa w pliku
- * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę - zdejmij);
- * `invalid` - wpis bez dowodu `plik:linia`.
+ * Rozjazd listy gościa: `stale` - wpis bez faktu gościa pod kluczem w pliku
+ * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę) albo
+ * z mniejszą liczbą faktów - zdejmij lub zmniejsz; `fresh` - pod kluczem
+ * przybyło faktów albo zmienił się kształt (przegląd od nowa); `invalid` -
+ * dowód bez `plik:linia`, plik albo linia, których nie ma, albo linia bez
+ * rozpoznanej bramki.
  */
 export function guestLoginOnlyDrift(
   facts: SeamFacts,
   reach: ReadonlyMap<string, SiteReach>,
-  reviewed: Readonly<Record<string, string>> = GUEST_LOGIN_ONLY_REVIEWED,
-): { stale: string[]; invalid: string[] } {
-  const keys = guestFactKeys(facts, reach);
+  reviewed: Readonly<Record<string, GuestLoginOnlyEntry>> = GUEST_LOGIN_ONLY_REVIEWED,
+  sources?: ReadonlyMap<string, string>,
+): { stale: string[]; fresh: string[]; invalid: string[] } {
+  const universe = shapeUniverse(facts.observed, exemptableGuest);
   const stale: string[] = [];
+  const fresh: string[] = [];
   const invalid: string[] = [];
-  for (const [key, reason] of Object.entries(reviewed)) {
-    const cls = keys.get(key);
-    if (cls !== "public") {
-      stale.push(
-        `${key} (${cls === undefined ? "brak faktu klienta przeglądarki w tej funkcji" : `klasa pliku ${cls}, wpis tylko dla public`})`,
-      );
+  for (const [key, [count, shape, evidence]] of Object.entries(reviewed)) {
+    const site = key.slice(0, key.indexOf(": "));
+    const cls = reach.get(site)?.cls ?? "none";
+    const now = universe.get(key);
+    if (now === undefined) {
+      stale.push(`${key} (brak faktu klienta przeglądarki pod tym kluczem)`);
+    } else if (cls !== "public") {
+      stale.push(`${key} (klasa pliku ${cls}, wpis tylko dla public)`);
+    } else if (now.count < count) {
+      stale.push(`${key} (${now.count}, przejrzanych: ${count})`);
+    } else if (now.count > count || now.shape !== shape) {
+      fresh.push(`${key} (${now.count}, kształt "${now.shape}"; przejrzany: ${count}, "${shape}")`);
     }
-    if (!GUARD_EVIDENCE_RE.test(reason))
-      invalid.push(`${key} (powód bez dowodu bramki plik:linia)`);
+    const problem = guardEvidenceProblem(evidence, sources);
+    if (problem !== null) invalid.push(`${key} (${problem})`);
   }
-  return { stale: stale.sort(), invalid: invalid.sort() };
+  return { stale: stale.sort(), fresh: fresh.sort(), invalid: invalid.sort() };
+}
+
+/**
+ * Klucze faktów gościa, które wpis mógłby zdjąć (`--guest-gaps`): klucz,
+ * liczba faktów i kształt - gotowy szkielet wpisu (dowód dopisuje przegląd).
+ */
+export function guestLoginOnlyCandidates(
+  facts: SeamFacts,
+): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(facts.observed, exemptableGuest);
 }
 
 /**
@@ -5583,15 +6393,20 @@ export interface ContractEnforcement {
    * klasa `none`: wiersze gościa sprawdzane (niepewne nie jest zwolnieniem).
    */
   readonly reach: ReadonlyMap<string, SiteReach>;
-  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
   readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
 }
 
 /** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
 export interface ObservedCoverage {
   readonly reach: ReadonlyMap<string, SiteReach>;
-  readonly unknownRole?: Readonly<Record<string, readonly [number, string]>>;
-  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+  readonly unknownRole?: Readonly<Record<string, UnknownRoleEntry>>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
+  /**
+   * Źródła (plik -> kod) do sprawdzenia dowodów `plik:linia` listy gościa;
+   * bez nich każdy wpis listy jest nie do sprawdzenia (czerwono).
+   */
+  readonly sources?: ReadonlyMap<string, string>;
 }
 
 /** Problemy zasięgu miary w bramce - lista ról nieustalonych, lista gościa, zapadki filtrów. */
@@ -5609,7 +6424,7 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
   const unknown = unknownRoleDrift(facts, input.unknownRole);
   if (unknown.fresh.length > 0) {
     problems.push(
-      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z powodem:\n` +
+      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną bez kandydata (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED albo z kształtem innym niż przejrzany - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z liczbą, kształtem i powodem:\n` +
         unknown.fresh.map((x) => `        ${x}`).join("\n"),
     );
   }
@@ -5619,11 +6434,12 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
         unknown.stale.map((x) => `        ${x}`).join("\n"),
     );
   }
-  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly);
-  if (guest.stale.length > 0 || guest.invalid.length > 0) {
+  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly, input.sources);
+  const guestIssues = [...guest.stale, ...guest.fresh, ...guest.invalid];
+  if (guestIssues.length > 0) {
     problems.push(
-      `${guest.stale.length + guest.invalid.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla funkcji z faktem gościa w pliku klasy public, z dowodem bramki plik:linia):\n` +
-        [...guest.stale, ...guest.invalid].map((x) => `        ${x}`).join("\n"),
+      `${guestIssues.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla klucza plik/funkcja/relacja z faktem gościa w pliku klasy public, z liczbą i kształtem jak w kodzie i z dowodem bramki plik:linia, który w tej linii jest):\n` +
+        guestIssues.map((x) => `        ${x}`).join("\n"),
     );
   }
   if (o.unresolvedFilters.length > MAX_UNRESOLVED_FILTER_SITES) {
@@ -6132,6 +6948,39 @@ const GATE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THE
                           ELSE 'inny blad ' || v_state END
 `;
 
+/** Fakt miary w wierszach bramki (RPC, tabela, filtr, osadzenie, zapytanie sondy). */
+interface GateFact {
+  readonly guest: boolean;
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly site: string;
+  readonly fn: string;
+  /** Fakt wstrzymany w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`) - tylko istnienie. */
+  readonly withheld?: boolean;
+  readonly server?: string;
+}
+
+/**
+ * Role, z którymi bramka sprawdza fakt miary: rola zmierzona, a przy
+ * `unknown` - każdy widoczny kandydat (`RoleResolution.candidates`). Pusta
+ * lista - tylko istnienie (fakt na liście UNKNOWN_ROLE_REVIEWED).
+ */
+export function checkedRoles(x: {
+  readonly role: MeasuredRole;
+  readonly via: string;
+  readonly guest: boolean;
+  readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
+}): readonly RoleCandidate[] {
+  return x.role === "unknown"
+    ? (x.candidates ?? [])
+    : [{ role: x.role, via: x.via, guest: x.guest, ...serverField(x.server) }];
+}
+
+/** Opis drogi wiersza `anon` klienta przeglądarki wykonanego na serwerze (bez zwolnień). */
+export const SERVER_GUEST_VIA = "na serwerze, bez sesji (bez zwolnień)";
+
 interface ObservedGate {
   /** Nagłówek (komentarz SQL) z liczbami wierszy i zwolnień gościa. */
   readonly header: string;
@@ -6148,35 +6997,54 @@ interface ObservedGate {
 function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): ObservedGate {
   const o = facts.observed;
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
+  const callOf = factCallOf(o);
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
-  const guestOn = (x: {
-    readonly guest: boolean;
-    readonly role: MeasuredRole;
-    readonly site: string;
-    readonly fn: string;
-  }): boolean =>
-    x.guest &&
-    x.role === "authenticated" &&
-    !GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
-    reviewed[guestKey(x.site, x.fn)] === undefined;
-  /** Wiersz faktu i - gdy gość sprawdzany - jego wiersz `anon` (`render(fakt, gość)`). */
-  const rows = <
-    T extends {
-      readonly guest: boolean;
-      readonly role: MeasuredRole;
-      readonly site: string;
-      readonly fn: string;
-    },
-  >(
+  // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
+  // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
+  // Wpis listy zdejmuje wiersz gościa faktu POD SWOIM KLUCZEM (plik,
+  // funkcja, relacja łańcucha) - nie rodzeństwa o tej samej ścieżce funkcji.
+  const guestOn = (x: GateFact, c: RoleCandidate, call: string): boolean =>
+    c.guest &&
+    c.role === "authenticated" &&
+    (c.server !== undefined ||
+      (!GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
+        reviewed[unknownRoleKey(x.site, x.fn, call)] === undefined));
+  /**
+   * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
+   * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
+   * sprawdzany, wiersz `anon`; bez kandydatów - jeden wiersz `unknown`
+   * (gdy `own` go chce: istnienie kolumn filtra i osadzenia). Fakt
+   * wstrzymany w przeglądzie (filtr i osadzenie łańcucha z faktem
+   * wstrzymanym) - wyłącznie wiersz `unknown`: istnienie, bez uprawnień,
+   * gościa i sondy.
+   */
+  const rows = <T extends GateFact>(
     xs: readonly T[],
-    own: (x: T) => boolean,
-    render: (x: T, role: MeasuredRole, guest: boolean) => string,
+    kind: KeyedFact["kind"],
+    own: (x: T, role: MeasuredRole) => boolean,
+    render: (x: T, role: MeasuredRole, guest: boolean, via: string) => string,
   ): string[] =>
-    xs.flatMap((x) => [
-      ...(own(x) ? [render(x, x.role, false)] : []),
-      ...(guestOn(x) ? [render(x, "anon", true)] : []),
-    ]);
+    xs.flatMap((x) => {
+      if (x.withheld === true) {
+        return own(x, "unknown") ? [render(x, "unknown", false, x.via)] : [];
+      }
+      const roles = checkedRoles(x);
+      if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
+      return roles.flatMap((c) => [
+        ...(own(x, c.role) ? [render(x, c.role, false, c.via)] : []),
+        ...(guestOn(x, c, callOf({ kind, ...x } as unknown as KeyedFact))
+          ? [
+              render(
+                x,
+                "anon",
+                true,
+                c.server === undefined ? c.via : `${SERVER_GUEST_VIA}: ${c.server} <- ${c.via}`,
+              ),
+            ]
+          : []),
+      ]);
+    });
   const sorted = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
   const guestVia = (via: string, guest: boolean): string =>
     guest ? `${GUEST_VIA} <- ${via}`.slice(0, MAX_VIA) : via;
@@ -6184,14 +7052,15 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const rpcRows = sorted(
     rows(
       o.rpcs,
-      (r) => CLIENT_ROLES.has(r.role),
-      (r, role, guest) =>
+      "rpc",
+      (_r, role) => CLIENT_ROLES.has(role),
+      (r, role, guest, via) =>
         [
           sqlString(r.name),
           sqlTextArray(r.keys),
           sqlString(role),
           sqlString(r.enforcedRole),
-          sqlString(guestVia(r.via, guest)),
+          sqlString(guestVia(via, guest)),
           guest ? "true" : "false",
           sqlString(r.site),
           sqlString(r.fn),
@@ -6203,8 +7072,9 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const tableRows = sorted(
     rows(
       o.tables.filter((t) => !t.withheld),
-      (t) => CLIENT_ROLES.has(t.role) && t.role !== t.enforcedRole,
-      (t, role, guest) =>
+      "table",
+      (t, role) => CLIENT_ROLES.has(role) && role !== t.enforcedRole,
+      (t, role, guest, via) =>
         [
           sqlString(t.table),
           sqlString(t.op),
@@ -6212,7 +7082,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
           sqlString(t.enforcedRole),
           sqlTextArray(t.columns),
           t.star ? "true" : "false",
-          sqlString(guestVia(t.via, guest)),
+          sqlString(guestVia(via, guest)),
           guest ? "true" : "false",
           sqlString(t.file),
           sqlString(t.site),
@@ -6224,6 +7094,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const filterRows = sorted(
     rows(
       o.filters,
+      "filter",
       () => true,
       (f, role, guest) =>
         [
@@ -6247,6 +7118,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     ...new Set(
       rows(
         o.embeds,
+        "embed",
         () => true,
         (e, role, guest) =>
           [
@@ -6271,7 +7143,8 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const statementRows = sorted(
     rows(
       o.statements.filter((s) => !s.withheld),
-      (s) => CLIENT_ROLES.has(s.role),
+      "statement",
+      (_s, role) => CLIENT_ROLES.has(role),
       (s, role, guest) =>
         [
           sqlString(s.table),
@@ -6293,21 +7166,36 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
   const guestKeys = new Map<string, string>();
   for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
-    if (!x.guest || x.role !== "authenticated") continue;
+    if ("withheld" in x && x.withheld === true) continue;
+    if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
     const key = guestKey(x.site, x.fn);
     const cls = clsOf(x.site);
-    guestKeys.set(
-      key,
-      GUEST_EXEMPT_CLASSES.has(cls)
-        ? cls
-        : reviewed[key] !== undefined
-          ? "przejrzane"
-          : `sprawdzane ${cls}`,
-    );
+    guestKeys.set(key, GUEST_EXEMPT_CLASSES.has(cls) ? cls : `sprawdzane ${cls}`);
   }
+  // Klucze listy, które zdejmują wiersze gościa (fakt pod kluczem w pliku public).
+  const exemptable = shapeUniverse(o, exemptableGuest);
+  const reviewedApplied = Object.keys(reviewed).filter(
+    (k) => exemptable.has(k) && clsOf(k.slice(0, k.indexOf(": "))) === "public",
+  ).length;
   const byClass = (label: string): number =>
     [...guestKeys.values()].filter((v) => v === label).length;
-  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length;
+  // Pary z klientem przeglądarki wykonanym na serwerze - sprawdzane jako anon
+  // niezależnie od klasy pliku i listy.
+  const serverKeys = new Set<string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if ("withheld" in x && x.withheld === true) continue;
+    if (checkedRoles(x).some((c) => c.guest && c.server !== undefined)) {
+      serverKeys.add(guestKey(x.site, x.fn));
+    }
+  }
+  const serverExempted = [...serverKeys].filter((k) => {
+    const v = guestKeys.get(k);
+    return v !== undefined && !v.startsWith("sprawdzane");
+  }).length;
+  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length;
+  const candidateFacts = [...o.rpcs, ...o.tables].filter(
+    (x) => x.role === "unknown" && checkedRoles(x).length > 0,
+  ).length;
   const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
   const roles = "('anon', 'authenticated', 'service_role')";
 
@@ -6316,13 +7204,20 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 -- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
 -- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
 -- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
--- Rola nieustalona takze dla miary: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
+-- Rola nieustalona z widocznymi kandydatami (wolajacy o roznych rolach, widoczne
+-- wywolania, naglowek Authorization z warunku): ${candidateFacts} faktow RPC i tabel -
+-- uprawnienia i sondy dla KAZDEJ widocznej roli.
+-- Rola nieustalona bez kandydatow: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
 -- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract).
 -- Gosc (anon): ${guestKeys.size} par (plik wywolania, funkcja) z faktami klienta przegladarki.
 --   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.
 --   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
 --   bramki sesji - guestReach): admin ${byClass("admin")}, session-gate ${byClass("session-gate")}.
---   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${byClass("przejrzane")}.
+--   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${reviewedApplied} kluczy (plik, funkcja, relacja).
+--   Klient przegladarki wykonany NA SERWERZE (handler i middleware funkcji serwera,
+--   modul .server, handler trasy serwerowej, loader/beforeLoad trasy z SSR, kod
+--   modulu - takze przez wywolania pomocnikow): ${serverKeys.size} par, anon sprawdzany zawsze,
+--   w tym ${serverExempted} w plikach admin i session-gate (bez tego zwolnionych).
 -- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
 -- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
 -- Sonda pada WYLACZNIE na 42501 "permission denied for ..." i brak obiektu
@@ -6371,7 +7266,7 @@ ${probeSql({
 -- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
 -- asercje 2 i 5) oraz wiersze goscia.
 CREATE TEMP VIEW ts_v_fact AS
-SELECT 'rpc' AS kind, r.guest, r.site, r.func,
+SELECT 'rpc' AS kind, r.guest, r.site, r.func, '.rpc(' || r.fn || ')' AS call,
        format('%s: %s: %s(%s) dla %s: brak EXECUTE (rola: %s)', r.site, r.func, r.fn,
               coalesce(array_to_string(r.keys, ','), '?'), r.role, r.via) AS msg
   FROM ts_obs_rpc r
@@ -6386,7 +7281,7 @@ SELECT 'rpc' AS kind, r.guest, r.site, r.func,
                WHERE n.nspname = 'public' AND p.proname = r.fn
                  AND has_function_privilege(r.role, p.oid, 'EXECUTE'))))
 UNION ALL
-SELECT 'table', t.guest, t.site, t.func,
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
        format('%s: %s: %s.%s %s dla %s: brak %s (rola: %s%s)', t.site, t.func, t.rel, c.col, t.op,
               t.role, priv, t.via, CASE WHEN t.file <> t.site THEN '; kolumny z ' || t.file ELSE '' END)
   FROM ts_obs_table t
@@ -6405,7 +7300,7 @@ SELECT 'table', t.guest, t.site, t.func,
  WHERE (t.guest OR t.role IS DISTINCT FROM t.enforced)
    AND NOT has_column_privilege(t.role, ${rel("t.rel")}, c.col, priv)
 UNION ALL
-SELECT 'table', t.guest, t.site, t.func,
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
        format('%s: %s: %s delete dla %s: brak DELETE (rola: %s)', t.site, t.func, t.rel, t.role, t.via)
   FROM ts_obs_table t
  WHERE t.op = 'delete' AND (t.guest OR t.role IS DISTINCT FROM t.enforced)
@@ -6437,13 +7332,17 @@ SELECT DISTINCT f.site, f.func,
 -- has_column_privilege po NAZWIE kolumny, ktorej nie ma, przerywa caly plik
 -- (42703) - brak kolumny zglasza asercja 12.
 CREATE TEMP VIEW ts_v_filter_denied AS
-SELECT DISTINCT f.guest, f.site, f.func,
+SELECT DISTINCT f.guest, f.site, f.func, '.from(' || coalesce(ch.tbl, f.rel) || ')' AS call,
        format('%s: %s: %s.%s dla %s: brak SELECT (%s%s, %s%s)', f.site, f.func, f.rel, f.col, f.role,
               f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
               CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END) AS msg
   FROM ts_obs_filter_cols f
   JOIN pg_attribute a ON a.attrelid = ${rel("f.rel")} AND a.attname = f.col
                      AND a.attnum > 0 AND NOT a.attisdropped
+  -- Filtr osadzenia - klucz listy gościa pod tabelą łańcucha osadzenia.
+  LEFT JOIN LATERAL (SELECT min(m.tbl) AS tbl FROM ts_obs_embed m
+                      WHERE f.embed IS NOT NULL AND m.site = f.site AND m.func = f.func
+                        AND m.path = f.embed) ch ON true
  WHERE f.role IN ${roles}
    AND NOT has_column_privilege(f.role, a.attrelid, a.attnum, 'SELECT');
 
@@ -6473,7 +7372,7 @@ SELECT DISTINCT m.site, m.func,
 -- Osadzenia: SELECT roli na kolumnach relacji osadzonej (kolumny zlaczenia
 -- sprawdza sonda osadzenia).
 CREATE TEMP VIEW ts_v_embed_denied AS
-SELECT DISTINCT m.guest, m.site, m.func,
+SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
        format('%s: %s: %s.%s dla %s: brak SELECT (osadzenie %s w %s%s)', m.site, m.func, c.relname,
               col.col, m.role, m.path, m.tbl,
               CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END) AS msg
@@ -6491,6 +7390,17 @@ SELECT DISTINCT m.guest, m.site, m.func,
 -- Sondy wykonania: odmowa uprawnien i brak obiektu.
 CREATE TEMP VIEW ts_v_probe AS
 SELECT DISTINCT p.guest, p.site, p.func,
+       CASE WHEN p.kind = 'probe-rpc' THEN '.rpc(' || p.rel || ')'
+            WHEN p.kind = 'probe-embed' THEN '.from(' || coalesce((
+              SELECT min(m.tbl) FROM ts_obs_embed m
+               WHERE m.site = p.site AND m.func = p.func
+                 AND m.path = split_part(p.cols, '(', 1)), p.rel) || ')'
+            WHEN p.kind = 'probe-filter' THEN '.from(' || coalesce((
+              SELECT min(coalesce(m.tbl, f.rel)) FROM ts_obs_filter f
+                LEFT JOIN ts_obs_embed m ON f.embed IS NOT NULL AND m.site = f.site
+                                        AND m.func = f.func AND m.path = f.embed
+               WHERE f.site = p.site AND f.func = p.func AND f.rel = p.rel AND f.col = p.cols), p.rel) || ')'
+            ELSE '.from(' || p.rel || ')' END AS call,
        format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
               p.state, p.msg) AS msg
   FROM ts_probe p
@@ -6568,36 +7478,54 @@ SELECT is(
 /**
  * Raport `generate:ts-sql-contract --guest-gaps`: zwykły SQL (nie pgTAP) do
  * uruchomienia na bazie JEDNORAZOWEJ po migracjach - te same tabele, sondy
- * i widoki naruszeń co pgTAP bramki, a wynik to pary (plik, funkcja), które
- * jako gość (`anon`) padają, z liczbą naruszeń i pierwszym z nich. Kolumna
- * `key` to gotowy klucz `GUEST_LOGIN_ONLY_REVIEWED` - wpis dostaje go
- * WYŁĄCZNIE miejsce tylko po zalogowaniu, z dowodem bramki `plik:linia`;
- * reszta to defekty do naprawy w kodzie albo w grantach.
+ * i widoki naruszeń co pgTAP bramki, a wynik to klucze (plik, funkcja,
+ * relacja), które jako gość (`anon`) padają, z liczbą naruszeń i pierwszym
+ * z nich. Kolumna `key` to klucz `GUEST_LOGIN_ONLY_REVIEWED`, a `entry` -
+ * szkielet wpisu z liczbą faktów i kształtem (dowód bramki `plik:linia`
+ * dopisuje przegląd); wpis dostaje WYŁĄCZNIE miejsce tylko po zalogowaniu.
+ * Klucz bez szkieletu (fakt wykonywany na serwerze, plik spoza `public`) to
+ * defekt do naprawy w kodzie albo w grantach - wpis by go nie zdjął.
  */
 export function renderGuestGaps(facts: SeamFacts, enforcement: ContractEnforcement): string {
   const gate = observedGate(facts, enforcement);
+  const candidates = [...guestLoginOnlyCandidates(facts)]
+    .filter(
+      ([key]) =>
+        (enforcement.reach.get(key.slice(0, key.indexOf(": ")))?.cls ?? "none") === "public",
+    )
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, { count, shape }]) => [sqlString(key), String(count), sqlString(shape)].join(", "));
   return `-- ============================================================================
 -- WYGENEROWANE - \`bun run generate:ts-sql-contract --guest-gaps\`. Zwykly SQL, nie
--- pgTAP: pary (plik wywolania, funkcja), ktorych fakty klienta przegladarki
--- padaja jako gosc (anon) - te same wiersze, sondy i widoki co asercje 17-19
--- pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach (sondy RPC
--- wykonuja ciala funkcji; calosc w ROLLBACK).
+-- pgTAP: klucze (plik wywolania, funkcja, relacja), ktorych fakty klienta
+-- przegladarki padaja jako gosc (anon) - te same wiersze, sondy i widoki co
+-- asercje 17-19 pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach
+-- (sondy RPC wykonuja ciala funkcji; calosc w ROLLBACK).
 ${gate.header}-- ============================================================================
 BEGIN;
 ${RPC_MATCH_SQL}
 ${gate.setup}
-SELECT site || ': ' || func AS key, site, func, count(*) AS violations, min(msg) AS first_violation
+-- Klucze, ktore wpis GUEST_LOGIN_ONLY_REVIEWED moze zdjac (plik public, klient
+-- wykonywany wylacznie w przegladarce): liczba faktow i ksztalt.
+CREATE TEMP TABLE ts_guest_key (key text, n int, shape text) ON COMMIT DROP;
+${valuesBlock("ts_guest_key", "key, n, shape", candidates)}
+SELECT v.site || ': ' || v.func || ': ' || v.call AS key, v.site, v.func, v.call,
+       count(*) AS violations, min(v.msg) AS first_violation,
+       coalesce(format('[%s, %s, "<plik:linia bramki>"]', k.n, to_json(k.shape)),
+                'brak - fakt wykonywany na serwerze albo plik spoza public: napraw kod albo grant')
+         AS entry
   FROM (
-    SELECT site, func, msg FROM ts_v_fact WHERE guest
+    SELECT site, func, call, msg FROM ts_v_fact WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_filter_denied WHERE guest
+    SELECT site, func, call, msg FROM ts_v_filter_denied WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_embed_denied WHERE guest
+    SELECT site, func, call, msg FROM ts_v_embed_denied WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_probe WHERE guest
+    SELECT site, func, call, msg FROM ts_v_probe WHERE guest
   ) v
- GROUP BY site, func
- ORDER BY site, func;
+  LEFT JOIN ts_guest_key k ON k.key = v.site || ': ' || v.func || ': ' || v.call
+ GROUP BY v.site, v.func, v.call, k.n, k.shape
+ ORDER BY v.site, v.func, v.call;
 ROLLBACK;
 `;
 }
