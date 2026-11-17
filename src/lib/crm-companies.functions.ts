@@ -86,6 +86,17 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
 
     // Jedno wywołanie RPC agreguje leady + kontakty po stronie bazy
     // (zamiast pobierania do 5000 wierszy z crm_leads i profiles).
+    //
+    // KLIENTEM WOŁAJĄCEGO, NIE SPOD SERVICE-ROLE. Do 17.11.2026 funkcja była
+    // SECURITY INVOKER i czytała `profiles.current_company_id` bez grantu dla
+    // `authenticated` (20260724090100) - 42501 przy każdej niepustej liście.
+    // Od migracji 20261117014500 jest SECURITY DEFINER z bramką staffu CRM
+    // i najemcą WYŁĄCZNIE z sesji (`current_tenant_id()`), a leady i profile
+    // liczy tylko z najemcy firmy. Service-role nie wchodził w grę: ciało nie
+    // zna najemcy, a `company_id` / `current_company_id` nie są sparowane
+    // z `tenant_id`, więc liczyłoby obce wiersze wskazujące na firmę.
+    // Identyfikatory to wyłącznie firmy z listy pod RLS, nie z ładunku; firma
+    // spoza najemcy nie ma wiersza agregatu i dostaje zera niżej.
     const leadsAgg: Record<string, { total: number; lastActivity: string | null }> = {};
     const contactsAgg: Record<string, number> = {};
     if (ids.length > 0) {

@@ -70,6 +70,12 @@ const h = vi.hoisted(() => ({
   /** Wiersze `podcast_episode_people` (prowadzący/goście). */
   people: [] as Record<string, unknown>[],
   /**
+   * Wiersze projekcji `profiles_public`, które widzi GOŚĆ: profile z publiczną
+   * obecnością (`profile_has_public_presence`), z każdego obszaru - odsiew
+   * najemcy robi atrapa jak polityka.
+   */
+  publicProfiles: [] as Record<string, unknown>[],
+  /**
    * Tenant PRZEGLĄDANEJ domeny. Atrapa odgrywa tu rolę polityki
    * `tenant_id = public_tenant_id()`: produkcja wysyła nagłówek
    * `x-tenant-host`, a baza odsiewa wiersze. Test modeluje SKUTEK, bo trasa
@@ -139,8 +145,21 @@ vi.mock("@/integrations/supabase/client", async () => {
   stub.setResponse("podcast_episode_people", (chain) => {
     h.reads.push("podcast_episode_people");
     if (h.broken.has("podcast_episode_people")) return fail("test: tabela people niedostepna");
+    // Osadzenie tabeli `profiles` kończy się na produkcji 42501 dla anona
+    // (kolumny profilu bez grantu) - atrapa odgrywa tę odmowę, żeby powrót
+    // do osadzenia był czerwony także tutaj.
+    const select = String(chain.calls.find((c) => c.method === "select")?.args[0] ?? "");
+    if (/(^|,)\s*profiles\s*\(/.test(select)) {
+      return fail("permission denied for table profiles", "42501");
+    }
     const eq = filters(chain.calls);
     return ok(h.people.filter((p) => p.episode_id === eq.get("episode_id")));
+  });
+  stub.setResponse("profiles_public", (chain) => {
+    h.reads.push("profiles_public");
+    const ids = chain.calls.find((c) => c.method === "in" && c.args[0] === "id")?.args[1];
+    const wanted = new Set(Array.isArray(ids) ? ids : []);
+    return ok(visible(h.publicProfiles).filter((p) => wanted.has(p.id)));
   });
   return { supabase: { from: stub.from } };
 });
@@ -245,7 +264,6 @@ function personRow(patch: Record<string, unknown> = {}): Record<string, unknown>
     role: "host",
     url: null,
     sort_order: 0,
-    profiles: null,
     ...patch,
   };
 }
@@ -291,6 +309,7 @@ beforeEach(async () => {
   h.shows = [show()];
   h.settings = null;
   h.people = [];
+  h.publicProfiles = [];
   h.tenantId = TENANT_A;
   h.broken = new Set<string>();
   h.reads = [];
@@ -415,10 +434,17 @@ describe("trasa /podcast/$slug - osoby, materiały i linki subskrypcji", () => {
     // Trzy rodzaje obsady to trzy różne obietnice: profil w serwisie (link
     // wewnętrzny, z awatarem), gość z własną stroną (nowa karta, bez
     // przekazania `window.opener`) i gość bez niczego (tekst, nie martwy link).
+    h.publicProfiles = [
+      {
+        id: "profile-zofia",
+        tenant_id: TENANT_A,
+        slug: "zofia-wiatrak",
+        display_name: null,
+        avatar_url: null,
+      },
+    ];
     h.people = [
-      personRow({
-        profiles: { slug: "zofia-wiatrak", display_name: null, avatar_url: null },
-      }),
+      personRow({ profile_id: "profile-zofia" }),
       personRow({
         id: "person-2",
         display_name: "Jan Bryza",
@@ -436,6 +462,57 @@ describe("trasa /podcast/$slug - osoby, materiały i linki subskrypcji", () => {
     expect(external).toHaveAttribute("target", "_blank");
     expect(external).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByText("Ewa Szron").closest("a")).toBeNull();
+  });
+
+  it("GOŚĆ widzi prowadzącą z publicznego profilu, a obsadę z profilem bez publicznej obecności - z nazwą z wiersza, bez linku", async () => {
+    // Do 17.11.2026 osadzenie `profiles(...)` kończyło się dla anona 42501
+    // i loader spadał na pustą obsadę - strona odcinka nie miała ani
+    // prowadzących, ani gości. Profil idzie teraz z `profiles_public`, która
+    // pokazuje gościowi tylko profile z publiczną obecnością.
+    h.publicProfiles = [
+      {
+        id: "profile-zofia",
+        tenant_id: TENANT_A,
+        slug: "zofia-wiatrak",
+        display_name: "Zofia Wiatrak",
+        avatar_url: "https://cdn.example.org/zofia.png",
+      },
+      // Profil o tym samym id u OBCEGO najemcy nie wraca (odsiew polityki).
+      {
+        id: "profile-obcy",
+        tenant_id: TENANT_B,
+        slug: "obcy",
+        display_name: "Obcy",
+        avatar_url: null,
+      },
+    ];
+    h.people = [
+      personRow({ profile_id: "profile-zofia", display_name: "" }),
+      personRow({
+        id: "person-2",
+        profile_id: "profile-prywatny",
+        display_name: "Jan Bryza",
+        role: "guest",
+      }),
+      personRow({
+        id: "person-3",
+        profile_id: "profile-obcy",
+        display_name: "Ewa Szron",
+        role: "guest",
+      }),
+    ];
+    await mount();
+
+    const host = await screen.findByRole("link", { name: /Zofia Wiatrak/ });
+    expect(host).toHaveAttribute("href", "/author/zofia-wiatrak");
+    expect(host.querySelector("img")).not.toBeNull();
+    expect(screen.getByText("Jan Bryza").closest("a")).toBeNull();
+    expect(screen.getByText("Ewa Szron").closest("a")).toBeNull();
+    expect(screen.queryByText("Obcy")).toBeNull();
+    // Odczyt projekcji należy do fali LOADERA (ta sama `queryFn`) - zasiew
+    // obsady nie zamienia się w round-trip po hydratacji.
+    expect(h.reads).toContain("profiles_public");
+    expect(h.cacheControl).toEqual([]);
   });
 
   it("linki subskrypcji idą w STAŁEJ kolejności, a puste adresy wypadają", async () => {
@@ -976,6 +1053,26 @@ describe("trasa /podcast/$slug - zapadka na liczbie zapytań pierwszego malowani
     expect(loaderReads).toContain("podcast_shows:id");
     expect(loaderReads).toContain("podcast_settings");
     expect(loaderReads).toContain("podcast_episode_people");
+  });
+
+  it("profil uczestnika z `profiles_public` jedzie w fali LOADERA, nie po hydratacji", async () => {
+    // Projekcja profili jest drugim odczytem TEJ SAMEJ `queryFn` obsady, więc
+    // zasiew loadera niesie ją razem z wierszami uczestników.
+    h.publicProfiles = [
+      {
+        id: "profile-zofia",
+        tenant_id: TENANT_A,
+        slug: "zofia-wiatrak",
+        display_name: "Zofia Wiatrak",
+        avatar_url: null,
+      },
+    ];
+    h.people = [personRow({ profile_id: "profile-zofia" })];
+    h.settings = { tenant_id: TENANT_A, default_player_variant: "full" };
+    const { loaderReads, clientReads } = await measureFirstPaint();
+
+    expect(loaderReads).toContain("profiles_public");
+    expect(clientReads).toEqual(["podcasts:show_id"]);
   });
 
   it("rekomendacje zostają klienckie - to jedyny dopuszczony round-trip", async () => {

@@ -17,19 +17,29 @@ import {
 import type { JourneyLeadEnrollment } from "@/lib/journeys/dto";
 import { parseLeadEnrollments } from "@/lib/journeys/parse";
 import { z } from "zod";
-import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
+import {
+  looseClient,
+  looseTable,
+  rowsOf,
+  fetchRows,
+  type LooseResult,
+} from "@/lib/supabase/looseQuery";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 import { CRM_TAG_MAX, type STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
 import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
+  avatarLookupChunks,
+  avatarLookupKeys,
   chunked,
-  emailLookupValues,
-  matchLeadAvatars,
+  contactFilter,
+  leadAvatarsByKey,
+  matchChunkAvatars,
   type LeadAvatar,
   type LeadEmailRow,
   type ProfileAvatarRow,
 } from "@/lib/crm/leadAvatars";
 import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
+import { postgrestQuotedList } from "@/lib/supabase/postgrestFilterValue";
 import {
   LeadListFilterSchema,
   ManualLifecycleStageSchema,
@@ -1225,6 +1235,28 @@ const LeadAvatarsInput = z.object({
 // Lista w `.in()` jedzie w adresie URL zapytania PostgREST - porcje trzymają go
 // w bezpiecznej długości także przy stronie 200-500 leadów.
 const LEAD_AVATAR_CHUNK = 100;
+// Filtr `contact_email` (`or=(...)` z liśćmi `ilike`) po kodowaniu URL. Domyślny
+// limit linii żądania popularnych proxy to 8 KB (nginx
+// `large_client_header_buffers 4 8k`); reszta adresu (ścieżka, `select`,
+// tenant, `not`, `order`) to ~200 znaków.
+//
+// Schemat NIE ogranicza długości `crm_leads.email` ani `profiles.contact_email`
+// (tylko CHECK formatu kontaktu). Granice dają walidatory aplikacji - formularze
+// 254 znaki, import leadów 320 (`LEAD_IMPORT_VALUE_MAX.email`) - a nie każda
+// ścieżka zapisu leada przez nie przechodzi. Budżet przekracza adres długi
+// I pełen znaków, które liść mnoży - nie sama długość: `\` po ucieczce LIKE,
+// cytowaniu PostgREST i kodowaniu URL to 12 znaków (`%`, `_`, `"` też po
+// kilka), zwykła litera - 1. Adres 320 znaków z samych `\` to ~3,8 tys.
+// w jednym liściu. Drugi liść `ilike` adres dostaje tylko wtedy, gdy zapis
+// leada i jego klucz (`normalizeEmail`) leżą w różnych klasach `pgCaseFold`:
+// `İ`, `Σ` na końcu słowa, wielkie litery spoza zaufanych zakresów - nie `Ł`
+// czy `Ż` (postaci z `*` idą tańszą listą dokładną `in`). Wtedy już 254 znaki
+// (limit formularzy aplikacji, nie RFC 5321 - tam lokalna część ma najwyżej
+// 64 oktety, więc adres zgodny z RFC zostaje poniżej ok. 3 tys.) z `İ` i 248 `\`
+// to ponad 6 tys. Klucz droższy niż budżet
+// `avatarLookupChunks` więc pomija (lead bez zdjęcia), zamiast wysłać
+// zapytanie, które proxy odrzuci razem z lookupem całej strony.
+const LEAD_AVATAR_FILTER_URL_BUDGET = 6000;
 
 export const getCrmLeadAvatars = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -1257,40 +1289,70 @@ export const getCrmLeadAvatars = createServerFn({ method: "POST" })
  * `.eq("tenant_id", tenantId)` jest jedyną granicą najemcy. Adresy biorą się
  * z leadów, nie z wejścia; z profili wychodzi wyłącznie `avatar_url` (adresy
  * zostają na serwerze - wynik niesie id leada, nie adres profilu).
+ *
+ * Porównanie: `profiles.email` dokładnie (z auth, małymi literami),
+ * `profiles.contact_email` BEZ wielkości liter - członek wpisuje go ręcznie,
+ * a `Anna.Kowalska@Firma.pl` to ten sam adres co lead `anna.kowalska@firma.pl`.
+ * Do 2026-11-16 oba szły dokładnym `.in()`, więc kontakt zapisany inną
+ * wielkością liter nie dawał zdjęcia ani na liście, ani na karcie. Wielkość
+ * liter rozstrzyga `lower()` bazy (`ILIKE`), a przypisanie wiersza do leada
+ * - `pgCaseFold` z lib/crm/leadAvatars.ts, nigdy JS `toLowerCase`.
  */
 async function lookupLeadAvatars(
   tenantId: string,
   leads: readonly LeadEmailRow[],
 ): Promise<LeadAvatar[]> {
-  const values = emailLookupValues(leads);
-  if (values.length === 0) return [];
+  const keys = avatarLookupKeys(leads);
+  if (keys.length === 0) return [];
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = looseClient({ supabase: supabaseAdmin });
-  const lookup = async (column: "email" | "contact_email", part: string[]) => {
-    const res = await admin
-      .from("profiles")
-      .select("email, contact_email, avatar_url")
-      .eq("tenant_id", tenantId)
-      .in(column, part)
-      .not("avatar_url", "is", null)
-      .order("id", { ascending: true })
-      .returns<ProfileAvatarRow>();
+  const rowsOrThrow = (res: LooseResult<ProfileAvatarRow[] | null>): ProfileAvatarRow[] => {
     if (res.error) throw new Error(res.error.message);
     return rowsOf(res);
   };
 
-  const byEmail: ProfileAvatarRow[] = [];
-  const byContactEmail: ProfileAvatarRow[] = [];
-  for (const part of chunked(values, LEAD_AVATAR_CHUNK)) {
+  const avatarByKey = new Map<string, string>();
+  const chunks = avatarLookupChunks(keys, {
+    maxItems: LEAD_AVATAR_CHUNK,
+    maxEncodedLength: LEAD_AVATAR_FILTER_URL_BUDGET,
+  });
+  for (const part of chunks) {
     const [primary, contact] = await Promise.all([
-      lookup("email", part),
-      lookup("contact_email", part),
+      // Adres logowania: z auth, małymi literami - DOKŁADNE `in` na kluczu.
+      // Lista jedzie liściem `.or()`, nie `.in()`: postgrest-js `.in()` ujmuje
+      // w cudzysłów wartości z `,()`, ale nie escapuje w nich `"` ani `\`.
+      // Adres `o"neil,(pr)@x.pl` ucinał wtedy listę w połowie (PostgREST
+      // ignoruje resztę parametru), a pozostałe leady strony traciły trafienie
+      // po logowaniu - i dostawały zdjęcie z dopasowania kontaktowego.
+      admin
+        .from("profiles")
+        .select("email, contact_email, avatar_url")
+        .eq("tenant_id", tenantId)
+        .or(`email.in.(${postgrestQuotedList([...new Set(part.map((k) => k.key))])})`)
+        .not("avatar_url", "is", null)
+        .order("id", { ascending: true })
+        .returns<ProfileAvatarRow>(),
+      // Adres kontaktowy: wpisany ręcznie, dowolną wielkością liter - JEDNO
+      // zapytanie na porcję: `ilike` z wzorcem bez wieloznaczników na każdą
+      // zapisaną postać adresu (klucz i adres z leada - baza porównuje swoim
+      // `lower()`, nie JS-owym) albo (postać z `*`) dokładne `in`. Operandy
+      // są już zacytowane (lib/crm/leadAvatars.ts `contactFilter`).
+      admin
+        .from("profiles")
+        .select("email, contact_email, avatar_url")
+        .eq("tenant_id", tenantId)
+        .or(contactFilter(part))
+        .not("avatar_url", "is", null)
+        .order("id", { ascending: true })
+        .returns<ProfileAvatarRow>(),
     ]);
-    byEmail.push(...primary);
-    byContactEmail.push(...contact);
+    // Dopasowanie W OBRĘBIE porcji: wiersz z cudzej porcji nie zmienia
+    // wyboru (karta = jeden lead = jedna porcja, ten sam wynik co lista).
+    const matched = matchChunkAvatars(part, rowsOrThrow(primary), rowsOrThrow(contact));
+    for (const [key, avatar] of matched) avatarByKey.set(key, avatar);
   }
-  return matchLeadAvatars(leads, byEmail, byContactEmail);
+  return leadAvatarsByKey(leads, avatarByKey);
 }
 
 /** Lead karty kontaktu w zakresie potrzebnym do lookupu awatara. */

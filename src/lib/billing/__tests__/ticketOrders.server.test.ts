@@ -12,7 +12,7 @@
 // nie zgłasza się samo - reklamacja przychodzi od kupującego, a panel pokazuje
 // wtedy pustkę. Dlatego każda gałąź „nie da się odczytać / nie da się
 // dopasować" ma tu swój test, w parze ze ścieżką przejścia.
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json, Tables } from "@/integrations/supabase/types";
 
@@ -51,6 +51,7 @@ type OrderRecord = Pick<
   | "paid_at"
   | "created_at"
   | "metadata"
+  | "receipt_email"
 >;
 
 /** Kształt wiersza `events`, jaki widzi słownik wydarzeń w module. */
@@ -62,13 +63,15 @@ interface EventRecord {
   starts_at: string | null;
 }
 
-/** Kształt wiersza `profiles`, jaki widzi słownik kupujących. */
+/**
+ * Kształt wiersza `profiles`, jaki widzi słownik kupujących - BEZ `email`:
+ * ta kolumna nie ma grantu SELECT dla `authenticated` (20260724090100).
+ */
 interface ProfileRecord {
   id: string;
   display_name: string | null;
   first_name: string | null;
   last_name: string | null;
-  email: string | null;
 }
 
 /** Wiersz dziennika operatora dopasowywany po identyfikatorze transakcji. */
@@ -95,6 +98,7 @@ function ticketOrder(overrides: Partial<OrderRecord> = {}): OrderRecord {
     paid_at: "2026-08-18T10:01:00.000Z",
     created_at: "2026-08-18T10:00:00.000Z",
     metadata: { event_id: EVENT_ID, quantity: 2, coupon_code: "NES10" },
+    receipt_email: "uczestnik@example.com",
     ...overrides,
   };
 }
@@ -116,7 +120,6 @@ function profileRecord(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
     display_name: "Uczestnik Testowy",
     first_name: "Uczestnik",
     last_name: "Testowy",
-    email: "uczestnik@example.com",
     ...overrides,
   };
 }
@@ -135,6 +138,8 @@ function webhookRecord(overrides: Partial<WebhookRecord> = {}): WebhookRecord {
 }
 
 let chain: SupabaseFromStub;
+/** Log serwera - awaria słownika ma tu zostawić ślad, a nie zniknąć. */
+let logBledow: ReturnType<typeof vi.spyOn>;
 
 /**
  * Atrapa klienta w typie, jakiego oczekuje moduł.
@@ -148,11 +153,16 @@ let chain: SupabaseFromStub;
 const client = (): SupabaseClient => ({ from: (table: string) => chain.from(table) }) as never;
 
 beforeEach(() => {
+  logBledow = vi.spyOn(console, "error").mockImplementation(() => undefined);
   chain = supabaseFromStub();
   chain.setResponse("payment_orders", ok([ticketOrder()]));
   chain.setResponse("events", ok([eventRecord()]));
   chain.setResponse("profiles", ok([profileRecord()]));
   chain.setResponse("payment_webhook_events", ok([]));
+});
+
+afterEach(() => {
+  logBledow.mockRestore();
 });
 
 // ---------------------------------------------------------------------------
@@ -180,6 +190,25 @@ describe("loadTicketOrders - kontrakt zapytania", () => {
     await expect(loadTicketOrders(client(), 50)).rejects.toThrow(
       "permission denied for table payment_orders",
     );
+  });
+
+  it("adres kupującego jedzie z ZAMÓWIENIA (`receipt_email`) - jedno zapytanie, bez profilu", async () => {
+    await loadTicketOrders(client(), 25);
+
+    const kolumny = String(chain.lastChain("payment_orders")!.argsOf("select")?.[0]).split(",");
+    expect(kolumny).toContain("receipt_email");
+  });
+
+  it("słownik kupujących pyta WYŁĄCZNIE o kolumny z grantem dla `authenticated` - bez `email`", async () => {
+    // `profiles.email` nie ma grantu SELECT dla `authenticated` (poprawka PII
+    // 20260724090100, pgTAP `profiles_pii_grant_test`). Jedna taka kolumna
+    // w `select` wywraca CAŁE zapytanie kodem 42501 - do 17.11.2026 panel
+    // pokazywał przez to puste nazwisko i adres przy KAŻDYM zamówieniu.
+    await loadTicketOrders(client(), 25);
+
+    expect(chain.lastChain("profiles")!.argsOf("select")).toEqual([
+      "id,display_name,first_name,last_name",
+    ]);
   });
 
   it("brak zamówień kończy pracę bez dopytywania słowników", async () => {
@@ -338,24 +367,68 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
     });
   });
 
-  it("awaria słownika kupujących degraduje nazwę, a nie całą listę", async () => {
-    chain.setResponse("profiles", fail("permission denied for table profiles"));
+  it("awaria słownika kupujących degraduje NAZWĘ, a nie listę - i zostawia ślad w logu", async () => {
+    chain.setResponse("profiles", fail("permission denied for table profiles", "42501"));
 
     const rows = await loadTicketOrders(client(), 50);
 
     expect(rows).toHaveLength(1);
     expect(rows[0].buyerName).toBeNull();
-    expect(rows[0].buyerEmail).toBeNull();
+    // Adres nie zależy od słownika: jest na samym zamówieniu.
+    expect(rows[0].buyerEmail).toBe("uczestnik@example.com");
+    // CICHA odmowa to był cały defekt: pusta kolumna wyglądała jak „kupujący
+    // bez nazwy", a nie jak awaria odczytu.
+    expect(logBledow).toHaveBeenCalledWith(
+      "[billing] ticket orders: buyer profiles lookup failed",
+      { message: "permission denied for table profiles", code: "42501" },
+    );
   });
 
-  it("awaria słownika wydarzeń też degraduje etykiety, a nie dowód zapłaty", async () => {
-    chain.setResponse("events", fail("permission denied for table events"));
+  it("awaria słownika wydarzeń też degraduje etykiety, a nie dowód zapłaty - z wpisem w logu", async () => {
+    chain.setResponse("events", fail("permission denied for table events", "42501"));
 
     const rows = await loadTicketOrders(client(), 50);
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ eventId: EVENT_ID, eventTitlePl: null, eventSlug: null });
     expect(rows[0].amountCents).toBe(12000);
+    expect(logBledow).toHaveBeenCalledWith("[billing] ticket orders: events lookup failed", {
+      message: "permission denied for table events",
+      code: "42501",
+    });
+  });
+
+  it("udany odczyt słowników nie pisze niczego do logu błędów", async () => {
+    await loadTicketOrders(client(), 50);
+    expect(logBledow).not.toHaveBeenCalled();
+  });
+
+  it("adres: spacje i brak `receipt_email` dają brak adresu, a nie pustą komórkę", async () => {
+    for (const receipt_email of [null, "", "   "]) {
+      chain.setResponse("payment_orders", ok([ticketOrder({ receipt_email })]));
+      const rows = await loadTicketOrders(client(), 50);
+      expect(rows[0].buyerEmail, JSON.stringify(receipt_email)).toBeNull();
+    }
+  });
+
+  it("zamówienie po anonimizacji nie pokazuje adresu, NAWET gdy został na wierszu", async () => {
+    // Anonimizacja zeruje `receipt_email` w bazie; panel nie polega wyłącznie
+    // na tym - zamówienie po RODO nie może wiązać się z adresem.
+    chain.setResponse(
+      "payment_orders",
+      ok([
+        ticketOrder({
+          user_id: null,
+          anonymized_at: "2026-08-20T00:00:00.000Z",
+          receipt_email: "pozostalosc@example.com",
+        }),
+      ]),
+    );
+
+    const rows = await loadTicketOrders(client(), 50);
+
+    expect(rows[0].buyerEmail).toBeNull();
+    expect(rows[0].buyerAnonymized).toBe(true);
   });
 
   it("CUDZY PROFIL w odpowiedzi słownika nie podszywa się pod kupującego", async () => {
@@ -363,19 +436,14 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
     // rozjazd w zapytaniu przypisałby cudze nazwisko do cudzej płatności.
     chain.setResponse(
       "profiles",
-      ok([
-        profileRecord({
-          id: BILLING_IDS.other,
-          display_name: "Ktoś Inny",
-          email: "inny@example.org",
-        }),
-      ]),
+      ok([profileRecord({ id: BILLING_IDS.other, display_name: "Ktoś Inny" })]),
     );
 
     const rows = await loadTicketOrders(client(), 50);
 
     expect(rows[0].buyerName).toBeNull();
-    expect(rows[0].buyerEmail).toBeNull();
+    // Adres pochodzi z TEGO zamówienia, więc cudzy profil nie ma go jak podmienić.
+    expect(rows[0].buyerEmail).toBe("uczestnik@example.com");
   });
 
   it("CUDZE WYDARZENIE w odpowiedzi słownika nie podmienia nazwy biletu", async () => {

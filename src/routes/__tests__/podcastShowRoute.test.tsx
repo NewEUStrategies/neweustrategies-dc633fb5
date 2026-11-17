@@ -57,6 +57,8 @@ const h = vi.hoisted(() => ({
   episodes: [] as Record<string, unknown>[],
   /** Wiersze `podcast_episode_people`. */
   people: [] as Record<string, unknown>[],
+  /** Wiersze projekcji `profiles_public` widoczne dla GOŚCIA (z każdego obszaru). */
+  publicProfiles: [] as Record<string, unknown>[],
   /**
    * Tenant PRZEGLĄDANEJ domeny. Atrapa odgrywa rolę polityki publicznej
    * (`tenant_id = public_tenant_id()`): produkcja wysyła `x-tenant-host`, baza
@@ -110,10 +112,22 @@ vi.mock("@/integrations/supabase/client", async () => {
     const eq = filters(chain.calls);
     return ok(visible(h.episodes).filter((e) => e.show_id === eq.get("show_id")));
   });
-  stub.setResponse("podcast_episode_people", () => {
+  stub.setResponse("podcast_episode_people", (chain) => {
     h.reads.push("podcast_episode_people");
     if (h.broken.has("podcast_episode_people")) return fail("test: tabela people niedostepna");
+    // Osadzenie tabeli `profiles` kończy się na produkcji 42501 dla anona -
+    // atrapa odgrywa tę odmowę (patrz `podcastEpisodeRoute.test.tsx`).
+    const select = String(chain.calls.find((c) => c.method === "select")?.args[0] ?? "");
+    if (/(^|,)\s*profiles\s*\(/.test(select)) {
+      return fail("permission denied for table profiles", "42501");
+    }
     return ok(h.people);
+  });
+  stub.setResponse("profiles_public", (chain) => {
+    h.reads.push("profiles_public");
+    const ids = chain.calls.find((c) => c.method === "in" && c.args[0] === "id")?.args[1];
+    const wanted = new Set(Array.isArray(ids) ? ids : []);
+    return ok(visible(h.publicProfiles).filter((p) => wanted.has(p.id)));
   });
   return { supabase: { from: stub.from } };
 });
@@ -218,7 +232,6 @@ function personRow(patch: Record<string, unknown> = {}): Record<string, unknown>
     role: "host",
     url: null,
     sort_order: 0,
-    profiles: null,
     ...patch,
   };
 }
@@ -274,6 +287,7 @@ beforeEach(async () => {
   h.shows = [show()];
   h.episodes = [episode()];
   h.people = [];
+  h.publicProfiles = [];
   h.tenantId = TENANT_A;
   h.broken = new Set<string>();
   h.reads = [];
@@ -399,6 +413,36 @@ describe("trasa /podcasts/$show - sklejenie i treść programu", () => {
     await waitFor(() => expect(screen.getAllByText("Zofia Wiatrak")).toHaveLength(1));
     // Gość NIE jest prowadzącym serii - sekcja mówi o stałej obsadzie programu.
     expect(screen.queryByText("Jan Bryza")).not.toBeInTheDocument();
+  });
+
+  it("GOŚĆ widzi prowadzącą serii z publicznego profilu (link i awatar), raz mimo wielu odcinków", async () => {
+    // Do 17.11.2026 osadzenie `profiles(...)` kończyło się dla anona 42501,
+    // a loader spadał na pustą obsadę: sekcja prowadzących znikała gościom.
+    h.publicProfiles = [
+      {
+        id: "profile-zofia",
+        tenant_id: TENANT_A,
+        slug: "zofia-wiatrak",
+        display_name: "Zofia Wiatrak",
+        avatar_url: "https://cdn.example.org/zofia.png",
+      },
+    ];
+    h.people = [
+      personRow({ profile_id: "profile-zofia", display_name: "" }),
+      personRow({
+        id: "person-2",
+        episode_id: "22222222-2222-4222-8222-222222222222",
+        profile_id: "profile-zofia",
+        display_name: "",
+      }),
+    ];
+    await mount();
+
+    const host = await screen.findByRole("link", { name: /Zofia Wiatrak/ });
+    expect(host).toHaveAttribute("href", "/author/zofia-wiatrak");
+    expect(host.querySelector("img")).not.toBeNull();
+    expect(screen.getAllByText("Zofia Wiatrak")).toHaveLength(1);
+    expect(h.cacheControl.at(-1) ?? "").not.toContain("no-store");
   });
 
   it("nie zostawia strony programu z wadami dostępności", async () => {

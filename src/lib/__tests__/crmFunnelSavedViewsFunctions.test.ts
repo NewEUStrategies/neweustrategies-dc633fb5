@@ -6,7 +6,15 @@
 // nadpisuje na konflikcie wszystkie kolumny z payloadu). Stąd dwa osobne upserty
 // i osobny test na każdy z nich.
 //
-// Autoryzacja i RLS: pgTAP. Tutaj kształt, zgoda, audyt, ścieżka błędu.
+// ODCZYT LEJKA idzie spod service-role (atrapa `supabaseAdmin` niżej): widok
+// `crm_funnel_view` łączy profile po `profiles.email`, a ta kolumna nie ma
+// grantu SELECT dla `authenticated` (20260724090100) - pod klientem staff
+// każdy odczyt kończył się 42501. Tu pilnujemy granicy, która pod
+// service-role zastępuje RLS: najemca z PROFILU wołającego (nie z ładunku),
+// `tenant_id` w każdym zapytaniu do widoku, rola admin/editor jak w polityce
+// `newsletter staff read`, kolumny wyłącznie z ekranu.
+//
+// Autoryzacja i RLS zapisów: pgTAP. Tutaj kształt, zgoda, audyt, ścieżka błędu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok, fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
 import {
@@ -24,6 +32,14 @@ vi.mock("@/integrations/supabase/require-staff", () => ({
   requireStaff: { name: "requireStaff" },
 }));
 
+// Klient service-role - jedyna droga do widoku lejka.
+const h = vi.hoisted(() => ({
+  adminFrom: null as ((table: string) => unknown) | null,
+}));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { from: (table: string) => h.adminFrom?.(table) },
+}));
+
 import * as funnel from "@/lib/crm-funnel.functions";
 import * as savedViews from "@/lib/crm-saved-views.functions";
 
@@ -34,6 +50,7 @@ const USER_ID = "44444444-4444-4444-8444-444444444444";
 const VIEW_ID = "55555555-5555-4555-8555-555555555555";
 
 const db = supabaseFromStub();
+const admin = supabaseFromStub();
 let rpcCalls: Array<{ fn: string; args: unknown }> = [];
 let rpcResults: Record<string, SupabaseResult> = {};
 
@@ -65,23 +82,124 @@ const subscriber = (over: Partial<Record<string, unknown>> = {}) => ({
   ...over,
 });
 
+/** Kolumny odpowiedzi lejka - dokładnie pola typu `FunnelRow` trasy. */
+const KOLUMNY_LEJKA =
+  "id, tenant_id, email, first_name, last_name, display_name, language, source, status, confirmed_at, unsubscribed_at, created_at, user_id, profile_id, avatar_url, is_registered, contact_id, is_contact, contact_stage, contact_score";
+
 beforeEach(() => {
   db.reset();
+  admin.reset();
+  h.adminFrom = (table) => admin.from(table);
+  // Wołający: profil w najemcy TENANT, rola admin (odczyt własnych ról).
+  db.setResponse("profiles", ok({ tenant_id: TENANT }));
+  db.setResponse("user_roles", ok([{ role: "admin" }]));
   rpcCalls = [];
   rpcResults = {};
 });
 
+/** Warunki `eq` łańcucha w kolejności wywołania. */
+const eqs = (table: string) =>
+  admin
+    .lastChain(table)
+    ?.calls.filter((c) => c.method === "eq")
+    .map((c) => c.args);
+
+describe("odczyt lejka - granica najemcy i roli pod service-role", () => {
+  const odczyty = [
+    [
+      "listFunnelSubscribers",
+      () => callServerFn(funnel.listFunnelSubscribers, { data: {}, context: context() }),
+    ],
+    [
+      "getFunnelSubscriber",
+      () => callServerFn(funnel.getFunnelSubscriber, { data: { id: SUB_ID }, context: context() }),
+    ],
+    ["funnelStats", () => callServerFn(funnel.funnelStats, { context: context() })],
+  ] as const;
+
+  beforeEach(() => {
+    admin.setResponse("crm_funnel_view", (chain) =>
+      chain.has("maybeSingle") ? ok(subscriber()) : { data: [], error: null, count: 0 },
+    );
+  });
+
+  it.each(odczyty)(
+    "%s: widok czyta WYŁĄCZNIE klient service-role, nigdy klient wołającego",
+    async (_n, run) => {
+      // Klient wołającego dostałby 42501 z `profiles.email` w złączeniu widoku.
+      await run();
+      expect(db.chainsFor("crm_funnel_view")).toHaveLength(0);
+      expect(admin.chainsFor("crm_funnel_view").length).toBeGreaterThan(0);
+      expect(rpcCalls).toEqual([]);
+    },
+  );
+
+  it.each(odczyty)(
+    "%s: KAŻDE zapytanie do widoku niesie najemcę z profilu wołającego",
+    async (_n, run) => {
+      await run();
+      for (const chain of admin.chainsFor("crm_funnel_view")) {
+        expect(chain.calls.find((c) => c.method === "eq")?.args).toEqual(["tenant_id", TENANT]);
+      }
+      // Najemca z PROFILU wołającego pod RLS (filtr po id sesji), nie z ładunku.
+      expect(db.lastChain("profiles")?.argsOf("eq")).toEqual(["id", USER_ID]);
+    },
+  );
+
+  it.each(odczyty)(
+    "%s: rola sprawdzana jak w `newsletter staff read` - admin albo editor w TYM najemcy",
+    async (_n, run) => {
+      await run();
+      const role = db.lastChain("user_roles");
+      expect(role?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+        ["user_id", USER_ID],
+        ["tenant_id", TENANT],
+      ]);
+      // Bez `super_admin` i bez `author`: pod RLS żaden z nich nie widział
+      // subskrybentów, więc service-role nie może im ich pokazać.
+      expect(role?.argsOf("in")).toEqual(["role", ["admin", "editor"]]);
+    },
+  );
+
+  it.each(odczyty)("%s: bez roli admin/editor - ODMOWA i zero odczytów widoku", async (_n, run) => {
+    db.setResponse("user_roles", ok([]));
+    await expect(run()).rejects.toThrow("Forbidden: newsletter staff required");
+    expect(admin.chainsFor("crm_funnel_view")).toHaveLength(0);
+  });
+
+  it.each(odczyty)("%s: odmowa odczytu ról to odmowa, nie pusty lejek", async (_n, run) => {
+    db.setResponse("user_roles", fail("permission denied for table user_roles"));
+    await expect(run()).rejects.toThrow("permission denied for table user_roles");
+    expect(admin.chainsFor("crm_funnel_view")).toHaveLength(0);
+  });
+
+  it.each(odczyty)(
+    "%s: nierozpoznany najemca wołającego - odmowa, nigdy „pokaż wszystko”",
+    async (_n, run) => {
+      db.setResponse("profiles", ok(null));
+      await expect(run()).rejects.toThrow("tenant_unresolved");
+      expect(admin.chainsFor("crm_funnel_view")).toHaveLength(0);
+    },
+  );
+});
+
 describe("listFunnelSubscribers", () => {
   it("czyta widok lejka z domyślnym limitem i porządkiem", async () => {
-    db.setResponse("crm_funnel_view", () => ok([{ id: SUB_ID }]));
+    admin.setResponse("crm_funnel_view", () => ok([{ id: SUB_ID }]));
     const result = await callServerFn(funnel.listFunnelSubscribers, {
       data: {},
       context: context(),
     });
     expect(parsed(result)).toEqual([{ id: SUB_ID }]);
-    const chain = db.lastChain("crm_funnel_view");
+    const chain = admin.lastChain("crm_funnel_view");
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
     expect(chain?.argsOf("limit")).toEqual([200]);
+  });
+
+  it("pyta o kolumny ekranu, nie o `*` - bez `consents` i bez kolumn spoza listy", async () => {
+    admin.setResponse("crm_funnel_view", () => ok([]));
+    await callServerFn(funnel.listFunnelSubscribers, { data: {}, context: context() });
+    expect(admin.lastChain("crm_funnel_view")?.argsOf("select")).toEqual([KOLUMNY_LEJKA]);
   });
 
   it("każdy wariant odbiorcy zawęża zapytanie po swojej fladze", async () => {
@@ -92,24 +210,24 @@ describe("listFunnelSubscribers", () => {
       ["non_contact", ["is_contact", false]],
     ];
     for (const [audience, expected] of cases) {
-      db.reset();
-      db.setResponse("crm_funnel_view", () => ok([]));
+      admin.reset();
+      admin.setResponse("crm_funnel_view", () => ok([]));
       await callServerFn(funnel.listFunnelSubscribers, { data: { audience }, context: context() });
-      expect(db.lastChain("crm_funnel_view")?.argsOf("eq")).toEqual(expected);
+      expect(eqs("crm_funnel_view")).toEqual([["tenant_id", TENANT], expected]);
     }
   });
 
-  it("odbiorca „wszyscy” nie dokłada żadnego warunku", async () => {
-    db.setResponse("crm_funnel_view", () => ok([]));
+  it("odbiorca „wszyscy” nie dokłada warunku poza granicą najemcy", async () => {
+    admin.setResponse("crm_funnel_view", () => ok([]));
     await callServerFn(funnel.listFunnelSubscribers, {
       data: { audience: "all" },
       context: context(),
     });
-    expect(db.lastChain("crm_funnel_view")?.has("eq")).toBe(false);
+    expect(eqs("crm_funnel_view")).toEqual([["tenant_id", TENANT]]);
   });
 
   it("status, źródło, język i zakres dat trafiają do zapytania", async () => {
-    db.setResponse("crm_funnel_view", () => ok([]));
+    admin.setResponse("crm_funnel_view", () => ok([]));
     await callServerFn(funnel.listFunnelSubscribers, {
       data: {
         status: "pending",
@@ -120,8 +238,9 @@ describe("listFunnelSubscribers", () => {
       },
       context: context(),
     });
-    const chain = db.lastChain("crm_funnel_view");
-    expect(chain?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+    const chain = admin.lastChain("crm_funnel_view");
+    expect(eqs("crm_funnel_view")).toEqual([
+      ["tenant_id", TENANT],
       ["status", "pending"],
       ["source", "stopka"],
       ["language", "en"],
@@ -131,12 +250,12 @@ describe("listFunnelSubscribers", () => {
   });
 
   it("fraza traci metaznaki, więc nie dopisze warunku do zapytania", async () => {
-    db.setResponse("crm_funnel_view", () => ok([]));
+    admin.setResponse("crm_funnel_view", () => ok([]));
     await callServerFn(funnel.listFunnelSubscribers, {
       data: { search: 'Kowal%ska_,("x")' },
       context: context(),
     });
-    const or = String(db.lastChain("crm_funnel_view")?.argsOf("or")?.[0] ?? "");
+    const or = String(admin.lastChain("crm_funnel_view")?.argsOf("or")?.[0] ?? "");
     expect(or.split(",")).toEqual([
       "email.ilike.%Kowalskax%",
       "first_name.ilike.%Kowalskax%",
@@ -146,16 +265,16 @@ describe("listFunnelSubscribers", () => {
   });
 
   it("pusta fraza nie dokłada warunku", async () => {
-    db.setResponse("crm_funnel_view", () => ok([]));
+    admin.setResponse("crm_funnel_view", () => ok([]));
     await callServerFn(funnel.listFunnelSubscribers, {
       data: { search: "   " },
       context: context(),
     });
-    expect(db.lastChain("crm_funnel_view")?.has("or")).toBe(false);
+    expect(admin.lastChain("crm_funnel_view")?.has("or")).toBe(false);
   });
 
   it("błąd odczytu wychodzi na zewnątrz", async () => {
-    db.setResponse("crm_funnel_view", () => fail("boom"));
+    admin.setResponse("crm_funnel_view", () => fail("boom"));
     await expect(
       callServerFn(funnel.listFunnelSubscribers, { data: {}, context: context() }),
     ).rejects.toThrow("boom");
@@ -163,24 +282,29 @@ describe("listFunnelSubscribers", () => {
 });
 
 describe("getFunnelSubscriber", () => {
-  it("oddaje jeden wiersz widoku", async () => {
-    db.setResponse("crm_funnel_view", () => ok({ id: SUB_ID, email: "a@example.test" }));
+  it("oddaje jeden wiersz widoku - z najemcy wołającego, kolumnami ekranu", async () => {
+    admin.setResponse("crm_funnel_view", () => ok({ id: SUB_ID, email: "a@example.test" }));
     const result = await callServerFn(funnel.getFunnelSubscriber, {
       data: { id: SUB_ID },
       context: context(),
     });
     expect(parsed(result)).toMatchObject({ id: SUB_ID });
+    expect(eqs("crm_funnel_view")).toEqual([
+      ["tenant_id", TENANT],
+      ["id", SUB_ID],
+    ]);
+    expect(admin.lastChain("crm_funnel_view")?.argsOf("select")).toEqual([KOLUMNY_LEJKA]);
   });
 
   it("brak wiersza to not_found", async () => {
-    db.setResponse("crm_funnel_view", () => ok(null));
+    admin.setResponse("crm_funnel_view", () => ok(null));
     await expect(
       callServerFn(funnel.getFunnelSubscriber, { data: { id: SUB_ID }, context: context() }),
     ).rejects.toThrow("not_found");
   });
 
   it("błąd odczytu wychodzi na zewnątrz", async () => {
-    db.setResponse("crm_funnel_view", () => fail("boom"));
+    admin.setResponse("crm_funnel_view", () => fail("boom"));
     await expect(
       callServerFn(funnel.getFunnelSubscriber, { data: { id: SUB_ID }, context: context() }),
     ).rejects.toThrow("boom");
@@ -188,30 +312,49 @@ describe("getFunnelSubscriber", () => {
 });
 
 describe("funnelStats", () => {
-  it("liczby z RPC są normalizowane (napisy z COUNT -> liczby)", async () => {
-    rpcResults.crm_funnel_stats = ok([
-      {
-        total: "10",
-        subscribed: "7",
-        pending: 2,
-        unsubscribed: null,
-        registered: "4",
-        contacts: 3,
-      },
-    ]);
+  /** Odpowiedź zapytania liczącego: licznik zależny od filtra łańcucha. */
+  function liczniki(per: Record<string, number>, blad?: string) {
+    admin.setResponse("crm_funnel_view", (chain) => {
+      const warunki = chain.calls
+        .filter((c) => c.method === "eq" && c.args[0] !== "tenant_id")
+        .map((c) => `${String(c.args[0])}=${String(c.args[1])}`);
+      const klucz = warunki.join("&") || "total";
+      if (blad && klucz === "is_contact=true") return fail(blad);
+      return { data: null, error: null, count: per[klucz] ?? null };
+    });
+  }
+
+  it("sześć liczników liczy baza - zapytania liczące nad widokiem, każde w najemcy wołającego", async () => {
+    liczniki({
+      total: 10,
+      "status=subscribed": 7,
+      "status=pending": 2,
+      "status=unsubscribed": 1,
+      "is_registered=true": 4,
+      "is_contact=true": 3,
+    });
     const result = await callServerFn(funnel.funnelStats, { context: context() });
     expect(result).toEqual({
       total: 10,
       subscribed: 7,
       pending: 2,
-      unsubscribed: 0,
+      unsubscribed: 1,
       registered: 4,
       contacts: 3,
     });
+    const lancuchy = admin.chainsFor("crm_funnel_view");
+    expect(lancuchy).toHaveLength(6);
+    for (const chain of lancuchy) {
+      // Sam licznik, bez wierszy - i bez kolumn spoza widoku.
+      expect(chain.argsOf("select")).toEqual(["id", { count: "exact", head: true }]);
+      expect(chain.calls.find((c) => c.method === "eq")?.args).toEqual(["tenant_id", TENANT]);
+    }
+    // `crm_funnel_stats` (SECURITY INVOKER bez filtra najemcy) nie jest wołane.
+    expect(rpcCalls).toEqual([]);
   });
 
-  it("brak wiersza daje same zera zamiast NaN", async () => {
-    rpcResults.crm_funnel_stats = ok(null);
+  it("brak licznika daje zero zamiast NaN", async () => {
+    liczniki({});
     expect(await callServerFn(funnel.funnelStats, { context: context() })).toEqual({
       total: 0,
       subscribed: 0,
@@ -222,8 +365,8 @@ describe("funnelStats", () => {
     });
   });
 
-  it("błąd RPC wychodzi na zewnątrz", async () => {
-    rpcResults.crm_funnel_stats = fail("stats down");
+  it("odmowa JEDNEGO licznika wywraca podsumowanie - licznik z odmowy to nie zero", async () => {
+    liczniki({ total: 10 }, "stats down");
     await expect(callServerFn(funnel.funnelStats, { context: context() })).rejects.toThrow(
       "stats down",
     );

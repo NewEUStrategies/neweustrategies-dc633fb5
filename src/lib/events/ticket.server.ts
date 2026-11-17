@@ -160,18 +160,36 @@ export function ticketEntryMode(row: EntryRow | null): TicketEntryMode {
   return "qr_pending";
 }
 
-/** Bilet zalogowanego użytkownika; `null`, gdy nie ma potwierdzonego wejścia. */
+/**
+ * Bilet zalogowanego użytkownika; `null`, gdy nie ma potwierdzonego wejścia.
+ *
+ * ADRES POSIADACZA Z SESJI, NIE Z PROFILU. Do 17.11.2026 odczyt profilu pytał
+ * o `profiles.email`, a ta kolumna nie ma grantu SELECT dla `authenticated`
+ * (poprawka PII 20260724090100) - PostgREST odrzucał całe zapytanie (42501),
+ * profil był `null`, a karta i dokument biletu traciły wiersz posiadacza.
+ * Adres to claim `email` zweryfikowanego tokenu wołającego (`sessionEmail`
+ * z `requireSupabaseAuth`), więc nie potrzeba ani grantu, ani roli serwisowej;
+ * profil podaje już tylko nazwę (kolumny z grantem).
+ *
+ * AWARIA NIE JEST BRAKIEM. Odmowa odczytu RSVP, wydarzenia albo zamówienia
+ * RZUCA: „brak biletu" albo „bilet bezpłatny" z numerem z RSVP zamiast
+ * z zamówienia to fałszywa odpowiedź, nie degradacja. Odmowa odczytu
+ * zgłoszenia (tryb wejścia) i profilu (podpis) degraduje się jak dotąd -
+ * do trybu „lista gości" i biletu bez nazwy - ale trafia do logu serwera.
+ */
 export async function loadMyEventTicket(
   supabase: SupabaseClient,
   userId: string,
   eventId: string,
+  sessionEmail: string | null,
 ): Promise<MyEventTicket | null> {
-  const { data: rsvp } = await supabase
+  const { data: rsvp, error: rsvpError } = await supabase
     .from("event_rsvps")
     .select("id, status")
     .eq("event_id", eventId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (rsvpError) throw new Error(rsvpError.message);
   if (!rsvp || rsvp.status !== "going") return null;
 
   // Cztery odczyty niezależne od siebie - jeden round-trip zamiast czterech.
@@ -196,39 +214,58 @@ export async function loadMyEventTicket(
   // jawna: tabele łączą też tabele pośrednie (np. leady), a PostgREST bez
   // podpowiedzi odmówiłby osadzenia jako niejednoznacznego. Kolumny są jawne -
   // bez hashy kodu i klucza, których `authenticated` i tak nie czyta (D10).
-  const [{ data: event }, { data: order }, { data: profile }, { data: registration }] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select("id, slug, title_pl, title_en, starts_at, ends_at, timezone, location")
-        .eq("id", eventId)
-        .maybeSingle(),
-      supabase
-        .from("payment_orders")
-        .select("id, amount_cents, currency, paid_at, provider_intent_id")
-        .eq("user_id", userId)
-        .eq("status", "paid")
-        .eq("metadata->>event_id", eventId)
-        .order("paid_at", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("profiles")
-        .select("email, first_name, last_name, display_name")
-        .eq("id", userId)
-        .maybeSingle(),
-      supabase
-        .from("event_registrations")
-        .select(
-          "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
-        )
-        .eq("event_id", eventId)
-        .eq("event_people.user_id", userId)
-        .in("status", ["approved", "attended"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [eventRes, orderRes, profileRes, registrationRes] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, slug, title_pl, title_en, starts_at, ends_at, timezone, location")
+      .eq("id", eventId)
+      .maybeSingle(),
+    supabase
+      .from("payment_orders")
+      .select("id, amount_cents, currency, paid_at, provider_intent_id")
+      .eq("user_id", userId)
+      .eq("status", "paid")
+      .eq("metadata->>event_id", eventId)
+      .order("paid_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("first_name, last_name, display_name")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase
+      .from("event_registrations")
+      .select(
+        "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
+      )
+      .eq("event_id", eventId)
+      .eq("event_people.user_id", userId)
+      .in("status", ["approved", "attended"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (eventRes.error) throw new Error(eventRes.error.message);
+  if (orderRes.error) throw new Error(orderRes.error.message);
+  if (profileRes.error) {
+    console.error("[events] my ticket: holder profile lookup failed", {
+      eventId,
+      message: profileRes.error.message,
+      code: profileRes.error.code,
+    });
+  }
+  if (registrationRes.error) {
+    console.error("[events] my ticket: registration lookup failed", {
+      eventId,
+      message: registrationRes.error.message,
+      code: registrationRes.error.code,
+    });
+  }
+  const event = eventRes.data;
+  const order = orderRes.data;
+  const profile = profileRes.error ? null : profileRes.data;
+  const registration = registrationRes.error ? null : registrationRes.data;
   if (!event) return null;
 
   const holderName =
@@ -260,6 +297,6 @@ export async function loadMyEventTicket(
     currency: order?.currency ?? null,
     paidAt: order?.paid_at ?? null,
     holderName,
-    holderEmail: profile?.email ?? null,
+    holderEmail: sessionEmail?.trim() || null,
   };
 }

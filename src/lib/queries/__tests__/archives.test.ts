@@ -15,10 +15,13 @@
 //     trzykrotnie, więc pustka i błąd są tu rozdzielone WSZĘDZIE, gdzie
 //     warstwa danych umie zwrócić jedno i drugie (taksonomia, pivot, wpisy,
 //     szablon, trafienia, fasety, podpowiedzi, osoby i organizacje);
-//   * KOLEJNOŚĆ SORTOWANIA JEST KONTRAKTEM. `sort=popular` musi dać DWA ogniwa
-//     `.order()` (views_count, potem published_at jako rozstrzygnięcie remisów).
-//     Jedno ogniwo mniej = losowa kolejność wpisów o równej liczbie odsłon
-//     między stronami wyników, czyli wpisy gubione i dublowane w paginacji;
+//   * KOLEJNOŚĆ SORTOWANIA JEST KONTRAKTEM. `sort=popular` bierze ranking
+//     z `popular_post_ids` (odsłony z `post_views`), a NIE z kolumny
+//     `posts.views_count`, której nie tworzy żadna migracja - do 17.11.2026
+//     PostgREST odpowiadał na nią 42703 i archiwum pokazywało widok błędu.
+//     Czołówka (wpisy terminu z rankingu, w jego kolejności) i ogon (reszta
+//     terminu od najnowszych, BEZ czołówki) muszą się składać w jedną
+//     kolejność całkowitą - inaczej paginacja gubi albo dubluje wpisy;
 //   * OKNO STRONY JEST DOKŁADNE. `range(from, to)` liczone z `page`/`pageSize`
 //     sprawdzamy na pierwszej stronie, w środku i ZA ostatnią stroną - bo
 //     `total` pochodzi z `count`, nie z długości wiersza, i strona poza
@@ -92,6 +95,12 @@ const h = vi.hoisted(() => ({
   cache: [] as Array<{ key: string; ttl: number }>,
   jezyk: "pl",
   semantyka: vi.fn<(input: { data: { q: string } }) => Promise<{ hits: SemanticHit[] }>>(),
+  /** Funkcja serwerowa sekcji wyróżnionej (odczyt szablonu spod service-role). */
+  wyroznione: vi.fn<
+    (input: { data: { kind: "category" | "tag"; termId: string } }) => Promise<{
+      json: string | null;
+    }>
+  >(),
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -117,6 +126,10 @@ vi.mock("@/lib/ssrCache", () => ({
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => h.jezyk }));
 
 vi.mock("@/lib/search/semantic.functions", () => ({ semanticSearch: h.semantyka }));
+
+vi.mock("@/lib/archive/featuredSection.functions", () => ({
+  getArchiveFeaturedSection: h.wyroznione,
+}));
 
 import {
   ARCHIVE_PAGE_SIZE,
@@ -269,9 +282,11 @@ const SCIEZKI_OK = ok([{ page_id: STRONA_RODZIC, full_path: SCIEZKA_RODZICA }]);
 interface PlanArchiwum {
   kind: "category" | "tag";
   taksonomia?: SupabaseResult;
-  wpisy?: SupabaseResult;
+  wpisy?: SupabaseResult | ((chain: RecordedChain) => SupabaseResult);
   szablon?: SupabaseResult;
   sciezki?: SupabaseResult;
+  /** Odpowiedź `popular_post_ids` (domyślnie pusty ranking). */
+  ranking?: SupabaseResult;
 }
 
 function planujArchiwum(p: PlanArchiwum): void {
@@ -284,6 +299,7 @@ function planujArchiwum(p: PlanArchiwum): void {
   s.setResponse("posts", p.wpisy ?? okZLicznikiem([wpis("p1")], 1));
   s.setResponse("builder_templates", p.szablon ?? ok(null));
   funkcje().setResponse("page_full_paths", p.sciezki ?? SCIEZKI_OK);
+  funkcje().setResponse("popular_post_ids", p.ranking ?? ok([]));
 }
 
 interface PlanWyszukiwania {
@@ -317,10 +333,14 @@ beforeEach(() => {
   h.jezyk = "pl";
   h.semantyka.mockReset();
   h.semantyka.mockResolvedValue({ hits: [] });
+  h.wyroznione.mockReset();
+  h.wyroznione.mockResolvedValue({ json: null });
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  // Szpiedzy `console.warn` z przypadków degradacji nie przeciekają dalej.
+  vi.restoreAllMocks();
 });
 
 // ==========================================================================
@@ -591,11 +611,261 @@ describe("archiwum taksonomii: kolejność i kierunek ogniw .order()", () => {
     expect(await ogniwaSortowania("oldest")).toEqual([["published_at", { ascending: true }]]);
   });
 
-  it("„popularne” MUSI mieć drugie ogniwo rozstrzygające remisy - inaczej paginacja gubi wpisy", async () => {
-    expect(await ogniwaSortowania("popular")).toEqual([
-      ["views_count", { ascending: false }],
-      ["published_at", { ascending: false }],
-    ]);
+  it("„popularne” bez odsłon w oknie to rozstrzygnięcie remisów rankingu: od najnowszych", async () => {
+    // Pusty ranking = każdy wpis ma zero odsłon, więc o kolejności decyduje
+    // wyłącznie rozstrzygnięcie remisów `popular_post_ids` (published_at
+    // malejąco). Zero kolumn spoza schematu - patrz blok niżej.
+    expect(await ogniwaSortowania("popular")).toEqual([["published_at", { ascending: false }]]);
+  });
+});
+
+// ==========================================================================
+// „POPULARNE” - ranking z post_views zamiast nieistniejącej kolumny
+// ==========================================================================
+
+describe("archiwum taksonomii: „popularne” z rankingu `popular_post_ids`", () => {
+  /** Ranking w kształcie odpowiedzi funkcji: najpopularniejsze pierwsze. */
+  function ranking(...ids: string[]): SupabaseResult {
+    return ok(ids.map((post_id) => ({ post_id })));
+  }
+
+  /** Czy łańcuch `posts` to zapytanie o CZOŁÓWKĘ (wpisy terminu z rankingu). */
+  function czolowka(chain: RecordedChain): boolean {
+    return listaIdWpisow(chain).length > 0;
+  }
+
+  /**
+   * Odpowiedź tabeli `posts` dla obu zapytań gałęzi: czołówka dostaje wiersze
+   * W KOLEJNOŚCI BAZY (nie rankingu - kod ma ją przestawić sam), ogon -
+   * swoje wiersze i licznik.
+   */
+  function wpisyPopularne(
+    czolo: readonly Record<string, unknown>[],
+    ogon: SupabaseResult,
+  ): (chain: RecordedChain) => SupabaseResult {
+    return (chain) => (czolowka(chain) ? ok(czolo) : ogon);
+  }
+
+  async function pobierz(page = 1, pageSize = 60, kind: "category" | "tag" = "category") {
+    return klient().fetchQuery(
+      taxonomyArchiveQueryOptions(kind, kind === "category" ? "analizy" : "nato", {
+        page,
+        pageSize,
+        sort: "popular",
+      }),
+    );
+  }
+
+  function lancuchy(): { czolo: RecordedChain; ogon: RecordedChain } {
+    const posty = baza().chainsFor("posts");
+    const czolo = posty.find(czolowka);
+    const ogon = posty.find((c) => !czolowka(c));
+    if (!czolo || !ogon) throw new Error("test: brak zapytania czołówki albo ogona");
+    return { czolo, ogon };
+  }
+
+  it("pyta funkcję rankingu (90 dni, 200 kandydatów) i NIE sortuje po kolumnie spoza schematu", async () => {
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("p2"),
+      wpisy: wpisyPopularne([wpis("p2")], okZLicznikiem([wpis("p1")], 1)),
+    });
+
+    await pobierz();
+
+    const rpc = wywolanie("popular_post_ids");
+    expect(rpc.args).toEqual({ _days: 90, _limit: 200 });
+    for (const chain of baza().chainsFor("posts")) {
+      for (const [kolumna] of ogniwa(chain, "order")) {
+        expect(kolumna).not.toBe("views_count");
+      }
+      expect(String(chain.argsOf("select")?.[0])).not.toContain("views_count");
+    }
+  });
+
+  it("czołówka idzie w kolejności RANKINGU, ogon od najnowszych - bez wpisów czołówki", async () => {
+    // Ranking: p3 > p1 > obcy (wpis spoza terminu, baza go nie odda).
+    // Baza oddaje czołówkę w SWOJEJ kolejności (p1, p3) - kod musi ją
+    // przestawić po rankingu, inaczej „popularne” byłoby losowe.
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("p3", "p1", "obcy"),
+      wpisy: wpisyPopularne([wpis("p1"), wpis("p3")], okZLicznikiem([wpis("p7"), wpis("p5")], 2)),
+    });
+
+    const wynik = await pobierz();
+
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["p3", "p1", "p7", "p5"]);
+    expect(wynik?.total).toBe(4);
+    const { czolo, ogon } = lancuchy();
+    expect(czolo.argsOf("in")).toEqual(["post_categories.category_id", [WIERSZ_KATEGORII.id]]);
+    expect(listaIdWpisow(czolo)).toEqual([["id", ["p3", "p1", "obcy"]]]);
+    expect(ogniwa(czolo, "eq")).toEqual([["status", "published"]]);
+    expect(ogniwa(czolo, "is")).toEqual([["deleted_at", null]]);
+    // Ogon wyklucza DOKŁADNIE czołówkę terminu (w kolejności rankingu) - nie
+    // cały ranking i nie nic. Bez wykluczenia p3 i p1 stanęłyby drugi raz.
+    expect(ogniwa(ogon, "not")).toEqual([["id", "in", "(p3,p1)"]]);
+    expect(ogniwa(ogon, "order")).toEqual([["published_at", { ascending: false }]]);
+    expect(ogniwa(ogon, "eq")).toEqual([["status", "published"]]);
+    expect(ogniwa(ogon, "is")).toEqual([["deleted_at", null]]);
+    expect(ogon.argsOf("select")?.[1]).toEqual({ count: "exact" });
+    // Okno ogona przesunięte o długość czołówki: strona 0..59 minus 2 wpisy.
+    expect(ogon.argsOf("range")).toEqual([0, 57]);
+  });
+
+  it("strona na styku: koniec czołówki i początek ogona, bez dziury i bez zakładki", async () => {
+    // pageSize 2, strona 2 = pozycje 2..3. Czołówka ma 3 wpisy, więc strona
+    // bierze jej OSTATNI wpis i PIERWSZY wpis ogona (okno ogona 0..0).
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("a", "b", "c"),
+      wpisy: wpisyPopularne([wpis("c"), wpis("b"), wpis("a")], okZLicznikiem([wpis("t1")], 5)),
+    });
+
+    const wynik = await pobierz(2, 2);
+
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["c", "t1"]);
+    expect(lancuchy().ogon.argsOf("range")).toEqual([0, 0]);
+    expect(wynik?.total).toBe(8);
+  });
+
+  it("strona za czołówką przesuwa okno ogona o jej długość", async () => {
+    planujArchiwum({
+      kind: "tag",
+      ranking: ranking("a", "b"),
+      wpisy: wpisyPopularne([wpis("a"), wpis("b")], okZLicznikiem([wpis("t5")], 40)),
+    });
+
+    const wynik = await pobierz(3, 10, "tag");
+
+    // Pozycje 20..29 archiwum = pozycje 18..27 ogona.
+    expect(lancuchy().ogon.argsOf("range")).toEqual([18, 27]);
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["t5"]);
+    expect(wynik?.total).toBe(42);
+    expect(String(lancuchy().czolo.argsOf("select")?.[0])).toContain("post_tags!inner(tag_id)");
+  });
+
+  it("strona w całości w czołówce pyta ogon WYŁĄCZNIE o licznik", async () => {
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("a", "b", "c"),
+      wpisy: wpisyPopularne([wpis("a"), wpis("b"), wpis("c")], {
+        data: null,
+        error: null,
+        count: 9,
+      }),
+    });
+
+    const wynik = await pobierz(1, 2);
+
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(wynik?.total).toBe(12);
+    const { ogon } = lancuchy();
+    expect(ogon.argsOf("select")?.[1]).toEqual({ count: "exact", head: true });
+    expect(ogon.has("range")).toBe(false);
+  });
+
+  it("termin bez wpisów w rankingu: ogon bez wykluczenia, od pierwszego wiersza", async () => {
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("obcy-1", "obcy-2"),
+      wpisy: wpisyPopularne([], okZLicznikiem([wpis("p1")], 1)),
+    });
+
+    const wynik = await pobierz();
+
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["p1"]);
+    const { ogon } = lancuchy();
+    expect(ogon.has("not")).toBe(false);
+    expect(ogon.argsOf("range")).toEqual([0, 59]);
+  });
+
+  it("lista id w zapytaniu jest ograniczona RANKINGIEM, nie rozmiarem kategorii", async () => {
+    // 200 kandydatów to sufit funkcji wołanej z `_limit: 200`. Kategoria może
+    // mieć tysiące wpisów - linia żądania tego nie widzi.
+    const kandydaci = Array.from({ length: 200 }, (_, i) => `r${i}`);
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking(...kandydaci),
+      wpisy: wpisyPopularne(
+        kandydaci.slice(0, 150).map((id) => wpis(id)),
+        okZLicznikiem([], 3000),
+      ),
+    });
+
+    const wynik = await pobierz();
+
+    const { czolo, ogon } = lancuchy();
+    expect(listaIdWpisow(czolo)[0]?.[1]).toHaveLength(200);
+    expect(String(ogniwa(ogon, "not")[0]?.[2]).split(",")).toHaveLength(150);
+    expect(wynik?.total).toBe(3150);
+  });
+
+  it("ODMOWA RANKINGU nie wywraca archiwum: od najnowszych, ostrzeżenie w logu", async () => {
+    const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      planujArchiwum({ kind: "category", ranking: fail("permission denied for function") });
+
+      const wynik = await pobierz();
+
+      expect(wynik?.posts.map((p) => p.id)).toEqual(["p1"]);
+      expect(baza().chainsFor("posts")).toHaveLength(1);
+      expect(ogniwa(lancuch("posts"), "order")).toEqual([["published_at", { ascending: false }]]);
+      expect(listaIdWpisow(lancuch("posts"))).toEqual([]);
+      expect(ostrzezenia).toHaveBeenCalledWith(
+        expect.stringContaining("popular_post_ids"),
+        "permission denied for function",
+      );
+    } finally {
+      ostrzezenia.mockRestore();
+    }
+  });
+
+  it("WYJĄTEK SIECIOWY rankingu też kończy się kolejnością od najnowszych, nie widokiem błędu", async () => {
+    // Ranking rusza RÓWNOLEGLE z odczytem terminu, więc odrzucona obietnica
+    // nie może z niego wyjść - ani do archiwum, ani jako nieobsłużona.
+    const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      planujArchiwum({ kind: "category" });
+      funkcje().setResponse("popular_post_ids", () => Promise.reject(new Error("fetch failed")));
+
+      const wynik = await pobierz();
+
+      expect(wynik?.posts.map((p) => p.id)).toEqual(["p1"]);
+      expect(ogniwa(lancuch("posts"), "order")).toEqual([["published_at", { ascending: false }]]);
+      expect(ostrzezenia).toHaveBeenCalledWith(
+        expect.stringContaining("popular_post_ids"),
+        "fetch failed",
+      );
+    } finally {
+      ostrzezenia.mockRestore();
+    }
+  });
+
+  it("ODMOWA CZOŁÓWKI jest wyrzucana - pusta czołówka udawałaby brak popularnych", async () => {
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("p1"),
+      wpisy: (chain) => (czolowka(chain) ? fail("odmowa czołówki") : okZLicznikiem([], 0)),
+    });
+    await expect(pobierz()).rejects.toThrow("odmowa czołówki");
+  });
+
+  it("ODMOWA OGONA jest wyrzucana, a nie zamieniana na samą czołówkę", async () => {
+    planujArchiwum({
+      kind: "category",
+      ranking: ranking("p1"),
+      wpisy: wpisyPopularne([wpis("p1")], fail("odmowa ogona")),
+    });
+    await expect(pobierz()).rejects.toThrow("odmowa ogona");
+  });
+
+  it("„najnowsze” i „najstarsze” nie pytają o ranking w ogóle", async () => {
+    for (const sort of ["newest", "oldest"] as const) {
+      planujArchiwum({ kind: "category" });
+      await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy", { sort }));
+    }
+    expect(funkcje().callsFor("popular_post_ids")).toHaveLength(0);
   });
 });
 
@@ -636,77 +906,97 @@ describe("archiwum taksonomii: dokładne okno strony", () => {
 // ==========================================================================
 
 describe("sekcja wyróżniona archiwum", () => {
+  // DEFEKT (17.11.2026). Szablon był czytany KLIENTEM PRZEGLĄDARKI z
+  // `builder_templates`, na której `anon` nie ma grantu: 42501, a wyjątek przez
+  // `Promise.all` odrzucał CAŁE archiwum - goście dostawali stronę „brak
+  // danych" na każdej kategorii i tagu z ustawionym szablonem. Odczyt idzie
+  // teraz przez funkcję serwerową (`lib/archive/featuredSection.functions.ts`),
+  // a jej awaria degraduje archiwum do listy BEZ sekcji, z flagą degradacji.
   const KATEGORIA_Z_SZABLONEM = { ...WIERSZ_KATEGORII, featured_template_id: "szablon-1" };
+  const TAG_Z_SZABLONEM = { ...WIERSZ_TAGU, featured_template_id: "szablon-1" };
 
-  it("brak szablonu w taksonomii oznacza ZERO zapytań o szablony", async () => {
+  it("brak szablonu w taksonomii oznacza ZERO odczytów szablonu", async () => {
     planujArchiwum({ kind: "category" });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
+    expect(h.wyroznione).not.toHaveBeenCalled();
     expect(baza().chainsFor("builder_templates")).toHaveLength(0);
   });
 
-  it("szablon jest czytany po id i oddaje sekcję do renderu", async () => {
+  it("szablon idzie przez funkcję serwerową po RODZAJU i ID TERMINU - nigdy klientem przeglądarki", async () => {
     const sekcja = { kind: "section", id: "s1", children: [] };
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: sekcja }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify(sekcja) });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
-    const szablon = lancuch("builder_templates");
-    expect(szablon.argsOf("select")?.[0]).toBe("data");
-    expect(szablon.argsOf("eq")).toEqual(["id", "szablon-1"]);
-    expect(szablon.has("maybeSingle")).toBe(true);
+    expect(h.wyroznione).toHaveBeenCalledTimes(1);
+    expect(h.wyroznione).toHaveBeenCalledWith({ data: { kind: "category", termId: "kat-1" } });
+    // Gość nie ma grantu na `builder_templates` - klient przeglądarki nie
+    // może o nią pytać ani razu.
+    expect(baza().chainsFor("builder_templates")).toHaveLength(0);
     expect(wynik?.taxonomy.featured_section).toEqual(sekcja);
     expect(wynik?.taxonomy.featured_template_id).toBe("szablon-1");
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
+  });
+
+  it("archiwum TAGU pyta funkcję o tag, nie o kategorię", async () => {
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify({ kind: "section", id: "s1" }) });
+    planujArchiwum({ kind: "tag", taksonomia: ok(TAG_Z_SZABLONEM) });
+    await klient().fetchQuery(taxonomyArchiveQueryOptions("tag", "nato"));
+    expect(h.wyroznione).toHaveBeenCalledWith({ data: { kind: "tag", termId: "tag-1" } });
+    expect(baza().chainsFor("builder_templates")).toHaveLength(0);
   });
 
   it("dokument innego rodzaju niż „section” nie jest wpuszczany do renderu archiwum", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: { kind: "row", id: "r1" } }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify({ kind: "row", id: "r1" }) });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
   });
 
   it("dokument, który nie jest obiektem, też jest odrzucany", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: ok({ data: "to nie jest sekcja" }),
-    });
+    h.wyroznione.mockResolvedValue({ json: JSON.stringify("to nie jest sekcja") });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
   });
 
-  it("PUSTKA: usunięty szablon (brak wiersza) daje archiwum bez sekcji wyróżnionej", async () => {
-    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM), szablon: ok(null) });
+  it("PUSTKA: usunięty szablon (funkcja oddaje `null`) daje archiwum bez sekcji, BEZ flagi degradacji", async () => {
+    h.wyroznione.mockResolvedValue({ json: null });
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
     const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
     expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(wynik?.taxonomy.featured_section_degraded).toBe(false);
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa odczytu builder_templates", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: fail("odmowa odczytu builder_templates", "42501"),
-    });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toMatchObject({ message: "odmowa odczytu builder_templates" });
+  it("AWARIA odczytu szablonu NIE odbiera listy: archiwum z wpisami, bez sekcji, z ostrzeżeniem w logu", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.wyroznione.mockRejectedValue(new Error("permission denied for table builder_templates"));
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
+    const wynik = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(wynik?.posts.map((p) => p.id)).toEqual(["p1"]);
+    expect(wynik?.total).toBe(1);
+    expect(wynik?.taxonomy.featured_section).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("sekcja wyróżniona niedostępna"),
+      "permission denied for table builder_templates",
+    );
   });
 
-  it("AWARIA szablonu wyróżnionego POWINNA być odróżnialna od „operator nic nie ustawił”", async () => {
-    planujArchiwum({
-      kind: "category",
-      taksonomia: ok(KATEGORIA_Z_SZABLONEM),
-      szablon: fail("odmowa odczytu builder_templates", "42501"),
-    });
-    await expect(
-      klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy")),
-    ).rejects.toThrow("odmowa odczytu builder_templates");
+  it("AWARIA szablonu wyróżnionego jest odróżnialna od „operator nic nie ustawił” (flaga degradacji)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.wyroznione.mockRejectedValue(new Error("odmowa"));
+    planujArchiwum({ kind: "category", taksonomia: ok(KATEGORIA_Z_SZABLONEM) });
+    const awaria = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(awaria?.taxonomy.featured_section).toBeNull();
+    expect(awaria?.taxonomy.featured_section_degraded).toBe(true);
+
+    h.wyroznione.mockReset();
+    planujArchiwum({ kind: "category" });
+    const nic = await klient().fetchQuery(taxonomyArchiveQueryOptions("category", "analizy"));
+    expect(nic?.taxonomy.featured_section).toBeNull();
+    expect(nic?.taxonomy.featured_section_degraded).toBe(false);
   });
 });
 

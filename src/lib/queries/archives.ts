@@ -3,12 +3,13 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { semanticSearch, type SemanticHit } from "@/lib/search/semantic.functions";
+import { getArchiveFeaturedSection } from "@/lib/archive/featuredSection.functions";
 import type { BlogListItem } from "@/lib/queries/public";
 import type { SectionNode } from "@/lib/builder/types";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
-import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
+import { postsNarrowedToTaxonomy, type TaxonomyNarrowing } from "@/lib/queries/taxonomyPivot";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
 import { isTestContentSlug } from "@/lib/seo/testContent";
 
@@ -191,19 +192,57 @@ export interface TaxonomyMeta {
   description_en: string | null;
   featured_template_id: string | null;
   featured_section: SectionNode | null;
+  /**
+   * `true`, gdy termin MA szablon wyróżniony, ale jego odczyt się nie udał -
+   * archiwum renderuje się wtedy bez sekcji, a loader trasy wie, że dokument
+   * jest niepełny (krótka polityka cache zamiast pełnej). Odróżnia awarię
+   * od „redakcja nic nie ustawiła" (`featured_section: null`, flaga `false`).
+   */
+  featured_section_degraded: boolean;
 }
 
-async function fetchFeaturedSection(templateId: string | null): Promise<SectionNode | null> {
-  if (!templateId) return null;
-  const { data, error: dataError } = await supabase
-    .from("builder_templates")
-    .select("data")
-    .eq("id", templateId)
-    .maybeSingle();
-  if (dataError) throw dataError;
-  const d = data?.data as SectionNode | undefined;
-  if (!d || typeof d !== "object" || d.kind !== "section") return null;
-  return d;
+/** Wynik odczytu sekcji wyróżnionej: sekcja (albo jej brak) i to, czy odczyt padł. */
+interface FeaturedSectionRead {
+  section: SectionNode | null;
+  degraded: boolean;
+}
+
+/**
+ * Sekcja wyróżniona terminu - przez funkcję serwerową, nie klientem
+ * przeglądarki.
+ *
+ * DLACZEGO NIE `supabase.from("builder_templates")`. Do 17.11.2026 tak było:
+ * `anon` nie ma na tej tabeli grantu, odczyt kończył się 42501, a wyjątek
+ * przez `Promise.all` odrzucał CAŁE archiwum - goście dostawali na każdej
+ * kategorii i tagu z ustawionym szablonem stronę „brak danych". Funkcja
+ * (`lib/archive/featuredSection.functions.ts`) czyta spod service-role
+ * WYŁĄCZNIE szablon wskazany przez publiczny wiersz terminu, w najemcy
+ * z hosta żądania.
+ *
+ * NIE RZUCA. Sekcja wyróżniona to dodatek redakcji nad listą wpisów, a nie
+ * treść archiwum: jej awaria degraduje stronę do archiwum bez sekcji
+ * (ostrzeżenie w logu + `degraded`), zamiast odbierać czytelnikowi listę.
+ */
+async function fetchFeaturedSection(
+  kind: TaxonomyKind,
+  termId: string,
+  templateId: string | null,
+): Promise<FeaturedSectionRead> {
+  if (!templateId) return { section: null, degraded: false };
+  try {
+    const { json } = await getArchiveFeaturedSection({ data: { kind, termId } });
+    const d = json ? (JSON.parse(json) as SectionNode | null) : null;
+    if (!d || typeof d !== "object" || d.kind !== "section") {
+      return { section: null, degraded: false };
+    }
+    return { section: d, degraded: false };
+  } catch (err) {
+    console.warn(
+      "[archive] sekcja wyróżniona niedostępna - archiwum renderuje się bez niej:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { section: null, degraded: true };
+  }
 }
 
 export interface TaxonomyArchiveParams {
@@ -228,12 +267,77 @@ export interface TaxonomyArchiveResult {
  * sekwencyjny (term -> pivot -> featured -> wpisy -> N+1 ścieżek).
  */
 /**
+ * Okno i liczba kandydatów rankingu popularności archiwum (`sort=popular`).
+ *
+ * ŹRÓDŁO POPULARNOŚCI. Do 17.11.2026 gałąź „popularne" sortowała po kolumnie
+ * `posts.views_count`, której nie tworzy ŻADNA migracja: PostgREST odpowiadał
+ * 42703 i `/category/$slug?sort=popular` oraz `/tag/$slug?sort=popular`
+ * kończyły się widokiem błędu trasy. Odsłony żyją w `post_views` (anonimowy,
+ * haszowany licznik), a ta tabela nie ma publicznej polityki SELECT - publiczny
+ * ranking oddaje wyłącznie funkcja `popular_post_ids` (SECURITY DEFINER, tenant
+ * z hosta, tylko opublikowane i nieusunięte, same identyfikatory). Ta sama
+ * funkcja zasila sortowanie „popular" widgetu listy wpisów
+ * (`lib/builder/postListQuery.ts`).
+ *
+ * 90 dni - to samo okno, którym `search_posts` liczy `_sort = 'popular'`, więc
+ * „popularne" w archiwum i w wyszukiwarce znaczą to samo. 200 kandydatów - ten
+ * sam sufit co widget listy wpisów: lista identyfikatorów jedzie w `.in("id")`
+ * i jest ograniczona RANKINGIEM, nie rozmiarem kategorii (linia żądania ma
+ * stałą górną granicę niezależnie od tego, ile wpisów ma termin).
+ */
+const ARCHIVE_POPULAR_DAYS = 90;
+const ARCHIVE_POPULAR_CANDIDATES = 200;
+
+/**
+ * Ranking popularności tenanta (najpopularniejsze pierwsze) albo `null`, gdy
+ * funkcja odmówiła.
+ *
+ * NIE RZUCA, bo ranking jest KOLEJNOŚCIĄ, a nie treścią: odmowa funkcji
+ * degraduje archiwum do kolejności od najnowszych (to także rozstrzygnięcie
+ * remisów samego rankingu), a nie do widoku błędu trasy - tak samo jak widget
+ * listy wpisów. Nie znika jednak po cichu: ostrzeżenie trafia do logu.
+ * Startuje RÓWNOLEGLE z odczytem terminu (nie zależy od niego), więc
+ * odrzucona obietnica byłaby nieobsłużona, gdyby termin nie istniał - dlatego
+ * także wyjątek sieciowy kończy się `null`.
+ */
+async function fetchArchivePopularRanking(): Promise<readonly string[] | null> {
+  try {
+    const { data, error: rankingError } = await supabase.rpc("popular_post_ids", {
+      _days: ARCHIVE_POPULAR_DAYS,
+      _limit: ARCHIVE_POPULAR_CANDIDATES,
+    });
+    if (rankingError) {
+      console.warn(
+        "[archive] popular_post_ids odmówiło - archiwum sortuje od najnowszych:",
+        rankingError.message,
+      );
+      return null;
+    }
+    return (data ?? []).map((r) => r.post_id);
+  } catch (err) {
+    console.warn(
+      "[archive] popular_post_ids niedostępne - archiwum sortuje od najnowszych:",
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+}
+
+/** Wiersz listy archiwum przed dołożeniem `href`. */
+type ArchiveRow = Omit<BlogListItem, "href">;
+
+/**
  * Jedna strona wpisów danego terminu taksonomii - JEDNYM zapytaniem.
  *
  * Sortowanie, `count: "exact"` i `range()` stoją na tym samym zapytaniu, co
  * zawężenie, więc licznik odpowiada WSZYSTKIM opublikowanym wpisom terminu,
  * a nie tylko pobranej stronie. Termin bez wpisów wychodzi stąd jako pusta
  * strona z licznikiem zero - nie potrzeba osobnej gałęzi.
+ *
+ * Wyjątek: „popularne" z niepustym rankingiem - `fetchPopularTaxonomyRows`.
+ * Pusty ranking (brak odsłon w oknie) i odmowa rankingu dają kolejność od
+ * najnowszych, czyli dokładnie to, co ranking daje przy remisie zerowych
+ * odsłon.
  */
 async function fetchTaxonomyPage(
   kind: TaxonomyKind,
@@ -241,16 +345,22 @@ async function fetchTaxonomyPage(
   page: number,
   pageSize: number,
   sort: ArchiveSort,
+  popularRanking: Promise<readonly string[] | null> | null,
 ): Promise<{ posts: BlogListItem[]; total: number }> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
-  let q = postsNarrowedToTaxonomy(POST_COLS, { kind, termIds: [termId] }, { count: "exact" })
+  const narrowing: TaxonomyNarrowing = { kind, termIds: [termId] };
+  if (sort === "popular") {
+    const ranking = popularRanking ? await popularRanking : null;
+    if (ranking && ranking.length > 0) {
+      const { rows, total } = await fetchPopularTaxonomyRows(narrowing, ranking, from, to);
+      return { posts: await hydrateHref(rows), total };
+    }
+  }
+  let q = postsNarrowedToTaxonomy(POST_COLS, narrowing, { count: "exact" })
     .eq("status", "published")
     .is("deleted_at", null);
-  if (sort === "oldest") q = q.order("published_at", { ascending: true });
-  else if (sort === "popular")
-    q = q.order("views_count", { ascending: false }).order("published_at", { ascending: false });
-  else q = q.order("published_at", { ascending: false });
+  q = q.order("published_at", { ascending: sort === "oldest" });
   const { data: rows, count, error: postsError } = await q.range(from, to);
   if (postsError) throw postsError;
   return {
@@ -259,8 +369,76 @@ async function fetchTaxonomyPage(
     // `post_categories` albo `post_tags`), a `hydrateHref` jest generyczne po
     // JEDNYM kształcie - bez rzutowania drugi wariant unii nie jest przypisywalny.
     // Sprawdzone `tsc`: usunięcie tej linijki daje TS2345.
-    posts: await hydrateHref((rows ?? []) as Array<Omit<BlogListItem, "href">>),
+    posts: await hydrateHref((rows ?? []) as ArchiveRow[]),
     total: count ?? 0,
+  };
+}
+
+/**
+ * Strona „popularnych" wpisów terminu: najpierw wpisy terminu obecne
+ * w rankingu tenanta (w kolejności rankingu), potem pozostałe wpisy terminu od
+ * najnowszych.
+ *
+ * To jest kolejność całkowita i stabilna między stronami: ranking ma
+ * rozstrzygnięcie remisów w bazie (`published_at DESC`), ogon ma tę samą
+ * kolumnę, a wpis jest ALBO w czołówce, ALBO w ogonie (ogon wyklucza czołówkę
+ * w bazie), więc żadna strona nie dubluje ani nie gubi wpisu. Ranking oddaje
+ * wyłącznie wpisy z co najmniej jedną odsłoną w oknie, najwyżej 200 - wpis
+ * spoza niego nie ma więcej odsłon niż najsłabszy wpis czołówki, więc stoi
+ * za nią słusznie (przy remisie na granicy sufitu decyduje rozstrzygnięcie
+ * remisów funkcji); między sobą wpisy ogona idą od najnowszych.
+ *
+ * Dwa zapytania, oba o stałej długości linii żądania: czołówka niesie
+ * `.in("id", ranking)` (co najwyżej `ARCHIVE_POPULAR_CANDIDATES` id), ogon
+ * `.not("id", "in", czołówka)` (podzbiór tamtej listy). Licznik z ogona plus
+ * długość czołówki to liczba WSZYSTKICH opublikowanych wpisów terminu.
+ * Strona w całości wewnątrz czołówki pyta ogon wyłącznie o licznik.
+ */
+async function fetchPopularTaxonomyRows(
+  narrowing: TaxonomyNarrowing,
+  ranking: readonly string[],
+  from: number,
+  to: number,
+): Promise<{ rows: ArchiveRow[]; total: number }> {
+  const { data: leaderRows, error: leadersError } = await postsNarrowedToTaxonomy(
+    POST_COLS,
+    narrowing,
+  )
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .in("id", [...ranking]);
+  if (leadersError) throw leadersError;
+  const position = new Map(ranking.map((id, index) => [id, index] as const));
+  const leaders = ((leaderRows ?? []) as ArchiveRow[])
+    .filter((row) => position.has(row.id))
+    .sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+
+  const countOnly = to < leaders.length;
+  let tail = postsNarrowedToTaxonomy(
+    POST_COLS,
+    narrowing,
+    countOnly ? { count: "exact", head: true } : { count: "exact" },
+  )
+    .eq("status", "published")
+    .is("deleted_at", null);
+  if (leaders.length > 0) {
+    tail = tail.not("id", "in", `(${leaders.map((row) => row.id).join(",")})`);
+  }
+  tail = tail.order("published_at", { ascending: false });
+  const {
+    data: tailRows,
+    count,
+    error: tailError,
+  } = countOnly
+    ? await tail
+    : await tail.range(Math.max(0, from - leaders.length), to - leaders.length);
+  if (tailError) throw tailError;
+  return {
+    rows: [
+      ...leaders.slice(from, to + 1),
+      ...(countOnly ? [] : ((tailRows ?? []) as ArchiveRow[])),
+    ],
+    total: leaders.length + (count ?? 0),
   };
 }
 
@@ -271,6 +449,9 @@ async function fetchTaxonomyArchive(
   pageSize: number,
   sort: ArchiveSort,
 ): Promise<TaxonomyArchiveResult | null> {
+  // Ranking popularności nie zależy od terminu - rusza w TEJ SAMEJ fali co
+  // odczyt terminu, a nie po nim (jedna fala round-tripów mniej).
+  const popularRanking = sort === "popular" ? fetchArchivePopularRanking() : null;
   let taxRow: {
     id: string;
     slug: string;
@@ -331,9 +512,9 @@ async function fetchTaxonomyArchive(
   // a pierwsze rosło z liczbą wpisów w kategorii aż do przekroczenia limitu
   // linii żądania. Szczegóły i powód takiego, a nie innego kształtu naprawy:
   // nagłówek `lib/queries/taxonomyPivot.ts`.
-  const [featured_section, listing] = await Promise.all([
-    fetchFeaturedSection(taxRow.featured_template_id),
-    fetchTaxonomyPage(kind, taxRow.id, page, pageSize, sort),
+  const [featured, listing] = await Promise.all([
+    fetchFeaturedSection(kind, taxRow.id, taxRow.featured_template_id),
+    fetchTaxonomyPage(kind, taxRow.id, page, pageSize, sort, popularRanking),
   ]);
   const { posts, total } = listing;
 
@@ -347,7 +528,8 @@ async function fetchTaxonomyArchive(
       description_pl: taxRow.description_pl ?? null,
       description_en: taxRow.description_en ?? null,
       featured_template_id: taxRow.featured_template_id,
-      featured_section,
+      featured_section: featured.section,
+      featured_section_degraded: featured.degraded,
     },
     posts,
     total,

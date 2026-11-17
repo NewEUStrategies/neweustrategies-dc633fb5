@@ -137,6 +137,11 @@ export const Route = createFileRoute("/category/$slug")({
     //      plus dobę okna stale.
     //   3. RENDER CZYSTY: dotychczasowa polityka treści - bajt w bajt.
     //
+    // Sekcja wyróżniona, której odczyt padł (`featured_section_degraded`), to
+    // stan 2., nie 1.: lista wpisów, licznik i `head()` są prawdziwe, brakuje
+    // wyłącznie dodatku redakcji nad listą - więc krótka świeżość
+    // z rewalidacją, żeby brzeg nie utrwalił archiwum bez sekcji na 15 minut.
+    //
     // Polityka 2. nie przebije ostrzejszej decyzji innego loadera tego samego
     // żądania: `narrowestCacheControl` (lib/http/cachePolicy.ts) wybiera
     // MNIEJSZE `s-maxage`, a `private`/`no-store` wygrywa bezwarunkowo.
@@ -144,7 +149,7 @@ export const Route = createFileRoute("/category/$slug")({
       setCacheControlHeader(
         archive.degraded || archive.data === null
           ? resilientCacheControl(true)
-          : settings.degraded
+          : settings.degraded || archive.data.taxonomy.featured_section_degraded
             ? chromeDegradedCacheControl()
             : resilientCacheControl(false),
       );

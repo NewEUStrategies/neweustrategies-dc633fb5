@@ -1093,3 +1093,206 @@ Otwarte po partii: kolumny filtrów (`.eq`, `.or`, `.in`) nadal nie są faktami
 kontraktu; 534 fakty z rolą `unknown` (klienci przekazywani parametrem, fabryki
 `admin()`); dopasowanie zdjęcia leada po adresie jest dokładne, nie bez względu
 na wielkość liter (wspólna reguła z listą CRM).
+
+### 9.16. Partia 6 (17.11.2026): usterki z rozszerzonej bramki kontraktu i zdjęcie leada
+
+Polecenie właściciela („napraw”). Usterki znalazł pomiar bramki kontraktu TS↔SQL
+rozszerzony o kolumny filtrów, role klientów i próbne wykonanie zapytań jako
+dana rola (§9.17). Każdą odtworzono na lokalnym Postgres 16 z wszystkimi
+migracjami przed naprawą i sprawdzono po niej (personel CRM, zalogowany spoza
+personelu, personel innego najemcy, gość).
+
+- **Archiwa `/category`, `/tag`, sortowanie „popularne”**: kolumna
+  `posts.views_count` nie istnieje w żadnej migracji (42703, strona błędu).
+  Teraz ranking z istniejącej funkcji `popular_post_ids` (90 dni, 200 pozycji,
+  jak widget listy wpisów); po wpisach z rankingu pozostałe wpisy terminu od
+  najnowszych, bez duplikatów między stronami; awaria rankingu daje kolejność
+  od najnowszych z ostrzeżeniem w logu.
+- **Panel zamówień biletów**: odczyt `profiles.email` klientem użytkownika
+  (42501, połykane) - imię i e-mail kupującego zawsze puste. E-mail z
+  `payment_orders.receipt_email`, profil tylko z kolumn z uprawnieniem.
+- **Bilet użytkownika na wydarzenie**: e-mail posiadacza z claimu zweryfikowanej
+  sesji, nie z `profiles.email`; błędy odczytu biletu nie udają już braku danych.
+- **Lejek CRM** (lista, karta subskrybenta, statystyki): widok
+  `crm_funnel_view` z `security_invoker` łączy `profiles.email` (42501 dla
+  personelu). Odczyt spod `service_role` z najemcą z sesji i rolą jak w RLS
+  subskrybentów; test pilnuje zakotwiczenia obu złączeń widoku w najemcy.
+  Nieużywana `crm_funnel_stats()` (bez filtra najemcy) wycofana: bez EXECUTE
+  dla ról aplikacji.
+- **Lista firm CRM**: `crm_companies_aggregates` (SECURITY INVOKER) czytała
+  `profiles.current_company_id` (42501, cała lista padała). Migracja
+  `20261117014500_crm_companies_aggregates_definer.sql` (drizzle 0412):
+  SECURITY DEFINER, tylko admin/editor/super_admin, najemca z
+  `current_tenant_id()`, test pgTAP.
+- **Goście, sekcja wyróżniona archiwum**: `builder_templates` bez uprawnień dla
+  `anon` - całe archiwum z ustawionym szablonem padało gościom. Funkcja
+  serwerowa oddaje wyłącznie szablon wskazany przez publiczny termin, najemca z
+  hosta; awaria sekcji nie odbiera listy wpisów.
+- **Goście, podcasty**: osadzenie `profiles(...)` w uczestnikach odcinka padało
+  dla `anon` (pusta lista prowadzących i gości). Teraz istniejący widok
+  `profiles_public`.
+- **Zdjęcie leada CRM bez względu na wielkość liter** (lista i karta):
+  `contact_email` przez `ilike` z pełną ucieczką `\`, `%`, `_` i cytowaniem
+  PostgREST; adresy z `*` dokładnie; przypisanie wg `lower()` bazy ograniczone
+  do zakresów Unicode zgodnych z JS, `İ` nie jest utożsamiane z `I`; przy
+  okazji obejście błędu `postgrest-js .in()` dla wartości z `"`/`\`.
+
+Żadne kolumny danych osobowych nie dostały nowych uprawnień. Każda poprawka
+przeszła niezależny przegląd (bezpieczeństwo i poprawność); cztery ostatnie
+commity (wycofanie `crm_funnel_stats`, kotwice lejka, sekcja wyróżniona,
+podcasty) przejrzano bez agentów pomocniczych po wyczerpaniu ich limitu.
+
+**Wdrożenie migracji 0411-0412 (właściciel, runbook §3.1/§4.2/§4.4).** 0. SCOPE. The DB deployment covers only entries idx 411-412 (0411_user_reports_export_my_data, 0412_crm_companies_aggregates_definer, whose second part revokes crm_funnel_stats). The featured-section (4) and podcast (5) fixes need no DB change; they rely on existing grants confirmed by owner queries (8) and (9). Section 'Wdrożenie bazy' for PR #542 (runbook §3.1) to paste into the description:
+
+## Wdrożenie bazy
+
+- Wpisy dziennika do wdrożenia: idx 411-412 (0411_user_reports_export_my_data, 0412_crm_companies_aggregates_definer)
+- Kolejność z frontem: migracja przed publikacją - eksport RODO woła nowe `user_reports_export_my_data`, lista firm CRM wymaga `crm_companies_aggregates` jako SECURITY DEFINER; REVOKE `crm_funnel_stats` jest zgodny z kodem sprzed i po zmianie (stary kod i tak dostawał 42501)
+- Okno: dowolne - wyłącznie CREATE OR REPLACE FUNCTION, GRANT/REVOKE, COMMENT; bez ALTER TABLE i bez blokad gorących tabel
+- Zmiana danych użytkowników: brak
+- Zależność od danych produkcji: brak danych; zależności schematu sprawdzają zapytania właściciela (4)-(7)
+- Zmiany niekompatybilne wstecz (DROP/RENAME tabeli lub kolumny, zmiana typu, NOT NULL bez DEFAULT): brak (REVOKE zamiast DROP; sygnatury bez zmian)
+- Ostrzeżenia generatora (ustawienie-sesji, enum-nowa-wartosc): brak
+- Kontrole przed scaleniem i tuż przed wyzwoleniem (tylko odczyt; scalenie uzbraja wpisy, §4.1): bun run migrations:deploy-sql -- --pending --from 411 | zapytania właściciela (4) kotwice, (5) args/kształt, (6) istnienie crm_funnel_stats, (7) eksport
+- Polecenie dla Lovable: docs/RUNBOOK_MIGRACJE_LOVABLE.md §4.2, NR_PR=542, OD=411, DO=412
+
+1. READ-ONLY PRE-CHECKS BEFORE THE MERGE. Owner, SQL editor at More → Database → Manage → SQL editor; read-only queries only. Run owner queries (4), (5), (6) and (7):
+   (a) (4): profiles_join_tenant_anchored = t AND leads_join_tenant_anchored = t. If either is false, the funnel fix must not ship: do not merge and do not publish.
+   (b) (5): args_match_migration = t AND shape_matches_migration = t. The current production result shape must equal TABLE(company_id uuid, leads_count bigint, last_lead_activity_at timestamp with time zone, contacts_count bigint) with argument _company_ids uuid[]; otherwise CREATE OR REPLACE fails with 42P13.
+   (c) (6): stats_exists = t; otherwise the REVOKE fails with 42883.
+   (d) (7): export_fn_absent = t, or an existing function with exactly the same args and shape; user_reports_missing_columns = {}.
+   Any other result: stop, do not merge, and report it.
+2. MERGE (runbook §4.1). Merge PR #542 only after the pre-checks pass. The merge arms entries 411-412: from that moment NOBODY calls the Lovable migration tool for any reason, including unrelated ones, until step 4. Wait for 'Required release checks' to be green on the merge commit. Make sure no other merged-but-undeployed PR exists; if one does, OD/DO cover both, following §4.1. No database export is needed: no user data changes, no hot-table locks, and this is not the first deployment after the switch.
+3. READ-ONLY CHECK JUST BEFORE THE TRIGGER (runbook §4.2 step 2). On current main HEAD (the merge commit), run `bun run migrations:deploy-sql -- --pending --from 411` and execute the printed SELECT read-only. Requirements:
+
+- The 'kotwica' (anchor) row, idx 410 0410_pr541_deployment_completion, has status 'juz zastosowany'.
+- Both 'zakres' (range) rows, 411 and 412, have status 'zostanie wykonany'.
+- No row after 412 has 'zostanie wykonany'.
+- None of these statuses appear: 'POMINIETY: when nie wiekszy od ostatniego zapisu', 'INNY HASH W REJESTRZE', 'PONOWNA DOSTAWA: ten sam plik juz w rejestrze'.
+  Otherwise stop and escalate. The hashes must come from main HEAD: the 0412 hash changed in this branch (cbdec8ca6dba… on HEAD 1fa85bdc). Repeat the read-only checks (4)-(7) from step 1 immediately before the trigger.
+
+4. EXACTLY ONE CALL TO THE LOVABLE MIGRATION TOOL (runbook §4.2). The owner pastes into the Lovable chat the §4.2 command with these substitutions: NR_PR=542, OD=411, DO=412, KOLEJNOŚĆ='po migracji'. Its step 3 calls the migration tool EXACTLY ONCE, named `pr542_deployment_completion`, with this exact one-line content:
+   COMMENT ON SCHEMA public IS 'standard public schema';
+   This is the canonical no-op trigger: the Drizzle migrator runs the pending entries 411-412 in one transaction. Never send the migration SQL itself, never use SQL without a file, and never write to drizzle.__drizzle_migrations or supabase_migrations.schema_migrations. Do not add the entry to MIGRATION_LANES.
+5. MIGRATOR ERROR (runbook §4.6). The batch is fully rolled back; confirm that the top row of the §4.5 query is unchanged. Lovable does not retry or fix anything itself; it reports SQLSTATE, message and file.
+
+- On 55P03, 40P01 or 57014 (transient), ONLY THE OWNER retries the §4.2 command later, after the §4.5 long-transaction query returns 0 rows, at most twice in total. Then stop and escalate.
+- On any other error, e.g. 42P13 (shape or argument name of crm_companies_aggregates or user_reports_export_my_data) or 42883 (crm_funnel_stats missing), fix it in a PR: the NOT-recorded supabase file plus `bun run migrations:mirror --rewrite <tag>` per §6.3, including the MIGRATION_EDIT_ALLOWLIST entries and a fresh `--verify` showing 'brak w rejestrze'. Then CI, merge, and §4.2 again. A new migration will not help, because it would sit behind the failing entry.
+
+6. VERIFICATION (runbook §4.4).
+   (1) Lovable: `bun run migrations:deploy-sql -- --verify --from 411` run read-only → 0 rows.
+   (2) Lovable: `bun run check:migration-lanes`, `bun run check:db-contract`, `bun run check:migration-ledger` → green.
+   (3) Owner, SQL editor: SELECT id, created_at, to_timestamp(created_at / 1000.0) AT TIME ZONE 'UTC' AS utc, left(hash, 12) AS hash12 FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 10; → the top row is the `when` of pr542_deployment_completion, followed by created_at 1794209632123 (0412, hash12 cbdec8ca6dba, if main carries the file unchanged from this branch) and 1794209572123 (0411).
+   (4) Owner: GitHub Actions → CI run of the bot commit carrying the trigger → job `post-deploy` green. Red with missing SUPABASE_URL means repository variables are missing (§4.8). Skipped means 'Required release checks' are red on that commit.
+   (5) Reviewer: the types.ts diff in the bot commit contains only PR objects: the new `user_reports_export_my_data` function. `crm_companies_aggregates` keeps the same signature (no diff). `crm_funnel_stats` normally stays, since REVOKE does not remove it; if the generator drops it, nothing calls it.
+   (6) Owner: after publishing the front end:
+
+- /admin/crm/companies shows the list with counters;
+- the GDPR export contains user_reports_filed without an error;
+- /admin/crm/funnel shows counters;
+- AS A GUEST: /category/<slug> and /tag/<slug> from owner query (8) show the post list and the featured section;
+- AS A GUEST: /podcast/<slug> and /podcasts/<show> show the hosts and guests.
+
+7. POST-DEPLOY QUERIES (read-only). (4): stats_auth_exec = f, stats_service_exec = f, both anchors = t. (5): is_definer = t, auth_exec = t, anon_exec = f, auth_reads_current_company_id = f. (6): execute_grantees = owner only, comment_head = 'WYCOFANA 2026-11-17…'. (7): export_fn_absent = f, and the shape matches. (8) and (9): anon has no SELECT on builder_templates or on the identity columns of profiles, and anon_reads_profiles_public = t. Any deviation: report it; do not fix it in the SQL editor.
+
+**Zapytania kontrolne dla produkcji (tylko odczyt; baza produkcyjna może różnić się od migracji).**
+
+(1) [unchanged; post-deploy, popular ranking]
+
+```sql
+SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'posts' AND column_name = 'views_count') AS posts_views_count_exists, to_regprocedure('public.popular_post_ids(integer,integer)') IS NOT NULL AS ranking_fn_exists, has_function_privilege('anon', 'public.popular_post_ids(integer,integer)', 'EXECUTE') AS anon_can_rank, (SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('public.popular_post_ids(integer,integer)')) AS ranking_is_definer;
+```
+
+expected: f, t, t, t
+
+(2) [unchanged]
+
+```sql
+SELECT has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, has_column_privilege('authenticated', 'public.payment_orders', 'receipt_email', 'SELECT') AS auth_reads_receipt_email, has_column_privilege('authenticated', 'public.profiles', 'display_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'first_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'last_name', 'SELECT') AS auth_reads_profile_names;
+```
+
+expected: f, t, t
+
+(3) [unchanged]
+
+```sql
+SELECT has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, has_column_privilege('authenticated', 'public.profiles', 'first_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'last_name', 'SELECT') AND has_column_privilege('authenticated', 'public.profiles', 'display_name', 'SELECT') AS auth_reads_profile_names, has_column_privilege('authenticated', 'public.payment_orders', 'provider_intent_id', 'SELECT') AS auth_reads_order_txn, has_table_privilege('authenticated', 'public.event_rsvps', 'SELECT') AS auth_reads_rsvps;
+```
+
+expected: f, t, t, t
+
+(4) [UPDATED: tenant anchors of the joins plus crm_funnel_stats state; run BEFORE merging and again AFTER deploying]
+
+```sql
+SELECT (SELECT reloptions FROM pg_class WHERE oid = to_regclass('public.crm_funnel_view')) AS view_options, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~* 'lower\(p\.email\)' AS view_joins_profiles_email, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~ 'p\.tenant_id = s\.tenant_id' AS profiles_join_tenant_anchored, pg_get_viewdef(to_regclass('public.crm_funnel_view')) ~ 'c\.tenant_id = s\.tenant_id' AS leads_join_tenant_anchored, has_column_privilege('authenticated', 'public.profiles', 'email', 'SELECT') AS auth_reads_profiles_email, (SELECT prosecdef FROM pg_proc WHERE oid = to_regprocedure('public.crm_funnel_stats()')) AS stats_is_definer, CASE WHEN to_regprocedure('public.crm_funnel_stats()') IS NULL THEN NULL ELSE has_function_privilege('authenticated', to_regprocedure('public.crm_funnel_stats()'), 'EXECUTE') END AS stats_auth_exec, CASE WHEN to_regprocedure('public.crm_funnel_stats()') IS NULL THEN NULL ELSE has_function_privilege('service_role', to_regprocedure('public.crm_funnel_stats()'), 'EXECUTE') END AS stats_service_exec, has_table_privilege('service_role', 'public.crm_funnel_view', 'SELECT') AS service_reads_view, has_column_privilege('service_role', 'public.profiles', 'email', 'SELECT') AS service_reads_profiles_email, (SELECT coalesce(array_agg(c), '{}') FROM unnest(ARRAY['id','tenant_id','email','first_name','last_name','display_name','language','source','status','confirmed_at','unsubscribed_at','created_at','user_id','profile_id','avatar_url','is_registered','contact_id','is_contact','contact_stage','contact_score']) AS c WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'crm_funnel_view' AND column_name = c)) AS missing_screen_columns;
+```
+
+expected: {security_invoker=on}, t, profiles_join_tenant_anchored=t, leads_join_tenant_anchored=t, f, f, then stats_auth_exec and stats_service_exec = t before the deploy and f after it, service_reads_view=t, service_reads_profiles_email=t, missing_screen_columns={}. BLOCKER: if profiles_join_tenant_anchored or leads_join_tenant_anchored is false, the funnel fix (the service_role read of crm_funnel_view filtered only on s.tenant_id) MUST NOT SHIP. Do not merge and do not publish the front end until the view is fixed with a new migration.
+
+(5) [UPDATED: argument check plus shape; pre-check for 0412]
+
+```sql
+SELECT p.prosecdef AS is_definer, p.proconfig AS config, pg_get_function_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS result_shape, pg_get_function_arguments(p.oid) = '_company_ids uuid[]' AS args_match_migration, pg_get_function_result(p.oid) = 'TABLE(company_id uuid, leads_count bigint, last_lead_activity_at timestamp with time zone, contacts_count bigint)' AS shape_matches_migration, pg_get_functiondef(p.oid) ~ 'current_company_id' AS reads_current_company_id, pg_get_functiondef(p.oid) ~ 'current_tenant_id' AS scopes_by_session_tenant, has_column_privilege('authenticated', 'public.profiles', 'current_company_id', 'SELECT') AS auth_reads_current_company_id, has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec, has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec FROM pg_proc p WHERE p.oid = to_regprocedure('public.crm_companies_aggregates(uuid[])');
+```
+
+BEFORE the deploy, args_match_migration and shape_matches_migration MUST be t; otherwise CREATE OR REPLACE in 0412 fails with 42P13 and the migrator rolls back all of 411-412. AFTER the deploy: is_definer=t, config={"search_path=public, pg_temp"}, reads_current_company_id=t, scopes_by_session_tenant=t, auth_reads_current_company_id=f, auth_exec=t, anon_exec=f.
+
+(6) [NEW: crm_funnel_stats; pre-check for 0412 and verification of the revoke]
+
+```sql
+SELECT to_regprocedure('public.crm_funnel_stats()') IS NOT NULL AS stats_exists, (SELECT coalesce(array_agg(g ORDER BY g), '{}') FROM (SELECT DISTINCT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE r.rolname::text END AS g FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a LEFT JOIN pg_roles r ON r.oid = a.grantee WHERE p.oid = to_regprocedure('public.crm_funnel_stats()') AND a.privilege_type = 'EXECUTE') x) AS execute_grantees, left(obj_description(to_regprocedure('public.crm_funnel_stats()'), 'pg_proc'), 40) AS comment_head;
+```
+
+BEFORE the deploy, stats_exists MUST be t; otherwise the REVOKE fails with 42883 and the whole batch rolls back. AFTER: execute_grantees contains only the owner (no PUBLIC, anon, authenticated or service_role) and comment_head starts with 'WYCOFANA 2026-11-17'.
+
+(7) [NEW: pre-check for 0411 user_reports_export_my_data]
+
+```sql
+SELECT to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL AS export_fn_absent, CASE WHEN to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL THEN NULL ELSE pg_get_function_arguments(to_regprocedure('public.user_reports_export_my_data(integer)')) END AS existing_args, CASE WHEN to_regprocedure('public.user_reports_export_my_data(integer)') IS NULL THEN NULL ELSE pg_get_function_result(to_regprocedure('public.user_reports_export_my_data(integer)')) END AS existing_result_shape, (SELECT coalesce(array_agg(c ORDER BY c), '{}') FROM unnest(ARRAY['id','reported_id','reason','details','status','created_at','resolved_at','reporter_id','tenant_id']) AS c WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'user_reports' AND column_name = c)) AS user_reports_missing_columns, has_table_privilege('authenticated', 'public.user_reports', 'SELECT') AS auth_reads_user_reports_table;
+```
+
+BEFORE the deploy: export_fn_absent=t, or else existing_args='p_limit integer DEFAULT 2000' AND existing_result_shape='TABLE(id uuid, reported_id uuid, reason text, details text, status text, created_at timestamp with time zone, resolved_at timestamp with time zone)' (otherwise 42P13). user_reports_missing_columns={} (a missing column would surface as an export error at runtime, not during the migration). auth_reads_user_reports_table=f, and it must stay that way.
+
+(8) [NEW: (4) archive featured section, guest impact, read-only, no deploy needed]
+
+```sql
+SELECT 'category' AS kind, c.slug, c.tenant_id, c.featured_template_id, t.id IS NOT NULL AS template_in_same_tenant, t.data ->> 'kind' AS template_kind FROM public.categories c LEFT JOIN public.builder_templates t ON t.id = c.featured_template_id AND t.tenant_id = c.tenant_id WHERE c.featured_template_id IS NOT NULL UNION ALL SELECT 'tag', g.slug, g.tenant_id, g.featured_template_id, t.id IS NOT NULL, t.data ->> 'kind' FROM public.tags g LEFT JOIN public.builder_templates t ON t.id = g.featured_template_id AND t.tenant_id = g.tenant_id WHERE g.featured_template_id IS NOT NULL ORDER BY 1, 2;  SELECT has_table_privilege('anon', 'public.builder_templates', 'SELECT') AS anon_reads_builder_templates, has_table_privilege('service_role', 'public.builder_templates', 'SELECT') AS service_reads_builder_templates, has_column_privilege('service_role', 'public.categories', 'featured_template_id', 'SELECT') AND has_column_privilege('service_role', 'public.tags', 'featured_template_id', 'SELECT') AS service_reads_featured_ids;
+```
+
+Each row of the first query is an archive page guests saw as 'no data' before the fix. A row with template_in_same_tenant=f or template_kind<>'section' will render without the featured section after the fix (editorial data, not an error). Second query, expected: f, t, t. NEVER grant builder_templates to anon.
+
+(9) [NEW: (5) podcasts, guest impact, read-only]
+
+```sql
+SELECT count(*) FILTER (WHERE pep.profile_id IS NOT NULL) AS people_with_profile, count(*) FILTER (WHERE pep.profile_id IS NOT NULL AND public.profile_has_public_presence(pep.profile_id, pep.tenant_id)) AS profile_visible_to_guests, count(*) FILTER (WHERE pep.profile_id IS NOT NULL AND NOT public.profile_has_public_presence(pep.profile_id, pep.tenant_id) AND btrim(pep.display_name) = '') AS guest_sees_empty_name, has_table_privilege('anon', 'public.profiles_public', 'SELECT') AS anon_reads_profiles_public, has_column_privilege('anon', 'public.profiles', 'slug', 'SELECT') OR has_column_privilege('anon', 'public.profiles', 'display_name', 'SELECT') OR has_column_privilege('anon', 'public.profiles', 'avatar_url', 'SELECT') AS anon_reads_profile_identity_columns FROM public.podcast_episode_people pep;
+```
+
+expected: anon_reads_profiles_public=t, anon_reads_profile_identity_columns=f (NEVER open these columns to anon). guest_sees_empty_name>0 means rows that show guests a name-less chip, because the linked profile has no public presence and the row has no name. Fix that editorially by filling display_name; no grant is needed.
+
+Weryfikacja integracji (21 commitów nad `75c3cd21`, bez konfliktów): bramki
+migracji i SQL zielone (`check:db-contract` i `check:migration-ledger` wymagają
+produkcji), kontrakt TS↔SQL 1 039 RPC i 1 698 operacji, 0 wstrzymanych; build
+i bramki bundla zielone (`app-initial` 249,2 KB, `overall` 5 365,1 KB, CSS
+publiczny 83,9 KB); 990 plików testów (27 480 testów); kontrola typów.
+Zestawy plików bootu bez zmian wobec `75c3cd21`.
+
+### 9.17. Bramka kontraktu: kolumny filtrów, role klientów, próbne wykonanie (stan 17.11.2026)
+
+Pomiar (lokalna gałąź `p8/contract`, tylko odczyt, CI bez zmian - wygenerowany
+pgTAP bajt w bajt) dodał do ekstraktora: kolumny filtrów i sortowania (`.eq`,
+`.in`, `.or("…")`, `.order`, `.match`, `.not`, `.filter`, zakresy, upsert),
+fakty osadzeń, rozstrzyganie roli klienta przekazywanego parametrem (wszystkie
+miejsca wywołania muszą się zgadzać; parametr z wartością domyślną liczy też
+domyślną), klienta przeglądarki jako gościa i zalogowanego oraz próbne
+wykonanie zapytań jako dana rola w wycofywanej transakcji (łapie widoki
+`security_invoker` i funkcje SECURITY INVOKER). To on znalazł usterki z §9.16;
+wykrywa też trzy usterki z listopada na wersjach plików sprzed napraw.
+
+Otwarte (po odnowieniu limitu agentów 22.11.2026): dokończyć klasyfikację
+naruszeń gościa (dostępne bez logowania / tylko po zalogowaniu - 391 zapytań
+przeglądarki pada jako `anon`, większość to ekrany wymagające logowania),
+naprawić ewentualne kolejne usterki dostępne dla gości, usunąć 6 martwych
+ścieżek zapasowych sprzed migracji (`couponRpc.server.ts`,
+`admissionRpc.server.ts`, `adminSlots.ts`) albo wpisać je jako przejrzane,
+i dopiero wtedy włączyć te sprawdzenia w CI (pgTAP), żeby bramka czerwieniła
+nowe usterki tej klasy.

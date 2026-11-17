@@ -2885,6 +2885,13 @@
       "when": 1794209572123,
       "tag": "0411_user_reports_export_my_data",
       "breakpoints": true
+    },
+    {
+      "idx": 412,
+      "version": "7",
+      "when": 1794209632123,
+      "tag": "0412_crm_companies_aggregates_definer",
+      "breakpoints": true
     }
   ]
 }

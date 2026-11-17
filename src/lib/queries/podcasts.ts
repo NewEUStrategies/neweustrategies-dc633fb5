@@ -135,6 +135,24 @@ export const showEpisodeStatsQueryOptions = queryOptions({
 });
 
 // ---------- uczestnicy (prowadzący / goście) --------------------------------
+//
+// PROFIL UCZESTNIKA Z `profiles_public`, NIE Z OSADZENIA `profiles(...)`.
+// Do 17.11.2026 wiersze uczestników niosły osadzenie
+// `profiles(slug,display_name,avatar_url)`. Anon ma SELECT wyłącznie na
+// kolumnach profilu, które nie identyfikują osoby (open_to, seeking_*,
+// offering_*, intent_updated_at, completeness_score), więc PostgREST odrzucał
+// CAŁE zapytanie (42501 „permission denied for table profiles"), loader
+// spadał na pustą obsadę (`loadResilient`), a gość widział odcinek i program
+// bez prowadzących i gości. Zalogowany też nie dostawał profilu prowadzącej
+// z innego zakresu RLS - tylko nazwę z wiersza.
+//
+// Publiczna droga do profilu to projekcja `profiles_public` (tą samą czytają
+// autorzy wpisu, katalog ekspertów i awatary podpowiedzi): dla gościa wiersz
+// profilu najemcy hosta z publiczną obecnością
+// (`profile_has_public_presence`), dla zalogowanego dodatkowo profile
+// widoczne w jego najemcy. Uczestnik, którego profilu projekcja nie
+// pokazuje, zostaje z nazwą z wiersza i bez linku - dokładnie tak, jak
+// osadzenie odsiewane przez RLS. Grantów na `profiles` nie otwieramy.
 
 interface PersonRow {
   id: string;
@@ -144,26 +162,72 @@ interface PersonRow {
   role: string;
   url: string | null;
   sort_order: number;
-  profiles: { slug: string | null; display_name: string | null; avatar_url: string | null } | null;
 }
 
-function toPerson(row: PersonRow): PodcastPerson {
+/** Wiersz `profiles_public` - wyłącznie kolumny, które malują trasy podcastów. */
+interface PersonProfile {
+  id: string | null;
+  slug: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+function toPerson(row: PersonRow, profile: PersonProfile | null): PodcastPerson {
   return {
     id: row.id,
     episode_id: row.episode_id,
     profile_id: row.profile_id,
     // Nazwisko z profilu wygrywa, gdy wiersz nie ma własnego nadpisania.
-    display_name: row.display_name || row.profiles?.display_name || "",
+    display_name: row.display_name || profile?.display_name || "",
     role: row.role === "host" ? "host" : "guest",
     url: row.url,
     sort_order: row.sort_order,
-    profile_slug: row.profiles?.slug ?? null,
-    profile_avatar_url: row.profiles?.avatar_url ?? null,
+    profile_slug: profile?.slug ?? null,
+    profile_avatar_url: profile?.avatar_url ?? null,
   };
 }
 
-const PERSON_FIELDS =
-  "id,episode_id,profile_id,display_name,role,url,sort_order,profiles(slug,display_name,avatar_url)";
+const PERSON_FIELDS = "id,episode_id,profile_id,display_name,role,url,sort_order";
+const PERSON_PROFILE_FIELDS = "id, slug, display_name, avatar_url";
+
+/**
+ * Ile identyfikatorów profili jedzie w jednym `.in("id", ...)`. Obsada
+ * całego programu (do 500 odcinków) może mieć setki osób, a lista idzie
+ * w linii żądania - stała porcja trzyma ją w kilku KB niezależnie od
+ * rozmiaru programu.
+ */
+const PERSON_PROFILE_CHUNK = 100;
+
+/**
+ * Dokłada publiczny profil do wierszy uczestników. Odmowa projekcji RZUCA
+ * (jak odczyt autorów wpisu): obsada bez profili to render zdegradowany,
+ * który `loadResilient` w loaderze trasy zdejmuje z cache'u brzegowego, a nie
+ * cicha „obsada bez linków" utrwalona na CDN.
+ */
+async function withPublicProfiles(rows: readonly PersonRow[]): Promise<PodcastPerson[]> {
+  const ids = Array.from(
+    new Set(rows.map((row) => row.profile_id).filter((id): id is string => !!id)),
+  );
+  const profiles = new Map<string, PersonProfile>();
+  const parts: string[][] = [];
+  for (let i = 0; i < ids.length; i += PERSON_PROFILE_CHUNK) {
+    parts.push(ids.slice(i, i + PERSON_PROFILE_CHUNK));
+  }
+  const results = await Promise.all(
+    parts.map((part) =>
+      supabase.from("profiles_public").select(PERSON_PROFILE_FIELDS).in("id", part),
+    ),
+  );
+  for (const { data, error } of results) {
+    if (error) throw error;
+    for (const profile of (data ?? []) as PersonProfile[]) {
+      if (profile.id) profiles.set(profile.id, profile);
+    }
+  }
+  return rows.map((row) =>
+    toPerson(row, row.profile_id ? (profiles.get(row.profile_id) ?? null) : null),
+  );
+}
 
 export const episodePeopleQueryOptions = (episodeId: string) =>
   queryOptions({
@@ -175,7 +239,7 @@ export const episodePeopleQueryOptions = (episodeId: string) =>
         .eq("episode_id", episodeId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return ((data ?? []) as unknown as PersonRow[]).map(toPerson);
+      return withPublicProfiles((data ?? []) as PersonRow[]);
     },
     staleTime: 60_000,
     enabled: !!episodeId,
@@ -193,7 +257,7 @@ export const episodesPeopleQueryOptions = (episodeIds: readonly string[]) =>
         .in("episode_id", episodeIds.slice(0, 500))
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return ((data ?? []) as unknown as PersonRow[]).map(toPerson);
+      return withPublicProfiles((data ?? []) as PersonRow[]);
     },
     staleTime: 60_000,
     enabled: episodeIds.length > 0,

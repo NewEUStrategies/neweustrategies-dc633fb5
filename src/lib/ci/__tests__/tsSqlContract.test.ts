@@ -1514,7 +1514,10 @@ describe("stan repozytorium", () => {
     // Plik literału -> [liczba faktów `posts.select`, kolumny]. Odczyt przez
     // pomocnik ma dwa warianty, `postsNarrowedToTaxonomy` - dwa `select`
     // (kategoria, tag). `blocks.ts`: 2 + 4 z przepływu i 1 bezpośredni
-    // `.select(POST_SELECT)` (sąsiad wpisu); `archives.ts`: 2 z przepływu.
+    // `.select(POST_SELECT)` (sąsiad wpisu); `archives.ts`: 6 z przepływu -
+    // trzy wywołania pomocnika (strona od najnowszych/najstarszych oraz
+    // czołówka i ogon „popularnych”, 17.11.2026), każde z tymi samymi
+    // kolumnami `POST_COLS`.
     const expected: Record<string, readonly [number, string]> = {
       "src/lib/queries/megaMenu.ts": [4, "cover_image_url,id,published_at,slug,title_en,title_pl"],
       "src/lib/queries/blocks.ts": [
@@ -1522,7 +1525,7 @@ describe("stan repozytorium", () => {
         "cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
       ],
       "src/lib/queries/archives.ts": [
-        2,
+        6,
         "author_id,cover_image_url,excerpt_en,excerpt_pl,id,is_sponsored,parent_page_id,published_at,slug,sponsored_affiliate,sponsored_kind,title_en,title_pl",
       ],
       "src/lib/builder/postListQuery.ts": [
@@ -1638,8 +1641,9 @@ describe("stan repozytorium", () => {
     // Nowe ścieżki serwerowe obu kart (najemca z sesji, `.eq("tenant_id", ...)`
     // bezwarunkowo): `companyMembers` (karta firmy) - jedyny odczyt `profiles`
     // spod `service_role` w crm-companies, wyłącznie kolumny z grantem dla
-    // `authenticated`; `lookupLeadAvatars` (lista i karta leada) - jeden
-    // odczyt adresów, z którego do przeglądarki wychodzi tylko `avatar_url`.
+    // `authenticated`; `lookupLeadAvatars` (lista i karta leada) - DWA odczyty
+    // adresów na porcję (logowanie: dokładne `email.in`; kontakt: `ilike` bez
+    // wielkości liter), z których do przeglądarki wychodzi tylko `avatar_url`.
     expect(
       repo.tables
         .filter(
@@ -1658,7 +1662,24 @@ describe("stan repozytorium", () => {
           t.role === "service_role" &&
           t.columns.join(",") === "avatar_url,contact_email,email",
       ),
-    ).toHaveLength(1);
+    ).toEqual([
+      {
+        table: "profiles",
+        op: "select",
+        columns: ["avatar_url", "contact_email", "email"],
+        star: false,
+        role: "service_role",
+        file: "src/lib/crm.functions.ts",
+      },
+      {
+        table: "profiles",
+        op: "select",
+        columns: ["avatar_url", "contact_email", "email"],
+        star: false,
+        role: "service_role",
+        file: "src/lib/crm.functions.ts",
+      },
+    ]);
     // Zapisy i odczyty `looseTable` tych plików są faktami kontraktu.
     const ops = new Set(
       repo.tables
@@ -1713,8 +1734,24 @@ describe("stan repozytorium", () => {
         .sort(),
     ).toEqual([
       "src/lib/crm-companies.functions.ts: crm_companies_aggregates: authenticated",
-      "src/lib/crm-funnel.functions.ts: crm_funnel_stats: authenticated",
       "src/lib/crm-tasks.functions.ts: crm_import_leads: authenticated",
+    ]);
+    // Lejek marketingowy (17.11.2026): `crm_funnel_stats` (SECURITY INVOKER nad
+    // `crm_funnel_view`) dziedziczyło 42501 z `profiles.email` w złączeniu
+    // widoku, więc lejek czyta widok spod `service_role` z najemcą z sesji -
+    // i NIGDY klientem użytkownika. Kolumny odpowiedzi to kolumny ekranu
+    // (lista i karta subskrybenta); liczniki to `head: true`, które z założenia
+    // nie są faktem kolumn.
+    expect(
+      repo.tables
+        .filter(
+          (t) => t.file === "src/lib/crm-funnel.functions.ts" && t.table === "crm_funnel_view",
+        )
+        .map((t) => `${t.op} ${t.role} [${t.columns.join(",")}]`)
+        .sort(),
+    ).toEqual([
+      "select service_role [avatar_url,confirmed_at,contact_id,contact_score,contact_stage,created_at,display_name,email,first_name,id,is_contact,is_registered,language,last_name,profile_id,source,status,tenant_id,unsubscribed_at,user_id]",
+      "select service_role [avatar_url,confirmed_at,contact_id,contact_score,contact_stage,created_at,display_name,email,first_name,id,is_contact,is_registered,language,last_name,profile_id,source,status,tenant_id,unsubscribed_at,user_id]",
     ]);
     // Każde RPC karty i scoringu leada jest faktem z rolą klienta. Do listopada
     // 2026 pięć z nich szło przez lokalne `rpcOf(context)` (`const rpc = ...;

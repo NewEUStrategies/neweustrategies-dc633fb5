@@ -128,6 +128,61 @@ describe("listCrmCompanies", () => {
     ]);
   });
 
+  it("agregat woła KLIENT WOŁAJĄCEGO z identyfikatorami wyłącznie z listy pod RLS - nigdy service-role", async () => {
+    // `crm_companies_aggregates` jest SECURITY DEFINER z najemcą z sesji
+    // (migracja 20261117014500). Spod service-role `current_tenant_id()` nie
+    // ma wołającego, a ciało sprzed migracji liczyłoby obce wiersze.
+    db.setResponse("crm_companies", () =>
+      ok([
+        { id: COMPANY_ID, name: "Acme" },
+        { id: OTHER_ID, name: "Beta" },
+      ]),
+    );
+    rpcResults.crm_companies_aggregates = ok([]);
+    const adminTables: string[] = [];
+    h.adminFrom = (table) => {
+      adminTables.push(table);
+      return admin.from(table);
+    };
+    await callServerFn(companies.listCrmCompanies, {
+      data: { _company_ids: ["99999999-9999-4999-8999-999999999999"] } as Record<string, unknown>,
+      context: context(),
+    });
+    expect(rpcCalls).toEqual([
+      { fn: "crm_companies_aggregates", args: { _company_ids: [COMPANY_ID, OTHER_ID] } },
+    ]);
+    expect(adminTables).toEqual([]);
+  });
+
+  it("firma bez wiersza agregatu (spoza najemcy wołającego) dostaje zera, a nie cudze liczby", async () => {
+    db.setResponse("crm_companies", () =>
+      ok([
+        { id: COMPANY_ID, name: "Acme" },
+        { id: OTHER_ID, name: "Beta" },
+      ]),
+    );
+    rpcResults.crm_companies_aggregates = ok([
+      { company_id: COMPANY_ID, leads_count: 2, contacts_count: 1, last_lead_activity_at: null },
+    ]);
+    const result = await callServerFn(companies.listCrmCompanies, { data: {}, context: context() });
+    expect(parsed(result)).toEqual([
+      {
+        id: COMPANY_ID,
+        name: "Acme",
+        leads_count: 2,
+        contacts_count: 1,
+        last_lead_activity_at: null,
+      },
+      {
+        id: OTHER_ID,
+        name: "Beta",
+        leads_count: 0,
+        contacts_count: 0,
+        last_lead_activity_at: null,
+      },
+    ]);
+  });
+
   it("pusta lista firm nie woła agregatu", async () => {
     db.setResponse("crm_companies", () => ok([]));
     const result = await callServerFn(companies.listCrmCompanies, { data: {}, context: context() });

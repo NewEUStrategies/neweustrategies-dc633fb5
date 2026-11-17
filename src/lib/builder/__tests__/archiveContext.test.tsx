@@ -26,6 +26,7 @@ const CATEGORY: TaxonomyMeta = {
   description_en: "Security analyses.",
   featured_template_id: null,
   featured_section: null,
+  featured_section_degraded: false,
 };
 
 const TAG: TaxonomyMeta = {
@@ -38,6 +39,7 @@ const TAG: TaxonomyMeta = {
   description_en: null,
   featured_template_id: null,
   featured_section: null,
+  featured_section_degraded: false,
 };
 
 afterEach(cleanup);
