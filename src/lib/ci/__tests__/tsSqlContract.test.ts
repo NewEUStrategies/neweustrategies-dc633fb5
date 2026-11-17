@@ -2583,6 +2583,122 @@ describe("miara: rola klienta ustalona szerzej (nigdy zgadywana)", () => {
   });
 });
 
+describe("miara: zapytania łańcuchów do sond wykonania", () => {
+  const statementKeys = (f: SeamFacts): string[] =>
+    f.observed.statements.map(
+      (x) =>
+        `${x.op} ${x.table} [${x.star ? "*" : x.columns.join(",")}] ` +
+        `ładunek(${x.payload.join(",")}) where(${x.where.join(",")})` +
+        (x.conflict === null ? "" : ` conflict(${x.conflict.join(",")})`) +
+        ` ${x.role} ${x.fn}`,
+    );
+
+  it("odczyt: kolumny `select` i filtry tabeli łańcucha (bez osadzeń i bez celu upsertu); `head: true` - same filtry; powtórzone zapytanie raz", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function read() {
+          await supabaseAdmin.from("orders").select("id, total, items:order_items(sku)")
+            .eq("tenant_id", t).eq("items.sku", s).order("created_at");
+          await supabaseAdmin.from("orders").select("id", { count: "exact", head: true }).is("deleted_at", null);
+          await supabaseAdmin.from("orders").select("id, total, items:order_items(sku)")
+            .eq("tenant_id", t).eq("items.sku", s).order("created_at");
+          await supabaseAdmin.from("orders").select();
+        }
+      `,
+    });
+    expect(statementKeys(f)).toEqual([
+      "select orders [id,total] ładunek() where(tenant_id,created_at) service_role read",
+      "select orders [] ładunek() where(deleted_at) service_role read",
+      "select orders [*] ładunek() where() service_role read",
+    ]);
+    // Filtr osadzenia zostaje faktem filtra (sonda kolumny osobno), nie WHERE łańcucha.
+    expect(filterKeys(f)).toContain("order_items.sku:eq:select:service_role@items");
+  });
+
+  it("zapis: ładunek, WHERE tylko w UPDATE/DELETE, RETURNING z `select` po zapisie, cel `ON CONFLICT` (bez `onConflict` - klucz główny)", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function write() {
+          await supabaseAdmin.from("orders").update({ status: "x" }).eq("id", id).select("id, status");
+          await supabaseAdmin.from("orders").delete().match({ tenant_id: t });
+          await supabaseAdmin.from("orders").insert({ id, total }).select();
+          await supabaseAdmin.from("prefs").upsert({ user_id: u, theme: "d" }, { onConflict: "user_id" });
+          await supabaseAdmin.from("prefs").upsert({ user_id: u }, { ignoreDuplicates: true });
+          await supabaseAdmin.from("prefs").upsert({ user_id: u }, { onConflict: target });
+        }
+      `,
+    });
+    expect(statementKeys(f)).toEqual([
+      "update orders [id,status] ładunek(status) where(id) service_role write",
+      "delete orders [] ładunek() where(tenant_id) service_role write",
+      "insert orders [*] ładunek(id,total) where() service_role write",
+      "upsert prefs [] ładunek(theme,user_id) where() conflict(user_id) service_role write",
+      `upsert_ignore prefs [] ładunek(user_id) where() conflict(${PRIMARY_KEY_COLUMNS}) service_role write`,
+      // Cel nieczytelny - pusty, nie klucz główny (sonda: `ON CONFLICT DO NOTHING`).
+      "upsert prefs [] ładunek(user_id) where() conflict() service_role write",
+    ]);
+  });
+
+  it("budowniczy w zmiennej: zapytanie to łańcuch wprost RAZEM z każdym użyciem osobno (nie suma wszystkich użyć)", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function bound() {
+          const base = supabaseAdmin.from("orders").select("id");
+          await base.eq("status", "open");
+          await base.eq("owner_id", o).order("total");
+          const upd = supabaseAdmin.from("orders").update({ status: "closed" });
+          await upd.eq("id", id).select("id");
+          const bare = supabaseAdmin.from("invoices");
+          await bare.select("number").eq("tenant_id", t);
+          await bare.select("total").eq("owner_id", o);
+        }
+      `,
+    });
+    expect(statementKeys(f)).toEqual([
+      "select orders [id] ładunek() where(status) service_role bound",
+      "select orders [id] ładunek() where(owner_id,total) service_role bound",
+      "update orders [id] ładunek(status) where(id) service_role bound",
+      // Bez łańcucha wprost: każde użycie to osobne zapytanie z WŁASNYM `select`.
+      "select invoices [number] ładunek() where(tenant_id) service_role bound",
+      "select invoices [total] ładunek() where(owner_id) service_role bound",
+    ]);
+  });
+
+  it("render: zapytania i sondy - SELECT … LIMIT 0, zapis jako EXPLAIN, RPC tylko SECURITY INVOKER z EXECUTE, rola i JWT w podtransakcji z wartownikiem, naruszenie tylko 42501 „permission denied for”", () => {
+    const f = observed({
+      "src/a.server.ts": `${ADMIN_FILE}
+        export async function write() {
+          await supabaseAdmin.from("orders").update({ status: "x" }).eq("id", id).select("id");
+        }
+      `,
+    });
+    const sql = renderObservedQueries(f);
+    expect(sql).toContain(
+      "('orders', 'update', 'service_role', ARRAY['id']::text[], false, ARRAY['status']::text[], ARRAY['id']::text[], NULL::text[],",
+    );
+    expect(sql).toContain("format('SELECT %s FROM public.%I%s LIMIT 0'");
+    expect(sql).toContain("format('EXPLAIN UPDATE public.%I SET %s%s%s'");
+    expect(sql).toContain("pg_temp.ts_list(s.payload, '%I = DEFAULT', ', ')");
+    expect(sql).toContain("pg_temp.ts_list(s.payload, '%1$I = EXCLUDED.%1$I', ', ')");
+    expect(sql).toContain("WHEN t.cols IS NULL THEN ' ON CONFLICT DO NOTHING'");
+    expect(sql).toContain("format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)");
+    expect(sql).toContain("WHERE r.role IN ('anon', 'authenticated')");
+    expect(sql).toContain("AND NOT p.prosecdef AND p.prokind = 'f'");
+    expect(sql).toContain("AND has_function_privilege(r.role, p.oid, 'EXECUTE')");
+    expect(sql).toContain("PERFORM set_config('role', r.role, true);");
+    expect(sql).toContain("PERFORM set_config('request.jwt.claims',");
+    expect(sql).toContain("RAISE SQLSTATE 'PRB00';");
+    expect(sql).toContain("WHEN SQLSTATE 'PRB00' THEN");
+    expect(sql).toContain(
+      "WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'",
+    );
+    expect(sql).toContain("ARRAY(SELECT unnest(p.proargtypes::oid[]))");
+    expect(sql).toContain("'execution-probe'");
+    expect(sql).toContain("'privilege-check' AS caught_by");
+    expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
+  });
+});
+
 describe("miara poza bramką nie zmienia bramki", () => {
   const files = {
     "src/a.server.ts": `${ADMIN_FILE}
@@ -2604,6 +2720,7 @@ describe("miara poza bramką nie zmienia bramki", () => {
       rpcs: [],
       tables: [],
       filters: [],
+      statements: [],
       unresolvedFilters: [],
       filtersOutsideChains: [],
     });

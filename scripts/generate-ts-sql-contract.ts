@@ -24,6 +24,13 @@
  * (`SeamFacts.observed`) - do uruchomienia ręcznie na bazie po migracjach;
  * podsumowanie i miejsca nieczytelne idą na stderr. Plik w `supabase/tests`
  * i wynik `--check` są bajt w bajt te same co bez tej flagi.
+ *
+ * SQL miary oprócz sprawdzenia uprawnień uruchamia SONDY WYKONANIA (każde
+ * zapytanie łańcucha, każda kolumna filtra i RPC funkcji SECURITY INVOKER -
+ * jako rola zmierzona, w podtransakcjach, całość w `ROLLBACK`), więc wolno
+ * go puszczać WYŁĄCZNIE na bazie jednorazowej (lokalny klaster po
+ * migracjach), nigdy na produkcji: wywołania RPC wykonują ciała funkcji.
+ * Wynik: podsumowanie sond, potem naruszenia z kolumną `caught_by`.
  */
 import { writeFileSync } from "node:fs";
 import {
@@ -56,6 +63,7 @@ function measure(): void {
       `  fakty RPC i tabel z rolą unknown: bramka ${all.filter((x) => x.enforcedRole === "unknown").length}, miara ${all.filter((x) => x.role === "unknown").length}`,
       `  rola bramka->miara: ${count(all, (x) => `${x.enforcedRole}->${x.role}`)}`,
       `  kolumny filtrów: ${o.filters.length} (${count(o.filters, (f) => f.role)})`,
+      `  zapytania do sond wykonania: ${o.statements.length} (${count(o.statements, (s) => s.role)})`,
       `  miejsca filtrów nieczytelne: ${o.unresolvedFilters.length}`,
       `  wywołania filtra poza rozpoznanym budowniczym: ${o.filtersOutsideChains.length}`,
       ...o.unresolvedFilters.map((x) => `    ? ${x}`),
