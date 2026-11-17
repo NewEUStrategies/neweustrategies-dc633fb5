@@ -5667,7 +5667,7 @@ export function withGuestRows<
 }
 
 /**
- * Osiągalność pliku wywołania dla gościa (`scripts/lib/guestReach.ts`):
+ * Osiągalność pliku wywołania dla gościa (`src/lib/ci/guestReach.ts`):
  * klasa wejścia (`public`, `session-gate`, `admin`, `none`), URL wejścia
  * i najkrótsza ścieżka importów - kolumna `reach` naruszeń miary.
  */

@@ -1,10 +1,9 @@
-// Osiągalność pliku dla GOŚCIA (bez logowania) - miara poza bramką CI.
+// Osiągalność pliku dla GOŚCIA (bez logowania) - wejście bramki CI kontraktu
+// TS <-> SQL (`tsSqlContract.ts`): wiersze `anon` faktów klienta przeglądarki
+// idą do pgTAP dla plików osiągalnych dla gościa (klasa `public` i `none`).
 //
-// Leży w `scripts/lib`, nie w `src/`: liczba plików `src/**` stoi w nagłówku
-// pgTAP kontraktu TS <-> SQL, a miara nie może zmieniać bramki ani o bajt.
-//
-// PO CO. Miara kontraktu TS <-> SQL (`tsSqlContract.ts`, `--measure`) sprawdza
-// fakty klienta przeglądarki także jako `anon` (gość, SSR, handler serwera).
+// PO CO. Kontrakt TS <-> SQL sprawdza fakty klienta przeglądarki także jako
+// `anon` (gość, SSR, handler serwera).
 // Odmowa uprawnień dla `anon` jest defektem widocznym dla czytelnika TYLKO
 // wtedy, gdy gość dociera do tego kodu - a większość klienta przeglądarki to
 // ekrany po zalogowaniu (panel, profil, wiadomości). Ten moduł mówi, skąd
@@ -36,8 +35,8 @@
 //     drzewa) - niepewne.
 //
 // Moduł jest CZYSTY (bez I/O): źródła wchodzą parametrem.
-import { buildImportGraph } from "../../src/lib/ci/moduleImportGraph";
-import { routeTreeEntries } from "../../src/lib/ci/publicRouteLoaders";
+import { buildImportGraph } from "./moduleImportGraph";
+import { routeTreeEntries } from "./publicRouteLoaders";
 
 export type GuestReachClass = "public" | "session-gate" | "admin" | "none";
 

@@ -3,7 +3,7 @@
 // w postaci najkrótszej ścieżki importów od pliku trasy.
 import { describe, expect, it } from "vitest";
 
-import { guestReach } from "../../../../scripts/lib/guestReach";
+import { guestReach } from "@/lib/ci/guestReach";
 import { routeTreeEntries } from "@/lib/ci/publicRouteLoaders";
 
 const ROUTE_TREE = `

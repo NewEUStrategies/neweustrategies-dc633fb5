@@ -38,18 +38,18 @@
  * osadzone list `select` (`profiles(slug, ...)`) to osobne fakty na relacji
  * osadzonej, sprawdzane i sondowane ze złączeniem po kluczu obcym. Kolumna
  * `reach` naruszeń to osiągalność pliku wywołania dla gościa
- * (`scripts/lib/guestReach.ts`): `public` - kandydat na defekt widoczny dla
+ * (`src/lib/ci/guestReach.ts`): `public` - kandydat na defekt widoczny dla
  * gościa (do przeczytania: `enabled: !!user`, render tylko z sesją),
  * `session-gate`/`admin` - za logowaniem, `none` - bez ścieżki z trasy.
  */
 import { writeFileSync } from "node:fs";
+import { guestReach } from "../src/lib/ci/guestReach";
 import {
   extractSeamFacts,
   renderContractTest,
   renderObservedQueries,
   seamCoverageProblems,
 } from "../src/lib/ci/tsSqlContract";
-import { guestReach } from "./lib/guestReach";
 import { loadProductionSources } from "./lib/onConflictArbitersInputs";
 
 const OUTPUT = "supabase/tests/ts_sql_contract_test.sql";
