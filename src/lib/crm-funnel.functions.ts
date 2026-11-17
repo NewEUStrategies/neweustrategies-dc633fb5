@@ -2,15 +2,36 @@
 //
 // Ta warstwa obsługuje lejek marketingowy (subskrybenci newslettera). Widok
 // `crm_funnel_view` łączy tabelę `newsletter_subscribers` z `profiles` oraz
-// `crm_leads`, dodając flagi `is_registered` / `is_contact`. Dostęp do widoku
-// pilnuje `security_invoker=true` + RLS na tabeli subskrybentów (staff-only
-// w ramach tenanta). Dodatkowo używamy `requireCrmStaff`, żeby wymusić zalogowaną
-// rolę pracownika po stronie serwera.
+// `crm_leads`, dodając flagi `is_registered` / `is_contact`.
+//
+// ODCZYT WIDOKU IDZIE SPOD SERVICE-ROLE, NIE KLIENTEM WOŁAJĄCEGO. Widok ma
+// `security_invoker=on` i łączy profile warunkiem `lower(p.email) =
+// lower(s.email)`. `profiles.email` nie ma grantu SELECT dla `authenticated`
+// (poprawka PII 20260724090100), więc do 17.11.2026 KAŻDY odczyt widoku przez
+// staff CRM - lista, karta subskrybenta i `crm_funnel_stats` (SQL SECURITY
+// INVOKER nad tym widokiem) - kończył się 42501 i ekran lejka był martwy.
+//
+// Grantu nie otwieramy, a odczyt nie wynosi adresów z profili: widok używa
+// `profiles.email` WYŁĄCZNIE w warunku złączenia, a kolumny odpowiedzi
+// (`FUNNEL_COLUMNS`) to adres SUBSKRYBENTA i flagi, które ekran już pokazywał.
+// Dlaczego service-role, a nie funkcja SECURITY DEFINER (migracja): widok nie
+// woła `auth.uid()` ani `current_tenant_id()`, wystawia `tenant_id`, a oba
+// złączenia są zakotwiczone w `s.tenant_id` - więc jawny filtr
+// `.eq("tenant_id", <tenant z sesji>)` zawęża subskrybentów, profile i leady
+// do najemcy wołającego dokładnie tak, jak robiło to RLS, bez przepisywania
+// filtrów listy na SQL. Rola wołającego jest sprawdzana jak w polityce
+// `newsletter staff read` (admin albo editor w najemcy z profilu), a nie
+// szerzej niż `requireCrmStaff` - super admin bez tych ról nie widział
+// subskrybentów pod RLS i nie widzi ich tutaj.
+//
+// Zapisy (`newsletter_subscribers`, `crm_leads`, `audit_log`) zostają przy
+// kliencie wołającego - tam RLS jest jedyną bramką i działa.
 import { createServerFn } from "@tanstack/react-start";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { funnelMarketingConsent } from "@/lib/crm/funnelConsent";
+import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
 import { z } from "zod";
-import { looseClient, looseTable } from "@/lib/supabase/looseQuery";
+import { looseClient, looseTable, rowsOf } from "@/lib/supabase/looseQuery";
 
 const write = (
   ctx: { supabase: unknown },
@@ -39,6 +60,44 @@ const j = (v: unknown): string => JSON.stringify(v ?? null);
 const FunnelStatus = z.enum(["subscribed", "pending", "unsubscribed", "bounced", "complained"]);
 const AudienceFilter = z.enum(["all", "registered", "unregistered", "contact", "non_contact"]);
 
+/**
+ * Kolumny wiersza lejka - DOKŁADNIE to, co renderuje `/admin/crm/funnel`
+ * (typ `FunnelRow` trasy). Jawna lista zamiast `*`: odczyt spod service-role
+ * nie może wynosić kolumn, które widok dostanie w przyszłości, a `consents`
+ * (dowód zgody), `email_norm`, `source_form_*` i `updated_at` nie mają na
+ * ekranie odbiorcy. Adres to `email` SUBSKRYBENTA, nie profilu.
+ */
+const FUNNEL_COLUMNS =
+  "id, tenant_id, email, first_name, last_name, display_name, language, source, status, confirmed_at, unsubscribed_at, created_at, user_id, profile_id, avatar_url, is_registered, contact_id, is_contact, contact_stage, contact_score";
+
+/** Role, które polityka `newsletter staff read` wpuszcza do subskrybentów. */
+const FUNNEL_READER_ROLES = ["admin", "editor"] as const;
+
+/**
+ * Najemca wołającego, któremu wolno czytać lejek - albo wyjątek.
+ *
+ * Najemca z profilu wołającego pod RLS (`resolveCallerTenantId`), nigdy
+ * z ładunku. Rola: admin albo editor W TYM najemcy, czytana klientem
+ * wołającego z `user_roles` (własne role - ten sam odczyt co `requireCrmStaff`).
+ * To odtwarza warunek polityki `newsletter staff read`, który pod
+ * service-role nie działa; brak roli = odmowa, nie pusta lista.
+ */
+async function funnelReaderTenant(context: {
+  readonly supabase: unknown;
+  readonly userId: string;
+}): Promise<string> {
+  const tenantId = await resolveCallerTenantId(context);
+  const roles = await looseTable(context, "user_roles")
+    .select("role")
+    .eq("user_id", context.userId)
+    .eq("tenant_id", tenantId)
+    .in("role", [...FUNNEL_READER_ROLES])
+    .limit(1);
+  if (roles.error) throw new Error(roles.error.message);
+  if (rowsOf(roles).length === 0) throw new Error("Forbidden: newsletter staff required");
+  return tenantId;
+}
+
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
   status: FunnelStatus.optional(),
@@ -54,8 +113,14 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
-    let q = looseTable(context, "crm_funnel_view")
-      .select("*")
+    const tenantId = await funnelReaderTenant(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // `tenant_id` z sesji to JEDYNA granica najemcy tego zapytania - RLS pod
+    // service-role nie działa. Stoi przed każdym filtrem z ładunku.
+    let q = looseClient({ supabase: supabaseAdmin })
+      .from("crm_funnel_view")
+      .select(FUNNEL_COLUMNS)
+      .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false })
       .limit(data.limit);
 
@@ -99,8 +164,13 @@ export const getFunnelSubscriber = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await looseTable(context, "crm_funnel_view")
-      .select("*")
+    const tenantId = await funnelReaderTenant(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Subskrybent innego najemcy niż wołający: `not_found`, jak pod RLS.
+    const { data: row, error } = await looseClient({ supabase: supabaseAdmin })
+      .from("crm_funnel_view")
+      .select(FUNNEL_COLUMNS)
+      .eq("tenant_id", tenantId)
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -117,25 +187,44 @@ export type FunnelStats = {
   contacts: number;
 };
 
-// Agregacja liczona w bazie (crm_funnel_stats, migracja 20260802130000):
-// jeden skan z COUNT(*) FILTER zamiast ściągania całej tabeli i pętli w JS.
-// RPC jest SECURITY INVOKER, więc RLS subskrybentów obowiązuje bez zmian.
+// Liczniki liczy baza - sześć zapytań liczących (`count: "exact", head: true`)
+// nad TYM SAMYM widokiem, wierszem po wierszu tak jak `crm_funnel_stats`
+// (COUNT(*) FILTER nad `crm_funnel_view`), bez ściągania wierszy.
+//
+// DLACZEGO NIE `crm_funnel_stats`. Funkcja jest SECURITY INVOKER nad widokiem,
+// więc pod klientem staff dziedziczyła 42501 z `profiles.email` (patrz nagłówek
+// pliku), a pod service-role policzyłaby WSZYSTKICH najemców - nie ma
+// parametru najemcy ani filtra w ciele. Zapytania niżej niosą
+// `.eq("tenant_id", <tenant z sesji>)` każde z osobna.
 export const funnelStats = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }): Promise<FunnelStats> => {
-    const { data, error } = await looseClient(context).rpc("crm_funnel_stats");
-    if (error) throw new Error(error.message);
-    const row = (Array.isArray(data) ? data[0] : data) as Partial<
-      Record<keyof FunnelStats, number | string | null>
-    > | null;
-    const n = (v: number | string | null | undefined): number => Number(v ?? 0);
+    const tenantId = await funnelReaderTenant(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tenantCount = () =>
+      looseClient({ supabase: supabaseAdmin })
+        .from("crm_funnel_view")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+    const [total, subscribed, pending, unsubscribed, registered, contacts] = await Promise.all([
+      tenantCount(),
+      tenantCount().eq("status", "subscribed"),
+      tenantCount().eq("status", "pending"),
+      tenantCount().eq("status", "unsubscribed"),
+      tenantCount().eq("is_registered", true),
+      tenantCount().eq("is_contact", true),
+    ]);
+    // Licznik z odmowy to nie zero - jedna odmowa wywraca całe podsumowanie.
+    for (const r of [total, subscribed, pending, unsubscribed, registered, contacts]) {
+      if (r.error) throw new Error(r.error.message);
+    }
     return {
-      total: n(row?.total),
-      subscribed: n(row?.subscribed),
-      pending: n(row?.pending),
-      unsubscribed: n(row?.unsubscribed),
-      registered: n(row?.registered),
-      contacts: n(row?.contacts),
+      total: total.count ?? 0,
+      subscribed: subscribed.count ?? 0,
+      pending: pending.count ?? 0,
+      unsubscribed: unsubscribed.count ?? 0,
+      registered: registered.count ?? 0,
+      contacts: contacts.count ?? 0,
     };
   });
 

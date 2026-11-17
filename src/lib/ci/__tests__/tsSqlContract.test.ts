@@ -1708,8 +1708,24 @@ describe("stan repozytorium", () => {
         .sort(),
     ).toEqual([
       "src/lib/crm-companies.functions.ts: crm_companies_aggregates: authenticated",
-      "src/lib/crm-funnel.functions.ts: crm_funnel_stats: authenticated",
       "src/lib/crm-tasks.functions.ts: crm_import_leads: authenticated",
+    ]);
+    // Lejek marketingowy (17.11.2026): `crm_funnel_stats` (SECURITY INVOKER nad
+    // `crm_funnel_view`) dziedziczyło 42501 z `profiles.email` w złączeniu
+    // widoku, więc lejek czyta widok spod `service_role` z najemcą z sesji -
+    // i NIGDY klientem użytkownika. Kolumny odpowiedzi to kolumny ekranu
+    // (lista i karta subskrybenta); liczniki to `head: true`, które z założenia
+    // nie są faktem kolumn.
+    expect(
+      repo.tables
+        .filter(
+          (t) => t.file === "src/lib/crm-funnel.functions.ts" && t.table === "crm_funnel_view",
+        )
+        .map((t) => `${t.op} ${t.role} [${t.columns.join(",")}]`)
+        .sort(),
+    ).toEqual([
+      "select service_role [avatar_url,confirmed_at,contact_id,contact_score,contact_stage,created_at,display_name,email,first_name,id,is_contact,is_registered,language,last_name,profile_id,source,status,tenant_id,unsubscribed_at,user_id]",
+      "select service_role [avatar_url,confirmed_at,contact_id,contact_score,contact_stage,created_at,display_name,email,first_name,id,is_contact,is_registered,language,last_name,profile_id,source,status,tenant_id,unsubscribed_at,user_id]",
     ]);
     // Każde RPC karty i scoringu leada jest faktem z rolą klienta. Do listopada
     // 2026 pięć z nich szło przez lokalne `rpcOf(context)` (`const rpc = ...;
