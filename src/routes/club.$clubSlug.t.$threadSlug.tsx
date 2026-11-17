@@ -28,7 +28,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -226,6 +226,16 @@ function ClubThreadView() {
   const { clubSlug, threadSlug } = Route.useParams();
   const { reply: replyIntent } = Route.useSearch();
   const { user } = useAuth();
+  // Kontrolki i odczyty WYŁĄCZNIE dla zalogowanego (obserwowanie wątku,
+  // eksperci). Gość nie ma EXECUTE na `club_my_subscription`,
+  // `club_subscribe_thread` ani `club_thread_experts`, więc każde takie
+  // wywołanie z sesją anonimową kończyło się 42501: dzwonek, który po kliknięciu
+  // pokazywał „Nie udało się zapisać”, i dwa zbędne żądania przy każdym wejściu.
+  // `useHydrated` jak w hubie klubu: dokument SSR jest z konstrukcji anonimowy,
+  // więc pierwszy render klienta ma narysować to samo, co serwer, zanim sesja
+  // zdąży cokolwiek podmienić.
+  const hydrated = useHydrated();
+  const signedIn = hydrated && Boolean(user);
   const { topics: topicCatalog } = useClubTopics();
 
   const clubQ = useClubBySlug(clubSlug);
@@ -267,7 +277,9 @@ function ClubThreadView() {
   const isPosition = threadQ.data?.kind === "position";
   const stanceQ = useClubStanceSummary(isPosition ? threadQ.data?.id : undefined);
   const setStanceM = useSetClubStance(threadQ.data?.id ?? "");
-  const subscriptionQ = useMyThreadSubscription(threadQ.data?.id);
+  // Bez sesji zapytanie stoi wyłączone (`enabled: Boolean(threadId)`), a jego
+  // wiecznego `isPending` nikt nie czyta - dzwonek gościa w ogóle się nie rysuje.
+  const subscriptionQ = useMyThreadSubscription(signedIn ? threadQ.data?.id : undefined);
   const setSubscriptionM = useSetThreadSubscription(threadQ.data?.id ?? "");
 
   // Liczniki paneli - JEDNO wywołanie na całą belkę zakładek. Osiem zapytań
@@ -603,17 +615,21 @@ function ClubThreadView() {
                   {caps.canReport ? (
                     <ClubReportButton targetType="thread" targetId={thread.id} />
                   ) : null}
-                  <ClubFollowButton
-                    compact
-                    state={subscriptionQ.data ?? null}
-                    pending={setSubscriptionM.isPending}
-                    disabled={subscriptionQ.isPending}
-                    onChange={(next) =>
-                      setSubscriptionM.mutate(next, {
-                        onError: () => toast.error(t("adminClubs.saveFailed")),
-                      })
-                    }
-                  />
+                  {/* Obserwowanie to ustawienie KONTA - gość go nie ma, tak jak
+                    nie ma zgłoszenia ani redakcji obok. */}
+                  {signedIn ? (
+                    <ClubFollowButton
+                      compact
+                      state={subscriptionQ.data ?? null}
+                      pending={setSubscriptionM.isPending}
+                      disabled={subscriptionQ.isPending}
+                      onChange={(next) =>
+                        setSubscriptionM.mutate(next, {
+                          onError: () => toast.error(t("adminClubs.saveFailed")),
+                        })
+                      }
+                    />
+                  ) : null}
                 </div>
               </div>
             }
@@ -691,14 +707,20 @@ function ClubThreadView() {
 
           Bez `Suspense` z widocznym szkieletem: panel ma prawo nie istnieć,
           więc placeholder w jego miejscu obiecywałby treść, której często nie
-          będzie, i rozpychałby dyskusję przy każdym wejściu w wątek. */}
-          <Suspense fallback={null}>
-            <ClubThreadExpertsPanel
-              threadId={thread.id}
-              canAsk={thread.can_reply}
-              className="mt-4"
-            />
-          </Suspense>
+          będzie, i rozpychałby dyskusję przy każdym wejściu w wątek.
+
+          Gość panelu nie montuje: `club_thread_experts` nie ma EXECUTE dla
+          `anon`, a skład klubu i tak widzi tylko ktoś z `can_see_members` -
+          panel milczałby zawsze, po nieudanym żądaniu i jego ponowieniu. */}
+          {signedIn ? (
+            <Suspense fallback={null}>
+              <ClubThreadExpertsPanel
+                threadId={thread.id}
+                canAsk={thread.can_reply}
+                className="mt-4"
+              />
+            </Suspense>
+          ) : null}
 
           {/* --- odpowiedzi --- */}
           <section className="mt-6">

@@ -113,6 +113,8 @@ const h = vi.hoisted(() => ({
   lang: "pl",
   /** Sesja - `null` znaczy gość. */
   user: null as { id: string } | null,
+  /** `useHydrated()` - `false` odwzorowuje SSR i przebieg hydratacji. */
+  hydrated: true,
 
   // --- loader ---
   /** Karta klubu, którą loader UKŁADU `/club/$clubSlug` zostawił w cache'u. */
@@ -211,6 +213,12 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+// Router PRAWDZIWY; podmieniony jest tylko `useHydrated` czytany przez trasę,
+// żeby dało się odtworzyć przebieg hydratacji (render kliencki daje `true`).
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useHydrated: () => h.hydrated,
+}));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
     session: h.user === null ? null : { user: h.user },
@@ -808,6 +816,7 @@ beforeEach(() => {
   vi.stubGlobal("scrollTo", h.scrollTo);
   h.lang = "pl";
   h.user = { id: CLUB_IDS.me };
+  h.hydrated = true;
   h.loaded = clubViewRow();
   h.ukladZdegradowal = false;
   h.fetchCalls = 0;
@@ -1290,6 +1299,41 @@ describe("post otwierający - reakcje, obserwowanie, redakcja, zgłoszenie", () 
     expect(follow.hasAttribute("disabled")).toBe(true);
   });
 
+  it("gość nie dostaje dzwonka obserwowania i NIE pyta o subskrypcję", async () => {
+    // `club_my_subscription` i `club_subscribe_thread` nie mają EXECUTE dla
+    // `anon`: dzwonek gościa po kliknięciu kończył się 42501 i toastem
+    // „Nie udało się zapisać”, a sam odczyt - dwoma nieudanymi żądaniami.
+    // Hook dostaje `undefined`, czyli `enabled: false` (dowód bramki hooka:
+    // `clubHooks.test.tsx`, „odczyt subskrypcji milczy bez wątku”).
+    h.user = null;
+    await mount();
+    expect(screen.getByTestId("club-thread-lead")).toBeTruthy();
+    expect(screen.queryByTestId("follow")).toBeNull();
+    expect(h.subscriptionThreadId).toBeNull();
+    expect(h.subscriptionCalls).toEqual([]);
+  });
+
+  it("przebieg hydratacji rysuje to, co SSR gościa - sesja nie podmienia dzwonka ani ekspertów", async () => {
+    // Dokument SSR jest z konstrukcji anonimowy. Gdyby dzwonek i panel zależały
+    // od samej sesji, zalogowany dostałby w pierwszym renderze klienta inne
+    // drzewo niż w HTML-u serwera (reguła `useHydrated` z AGENTS.md).
+    h.user = { id: CLUB_IDS.me };
+    h.hydrated = false;
+    await import("@/components/clubs/organisms/ClubThreadExpertsPanel");
+    await mount();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByTestId("follow")).toBeNull();
+    expect(h.subscriptionThreadId).toBeNull();
+    expect(screen.queryByTestId("experts")).toBeNull();
+  });
+
+  it("zalogowany ma dzwonek przy KAŻDYM wątku i pyta o swoją subskrypcję", async () => {
+    h.user = { id: CLUB_IDS.me };
+    await mount();
+    expect(screen.getByTestId("follow")).toBeTruthy();
+    expect(h.subscriptionThreadId).toBe(CLUB_IDS.thread);
+  });
+
   it("zmiana obserwowania woła RPC z nowym stanem, a awaria kończy się toastem błędu", async () => {
     await mount();
     fireEvent.click(screen.getByTestId("follow"));
@@ -1482,6 +1526,19 @@ describe("strona wątku - panel ekspertów", () => {
     await mount();
     await waitFor(() => expect(screen.getByTestId("experts")).toBeTruthy());
     expect(h.props.experts.canAsk).toBe(false);
+  });
+
+  it("gość panelu NIE montuje - `club_thread_experts` nie ma EXECUTE dla `anon`", async () => {
+    // Panel i tak milczał przy błędzie (`return null`), więc jedynym skutkiem
+    // montażu u gościa było nieudane żądanie i jego ponowienie.
+    h.user = null;
+    // Leniwy moduł panelu jest już w cache'u importów, więc gdyby trasa go
+    // montowała, atrapa zapisałaby propsy w kilka mikrozadań.
+    await import("@/components/clubs/organisms/ClubThreadExpertsPanel");
+    await mount();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByTestId("experts")).toBeNull();
+    expect(h.props.experts).toBeUndefined();
   });
 });
 
