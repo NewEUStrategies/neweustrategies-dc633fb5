@@ -1346,9 +1346,15 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
   //
   // Atrapa `profiles` WYKONUJE zapisany łańcuch tak, jak PostgREST (port
   // parsera drzewa `or=(...)`, cytowanie postgrest-js w `.in()`, zamiana `*`
-  // na `%`, semantyka LIKE - test/supabase/postgrestGrammar.ts). Członkowie
-  // „przynęty" mają MNIEJSZE id niż właściwi: gdyby wzorzec przepuścił
-  // wieloznacznik, `order("id")` dałby leadowi zdjęcie przynęty.
+  // na `%`, semantyka LIKE/ILIKE z `lower()` bazy - test/supabase/
+  // postgrestGrammar.ts; filtry tego testu dają na PG16 te same wiersze).
+  //
+  // Członkowie „przynęty" (p1-p5, p17, p20) mają MNIEJSZE id niż właściwi, ale
+  // SAME zdjęcia przecieku wieloznacznika nie wykażą: wiersz przypisuje się
+  // leadowi po WŁASNYM adresie (`pgCaseFold`), więc przynęta przyniesiona przez
+  // `_` czy `%` i tak nie dostałaby leada - wynik zdjęć byłby ten sam. Przeciek
+  // filtra łapie test wierszy, które atrapa ODDAJE zapytaniu kontaktowemu
+  // („przynęty nie wracają z bazy").
   const OTHER_TENANT = "66666666-6666-4666-8666-666666666666";
   const pid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   const member = (
@@ -1439,8 +1445,19 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
   const expectedFor = (i: number) =>
     LEADS[i]?.email_norm === "a*b@firma.test" ? "https://cdn.test/11.png" : CASES[i]?.[1];
 
+  /** Członkowie (numer z `avatar_url`), których atrapa oddała zapytaniom kontaktowym. */
+  let servedContact: number[] = [];
   beforeEach(() => {
-    admin.setResponse("profiles", (chain) => ok(runRecordedChain(chain, MEMBERS)));
+    servedContact = [];
+    admin.setResponse("profiles", (chain) => {
+      const rows = runRecordedChain(chain, MEMBERS);
+      if (avatarChainKind(chain) === "contact_email") {
+        servedContact.push(
+          ...rows.map((r) => Number(/\/(\d+)\.png$/.exec(String(r.avatar_url))?.[1])),
+        );
+      }
+      return ok(rows);
+    });
   });
 
   const listAvatars = async () => {
@@ -1480,6 +1497,35 @@ describe("awatar leada: kontakt bez wielkości liter, bez wieloznaczników (list
     for (const row of LEADS) {
       expect(await cardAvatar(row)).toBe(avatars.get(row.id) ?? null);
     }
+  });
+
+  it("przynęty nie wracają z bazy: filtr kontaktu nie przepuszcza wieloznacznika", async () => {
+    // p1 `janXkowalski` (dla `_`), p2 `100abcpewny` (`%`), p3 `ab` (`\`),
+    // p4 `ktokolwiek` (cytat HOSTILE z `%@firma.test`), p5 `aXYZb` (`*`),
+    // p17 `STRASSE` i p20 `ızmir` - przynęty tylko dla kart `straße@` i `izmir@`
+    // (`ß` to nie `ss`, `ı` to nie `i`); p17 jest właściwy dla `strasse@`.
+    const DECOYS = [1, 2, 3, 4, 5];
+    await listAvatars();
+    expect(servedContact.filter((n) => DECOYS.includes(n))).toEqual([]);
+    // Dokładnie te wiersze, które ten sam filtr zwraca na PG16 (p16 bez zdjęcia
+    // odpada na `not avatar_url is null`, p6 - na tenancie).
+    expect([...servedContact].sort((a, b) => a - b)).toEqual([
+      0, 7, 8, 9, 10, 11, 12, 13, 14, 17, 19, 21, 23, 24, 25, 26,
+    ]);
+
+    // Karta pojedynczego leada: wyłącznie właściwy członek, przynęta z mniejszym id - nie.
+    const servedForCard = async (email: string) => {
+      servedContact = [];
+      await cardAvatar(LEADS.find((l) => l.email === email) as (typeof LEADS)[number]);
+      return servedContact;
+    };
+    expect(await servedForCard("jan_kowalski@firma.test")).toEqual([8]);
+    expect(await servedForCard("100%pewny@firma.test")).toEqual([9]);
+    expect(await servedForCard("a\\b@firma.test")).toEqual([10]);
+    expect(await servedForCard("a*b@firma.test")).toEqual([11]);
+    expect(await servedForCard(HOSTILE)).toEqual([]);
+    expect(await servedForCard("straße@firma.test")).toEqual([24]);
+    expect(await servedForCard("izmir@firma.test")).toEqual([23]);
   });
 
   it("strona w kilku porcjach: wybór zdjęcia w obrębie porcji leada, jak na karcie", async () => {
