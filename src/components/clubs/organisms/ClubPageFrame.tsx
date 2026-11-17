@@ -20,6 +20,7 @@ import { ClubFreshDocsPanel, ClubStagePanel } from "@/components/clubs/molecules
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubViewer } from "@/lib/clubs/useClubViewer";
 import { useClubGroups } from "@/lib/clubs/useClubs";
 import { useClubDocuments, useClubEvents, useClubMilestones } from "@/lib/clubs/useClubWorkspace";
 import type { ClubViewRow } from "@/lib/clubs/types";
@@ -50,6 +51,9 @@ export function ClubPageFrame({
   const navigate = useNavigate();
   const { session } = useAuth();
   const signedIn = session !== null;
+  // Ta sama bramka, co w hubie (`ClubHub`): panele ludzi czytają RPC
+  // zamknięte dla `anon`, a dokument SSR jest anonimowy.
+  const viewerSignedIn = useClubViewer() === "signedIn";
   const clubSlug = club.slug;
   const clubName = pickLocalized(club, "name", lang);
 
@@ -74,15 +78,20 @@ export function ClubPageFrame({
         canRsvp={signedIn && club.can_reply}
         canManage={signedIn && club.can_manage}
       />
-      <ClubBoardPanel clubSlug={clubSlug} clubId={club.id} canPost={signedIn && club.can_reply} />
-      <ClubRosterPanel
-        clubSlug={clubSlug}
-        clubId={club.id}
-        canSeeMembers={club.can_see_members}
-        canDeclare={signedIn && club.can_reply}
-        locale={locale}
-      />
-      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} />
+      {/* Gość ich nie montuje - powód i cena dla członka opisane w `ClubHub`. */}
+      {viewerSignedIn ? (
+        <>
+          <ClubBoardPanel clubSlug={clubSlug} clubId={club.id} canPost={club.can_reply} />
+          <ClubRosterPanel
+            clubSlug={clubSlug}
+            clubId={club.id}
+            canSeeMembers={club.can_see_members}
+            canDeclare={club.can_reply}
+            locale={locale}
+          />
+          <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} />
+        </>
+      ) : null}
       <ClubStagePanel clubSlug={clubSlug} milestones={milestones} today={localToday()} />
       <ClubFreshDocsPanel clubSlug={clubSlug} documents={documents} />
     </>

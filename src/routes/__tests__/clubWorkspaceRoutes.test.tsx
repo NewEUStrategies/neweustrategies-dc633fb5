@@ -26,6 +26,12 @@
 //      WŁAŚCIWE uprawnienia. To najgęstsze miejsce na błąd w całym pliku:
 //      `canPost`, `canRsvp`, `canDeclare` i `canSeeMembers` są koniunkcją
 //      sesji i pola z RPC, a przeklejona nazwa pola przechodzi przez `tsc`.
+//   5. GOŚĆ NA POWIERZCHNIACH Z RPC ZAMKNIĘTYMI DLA `anon` (tablica, eksperci,
+//      wyróżnienie) dostaje KARTĘ, a nie ekran - ekran pytał bazę i kończył
+//      komunikatem awarii. Dopóki nie wiadomo, kto czyta (przed hydratacją,
+//      sesja w drodze), stoi ekran z WYŁĄCZONYM zapytaniem (szkielet z HTML-u
+//      serwera), a nie karta - członek nie widzi mignięcia odmowy. Kalendarz
+//      daje obecność wyłącznie zalogowanemu (`club_event_rsvp`).
 //
 // JAK, ŻEBY TO NIE BYŁA FARMA POKRYCIA. Asercje nagłówka idą PRZECIW
 // `buildClubHead` wywołanemu wprost na tych samych danych - nie przeciw
@@ -58,6 +64,10 @@ const h = vi.hoisted(() => ({
   club: null as unknown,
   /** Sesja widziana przez `useAuth` - `null` znaczy gość. */
   session: null as { user: { id: string } } | null,
+  /** `useAuth().loading` - sesja jeszcze się rozstrzyga. */
+  loading: false,
+  /** `useHydrated()` - `false` odtwarza SSR i pierwszy render klienta. */
+  hydrated: true,
   /** Karta klubu, którą loader UKŁADU zostawił w cache'u; `null` = brak wiersza. */
   loaded: null as unknown,
   /** Układ ZDEGRADOWAŁ (budżet 800 ms albo awaria RPC): po `removeQueries`
@@ -74,7 +84,18 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ session: h.session, user: h.session?.user ?? null, isStaff: false }),
+  useAuth: () => ({
+    session: h.session,
+    user: h.session?.user ?? null,
+    isStaff: false,
+    loading: h.loading,
+  }),
+}));
+// Sama flaga hydratacji - router (historia, dopasowanie, `Link`) zostaje
+// prawdziwy, bo trasy są tu montowane przez `renderRoute`.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useHydrated: () => h.hydrated,
 }));
 // KONTROLA NEGATYWNA, nie źródło danych: po F09 trasa liściowa nie ma prawa
 // tknąć tej funkcji, więc atrapa je LICZY.
@@ -313,6 +334,8 @@ beforeEach(() => {
   cleanup();
   h.club = clubViewRow();
   h.session = { user: { id: CLUB_IDS.me } };
+  h.loading = false;
+  h.hydrated = true;
   h.loaded = clubViewRow();
   h.ukladZdegradowal = false;
   h.fetchCalls = 0;
@@ -543,7 +566,13 @@ describe("uprawnienia organizmów - koniunkcja sesji i pola z RPC", () => {
   it("wyróżnienie członka dostaje `canModerate` sprowadzone do wartości logicznej", async () => {
     h.club = clubViewRow({ can_moderate: true });
     await mount(POWIERZCHNIE[6]);
-    expect(h.organism.ClubSpotlightScreen).toEqual({ clubId: CLUB_IDS.club, canModerate: true });
+    // `enabled: true` doszło w p8: zalogowany czyta jak dotąd, a wyłącznik
+    // trzyma ekran bez zapytania, dopóki trasa nie wie, kto czyta.
+    expect(h.organism.ClubSpotlightScreen).toEqual({
+      clubId: CLUB_IDS.club,
+      canModerate: true,
+      enabled: true,
+    });
   });
 
   it("wyróżnienie członka bez moderacji nie pokazuje narzędzi redakcyjnych", async () => {
@@ -552,48 +581,77 @@ describe("uprawnienia organizmów - koniunkcja sesji i pola z RPC", () => {
     expect(h.organism.ClubSpotlightScreen.canModerate).toBe(false);
   });
 
+  // `gosc` mówi, CO gość dostaje: `prop` - organizm z odebranym prawem
+  // (spotkanie czyta treść RPC otwartym dla `anon`), `karta` - zamiast
+  // organizmu karta dla gościa (tablica i eksperci czytają RPC zamknięte dla
+  // `anon`; ZMIANA ZACHOWANIA GOŚCIA w p8 - dotąd organizm dostawał `false`
+  // i pytał bazę, która odmawiała).
   const KONIUNKCJE: readonly {
     readonly nazwa: string;
     readonly indeks: number;
     readonly organism: string;
     readonly prop: string;
+    readonly gosc: "prop" | "karta";
   }[] = [
-    { nazwa: "tablica ogłoszeń", indeks: 4, organism: "ClubBoardScreen", prop: "canPost" },
-    { nazwa: "eksperci", indeks: 5, organism: "ClubExpertsScreen", prop: "canDeclare" },
-    { nazwa: "spotkanie", indeks: 7, organism: "ClubMeetingScreen", prop: "canRsvp" },
+    {
+      nazwa: "tablica ogłoszeń",
+      indeks: 4,
+      organism: "ClubBoardScreen",
+      prop: "canPost",
+      gosc: "karta",
+    },
+    {
+      nazwa: "eksperci",
+      indeks: 5,
+      organism: "ClubExpertsScreen",
+      prop: "canDeclare",
+      gosc: "karta",
+    },
+    { nazwa: "spotkanie", indeks: 7, organism: "ClubMeetingScreen", prop: "canRsvp", gosc: "prop" },
   ];
 
   it.each(KONIUNKCJE)(
     "$nazwa: $prop wymaga JEDNOCZEŚNIE sesji i `can_reply`",
-    async ({ indeks, organism, prop }) => {
+    async ({ indeks, organism, prop, gosc }) => {
       // Sama sesja nie wystarcza (obserwator klubu nie pisze), samo
       // `can_reply` też nie (RPC dla `anon` jest zamknięte). Tabela sprawdza
       // wszystkie cztery kombinacje - pojedynczy przypadek przechodzi także
       // dla zwykłego `||`.
       const surface = POWIERZCHNIE[indeks];
+      const expectGuest = (): void => {
+        if (gosc === "prop") {
+          expect(h.organism[organism][prop]).toBe(false);
+        } else {
+          expect(h.organism[organism]).toBeUndefined();
+          expect(screen.queryByTestId(organism)).toBeNull();
+        }
+      };
 
       h.session = { user: { id: CLUB_IDS.me } };
       h.club = clubViewRow({ can_reply: true });
       await mount(surface);
       expect(h.organism[organism][prop]).toBe(true);
       cleanup();
+      h.organism = {};
 
       h.session = null;
       h.club = clubViewRow({ can_reply: true });
       await mount(surface);
-      expect(h.organism[organism][prop]).toBe(false);
+      expectGuest();
       cleanup();
+      h.organism = {};
 
       h.session = { user: { id: CLUB_IDS.me } };
       h.club = clubViewRow({ can_reply: false });
       await mount(surface);
       expect(h.organism[organism][prop]).toBe(false);
       cleanup();
+      h.organism = {};
 
       h.session = null;
       h.club = clubViewRow({ can_reply: false });
       await mount(surface);
-      expect(h.organism[organism][prop]).toBe(false);
+      expectGuest();
     },
   );
 
@@ -634,5 +692,115 @@ describe("uprawnienia organizmów - koniunkcja sesji i pola z RPC", () => {
     h.club = clubViewRow({ can_see_members: false });
     await mount(POWIERZCHNIE[7]);
     expect(h.organism.ClubMeetingScreen.canSeeMembers).toBe(false);
+  });
+});
+
+// --- gość na powierzchniach z RPC zamkniętymi dla `anon` -------------------
+
+describe("gość - karta zamiast ekranu, którego RPC odmawia `anon`", () => {
+  const ZAMKNIETE: readonly {
+    readonly nazwa: string;
+    readonly indeks: number;
+    readonly organism: string;
+    /** Po czym poznać kartę gościa w DOM-ie. */
+    readonly karta: () => HTMLElement | null;
+  }[] = [
+    {
+      nazwa: "tablica ogłoszeń",
+      indeks: 4,
+      organism: "ClubBoardScreen",
+      karta: () => screen.queryByTestId("club-members-only"),
+    },
+    {
+      nazwa: "eksperci",
+      indeks: 5,
+      organism: "ClubExpertsScreen",
+      karta: () => screen.queryByText("club.roster.hidden"),
+    },
+    {
+      nazwa: "wyróżnienie członka",
+      indeks: 6,
+      organism: "ClubSpotlightScreen",
+      karta: () => screen.queryByText("club.roster.hidden"),
+    },
+  ];
+
+  it.each(ZAMKNIETE)(
+    "$nazwa: gość dostaje kartę, a organizm (i jego zapytanie) nie montuje się wcale",
+    async ({ indeks, organism, karta }) => {
+      // Karta klubu publicznego z gałęzi `anon`: `can_read` i nic więcej.
+      h.session = null;
+      h.club = clubViewRow({ can_read: true, can_reply: true, can_see_members: true });
+      await mount(POWIERZCHNIE[indeks]);
+      expect(karta()).not.toBeNull();
+      expect(screen.queryByTestId(organism)).toBeNull();
+      expect(h.organism[organism]).toBeUndefined();
+    },
+  );
+
+  it.each(ZAMKNIETE)(
+    "$nazwa: zalogowany dostaje ekran z włączonym zapytaniem i bez karty",
+    async ({ indeks, organism, karta }) => {
+      await mount(POWIERZCHNIE[indeks]);
+      expect(screen.getByTestId(organism)).toBeTruthy();
+      expect(h.organism[organism].enabled).toBe(true);
+      expect(karta()).toBeNull();
+    },
+  );
+
+  it.each(ZAMKNIETE)(
+    "$nazwa: sesja w drodze - ekran BEZ zapytania (szkielet), nie karta gościa",
+    async ({ indeks, organism, karta }) => {
+      // Członek z przeterminowanym tokenem albo wolnym `getSession()`: nie
+      // wiemy jeszcze, kto czyta. Karta odmowy mignęłaby członkowi, ekran
+      // z zapytaniem poszedłby jako `anon`.
+      h.session = null;
+      h.loading = true;
+      await mount(POWIERZCHNIE[indeks]);
+      expect(screen.getByTestId(organism)).toBeTruthy();
+      expect(h.organism[organism].enabled).toBe(false);
+      expect(karta()).toBeNull();
+    },
+  );
+
+  it.each(ZAMKNIETE)(
+    "$nazwa: przed hydratacją sesja nie zmienia renderu - ten sam szkielet, co HTML serwera",
+    async ({ indeks, organism, karta }) => {
+      // Leniwa trasa hydratowana PO rozstrzygnięciu sesji: pierwszy render
+      // klienta musi być równy anonimowemu HTML-owi serwera.
+      h.hydrated = false;
+      await mount(POWIERZCHNIE[indeks]);
+      expect(h.organism[organism].enabled).toBe(false);
+      expect(karta()).toBeNull();
+      const props = h.organism[organism];
+      if ("canPost" in props) expect(props.canPost).toBe(false);
+      if ("canDeclare" in props) expect(props.canDeclare).toBe(false);
+    },
+  );
+
+  it("karta tablicy prowadzi do logowania", async () => {
+    h.session = null;
+    await mount(POWIERZCHNIE[4]);
+    const link = screen.getByRole("link", { name: "club.signIn" });
+    expect(link.getAttribute("href")).toContain("/login");
+    expect(link.getAttribute("href")).toContain("mode=signin");
+  });
+});
+
+describe("kalendarz - obecność tylko dla zalogowanego (`club_event_rsvp` zamknięte dla `anon`)", () => {
+  it("zalogowany dostaje `canRsvp`, gość nie", async () => {
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(true);
+    cleanup();
+
+    h.session = null;
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(false);
+  });
+
+  it("przed hydratacją `canRsvp` jest `false` także z rozstrzygniętą sesją", async () => {
+    h.hydrated = false;
+    await mount(POWIERZCHNIE[0]);
+    expect(h.organism.ClubCalendar.canRsvp).toBe(false);
   });
 });

@@ -34,9 +34,11 @@
 //     przewija niczego. Awaria odświeżenia w tle NIE zdejmuje strumienia.
 //  5. UPRAWNIENIA SĄ ILOCZYNEM SESJI I ZDOLNOŚCI. `can_see_members`
 //     przepuszcza anonima w klubie publicznym, a RPC z nazwiskami jest dla
-//     niego zamknięte - dlatego panel spotkania dostaje `signedIn && can_*`,
-//     a panel składu samo `can_see_members`. Pomyłka w tę stronę pokazuje
-//     gościowi listę, której serwer mu nie odda.
+//     niego zamknięte - dlatego panel spotkania dostaje `signedIn && can_*`.
+//     Tablica, skład i „poznaj członka” czytają RPC w ogóle zamknięte dla
+//     `anon`, więc gość ich NIE MONTUJE (dowód na prawdziwych panelach:
+//     `clubHubGuestGates.test.tsx`), a zalogowany dostaje je z prawami
+//     z wiersza klubu. Gość nie dostaje też akcji polubienia wpisu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //  - `buildClubFeed`: przeplot kart kontekstowych ma pełną tabelę przypadków
@@ -483,6 +485,7 @@ vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
     onThreadReact?: (threadId: string, kind: ClubReactionKind, active: boolean) => void;
   }) => {
     h.feedItem = {
+      hasLike: props.onPostLike !== undefined,
       canReact: props.canReact,
       reactionsPending: props.reactionsPending,
       hasReactions: props.threadReactions !== undefined,
@@ -1244,6 +1247,23 @@ describe("ClubHub - ściana i reakcje", () => {
     expect(h.refetchPosts).toHaveBeenCalledTimes(1);
   });
 
+  it("gość nie dostaje akcji polubienia - `club_post_toggle_like` jest dla `anon` zamknięte", () => {
+    // Bez handlera `ClubPostCard` wyłącza „Lubię to” (osobny test karty).
+    // Dotąd gość miał aktywny przycisk, animację i cichą porażkę RPC.
+    fullData();
+    h.session = null;
+    mount();
+
+    expect(h.feedItem?.hasLike).toBe(false);
+    fireEvent.click(screen.getAllByTestId("feed-like")[0]);
+    expect(h.likeMutate).not.toHaveBeenCalled();
+
+    cleanup();
+    h.session = { user: { id: "user-me" } };
+    mount();
+    expect(h.feedItem?.hasLike).toBe(true);
+  });
+
   it("usunięcie wpisu woła mutację usuwania", () => {
     fullData();
     mount();
@@ -1578,21 +1598,62 @@ describe("ClubHub - prawa szyna i granice uprawnień", () => {
     });
   });
 
-  it("panel składu czyta SAM `can_see_members`, bo lista jest publiczna w klubie publicznym", () => {
+  // ZMIANA ZACHOWANIA GOŚCIA (p8): dotąd ten test montował panel składu
+  // gościowi i sprawdzał jego propsy. `club_roster_signal` nie ma jednak
+  // EXECUTE dla `anon` - panel gościa kończył się 42501 i zapadającym się
+  // szkieletem. Gość go teraz NIE MONTUJE; propsy (`can_see_members` z wiersza,
+  // deklaracja tylko z `can_reply`, lokalizacja) sprawdzamy u zalogowanego.
+  it("panel składu: gość go nie montuje, zalogowany czyta `can_see_members` z wiersza", () => {
     fullData();
     h.session = null;
-    mount({ can_see_members: true });
+    mount({ can_see_members: true, can_reply: true });
+    expect(h.roster).toBeNull();
+    expect(screen.queryByTestId("roster-panel")).toBeNull();
 
+    cleanup();
+    h.session = { user: { id: "user-me" } };
+    mount({ can_see_members: true, can_reply: false });
     expect(h.roster?.canSeeMembers).toBe(true);
     expect(h.roster?.canDeclare).toBe(false);
     expect(h.roster?.locale).toBe("pl-PL");
+
+    cleanup();
+    mount({ can_see_members: false, can_reply: true });
+    expect(h.roster?.canSeeMembers).toBe(false);
+    expect(h.roster?.canDeclare).toBe(true);
   });
 
-  it("tablica ogłoszeń przyjmuje wpis tylko od zalogowanego z prawem odpowiedzi", () => {
+  // ZMIANA ZACHOWANIA GOŚCIA (p8): gościowi panel tablicy już się nie montuje
+  // (`club_board_notices_list` zamknięte dla `anon`), więc „gość nie pisze”
+  // przeszło z `canPost: false` w brak panelu. Iloczyn sesji i `can_reply`
+  // sprawdzamy na zalogowanym w obu kierunkach.
+  it("tablica ogłoszeń: gość jej nie montuje, wpis przyjmuje zalogowany z prawem odpowiedzi", () => {
     fullData();
     h.session = null;
     mount({ can_reply: true });
+    expect(h.board).toBeNull();
+    expect(screen.queryByTestId("board-panel")).toBeNull();
+
+    cleanup();
+    h.session = { user: { id: "user-me" } };
+    mount({ can_reply: false });
     expect(h.board?.canPost).toBe(false);
+
+    cleanup();
+    mount({ can_reply: true });
+    expect(h.board?.canPost).toBe(true);
+  });
+
+  it("„poznaj członka”: gość go nie montuje, zalogowany tak", () => {
+    fullData();
+    h.session = null;
+    mount();
+    expect(screen.queryByTestId("spotlight-panel")).toBeNull();
+
+    cleanup();
+    h.session = { user: { id: "user-me" } };
+    mount();
+    expect(screen.getAllByTestId("spotlight-panel")).toHaveLength(2);
   });
 
   it("szyna kontekstu stoi DWA razy: pod strumieniem i w kolumnie", () => {
