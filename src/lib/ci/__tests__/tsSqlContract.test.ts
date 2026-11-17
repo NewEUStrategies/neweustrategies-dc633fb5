@@ -22,6 +22,7 @@ import {
   COLUMN_FLOW_MAX_DEPTH,
   GUEST_LOGIN_ONLY_REVIEWED,
   GUEST_VIA,
+  SERVER_GUEST_VIA,
   MAX_FILTERS_OUTSIDE_CHAINS,
   MAX_UNRESOLVED_FILTER_SITES,
   MAX_UNRESOLVED_SITES,
@@ -3583,6 +3584,133 @@ describe("bramka z miary: rola nieustalona z widocznymi kandydatami - uprawnieni
   });
 });
 
+describe("bramka z miary: klient przeglądarki wykonany na serwerze - anon zawsze, bez zwolnień", () => {
+  const reachOf = (cls: string, ...files: string[]): ReadonlyMap<string, SiteReach> =>
+    new Map(files.map((file) => [file, { cls, entry: "/x", path: [] }]));
+  /** Wiersze `anon` (gościa) danej funkcji w pliku pgTAP. */
+  const anonRows = (sql: string, site: string, fn: string): string[] =>
+    sql
+      .split("\n")
+      .filter((l) => l.includes(`'${GUEST_VIA}`) || l.includes(", true, '"))
+      .filter((l) => l.includes(`'${site}'`) && l.trim().replace(/[,;]$/, "").endsWith(`'${fn}')`));
+
+  it("handler `createServerFn` (także import pod inną nazwą) w pliku `admin` - wiersze `anon` z drogą serwera mimo zwolnienia klasy; komponent obok - zwolniony", () => {
+    const FILE = "src/lib/admin/couponQueries.ts";
+    const f = observed({
+      [FILE]: `${BROWSER_IMPORT}
+        import { createServerFn as revCreateServerFn } from "@tanstack/react-start";
+        export const revAdminServerRead = revCreateServerFn().handler(async () =>
+          supabase.from("builder_templates").select("id, data"),
+        );
+        export function CouponTable() {
+          const q = useQuery({ queryKey: ["c"], queryFn: () => supabase.from("coupons").select("id") });
+          return null;
+        }
+      `,
+    });
+    const handler = f.observed.tables.find((t) => t.table === "builder_templates");
+    expect(handler?.server).toBe(`createServerFn().handler (${FILE})`);
+    expect(f.observed.tables.find((t) => t.table === "coupons")?.server).toBeUndefined();
+    const sql = renderContractTest(f, {}, { reach: reachOf("admin", FILE), guestLoginOnly: {} });
+    expect(sql).toContain(
+      `('builder_templates', 'select', 'anon', 'authenticated', ARRAY['data', 'id']::text[], false, '${GUEST_VIA} <- ${SERVER_GUEST_VIA}: createServerFn().handler (${FILE}) <- bramka: klient przeglądarki', true, '${FILE}', '${FILE}', 'revAdminServerRead')`,
+    );
+    expect(anonRows(sql, FILE, "revAdminServerRead").length).toBeGreaterThan(1);
+    expect(anonRows(sql, FILE, "CouponTable.queryFn")).toEqual([]);
+    expect(sql).toContain("anon sprawdzany zawsze,\n--   w tym 1 w plikach albo funkcjach");
+  });
+
+  it("pomocnik i opcje zapytania rozgrzewane w `loader` trasy (SSR) w pliku `session-gate` - anon; `ssr: false` i `.client(...)` - bez drogi serwera", () => {
+    const HELPER = "src/lib/x/queries.ts";
+    const ROUTE = "src/routes/x.tsx";
+    const OFF = "src/routes/y.tsx";
+    const files = {
+      [HELPER]: `${BROWSER_IMPORT}
+        export async function fetchPlans() { return supabase.from("plans").select("id"); }
+        export const tiersQueryOptions = (id: string) =>
+          queryOptions({ queryKey: ["t", id], queryFn: () => supabase.from("tiers").select("id").eq("id", id) });
+        export async function fetchOff() { return supabase.from("off_table").select("id"); }
+        export const pick = createIsomorphicFn().client(() => supabase.from("client_only").select("id"));
+      `,
+      [ROUTE]: `import { fetchPlans, tiersQueryOptions } from "@/lib/x/queries";
+        export const Route = createFileRoute("/x")({
+          loader: async ({ context }) => {
+            await context.queryClient.ensureQueryData(tiersQueryOptions("a"));
+            return fetchPlans();
+          },
+          component: X,
+        });
+        function X() { return null; }
+      `,
+      [OFF]: `import { fetchOff } from "@/lib/x/queries";
+        export const Route = createFileRoute("/y")({ ssr: false, loader: () => fetchOff(), component: Y });
+        function Y() { return null; }
+      `,
+    };
+    const f = observed(files);
+    const server = (table: string): string | undefined =>
+      f.observed.tables.find((t) => t.table === table)?.server;
+    expect(server("plans")).toBe(`fetchPlans <- loader trasy (${ROUTE})`);
+    expect(server("tiers")).toBe(`tiersQueryOptions <- loader trasy (${ROUTE})`);
+    expect(server("off_table")).toBeUndefined();
+    expect(server("client_only")).toBeUndefined();
+    const sql = renderContractTest(
+      f,
+      {},
+      {
+        reach: reachOf("session-gate", HELPER, ROUTE, OFF),
+        guestLoginOnly: {},
+      },
+    );
+    expect(anonRows(sql, HELPER, "fetchPlans").length).toBeGreaterThan(0);
+    expect(anonRows(sql, HELPER, "tiersQueryOptions.queryFn").length).toBeGreaterThan(0);
+    expect(anonRows(sql, HELPER, "fetchOff")).toEqual([]);
+    expect(anonRows(sql, HELPER, "pick")).toEqual([]);
+  });
+
+  it("moduł `*.server.ts` i klient z parametru wołany z handlera - droga serwera; komponent oddany jako wartość w `.server(() => X)` - nie", () => {
+    const f = observed({
+      "src/lib/a/read.server.ts": `${BROWSER_IMPORT}
+        export async function readA() { return supabase.from("a_table").select("id"); }
+      `,
+      "src/lib/a/helper.ts": `
+        export async function readB(db) { return db.from("b_table").select("id"); }
+      `,
+      "src/lib/a/fn.functions.ts": `${BROWSER_IMPORT}
+        import { readB } from "./helper";
+        export const b = createServerFn().handler(async () => readB(supabase));
+      `,
+      "src/lib/a/view.tsx": `${BROWSER_IMPORT}
+        export function View() { const q = useQuery({ queryKey: ["v"], queryFn: () => supabase.from("v_table").select("id") }); return null; }
+        export const getView = createIsomorphicFn().server(() => View);
+      `,
+    });
+    const server = (table: string): string | undefined =>
+      f.observed.tables.find((t) => t.table === table)?.server;
+    expect(server("a_table")).toBe("moduł src/lib/a/read.server.ts");
+    expect(server("b_table")).toBe("createServerFn().handler (src/lib/a/fn.functions.ts)");
+    expect(server("v_table")).toBeUndefined();
+  });
+
+  it("wpis GUEST_LOGIN_ONLY_REVIEWED nie zdejmuje wiersza `anon` klienta wykonanego na serwerze", () => {
+    const FILE = "src/lib/queries/srv.ts";
+    const f = observed({
+      [FILE]: `${BROWSER_IMPORT}
+        export const read = createServerFn().handler(async () => supabase.from("posts").select("id"));
+      `,
+    });
+    const sql = renderContractTest(
+      f,
+      {},
+      {
+        reach: reachOf("public", FILE),
+        guestLoginOnly: { [`${FILE}: read`]: `${FILE}:2 enabled: !!user` },
+      },
+    );
+    expect(anonRows(sql, FILE, "read").length).toBeGreaterThan(0);
+  });
+});
+
 describe("bramka z miary: role bez kandydata - lista UNKNOWN_ROLE_REVIEWED tylko maleje, z kształtem", () => {
   // Pomocnik w obiekcie wołanym dynamicznie (`COLLECTORS[k](...)`) - żadnego
   // widocznego wywołania, żadnego kandydata roli.
@@ -3842,7 +3970,9 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(reach.get("src/lib/queries/podcasts.ts")?.cls).toBe("public");
     const sql = renderContractTest(measured, undefined, { reach });
     expect(sql).toContain(
-      "('podcast_episode_people', 'select', 'anon', 'authenticated', ARRAY['display_name', 'episode_id', 'id', 'profile_id', 'role', 'sort_order', 'url']::text[], false, 'gość bez sesji: klient przeglądarki z kluczem publicznym <- bramka: klient przeglądarki', true, 'src/lib/queries/podcasts.ts', 'src/lib/queries/podcasts.ts', 'episodePeopleQueryOptions.queryFn')",
+      // Opcje zapytania rozgrzewa `loader` trasy odcinka - w SSR klient
+      // przeglądarki idzie jako `anon` dla każdego (wiersz bez zwolnień).
+      "('podcast_episode_people', 'select', 'anon', 'authenticated', ARRAY['display_name', 'episode_id', 'id', 'profile_id', 'role', 'sort_order', 'url']::text[], false, 'gość bez sesji: klient przeglądarki z kluczem publicznym <- na serwerze, bez sesji (bez zwolnień): episodePeopleQueryOptions <- loader trasy (src/routes/podcast.$slug.tsx) <- bramka: klient przeglądarki', true, 'src/lib/queries/podcasts.ts', 'src/lib/queries/podcasts.ts', 'episodePeopleQueryOptions.queryFn')",
     );
     // Gość wyłącznie przy roli `authenticated` (klient przeglądarki z sesją).
     const all = [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements];

@@ -240,6 +240,15 @@ export interface RoleResolution {
    * fakt sprawdza tylko istnienie i musi być na liście UNKNOWN_ROLE_REVIEWED.
    */
   readonly candidates?: readonly RoleCandidate[];
+  /**
+   * Klient przeglądarki (`guest`) wykonywany także NA SERWERZE: droga do
+   * kontekstu serwera (handler `createServerFn`, middleware, moduł
+   * `*.server.ts`, handler trasy serwerowej, `loader`/`beforeLoad` trasy
+   * z SSR, kod modułu). Na serwerze klient nie ma sesji, więc jego wiersz
+   * `anon` sprawdza bramka ZAWSZE - bez zwolnienia klasy pliku i bez wpisu
+   * GUEST_LOGIN_ONLY_REVIEWED.
+   */
+  readonly server?: string;
 }
 
 /** Widoczna rola wartości o roli `unknown` (`RoleResolution.candidates`). */
@@ -248,6 +257,8 @@ export interface RoleCandidate {
   readonly via: string;
   /** Klient przeglądarki - z sesją, a bez niej jako gość (`anon`). */
   readonly guest: boolean;
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
 }
 
 interface ObservedCommon {
@@ -255,6 +266,8 @@ interface ObservedCommon {
   readonly via: string;
   /** Rola `unknown`: widoczne role wartości (`RoleResolution.candidates`), posortowane. */
   readonly candidates?: readonly RoleCandidate[];
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   /** Rola, z którą ten fakt idzie do pgTAP (`unknown` = uprawnień bramka nie sprawdza). */
   readonly enforcedRole: ClientRole;
   /** Klient przeglądarki: miara sprawdza też `anon` (`RoleResolution.guest`). */
@@ -365,6 +378,8 @@ export interface ObservedStatement {
   readonly via: string;
   /** Rola `unknown`: widoczne role wartości - sonda jako każda z nich. */
   readonly candidates?: readonly RoleCandidate[];
+  /** Klient przeglądarki wykonywany także na serwerze (`RoleResolution.server`). */
+  readonly server?: string;
   readonly site: string;
   readonly fn: string;
   /** Kolumny `select` - przy zapisie lista RETURNING; `star` - `*`. */
@@ -1934,6 +1949,18 @@ interface RoleEnv {
   readonly visibleSites: Map<ts.Node, readonly CallSite[]>;
   /** Licznik cięć głębokości - wynik z cięciem nie trafia do `memo`. */
   depthCuts: number;
+  /**
+   * Węzeł, którego kontekst wykonania mówi, gdzie działa klient przeglądarki:
+   * ostatnie wyrażenie przepływu roli wewnątrz funkcji (użycie aliasu
+   * `const db = supabase` w handlerze, argument w wywołaniu pomocnika).
+   */
+  anchor: ts.Node | null;
+  /** Funkcja najbardziej zewnętrzna -> droga do kontekstu serwera (`null` - brak). */
+  readonly serverPaths: Map<ts.Node, string | null>;
+  /** Funkcje, których drogę właśnie liczymy (cykl odwołań). */
+  readonly serverPathsPending: Set<ts.Node>;
+  /** Cięcia przepływu kontekstu (cykl, głębokość) - wynik z cięciem nie trafia do `serverPaths`. */
+  serverCuts: number;
 }
 
 const MAX_VIA = 400;
@@ -1949,7 +1976,19 @@ function unknownRole(via: string, candidates: readonly RoleCandidate[] = []): Ro
 function candidatesOf(r: RoleResolution): readonly RoleCandidate[] {
   return r.role === "unknown"
     ? (r.candidates ?? [])
-    : [{ role: r.role, via: r.via, guest: r.guest === true }];
+    : [{ role: r.role, via: r.via, guest: r.guest === true, ...serverField(r.server) }];
+}
+
+function serverField(server: string | undefined): { readonly server?: string } {
+  return server === undefined ? {} : { server };
+}
+
+/** Pierwsza (leksykograficznie) droga do serwera - wynik niezależny od kolejności plików. */
+function firstServer(xs: readonly (string | undefined)[]): string | undefined {
+  return xs.reduce<string | undefined>(
+    (best, x) => (x !== undefined && (best === undefined || x < best) ? x : best),
+    undefined,
+  );
 }
 
 /**
@@ -1963,16 +2002,23 @@ function mergeCandidates(xs: readonly RoleCandidate[]): RoleCandidate[] {
     const key = `${x.role}|${x.guest}`;
     const via = x.via.slice(0, MAX_VIA);
     const known = best.get(key);
-    if (known === undefined || via < known.via) best.set(key, { ...x, via });
+    const server = firstServer([known?.server, x.server]);
+    if (known === undefined || via < known.via) {
+      best.set(key, { role: x.role, via, guest: x.guest, ...serverField(server) });
+    } else {
+      best.set(key, { ...known, ...serverField(server) });
+    }
   }
   return [...best.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, c]) => c);
 }
 
 /** Pole `candidates` faktu miary - wyłącznie przy roli `unknown` z widocznymi kandydatami. */
-function candidateField(r: RoleResolution): { readonly candidates?: readonly RoleCandidate[] } {
-  return r.role === "unknown" && r.candidates !== undefined && r.candidates.length > 0
-    ? { candidates: r.candidates }
-    : {};
+function candidateField(r: RoleResolution): {
+  readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
+} {
+  if (r.role !== "unknown") return serverField(r.server);
+  return r.candidates !== undefined && r.candidates.length > 0 ? { candidates: r.candidates } : {};
 }
 
 /** Kandydaci z przedrostkiem drogi (`etykieta <- droga kandydata`). */
@@ -2018,7 +2064,11 @@ function agreeingRole(label: string, all: readonly RoleResolution[]): RoleResolu
   // Klient przeglądarki w KTÓRYMKOLWIEK wywołaniu - zapytanie idzie też jako
   // gość (`anon`); to suma wartości, nie zgadywanie.
   return withGuest(
-    { role: distinct[0], via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA) },
+    {
+      role: distinct[0],
+      via: `${label} <- ${vias.join(" | ")}`.slice(0, MAX_VIA),
+      ...serverField(firstServer(roles.map((r) => r.server))),
+    },
     roles.some((r) => r.guest === true),
   );
 }
@@ -2032,8 +2082,28 @@ function withGuest(role: RoleResolution, guest: boolean | undefined): RoleResolu
   return guest === true ? { ...role, guest: true } : role;
 }
 
-/** Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary. */
+/**
+ * Rola zmierzona: reguła bramki, a gdy ta daje `unknown` - reguły miary.
+ * Wyrażenie wewnątrz funkcji staje się kotwicą kontekstu wykonania
+ * (`RoleEnv.anchor`) dla klienta przeglądarki rozstrzygniętego głębiej
+ * (alias modułu, import).
+ */
 function measuredRole(
+  expr: ts.Expression,
+  scope: FileScope,
+  env: RoleEnv,
+  depth: number,
+): RoleResolution {
+  const saved = env.anchor;
+  if (saved === null || enclosingFunction(expr) !== null) env.anchor = expr;
+  try {
+    return measuredRoleAt(expr, scope, env, depth);
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+function measuredRoleAt(
   expr: ts.Expression,
   scope: FileScope,
   env: RoleEnv,
@@ -2068,7 +2138,11 @@ function measuredRole(
         }
         if (imported.role === legacy) {
           return withGuest(
-            { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+            {
+              role: legacy,
+              via: `bramka: ${legacyRoleVia(expr, scope)}`,
+              ...serverField(imported.server),
+            },
             imported.guest,
           );
         }
@@ -2100,7 +2174,11 @@ function measuredRole(
           };
         }
         return withGuest(
-          { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+          {
+            role: legacy,
+            via: `bramka: ${legacyRoleVia(expr, scope)}`,
+            ...serverField(bound.server),
+          },
           bound.guest,
         );
       }
@@ -2108,13 +2186,16 @@ function measuredRole(
     // Reguła nazwy bez wiązania w pliku: `supabase` w pliku z importem klienta
     // przeglądarki to ten klient (gość - `anon`); sam `requireSupabaseAuth`
     // to klient z sesją z żądania.
-    return withGuest(
-      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+    const browser =
       ts.isIdentifier(node) &&
-        node.text === "supabase" &&
-        !scope.adminAliases.has("supabase") &&
-        scope.browserClient,
+      node.text === "supabase" &&
+      !scope.adminAliases.has("supabase") &&
+      scope.browserClient;
+    const named = withGuest(
+      { role: legacy, via: `bramka: ${legacyRoleVia(expr, scope)}` },
+      browser,
     );
+    return browser ? browserOnServer(named, env) : named;
   }
   if (depth > ROLE_FLOW_MAX_DEPTH) {
     env.depthCuts += 1;
@@ -2133,6 +2214,304 @@ function measuredRole(
     );
   }
   return unknownRole(`wyrażenie ${compactText(node, scope)}`);
+}
+
+/**
+ * Wartość wyliczona przy kotwicy `node`: argument wywołania pomocnika
+ * wykonuje się w kontekście TEGO wywołania (wołającego), nie miejsca faktu.
+ */
+function atAnchor<T>(env: RoleEnv, node: ts.Node, f: () => T): T {
+  const saved = env.anchor;
+  env.anchor = node;
+  try {
+    return f();
+  } finally {
+    env.anchor = saved;
+  }
+}
+
+/**
+ * Klient przeglądarki przy kotwicy kontekstu: wykonany (także) na serwerze -
+ * flaga `server` z drogą; tam nie ma sesji, więc idzie jako `anon` dla
+ * każdego, także zalogowanego i obsługi panelu.
+ */
+function browserOnServer(role: RoleResolution, env: RoleEnv): RoleResolution {
+  const path = env.anchor === null ? null : serverPathOf(env.anchor, env, 0);
+  return path === null ? role : { ...role, server: path.slice(0, MAX_VIA) };
+}
+
+/** Moduł wyłącznie serwerowy (TanStack Start nie wpuszcza go do przeglądarki). */
+const SERVER_MODULE_RE = /\.server\.tsx?$/;
+/** Budowniczowie funkcji serwera i ich metody z ciałem wykonywanym na serwerze. */
+const SERVER_BUILDER_METHODS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["createServerFn", new Set(["handler", "validator", "inputValidator"])],
+  ["createMiddleware", new Set(["server"])],
+  ["createIsomorphicFn", new Set(["server"])],
+]);
+/** Wywołania tworzące trasę - `loader` i `beforeLoad` ich opcji działają w SSR. */
+const ROUTE_BUILDERS: ReadonlySet<string> = new Set([
+  "createFileRoute",
+  "createRoute",
+  "createRootRoute",
+  "createRootRouteWithContext",
+]);
+const HTTP_METHODS: ReadonlySet<string> = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+  "ALL",
+]);
+
+/**
+ * Nazwa funkcji u korzenia łańcucha wywołań budowniczego
+ * (`createServerFn({...}).middleware([...])` -> `createServerFn`,
+ * `createFileRoute("/x")` -> `createFileRoute`); import pod inną nazwą
+ * (`import { createServerFn as f }`) - nazwa eksportu.
+ */
+function builderRootName(expr: ts.Expression): string | null {
+  let node = unwrap(expr);
+  for (;;) {
+    if (ts.isCallExpression(node)) node = unwrap(node.expression);
+    else if (ts.isPropertyAccessExpression(node)) node = unwrap(node.expression);
+    else break;
+  }
+  if (!ts.isIdentifier(node)) return null;
+  const binding = bindingOf(node, null);
+  return binding.kind === "import" ? binding.name : node.text;
+}
+
+/**
+ * Funkcja wykonywana na serwerze z samego miejsca w kodzie: handler
+ * i walidator `createServerFn`, `.server(...)` middleware'u
+ * i `createIsomorphicFn`, `createServerOnlyFn(...)`, `loader`/`beforeLoad`
+ * opcji trasy (SSR; `ssr: false` - tylko przeglądarka) i handler metody HTTP
+ * trasy serwerowej (`server: { handlers: { GET } }`). `null` - inna.
+ */
+function serverFunctionKind(fn: ts.SignatureDeclaration | ts.Expression): string | null {
+  const outer: ts.Node = ts.isMethodDeclaration(fn) ? fn : outermostWrapper(fn as ts.Expression);
+  const parent = outer.parent;
+  if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === outer)) {
+    const callee = unwrap(parent.expression);
+    if (ts.isIdentifier(callee) && builderRootName(callee) === "createServerOnlyFn") {
+      return "createServerOnlyFn";
+    }
+    if (ts.isPropertyAccessExpression(callee)) {
+      const root = builderRootName(callee.expression);
+      if (root !== null && SERVER_BUILDER_METHODS.get(root)?.has(callee.name.text) === true) {
+        return `${root}().${callee.name.text}`;
+      }
+    }
+    return null;
+  }
+  const prop = ts.isMethodDeclaration(fn)
+    ? fn
+    : ts.isPropertyAssignment(parent) && parent.initializer === outer
+      ? parent
+      : null;
+  if (prop === null || !ts.isObjectLiteralExpression(prop.parent)) return null;
+  const name = propName(prop.name);
+  const obj = prop.parent;
+  const holder = outermostWrapper(obj).parent;
+  if (name === "loader" || name === "beforeLoad") {
+    const ssrOff = obj.properties.some(
+      (p) =>
+        ts.isPropertyAssignment(p) &&
+        propName(p.name) === "ssr" &&
+        p.initializer.kind === ts.SyntaxKind.FalseKeyword,
+    );
+    return ts.isCallExpression(holder) &&
+      ROUTE_BUILDERS.has(builderRootName(holder.expression) ?? "") &&
+      !ssrOff
+      ? `${name} trasy`
+      : null;
+  }
+  if (name !== null && HTTP_METHODS.has(name)) {
+    if (ts.isPropertyAssignment(holder) && propName(holder.name) === "handlers") {
+      return `handler ${name} trasy serwerowej`;
+    }
+    const callee = ts.isCallExpression(holder) ? unwrap(holder.expression) : null;
+    if (
+      callee !== null &&
+      ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === "methods"
+    ) {
+      return `handler ${name} trasy serwerowej`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Nazwa, pod którą żyje funkcja najbardziej zewnętrzna (deklaracja,
+ * `const f = () => ...`, callback we właściwości obiektu przypisanego do
+ * stałej - także przez owijkę `queryOptions({ queryFn })`). `null` - funkcja
+ * bez nazwy (callback oddany wywołaniu, eksport domyślny).
+ */
+function functionHolder(
+  fn: ts.SignatureDeclaration,
+): { readonly name: ts.Identifier; readonly statement: ts.Statement } | null {
+  if (ts.isFunctionDeclaration(fn)) {
+    return fn.name === undefined ? null : { name: fn.name, statement: fn };
+  }
+  let node: ts.Node =
+    ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) ? outermostWrapper(fn) : fn;
+  for (let hops = 0; hops < 8; hops += 1) {
+    const parent: ts.Node = node.parent;
+    if (ts.isVariableDeclaration(parent) && parent.initializer === node) {
+      return ts.isIdentifier(parent.name) &&
+        ts.isVariableDeclarationList(parent.parent) &&
+        parent.parent.flags & ts.NodeFlags.Const &&
+        ts.isVariableStatement(parent.parent.parent)
+        ? { name: parent.name, statement: parent.parent.parent }
+        : null;
+    }
+    if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(parent)) {
+      node = outermostWrapper(parent);
+    } else if (
+      ts.isPropertyAssignment(parent) &&
+      parent.initializer === node &&
+      ts.isObjectLiteralExpression(parent.parent)
+    ) {
+      node = outermostWrapper(parent.parent);
+    } else if (ts.isCallExpression(parent) && parent.arguments.some((a) => a === node)) {
+      // Owijka `queryOptions({ ... })` - obiekt jako argument wywołania,
+      // które samo jest wartością stałej.
+      node = outermostWrapper(parent);
+    } else {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * WIDOCZNE odwołania do nazwy (wywołania i wartości): w jej zasięgu
+ * i - eksport - w plikach importujących (import nazwany, rozkład `import()`
+ * także w `Promise.all`, `(await import(...)).nazwa`). Odwołanie w kodzie,
+ * którego reguła nie widzi, po prostu nie trafia na listę.
+ */
+function visibleReferencesOf(
+  name: ts.Identifier,
+  statement: ts.Statement,
+  scope: FileScope,
+  env: RoleEnv,
+): { readonly node: ts.Node; readonly scope: FileScope }[] {
+  const out: { node: ts.Node; scope: FileScope }[] = [];
+  const collect = (root: ts.Node, local: string, decl: ts.Node | null, at: FileScope): void => {
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node)) {
+        if (node.text === local && node !== decl && isValueReference(node)) {
+          out.push({ node, scope: at });
+        }
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+  };
+  const container = statement.parent;
+  if (bindingCount(container, name.text) === 1) collect(container, name.text, name, scope);
+  if (!ts.isSourceFile(container) || !hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+    return out;
+  }
+  for (const imp of importersOf(scope.file, env.flow)) {
+    if (imp.imported !== name.text || bindingCount(imp.scope.sf, imp.local) !== 0) continue;
+    collect(imp.scope.sf, imp.local, null, imp.scope);
+  }
+  for (const ref of moduleRefsOf(scope.file, env)) {
+    if (!ts.isCallExpression(ref.node)) continue;
+    const outer = outermostAwaited(ref.node);
+    if (ts.isPropertyAccessExpression(outer.parent) && outer.parent.name.text === name.text) {
+      out.push({ node: outer.parent, scope: ref.scope });
+      continue;
+    }
+    const direct =
+      ts.isVariableDeclaration(outer.parent) && ts.isObjectBindingPattern(outer.parent.name)
+        ? { pattern: outer.parent.name, decl: outer.parent }
+        : promiseAllImportPattern(ref.node);
+    if (direct === null) continue;
+    const block = direct.decl.parent.parent?.parent;
+    for (const el of direct.pattern.elements) {
+      const source = el.propertyName
+        ? propName(el.propertyName)
+        : ts.isIdentifier(el.name)
+          ? el.name.text
+          : null;
+      if (source !== name.text || !ts.isIdentifier(el.name) || block === undefined) continue;
+      if (bindingCount(block, el.name.text) === 1) collect(block, el.name.text, el.name, ref.scope);
+    }
+  }
+  return out;
+}
+
+/**
+ * Droga do kontekstu SERWERA dla węzła: moduł `*.server.ts`, funkcja serwera
+ * nad węzłem (`serverFunctionKind`), kod modułu (wykonuje się przy imporcie,
+ * także w SSR), a dla funkcji bez takiego kontekstu - jej widoczne
+ * odwołania (wywołanie w `loader`, `queryFn` opcji zapytania rozgrzewanych
+ * w `loader`, pomocnik wołany z handlera). `null` - żadna widoczna droga
+ * (komponent, hook, handler zdarzenia - wyłącznie przeglądarka).
+ */
+function serverPathOf(
+  node: ts.Node,
+  env: RoleEnv,
+  depth: number,
+  reference = false,
+): string | null {
+  const scope = env.flow.scopes.get(node.getSourceFile().fileName);
+  if (scope === undefined) return null;
+  if (SERVER_MODULE_RE.test(scope.file)) return `moduł ${scope.file}`;
+  let outermost: ts.SignatureDeclaration | null = null;
+  for (let current = node.parent; current; current = current.parent) {
+    if (!ts.isFunctionLike(current)) continue;
+    const kind = serverFunctionKind(current);
+    if (kind !== null) return `${kind} (${scope.file})`;
+    outermost = current;
+  }
+  if (outermost === null) {
+    if (!reference) return `kod modułu ${scope.file} (import także w SSR)`;
+    // Odwołanie na poziomie modułu WYKONUJE funkcję tylko jako wywołanie
+    // (`f()` przy imporcie) albo jako ciało funkcji serwera / `loader`
+    // (`.handler(f)`, `loader: f`); `component: F`, eksport, mapa - nie.
+    const outer = outermostWrapper(node as ts.Expression);
+    if (ts.isCallExpression(outer.parent) && outer.parent.expression === outer) {
+      return `wywołanie w kodzie modułu ${scope.file} (import także w SSR)`;
+    }
+    const kind = ts.isExpression(node) ? serverFunctionKind(node) : null;
+    return kind === null ? null : `${kind} (${scope.file})`;
+  }
+  if (env.serverPaths.has(outermost)) {
+    const known = env.serverPaths.get(outermost) ?? null;
+    if (known === null && env.serverPathsPending.has(outermost)) env.serverCuts += 1;
+    return known;
+  }
+  if (depth > ROLE_FLOW_MAX_DEPTH) {
+    env.serverCuts += 1;
+    return null;
+  }
+  const holder = functionHolder(outermost);
+  // Komponent (`Nazwa`) i hook (`useX`) to konteksty wyłącznie przeglądarki:
+  // render w SSR nie uruchamia `queryFn`/efektów, a odwołanie do komponentu
+  // (`component: X`, `.server(() => X)`) nie wykonuje jego zapytań.
+  if (holder === null || /^(?:[A-Z]|use[A-Z0-9])/.test(holder.name.text)) return null;
+  env.serverPaths.set(outermost, null);
+  env.serverPathsPending.add(outermost);
+  const cutsBefore = env.serverCuts;
+  const paths: string[] = [];
+  for (const ref of visibleReferencesOf(holder.name, holder.statement, scope, env)) {
+    if (within(ref.node, outermost)) continue;
+    const path = serverPathOf(ref.node, env, depth + 1, true);
+    if (path !== null) paths.push(`${holder.name.text} <- ${path}`.slice(0, MAX_VIA));
+  }
+  env.serverPathsPending.delete(outermost);
+  const found = paths.length === 0 ? null : paths.reduce((a, b) => (b < a ? b : a));
+  if (env.serverCuts === cutsBefore) env.serverPaths.set(outermost, found);
+  else env.serverPaths.delete(outermost);
+  return found;
 }
 
 type Binding =
@@ -2464,7 +2843,7 @@ function declarationBinding(decl: ts.Node, container: ts.Node, name: string): Bi
  * (albo funkcja - parametry), który deklaruje nazwę WPROST. Parametr
  * przypisywany, `var`, zmienna pętli albo `catch` - poza regułą.
  */
-function bindingOf(id: ts.Identifier, _scope: FileScope): Binding {
+function bindingOf(id: ts.Identifier, _scope: FileScope | null): Binding {
   const name = id.text;
   for (let node: ts.Node = id; node.parent !== undefined; node = node.parent) {
     const parent = node.parent;
@@ -2567,7 +2946,8 @@ function importRole(
   const target = resolveModule(scope.file, spec, env.flow.known);
   const knownExport = KNOWN_CLIENT_EXPORTS.find((k) => k.module === target && k.name === name);
   if (knownExport !== undefined) {
-    return withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    const known = withGuest({ role: knownExport.role, via: knownExport.via }, knownExport.guest);
+    return knownExport.guest ? browserOnServer(known, env) : known;
   }
   const exported = moduleExport(spec, name, scope, env);
   if (exported === null || exported.binding.kind !== "local" || exported.binding.prop !== null) {
@@ -2888,9 +3268,11 @@ function callRole(
       if (arg === undefined) continue;
       const member = prop ?? ref.prop;
       roles.push(
-        member === null
-          ? measuredRole(arg, scope, env, depth + 1)
-          : memberRole(arg, member, scope, env, depth + 1),
+        atAnchor(env, call, () =>
+          member === null
+            ? measuredRole(arg, scope, env, depth + 1)
+            : memberRole(arg, member, scope, env, depth + 1),
+        ),
       );
       continue;
     }
@@ -3279,9 +3661,11 @@ function paramRole(
       const arg = argumentAt(site.call, index);
       if (arg === "spread" || arg === undefined) continue;
       roles.push(
-        prop === null
-          ? measuredRole(arg, site.scope, env, depth + 1)
-          : memberRole(arg, prop, site.scope, env, depth + 1),
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
       );
     }
     result = unknownRole(
@@ -3299,9 +3683,11 @@ function paramRole(
       }
       if (arg === undefined) continue;
       roles.push(
-        prop === null
-          ? measuredRole(arg, site.scope, env, depth + 1)
-          : memberRole(arg, prop, site.scope, env, depth + 1),
+        atAnchor(env, site.call, () =>
+          prop === null
+            ? measuredRole(arg, site.scope, env, depth + 1)
+            : memberRole(arg, prop, site.scope, env, depth + 1),
+        ),
       );
     }
     result = spread
@@ -5224,6 +5610,10 @@ export function extractSeamFacts(
             sites: new Map(),
             visibleSites: new Map(),
             depthCuts: 0,
+            anchor: null,
+            serverPaths: new Map(),
+            serverPathsPending: new Set(),
+            serverCuts: 0,
           },
           filters: measureFlow,
         }
@@ -5823,6 +6213,11 @@ export function unknownRoleDrift(
  * plik wywołania osiągalny wyłącznie z panelu (`/admin`, przekierowanie bez
  * `isStaff`) albo spod bramki sesji. `public` i `none` (plik bez ścieżki
  * z trasy - niepewne, więc sprawdzany) - wiersze `anon` idą do pgTAP.
+ * Zwolnienie dotyczy WYŁĄCZNIE wykonania w przeglądarce: klient przeglądarki
+ * wykonany na serwerze (`RoleResolution.server` - handler i middleware
+ * funkcji serwera, moduł `*.server.ts`, handler trasy serwerowej,
+ * `loader`/`beforeLoad` trasy z SSR, także przez pomocniki) nie ma sesji dla
+ * nikogo, więc jego wiersz `anon` idzie zawsze.
  */
 export const GUEST_EXEMPT_CLASSES: ReadonlySet<string> = new Set(["admin", "session-gate"]);
 
@@ -6469,6 +6864,7 @@ interface GateFact {
   readonly fn: string;
   /** Fakt wstrzymany w przeglądzie (`SEAM_FACTS_WITHHELD_REVIEWED`) - tylko istnienie. */
   readonly withheld?: boolean;
+  readonly server?: string;
 }
 
 /**
@@ -6481,11 +6877,15 @@ export function checkedRoles(x: {
   readonly via: string;
   readonly guest: boolean;
   readonly candidates?: readonly RoleCandidate[];
+  readonly server?: string;
 }): readonly RoleCandidate[] {
   return x.role === "unknown"
     ? (x.candidates ?? [])
-    : [{ role: x.role, via: x.via, guest: x.guest }];
+    : [{ role: x.role, via: x.via, guest: x.guest, ...serverField(x.server) }];
 }
+
+/** Opis drogi wiersza `anon` klienta przeglądarki wykonanego na serwerze (bez zwolnień). */
+export const SERVER_GUEST_VIA = "na serwerze, bez sesji (bez zwolnień)";
 
 interface ObservedGate {
   /** Nagłówek (komentarz SQL) z liczbami wierszy i zwolnień gościa. */
@@ -6505,11 +6905,13 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
+  // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
+  // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
   const guestOn = (x: GateFact, c: RoleCandidate): boolean =>
     c.guest &&
     c.role === "authenticated" &&
-    !GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
-    reviewed[guestKey(x.site, x.fn)] === undefined;
+    (c.server !== undefined ||
+      (!GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) && reviewed[guestKey(x.site, x.fn)] === undefined));
   /**
    * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
    * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
@@ -6532,7 +6934,16 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
       if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
       return roles.flatMap((c) => [
         ...(own(x, c.role) ? [render(x, c.role, false, c.via)] : []),
-        ...(guestOn(x, c) ? [render(x, "anon", true, c.via)] : []),
+        ...(guestOn(x, c)
+          ? [
+              render(
+                x,
+                "anon",
+                true,
+                c.server === undefined ? c.via : `${SERVER_GUEST_VIA}: ${c.server} <- ${c.via}`,
+              ),
+            ]
+          : []),
       ]);
     });
   const sorted = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
@@ -6666,6 +7077,19 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   }
   const byClass = (label: string): number =>
     [...guestKeys.values()].filter((v) => v === label).length;
+  // Pary z klientem przeglądarki wykonanym na serwerze - sprawdzane jako anon
+  // niezależnie od klasy pliku i listy.
+  const serverKeys = new Set<string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if ("withheld" in x && x.withheld === true) continue;
+    if (checkedRoles(x).some((c) => c.guest && c.server !== undefined)) {
+      serverKeys.add(guestKey(x.site, x.fn));
+    }
+  }
+  const serverExempted = [...serverKeys].filter((k) => {
+    const v = guestKeys.get(k);
+    return v !== undefined && !v.startsWith("sprawdzane");
+  }).length;
   const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => checkedRoles(x).length === 0).length;
   const candidateFacts = [...o.rpcs, ...o.tables].filter(
     (x) => x.role === "unknown" && checkedRoles(x).length > 0,
@@ -6688,6 +7112,10 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 --   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
 --   bramki sesji - guestReach): admin ${byClass("admin")}, session-gate ${byClass("session-gate")}.
 --   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${byClass("przejrzane")}.
+--   Klient przegladarki wykonany NA SERWERZE (handler i middleware funkcji serwera,
+--   modul .server, handler trasy serwerowej, loader/beforeLoad trasy z SSR, kod
+--   modulu - takze przez wywolania pomocnikow): ${serverKeys.size} par, anon sprawdzany zawsze,
+--   w tym ${serverExempted} w plikach albo funkcjach, ktore bez tego bylyby zwolnione.
 -- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
 -- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
 -- Sonda pada WYLACZNIE na 42501 "permission denied for ..." i brak obiektu
