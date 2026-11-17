@@ -58,21 +58,25 @@
 // nigdy pliku ani pomocnika. Dziś lista jest pusta - każdy fakt idzie do
 // pgTAP z rolą klienta.
 //
-// MIARA POZA BRAMKĄ (`SeamFacts.observed`, `renderObservedQueries`,
-// `generate:ts-sql-contract --measure`). Dwie luki tej bramki są dziś
-// MIERZONE, a nie egzekwowane - wynik nie trafia do pgTAP ani do
-// `check:ts-sql-contract`:
-//   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...).
-//     Postgres wymaga SELECT na kolumnie z WHERE/ORDER BY także w UPDATE
-//     i DELETE, więc filtr po kolumnie bez grantu daje 42501 tak samo jak
-//     odczyt (listopad 2026: `user_reports.reporter_id` w eksporcie RODO,
-//     `profiles.current_company_id` w karcie firmy CRM);
+// MIARA W BRAMCE (`SeamFacts.observed`). Do listopada 2026 dwie luki tej
+// bramki były tylko MIERZONE (`generate:ts-sql-contract --measure`) - i to
+// miara, nie CI, złapała defekty tego miesiąca. Teraz fakty miary idą do
+// pgTAP (asercje 10-19, sekcja „Bramka z miary" niżej):
+//   * kolumny filtrów i sortowania (`.eq/.in/.or("a.eq.x")/.match/.order`...)
+//     i celu upsertu - istnienie i SELECT roli. Postgres wymaga SELECT na
+//     kolumnie z WHERE/ORDER BY także w UPDATE i DELETE, więc filtr po kolumnie
+//     bez grantu daje 42501 tak samo jak odczyt;
 //   * rola klienta szerzej niż reguły bramki: fabryki klienta serwisowego
 //     (`await admin()`), `createClient(…, klucz)`, `const x = ...`
 //     i parametr klienta - przez WSZYSTKIE wywołania funkcji (inaczej
-//     `unknown`; nigdy zgadywanie).
-// Fakt bramki zachowuje swoją rolę (`enforcedRole`), więc wygenerowany
-// pgTAP jest bajt w bajt ten sam co bez miary.
+//     `unknown`; nigdy zgadywanie); fakt z rolą nieustaloną - wyłącznie
+//     z wpisem `UNKNOWN_ROLE_REVIEWED`;
+//   * zasoby osadzone list `select`, sondy wykonania (widok
+//     `security_invoker`, funkcja SECURITY INVOKER) i gość (`anon`) klienta
+//     przeglądarki w plikach osiągalnych dla gościa (`guestReach.ts`).
+// Fakt bramki zachowuje swoją rolę (`enforcedRole`): asercje 1-9 i ich
+// tabele są te same co przed miarą, a rola zmierzona sprawdzana jest tam,
+// gdzie się od niej różni.
 //
 // Moduł jest CZYSTY (bez fs) - runner `scripts/generate-ts-sql-contract.ts`
 // czyta pliki, a test jednostkowy (`__tests__/tsSqlContract.test.ts`) karmi go
@@ -196,11 +200,14 @@ export interface SeamFacts {
      */
     readonly withheldReviewed: readonly { readonly key: string; readonly matched: number }[];
   };
-  /** Miara poza bramką (filtry, rola szerzej) - nie wpływa na pgTAP ani na zasięg. */
+  /**
+   * Miara (filtry, rola szerzej, osadzenia, sondy) - asercje 10-19 pgTAP i listy
+   * `check:ts-sql-contract`; bez `observe` puste.
+   */
   readonly observed: ObservedFacts;
 }
 
-// ── Miara poza bramką: typy ─────────────────────────────────────────────────
+// ── Miara (asercje 10-19): typy ─────────────────────────────────────────────
 
 /** Rola zmierzona: jak `ClientRole`, plus `anon` z klienta z kluczem publicznym. */
 export type MeasuredRole = ClientRole | "anon";
@@ -249,6 +256,11 @@ export interface ObservedTable extends ObservedCommon {
   readonly columns: readonly string[];
   readonly star: boolean;
   readonly file: string;
+  /**
+   * Fakt wstrzymany wpisem `SEAM_FACTS_WITHHELD_REVIEWED`: jego uprawnień
+   * kontrakt nie sprawdza - ani rolą bramki, ani zmierzoną, ani gościa.
+   */
+  readonly withheld: boolean;
 }
 
 /** Kolumna filtra albo sortowania: rola potrzebuje SELECT na `table.column`. */
@@ -334,6 +346,8 @@ export interface ObservedStatement {
    * nieczytelny); `null` - nie upsert.
    */
   readonly conflict: readonly string[] | null;
+  /** Zapytanie niesie fakt wstrzymany w przeglądzie - bez sondy wykonania. */
+  readonly withheld: boolean;
 }
 
 export interface ObservedFacts {
@@ -1810,7 +1824,7 @@ function builderTable(
   }
 }
 
-// ── Miara poza bramką: rola klienta szerzej ─────────────────────────────────
+// ── Miara: rola klienta szerzej ─────────────────────────────────────────────
 //
 // Reguły bramki (`receiverRole`) rozstrzygają rolę po NAZWIE odbiorcy; reszta
 // (535 faktów w listopadzie 2026: parametr `supabase: SupabaseClient`,
@@ -3067,7 +3081,7 @@ function defaultedParamRole(
   ]);
 }
 
-// ── Miara poza bramką: kolumny filtrów i sortowania ─────────────────────────
+// ── Miara: kolumny filtrów i sortowania ─────────────────────────────────────
 //
 // Postgres wymaga SELECT na kolumnie użytej w WHERE i ORDER BY - także
 // w UPDATE i DELETE - oraz na kolumnach celu `ON CONFLICT (...)`, a przy
@@ -3724,7 +3738,7 @@ interface Collector {
    * `select` na budowniczym Supabase trafia do `uncheckedSelects`.
    */
   visitedSelects: Set<ts.CallExpression>;
-  /** Miara poza bramką (`SeamFacts.observed`). */
+  /** Miara (`SeamFacts.observed`). */
   observed: {
     rpcs: ObservedRpc[];
     tables: ObservedTable[];
@@ -4184,6 +4198,7 @@ function handleBuilder(
       role: measure.role.role,
       via: measure.role.via,
       enforcedRole: withheld ? "unknown" : f.role,
+      withheld,
       guest: measure.role.guest === true,
       site: scope.file,
       fn: enclosingFunctionPath(call),
@@ -4510,6 +4525,7 @@ function observeStatements(
                 payload: [],
                 where,
                 conflict: null,
+                withheld: selects.some((f) => f.withheld),
               },
             ]
         : writes.map((w) => {
@@ -4529,6 +4545,7 @@ function observeStatements(
               where: w.op === "update" || w.op === "delete" ? where : [],
               // Cel nieczytelny (`[]`) - sonda bez celu (`ON CONFLICT DO NOTHING`), nie zgadujemy klucza.
               conflict: upsert ? target : null,
+              withheld: [w, ...selects].some((f) => f.withheld),
             };
           });
     for (const statement of statements) {
@@ -4838,8 +4855,9 @@ export function extractSeamFacts(
   withheldReviewed: readonly WithheldFactReviewed[] = SEAM_FACTS_WITHHELD_REVIEWED,
   options: {
     /**
-     * Miara poza bramką (`observed`): kolumny filtrów i rola szerzej. Bez niej
-     * (bramka CI) `observed` jest puste, a ekstrakcja - ta sama co przed miarą.
+     * Miara (`observed`): kolumny filtrów, rola szerzej, osadzenia, zapytania
+     * sond. Bramka CI (`generate:ts-sql-contract`, `--check`) liczy ją zawsze;
+     * bez niej `observed` jest puste, a fakty bramki - te same.
      */
     readonly observe?: boolean;
   } = {},
@@ -5080,6 +5098,12 @@ export function seamCoverageProblems(
   reviewedUnchecked: Readonly<
     Record<string, readonly [number, string]>
   > = UNCHECKED_SELECTS_REVIEWED,
+  /**
+   * Sprawdzenia miary w bramce (lista ról nieustalonych, lista gościa,
+   * zapadki filtrów) - wymagają faktów z `observe: true`. Pominięte - tylko
+   * zasięg ekstrakcji (testy jednostkowe na wycinkach kodu).
+   */
+  observed?: ObservedCoverage,
 ): string[] {
   const problems: string[] = [];
   // Bez wyjątków: drzewo pliku z błędem składni jest od pierwszego błędu
@@ -5122,6 +5146,7 @@ export function seamCoverageProblems(
         fresh.map((site) => `        ${site}`).join("\n"),
     );
   }
+  if (observed !== undefined) problems.push(...observedCoverageProblems(facts, observed));
   return problems;
 }
 
@@ -5149,6 +5174,470 @@ export const PAYLOAD_IDENTITY_REVIEWED: Readonly<Record<string, string>> = {
  * (limit prób po adresie żył tylko w TS, PostgREST wprost go omijał).
  */
 export const SERVER_ONLY_RPC_REVIEWED: Readonly<Record<string, string>> = {};
+
+// ── Bramka z miary: rola zmierzona, filtry, osadzenia, sondy i gość ─────────
+//
+// Do listopada 2026 miara (`observed`) była poza bramką i to ona - nie CI -
+// złapała całą klasę defektów tego miesiąca: `.order("views_count")` na
+// nieistniejącej kolumnie archiwum, `profiles.email` czytane klientem
+// użytkownika w zamówieniach biletowych i w „moim bilecie" (rola klienta
+// nieznana bramce: parametr pomocnika), `builder_templates` i osadzenie
+// `profiles(...)` czytane klientem przeglądarki przez GOŚCIA, widoki
+// `security_invoker` i funkcje SECURITY INVOKER czytające kolumny bez grantu
+// (`crm_funnel_view`, `crm_companies_aggregates` - widzi je dopiero sonda
+// wykonania). Teraz te fakty idą do pgTAP (asercje 10-19, `renderContractTest`):
+//   * rola ZMIERZONA (szerzej niż reguły bramki, nigdy zgadywana) zamiast
+//     `unknown` - tam, gdzie się różni od roli bramki; fakty z rolą wciąż
+//     nieustaloną wolno mieć WYŁĄCZNIE na liście `UNKNOWN_ROLE_REVIEWED`,
+//   * kolumny filtrów, sortowania i celu upsertu oraz zasoby osadzone list
+//     `select` - istnienie i SELECT roli,
+//   * sondy wykonania (zapytanie jako rola w podtransakcji, wycofane),
+//   * gość (`anon`) - każdy fakt klienta przeglądarki w pliku osiągalnym dla
+//     gościa (`guestReach`: klasa `public` albo `none`); `admin`
+//     i `session-gate` wyłączone strukturalnie, `public` tylko po zalogowaniu -
+//     WYŁĄCZNIE wpisem `GUEST_LOGIN_ONLY_REVIEWED` z dowodem bramki.
+// Miejsca, których miara nie umie przeczytać (filtry nieczytelne, filtry poza
+// rozpoznanym budowniczym), mają zapadki - ich liczba nie rośnie po cichu.
+
+/** Role klienta, których uprawnienia sprawdza Postgres (`unknown` - tylko istnienie). */
+const CLIENT_ROLES: ReadonlySet<MeasuredRole> = new Set(["anon", "authenticated", "service_role"]);
+
+/**
+ * Zapadka filtrów nieczytelnych (`observed.unresolvedFilters`): kolumna,
+ * tabela albo osadzenie filtra znane dopiero w czasie działania (`.order(col)`
+ * z parametru, `.or(warunek)` składany w pętli, `.from(table)` z wyboru) -
+ * kolumn takiego filtra kontrakt nie sprawdza. Liczba może TYLKO maleć: nowe
+ * takie miejsce czerwieni `check:ts-sql-contract`. Naprawa: kolumna w literale
+ * (albo stałej modułu); gdy się nie da - podniesienie zapadki w przeglądzie.
+ */
+export const MAX_UNRESOLVED_FILTER_SITES = 64;
+
+/**
+ * Zapadka wywołań w kształcie filtra PostgREST na odbiorcy, którego ekstrakcja
+ * nie wiąże z budowniczym (`observed.filtersOutsideChains`: parametr
+ * pomocnika bez widocznych wywołań, wynik funkcji spoza reguł) - szacunek luki
+ * po samym kształcie wywołania. Liczba może TYLKO maleć.
+ */
+export const MAX_FILTERS_OUTSIDE_CHAINS = 8;
+
+/** Klucz listy ról nieustalonych: plik wywołania, ścieżka funkcji, `.rpc(fn)` albo `.from(tabela)`. */
+export function unknownRoleKey(site: string, fn: string, call: string): string {
+  return `${site}: ${fn}: ${call}`;
+}
+
+/**
+ * Wszechświat ról nieustalonych: fakty RPC i tabel z rolą zmierzoną `unknown`
+ * (liczone) oraz łańcuchy z taką rolą bez faktu tabeli (sam filtr, zapytanie
+ * sondy, osadzenie) - klucz musi być na liście, liczba faktów może być 0.
+ */
+function unknownRoleUniverse(facts: SeamFacts): Map<string, number> {
+  const o = facts.observed;
+  const out = new Map<string, number>();
+  const add = (key: string, n: number): void => {
+    out.set(key, (out.get(key) ?? 0) + n);
+  };
+  for (const r of o.rpcs) {
+    if (r.role === "unknown") add(unknownRoleKey(r.site, r.fn, `.rpc(${r.name})`), 1);
+  }
+  for (const t of o.tables) {
+    if (t.role === "unknown") add(unknownRoleKey(t.site, t.fn, `.from(${t.table})`), 1);
+  }
+  for (const x of [...o.filters.filter((f) => f.embed === null), ...o.statements, ...o.embeds]) {
+    if (x.role === "unknown") add(unknownRoleKey(x.site, x.fn, `.from(${x.table})`), 0);
+  }
+  return out;
+}
+
+const NOT_EVERY_REFERENCE =
+  "klient z parametru funkcji, której nie każde odwołanie jest widocznym wywołaniem (`const { f } = await import(...)`, funkcja w tablicy źródeł albo obiekcie pomocników, callback) - reguła parametru nie zna wszystkich klientów, więc rola faktu byłaby zgadywaniem";
+const MIXED_CALLERS =
+  "parametr klienta, który wywołania podają z RÓŻNYMI rolami (sesja użytkownika i `service_role`, albo z rolą nieustaloną) - jedna rola faktu byłaby zgadywaniem; każdy wołający ma własne fakty, ten zostaje bez uprawnień";
+const MEMO_CLIENT =
+  "klient z pamięci modułu przypisywanej leniwie (`serviceClientMemo.client`, `let cachedPublicClient`), także przez parametr pomocnika albo wartość domyślną - wiązanie przypisywane, reguła roli go nie śledzi";
+const HOST_ANON_CLIENT =
+  "`hostAnonClient(bearer)` składa `createClient(url, klucz publiczny)` z opcjonalnym `Authorization` wołającego - `anon` albo `authenticated` zależnie od sesji żądania, więc rola jednego faktu nie istnieje";
+const LET_CLIENT =
+  "klient w `let` ustawianym w gałęziach (`let admin` / `let client` przypisywane warunkowo) - reguła roli śledzi tylko `const` i pojedyncze `=`";
+const MEMBER_CLIENT =
+  "klient z pola obiektu albo instancji (`this.supabase`, `.client` wyniku `callerSupabase()`, element rozkładu `Promise.all`) - reguła roli nie czyta pól wyniku funkcji";
+
+/**
+ * Fakty, których rola klienta jest NIEUSTALONA także dla miary (parametr
+ * pomocnika z różnymi wołającymi, klient z pamięci modułu, funkcja jako
+ * wartość) - pgTAP sprawdza ich istnienie, ale nie uprawnienia. Klucz: plik
+ * wywołania, ścieżka funkcji i `.rpc(fn)` / `.from(tabela)`; wartość: ile
+ * faktów RPC i tabel (łańcuch bez faktu - 0) i dlaczego. Lista może TYLKO
+ * maleć: nowy fakt z rolą nieustaloną (albo nowy w znanym kluczu) czerwieni
+ * `check:ts-sql-contract`, a wpis, któremu ubyło faktów - też (zdejmij go
+ * albo zmniejsz licznik). Naprawa: klient wprost (`supabaseAdmin`, klient
+ * przeglądarki, `context.supabase`) albo parametr z jedną rolą we wszystkich
+ * wywołaniach.
+ */
+export const UNKNOWN_ROLE_REVIEWED: Readonly<
+  Record<string, readonly [count: number, reason: string]>
+> = {
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: clubs: .rpc(admin_revenue_clubs_summary)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: email: .rpc(admin_revenue_email_health)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: events: .rpc(admin_revenue_events_summary)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: funnel: .rpc(admin_revenue_funnel)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/analytics/semantic/revenueSnapshot.functions.ts: snapshot: .rpc(admin_revenue_semantic_snapshot)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/billing/catalogAutoSync.server.ts: recordManualSync: .from(payment_integration_state)": [
+    1,
+    MEMBER_CLIENT,
+  ],
+  "src/lib/billing/checkoutSettings.server.ts: loadCheckoutSettings: .from(checkout_settings)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/billing/couponRpc.server.ts: releaseCouponForUser: .rpc(release_b2b_coupon)": [
+    1,
+    MIXED_CALLERS,
+  ],
+  "src/lib/email/queueDrain.server.ts: alreadySent: .from(email_send_log)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/queueDrain.server.ts: deleteMessage: .rpc(delete_email)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/queueDrain.server.ts: loadConfig: .from(email_send_state)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/queueDrain.server.ts: loadFailedAttempts: .from(email_send_log)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/queueDrain.server.ts: logSend: .from(email_send_log)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/queueDrain.server.ts: moveToDlq: .rpc(move_to_dlq)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/queueDrain.server.ts: readBatch: .rpc(read_email_batch)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/queueDrain.server.ts: recheckAccountBound: .rpc(email_queue_send_recheck)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/queueDrain.server.ts: startCooldown: .from(email_send_state)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(name_dictionary)": [
+    1,
+    MEMO_CLIENT,
+  ],
+  "src/lib/email/recipient-name.server.ts: resolveRecipientName: .from(newsletter_subscribers)": [
+    1,
+    MEMO_CLIENT,
+  ],
+  "src/lib/email/suppression.server.ts: applyDeliveryEvent: .rpc(email_apply_delivery_event)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: fetchSuppressedEmails: .rpc(email_filter_suppressed)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: isEmailSuppressed: .rpc(email_is_suppressed)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: recordSuppression: .rpc(email_record_suppression)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: releaseUnsubscribeOnOptIn: .from(email_suppressions)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/email/suppression.server.ts: resolveAccountTenantForAddress: .rpc(email_account_tenant_for_address)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/suppression.server.ts: resolveTenantForAddress: .rpc(email_resolve_tenant_for_address)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/suppression.server.ts: unsubscribeByToken.call: .rpc(email_unsubscribe_by_token)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/email/transactional.server.ts: alreadyHandled: .from(email_send_log)": [1, MEMO_CLIENT],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .from(email_send_log)": [2, MEMO_CLIENT],
+  "src/lib/email/transactional.server.ts: enqueueRawEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .from(email_send_log)": [2, MEMO_CLIENT],
+  "src/lib/email/transactional.server.ts: sendTxEmail: .rpc(enqueue_email)": [1, MEMO_CLIENT],
+  "src/lib/email/transactional.server.ts: suppressionGate: .from(email_send_log)": [1, MEMO_CLIENT],
+  "src/lib/email/txOverrides.server.ts: loadTxOverrides: .from(site_settings)": [1, MIXED_CALLERS],
+  "src/lib/email/unsubscribeToken.server.ts: ensureUnsubscribeToken: .from(email_unsubscribe_tokens)":
+    [4, MEMO_CLIENT],
+  "src/lib/events/eventConsent.server.ts: listMyEventConsentsForCaller: .rpc(event_my_consent_state)":
+    [1, MEMBER_CLIENT],
+  "src/lib/events/eventRegistration.server.ts: attachAttribution: .rpc(event_registration_attribution_attach)":
+    [1, HOST_ANON_CLIENT],
+  "src/lib/events/eventRegistration.server.ts: legacyRegister: .rpc(event_register)": [
+    1,
+    HOST_ANON_CLIENT,
+  ],
+  "src/lib/events/groupGuests.server.ts: legacyRegisterGuests: .rpc(event_register_group_guests)": [
+    1,
+    HOST_ANON_CLIENT,
+  ],
+  "src/lib/events/groupTicketCodes.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
+    [1, HOST_ANON_CLIENT],
+  "src/lib/events/registrationSelfNotify.server.ts: notifyPayload: .rpc(event_registration_notify_payload)":
+    [1, HOST_ANON_CLIENT],
+  "src/lib/events/ticket.server.ts: assertSeatAvailable: .from(event_rsvps)": [1, MIXED_CALLERS],
+  "src/lib/events/ticket.server.ts: legacySeatsFor: .from(events)": [1, MIXED_CALLERS],
+  "src/lib/events/ticket.server.ts: legacySeatsFor: .rpc(get_event_rsvp_counts)": [
+    1,
+    MIXED_CALLERS,
+  ],
+  "src/lib/events/ticket.server.ts: seatsFor: .rpc(event_seat_state)": [1, MIXED_CALLERS],
+  "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_issue_ticket_codes)":
+    [1, LET_CLIENT],
+  "src/lib/events/ticketCodeNotify.server.ts: issueAndSendTicketCodes: .rpc(_event_ticket_code_confirm)":
+    [1, LET_CLIENT],
+  "src/lib/events/wallet/walletRoutes.server.ts: loadTicket: .rpc(event_ticket_wallet_payload)": [
+    1,
+    LET_CLIENT,
+  ],
+  "src/lib/menus/refResolution.ts: fetchCategories: .from(categories)": [1, MEMO_CLIENT],
+  "src/lib/menus/refResolution.ts: fetchPagePaths: .rpc(page_full_paths)": [1, MEMO_CLIENT],
+  "src/lib/menus/refResolution.ts: fetchTags: .from(tags)": [1, MEMO_CLIENT],
+  "src/lib/menus/refResolution.ts: truncatedTops: .from(pages)": [1, MEMO_CLIENT],
+  "src/lib/privacy/measurementStatus.server.ts: fetchMeasuredEmails: .rpc(email_measurement_status)":
+    [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_alerts)": [
+    3,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(outbound_link_checks)": [
+    0,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/linkCheck.server.ts: maybeAlertBrokenLinks: .from(user_roles)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(outbound_link_checks)": [
+    2,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/linkCheck.server.ts: runLinkCheckBatch: .from(posts)": [2, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: events: .from(events)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(author_profiles)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profile_badges)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: experts: .from(profiles)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcast_shows)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: podcasts: .from(podcasts)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: posts: .from(posts)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: programs: .from(research_programs)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: qa: .from(qa_sessions)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: readHomepageReading.work: .from(site_settings)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/sitemapEntries.server.ts: stories: .from(web_stories)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(categories)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(posts)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: taxonomy: .from(tags)": [1, NOT_EVERY_REFERENCE],
+  "src/lib/server/sitemapEntries.server.ts: tracker: .from(eu_policy_items)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/server/userTenant.server.ts: readUserTenantId: .from(profiles)": [
+    1,
+    NOT_EVERY_REFERENCE,
+  ],
+  "src/lib/wordpress-import.functions.ts: load: .from(wp_import_jobs)": [1, MEMBER_CLIENT],
+  "src/lib/wordpress-import.functions.ts: patchJob: .from(wp_import_jobs)": [0, MIXED_CALLERS],
+};
+
+/**
+ * Rozjazd ról nieustalonych z listą przejrzaną: `fresh` - klucz nowy albo
+ * z większą liczbą faktów; `stale` - klucz z mniejszą liczbą albo bez faktu
+ * z rolą nieustaloną (naprawiony - zdejmij). Oba czerwienią bramkę.
+ */
+export function unknownRoleDrift(
+  facts: SeamFacts,
+  reviewed: Readonly<Record<string, readonly [number, string]>> = UNKNOWN_ROLE_REVIEWED,
+): { fresh: string[]; stale: string[] } {
+  const universe = unknownRoleUniverse(facts);
+  const fresh: string[] = [];
+  const stale: string[] = [];
+  for (const [key, count] of universe) {
+    const entry = reviewed[key];
+    if (entry === undefined || count > entry[0]) {
+      fresh.push(`${key} (${count}, przejrzanych: ${entry?.[0] ?? "-"})`);
+    }
+  }
+  for (const [key, [allowed]] of Object.entries(reviewed)) {
+    const count = universe.get(key);
+    if (count === undefined || count < allowed) {
+      stale.push(`${key} (${count ?? "brak faktu z rolą nieustaloną"}, przejrzanych: ${allowed})`);
+    }
+  }
+  return { fresh: fresh.sort(), stale: stale.sort() };
+}
+
+/**
+ * Klasy osiągalności (`guestReach`) WYŁĄCZONE strukturalnie z wierszy gościa:
+ * plik wywołania osiągalny wyłącznie z panelu (`/admin`, przekierowanie bez
+ * `isStaff`) albo spod bramki sesji. `public` i `none` (plik bez ścieżki
+ * z trasy - niepewne, więc sprawdzany) - wiersze `anon` idą do pgTAP.
+ */
+export const GUEST_EXEMPT_CLASSES: ReadonlySet<string> = new Set(["admin", "session-gate"]);
+
+/** Klucz listy gościa: plik wywołania i ścieżka funkcji. */
+export function guestKey(site: string, fn: string): string {
+  return `${site}: ${fn}`;
+}
+
+/**
+ * Funkcje w plikach klasy `public` (osiągalnych z trasy publicznej), które
+ * mimo to wykonują się WYŁĄCZNIE z sesją: zapytanie z `enabled: !!user`,
+ * komponent renderowany pod `{user && ...}`, handler za `requireSupabaseAuth`.
+ * Klasa `public` jest górnym oszacowaniem (`guestReach.ts`), więc takie
+ * miejsce czerwieniłoby pgTAP jako gość bez defektu - wpis zdejmuje wiersze
+ * `anon` faktów TEJ funkcji, nic poza nimi (rola z sesją zostaje
+ * sprawdzana). Klucz: `plik: ścieżka funkcji` (`guestKey`); wartość: dowód
+ * bramki z `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`) -
+ * bez niego wpis czerwieni `check:ts-sql-contract`. Wpis, który nie trafia
+ * w funkcję z faktem gościa w pliku `public`, też (naprawiony albo
+ * przeniesiony - zdejmij). Listę wypełnia przegląd wyniku
+ * `bun run generate:ts-sql-contract --guest-gaps` (klucze, które jako gość
+ * padają na bazie po migracjach).
+ */
+export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, string>> = {};
+
+/** Dowód bramki we wpisie gościa: ścieżka pliku z numerem linii. */
+const GUARD_EVIDENCE_RE = /(?:^|[\s(`'"])[\w@.\-/]+\.(?:tsx?|sql):\d+/;
+
+/** Fakty klienta przeglądarki (wiersze gościa) z kluczem i klasą osiągalności pliku. */
+function guestFactKeys(
+  facts: SeamFacts,
+  reach: ReadonlyMap<string, SiteReach>,
+): Map<string, string> {
+  const o = facts.observed;
+  const out = new Map<string, string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if (!x.guest || x.role !== "authenticated") continue;
+    out.set(guestKey(x.site, x.fn), reach.get(x.site)?.cls ?? "none");
+  }
+  return out;
+}
+
+/**
+ * Rozjazd listy gościa: `stale` - wpis bez funkcji z faktem gościa w pliku
+ * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę - zdejmij);
+ * `invalid` - wpis bez dowodu `plik:linia`.
+ */
+export function guestLoginOnlyDrift(
+  facts: SeamFacts,
+  reach: ReadonlyMap<string, SiteReach>,
+  reviewed: Readonly<Record<string, string>> = GUEST_LOGIN_ONLY_REVIEWED,
+): { stale: string[]; invalid: string[] } {
+  const keys = guestFactKeys(facts, reach);
+  const stale: string[] = [];
+  const invalid: string[] = [];
+  for (const [key, reason] of Object.entries(reviewed)) {
+    const cls = keys.get(key);
+    if (cls !== "public") {
+      stale.push(
+        `${key} (${cls === undefined ? "brak faktu klienta przeglądarki w tej funkcji" : `klasa pliku ${cls}, wpis tylko dla public`})`,
+      );
+    }
+    if (!GUARD_EVIDENCE_RE.test(reason))
+      invalid.push(`${key} (powód bez dowodu bramki plik:linia)`);
+  }
+  return { stale: stale.sort(), invalid: invalid.sort() };
+}
+
+/**
+ * Funkcje wyłączone z sond RPC (nazwa -> powód). Sonda woła funkcję SECURITY
+ * INVOKER z NULL-ami jako rola klienta w podtransakcji wycofywanej
+ * wartownikiem - zapisy, `pg_net` (kolejka w tabeli) i powiadomienia cofają
+ * się z nią, ale synchroniczne wywołanie zewnętrzne (rozszerzenie `http`,
+ * `dblink`) już nie. Przegląd listopad 2026: migracje nie instalują `http`
+ * ani `dblink` (`dblink` występuje wyłącznie w komentarzach o harnessie
+ * wyścigów), a `net.http_post` z `pg_net` tylko kolejkuje - lista jest pusta.
+ * Funkcja z takim wywołaniem trafia tu z powodem, zanim pojawi się w kodzie.
+ */
+export const RPC_PROBE_EXCLUDED: Readonly<Record<string, string>> = {};
+
+/** Wejście bramki z miary (`renderContractTest`, `renderGuestGaps`). */
+export interface ContractEnforcement {
+  /**
+   * Osiągalność pliku wywołania dla gościa (`guestReach`). Plik spoza mapy -
+   * klasa `none`: wiersze gościa sprawdzane (niepewne nie jest zwolnieniem).
+   */
+  readonly reach: ReadonlyMap<string, SiteReach>;
+  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+  readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
+}
+
+/** Wejście sprawdzeń miary w `seamCoverageProblems` (bez bazy). */
+export interface ObservedCoverage {
+  readonly reach: ReadonlyMap<string, SiteReach>;
+  readonly unknownRole?: Readonly<Record<string, readonly [number, string]>>;
+  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+}
+
+/** Problemy zasięgu miary w bramce - lista ról nieustalonych, lista gościa, zapadki filtrów. */
+function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): string[] {
+  const problems: string[] = [];
+  const o = facts.observed;
+  // Bez miary (`extractSeamFacts` bez `observe`) każda lista byłaby
+  // „nieaktualna", a pgTAP - bez asercji miary: to błąd wywołania, nie kodu.
+  if (o.rpcs.length !== facts.rpcs.length || o.tables.length < facts.tables.length) {
+    problems.push(
+      "miara nie uruchomiona (`extractSeamFacts(..., { observe: true })`) - role zmierzone, filtry, osadzenia i sondy nie trafią do pgTAP",
+    );
+    return problems;
+  }
+  const unknown = unknownRoleDrift(facts, input.unknownRole);
+  if (unknown.fresh.length > 0) {
+    problems.push(
+      `${unknown.fresh.length} kluczy z rolą klienta nieustaloną (bez sprawdzenia uprawnień) spoza listy UNKNOWN_ROLE_REVIEWED - klient wprost albo parametr z jedną rolą; dopiero gdy się nie da - wpis z powodem:\n` +
+        unknown.fresh.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (unknown.stale.length > 0) {
+    problems.push(
+      `${unknown.stale.length} wpisów UNKNOWN_ROLE_REVIEWED nieaktualnych (rola już ustalona albo mniej faktów - zdejmij wpis lub zmniejsz licznik):\n` +
+        unknown.stale.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly);
+  if (guest.stale.length > 0 || guest.invalid.length > 0) {
+    problems.push(
+      `${guest.stale.length + guest.invalid.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla funkcji z faktem gościa w pliku klasy public, z dowodem bramki plik:linia):\n` +
+        [...guest.stale, ...guest.invalid].map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.unresolvedFilters.length > MAX_UNRESOLVED_FILTER_SITES) {
+    problems.push(
+      `${o.unresolvedFilters.length} miejsc filtrów nieczytelnych - kolumn kontrakt nie sprawdza (zapadka MAX_UNRESOLVED_FILTER_SITES: ${MAX_UNRESOLVED_FILTER_SITES}):\n` +
+        o.unresolvedFilters.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  if (o.filtersOutsideChains.length > MAX_FILTERS_OUTSIDE_CHAINS) {
+    problems.push(
+      `${o.filtersOutsideChains.length} wywołań filtra poza rozpoznanym budowniczym (zapadka MAX_FILTERS_OUTSIDE_CHAINS: ${MAX_FILTERS_OUTSIDE_CHAINS}):\n` +
+        o.filtersOutsideChains.map((x) => `        ${x}`).join("\n"),
+    );
+  }
+  return problems;
+}
 
 // ── Render testu pgTAP ──────────────────────────────────────────────────────
 
@@ -5269,7 +5758,13 @@ export function renderContractTest(
     readonly payloadIdentity?: Readonly<Record<string, string>>;
     readonly serverOnlyRpc?: Readonly<Record<string, string>>;
   } = {},
+  /**
+   * Wejście asercji miary (10-19). Domyślnie bez mapy osiągalności: każdy
+   * plik to `none`, więc wiersze gościa są sprawdzane wszędzie.
+   */
+  enforcement: ContractEnforcement = { reach: new Map() },
 ): string {
+  const gate = observedGate(facts, enforcement);
   const payloadReviewed = Object.keys(reviewed.payloadIdentity ?? PAYLOAD_IDENTITY_REVIEWED).sort();
   const serverOnlyReviewed = Object.keys(reviewed.serverOnlyRpc ?? SERVER_ONLY_RPC_REVIEWED).sort();
 
@@ -5366,10 +5861,11 @@ export function renderContractTest(
 --
 -- Zasieg: ${facts.coverage.files} plikow, ${facts.coverage.rpcCalls} wywolan .rpc (nazwa nieczytelna:
 -- ${facts.coverage.rpcCallsWithUnknownName}), ${facts.coverage.tableChains} lancuchow .from (tabela nieczytelna: ${facts.coverage.tableChainsWithUnknownTable}).
--- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza.
--- ============================================================================
+-- Kazda asercja zwraca LISTE naruszen z plikami TS, ktore je wnosza
+-- (asercje 10-19 - z plikiem i funkcja wywolania).
+${gate.header}-- ============================================================================
 BEGIN;
-SELECT plan(9);
+SELECT plan(${9 + OBSERVED_ASSERTIONS});
 
 CREATE TEMP TABLE ts_rpc (fn text, keys text[], role text, sites text) ON COMMIT DROP;
 CREATE TEMP TABLE ts_table (rel text, op text, role text, cols text[], star boolean, sites text) ON COMMIT DROP;
@@ -5615,16 +6111,500 @@ SELECT is(
   ARRAY[]::text[],
   'Ladunek: SECURITY DEFINER dla klienta nie czyta klucza tozsamosci z jsonb bez bramki redakcji');
 
+${gate.setup}${OBSERVED_ASSERTIONS_SQL}
 SELECT * FROM finish();
 ROLLBACK;
 `;
 }
 
-// ── Render miary poza bramką ────────────────────────────────────────────────
+// ── Render bramki z miary (asercje 10-19 i raport `--guest-gaps`) ───────────
+
+/** Asercje pgTAP bramki z miary - plan pliku to 9 + tyle. */
+const OBSERVED_ASSERTIONS = 10;
+
+/** Klasyfikacja wyniku sondy bramki: odmowa uprawnień i brak obiektu - naruszenie. */
+const GATE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THEN 'ok'
+                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                          WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'
+                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                          ELSE 'inny blad ' || v_state END
+`;
+
+interface ObservedGate {
+  /** Nagłówek (komentarz SQL) z liczbami wierszy i zwolnień gościa. */
+  readonly header: string;
+  /** Tabele faktów, relacje osadzeń, sondy i widoki naruszeń `ts_v_*`. */
+  readonly setup: string;
+}
+
+/**
+ * Wiersze faktów miary w bramce. Rola zmierzona (`role`), rola bramki
+ * (`enforced`) i flaga wiersza gościa (`guest`): fakt klienta przeglądarki
+ * w pliku osiągalnym dla gościa ma DRUGI wiersz z rolą `anon`. Fakty
+ * wstrzymane w przeglądzie - bez wierszy uprawnień i bez sond.
+ */
+function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): ObservedGate {
+  const o = facts.observed;
+  const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
+  const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
+  const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
+  const guestOn = (x: {
+    readonly guest: boolean;
+    readonly role: MeasuredRole;
+    readonly site: string;
+    readonly fn: string;
+  }): boolean =>
+    x.guest &&
+    x.role === "authenticated" &&
+    !GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
+    reviewed[guestKey(x.site, x.fn)] === undefined;
+  /** Wiersz faktu i - gdy gość sprawdzany - jego wiersz `anon` (`render(fakt, gość)`). */
+  const rows = <
+    T extends {
+      readonly guest: boolean;
+      readonly role: MeasuredRole;
+      readonly site: string;
+      readonly fn: string;
+    },
+  >(
+    xs: readonly T[],
+    own: (x: T) => boolean,
+    render: (x: T, role: MeasuredRole, guest: boolean) => string,
+  ): string[] =>
+    xs.flatMap((x) => [
+      ...(own(x) ? [render(x, x.role, false)] : []),
+      ...(guestOn(x) ? [render(x, "anon", true)] : []),
+    ]);
+  const sorted = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
+  const guestVia = (via: string, guest: boolean): string =>
+    guest ? `${GUEST_VIA} <- ${via}`.slice(0, MAX_VIA) : via;
+
+  const rpcRows = sorted(
+    rows(
+      o.rpcs,
+      (r) => CLIENT_ROLES.has(r.role),
+      (r, role, guest) =>
+        [
+          sqlString(r.name),
+          sqlTextArray(r.keys),
+          sqlString(role),
+          sqlString(r.enforcedRole),
+          sqlString(guestVia(r.via, guest)),
+          guest ? "true" : "false",
+          sqlString(r.site),
+          sqlString(r.fn),
+        ].join(", "),
+    ),
+  );
+  // Fakty tabel: rola zmierzona tylko tam, gdzie różni się od roli bramki
+  // (tę samą rolę sprawdza już asercja 5).
+  const tableRows = sorted(
+    rows(
+      o.tables.filter((t) => !t.withheld),
+      (t) => CLIENT_ROLES.has(t.role) && t.role !== t.enforcedRole,
+      (t, role, guest) =>
+        [
+          sqlString(t.table),
+          sqlString(t.op),
+          sqlString(role),
+          sqlString(t.enforcedRole),
+          sqlTextArray(t.columns),
+          t.star ? "true" : "false",
+          sqlString(guestVia(t.via, guest)),
+          guest ? "true" : "false",
+          sqlString(t.file),
+          sqlString(t.site),
+          sqlString(t.fn),
+        ].join(", "),
+    ),
+  );
+  // Filtry i osadzenia: także z rolą nieustaloną (istnienie kolumn).
+  const filterRows = sorted(
+    rows(
+      o.filters,
+      () => true,
+      (f, role, guest) =>
+        [
+          sqlString(f.table),
+          f.column === PRIMARY_KEY_COLUMNS ? "NULL" : sqlString(f.column),
+          f.embed === null ? "NULL" : sqlString(f.embed),
+          sqlString(f.method),
+          sqlString(f.op),
+          sqlString(role),
+          sqlString(f.gateRole),
+          guest ? "true" : "false",
+          sqlString(f.file),
+          sqlString(f.site),
+          sqlString(f.fn),
+        ].join(", "),
+    ),
+  );
+  // Osadzenia w kolejności `id` (rodzic przed dzieckiem; ekstrakcja jest
+  // deterministyczna), wiersz gościa zaraz za swoim.
+  const embedRows = [
+    ...new Set(
+      rows(
+        o.embeds,
+        () => true,
+        (e, role, guest) =>
+          [
+            String(e.id),
+            e.parentId === null ? "NULL" : String(e.parentId),
+            sqlString(e.table),
+            sqlString(e.path),
+            sqlString(e.rel),
+            e.hint === null ? "NULL" : sqlString(e.hint),
+            sqlTextArray(e.columns),
+            e.star ? "true" : "false",
+            sqlString(role),
+            sqlString(e.gateRole),
+            guest ? "true" : "false",
+            sqlString(e.file),
+            sqlString(e.site),
+            sqlString(e.fn),
+          ].join(", "),
+      ),
+    ),
+  ];
+  const statementRows = sorted(
+    rows(
+      o.statements.filter((s) => !s.withheld),
+      (s) => CLIENT_ROLES.has(s.role),
+      (s, role, guest) =>
+        [
+          sqlString(s.table),
+          sqlString(s.op),
+          sqlString(role),
+          sqlString(s.enforcedRole),
+          sqlTextArray(s.columns),
+          s.star ? "true" : "false",
+          sqlTextArray(s.payload),
+          sqlTextArray(s.where),
+          sqlTextArray(s.conflict),
+          guest ? "true" : "false",
+          sqlString(s.site),
+          sqlString(s.fn),
+        ].join(", "),
+    ),
+  );
+
+  // Pary (plik, funkcja) z faktami klienta przeglądarki - do nagłówka.
+  const guestKeys = new Map<string, string>();
+  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
+    if (!x.guest || x.role !== "authenticated") continue;
+    const key = guestKey(x.site, x.fn);
+    const cls = clsOf(x.site);
+    guestKeys.set(
+      key,
+      GUEST_EXEMPT_CLASSES.has(cls)
+        ? cls
+        : reviewed[key] !== undefined
+          ? "przejrzane"
+          : `sprawdzane ${cls}`,
+    );
+  }
+  const byClass = (label: string): number =>
+    [...guestKeys.values()].filter((v) => v === label).length;
+  const unknownFacts = [...o.rpcs, ...o.tables].filter((x) => x.role === "unknown").length;
+  const rel = (name: string): string => `to_regclass('public.' || quote_ident(${name}))`;
+  const roles = "('anon', 'authenticated', 'service_role')";
+
+  const header = `--
+-- Asercje 10-19 - FAKTY MIARY (SeamFacts.observed): rola klienta ustalona
+-- szerzej niz reguly bramki (nigdy zgadywana), kolumny filtrow, sortowania
+-- i celu upsertu, zasoby osadzone list select, sondy wykonania (kazde zapytanie
+-- jako rola w podtransakcji, wycofane) i gosc (anon) klienta przegladarki.
+-- Rola nieustalona takze dla miary: ${unknownFacts} faktow RPC i tabel - tylko istnienie,
+-- kazdy z lista UNKNOWN_ROLE_REVIEWED (check:ts-sql-contract).
+-- Gosc (anon): ${guestKeys.size} par (plik wywolania, funkcja) z faktami klienta przegladarki.
+--   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.
+--   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
+--   bramki sesji - guestReach): admin ${byClass("admin")}, session-gate ${byClass("session-gate")}.
+--   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${byClass("przejrzane")}.
+-- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
+-- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
+-- Sonda pada WYLACZNIE na 42501 "permission denied for ..." i brak obiektu
+-- (42703, 42P01, 42883); inny blad (np. P0001 funkcji dla argumentow NULL) przechodzi.
+`;
+
+  const setup = `-- ── Fakty miary (asercje 10-19) ─────────────────────────────────────────────
+CREATE TEMP TABLE ts_obs_rpc (fn text, keys text[], role text, enforced text, via text, guest boolean, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_table (rel text, op text, role text, enforced text, cols text[], star boolean, via text, guest boolean, file text, site text, func text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_filter (rel text, col text, embed text, method text, op text, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_stmt (rel text, op text, role text, enforced text, cols text[], star boolean, payload text[], where_cols text[], conflict text[], guest boolean, site text, func text, via text) ON COMMIT DROP;
+CREATE TEMP TABLE ts_obs_embed (id int, parent_id int, tbl text, path text, rel text, hint text, cols text[], star boolean, role text, enforced text, guest boolean, file text, site text, func text, via text) ON COMMIT DROP;
+
+${valuesBlock("ts_obs_rpc", "fn, keys, role, enforced, via, guest, site, func", rpcRows)}
+${valuesBlock("ts_obs_table", "rel, op, role, enforced, cols, star, via, guest, file, site, func", tableRows)}
+${valuesBlock("ts_obs_filter", "rel, col, embed, method, op, role, enforced, guest, file, site, func", filterRows)}
+${valuesBlock("ts_obs_stmt", "rel, op, role, enforced, cols, star, payload, where_cols, conflict, guest, site, func", statementRows)}
+${valuesBlock("ts_obs_embed", "id, parent_id, tbl, path, rel, hint, cols, star, role, enforced, guest, file, site, func", embedRows)}
+-- Relacje osadzen (tabela ts_obs_embed_rel: id, rodzic, relacja, klucz obcy).
+${EMBED_FUNCTIONS_SQL}
+${embedRelSql("ts_obs_embed", "ts_obs_embed_rel")}
+-- Kolumny filtrow: cel konfliktu bez onConflict (col NULL) = klucz glowny.
+CREATE TEMP VIEW ts_obs_filter_cols AS
+SELECT f.rel, coalesce(f.col, pk.col) AS col, f.embed, f.method, f.op, f.role, f.enforced, f.via,
+       f.guest, f.file, f.site, f.func
+  FROM ts_obs_filter f
+  LEFT JOIN LATERAL (
+    SELECT a.attname::text AS col
+      FROM pg_index i
+      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey::int2[])
+     WHERE i.indrelid = ${rel("f.rel")} AND i.indisprimary
+  ) pk ON f.col IS NULL;
+
+${probeSql({
+  probe: "ts_probe",
+  stmt: "ts_obs_stmt",
+  filterCols: "ts_obs_filter_cols",
+  rpc: "ts_obs_rpc",
+  embed: "ts_obs_embed",
+  embedRel: "ts_obs_embed_rel",
+  guest: true,
+  rpcExcluded: excluded,
+  outcome: GATE_PROBE_OUTCOME,
+})}
+-- ── Naruszenia (kind, guest, site, func, msg): asercje 10-19 i --guest-gaps ──
+-- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
+-- asercje 2 i 5) oraz wiersze goscia.
+CREATE TEMP VIEW ts_v_fact AS
+SELECT 'rpc' AS kind, r.guest, r.site, r.func,
+       format('%s: %s: %s(%s) dla %s: brak EXECUTE (rola: %s)', r.site, r.func, r.fn,
+              coalesce(array_to_string(r.keys, ','), '?'), r.role, r.via) AS msg
+  FROM ts_obs_rpc r
+ WHERE (r.guest OR r.role IS DISTINCT FROM r.enforced)
+   AND ((r.keys IS NOT NULL AND pg_temp.ts_rpc_match(r.fn, r.keys) IS NOT NULL
+         AND NOT has_function_privilege(r.role, pg_temp.ts_rpc_match(r.fn, r.keys), 'EXECUTE'))
+        OR (r.keys IS NULL AND EXISTS (
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+               WHERE n.nspname = 'public' AND p.proname = r.fn)
+            AND NOT EXISTS (
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+               WHERE n.nspname = 'public' AND p.proname = r.fn
+                 AND has_function_privilege(r.role, p.oid, 'EXECUTE'))))
+UNION ALL
+SELECT 'table', t.guest, t.site, t.func,
+       format('%s: %s: %s.%s %s dla %s: brak %s (rola: %s%s)', t.site, t.func, t.rel, c.col, t.op,
+              t.role, priv, t.via, CASE WHEN t.file <> t.site THEN '; kolumny z ' || t.file ELSE '' END)
+  FROM ts_obs_table t
+  CROSS JOIN LATERAL (
+    SELECT a.attname::text AS col FROM pg_attribute a
+     WHERE a.attrelid = ${rel("t.rel")} AND a.attnum > 0 AND NOT a.attisdropped
+       AND (t.star OR a.attname = ANY (t.cols))
+  ) c
+  CROSS JOIN LATERAL unnest(CASE t.op
+      WHEN 'select' THEN ARRAY['SELECT']
+      WHEN 'insert' THEN ARRAY['INSERT']
+      WHEN 'update' THEN ARRAY['UPDATE']
+      WHEN 'upsert' THEN ARRAY['INSERT', 'UPDATE']
+      WHEN 'upsert_ignore' THEN ARRAY['INSERT']
+      ELSE ARRAY[]::text[] END) AS priv
+ WHERE (t.guest OR t.role IS DISTINCT FROM t.enforced)
+   AND NOT has_column_privilege(t.role, ${rel("t.rel")}, c.col, priv)
+UNION ALL
+SELECT 'table', t.guest, t.site, t.func,
+       format('%s: %s: %s delete dla %s: brak DELETE (rola: %s)', t.site, t.func, t.rel, t.role, t.via)
+  FROM ts_obs_table t
+ WHERE t.op = 'delete' AND (t.guest OR t.role IS DISTINCT FROM t.enforced)
+   AND ${rel("t.rel")} IS NOT NULL
+   AND NOT has_table_privilege(t.role, ${rel("t.rel")}, 'DELETE');
+
+-- Kolumny filtrow: istnienie (relacja, kolumna, klucz glowny celu bez onConflict).
+-- Relacja filtra osadzenia nieczytelna jako tabela (osadzenie po nazwie klucza
+-- obcego) - pomijana tu; relacje osadzen sprawdza asercja 14.
+CREATE TEMP VIEW ts_v_filter_missing AS
+SELECT DISTINCT f.site, f.func,
+       format('%s: %s: %s.%s (%s%s, %s%s): %s', f.site, f.func, f.rel, coalesce(f.col, '(klucz glowny)'),
+              f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
+              CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END,
+              CASE WHEN ${rel("f.rel")} IS NULL THEN 'relacja nie istnieje'
+                   WHEN f.col IS NULL THEN 'brak klucza glownego'
+                   ELSE 'kolumna nie istnieje' END) AS msg
+  FROM ts_obs_filter_cols f
+ WHERE (${rel("f.rel")} IS NULL AND f.embed IS NULL)
+    OR (${rel("f.rel")} IS NOT NULL
+        AND (f.col IS NULL OR NOT EXISTS (
+              SELECT 1 FROM pg_attribute a
+               WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                 AND a.attnum > 0 AND NOT a.attisdropped)));
+
+-- Kolumny filtrow: SELECT roli (Postgres wymaga go dla WHERE/ORDER BY takze
+-- w UPDATE i DELETE).
+CREATE TEMP VIEW ts_v_filter_denied AS
+SELECT DISTINCT f.guest, f.site, f.func,
+       format('%s: %s: %s.%s dla %s: brak SELECT (%s%s, %s%s)', f.site, f.func, f.rel, f.col, f.role,
+              f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
+              CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END) AS msg
+  FROM ts_obs_filter_cols f
+ WHERE f.role IN ${roles} AND f.col IS NOT NULL AND ${rel("f.rel")} IS NOT NULL
+   AND EXISTS (SELECT 1 FROM pg_attribute a
+                WHERE a.attrelid = ${rel("f.rel")} AND a.attname = f.col
+                  AND a.attnum > 0 AND NOT a.attisdropped)
+   AND NOT has_column_privilege(f.role, ${rel("f.rel")}, f.col, 'SELECT');
+
+-- Osadzenia: relacja (tabela, widok, klucz obcy albo jego kolumna) i kolumny
+-- istnieja. Relacja nadrzedna bez kluczy obcych w katalogu (widok) -
+-- PostgREST rozwiazuje ja z zaleznosci widoku, wiec brak relacji tylko pod tabela.
+CREATE TEMP VIEW ts_v_embed_missing AS
+SELECT DISTINCT m.site, m.func,
+       format('%s: %s: osadzenie %s (%s) w %s: relacja osadzenia nie istnieje (ani relacja public, ani klucz obcy)',
+              m.site, m.func, m.path, m.rel, m.tbl) AS msg
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id
+  JOIN pg_class pc ON pc.oid = x.parent
+ WHERE x.target IS NULL AND pc.relkind IN ('r', 'p')
+UNION
+SELECT DISTINCT m.site, m.func,
+       format('%s: %s: %s.%s (osadzenie %s w %s%s): kolumna nie istnieje', m.site, m.func, c.relname, col,
+              m.path, m.tbl, CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END)
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id AND x.target IS NOT NULL
+  JOIN pg_class c ON c.oid = x.target
+  CROSS JOIN LATERAL unnest(m.cols) AS col
+ WHERE NOT EXISTS (SELECT 1 FROM pg_attribute a
+                    WHERE a.attrelid = x.target AND a.attname = col
+                      AND a.attnum > 0 AND NOT a.attisdropped);
+
+-- Osadzenia: SELECT roli na kolumnach relacji osadzonej (kolumny zlaczenia
+-- sprawdza sonda osadzenia).
+CREATE TEMP VIEW ts_v_embed_denied AS
+SELECT DISTINCT m.guest, m.site, m.func,
+       format('%s: %s: %s.%s dla %s: brak SELECT (osadzenie %s w %s%s)', m.site, m.func, c.relname,
+              col.col, m.role, m.path, m.tbl,
+              CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END) AS msg
+  FROM ts_obs_embed m
+  JOIN ts_obs_embed_rel x ON x.id = m.id AND x.target IS NOT NULL
+  JOIN pg_class c ON c.oid = x.target
+  CROSS JOIN LATERAL (
+    SELECT a.attname::text AS col FROM pg_attribute a
+     WHERE a.attrelid = x.target AND a.attnum > 0 AND NOT a.attisdropped
+       AND (m.star OR a.attname = ANY (m.cols))
+  ) col
+ WHERE m.role IN ${roles}
+   AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT');
+
+-- Sondy wykonania: odmowa uprawnien i brak obiektu.
+CREATE TEMP VIEW ts_v_probe AS
+SELECT DISTINCT p.guest, p.site, p.func,
+       format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
+              p.state, p.msg) AS msg
+  FROM ts_probe p
+ WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu');
+`;
+  return { header, setup };
+}
+
+const OBSERVED_ASSERTIONS_SQL = `
+-- 10. Rola zmierzona: RPC (rola bramki unknown albo inna) - EXECUTE.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE kind = 'rpc' AND NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'RPC z TS: rola zmierzona klienta (inna niz rola bramki) ma EXECUTE na wybranym przeciazeniu');
+
+-- 11. Rola zmierzona: tabele - uprawnienie do operacji na kazdej kolumnie.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE kind = 'table' AND NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Tabele z TS: rola zmierzona klienta (inna niz rola bramki) ma uprawnienie do operacji na kazdej kolumnie');
+
+-- 12. Kolumny filtrow, sortowania i celu upsertu istnieja (42703 / PGRST).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_filter_missing ORDER BY 1),
+  ARRAY[]::text[],
+  'Filtry z TS: relacja, kolumna filtra/sortowania/upsertu i klucz glowny celu istnieja');
+
+-- 13. Kolumny filtrow: rola ma SELECT (42501 takze w UPDATE/DELETE).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_filter_denied WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Filtry z TS: rola klienta ma SELECT na kazdej kolumnie filtra, sortowania i celu upsertu');
+
+-- 14. Zasoby osadzone: relacja i kolumny istnieja (PGRST200 / 42703).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_embed_missing ORDER BY 1),
+  ARRAY[]::text[],
+  'Osadzenia z TS: relacja osadzona i kazda jej kolumna istnieja');
+
+-- 15. Zasoby osadzone: rola ma SELECT na kolumnach relacji osadzonej.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_embed_denied WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Osadzenia z TS: rola klienta ma SELECT na kolumnach relacji osadzonej');
+
+-- 16. Sondy wykonania (widok security_invoker, funkcja SECURITY INVOKER, RLS).
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE NOT guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Sondy wykonania: zapytanie, filtr, osadzenie i RPC jako rola klienta bez odmowy uprawnien i bez braku obiektu');
+
+-- 17. Gosc (anon): RPC i tabele klienta przegladarki w pliku osiagalnym dla goscia.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_fact WHERE guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): RPC i tabele klienta przegladarki maja EXECUTE i uprawnienia kolumn');
+
+-- 18. Gosc (anon): kolumny filtrow i osadzen.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM (
+          SELECT msg FROM ts_v_filter_denied WHERE guest
+          UNION ALL
+          SELECT msg FROM ts_v_embed_denied WHERE guest) g
+        ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): SELECT na kolumnach filtrow i osadzen klienta przegladarki');
+
+-- 19. Gosc (anon): sondy wykonania.
+SELECT is(
+  ARRAY(SELECT DISTINCT msg FROM ts_v_probe WHERE guest ORDER BY 1),
+  ARRAY[]::text[],
+  'Gosc (anon): sondy wykonania klienta przegladarki bez odmowy uprawnien i bez braku obiektu');
+`;
+
+/**
+ * Raport `generate:ts-sql-contract --guest-gaps`: zwykły SQL (nie pgTAP) do
+ * uruchomienia na bazie JEDNORAZOWEJ po migracjach - te same tabele, sondy
+ * i widoki naruszeń co pgTAP bramki, a wynik to pary (plik, funkcja), które
+ * jako gość (`anon`) padają, z liczbą naruszeń i pierwszym z nich. Kolumna
+ * `key` to gotowy klucz `GUEST_LOGIN_ONLY_REVIEWED` - wpis dostaje go
+ * WYŁĄCZNIE miejsce tylko po zalogowaniu, z dowodem bramki `plik:linia`;
+ * reszta to defekty do naprawy w kodzie albo w grantach.
+ */
+export function renderGuestGaps(facts: SeamFacts, enforcement: ContractEnforcement): string {
+  const gate = observedGate(facts, enforcement);
+  return `-- ============================================================================
+-- WYGENEROWANE - \`bun run generate:ts-sql-contract --guest-gaps\`. Zwykly SQL, nie
+-- pgTAP: pary (plik wywolania, funkcja), ktorych fakty klienta przegladarki
+-- padaja jako gosc (anon) - te same wiersze, sondy i widoki co asercje 17-19
+-- pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach (sondy RPC
+-- wykonuja ciala funkcji; calosc w ROLLBACK).
+${gate.header}-- ============================================================================
+BEGIN;
+${RPC_MATCH_SQL}
+${gate.setup}
+SELECT site || ': ' || func AS key, site, func, count(*) AS violations, min(msg) AS first_violation
+  FROM (
+    SELECT site, func, msg FROM ts_v_fact WHERE guest
+    UNION ALL
+    SELECT site, func, msg FROM ts_v_filter_denied WHERE guest
+    UNION ALL
+    SELECT site, func, msg FROM ts_v_embed_denied WHERE guest
+    UNION ALL
+    SELECT site, func, msg FROM ts_v_probe WHERE guest
+  ) v
+ GROUP BY site, func
+ ORDER BY site, func;
+ROLLBACK;
+`;
+}
+
+// ── Render pełnej miary (narzędzie przeglądu) ───────────────────────────────
 
 /**
  * Zapytania miary (`generate:ts-sql-contract --measure`): zwykły SQL, nie
- * pgTAP - NIE trafia do `supabase/tests` ani do CI. Na bazie po wszystkich
+ * pgTAP - narzędzie przeglądu (te same fakty sprawdza pgTAP bramki w asercjach
+ * 10-19, tu z drogą ustalenia roli, osiągalnością i podsumowaniem sond).
+ * Na bazie po wszystkich
  * migracjach zwraca listę naruszeń (rodzaj, plik, funkcja, relacja, kolumna,
  * rola zmierzona i rola bramki, problem, droga ustalenia roli) dla:
  *   * RPC i faktów tabel z rolą zmierzoną (także `anon`),
@@ -5974,8 +6954,7 @@ ROLLBACK;
  * złączenia). Relacja spoza `public` nie jest wystawiona przez PostgREST -
  * nieczytelna. Zagnieżdżenia rozwiązuje rekurencja od tabeli łańcucha.
  */
-const EMBED_SQL = `-- Relacje osadzen (tabela obs_embed_rel: id, rodzic, relacja, klucz obcy).
-CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)
+const EMBED_FUNCTIONS_SQL = `CREATE FUNCTION pg_temp.ts_embed(p_parent oid, p_rel text, p_hint text, OUT target oid, OUT fk oid)
 LANGUAGE plpgsql STABLE AS $f$
 DECLARE
   v_fks oid[];
@@ -6021,9 +7000,12 @@ RETURNS text LANGUAGE sql STABLE AS $f$
     JOIN pg_attribute b ON b.attrelid = c.confrelid AND b.attnum = k.dst
    WHERE c.oid = p_fk
 $f$;
+`;
 
-CREATE TEMP TABLE obs_embed_rel ON COMMIT DROP AS
-WITH RECURSIVE e AS (SELECT DISTINCT id, parent_id, tbl, rel, hint FROM obs_embed),
+/** Tabela relacji osadzeń `target` (id, rodzic, relacja, klucz obcy) z faktów osadzeń `source`. */
+function embedRelSql(source: string, target: string): string {
+  return `CREATE TEMP TABLE ${target} ON COMMIT DROP AS
+WITH RECURSIVE e AS (SELECT DISTINCT id, parent_id, tbl, rel, hint FROM ${source}),
 r AS (
   SELECT e.id, to_regclass('public.' || quote_ident(e.tbl))::oid AS parent, x.target, x.fk
     FROM e CROSS JOIN LATERAL pg_temp.ts_embed(to_regclass('public.' || quote_ident(e.tbl)), e.rel, e.hint) x
@@ -6035,19 +7017,45 @@ r AS (
 )
 SELECT id, parent, target, fk FROM r;
 `;
+}
+
+const EMBED_SQL = `-- Relacje osadzen (tabela obs_embed_rel: id, rodzic, relacja, klucz obcy).
+${EMBED_FUNCTIONS_SQL}
+${embedRelSql("obs_embed", "obs_embed_rel")}`;
 
 /**
  * Sondy wykonania miary (opis w `renderObservedQueries`): tabela `obs_probe`
  * z instrukcją każdej sondy, jej wykonanie jako rola zmierzona w podtransakcji
  * kończonej wyjątkiem wartownika i klasyfikacja wyniku.
  */
-const PROBE_SQL = `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
-CREATE TEMP TABLE obs_probe (
-  id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
-  role text, enforced text, via text, sql text, state text, msg text, ctx text, outcome text
-) ON COMMIT DROP;
+/** Nazwy tabel sond wykonania: miara (`obs_*`) albo bramka pgTAP (`ts_obs_*`). */
+interface ProbeSqlNames {
+  readonly probe: string;
+  readonly stmt: string;
+  readonly filterCols: string;
+  readonly rpc: string;
+  readonly embed: string;
+  readonly embedRel: string;
+  /** Kolumna `guest` (wiersz gościa) w tabelach źródłowych i w tabeli sond - bramka. */
+  readonly guest: boolean;
+  /** Funkcje wyłączone z sond RPC (bramka: `RPC_PROBE_EXCLUDED`); `null` - bez listy (miara). */
+  readonly rpcExcluded: readonly string[] | null;
+  /** Wyrażenie `outcome = CASE ...` klasyfikacji wyniku sondy. */
+  readonly outcome: string;
+}
 
--- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
+/** Klasyfikacja wyniku sondy miary: naruszenie to wyłącznie 42501 „permission denied for …". */
+const MEASURE_PROBE_OUTCOME = `           outcome = CASE WHEN v_state = '00000' THEN 'ok'
+                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
+                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
+                          ELSE 'inny blad ' || v_state END
+`;
+
+/**
+ * Funkcje pomocnicze sond (lista identyfikatorów, klucz główny, argumenty RPC
+ * z NULL-ami) - wspólne dla miary i bramki, żeby obie budowały TE SAME sondy.
+ */
+const PROBE_HELPERS_SQL = `-- Lista identyfikatorow wedlug formatu (\`%I\`, \`%1$I = EXCLUDED.%1$I\`, \`DEFAULT\`).
 CREATE FUNCTION pg_temp.ts_list(p_items text[], p_fmt text, p_sep text)
 RETURNS text LANGUAGE sql IMMUTABLE AS $f$
   SELECT string_agg(format(p_fmt, x), p_sep ORDER BY o) FROM unnest(p_items) WITH ORDINALITY u(x, o)
@@ -6096,13 +7104,23 @@ BEGIN
   RETURN array_to_string(v_out, ', ');
 END $f$;
 
--- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 0, zapis jako EXPLAIN.
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
+`;
+
+function probeSql(n: ProbeSqlNames): string {
+  const g = (expr: string): string => (n.guest ? ` ${expr},` : "");
+  return `-- ── Sondy wykonania ─────────────────────────────────────────────────────────
+CREATE TEMP TABLE ${n.probe} (
+  id serial PRIMARY KEY, kind text, site text, func text, rel text, cols text,
+  role text, enforced text, via text,${n.guest ? " guest boolean," : ""} sql text, state text, msg text, ctx text, outcome text
+) ON COMMIT DROP;
+
+${PROBE_HELPERS_SQL}-- Zapytania lancuchow: odczyt jako SELECT ... LIMIT 0, zapis jako EXPLAIN.
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
 SELECT 'probe-' || s.op, s.site, s.func, s.rel,
        concat_ws(' ', CASE WHEN s.star THEN '*' ELSE array_to_string(s.cols, ',') END,
                  nullif('ladunek(' || array_to_string(s.payload, ',') || ')', 'ladunek()'),
                  nullif('where(' || array_to_string(s.where_cols, ',') || ')', 'where()')),
-       s.role, s.enforced, s.via,
+       s.role, s.enforced, s.via,${g("s.guest")}
        CASE s.op
          WHEN 'select' THEN format('SELECT %s FROM public.%I%s LIMIT 0',
            CASE WHEN s.star THEN '*' ELSE coalesce(pg_temp.ts_list(s.cols, '%I', ', '), '') END,
@@ -6122,7 +7140,7 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
                             pg_temp.ts_list(s.payload, '%1$I = EXCLUDED.%1$I', ', ')) END,
            r.clause)
        END
-  FROM obs_stmt s
+  FROM ${n.stmt} s
   CROSS JOIN LATERAL (SELECT coalesce(' WHERE ' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND '), '') AS clause) w
   CROSS JOIN LATERAL (SELECT CASE WHEN s.star THEN ' RETURNING *'
                                   ELSE coalesce(' RETURNING ' || pg_temp.ts_list(s.cols, '%I', ', '), '') END AS clause) r
@@ -6133,42 +7151,45 @@ SELECT 'probe-' || s.op, s.site, s.func, s.rel,
    AND to_regclass('public.' || quote_ident(s.rel)) IS NOT NULL;
 
 -- Kazda kolumna filtra osobno (takze osadzenia i budowniczy przez wartosc).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
-SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
+SELECT DISTINCT 'probe-filter', f.site, f.func, f.rel, f.col, f.role, f.enforced, f.via,${g("f.guest")}
        format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)
-  FROM obs_filter_cols f
+  FROM ${n.filterCols} f
  WHERE f.role IN ('anon', 'authenticated', 'service_role') AND f.col IS NOT NULL
    AND to_regclass('public.' || quote_ident(f.rel)) IS NOT NULL;
 
 -- RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated, z EXECUTE
 -- (brak EXECUTE zglasza juz sprawdzenie uprawnien).
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql)
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql)
 SELECT DISTINCT 'probe-rpc', r.site, r.func, r.fn, coalesce(array_to_string(r.keys, ','), '?'),
-       r.role, r.enforced, r.via, format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
-  FROM obs_rpc r
-  JOIN pg_proc p ON p.oid IN (
-         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) WHERE r.keys IS NOT NULL
+       r.role, r.enforced, r.via,${g("r.guest")} format('SELECT public.%I(%s)', p.proname, pg_temp.ts_rpc_args(p.oid, r.keys))
+  FROM ${n.rpc} r
+  -- Przeciazenie liczone RAZ na wiersz (LATERAL): \`p.oid IN (podzapytanie)\`
+  -- liczylo ts_rpc_match dla kazdej pary (wiersz, funkcja z pg_proc) - minuta.
+  CROSS JOIN LATERAL (
+         SELECT pg_temp.ts_rpc_match(r.fn, r.keys) AS oid WHERE r.keys IS NOT NULL
          UNION ALL
          SELECT q.oid FROM pg_proc q JOIN pg_namespace n ON n.oid = q.pronamespace
-          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn)
+          WHERE r.keys IS NULL AND n.nspname = 'public' AND q.proname = r.fn) o
+  JOIN pg_proc p ON p.oid = o.oid
  WHERE r.role IN ('anon', 'authenticated')
    AND NOT p.prosecdef AND p.prokind = 'f' AND p.prorettype <> 'trigger'::regtype
-   AND has_function_privilege(r.role, p.oid, 'EXECUTE');
+   AND has_function_privilege(r.role, p.oid, 'EXECUTE')${n.rpcExcluded === null ? "" : `\n   AND p.proname <> ALL (${sqlTextArray(n.rpcExcluded)})`};
 
 -- Osadzenia: kolumny relacji osadzonej ZE zlaczeniem po kluczu obcym (SELECT
 -- na kolumnach klucza po obu stronach); bez jednoznacznego klucza - sama
 -- relacja; relacja nieczytelna - tylko w podsumowaniu.
-INSERT INTO obs_probe (kind, site, func, rel, cols, role, enforced, via, sql, outcome)
+INSERT INTO ${n.probe} (kind, site, func, rel, cols, role, enforced, via,${g("guest")} sql, outcome)
 SELECT DISTINCT 'probe-embed', m.site, m.func, coalesce(c.relname::text, m.rel),
        m.path || '(' || CASE WHEN m.star THEN '*' ELSE array_to_string(m.cols, ',') END || ')',
-       m.role, m.enforced, m.via,
+       m.role, m.enforced, m.via,${g("m.guest")}
        CASE WHEN x.target IS NULL THEN NULL
             WHEN x.fk IS NULL THEN format('SELECT %s FROM public.%I t LIMIT 0', tc.list, c.relname)
             ELSE format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,
                         pc.relname, c.relname, pg_temp.ts_fk_join(x.fk, x.parent)) END,
        CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END
-  FROM obs_embed m
-  JOIN obs_embed_rel x ON x.id = m.id
+  FROM ${n.embed} m
+  JOIN ${n.embedRel} x ON x.id = m.id
   LEFT JOIN pg_class c ON c.oid = x.target
   LEFT JOIN pg_class pc ON pc.oid = x.parent
   CROSS JOIN LATERAL (SELECT CASE WHEN m.star THEN 't.*'
@@ -6200,7 +7221,7 @@ BEGIN
   IF to_regclass('public.tenants') IS NOT NULL THEN
     EXECUTE $q$SELECT domain FROM public.tenants ORDER BY is_default DESC NULLS LAST, created_at LIMIT 1$q$ INTO v_host;
   END IF;
-  FOR r IN SELECT id, role, sql FROM obs_probe WHERE sql IS NOT NULL ORDER BY id LOOP
+  FOR r IN SELECT id, role, sql FROM ${n.probe} WHERE sql IS NOT NULL ORDER BY id LOOP
     BEGIN
       PERFORM set_config('request.jwt.claims',
         CASE WHEN r.role = 'authenticated'
@@ -6219,13 +7240,22 @@ BEGIN
       WHEN OTHERS THEN
         GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_msg = MESSAGE_TEXT, v_ctx = PG_EXCEPTION_CONTEXT;
     END;
-    UPDATE obs_probe SET state = v_state, msg = v_msg, ctx = left(v_ctx, 400),
-           outcome = CASE WHEN v_state = '00000' THEN 'ok'
-                          WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'
-                          WHEN v_state = '42501' THEN 'odmowa autoryzacji (RAISE 42501)'
-                          ELSE 'inny blad ' || v_state END
-     WHERE id = r.id;
+    UPDATE ${n.probe} SET state = v_state, msg = v_msg, ctx = left(v_ctx, 400),
+${n.outcome}     WHERE id = r.id;
   END LOOP;
 END
 $probe$;
 `;
+}
+
+const PROBE_SQL = probeSql({
+  probe: "obs_probe",
+  stmt: "obs_stmt",
+  filterCols: "obs_filter_cols",
+  rpc: "obs_rpc",
+  embed: "obs_embed",
+  embedRel: "obs_embed_rel",
+  guest: false,
+  rpcExcluded: null,
+  outcome: MEASURE_PROBE_OUTCOME,
+});

@@ -24,10 +24,13 @@
 // Klasa pliku to najlepsze osiągalne wejście: `public` > `session-gate` >
 // `admin` > `none`.
 //
-// CZEGO TO NIE WIE - kierunek błędu jest znany i dlatego wynik to KANDYDACI:
+// CZEGO TO NIE WIE - kierunek błędu jest znany i dlatego bramka sprawdza
+// gościa dla `public` i `none`, a zwalnia strukturalnie tylko `admin`
+// i `session-gate`:
 //   * `public` jest GÓRNYM oszacowaniem: komponent osiągalny z trasy publicznej
 //     może renderować się tylko z sesją (`{user && <X/>}`), a zapytanie mieć
-//     `enabled: !!user` - takie miejsce trzeba przeczytać;
+//     `enabled: !!user` - takie miejsce trzeba przeczytać i dopiero z dowodem
+//     wpisać do `GUEST_LOGIN_ONLY_REVIEWED` (`tsSqlContract.ts`);
 //   * `session-gate` nie jest dowodem logowania dla kodu PLIKU TRASY poza
 //     `<AuthGate>` (hook wołany przed bramką wykonuje się u gościa) - plik
 //     trasy z bramką i hooki wołane przed nią trzeba przeczytać;

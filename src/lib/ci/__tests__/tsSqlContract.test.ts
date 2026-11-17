@@ -17,9 +17,13 @@ import { describe, expect, it } from "vitest";
 import * as postHrefModule from "@/lib/routing/postHref";
 import { POST_PARENT_PAGE_EMBED, postColumnsWithParentPage } from "@/lib/routing/postHref";
 import * as postParentPageReadModule from "@/lib/routing/postParentPageRead";
+import { guestReach } from "../guestReach";
 import {
   COLUMN_FLOW_MAX_DEPTH,
+  GUEST_LOGIN_ONLY_REVIEWED,
   GUEST_VIA,
+  MAX_FILTERS_OUTSIDE_CHAINS,
+  MAX_UNRESOLVED_FILTER_SITES,
   MAX_UNRESOLVED_SITES,
   LOOSE_CLIENT,
   LOOSE_TABLE,
@@ -27,20 +31,25 @@ import {
   SEAM_FACTS_WITHHELD_REVIEWED,
   POST_PARENT_PAGE_READ,
   UNCHECKED_SELECTS_REVIEWED,
+  UNKNOWN_ROLE_REVIEWED,
   embeddedTable,
   extractSeamFacts,
   filterColumnPath,
+  guestLoginOnlyDrift,
   parseOrFilterColumns,
   parseSelectColumns,
   renderContractTest,
+  renderGuestGaps,
   renderObservedQueries,
   seamCoverageProblems,
   selectEmbedItem,
   uncheckedSelectDrift,
+  unknownRoleDrift,
   withPostParentPageEmbed,
   withheldKey,
   type PublicColumnContract,
   type SeamFacts,
+  type SiteReach,
   type WithheldFactReviewed,
 } from "../tsSqlContract";
 import { loadProductionSources } from "../../../../scripts/lib/onConflictArbitersInputs";
@@ -1442,7 +1451,9 @@ describe("renderContractTest", () => {
       "('join_us_link_and_backfill', ARRAY['_user_id']::text[], 'service_role', 'src/lib/admin/invitations.functions.ts')",
     );
     expect(sql).toContain("('b2b_coupon_campaigns', 'status', 'it''s', 'src/b.tsx')");
-    expect(sql).toContain("SELECT plan(9);");
+    // 9 asercji faktów bramki + 10 asercji faktów miary (rola zmierzona,
+    // filtry, osadzenia, sondy, gość).
+    expect(sql).toContain("SELECT plan(19);");
   });
 
   it("deterministyczny - kolejność plików wejścia nie zmienia wyniku", () => {
@@ -3050,7 +3061,12 @@ describe("miara: rola bramki w wierszach sond i kolumn filtra", () => {
   });
 });
 
-describe("miara poza bramką nie zmienia bramki", () => {
+/** Część pliku pgTAP z asercjami 1-9 (od `BEGIN;` do faktów miary) - bez nagłówka z liczbami miary. */
+function gateAssertions(sql: string): string {
+  return sql.slice(sql.indexOf("BEGIN;\n"), sql.indexOf("-- ── Fakty miary (asercje 10-19)"));
+}
+
+describe("miara w bramce: fakty bramki i asercje 1-9 bez zmian", () => {
   const files = {
     "src/a.server.ts": `${ADMIN_FILE}
       async function admin() { return supabaseAdmin; }
@@ -3064,7 +3080,7 @@ describe("miara poza bramką nie zmienia bramki", () => {
   };
   const sources = Object.entries(files).map(([file, code]) => ({ file, code }));
 
-  it("bez `observe` - `observed` puste; z `observe` - te same fakty, zasięg i pgTAP bajt w bajt", () => {
+  it("bez `observe` - `observed` puste; z `observe` - te same fakty i zasięg, asercje 1-9 bajt w bajt, rola zmierzona w asercjach 10-19", () => {
     const plain = extractSeamFacts(sources, NO_CONTRACTS, []);
     const measured = extractSeamFacts(sources, NO_CONTRACTS, [], { observe: true });
     expect(plain.observed).toEqual({
@@ -3081,10 +3097,17 @@ describe("miara poza bramką nie zmienia bramki", () => {
     const { observed: _a, ...plainRest } = plain;
     const { observed: _b, ...measuredRest } = measured;
     expect(measuredRest).toEqual(plainRest);
-    expect(renderContractTest(measured)).toBe(renderContractTest(plain));
-    // Rola zmierzona nie przecieka do pgTAP: `db` jest tam nadal `unknown`.
+    // Asercje 1-9 i ich tabele: te same co bez miary (rola bramki `unknown`
+    // dla `db` zostaje w `ts_table`).
+    expect(gateAssertions(renderContractTest(measured))).toBe(
+      gateAssertions(renderContractTest(plain)),
+    );
     expect(renderContractTest(measured)).toContain("'orders', 'select', 'unknown'");
-    expect(renderContractTest(measured)).not.toContain("obs_");
+    // Rola zmierzona (`service_role` z fabryki `admin()`) - w faktach miary.
+    expect(renderContractTest(measured)).toContain(
+      "('orders', 'select', 'service_role', 'unknown', ARRAY['id', 'total']::text[], false,",
+    );
+    expect(renderContractTest(plain)).toContain("-- ts_obs_table: brak wierszy");
   });
 
   it("zapytania miary niosą fakty filtrów (klucz główny jako NULL), role zmierzone i sprawdzają SELECT", () => {
@@ -3106,16 +3129,410 @@ describe("miara poza bramką nie zmienia bramki", () => {
   });
 });
 
+// ── Bramka z miary (asercje 10-19) ──────────────────────────────────────────
+//
+// Klasa defektów z listopada 2026, której bramka nie widziała (złapała ją
+// dopiero miara): kolumna sortowania, której nie ma (`views_count`), odczyt
+// klientem użytkownika przez parametr pomocnika (rola nieznana bramce),
+// klient przeglądarki wykonany przez gościa, osadzenie bez grantu, widok
+// `security_invoker` widoczny tylko dla sondy wykonania. Tu: każdy taki fakt
+// trafia do pgTAP z właściwą rolą; decyzję podejmuje baza (job `pgtap`).
+
+const BROWSER_IMPORT = `import { supabase } from "@/integrations/supabase/client";`;
+const AUTH_IMPORT = `import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";`;
+
+const NOVEMBER = {
+  // Bilety: `profiles.email` klientem z sesji przez parametr pomocnika.
+  "src/lib/tickets.functions.ts": `${AUTH_IMPORT}
+    async function readBuyer(client, id) { return client.from("profiles").select("email").eq("id", id); }
+    export const myTicket = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => readBuyer(context.supabase, 1));
+  `,
+  // Archiwum: sortowanie po kolumnie, której nie ma; szablon sekcji klientem przeglądarki.
+  "src/lib/queries/archives.ts": `${BROWSER_IMPORT}
+    export async function popular() { return supabase.from("posts").select("id, slug").order("views_count", { ascending: false }); }
+    export async function featured() { return supabase.from("builder_templates").select("id, content").eq("slot", "archive_featured"); }
+  `,
+  // Podcast: osoby odcinka z osadzeniem `profiles(...)`.
+  "src/lib/queries/podcasts.ts": `${BROWSER_IMPORT}
+    export async function people() { return supabase.from("podcast_episode_people").select("role, profiles(slug, display_name)").eq("episode_id", 1); }
+  `,
+  // CRM: widok `security_invoker` klientem z sesji - widzi go sonda.
+  "src/lib/crm/funnel.functions.ts": `${AUTH_IMPORT}
+    export const funnel = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => context.supabase.from("crm_funnel_view").select("stage, leads"));
+  `,
+};
+
+const PUBLIC_REACH: ReadonlyMap<string, SiteReach> = new Map([
+  ["src/lib/queries/archives.ts", { cls: "public", entry: "/kategoria/$slug", path: [] }],
+  ["src/lib/queries/podcasts.ts", { cls: "public", entry: "/podcast", path: [] }],
+]);
+
+describe("bramka z miary: fakty listopadowych defektów idą do pgTAP z rolą", () => {
+  const f = observed(NOVEMBER);
+  const sql = renderContractTest(f, {}, { reach: PUBLIC_REACH, guestLoginOnly: {} });
+
+  it("rola nieznana bramce, ustalona przez miarę (parametr pomocnika z klientem sesji) - fakt tabeli z rolą zmierzoną, plikiem i funkcją", () => {
+    expect(sql).toContain(
+      "('profiles', 'select', 'authenticated', 'unknown', ARRAY['email']::text[], false, 'parametr 1 funkcji readBuyer (1 wywołań) <- bramka: context.supabase', false, 'src/lib/tickets.functions.ts', 'src/lib/tickets.functions.ts', 'readBuyer')",
+    );
+    // Asercja 11 sprawdza fakt TYLKO tam, gdzie rola zmierzona różni się od
+    // roli bramki (tę samą sprawdza asercja 5) - i nazywa plik i funkcję.
+    expect(sql).toContain("WHERE (t.guest OR t.role IS DISTINCT FROM t.enforced)");
+    expect(sql).toContain(
+      "format('%s: %s: %s.%s %s dla %s: brak %s (rola: %s%s)', t.site, t.func,",
+    );
+    expect(sql).toContain(
+      "SELECT DISTINCT msg FROM ts_v_fact WHERE kind = 'table' AND NOT guest ORDER BY 1",
+    );
+  });
+
+  it("kolumna sortowania `views_count` - fakt filtra (istnienie i SELECT) dla roli i dla gościa", () => {
+    expect(sql).toContain(
+      "('posts', 'views_count', NULL, 'order', 'select', 'authenticated', 'authenticated', false, 'src/lib/queries/archives.ts', 'src/lib/queries/archives.ts', 'popular')",
+    );
+    expect(sql).toContain(
+      "('posts', 'views_count', NULL, 'order', 'select', 'anon', 'authenticated', true, 'src/lib/queries/archives.ts', 'src/lib/queries/archives.ts', 'popular')",
+    );
+    expect(sql).toContain("SELECT DISTINCT msg FROM ts_v_filter_missing ORDER BY 1");
+    expect(sql).toContain("ELSE 'kolumna nie istnieje' END) AS msg");
+  });
+
+  it("klient przeglądarki w pliku publicznym - wiersz gościa (`anon`) faktu, filtra, osadzenia i zapytania sondy", () => {
+    expect(sql).toContain(
+      "('builder_templates', 'select', 'anon', 'authenticated', ARRAY['content', 'id']::text[], false, 'gość bez sesji: klient przeglądarki z kluczem publicznym <- bramka: klient przeglądarki', true, 'src/lib/queries/archives.ts', 'src/lib/queries/archives.ts', 'featured')",
+    );
+    expect(sql).toContain(
+      "(0, NULL, 'podcast_episode_people', 'profiles', 'profiles', NULL, ARRAY['display_name', 'slug']::text[], false, 'anon', 'authenticated', true, 'src/lib/queries/podcasts.ts', 'src/lib/queries/podcasts.ts', 'people')",
+    );
+    expect(sql).toContain(
+      "('builder_templates', 'select', 'anon', 'authenticated', ARRAY['content', 'id']::text[], false, '{}'::text[], ARRAY['slot']::text[], NULL::text[], true, 'src/lib/queries/archives.ts', 'featured')",
+    );
+    expect(sql).toContain("SELECT DISTINCT msg FROM ts_v_fact WHERE guest ORDER BY 1");
+    // Z sesją (`authenticated`) fakt sprawdza asercja 5 - w faktach miary
+    // tabeli nie ma drugiego wiersza tej samej roli.
+    expect(sql).not.toContain(
+      "('builder_templates', 'select', 'authenticated', 'authenticated', ARRAY['content', 'id']::text[], false, 'bramka",
+    );
+  });
+
+  it("osadzenie - fakt relacji osadzonej (istnienie relacji i kolumn, SELECT roli) i sonda ze złączeniem", () => {
+    expect(sql).toContain(
+      "(0, NULL, 'podcast_episode_people', 'profiles', 'profiles', NULL, ARRAY['display_name', 'slug']::text[], false, 'authenticated', 'authenticated', false, 'src/lib/queries/podcasts.ts', 'src/lib/queries/podcasts.ts', 'people')",
+    );
+    expect(sql).toContain("CREATE TEMP TABLE ts_obs_embed_rel ON COMMIT DROP AS");
+    expect(sql).toContain("relacja osadzenia nie istnieje (ani relacja public, ani klucz obcy)");
+    expect(sql).toContain("SELECT DISTINCT msg FROM ts_v_embed_denied WHERE NOT guest ORDER BY 1");
+  });
+
+  it("widok `security_invoker` - zapytanie sondy jako rola klienta; pada wyłącznie 42501 „permission denied for …” i brak obiektu", () => {
+    expect(sql).toContain(
+      "('crm_funnel_view', 'select', 'authenticated', 'authenticated', ARRAY['leads', 'stage']::text[], false, '{}'::text[], '{}'::text[], NULL::text[], false, 'src/lib/crm/funnel.functions.ts', 'funnel')",
+    );
+    expect(sql).toContain(
+      "WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'",
+    );
+    expect(sql).toContain("WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'");
+    expect(sql).toContain("WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu')");
+    // Wartownik wycofuje każdą sondę; cały plik kończy `ROLLBACK`.
+    expect(sql).toContain("RAISE SQLSTATE 'PRB00';");
+    expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
+    // Lista wyłączeń sond RPC jest jawna (dziś pusta).
+    expect(sql).toContain("AND p.proname <> ALL ('{}'::text[])");
+    expect(
+      renderContractTest(f, {}, { reach: PUBLIC_REACH, rpcProbeExcluded: { slow_fn: "test" } }),
+    ).toContain("AND p.proname <> ALL (ARRAY['slow_fn']::text[])");
+  });
+
+  it("plan(19), deterministyczny: kolejność plików wejścia nie zmienia pliku", () => {
+    const backward = extractSeamFacts(
+      Object.entries(NOVEMBER)
+        .reverse()
+        .map(([file, code]) => ({ file, code })),
+      NO_CONTRACTS,
+      [],
+      { observe: true },
+    );
+    expect(sql).toContain("SELECT plan(19);");
+    expect((sql.match(/\nSELECT is\(/g) ?? []).length).toBe(19);
+    expect(renderContractTest(backward, {}, { reach: PUBLIC_REACH, guestLoginOnly: {} })).toBe(sql);
+  });
+
+  it("fakt wstrzymany w przeglądzie - bez wierszy uprawnień miary i bez sondy (istnienie sprawdza dalej asercja 4)", () => {
+    const code = `${AUTH_IMPORT}
+      async function readBuyer(client, id) { return client.from("profiles").select("email"); }
+      export const myTicket = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => readBuyer(context.supabase, 1));
+    `;
+    const reviewed: WithheldFactReviewed[] = [
+      {
+        file: "src/lib/t.functions.ts",
+        fn: "readBuyer",
+        table: "profiles",
+        op: "select",
+        role: "unknown",
+        columns: ["email"],
+        reason: "test",
+      },
+    ];
+    const w = extractSeamFacts([{ file: "src/lib/t.functions.ts", code }], NO_CONTRACTS, reviewed, {
+      observe: true,
+    });
+    expect(w.withheld).toHaveLength(1);
+    expect(w.observed.tables.map((t) => `${t.role} ${t.withheld}`)).toEqual(["authenticated true"]);
+    const out = renderContractTest(w);
+    expect(out).toContain("-- ts_obs_table: brak wierszy");
+    expect(out).toContain("-- ts_obs_stmt: brak wierszy");
+  });
+});
+
+describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUEST_LOGIN_ONLY_REVIEWED", () => {
+  const f = observed({
+    "src/lib/queries/archives.ts": NOVEMBER["src/lib/queries/archives.ts"],
+  });
+  const guestRows = (sql: string): string[] =>
+    sql.split("\n").filter((line) => line.includes(`'${GUEST_VIA}`));
+
+  it("plik `public` i `none` (także spoza mapy) - wiersze gościa; `admin` i `session-gate` - bez nich, z liczbą w nagłówku pliku", () => {
+    expect(guestRows(renderContractTest(f, {}, { reach: PUBLIC_REACH }))).not.toEqual([]);
+    expect(guestRows(renderContractTest(f, {}, { reach: new Map() }))).not.toEqual([]);
+    for (const cls of ["admin", "session-gate"]) {
+      const reach = new Map([["src/lib/queries/archives.ts", { cls, entry: "/x", path: [] }]]);
+      const sql = renderContractTest(f, {}, { reach });
+      expect(guestRows(sql)).toEqual([]);
+      expect(sql).not.toMatch(/, true, 'src\/lib\/queries\/archives\.ts'/);
+      expect(sql).toContain(
+        cls === "admin" ? "admin 2, session-gate 0." : "admin 0, session-gate 2.",
+      );
+    }
+  });
+
+  it("wpis listy zdejmuje wiersze gościa DOKŁADNIE tej funkcji (rola z sesją zostaje sprawdzana)", () => {
+    const sql = renderContractTest(
+      f,
+      {},
+      {
+        reach: PUBLIC_REACH,
+        guestLoginOnly: {
+          "src/lib/queries/archives.ts: featured":
+            "src/lib/queries/archives.ts:3 wołane tylko pod `enabled: !!user`",
+        },
+      },
+    );
+    expect(sql).not.toMatch(
+      /, true, 'src\/lib\/queries\/archives\.ts', ('src\/lib\/queries\/archives\.ts', )?'featured'\)/,
+    );
+    expect(sql).toMatch(
+      /, true, 'src\/lib\/queries\/archives\.ts', ('src\/lib\/queries\/archives\.ts', )?'popular'\)/,
+    );
+    expect(sql).toContain(
+      "('builder_templates', 'slot', NULL, 'eq', 'select', 'authenticated', 'authenticated', false,",
+    );
+    expect(sql).toContain(
+      "Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): 1.",
+    );
+  });
+
+  it("rozjazd listy: wpis bez funkcji z faktem gościa, w pliku spoza `public` albo bez dowodu `plik:linia` - czerwono w `check:ts-sql-contract`", () => {
+    const evidence = "src/lib/queries/archives.ts:3 `enabled: !!user`";
+    expect(
+      guestLoginOnlyDrift(f, PUBLIC_REACH, { "src/lib/queries/archives.ts: featured": evidence }),
+    ).toEqual({ stale: [], invalid: [] });
+    expect(
+      guestLoginOnlyDrift(f, PUBLIC_REACH, {
+        "src/lib/queries/archives.ts: featured": "tylko po zalogowaniu",
+        "src/lib/queries/archives.ts: gone": evidence,
+      }),
+    ).toEqual({
+      stale: ["src/lib/queries/archives.ts: gone (brak faktu klienta przeglądarki w tej funkcji)"],
+      invalid: ["src/lib/queries/archives.ts: featured (powód bez dowodu bramki plik:linia)"],
+    });
+    const adminReach = new Map([
+      ["src/lib/queries/archives.ts", { cls: "admin", entry: "/admin", path: [] }],
+    ]);
+    expect(
+      guestLoginOnlyDrift(f, adminReach, { "src/lib/queries/archives.ts: featured": evidence })
+        .stale,
+    ).toEqual(["src/lib/queries/archives.ts: featured (klasa pliku admin, wpis tylko dla public)"]);
+    const problems = seamCoverageProblems(
+      f,
+      {},
+      {
+        reach: PUBLIC_REACH,
+        unknownRole: {},
+        guestLoginOnly: { "src/lib/queries/archives.ts: gone": evidence },
+      },
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("GUEST_LOGIN_ONLY_REVIEWED");
+    expect(problems[0]).toContain("src/lib/queries/archives.ts: gone");
+  });
+
+  it("lista w repozytorium jest pusta - wypełnia ją przegląd wyniku `--guest-gaps`", () => {
+    expect(GUEST_LOGIN_ONLY_REVIEWED).toEqual({});
+  });
+
+  it("`--guest-gaps`: zwykły SQL z tymi samymi wierszami i sondami, wynik - klucze (plik: funkcja) padające jako gość", () => {
+    const sql = renderGuestGaps(f, { reach: PUBLIC_REACH });
+    expect(sql).not.toContain("plan(");
+    expect(sql).not.toContain("SELECT is(");
+    expect(sql).toContain("SELECT site || ': ' || func AS key, site, func, count(*) AS violations");
+    expect(sql).toContain("SELECT site, func, msg FROM ts_v_probe WHERE guest");
+    expect(sql).toContain(
+      "('posts', 'views_count', NULL, 'order', 'select', 'anon', 'authenticated', true,",
+    );
+    expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
+  });
+});
+
+describe("bramka z miary: role nieustalone - lista UNKNOWN_ROLE_REVIEWED tylko maleje", () => {
+  const MIXED = `${ADMIN_FILE}
+    ${AUTH_IMPORT}
+    async function count(client) { return client.from("event_rsvps").select("id").eq("event_id", 1); }
+    export const a = createServerFn().middleware([requireSupabaseAuth]).handler(async ({ context }) => count(context.supabase));
+    export async function b() { return count(supabaseAdmin); }
+  `;
+  const KEY = "src/lib/seats.server.ts: count: .from(event_rsvps)";
+
+  it("parametr z wołającymi o różnych rolach - fakt bez uprawnień, klucz (plik, funkcja, relacja) musi być na liście z liczbą faktów", () => {
+    const f = observed({ "src/lib/seats.server.ts": MIXED });
+    expect(f.observed.tables.map((t) => `${t.table} ${t.role}`)).toEqual(["event_rsvps unknown"]);
+    expect(unknownRoleDrift(f, {})).toEqual({
+      fresh: [`${KEY} (1, przejrzanych: -)`],
+      stale: [],
+    });
+    expect(unknownRoleDrift(f, { [KEY]: [1, "powód"] })).toEqual({ fresh: [], stale: [] });
+    // Więcej faktów niż w przeglądzie - nowe; mniej - nieaktualne.
+    expect(unknownRoleDrift(f, { [KEY]: [2, "powód"] }).stale).toEqual([
+      `${KEY} (1, przejrzanych: 2)`,
+    ]);
+    const twice = observed({
+      "src/lib/seats.server.ts": MIXED.replace(
+        'select("id")',
+        'select("id"); await client.from("event_rsvps").delete().eq("id", 2)',
+      ),
+    });
+    expect(unknownRoleDrift(twice, { [KEY]: [1, "powód"] }).fresh).toEqual([
+      `${KEY} (2, przejrzanych: 1)`,
+    ]);
+    // Rola w pgTAP: istnienie tak (asercje 4 i 12), uprawnienia nie.
+    const sql = renderContractTest(f);
+    expect(sql).toContain(
+      "('event_rsvps', 'select', 'unknown', ARRAY['id']::text[], false, 'src/lib/seats.server.ts')",
+    );
+    expect(sql).toContain(
+      "('event_rsvps', 'event_id', NULL, 'eq', 'select', 'unknown', 'unknown', false,",
+    );
+    expect(sql).toContain("-- ts_obs_stmt: brak wierszy");
+  });
+
+  it("naprawione (klient wprost) - wpis nieaktualny czerwieni bramkę; nowy klucz bez wpisu też", () => {
+    const fixed = observed({
+      "src/lib/seats.server.ts": MIXED.replace("count(context.supabase)", "count(supabaseAdmin)"),
+    });
+    expect(fixed.observed.tables.map((t) => t.role)).toEqual(["service_role"]);
+    expect(unknownRoleDrift(fixed, { [KEY]: [1, "powód"] })).toEqual({
+      fresh: [],
+      stale: [`${KEY} (brak faktu z rolą nieustaloną, przejrzanych: 1)`],
+    });
+    const problems = seamCoverageProblems(
+      fixed,
+      {},
+      {
+        reach: new Map(),
+        unknownRole: { [KEY]: [1, "powód"] },
+        guestLoginOnly: {},
+      },
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("UNKNOWN_ROLE_REVIEWED nieaktualnych");
+    const fresh = seamCoverageProblems(
+      observed({ "src/lib/seats.server.ts": MIXED }),
+      {},
+      {
+        reach: new Map(),
+        unknownRole: {},
+        guestLoginOnly: {},
+      },
+    );
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0]).toContain(`${KEY} (1, przejrzanych: -)`);
+  });
+
+  it("łańcuch bez faktu tabeli (ładunek nieczytelny, same filtry) z rolą nieustaloną - klucz z liczbą 0", () => {
+    const f = observed({
+      "src/lib/seats.server.ts": MIXED.replace(
+        'return client.from("event_rsvps").select("id").eq("event_id", 1);',
+        'return client.from("event_rsvps").update(patch).eq("event_id", 1);',
+      ),
+    });
+    expect(f.observed.tables).toEqual([]);
+    expect(unknownRoleDrift(f, {}).fresh).toEqual([`${KEY} (0, przejrzanych: -)`]);
+    expect(unknownRoleDrift(f, { [KEY]: [0, "powód"] })).toEqual({ fresh: [], stale: [] });
+  });
+});
+
+describe("bramka z miary: zapadki filtrów nieczytelnych", () => {
+  it("miejsc filtrów nieczytelnych i filtrów poza budowniczym nie przybywa po cichu", () => {
+    const many = (n: number, body: (i: number) => string): string =>
+      `${ADMIN_FILE}\n${Array.from({ length: n }, (_, i) => body(i)).join("\n")}`;
+    const unresolved = observed({
+      "src/a.server.ts": many(
+        MAX_UNRESOLVED_FILTER_SITES + 1,
+        (i) =>
+          `export async function f${i}(col: string) { await supabaseAdmin.from("t").select("id").order(\`\${col}\`); }`,
+      ),
+    });
+    expect(unresolved.observed.unresolvedFilters).toHaveLength(MAX_UNRESOLVED_FILTER_SITES + 1);
+    const p1 = seamCoverageProblems(unresolved, {}, { reach: new Map(), unknownRole: {} });
+    expect(p1).toHaveLength(1);
+    expect(p1[0]).toContain(`zapadka MAX_UNRESOLVED_FILTER_SITES: ${MAX_UNRESOLVED_FILTER_SITES}`);
+    const outside = observed({
+      "src/a.server.ts": many(
+        MAX_FILTERS_OUTSIDE_CHAINS + 1,
+        (i) => `export async function g${i}(q) { return q.eq("a", ${i}); }`,
+      ),
+    });
+    expect(outside.observed.filtersOutsideChains).toHaveLength(MAX_FILTERS_OUTSIDE_CHAINS + 1);
+    const p2 = seamCoverageProblems(outside, {}, { reach: new Map(), unknownRole: {} });
+    expect(p2).toHaveLength(1);
+    expect(p2[0]).toContain(`zapadka MAX_FILTERS_OUTSIDE_CHAINS: ${MAX_FILTERS_OUTSIDE_CHAINS}`);
+    // W granicy - bez problemu.
+    const within = observed({
+      "src/a.server.ts": many(
+        MAX_FILTERS_OUTSIDE_CHAINS,
+        (i) => `export async function g${i}(q) { return q.eq("a", ${i}); }`,
+      ),
+    });
+    expect(seamCoverageProblems(within, {}, { reach: new Map(), unknownRole: {} })).toEqual([]);
+  });
+});
+
 describe("stan repozytorium - miara poza bramką", () => {
   const sources = loadProductionSources();
   const plain = extractSeamFacts(sources);
   const measured = extractSeamFacts(sources, undefined, undefined, { observe: true });
+  const reach = guestReach(sources);
 
-  it("`observe` nie zmienia faktów, zasięgu ani pgTAP bramki", () => {
+  it("`observe` nie zmienia faktów ani zasięgu; asercje 1-9 pgTAP bajt w bajt te same", () => {
     const { observed: _a, ...plainRest } = plain;
     const { observed: _b, ...measuredRest } = measured;
     expect(measuredRest).toEqual(plainRest);
-    expect(renderContractTest(measured)).toBe(renderContractTest(plain));
+    expect(gateAssertions(renderContractTest(measured, undefined, { reach }))).toBe(
+      gateAssertions(renderContractTest(plain)),
+    );
+  });
+
+  it("bramka z miary: lista ról nieustalonych DOKŁADNIE jak fakty, lista gościa bez rozjazdu, zapadki filtrów w granicy (i schodzą razem z liczbą)", () => {
+    expect(seamCoverageProblems(measured, undefined, { reach })).toEqual([]);
+    expect(unknownRoleDrift(measured)).toEqual({ fresh: [], stale: [] });
+    expect(Object.values(UNKNOWN_ROLE_REVIEWED).reduce((sum, [count]) => sum + count, 0)).toBe(
+      [...measured.observed.rpcs, ...measured.observed.tables].filter((x) => x.role === "unknown")
+        .length,
+    );
+    expect(guestLoginOnlyDrift(measured, reach)).toEqual({ stale: [], invalid: [] });
+    expect(measured.observed.unresolvedFilters.length).toBe(MAX_UNRESOLVED_FILTER_SITES);
+    expect(measured.observed.filtersOutsideChains.length).toBe(MAX_FILTERS_OUTSIDE_CHAINS);
+    // Bez miary sprawdzenia miary nie przechodzą po cichu.
+    expect(seamCoverageProblems(plain, undefined, { reach })[0]).toContain("miara nie uruchomiona");
   });
 
   it("każdy fakt bramki ma lustro w mierze z tą samą rolą bramki; miara DOPOWIADA rolę `unknown`, a rolę reguły nazwy zmienia DOKŁADNIE tam, gdzie wiązanie daje inną", () => {
@@ -3138,7 +3555,15 @@ describe("stan repozytorium - miara poza bramką", () => {
         (x) =>
           `${x.site} ${x.fn} ${"table" in x ? x.table : x.name}: ${x.enforcedRole} -> ${x.role}`,
       );
+    // `ticket.server.ts` (od b80f1e81): parametr klienta miejsc z wołającymi
+    // o różnych rolach - reguła nazwy zgadywała `authenticated`; miara mówi
+    // `unknown` (lista UNKNOWN_ROLE_REVIEWED), a asercja 5 sprawdza dalej rolę
+    // bramki.
     expect(conflicts).toEqual([
+      "src/lib/events/ticket.server.ts legacySeatsFor get_event_rsvp_counts: authenticated -> unknown",
+      "src/lib/events/ticket.server.ts seatsFor event_seat_state: authenticated -> unknown",
+      "src/lib/events/ticket.server.ts legacySeatsFor events: authenticated -> unknown",
+      "src/lib/events/ticket.server.ts assertSeatAvailable event_rsvps: authenticated -> unknown",
       "src/lib/menus/menu.functions.ts listMenuSummaries menus: authenticated -> anon",
       "src/lib/menus/menu.functions.ts fetchMenuWithItems menus: authenticated -> anon",
       "src/lib/mobileDrawer.functions.ts readMobileDrawerConfig mobile_drawer_configs: authenticated -> anon",
@@ -3148,21 +3573,24 @@ describe("stan repozytorium - miara poza bramką", () => {
     expect(unknownAfter.length).toBeLessThan(unknownBefore.length / 4);
   });
 
-  it("klient przeglądarki idzie też jako gość - przykłady weryfikatora: odczyt `builder_templates` archiwum taksonomii i osadzenie `profiles` w osobach odcinka podcastu", () => {
+  it("klient przeglądarki idzie też jako gość - przykłady weryfikatora naprawione (2eb0d84e, bbef4a56) i nie wracają, a fakty plików publicznych idą do pgTAP jako `anon`", () => {
     const o = measured.observed;
+    // Sekcja wyróżniona archiwum - przez funkcję serwerową, bez odczytu
+    // `builder_templates` klientem przeglądarki.
     expect(
-      o.tables
-        .filter((t) => t.site === "src/lib/queries/archives.ts" && t.fn === "fetchFeaturedSection")
-        .map((t) => `${t.table} ${t.role} ${t.guest}`),
-    ).toEqual(["builder_templates authenticated true"]);
+      o.tables.filter(
+        (t) => t.site === "src/lib/queries/archives.ts" && t.table === "builder_templates",
+      ),
+    ).toEqual([]);
+    // Osoby odcinka - z `profiles_public`, bez osadzenia `profiles(...)`.
     expect(
-      o.embeds
-        .filter((e) => e.site === "src/lib/queries/podcasts.ts")
-        .map((e) => `${e.fn} ${e.table}->${e.rel} [${e.columns.join(",")}] ${e.role} ${e.guest}`),
-    ).toEqual([
-      "episodePeopleQueryOptions.queryFn podcast_episode_people->profiles [avatar_url,display_name,slug] authenticated true",
-      "episodesPeopleQueryOptions.queryFn podcast_episode_people->profiles [avatar_url,display_name,slug] authenticated true",
-    ]);
+      o.embeds.filter((e) => e.site === "src/lib/queries/podcasts.ts" && e.rel === "profiles"),
+    ).toEqual([]);
+    expect(reach.get("src/lib/queries/podcasts.ts")?.cls).toBe("public");
+    const sql = renderContractTest(measured, undefined, { reach });
+    expect(sql).toContain(
+      "('podcast_episode_people', 'select', 'anon', 'authenticated', ARRAY['display_name', 'episode_id', 'id', 'profile_id', 'role', 'sort_order', 'url']::text[], false, 'gość bez sesji: klient przeglądarki z kluczem publicznym <- bramka: klient przeglądarki', true, 'src/lib/queries/podcasts.ts', 'src/lib/queries/podcasts.ts', 'episodePeopleQueryOptions.queryFn')",
+    );
     // Gość wyłącznie przy roli `authenticated` (klient przeglądarki z sesją).
     const all = [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements];
     expect(all.filter((x) => x.guest && x.role !== "authenticated")).toEqual([]);
