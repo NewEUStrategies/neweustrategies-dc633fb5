@@ -477,109 +477,123 @@ describe("googleWalletPost", () => {
     ]);
   });
 
-  it("błąd odczytu stanu nie blokuje dodania (ostrzeżenie); migracja w drodze - po cichu", async () => {
-    stubGoogle();
-    stubGoogleApi();
-    h.adminRpc.mockImplementation(async (name: string) =>
-      name === "_event_wallet_pass_state"
-        ? { data: null, error: { code: "57014", message: "statement timeout" } }
-        : { data: 1, error: null },
-    );
-    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
-    expect(warn).toHaveBeenCalledWith("[wallet] google pass state failed:", "statement timeout");
+  it.each([
+    ["57014", "statement timeout"],
+    ["PGRST202", "no function"],
+    ["42883", "no function"],
+  ])(
+    "błąd odczytu stanu (%s, także brak funkcji) nie blokuje dodania - ostrzeżenie",
+    async (code, message) => {
+      stubGoogle();
+      stubGoogleApi();
+      h.adminRpc.mockImplementation(async (name: string) =>
+        name === "_event_wallet_pass_state"
+          ? { data: null, error: { code, message } }
+          : { data: 1, error: null },
+      );
+      expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+      expect(warn).toHaveBeenCalledWith("[wallet] google pass state failed:", message);
+    },
+  );
 
-    warn.mockClear();
-    h.adminRpc.mockImplementation(async (name: string) =>
-      name === "_event_wallet_pass_state"
-        ? { data: null, error: { code: "PGRST202", message: "no function" } }
-        : { data: 1, error: null },
-    );
-    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
-    expect(warn).not.toHaveBeenCalled();
-  });
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji stanu i dziennika (%s) -> obiekt Z KODEM i jeden wpis dziennika, nigdy obiekt sprzed OPS-14 ani cztery argumenty",
+    async (code) => {
+      // Obiekt w starym kształcie (`<issuer>.reg_<id>`) migracja 20261013112400
+      // kolejkuje do dezaktywacji - trasa nie może go wskrzesić PATCH-em ACTIVE
+      // ani zapisać w dzienniku czteroargumentową sygnaturą.
+      stubGoogle();
+      const fetches: string[] = [];
+      vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+        fetches.push(`${String(init.method)} ${url}`);
+        return url.startsWith("https://oauth2.googleapis.com")
+          ? new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 })
+          : new Response("{}", { status: 200 });
+      });
+      // Drugi wpis dziennika by przeszedł - ponowienie z czterema argumentami
+      // musiałoby się tu ujawnić.
+      let noteCalls = 0;
+      h.adminRpc.mockImplementation(async (name: string) => {
+        const missing = { data: null, error: { code, message: "no function" } };
+        if (name === "_event_wallet_pass_state") return missing;
+        noteCalls += 1;
+        return noteCalls === 1 ? missing : { data: 1, error: null };
+      });
+      const response = await googleWalletPost(jsonRequest({ token: WALLET_QR }));
+      expect(response.status).toBe(200);
 
-  it("baza sprzed migracji 20261013111600 -> obiekt w STARYM kształcie i dziennik z czterema argumentami (F8)", async () => {
-    // Stara funkcja dziennika trzyma jeden wiersz na zgłoszenie i nadpisuje
-    // jego `object_id`. Obiekt z kodem nadpisałby wiersz obiektu sprzed OPS-14,
-    // który wtedy nigdy nie trafiłby do dezaktywacji.
-    stubGoogle();
-    const fetches: string[] = [];
-    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-      fetches.push(`${String(init.method)} ${url}`);
-      return url.startsWith("https://oauth2.googleapis.com")
-        ? new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 })
-        : new Response("{}", { status: 200 });
-    });
-    let noteCalls = 0;
-    h.adminRpc.mockImplementation(async (name: string) => {
-      const pending = { data: null, error: { code: "PGRST202", message: "no function" } };
-      if (name === "_event_wallet_pass_state") return pending;
-      noteCalls += 1;
-      return noteCalls === 1 ? pending : { data: 1, error: null };
-    });
-    const response = await googleWalletPost(jsonRequest({ token: WALLET_QR }));
-    expect(response.status).toBe(200);
+      const codeId = `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1.${await walletObjectSuffix(WALLET_QR)}`;
+      // Stan nieznany (awaria odczytu) -> PATCH obiektu z kodem, jak przy każdej awarii.
+      expect(fetches.filter((f) => f.includes("/eventTicketObject"))).toEqual([
+        `PATCH https://walletobjects.googleapis.com/walletobjects/v1/eventTicketObject/${encodeURIComponent(codeId)}`,
+      ]);
+      const { saveUrl } = (await response.json()) as { saveUrl: string };
+      expect(jwtPayload(saveUrl)).toMatchObject({
+        payload: { eventTicketObjects: [{ id: codeId }] },
+      });
+      const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+      expect(notes).toHaveLength(1);
+      expect(notes[0][1]).toEqual({
+        p_tenant: "52000000-0000-0000-0000-0000000000a0",
+        p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
+        p_platform: "google",
+        p_object_id: codeId,
+        p_code_hash: QR_HASH,
+        p_content_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      });
+      expect(warn).toHaveBeenCalledWith("[wallet] google pass state failed:", "no function");
+      expect(warn).toHaveBeenCalledWith("[wallet] google issue log failed:", "no function");
+    },
+  );
 
-    const legacyId = `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1`;
-    // Zapis jak przed OPS-14: PATCH obiektu w starym kształcie (bez wstawienia od razu).
-    expect(fetches.filter((f) => f.includes("/eventTicketObject"))).toEqual([
-      `PATCH https://walletobjects.googleapis.com/walletobjects/v1/eventTicketObject/${encodeURIComponent(legacyId)}`,
-    ]);
-    const { saveUrl } = (await response.json()) as { saveUrl: string };
-    expect(jwtPayload(saveUrl)).toMatchObject({
-      payload: { eventTicketObjects: [{ id: legacyId }] },
-    });
-    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
-    expect(notes).toHaveLength(2);
-    expect(notes[0][1]).toMatchObject({ p_object_id: legacyId, p_code_hash: QR_HASH });
-    expect(notes[1][1]).toEqual({
-      p_tenant: "52000000-0000-0000-0000-0000000000a0",
-      p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
-      p_platform: "google",
-      p_object_id: legacyId,
-    });
-    expect(warn).not.toHaveBeenCalled();
-  });
+  it.each(["PGRST202", "42883"])(
+    "obiekt z kodem nigdy nie trafia do starej sygnatury dziennika (%s) - jedno wywołanie i ostrzeżenie",
+    async (code) => {
+      // Funkcja stanu odpowiada, a dziennik z kodem zwraca brak funkcji (np.
+      // nieodświeżony cache schematu). Czteroargumentowy upsert po
+      // zgłoszeniu nadpisałby wiersz innego obiektu.
+      stubGoogle();
+      stubGoogleApi();
+      h.adminRpc.mockImplementation(async (name: string) =>
+        name === "_event_wallet_pass_state"
+          ? { data: null, error: null }
+          : { data: null, error: { code, message: "no function" } },
+      );
+      expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+      const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+      expect(notes).toHaveLength(1);
+      expect((notes[0][1] as { p_object_id: string }).p_object_id).toBe(
+        `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1.${await walletObjectSuffix(WALLET_QR)}`,
+      );
+      expect(warn).toHaveBeenCalledWith("[wallet] google issue log failed:", "no function");
+    },
+  );
 
-  it("obiekt z kodem nigdy nie trafia do starej sygnatury dziennika - ostrzeżenie zamiast nadpisania", async () => {
-    // Funkcja stanu jest (migracja weszła), a dziennik z kodem zwraca PGRST202
-    // (np. nieodświeżony cache schematu). Czteroargumentowy upsert po
-    // zgłoszeniu nadpisałby wiersz innego obiektu.
-    stubGoogle();
-    stubGoogleApi();
-    h.adminRpc.mockImplementation(async (name: string) =>
-      name === "_event_wallet_pass_state"
-        ? { data: null, error: null }
-        : { data: null, error: { code: "PGRST202", message: "no function" } },
-    );
-    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
-    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
-    expect(notes).toHaveLength(1);
-    expect((notes[0][1] as { p_object_id: string }).p_object_id).toBe(
-      `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1.${await walletObjectSuffix(WALLET_QR)}`,
-    );
-    expect(warn).toHaveBeenCalledWith("[wallet] google issue log skipped: migration pending");
-  });
-
-  it("Apple przed migracją -> dziennik z czterema argumentami (identyfikator = numer zgłoszenia)", async () => {
-    stubApple();
-    let noteCalls = 0;
-    h.adminRpc.mockImplementation(async () => {
-      noteCalls += 1;
-      return noteCalls === 1
-        ? { data: null, error: { code: "PGRST202", message: "no function" } }
-        : { data: 1, error: null };
-    });
-    expect((await appleWalletPost(form({ token: WALLET_QR }))).status).toBe(200);
-    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
-    expect(notes).toHaveLength(2);
-    expect(notes[1][1]).toEqual({
-      p_tenant: "52000000-0000-0000-0000-0000000000a0",
-      p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
-      p_platform: "apple",
-      p_object_id: "52b00000-0000-0000-0000-0000000000a1",
-    });
-  });
+  it.each(["PGRST202", "42883"])(
+    "Apple: brak funkcji dziennika (%s) -> przepustka 200, jeden wpis ze skrótem kodu, ostrzeżenie",
+    async (code) => {
+      stubApple();
+      // Drugi wpis by przeszedł - ponowienie z czterema argumentami by się ujawniło.
+      let noteCalls = 0;
+      h.adminRpc.mockImplementation(async () => {
+        noteCalls += 1;
+        return noteCalls === 1
+          ? { data: null, error: { code, message: "no function" } }
+          : { data: 1, error: null };
+      });
+      const response = await appleWalletPost(form({ token: WALLET_QR }));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/vnd.apple.pkpass");
+      const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+      expect(notes).toHaveLength(1);
+      expect(notes[0][1]).toMatchObject({
+        p_platform: "apple",
+        p_object_id: "52b00000-0000-0000-0000-0000000000a1",
+        p_code_hash: QR_HASH,
+      });
+      expect(warn).toHaveBeenCalledWith("[wallet] apple issue log failed:", "no function");
+    },
+  );
 
   it("obiekt aktywny bez skrótu treści (zgłoszenie dezaktywacji zamknięte po próbie) -> zapis obiektu (F7)", async () => {
     // Baza czyści `content_hash`, gdy PATCH INACTIVE mógł dojść do Google;

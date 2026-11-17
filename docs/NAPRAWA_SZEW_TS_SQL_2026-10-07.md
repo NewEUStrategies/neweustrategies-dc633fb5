@@ -86,9 +86,12 @@ zapisu i bilety grupy (`event_registration_notify_payload_for_tenant`,
 `20261007140200`), odsłanianie biletów kodem
 (`event_registration_revealed_tickets`, `20261012140100`; stara
 `event_coupon_revealed_tickets` zostaje w bazie bez wołającego w TS, do
-usunięcia osobną migracją) i formularz z kluczem biletu z linku
+usunięcia osobną migracją), formularz z kluczem biletu z linku
 (`event_registration_form(p_event_slug, p_ticket_key)`, `20261012140100`; bez
-klucza to zwykła ścieżka, nie powrót); brak funkcji to teraz błąd zwracany
+klucza to zwykła ścieżka, nie powrót) i portfel Google/Apple
+(`_event_wallet_pass_note` z sześcioma argumentami
+i `_event_wallet_pass_state`, `20261013111600`; ani obiekt w starym kształcie,
+ani czteroargumentowy dziennik); brak funkcji to teraz błąd zwracany
 wołającemu, więc kolumna „Kolejność” opisuje stan sprzed tej zmiany. Dowód:
 typy regenerowane z bazy produkcji przez bota Lovable (68ba76e1 z 22.10.2026,
 bb61b8b7 z 25.10.2026) usuwały obiekty, których produkcja nie miała,

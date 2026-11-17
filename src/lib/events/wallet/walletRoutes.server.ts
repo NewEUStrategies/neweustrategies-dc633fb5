@@ -35,30 +35,23 @@
 // nieznany - wstawiany od razu. Błąd odczytu stanu nie blokuje dodania
 // (zapis jak dawniej).
 //
-// KOD PRZED MIGRACJĄ 20261013111600 (migracje produkcji idą osobno). Stara
-// funkcja dziennika ma cztery argumenty i JEDEN wiersz na zgłoszenie
-// i platformę, a konflikt rozwiązuje nadpisaniem `object_id`. Gdyby trasa
-// wydała w tym oknie obiekt z kodem, nadpisałaby wiersz obiektu sprzed OPS-14
-// i ten nigdy nie trafiłby do dezaktywacji (F8). Dlatego brak funkcji stanu
-// (PGRST202) przełącza Google na obiekt w STARYM kształcie
-// (`legacyGoogleObjectId`, zapis jak przed OPS-14), a czteroargumentowy
-// dziennik przyjmuje wyłącznie identyfikator, który stara funkcja może
-// zapisać bez szkody (obiekt Google w starym kształcie, Apple - numer
-// zgłoszenia). Obiekt z kodem przy brakującej nowej sygnaturze nie trafia do
-// starej - ostrzeżenie zamiast nadpisania.
+// BEZ ŚCIEŻKI ZAPASOWEJ SPRZED 20261013111600. Brak funkcji dziennika albo
+// stanu (PGRST202/42883) to zwykły błąd best-effort: ostrzeżenie i obiekt
+// z kodem. Trasa nie wydaje już obiektu w starym kształcie
+// (`<issuer>.reg_<id>`) ani nie woła czteroargumentowego dziennika - obie
+// funkcje są w typach regenerowanych z bazy produkcji (68ba76e1, bb61b8b7),
+// a migracja (dziennik 0205) usuwa starą sygnaturę dziennika.
 import { callerSupabase, type CallerSupabase } from "@/lib/events/callerClient.server";
 import { MANAGE_TOKEN_PATTERN } from "@/lib/events/manageToken";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { rateLimit } from "@/lib/server/rate-limit.server";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 import { buildApplePass } from "./applePass.server";
 import {
   createGoogleWalletSave,
   googleObjectId,
   type GoogleSaveResult,
-  legacyGoogleObjectId,
   type StoredWalletObject,
   walletObjectSuffix,
 } from "./googleWallet.server";
@@ -212,39 +205,22 @@ interface IssuedObject {
   readonly codeHash: string;
   /** Skrót treści obiektu Google; `null` dla Apple (brak obiektu po stronie platformy). */
   readonly contentHash: string | null;
-  /**
-   * Identyfikator, który stara (czteroargumentowa) funkcja dziennika może
-   * zapisać bez szkody: jeden obiekt na zgłoszenie - Apple albo Google
-   * w starym kształcie. Obiekt Google z kodem nadpisałby wiersz obiektu sprzed
-   * OPS-14 (F8).
-   */
-  readonly legacyNoteSafe: boolean;
 }
 
 async function noteIssued(ticket: WalletTicket, platform: WalletPlatform, issued: IssuedObject) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let { error } = await supabaseAdmin.rpc("_event_wallet_pass_note", {
+    // Klucze literalnie (bez rozkładu), żeby bramka kontraktu TS<->SQL
+    // sprawdzała nazwy argumentów; Apple bez skrótu treści nie wysyła
+    // `p_content_hash` (JSON pomija `undefined`), baza bierze wtedy NULL.
+    const { error } = await supabaseAdmin.rpc("_event_wallet_pass_note", {
       p_tenant: ticket.tenantId,
       p_registration_id: ticket.registrationId,
       p_platform: platform,
       p_object_id: issued.objectId,
       p_code_hash: issued.codeHash,
-      ...(issued.contentHash === null ? {} : { p_content_hash: issued.contentHash }),
+      p_content_hash: issued.contentHash ?? undefined,
     });
-    if (error && isMigrationPending(error)) {
-      if (!issued.legacyNoteSafe) {
-        console.warn(`[wallet] ${platform} issue log skipped: migration pending`);
-        return;
-      }
-      // Baza sprzed 20261013111600 zna tylko cztery argumenty.
-      ({ error } = await supabaseAdmin.rpc("_event_wallet_pass_note", {
-        p_tenant: ticket.tenantId,
-        p_registration_id: ticket.registrationId,
-        p_platform: platform,
-        p_object_id: issued.objectId,
-      }));
-    }
     if (error) console.warn(`[wallet] ${platform} issue log failed:`, error.message);
   } catch (err) {
     console.warn(`[wallet] ${platform} issue log failed:`, String(err));
@@ -252,14 +228,14 @@ async function noteIssued(ticket: WalletTicket, platform: WalletPlatform, issued
 }
 
 /**
- * Stan obiektu Google w dzienniku; `undefined`, gdy odczyt się nie udał,
- * `"migration_pending"`, gdy baza nie ma jeszcze funkcji stanu (sprzed
- * 20261013111600 - trasa wydaje wtedy obiekt w starym kształcie).
+ * Stan obiektu Google w dzienniku; `null`, gdy baza go nie zna, `undefined`,
+ * gdy odczyt się nie udał (także brak funkcji - PGRST202/42883): ostrzeżenie
+ * i zapis obiektu z kodem jak przy każdej innej awarii odczytu.
  */
 async function storedGoogleObject(
   ticket: WalletTicket,
   objectId: string,
-): Promise<StoredWalletObject | null | undefined | "migration_pending"> {
+): Promise<StoredWalletObject | null | undefined> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin.rpc("_event_wallet_pass_state", {
@@ -268,8 +244,6 @@ async function storedGoogleObject(
       p_object_id: objectId,
     });
     if (error) {
-      // Migracja w drodze to nie awaria - zapis obiektu jak przed OPS-14.
-      if (isMigrationPending(error)) return "migration_pending";
       console.warn("[wallet] google pass state failed:", error.message);
       return undefined;
     }
@@ -331,7 +305,6 @@ export async function appleWalletPost(request: Request): Promise<Response> {
     objectId: ticket.registrationId,
     codeHash: await codeHash(ticket.qrToken),
     contentHash: null,
-    legacyNoteSafe: true,
   });
   // Slug ma w bazie CHECK `^[a-z0-9-]{3,120}$`; filtr i tak trzyma nagłówek w ryzach.
   const slug = ticket.event.slug.replace(/[^a-z0-9-]/gi, "");
@@ -362,9 +335,6 @@ export async function googleWalletPost(request: Request): Promise<Response> {
     await walletObjectSuffix(ticket.qrToken),
   );
   const stored = await storedGoogleObject(ticket, codeObjectId);
-  // Baza sprzed 20261013111600: obiekt w starym kształcie, zapis jak przed
-  // OPS-14 (patrz nagłówek - KOD PRZED MIGRACJĄ).
-  const legacy = stored === "migration_pending";
   let saved: GoogleSaveResult;
   try {
     saved = await createGoogleWalletSave({
@@ -372,10 +342,8 @@ export async function googleWalletPost(request: Request): Promise<Response> {
       config,
       publicOrigin: await publicOrigin(request),
       nowMs: Date.now(),
-      objectId: legacy
-        ? legacyGoogleObjectId(config.issuerId, ticket.registrationId)
-        : codeObjectId,
-      stored: legacy ? undefined : stored,
+      objectId: codeObjectId,
+      stored,
     });
   } catch (err) {
     console.error("[wallet] google save failed:", String(err));
@@ -385,7 +353,6 @@ export async function googleWalletPost(request: Request): Promise<Response> {
     objectId: saved.objectId,
     codeHash: await codeHash(ticket.qrToken),
     contentHash: saved.contentHash,
-    legacyNoteSafe: legacy,
   });
   return json(200, { saveUrl: saved.saveUrl });
 }
