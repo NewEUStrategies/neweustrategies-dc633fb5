@@ -94,15 +94,21 @@ describe("avatarLookupKeys", () => {
     ]);
   });
 
-  it("postaci spoza ASCII: liść na klasę `lower()` bazy, nie tylko klucz JS", () => {
+  it("postaci spoza ASCII: liść na klasę `pgCaseFold`, nie tylko klucz JS", () => {
     const ilikeOf = (email: string, norm?: string) =>
       avatarLookupKeys([lead("l1", email, norm)]).map((k) => k.ilike);
     // JS `toLowerCase('İ')` = i + U+0307, a `lower('İ')` bazy = `i`: dwie klasy.
     expect(ilikeOf("İzmir@example.test")).toEqual([
       ["i\u0307zmir@example.test", "İzmir@example.test"],
     ]);
-    // `email_norm` z `lower(btrim())` bazy: jedna klasa, jeden liść.
-    expect(ilikeOf("İzmir@example.test", "izmir@example.test")).toEqual([["izmir@example.test"]]);
+    // `email_norm` z `lower(btrim())` bazy: `lower()` zrównuje `İ` z `i`, ale
+    // `pgCaseFold` nie - dwa liście (ten sam wynik w bazie), bo przypisanie
+    // potrzebuje obu postaci.
+    expect(ilikeOf("İzmir@example.test", "izmir@example.test")).toEqual([
+      ["izmir@example.test", "İzmir@example.test"],
+    ]);
+    // Wielka litera ASCII nie tworzy osobnej klasy obok klucza.
+    expect(ilikeOf("IZMIR@example.test")).toEqual([["izmir@example.test"]]);
     // JS daje końcowe `ς`, baza `σ`: dwie klasy.
     expect(ilikeOf("ΟΔΟΣ@example.test")).toEqual([["οδος@example.test", "ΟΔΟΣ@example.test"]]);
     // ASCII i `ẞ`: wielkość liter nie tworzy osobnego liścia.
@@ -318,21 +324,39 @@ describe("matchLeadAvatars", () => {
 
 describe("pgCaseFold", () => {
   it("jak `lower()` PostgreSQL 16 (glibc), nie jak JS `toLowerCase` napisu", () => {
-    expect(pgCaseFold("İzmir@X.tr")).toBe("izmir@x.tr");
     expect(pgCaseFold("ΟΔΟΣ@X.gr")).toBe("οδοσ@x.gr"); // bez końcowego `ς`
     expect(pgCaseFold("STRAẞE")).toBe("straße");
     expect(pgCaseFold("ILGAZ ılgaz")).toBe("ilgaz ılgaz");
     expect(pgCaseFold("Łukasz.ŻÓŁW")).toBe("łukasz.żółw");
   });
 
-  it("w zakresach zaufanych to DOKŁADNIE port `lower()` bazy, znak po znaku", () => {
+  it("`İ` zostaje sobą - nie zrównuje się ani z `i`, ani z `I` (choć `lower()` bazy daje `i`)", () => {
+    expect(pgCaseFold("İzmir@X.tr")).toBe("İzmir@x.tr");
+    expect(pgCaseFold("İZMIR@x.tr")).toBe(pgCaseFold("İzmir@x.tr"));
+    expect(pgCaseFold("İzmir@x.tr")).not.toBe(pgCaseFold("IZMIR@x.tr"));
+    expect(pgCaseFold("İzmir@x.tr")).not.toBe(pgCaseFold("izmir@x.tr"));
+    // Baza (port `pgLower`) zrównuje - liść `ILIKE` przyniesie oba wiersze.
+    expect(pgLower("İzmir@x.tr")).toBe(pgLower("IZMIR@x.tr"));
+    // Klasa `İ` jest jednoelementowa: żaden inny znak nie składa się do `İ`.
+    for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      if ((pgCaseFold(ch) === "İ") !== (cp === 0x130)) {
+        throw new Error(`U+${cp.toString(16)} -> ${pgCaseFold(ch)}`);
+      }
+    }
+  });
+
+  it("w zakresach zaufanych to DOKŁADNIE port `lower()` bazy, znak po znaku - poza `İ`", () => {
     // Port (test/supabase/postgrestGrammar.ts `pgLower`) porównano z PG16 na
     // wszystkich punktach kodowych; tu - że `pgCaseFold` go nie rozmija.
+    // Jedyny świadomy wyjątek: `İ` (test wyżej).
     for (const [from, to] of [
       [0, 0x58f],
       [0x1e00, 0x1eff],
     ] as const) {
       for (let cp = from; cp <= to; cp += 1) {
+        if (cp === 0x130) continue;
         const ch = String.fromCodePoint(cp);
         expect([cp, pgCaseFold(ch)]).toEqual([cp, pgLower(ch)]);
       }
@@ -384,9 +408,26 @@ describe("matchChunkAvatars", () => {
     expect(avatarFor("İzmir@example.test", rows, "izmir@example.test")).toBe(
       "https://cdn.test/i.png",
     );
-    expect(avatarFor("izmir@example.test", rows)).toBe("https://cdn.test/i.png");
+    expect(avatarFor("İZMIR@example.test", rows)).toBe("https://cdn.test/i.png");
+    // Lead z ASCII: baza przynosi `İzmir@` (`lower('İ')` = `i`), ale `İ` to
+    // nie `i` ani `I` - wiersz bez przypisania.
+    expect(avatarFor("izmir@example.test", rows)).toBeNull();
+    expect(avatarFor("IZMIR@example.test", rows)).toBeNull();
     // `ı` (bez kropki) to inna litera także dla bazy.
     expect(avatarFor("ızmir@example.test", rows)).toBeNull();
+  });
+
+  it("lead z ASCII dostaje członka z IDENTYCZNYM adresem, nie `İ` z mniejszym id", () => {
+    // Liść `ilike` leada `IZMIR@` zwraca na PG16 oba wiersze, `İzmir@` pierwszy.
+    const rows = [
+      profile({ contact_email: "İzmir@firma.test", avatar_url: "https://cdn.test/23.png" }),
+      profile({ contact_email: "IZMIR@firma.test", avatar_url: "https://cdn.test/30.png" }),
+    ];
+    expect(avatarFor("IZMIR@firma.test", rows)).toBe("https://cdn.test/30.png");
+    expect(avatarFor("izmir@firma.test", rows)).toBe("https://cdn.test/30.png");
+    // Lead `İzmir@` - nadal członek z `İzmir@`, w obu postaciach klucza.
+    expect(avatarFor("İzmir@firma.test", rows)).toBe("https://cdn.test/23.png");
+    expect(avatarFor("İzmir@firma.test", rows, "izmir@firma.test")).toBe("https://cdn.test/23.png");
   });
 
   it("wiersz przypisuje się wyłącznie przez `lower()` bazy, nie przez JS `toLowerCase`", () => {

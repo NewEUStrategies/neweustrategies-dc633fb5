@@ -63,26 +63,37 @@ function leadKey(lead: LeadEmailRow): string {
  * `pgCaseFold` to `lower()` bazy ZAWĘŻONY do znaków, w których JS i glibc
  * zgadzają się na pewno: U+0000-U+058F (łacina z rozszerzeniami A i B, IPA,
  * grecki, cyrylica z suplementem, ormiański) i U+1E00-U+1EFF (łacina
- * rozszerzona dodatkowa, m.in. `ẞ`), plus `İ` -> `i` jak w glibc. Ostatnie
- * pary wielkości liter w tych blokach doszły w Unicode 7.0 (2014). Pełne
- * porównanie wszystkich punktów kodowych (PG16 vs JS z Unicode 17) różni się
- * WYŁĄCZNIE w U+0130 i w literach z Unicode 16+, spoza tych zakresów. Poza
- * zakresami - tożsamość.
+ * rozszerzona dodatkowa, m.in. `ẞ`). Ostatnie pary wielkości liter w tych
+ * blokach doszły w Unicode 7.0 (2014). Pełne porównanie wszystkich punktów
+ * kodowych (PG16 vs JS z Unicode 17) różni się WYŁĄCZNIE w U+0130 i w literach
+ * z Unicode 16+, spoza tych zakresów. Poza zakresami - tożsamość.
+ *
+ * `İ` (U+0130) zostaje SOBĄ, choć baza robi z niego `i`. Tak robi proste
+ * domyślne zwijanie wielkości liter Unicode (CaseFolding.txt nie ma dla U+0130
+ * wpisu C/S; pełne daje `i̇`, tureckie `i`, ale wtedy `I` -> `ı`) - żadne
+ * standardowe porównanie bez wielkości liter nie zrównuje `İ` z `I`. Do
+ * 2026-11-17 `pgCaseFold` szedł za bazą (`İ` -> `i`), więc lead
+ * `IZMIR@firma.test` dostawał zdjęcie członka z kontaktem `İzmir@firma.test`
+ * (mniejsze id) zamiast członka z IDENTYCZNYM adresem `IZMIR@firma.test`.
+ * Liść `ILIKE` dalej przynosi z bazy oba wiersze - przypisujemy wyłącznie ten,
+ * który `pgCaseFold` uznaje za ten sam adres. Lead `İzmir@` z kontaktem
+ * `İzmir@` (albo `İZMIR@`) trafia się nadal.
  *
  * Dlaczego zawężony: z równości `pgCaseFold` wynika równość `lower()` w bazie
- * (litera po literze), więc wiersz, któremu przypisujemy zdjęcie, zwraca ZAWSZE
- * liść samego tego leada - karta (jeden lead) i lista (strona leadów) widzą to
- * samo. Litera z nowszego Unicode, którą JS zna, a glibc bazy jeszcze nie,
- * odwróciłaby tę implikację: wiersz przyniesiony na liście liściem innego
- * leada i przypisany temu - zdjęcie na liście, brak na karcie. Odwrotnej
- * różnicy (baza zrównuje, `pgCaseFold` nie) nie szkodzi: brak zdjęcia, ten sam
- * w obu widokach.
+ * (litera po literze; do `İ` nie składa się żaden inny znak), więc wiersz,
+ * któremu przypisujemy zdjęcie, zwraca ZAWSZE liść samego tego leada - karta
+ * (jeden lead) i lista (strona leadów) widzą to samo. Litera z nowszego
+ * Unicode, którą JS zna, a glibc bazy jeszcze nie, odwróciłaby tę implikację:
+ * wiersz przyniesiony na liście liściem innego leada i przypisany temu -
+ * zdjęcie na liście, brak na karcie. Odwrotnej różnicy (baza zrównuje,
+ * `pgCaseFold` nie - jak `İ` z `i`) nie szkodzi: brak zdjęcia, ten sam w obu
+ * widokach.
  */
 export function pgCaseFold(value: string): string {
   let out = "";
   for (const ch of value) {
     const cp = ch.codePointAt(0) ?? 0;
-    if (cp === 0x130) out += "i";
+    if (cp === 0x130) out += ch;
     else if (cp <= 0x58f || (cp >= 0x1e00 && cp <= 0x1eff)) out += ch.toLowerCase();
     else out += ch;
   }
@@ -104,6 +115,9 @@ export function pgCaseFold(value: string): string {
  * `οδος@x.gr`, którego `ILIKE` identycznego adresu w bazie NIE znajduje - przed
  * 2026-11-16 znajdował go dokładny `in` z postacią zapisaną. Postaci o równym
  * `pgCaseFold` dają ten sam wynik `ILIKE`, więc idzie jeden liść na klasę.
+ * Odwrotnie nie: `İzmir@x.tr` i klucz `izmir@x.tr` (z `email_norm` bazy) baza
+ * zrównuje, `pgCaseFold` nie - idą dwa liście o tym samym wyniku, bo
+ * przypisanie wiersza potrzebuje obu postaci.
  *
  * Postaci są WŁASNE dla leada, nie wspólne dla klucza: `ΟΔΟΣ@x.gr`
  * i `οδος@x.gr` mają ten sam klucz JS, ale baza zrównuje z kontaktem
