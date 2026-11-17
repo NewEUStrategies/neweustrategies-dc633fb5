@@ -152,7 +152,9 @@ export const preAuthGuard = createServerFn({ method: "POST" })
 // więc dawne `verify_content_password` liczyło `public_tenant_id()` jako
 // najemcę DOMYŚLNEGO i wpis chroniony hasłem na domenie każdego innego
 // najemcy nigdy się nie odblokowywał. Funkcja z najemcą jest tylko dla roli
-// serwisowej - PostgREST wprost nie ominie już kubełka adresu.
+// serwisowej - PostgREST wprost nie ominie już kubełka adresu. Brak tej
+// funkcji (PGRST202/42883) to awaria `content_password: failed`, nigdy powrót
+// do starej `verify_content_password` liczącej najemcę domyślnego.
 // -----------------------------------------------------------------------------
 const unlockSchema = z.object({
   entityType: z.enum(["post", "page"]),
@@ -163,24 +165,20 @@ const unlockSchema = z.object({
 export const unlockContentPassword = createServerFn({ method: "POST" })
   .validator((raw: unknown) => unlockSchema.parse(raw))
   .handler(async ({ data }) => {
-    // `_ip_hash` idzie teraz ZAWSZE - także jako skrót „unknown". RPC
-    // (20260720071845:87-103) na tej ścieżce dokłada dokładnie jeden upsert do
+    // `_ip_hash` idzie teraz ZAWSZE - także jako skrót „unknown". Rdzeń
+    // `_verify_content_password` (20261007120400:72-88, ciało ponownie
+    // w 20261007140700) dokłada na tej ścieżce dokładnie jeden upsert do
     // `rate_limits` w scope `content_password_ip`, więc koszt jest ten sam co
     // dla rozpoznanego adresu. UWAGA: anonimowe odblokowania zza brakującego
     // nagłówka dzielą od teraz JEDEN kubełek 20/5 min - to świadomy koszt
     // zamknięcia dziury „brak adresu = brak limitu".
     const ipHash = currentIpHash();
-    const [
-      { supabaseAdmin },
-      { resolveTenantIdForHost },
-      { currentTenantHost },
-      { isMigrationPending },
-    ] = await Promise.all([
-      import("@/integrations/supabase/client.server"),
-      import("@/lib/server/tenant.server"),
-      import("@/lib/http/requestHost"),
-      import("@/lib/supabase/migrationPending"),
-    ]);
+    const [{ supabaseAdmin }, { resolveTenantIdForHost }, { currentTenantHost }] =
+      await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("@/lib/server/tenant.server"),
+        import("@/lib/http/requestHost"),
+      ]);
     let tenantId: string | null = null;
     try {
       tenantId = await resolveTenantIdForHost(await currentTenantHost());
@@ -190,23 +188,13 @@ export const unlockContentPassword = createServerFn({ method: "POST" })
     // Bez najemcy nie ma czego odblokować - awaria hosta, nie złe hasło.
     if (!tenantId) throw new Error("content_password: failed");
 
-    let { data: rows, error } = await supabaseAdmin.rpc("verify_content_password_for_tenant", {
+    const { data: rows, error } = await supabaseAdmin.rpc("verify_content_password_for_tenant", {
       _tenant_id: tenantId,
       _entity_type: data.entityType,
       _entity_id: data.entityId,
       _password: data.password,
       _ip_hash: ipHash,
     });
-    // OKNO WDROŻENIA: przed migracją funkcji z najemcą nie ma - stara ścieżka
-    // (najemca z hosta, czyli domyślny) działa wtedy tak jak dotąd.
-    if (isMigrationPending(error)) {
-      ({ data: rows, error } = await supabaseAdmin.rpc("verify_content_password", {
-        _entity_type: data.entityType,
-        _entity_id: data.entityId,
-        _password: data.password,
-        _ip_hash: ipHash,
-      }));
-    }
     if (error) {
       const msg = error.message?.includes("too many attempts")
         ? "content_password: rate_limited"

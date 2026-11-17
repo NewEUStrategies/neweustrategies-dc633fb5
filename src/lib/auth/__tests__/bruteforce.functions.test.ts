@@ -463,21 +463,23 @@ describe("unlockContentPassword - paywall", () => {
     expect(h.rpc).not.toHaveBeenCalled();
   });
 
-  it("OKNO WDROŻENIA (PGRST202): stara funkcja z tym samym skrótem adresu", async () => {
-    h.rpc
-      .mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "no function" } })
-      .mockResolvedValueOnce({ data: [{ ok: true, content_pl: "treść" }], error: null });
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji z najemcą (%s) to awaria - bez starej `verify_content_password` najemcy domyślnego",
+    async (code) => {
+      // Druga odpowiedź czeka na stare wywołanie: gdyby wróciło, odblokowanie
+      // przeszłoby (`ok: true`) na najemcy domyślnym zamiast odrzucić.
+      h.rpc
+        .mockResolvedValueOnce({ data: null, error: { code, message: "no function" } })
+        .mockResolvedValueOnce({ data: [{ ok: true, content_pl: "treść" }], error: null });
 
-    const res = await callServerFn<Record<string, unknown>>(unlockContentPassword, UNLOCK, {
-      supabase: null,
-    });
-
-    expect(res.ok).toBe(true);
-    expect(h.rpc.mock.calls[1]![0]).toBe("verify_content_password");
-    expect((h.rpc.mock.calls[1]![1] as { _ip_hash?: string })._ip_hash).toBe(
-      (h.rpc.mock.calls[0]![1] as { _ip_hash?: string })._ip_hash,
-    );
-  });
+      await expect(callServerFn(unlockContentPassword, UNLOCK, { supabase: null })).rejects.toThrow(
+        "content_password: failed",
+      );
+      expect(h.rpc.mock.calls.map(([name]) => name)).toEqual([
+        "verify_content_password_for_tenant",
+      ]);
+    },
+  );
 
   it("przekazuje SKRÓT adresu, nie adres - limit liczy baza", async () => {
     h.rpc.mockResolvedValue({

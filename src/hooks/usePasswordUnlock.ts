@@ -36,9 +36,10 @@ const storageKeyFor = (entityType: EntityType, entityId: string) =>
 
 /**
  * Client-side password unlock for content_access rules whose mode is
- * `password`. The plaintext is verified server-side by the SECURITY DEFINER
- * `verify_content_password` RPC, which returns the gated body only when the
- * password matches the bcrypt hash stored in `content_access.password_hash`.
+ * `password`. The plaintext is verified server-side (`unlockContentPassword`)
+ * by the SECURITY DEFINER `verify_content_password_for_tenant` RPC, which
+ * returns the gated body only when the password matches the bcrypt hash stored
+ * in `content_access.password_hash`.
  *
  * The verified password is cached in `sessionStorage` (per entity) so a page
  * refresh silently re-unlocks the same tab without asking again. It never
