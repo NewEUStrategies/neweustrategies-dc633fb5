@@ -88,7 +88,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@lovable.dev/email-js": "^0.1.2",
-    "@lovable.dev/mcp-js": "^0.20.1",
+    "@lovable.dev/mcp-js": "3.5.0",
     "@lovable.dev/webhooks-js": "^0.0.2",
     "@noble/hashes": "^2.4.0",
     "@radix-ui/react-accordion": "^1.2.20",
@@ -203,6 +203,12 @@
     "@radix-ui/react-id": "^1.1.4",
     "@radix-ui/react-primitive": "^2.1.10",
     "@tanstack/router-generator": "1.167.44",
-    "proxy-addr": "2.0.8"
+    "proxy-addr": "2.0.8",
+    "body-parser": "2.4.0",
+    "fast-uri": "3.1.9",
+    "hono": "4.13.19",
+    "@hono/node-server": "1.19.19",
+    "ip-address": "10.7.6",
+    "qs": "6.17.1"
   }
 }
