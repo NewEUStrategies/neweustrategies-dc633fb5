@@ -9,9 +9,10 @@
 //   1. bez poprawnego kształtu klucza do bazy nie idzie nic;
 //   2. najemca pochodzi z hosta żądania, a host bez najemcy to odmowa BEZ
 //      pytania bazy;
-//   3. nowa funkcja idzie przez `supabaseAdmin` z najemcą i kluczem, a stara
-//      (`event_registration_notify_payload`, klient ANONIMOWY z nagłówkiem
-//      hosta) - WYŁĄCZNIE w oknie wdrożenia (PGRST202/42883);
+//   3. nowa funkcja idzie przez `supabaseAdmin` z najemcą i kluczem, a jej
+//      brak (PGRST202/42883) to odmowa bez biletów - nigdy stara
+//      `event_registration_notify_payload` klientem ANONIMOWYM z nagłówkiem
+//      hosta;
 //   4. odmowa bramki (cudzy najemca, nieznany, wygasły klucz) NIE dociera do
 //      klucza serwisowego;
 //   5. identyfikator do wydania pochodzi WYŁĄCZNIE z wiersza bazy.
@@ -136,36 +137,24 @@ describe("REG-17: bramka przed kluczem serwisowym - najemca z hosta, jedna regu�
   });
 
   it.each(["PGRST202", "42883"])(
-    "okno wdrożenia (%s): stara funkcja klientem ANONIMOWYM z nagłówkiem hosta",
+    "brak funkcji (%s): odmowa bez biletów - bez starej funkcji i klienta ANONIMOWEGO",
     async (code) => {
-      h.anonRpc.mockResolvedValue({ data: { registration_id: LEAD }, error: null });
-      const result = await run(null, { code, message: "function not found" });
-      expect(h.anonRpc.mock.calls).toEqual([
-        ["event_registration_notify_payload", { p_payload: { manage_token: TOKEN } }],
+      expect(await run(null, { code, message: "function not found" })).toEqual({
+        ok: false,
+        error: "function not found",
+      });
+      expect(h.adminRpc.mock.calls).toEqual([
+        [
+          "event_registration_notify_payload_for_tenant",
+          { _tenant_id: TENANT, p_payload: { manage_token: TOKEN } },
+        ],
       ]);
-      const [url, key, options] = h.createClient.mock.calls[0] as unknown as [
-        string,
-        string,
-        { global: { fetch: unknown; headers?: unknown } },
-      ];
-      expect(url).toBe("https://przyklad.supabase.co");
-      expect(key).toBe("klucz-publiczny");
-      // Bez tego `fetch` najemca rozwiązałby się do domyślnego.
-      expect(options.global.fetch).toBe(h.tenantFetch);
-      expect(options.global.headers).toBeUndefined();
-      expect(result).toEqual({ ok: true, sent: 3 });
-      expect(h.issueAndSendTicketCodes).toHaveBeenCalledWith(LEAD);
+      // Ani `event_registration_notify_payload`, ani klient z nagłówkiem hosta.
+      expect(h.createClient).not.toHaveBeenCalled();
+      expect(h.anonRpc).not.toHaveBeenCalled();
+      expect(h.issueAndSendTicketCodes).not.toHaveBeenCalled();
     },
   );
-
-  it("okno wdrożenia bez konfiguracji klienta: odmowa, bez biletów", async () => {
-    delete process.env.SUPABASE_PUBLISHABLE_KEY;
-    expect(await run(null, { code: "PGRST202", message: "function not found" })).toEqual({
-      ok: false,
-      error: "server_misconfigured",
-    });
-    expect(h.issueAndSendTicketCodes).not.toHaveBeenCalled();
-  });
 
   it.each([
     "manage_expired: this management link expired when the event ended",

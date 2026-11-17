@@ -12,15 +12,17 @@
 // `event_registration_notify_payload_for_tenant` (A1, tylko `service_role`):
 // najemca przychodzi argumentem z `resolveTenantIdForHost`, a klucz rozstrzyga
 // `_event_manage_token_resolve` (cel `contact`) - klucz wygasły z końcem
-// wydarzenia i klucz zgłoszenia anulowanego nie wydają już biletów. Stara
-// funkcja (`event_registration_notify_payload`, najemca z nagłówka hosta) jest
-// wołana WYŁĄCZNIE w oknie wdrożenia (PGRST202/42883), klientem anonimowym
-// z nagłówkiem hosta.
+// wydarzenia i klucz zgłoszenia anulowanego nie wydają już biletów.
+//
+// BEZ ŚCIEŻKI ZAPASOWEJ. Brak tej funkcji (PGRST202/42883) cofał odczyt do
+// starej `event_registration_notify_payload` (najemca z nagłówka hosta)
+// klientem anonimowym. Okno jest zamknięte - dowód z typów regenerowanych
+// z produkcji przy `registrationSelfNotify.server.ts`. Brak funkcji to teraz
+// odmowa bez biletów, jak każdy inny błąd bazy.
 //
 // Zapis płatny przechodzi tędy bez skutku: miejsca nieopłacone nie dostają
 // biletu, a wyda je webhook po zaksięgowaniu płatności.
 import type { Json } from "@/integrations/supabase/types";
-import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 export type GroupTicketCodesResult = { ok: true; sent: number } | { ok: false; error: string };
 
@@ -35,14 +37,7 @@ async function notifyPayload(tenantId: string, manageToken: string): Promise<Pay
     _tenant_id: tenantId,
     p_payload: { manage_token: manageToken },
   });
-  if (!isMigrationPending(error)) return { data, error };
-
-  const { hostAnonClient } = await import("@/lib/events/registrationSelfNotify.server");
-  const legacy = await hostAnonClient();
-  if (legacy === null) return { data: null, error: { message: "server_misconfigured" } };
-  return legacy.rpc("event_registration_notify_payload", {
-    p_payload: { manage_token: manageToken },
-  });
+  return { data, error };
 }
 
 /** Najemca z hosta bieżącego żądania albo `null` (awaria hosta, nie orzeczenie o kluczu). */
