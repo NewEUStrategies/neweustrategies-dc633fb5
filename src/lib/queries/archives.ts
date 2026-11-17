@@ -343,9 +343,11 @@ async function fetchTaxonomyPage(
  * To jest kolejność całkowita i stabilna między stronami: ranking ma
  * rozstrzygnięcie remisów w bazie (`published_at DESC`), ogon ma tę samą
  * kolumnę, a wpis jest ALBO w czołówce, ALBO w ogonie (ogon wyklucza czołówkę
- * w bazie), więc żadna strona nie dubluje ani nie gubi wpisu. Wpisy spoza
- * 200 najpopularniejszych tenanta mają mniej odsłon niż każdy wpis czołówki,
- * więc za nią stoją słusznie; między sobą idą od najnowszych.
+ * w bazie), więc żadna strona nie dubluje ani nie gubi wpisu. Ranking oddaje
+ * wyłącznie wpisy z co najmniej jedną odsłoną w oknie, najwyżej 200 - wpis
+ * spoza niego nie ma więcej odsłon niż najsłabszy wpis czołówki, więc stoi
+ * za nią słusznie (przy remisie na granicy sufitu decyduje rozstrzygnięcie
+ * remisów funkcji); między sobą wpisy ogona idą od najnowszych.
  *
  * Dwa zapytania, oba o stałej długości linii żądania: czołówka niesie
  * `.in("id", ranking)` (co najwyżej `ARCHIVE_POPULAR_CANDIDATES` id), ogon
