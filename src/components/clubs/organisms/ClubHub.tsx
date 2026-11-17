@@ -64,6 +64,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubViewer } from "@/lib/clubs/useClubViewer";
 import {
   useClubGroups,
   useClubReactions,
@@ -156,6 +157,11 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
 
   const { session } = useAuth();
   const signedIn = session !== null;
+  // Sesja w postaci bezpiecznej dla SSR: `false` na serwerze i w pierwszym
+  // renderze klienta, nawet gdy leniwa trasa hydratuje się PO rozstrzygnięciu
+  // sesji. Rozstrzyga o tym, co MONTUJEMY tylko dla zalogowanego (panele
+  // ludzi w szynie) - ich RPC są dla `anon` zamknięte.
+  const viewerSignedIn = useClubViewer() === "signedIn";
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<ClubFeedMode>("all");
@@ -532,16 +538,29 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
         canRsvp={signedIn && club.can_reply}
         canManage={signedIn && club.can_manage}
       />
-      <ClubBoardPanel clubSlug={clubSlug} clubId={club.id} canPost={signedIn && club.can_reply} />
+      {/* Tablica, skład i „poznaj członka” czytają RPC zamknięte dla `anon`
+          (revoke modułu A32/A33), więc gość ich NIE MONTUJE. Wcześniej każde
+          wejście gościa kończyło się 42501 (plus ponowienie), a szkielet
+          tablicy i składu z HTML-u serwera zapadał się po porażce. Bramka
+          renderu, nie `enabled`: wyłączone zapytanie v5 zostaje `isPending`
+          na zawsze, a te panele rysują wtedy szkielet. Dokument SSR jest
+          anonimowy, więc paneli nie ma w nim także dla członka - zalogowanemu
+          hub i tak montuje się od nowa, gdy karta klubu przechodzi na klucz
+          z widzem (`useClubBySlug`). */}
+      {viewerSignedIn ? (
+        <>
+          <ClubBoardPanel clubSlug={clubSlug} clubId={club.id} canPost={club.can_reply} />
 
-      <ClubRosterPanel
-        clubSlug={clubSlug}
-        clubId={club.id}
-        canSeeMembers={club.can_see_members}
-        canDeclare={signedIn && club.can_reply}
-        locale={locale}
-      />
-      <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} />
+          <ClubRosterPanel
+            clubSlug={clubSlug}
+            clubId={club.id}
+            canSeeMembers={club.can_see_members}
+            canDeclare={club.can_reply}
+            locale={locale}
+          />
+          <ClubSpotlightPanel clubSlug={clubSlug} clubId={club.id} />
+        </>
+      ) : null}
       <ClubStagePanel clubSlug={clubSlug} milestones={milestones} today={localToday()} />
       <ClubFreshDocsPanel clubSlug={clubSlug} documents={documents} />
     </>
