@@ -5936,69 +5936,98 @@ export function unknownRoleKey(site: string, fn: string, call: string): string {
   return `${site}: ${fn}: ${call}`;
 }
 
+/** Fakt miary z kluczem listy (plik wywołania, ścieżka funkcji, relacja łańcucha). */
+type KeyedFact =
+  | ({ readonly kind: "rpc" } & ObservedRpc)
+  | ({ readonly kind: "table" } & ObservedTable)
+  | ({ readonly kind: "filter" } & FilterSite)
+  | ({ readonly kind: "embed" } & ObservedEmbed)
+  | ({ readonly kind: "statement" } & ObservedStatement);
+
+function keyedFacts(o: ObservedFacts): KeyedFact[] {
+  return [
+    ...o.rpcs.map((x) => ({ kind: "rpc" as const, ...x })),
+    ...o.tables.map((x) => ({ kind: "table" as const, ...x })),
+    ...o.filters.map((x) => ({ kind: "filter" as const, ...x })),
+    ...o.embeds.map((x) => ({ kind: "embed" as const, ...x })),
+    ...o.statements.map((x) => ({ kind: "statement" as const, ...x })),
+  ];
+}
+
 /**
- * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
- * (`checkedRoles` puste; liczone) oraz łańcuchy z taką rolą bez faktu tabeli
- * (sam filtr, zapytanie sondy, osadzenie) - klucz musi być na liście, liczba
- * faktów może być 0. Kształt (`unknownRoleShape`) to odcisk tego, co pod
- * kluczem idzie do pgTAP bez sprawdzenia uprawnień: operacja i kolumny
- * faktów, klucze RPC, kolumny filtrów, sortowania i celu upsertu (także
- * osadzeń) i osadzenia z kolumnami.
+ * Wywołanie łańcucha faktu w kluczach list (`.rpc(fn)` / `.from(tabela)`):
+ * filtr osadzenia (`rel.kolumna`) - pod tabelą łańcucha swojego osadzenia
+ * (ta sama ścieżka w funkcji - leksykograficznie pierwsza tabela, jak w SQL
+ * `--guest-gaps`); bez osadzenia - pod własną tabelą.
  */
-function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
-  const o = facts.observed;
-  const acc = new Map<string, { count: number; parts: Set<string> }>();
-  const none = (x: Parameters<typeof checkedRoles>[0]): boolean => checkedRoles(x).length === 0;
-  const add = (key: string, n: number, part: string | null): void => {
-    const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
-    at.count += n;
-    if (part !== null) at.parts.add(part);
-    acc.set(key, at);
+function factCallOf(o: ObservedFacts): (x: KeyedFact) => string {
+  const chainOf = new Map<string, string>();
+  for (const e of o.embeds) {
+    const key = `${e.site}|${e.fn}|${e.path}`;
+    const known = chainOf.get(key);
+    if (known === undefined || e.table < known) chainOf.set(key, e.table);
+  }
+  return (x) => {
+    switch (x.kind) {
+      case "rpc":
+        return `.rpc(${x.name})`;
+      case "filter":
+        return `.from(${x.embed === null ? x.table : (chainOf.get(`${x.site}|${x.fn}|${x.embed}`) ?? x.table)})`;
+      default:
+        return `.from(${x.table})`;
+    }
   };
+}
+
+/**
+ * Klucze list (plik, funkcja, relacja) wybranych faktów z liczbą faktów RPC
+ * i tabel (łańcuch bez faktu - 0) i KSZTAŁTEM: operacja i kolumny faktów,
+ * klucze RPC, kolumny filtrów, sortowania i celu upsertu (także osadzeń)
+ * i osadzenia z kolumnami - posortowane. Kształt jest odciskiem tego, co
+ * wpis zwalnia: dopisana kolumna, filtr albo zamieniony łańcuch go zmienia.
+ */
+function shapeUniverse(
+  o: ObservedFacts,
+  pick: (x: KeyedFact) => boolean,
+): Map<string, { count: number; shape: string }> {
+  const callOf = factCallOf(o);
+  const acc = new Map<string, { count: number; parts: Set<string> }>();
   const cols = (columns: readonly string[], star: boolean): string =>
     [...columns, ...(star ? ["*"] : [])].join(",");
-  for (const r of o.rpcs) {
-    if (none(r)) {
-      add(unknownRoleKey(r.site, r.fn, `.rpc(${r.name})`), 1, `rpc(${r.keys?.join(",") ?? "?"})`);
-    }
-  }
-  for (const t of o.tables) {
-    if (none(t)) {
-      add(
-        unknownRoleKey(t.site, t.fn, `.from(${t.table})`),
-        1,
-        `${t.op}[${cols(t.columns, t.star)}]`,
-      );
-    }
-  }
-  // Filtr osadzenia (`rel.kolumna`) - pod tabelą łańcucha jego osadzenia.
-  const chainOf = new Map(o.embeds.map((e) => [`${e.site}|${e.fn}|${e.path}`, e.table]));
-  for (const f of o.filters) {
+  for (const x of keyedFacts(o)) {
+    if (!pick(x)) continue;
     // Kolumny `EXCLUDED` upsertu to jego ładunek - już w kształcie faktu zapisu.
-    if (!none(f) || f.method === "upsert(EXCLUDED)") continue;
-    const rel =
-      f.embed === null ? f.table : (chainOf.get(`${f.site}|${f.fn}|${f.embed}`) ?? f.table);
-    add(
-      unknownRoleKey(f.site, f.fn, `.from(${rel})`),
-      0,
-      `${f.method}(${f.embed === null ? "" : `${f.embed}.`}${f.column})`,
-    );
-  }
-  for (const e of o.embeds) {
-    if (none(e)) {
-      add(
-        unknownRoleKey(e.site, e.fn, `.from(${e.table})`),
-        0,
-        `${e.path}:${e.rel}${e.hint === null ? "" : `!${e.hint}`}(${cols(e.columns, e.star)})`,
+    if (x.kind === "filter" && x.method === "upsert(EXCLUDED)") continue;
+    const key = unknownRoleKey(x.site, x.fn, callOf(x));
+    const at = acc.get(key) ?? { count: 0, parts: new Set<string>() };
+    if (x.kind === "rpc") {
+      at.count += 1;
+      at.parts.add(`rpc(${x.keys?.join(",") ?? "?"})`);
+    } else if (x.kind === "table") {
+      at.count += 1;
+      at.parts.add(`${x.op}[${cols(x.columns, x.star)}]`);
+    } else if (x.kind === "filter") {
+      at.parts.add(`${x.method}(${x.embed === null ? "" : `${x.embed}.`}${x.column})`);
+    } else if (x.kind === "embed") {
+      at.parts.add(
+        `${x.path}:${x.rel}${x.hint === null ? "" : `!${x.hint}`}(${cols(x.columns, x.star)})`,
       );
     }
-  }
-  for (const x of o.statements) {
-    if (none(x)) add(unknownRoleKey(x.site, x.fn, `.from(${x.table})`), 0, null);
+    acc.set(key, at);
   }
   return new Map(
     [...acc].map(([key, { count, parts }]) => [key, { count, shape: [...parts].sort().join(" ") }]),
   );
+}
+
+/**
+ * Wszechświat ról nieustalonych: fakty RPC i tabel BEZ widocznej roli
+ * (`checkedRoles` puste; liczone) oraz łańcuchy z taką rolą bez faktu tabeli
+ * (sam filtr, zapytanie sondy, osadzenie) - klucz musi być na liście, liczba
+ * faktów może być 0. Kształt - `shapeUniverse`.
+ */
+function unknownRoleUniverse(facts: SeamFacts): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(facts.observed, (x) => checkedRoles(x).length === 0);
 }
 
 /**
@@ -6221,69 +6250,128 @@ export function unknownRoleDrift(
  */
 export const GUEST_EXEMPT_CLASSES: ReadonlySet<string> = new Set(["admin", "session-gate"]);
 
-/** Klucz listy gościa: plik wywołania i ścieżka funkcji. */
+/** Para (plik wywołania, ścieżka funkcji) - nagłówek pliku pgTAP i raport `--guest-gaps`. */
 export function guestKey(site: string, fn: string): string {
   return `${site}: ${fn}`;
 }
 
 /**
- * Funkcje w plikach klasy `public` (osiągalnych z trasy publicznej), które
+ * Wpis GUEST_LOGIN_ONLY_REVIEWED: liczba faktów RPC i tabel gościa pod
+ * kluczem, kształt przejrzany (jak w UNKNOWN_ROLE_REVIEWED: operacja
+ * i kolumny, klucze RPC, kolumny filtrów i osadzeń) i dowód bramki
+ * `plik:linia` z rozpoznaną bramką w tej linii (±2).
+ */
+export type GuestLoginOnlyEntry = readonly [count: number, shape: string, evidence: string];
+
+/**
+ * Fakty w plikach klasy `public` (osiągalnych z trasy publicznej), które
  * mimo to wykonują się WYŁĄCZNIE z sesją: zapytanie z `enabled: !!user`,
  * komponent renderowany pod `{user && ...}`, handler za `requireSupabaseAuth`.
  * Klasa `public` jest górnym oszacowaniem (`guestReach.ts`), więc takie
  * miejsce czerwieniłoby pgTAP jako gość bez defektu - wpis zdejmuje wiersze
- * `anon` faktów TEJ funkcji, nic poza nimi (rola z sesją zostaje
- * sprawdzana). Klucz: `plik: ścieżka funkcji` (`guestKey`); wartość: dowód
- * bramki z `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`) -
- * bez niego wpis czerwieni `check:ts-sql-contract`. Wpis, który nie trafia
- * w funkcję z faktem gościa w pliku `public`, też (naprawiony albo
- * przeniesiony - zdejmij). Listę wypełnia przegląd wyniku
- * `bun run generate:ts-sql-contract --guest-gaps` (klucze, które jako gość
- * padają na bazie po migracjach).
+ * `anon` faktów POD KLUCZEM, nic poza nimi (rola z sesją zostaje
+ * sprawdzana). Klucz: plik wywołania, ścieżka funkcji i `.rpc(fn)` /
+ * `.from(tabela)` - ten sam kształt co w UNKNOWN_ROLE_REVIEWED, bo ścieżka
+ * funkcji bywa wspólna dla rodzeństwa (`queryFn` kilku `queryOptions`
+ * w module, kilka `useQuery` w komponencie). Wartość: liczba faktów, kształt
+ * i dowód bramki `plik:linia` (np. `src/components/Bell.tsx:42 enabled: !!user`).
+ * `check:ts-sql-contract` czerwieni wpis: bez faktu gościa pod kluczem
+ * w pliku `public`, z innym kształtem albo liczbą (dopisane zapytanie pod tym
+ * samym kluczem), z dowodem, którego plik albo linia nie istnieje albo nie
+ * ma w niej bramki. Fakt klienta wykonanego na serwerze (`server`) jest
+ * anonimowy dla każdego - wpis go nie zdejmuje. Listę wypełnia przegląd
+ * wyniku `bun run generate:ts-sql-contract --guest-gaps` (gotowe klucze,
+ * liczby i kształty tego, co jako gość pada na bazie po migracjach).
  */
-export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, string>> = {};
+export const GUEST_LOGIN_ONLY_REVIEWED: Readonly<Record<string, GuestLoginOnlyEntry>> = {};
 
-/** Dowód bramki we wpisie gościa: ścieżka pliku z numerem linii. */
-const GUARD_EVIDENCE_RE = /(?:^|[\s(`'"])[\w@.\-/]+\.(?:tsx?|sql):\d+/;
+/**
+ * Bramka sesji rozpoznawana w linii dowodu (±2): `enabled:` zapytania,
+ * `user &&` / `session &&` / `isAuthenticated &&`, `!user` / `!session`
+ * (wczesny `return` bez sesji), `<AuthGate`, `requireSupabaseAuth`,
+ * `redirect`/`navigate` na `/login`.
+ */
+export const GUARD_TOKEN_RE =
+  /enabled\s*:|\b(?:user|session|isAuthenticated|isLoggedIn)\s*(?:&&|\?)|!\s*!?\s*(?:user|session|isAuthenticated|isLoggedIn)\b|<AuthGate\b|requireSupabaseAuth|(?:redirect|navigate)\(\s*\{[^}]*["'`]\/login/;
 
-/** Fakty klienta przeglądarki (wiersze gościa) z kluczem i klasą osiągalności pliku. */
-function guestFactKeys(
-  facts: SeamFacts,
-  reach: ReadonlyMap<string, SiteReach>,
-): Map<string, string> {
-  const o = facts.observed;
-  const out = new Map<string, string>();
-  for (const x of [...o.rpcs, ...o.tables, ...o.filters, ...o.embeds, ...o.statements]) {
-    if (!x.guest || x.role !== "authenticated") continue;
-    out.set(guestKey(x.site, x.fn), reach.get(x.site)?.cls ?? "none");
+/** Odwołania `plik:linia` w dowodzie wpisu gościa. */
+const EVIDENCE_REF_RE = /(?:^|[\s(`'"])([\w@.\-/$]+\.(?:tsx?|sql)):(\d+)/g;
+
+/** Problem dowodu bramki wpisu gościa (`null` - dowód sprawdzony w źródłach). */
+function guardEvidenceProblem(
+  evidence: string,
+  sources: ReadonlyMap<string, string> | undefined,
+): string | null {
+  const refs = [...evidence.matchAll(EVIDENCE_REF_RE)];
+  if (refs.length === 0) return "powód bez dowodu bramki plik:linia";
+  for (const [, file, at] of refs) {
+    const code = sources?.get(file);
+    if (code === undefined) return `${file}:${at} - pliku nie ma w źródłach`;
+    const lines = code.split("\n");
+    const line = Number(at);
+    if (line < 1 || line > lines.length) return `${file}:${at} - linii nie ma w pliku`;
+    if (!GUARD_TOKEN_RE.test(lines.slice(Math.max(0, line - 3), line + 2).join("\n"))) {
+      return `${file}:${at} (±2) - brak rozpoznanej bramki (enabled:, user &&, !user, <AuthGate>, requireSupabaseAuth, redirect/navigate na /login)`;
+    }
   }
-  return out;
+  return null;
+}
+
+/** Fakt gościa, który wpis listy MOŻE zdjąć: klient przeglądarki wykonywany wyłącznie w przeglądarce. */
+function exemptableGuest(
+  x: Parameters<typeof checkedRoles>[0] & { readonly withheld?: boolean },
+): boolean {
+  return (
+    x.withheld !== true &&
+    checkedRoles(x).some((c) => c.guest && c.role === "authenticated" && c.server === undefined)
+  );
 }
 
 /**
- * Rozjazd listy gościa: `stale` - wpis bez funkcji z faktem gościa w pliku
- * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę - zdejmij);
- * `invalid` - wpis bez dowodu `plik:linia`.
+ * Rozjazd listy gościa: `stale` - wpis bez faktu gościa pod kluczem w pliku
+ * klasy `public` (naprawiony, przeniesiony, plik zmienił klasę) albo
+ * z mniejszą liczbą faktów - zdejmij lub zmniejsz; `fresh` - pod kluczem
+ * przybyło faktów albo zmienił się kształt (przegląd od nowa); `invalid` -
+ * dowód bez `plik:linia`, plik albo linia, których nie ma, albo linia bez
+ * rozpoznanej bramki.
  */
 export function guestLoginOnlyDrift(
   facts: SeamFacts,
   reach: ReadonlyMap<string, SiteReach>,
-  reviewed: Readonly<Record<string, string>> = GUEST_LOGIN_ONLY_REVIEWED,
-): { stale: string[]; invalid: string[] } {
-  const keys = guestFactKeys(facts, reach);
+  reviewed: Readonly<Record<string, GuestLoginOnlyEntry>> = GUEST_LOGIN_ONLY_REVIEWED,
+  sources?: ReadonlyMap<string, string>,
+): { stale: string[]; fresh: string[]; invalid: string[] } {
+  const universe = shapeUniverse(facts.observed, exemptableGuest);
   const stale: string[] = [];
+  const fresh: string[] = [];
   const invalid: string[] = [];
-  for (const [key, reason] of Object.entries(reviewed)) {
-    const cls = keys.get(key);
-    if (cls !== "public") {
-      stale.push(
-        `${key} (${cls === undefined ? "brak faktu klienta przeglądarki w tej funkcji" : `klasa pliku ${cls}, wpis tylko dla public`})`,
-      );
+  for (const [key, [count, shape, evidence]] of Object.entries(reviewed)) {
+    const site = key.slice(0, key.indexOf(": "));
+    const cls = reach.get(site)?.cls ?? "none";
+    const now = universe.get(key);
+    if (now === undefined) {
+      stale.push(`${key} (brak faktu klienta przeglądarki pod tym kluczem)`);
+    } else if (cls !== "public") {
+      stale.push(`${key} (klasa pliku ${cls}, wpis tylko dla public)`);
+    } else if (now.count < count) {
+      stale.push(`${key} (${now.count}, przejrzanych: ${count})`);
+    } else if (now.count > count || now.shape !== shape) {
+      fresh.push(`${key} (${now.count}, kształt "${now.shape}"; przejrzany: ${count}, "${shape}")`);
     }
-    if (!GUARD_EVIDENCE_RE.test(reason))
-      invalid.push(`${key} (powód bez dowodu bramki plik:linia)`);
+    const problem = guardEvidenceProblem(evidence, sources);
+    if (problem !== null) invalid.push(`${key} (${problem})`);
   }
-  return { stale: stale.sort(), invalid: invalid.sort() };
+  return { stale: stale.sort(), fresh: fresh.sort(), invalid: invalid.sort() };
+}
+
+/**
+ * Klucze faktów gościa, które wpis mógłby zdjąć (`--guest-gaps`): klucz,
+ * liczba faktów i kształt - gotowy szkielet wpisu (dowód dopisuje przegląd).
+ */
+export function guestLoginOnlyCandidates(
+  facts: SeamFacts,
+): Map<string, { count: number; shape: string }> {
+  return shapeUniverse(facts.observed, exemptableGuest);
 }
 
 /**
@@ -6305,7 +6393,7 @@ export interface ContractEnforcement {
    * klasa `none`: wiersze gościa sprawdzane (niepewne nie jest zwolnieniem).
    */
   readonly reach: ReadonlyMap<string, SiteReach>;
-  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
   readonly rpcProbeExcluded?: Readonly<Record<string, string>>;
 }
 
@@ -6313,7 +6401,12 @@ export interface ContractEnforcement {
 export interface ObservedCoverage {
   readonly reach: ReadonlyMap<string, SiteReach>;
   readonly unknownRole?: Readonly<Record<string, UnknownRoleEntry>>;
-  readonly guestLoginOnly?: Readonly<Record<string, string>>;
+  readonly guestLoginOnly?: Readonly<Record<string, GuestLoginOnlyEntry>>;
+  /**
+   * Źródła (plik -> kod) do sprawdzenia dowodów `plik:linia` listy gościa;
+   * bez nich każdy wpis listy jest nie do sprawdzenia (czerwono).
+   */
+  readonly sources?: ReadonlyMap<string, string>;
 }
 
 /** Problemy zasięgu miary w bramce - lista ról nieustalonych, lista gościa, zapadki filtrów. */
@@ -6341,11 +6434,12 @@ function observedCoverageProblems(facts: SeamFacts, input: ObservedCoverage): st
         unknown.stale.map((x) => `        ${x}`).join("\n"),
     );
   }
-  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly);
-  if (guest.stale.length > 0 || guest.invalid.length > 0) {
+  const guest = guestLoginOnlyDrift(facts, input.reach, input.guestLoginOnly, input.sources);
+  const guestIssues = [...guest.stale, ...guest.fresh, ...guest.invalid];
+  if (guestIssues.length > 0) {
     problems.push(
-      `${guest.stale.length + guest.invalid.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla funkcji z faktem gościa w pliku klasy public, z dowodem bramki plik:linia):\n` +
-        [...guest.stale, ...guest.invalid].map((x) => `        ${x}`).join("\n"),
+      `${guestIssues.length} wpisów GUEST_LOGIN_ONLY_REVIEWED do poprawy (wpis tylko dla klucza plik/funkcja/relacja z faktem gościa w pliku klasy public, z liczbą i kształtem jak w kodzie i z dowodem bramki plik:linia, który w tej linii jest):\n` +
+        guestIssues.map((x) => `        ${x}`).join("\n"),
     );
   }
   if (o.unresolvedFilters.length > MAX_UNRESOLVED_FILTER_SITES) {
@@ -6903,15 +6997,19 @@ interface ObservedGate {
 function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): ObservedGate {
   const o = facts.observed;
   const reviewed = enforcement.guestLoginOnly ?? GUEST_LOGIN_ONLY_REVIEWED;
+  const callOf = factCallOf(o);
   const excluded = Object.keys(enforcement.rpcProbeExcluded ?? RPC_PROBE_EXCLUDED).sort();
   const clsOf = (site: string): string => enforcement.reach.get(site)?.cls ?? "none";
   // Klient przeglądarki wykonany na serwerze (`server`) idzie tam jako `anon`
   // dla KAŻDEGO - jego wiersza gościa nie zdejmuje ani klasa pliku, ani wpis.
-  const guestOn = (x: GateFact, c: RoleCandidate): boolean =>
+  // Wpis listy zdejmuje wiersz gościa faktu POD SWOIM KLUCZEM (plik,
+  // funkcja, relacja łańcucha) - nie rodzeństwa o tej samej ścieżce funkcji.
+  const guestOn = (x: GateFact, c: RoleCandidate, call: string): boolean =>
     c.guest &&
     c.role === "authenticated" &&
     (c.server !== undefined ||
-      (!GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) && reviewed[guestKey(x.site, x.fn)] === undefined));
+      (!GUEST_EXEMPT_CLASSES.has(clsOf(x.site)) &&
+        reviewed[unknownRoleKey(x.site, x.fn, call)] === undefined));
   /**
    * Wiersze faktu: dla roli zmierzonej - a przy `unknown` dla KAŻDEGO
    * widocznego kandydata (`checkedRoles`) - wiersz roli i, gdy gość
@@ -6923,6 +7021,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
    */
   const rows = <T extends GateFact>(
     xs: readonly T[],
+    kind: KeyedFact["kind"],
     own: (x: T, role: MeasuredRole) => boolean,
     render: (x: T, role: MeasuredRole, guest: boolean, via: string) => string,
   ): string[] =>
@@ -6934,7 +7033,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
       if (roles.length === 0) return own(x, x.role) ? [render(x, x.role, false, x.via)] : [];
       return roles.flatMap((c) => [
         ...(own(x, c.role) ? [render(x, c.role, false, c.via)] : []),
-        ...(guestOn(x, c)
+        ...(guestOn(x, c, callOf({ kind, ...x } as unknown as KeyedFact))
           ? [
               render(
                 x,
@@ -6953,6 +7052,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const rpcRows = sorted(
     rows(
       o.rpcs,
+      "rpc",
       (_r, role) => CLIENT_ROLES.has(role),
       (r, role, guest, via) =>
         [
@@ -6972,6 +7072,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const tableRows = sorted(
     rows(
       o.tables.filter((t) => !t.withheld),
+      "table",
       (t, role) => CLIENT_ROLES.has(role) && role !== t.enforcedRole,
       (t, role, guest, via) =>
         [
@@ -6993,6 +7094,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const filterRows = sorted(
     rows(
       o.filters,
+      "filter",
       () => true,
       (f, role, guest) =>
         [
@@ -7016,6 +7118,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     ...new Set(
       rows(
         o.embeds,
+        "embed",
         () => true,
         (e, role, guest) =>
           [
@@ -7040,6 +7143,7 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
   const statementRows = sorted(
     rows(
       o.statements.filter((s) => !s.withheld),
+      "statement",
       (_s, role) => CLIENT_ROLES.has(role),
       (s, role, guest) =>
         [
@@ -7066,15 +7170,13 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
     if (!checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) continue;
     const key = guestKey(x.site, x.fn);
     const cls = clsOf(x.site);
-    guestKeys.set(
-      key,
-      GUEST_EXEMPT_CLASSES.has(cls)
-        ? cls
-        : reviewed[key] !== undefined
-          ? "przejrzane"
-          : `sprawdzane ${cls}`,
-    );
+    guestKeys.set(key, GUEST_EXEMPT_CLASSES.has(cls) ? cls : `sprawdzane ${cls}`);
   }
+  // Klucze listy, które zdejmują wiersze gościa (fakt pod kluczem w pliku public).
+  const exemptable = shapeUniverse(o, exemptableGuest);
+  const reviewedApplied = Object.keys(reviewed).filter(
+    (k) => exemptable.has(k) && clsOf(k.slice(0, k.indexOf(": "))) === "public",
+  ).length;
   const byClass = (label: string): number =>
     [...guestKeys.values()].filter((v) => v === label).length;
   // Pary z klientem przeglądarki wykonanym na serwerze - sprawdzane jako anon
@@ -7111,11 +7213,11 @@ function observedGate(facts: SeamFacts, enforcement: ContractEnforcement): Obser
 --   Sprawdzane jako anon (plik osiagalny dla goscia): public ${byClass("sprawdzane public")}, none ${byClass("sprawdzane none")}.
 --   Wylaczone STRUKTURALNIE (plik osiagalny wylacznie z panelu /admin albo spod
 --   bramki sesji - guestReach): admin ${byClass("admin")}, session-gate ${byClass("session-gate")}.
---   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${byClass("przejrzane")}.
+--   Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): ${reviewedApplied} kluczy (plik, funkcja, relacja).
 --   Klient przegladarki wykonany NA SERWERZE (handler i middleware funkcji serwera,
 --   modul .server, handler trasy serwerowej, loader/beforeLoad trasy z SSR, kod
 --   modulu - takze przez wywolania pomocnikow): ${serverKeys.size} par, anon sprawdzany zawsze,
---   w tym ${serverExempted} w plikach albo funkcjach, ktore bez tego bylyby zwolnione.
+--   w tym ${serverExempted} w plikach admin i session-gate (bez tego zwolnionych).
 -- Sondy RPC: funkcje SECURITY INVOKER wolane przez anon/authenticated; wylaczone
 -- (RPC_PROBE_EXCLUDED, wywolanie zewnetrzne nie cofa sie z transakcja): ${excluded.length === 0 ? "brak" : excluded.join(", ")}.
 -- Sonda pada WYLACZNIE na 42501 "permission denied for ..." i brak obiektu
@@ -7164,7 +7266,7 @@ ${probeSql({
 -- Fakty RPC i tabel z rola zmierzona INNA niz rola bramki (te sama sprawdzaja
 -- asercje 2 i 5) oraz wiersze goscia.
 CREATE TEMP VIEW ts_v_fact AS
-SELECT 'rpc' AS kind, r.guest, r.site, r.func,
+SELECT 'rpc' AS kind, r.guest, r.site, r.func, '.rpc(' || r.fn || ')' AS call,
        format('%s: %s: %s(%s) dla %s: brak EXECUTE (rola: %s)', r.site, r.func, r.fn,
               coalesce(array_to_string(r.keys, ','), '?'), r.role, r.via) AS msg
   FROM ts_obs_rpc r
@@ -7179,7 +7281,7 @@ SELECT 'rpc' AS kind, r.guest, r.site, r.func,
                WHERE n.nspname = 'public' AND p.proname = r.fn
                  AND has_function_privilege(r.role, p.oid, 'EXECUTE'))))
 UNION ALL
-SELECT 'table', t.guest, t.site, t.func,
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
        format('%s: %s: %s.%s %s dla %s: brak %s (rola: %s%s)', t.site, t.func, t.rel, c.col, t.op,
               t.role, priv, t.via, CASE WHEN t.file <> t.site THEN '; kolumny z ' || t.file ELSE '' END)
   FROM ts_obs_table t
@@ -7198,7 +7300,7 @@ SELECT 'table', t.guest, t.site, t.func,
  WHERE (t.guest OR t.role IS DISTINCT FROM t.enforced)
    AND NOT has_column_privilege(t.role, ${rel("t.rel")}, c.col, priv)
 UNION ALL
-SELECT 'table', t.guest, t.site, t.func,
+SELECT 'table', t.guest, t.site, t.func, '.from(' || t.rel || ')',
        format('%s: %s: %s delete dla %s: brak DELETE (rola: %s)', t.site, t.func, t.rel, t.role, t.via)
   FROM ts_obs_table t
  WHERE t.op = 'delete' AND (t.guest OR t.role IS DISTINCT FROM t.enforced)
@@ -7230,13 +7332,17 @@ SELECT DISTINCT f.site, f.func,
 -- has_column_privilege po NAZWIE kolumny, ktorej nie ma, przerywa caly plik
 -- (42703) - brak kolumny zglasza asercja 12.
 CREATE TEMP VIEW ts_v_filter_denied AS
-SELECT DISTINCT f.guest, f.site, f.func,
+SELECT DISTINCT f.guest, f.site, f.func, '.from(' || coalesce(ch.tbl, f.rel) || ')' AS call,
        format('%s: %s: %s.%s dla %s: brak SELECT (%s%s, %s%s)', f.site, f.func, f.rel, f.col, f.role,
               f.method, coalesce(', osadzenie ' || f.embed, ''), f.op,
               CASE WHEN f.file <> f.site THEN ', literal w ' || f.file ELSE '' END) AS msg
   FROM ts_obs_filter_cols f
   JOIN pg_attribute a ON a.attrelid = ${rel("f.rel")} AND a.attname = f.col
                      AND a.attnum > 0 AND NOT a.attisdropped
+  -- Filtr osadzenia - klucz listy gościa pod tabelą łańcucha osadzenia.
+  LEFT JOIN LATERAL (SELECT min(m.tbl) AS tbl FROM ts_obs_embed m
+                      WHERE f.embed IS NOT NULL AND m.site = f.site AND m.func = f.func
+                        AND m.path = f.embed) ch ON true
  WHERE f.role IN ${roles}
    AND NOT has_column_privilege(f.role, a.attrelid, a.attnum, 'SELECT');
 
@@ -7266,7 +7372,7 @@ SELECT DISTINCT m.site, m.func,
 -- Osadzenia: SELECT roli na kolumnach relacji osadzonej (kolumny zlaczenia
 -- sprawdza sonda osadzenia).
 CREATE TEMP VIEW ts_v_embed_denied AS
-SELECT DISTINCT m.guest, m.site, m.func,
+SELECT DISTINCT m.guest, m.site, m.func, '.from(' || m.tbl || ')' AS call,
        format('%s: %s: %s.%s dla %s: brak SELECT (osadzenie %s w %s%s)', m.site, m.func, c.relname,
               col.col, m.role, m.path, m.tbl,
               CASE WHEN m.file <> m.site THEN ', literal w ' || m.file ELSE '' END) AS msg
@@ -7284,6 +7390,17 @@ SELECT DISTINCT m.guest, m.site, m.func,
 -- Sondy wykonania: odmowa uprawnien i brak obiektu.
 CREATE TEMP VIEW ts_v_probe AS
 SELECT DISTINCT p.guest, p.site, p.func,
+       CASE WHEN p.kind = 'probe-rpc' THEN '.rpc(' || p.rel || ')'
+            WHEN p.kind = 'probe-embed' THEN '.from(' || coalesce((
+              SELECT min(m.tbl) FROM ts_obs_embed m
+               WHERE m.site = p.site AND m.func = p.func
+                 AND m.path = split_part(p.cols, '(', 1)), p.rel) || ')'
+            WHEN p.kind = 'probe-filter' THEN '.from(' || coalesce((
+              SELECT min(coalesce(m.tbl, f.rel)) FROM ts_obs_filter f
+                LEFT JOIN ts_obs_embed m ON f.embed IS NOT NULL AND m.site = f.site
+                                        AND m.func = f.func AND m.path = f.embed
+               WHERE f.site = p.site AND f.func = p.func AND f.rel = p.rel AND f.col = p.cols), p.rel) || ')'
+            ELSE '.from(' || p.rel || ')' END AS call,
        format('%s: %s: %s %s [%s] jako %s: %s %s', p.site, p.func, p.kind, p.rel, p.cols, p.role,
               p.state, p.msg) AS msg
   FROM ts_probe p
@@ -7361,36 +7478,54 @@ SELECT is(
 /**
  * Raport `generate:ts-sql-contract --guest-gaps`: zwykły SQL (nie pgTAP) do
  * uruchomienia na bazie JEDNORAZOWEJ po migracjach - te same tabele, sondy
- * i widoki naruszeń co pgTAP bramki, a wynik to pary (plik, funkcja), które
- * jako gość (`anon`) padają, z liczbą naruszeń i pierwszym z nich. Kolumna
- * `key` to gotowy klucz `GUEST_LOGIN_ONLY_REVIEWED` - wpis dostaje go
- * WYŁĄCZNIE miejsce tylko po zalogowaniu, z dowodem bramki `plik:linia`;
- * reszta to defekty do naprawy w kodzie albo w grantach.
+ * i widoki naruszeń co pgTAP bramki, a wynik to klucze (plik, funkcja,
+ * relacja), które jako gość (`anon`) padają, z liczbą naruszeń i pierwszym
+ * z nich. Kolumna `key` to klucz `GUEST_LOGIN_ONLY_REVIEWED`, a `entry` -
+ * szkielet wpisu z liczbą faktów i kształtem (dowód bramki `plik:linia`
+ * dopisuje przegląd); wpis dostaje WYŁĄCZNIE miejsce tylko po zalogowaniu.
+ * Klucz bez szkieletu (fakt wykonywany na serwerze, plik spoza `public`) to
+ * defekt do naprawy w kodzie albo w grantach - wpis by go nie zdjął.
  */
 export function renderGuestGaps(facts: SeamFacts, enforcement: ContractEnforcement): string {
   const gate = observedGate(facts, enforcement);
+  const candidates = [...guestLoginOnlyCandidates(facts)]
+    .filter(
+      ([key]) =>
+        (enforcement.reach.get(key.slice(0, key.indexOf(": ")))?.cls ?? "none") === "public",
+    )
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, { count, shape }]) => [sqlString(key), String(count), sqlString(shape)].join(", "));
   return `-- ============================================================================
 -- WYGENEROWANE - \`bun run generate:ts-sql-contract --guest-gaps\`. Zwykly SQL, nie
--- pgTAP: pary (plik wywolania, funkcja), ktorych fakty klienta przegladarki
--- padaja jako gosc (anon) - te same wiersze, sondy i widoki co asercje 17-19
--- pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach (sondy RPC
--- wykonuja ciala funkcji; calosc w ROLLBACK).
+-- pgTAP: klucze (plik wywolania, funkcja, relacja), ktorych fakty klienta
+-- przegladarki padaja jako gosc (anon) - te same wiersze, sondy i widoki co
+-- asercje 17-19 pgTAP kontraktu. WYLACZNIE baza jednorazowa po migracjach
+-- (sondy RPC wykonuja ciala funkcji; calosc w ROLLBACK).
 ${gate.header}-- ============================================================================
 BEGIN;
 ${RPC_MATCH_SQL}
 ${gate.setup}
-SELECT site || ': ' || func AS key, site, func, count(*) AS violations, min(msg) AS first_violation
+-- Klucze, ktore wpis GUEST_LOGIN_ONLY_REVIEWED moze zdjac (plik public, klient
+-- wykonywany wylacznie w przegladarce): liczba faktow i ksztalt.
+CREATE TEMP TABLE ts_guest_key (key text, n int, shape text) ON COMMIT DROP;
+${valuesBlock("ts_guest_key", "key, n, shape", candidates)}
+SELECT v.site || ': ' || v.func || ': ' || v.call AS key, v.site, v.func, v.call,
+       count(*) AS violations, min(v.msg) AS first_violation,
+       coalesce(format('[%s, %s, "<plik:linia bramki>"]', k.n, to_json(k.shape)),
+                'brak - fakt wykonywany na serwerze albo plik spoza public: napraw kod albo grant')
+         AS entry
   FROM (
-    SELECT site, func, msg FROM ts_v_fact WHERE guest
+    SELECT site, func, call, msg FROM ts_v_fact WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_filter_denied WHERE guest
+    SELECT site, func, call, msg FROM ts_v_filter_denied WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_embed_denied WHERE guest
+    SELECT site, func, call, msg FROM ts_v_embed_denied WHERE guest
     UNION ALL
-    SELECT site, func, msg FROM ts_v_probe WHERE guest
+    SELECT site, func, call, msg FROM ts_v_probe WHERE guest
   ) v
- GROUP BY site, func
- ORDER BY site, func;
+  LEFT JOIN ts_guest_key k ON k.key = v.site || ': ' || v.func || ': ' || v.call
+ GROUP BY v.site, v.func, v.call, k.n, k.shape
+ ORDER BY v.site, v.func, v.call;
 ROLLBACK;
 `;
 }

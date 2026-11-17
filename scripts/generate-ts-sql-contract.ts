@@ -17,7 +17,7 @@
  *   bun run generate:ts-sql-contract              # zapis do supabase/tests/
  *   bun run generate:ts-sql-contract --stdout     # na standardowe wyjście
  *   bun run check:ts-sql-contract                 # bez bazy: zasięg ekstrakcji i listy
- *   bun run generate:ts-sql-contract --guest-gaps # pary (plik, funkcja) padające jako gość (SQL)
+ *   bun run generate:ts-sql-contract --guest-gaps # klucze (plik, funkcja, relacja) padające jako gość (SQL)
  *   bun run generate:ts-sql-contract --measure    # pełna miara z podsumowaniem sond (SQL)
  *
  * Bramka (plik pgTAP i `--check`) liczy fakty MIARY (`SeamFacts.observed`):
@@ -31,10 +31,11 @@
  *
  * `--guest-gaps` drukuje zwykły SQL (nie pgTAP) z tymi samymi tabelami,
  * sondami i widokami naruszeń co plik pgTAP; na bazie JEDNORAZOWEJ po
- * migracjach (`psql -f`) zwraca pary (plik wywołania, funkcja), które jako
- * gość padają - wejście przeglądu `GUEST_LOGIN_ONLY_REVIEWED` (wpis wyłącznie
- * dla miejsca tylko po zalogowaniu, z dowodem bramki `plik:linia`; reszta to
- * defekty do naprawy).
+ * migracjach (`psql -f`) zwraca klucze (plik wywołania, funkcja, relacja),
+ * które jako gość padają, ze szkieletem wpisu (liczba faktów, kształt) -
+ * wejście przeglądu `GUEST_LOGIN_ONLY_REVIEWED` (wpis wyłącznie dla miejsca
+ * tylko po zalogowaniu, z dowodem bramki `plik:linia`; reszta to defekty do
+ * naprawy).
  *
  * `--measure` drukuje zwykły SQL (nie pgTAP) pełnej miary - wszystkie
  * naruszenia z drogą ustalenia roli, osiągalnością i podsumowaniem sond -
@@ -128,7 +129,7 @@ function guestGaps(): void {
     ...facts.observed.embeds,
     ...facts.observed.statements,
   ]) {
-    if (x.guest && x.role === "authenticated") {
+    if (checkedRoles(x).some((c) => c.guest && c.role === "authenticated")) {
       keys.set(`${x.site}: ${x.fn}`, reach.get(x.site)?.cls ?? "none");
     }
   }
@@ -141,7 +142,8 @@ function guestGaps(): void {
       `(${Object.entries(byClass)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([cls, n]) => `${cls}=${n}`)
-        .join(", ")}); jako gość sprawdzane public i none bez wpisu GUEST_LOGIN_ONLY_REVIEWED. ` +
+        .join(", ")}); jako gość sprawdzane public i none bez wpisu GUEST_LOGIN_ONLY_REVIEWED ` +
+      `(klucz: plik, funkcja, relacja - kolumna \`key\`; szkielet wpisu z liczbą i kształtem - kolumna \`entry\`). ` +
       `SQL na stdout - uruchom na bazie jednorazowej po migracjach (psql -f).`,
   );
   process.stdout.write(renderGuestGaps(facts, { reach }));
@@ -176,7 +178,10 @@ function main(): void {
   // Trasy z bramką sesji zwalniają poddrzewo z wierszy gościa - lista
   // przejrzana (`GATED_ROUTES_REVIEWED`) musi być równa bramkom w kodzie.
   const problems = [
-    ...seamCoverageProblems(facts, undefined, { reach }),
+    ...seamCoverageProblems(facts, undefined, {
+      reach,
+      sources: new Map(sources.map((s) => [s.file, s.code])),
+    }),
     ...gatedRouteProblems(sources),
   ];
   if (process.argv.includes("--check")) {

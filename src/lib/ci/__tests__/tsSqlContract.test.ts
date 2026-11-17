@@ -3364,17 +3364,18 @@ describe("bramka z miary: fakt wstrzymany - filtry i osadzenia jego łańcucha t
 });
 
 describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUEST_LOGIN_ONLY_REVIEWED", () => {
-  const f = observed({
-    "src/lib/queries/archives.ts": NOVEMBER["src/lib/queries/archives.ts"],
-  });
+  const FILE = "src/lib/queries/archives.ts";
+  const f = observed({ [FILE]: NOVEMBER[FILE] });
   const guestRows = (sql: string): string[] =>
     sql.split("\n").filter((line) => line.includes(`'${GUEST_VIA}`));
+  const KEY = `${FILE}: featured: .from(builder_templates)`;
+  const SHAPE = "eq(slot) select[content,id]";
 
   it("plik `public` i `none` (także spoza mapy) - wiersze gościa; `admin` i `session-gate` - bez nich, z liczbą w nagłówku pliku", () => {
     expect(guestRows(renderContractTest(f, {}, { reach: PUBLIC_REACH }))).not.toEqual([]);
     expect(guestRows(renderContractTest(f, {}, { reach: new Map() }))).not.toEqual([]);
     for (const cls of ["admin", "session-gate"]) {
-      const reach = new Map([["src/lib/queries/archives.ts", { cls, entry: "/x", path: [] }]]);
+      const reach = new Map([[FILE, { cls, entry: "/x", path: [] }]]);
       const sql = renderContractTest(f, {}, { reach });
       expect(guestRows(sql)).toEqual([]);
       expect(sql).not.toMatch(/, true, 'src\/lib\/queries\/archives\.ts'/);
@@ -3384,16 +3385,13 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
     }
   });
 
-  it("wpis listy zdejmuje wiersze gościa DOKŁADNIE tej funkcji (rola z sesją zostaje sprawdzana)", () => {
+  it("wpis listy zdejmuje wiersze gościa DOKŁADNIE swojego klucza (plik, funkcja, relacja); rola z sesją zostaje sprawdzana", () => {
     const sql = renderContractTest(
       f,
       {},
       {
         reach: PUBLIC_REACH,
-        guestLoginOnly: {
-          "src/lib/queries/archives.ts: featured":
-            "src/lib/queries/archives.ts:3 wołane tylko pod `enabled: !!user`",
-        },
+        guestLoginOnly: { [KEY]: [1, SHAPE, `${FILE}:3 wołane tylko pod \`enabled: !!user\``] },
       },
     );
     expect(sql).not.toMatch(
@@ -3406,55 +3404,160 @@ describe("bramka z miary: gość (`anon`) - zwolnienia strukturalne i lista GUES
       "('builder_templates', 'slot', NULL, 'eq', 'select', 'authenticated', 'authenticated', false,",
     );
     expect(sql).toContain(
-      "Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): 1.",
+      "Wylaczone wpisem GUEST_LOGIN_ONLY_REVIEWED (public tylko z sesja, z dowodem): 1 kluczy (plik, funkcja, relacja).",
     );
   });
 
-  it("rozjazd listy: wpis bez funkcji z faktem gościa, w pliku spoza `public` albo bez dowodu `plik:linia` - czerwono w `check:ts-sql-contract`", () => {
-    const evidence = "src/lib/queries/archives.ts:3 `enabled: !!user`";
+  it("rodzeństwo o tej samej ścieżce funkcji (`queryFn` kilku `queryOptions` w module, recenzja S6) - wpis jednej relacji nie zdejmuje innych; nowe zapytanie pod kluczem czerwieni rozjazd", () => {
+    const PODCASTS = "src/lib/queries/podcasts.ts";
+    const code = `${BROWSER_IMPORT}
+      export const podcastSettingsQueryOptions = queryOptions({ queryKey: ["s"], queryFn: async () => supabase.from("podcast_settings").select("id, layout").eq("tenant_id", t) });
+      export const publishedShowsQueryOptions = queryOptions({ queryKey: ["p"], queryFn: async () => supabase.from("podcast_shows").select("id, slug") });
+    `;
+    const reach = new Map([[PODCASTS, { cls: "public", entry: "/podcasts", path: [] }]]);
+    const settingsKey = `${PODCASTS}: queryFn: .from(podcast_settings)`;
+    const entry = {
+      [settingsKey]: [1, "eq(tenant_id) select[id,layout]", `${PODCASTS}:2 enabled: !!user`],
+    } as const;
+    const sources = (c: string) => new Map([[PODCASTS, c]]);
+    // Recenzja: `queryFn` wszystkich trzech opcji to ta sama ścieżka funkcji.
+    const withProfiles = `${code}
+      export const revNewQueryOptions = queryOptions({ queryKey: ["rev"], queryFn: async () => supabase.from("profiles").select("email").limit(1) });
+    `;
+    const g = observed({ [PODCASTS]: withProfiles });
+    expect([...new Set(g.observed.tables.map((t) => t.fn))]).toEqual(["queryFn"]);
+    const sql = renderContractTest(g, {}, { reach, guestLoginOnly: entry });
+    const anonOf = (table: string): boolean =>
+      sql.includes(`('${table}', 'select', 'anon', 'authenticated'`);
+    expect(anonOf("podcast_settings")).toBe(false);
+    expect(anonOf("podcast_shows")).toBe(true);
+    expect(anonOf("profiles")).toBe(true);
+    // Brak rozjazdu dla wpisu zgodnego z kodem (dowód z bramką w linii 2 - `enabled:`
+    // w kodzie fikstury nie ma, więc dowód wskazuje linię z komentarzem bramki).
+    const guarded = code.replace('queryKey: ["s"],', 'queryKey: ["s"], enabled: !!user,');
     expect(
-      guestLoginOnlyDrift(f, PUBLIC_REACH, { "src/lib/queries/archives.ts: featured": evidence }),
-    ).toEqual({ stale: [], invalid: [] });
-    expect(
-      guestLoginOnlyDrift(f, PUBLIC_REACH, {
-        "src/lib/queries/archives.ts: featured": "tylko po zalogowaniu",
-        "src/lib/queries/archives.ts: gone": evidence,
-      }),
+      guestLoginOnlyDrift(observed({ [PODCASTS]: guarded }), reach, entry, sources(guarded)),
     ).toEqual({
-      stale: ["src/lib/queries/archives.ts: gone (brak faktu klienta przeglądarki w tej funkcji)"],
-      invalid: ["src/lib/queries/archives.ts: featured (powód bez dowodu bramki plik:linia)"],
+      stale: [],
+      fresh: [],
+      invalid: [],
     });
-    const adminReach = new Map([
-      ["src/lib/queries/archives.ts", { cls: "admin", entry: "/admin", path: [] }],
-    ]);
+    // Drugie zapytanie na tej samej relacji pod tym samym kluczem - przybyło faktów.
+    const twice = guarded.replace(
+      'queryFn: async () => supabase.from("podcast_shows")',
+      'queryFn: async () => supabase.from("podcast_settings").select("id, layout").eq("tenant_id", t) && supabase.from("podcast_shows")',
+    );
     expect(
-      guestLoginOnlyDrift(f, adminReach, { "src/lib/queries/archives.ts: featured": evidence })
-        .stale,
-    ).toEqual(["src/lib/queries/archives.ts: featured (klasa pliku admin, wpis tylko dla public)"]);
+      guestLoginOnlyDrift(observed({ [PODCASTS]: twice }), reach, entry, sources(twice)).fresh,
+    ).toEqual([
+      `${settingsKey} (2, kształt "eq(tenant_id) select[id,layout]"; przejrzany: 1, "eq(tenant_id) select[id,layout]")`,
+    ]);
+    // Dopisana kolumna przy tej samej liczbie - zmiana kształtu.
+    const wider = guarded.replace('select("id, layout")', 'select("id, layout, owner_email")');
+    expect(
+      guestLoginOnlyDrift(observed({ [PODCASTS]: wider }), reach, entry, sources(wider)).fresh,
+    ).toEqual([
+      `${settingsKey} (1, kształt "eq(tenant_id) select[id,layout,owner_email]"; przejrzany: 1, "eq(tenant_id) select[id,layout]")`,
+    ]);
+  });
+
+  it("rozjazd listy: wpis bez faktu pod kluczem, w pliku spoza `public`, z mniejszą liczbą - nieaktualny; czerwono w `check:ts-sql-contract`", () => {
+    const evidence = `${FILE}:3 \`enabled: !!user\``;
+    const guarded = new Map([
+      [
+        FILE,
+        NOVEMBER[FILE].replace(
+          '.eq("slot", "archive_featured")',
+          '.eq("slot", "archive_featured") /* enabled: !!user */',
+        ),
+      ],
+    ]);
+    expect(guestLoginOnlyDrift(f, PUBLIC_REACH, { [KEY]: [1, SHAPE, evidence] }, guarded)).toEqual({
+      stale: [],
+      fresh: [],
+      invalid: [],
+    });
+    expect(
+      guestLoginOnlyDrift(
+        f,
+        PUBLIC_REACH,
+        {
+          [`${FILE}: gone: .from(builder_templates)`]: [1, SHAPE, evidence],
+          [KEY]: [2, SHAPE, evidence],
+        },
+        guarded,
+      ),
+    ).toEqual({
+      stale: [
+        `${KEY} (1, przejrzanych: 2)`,
+        `${FILE}: gone: .from(builder_templates) (brak faktu klienta przeglądarki pod tym kluczem)`,
+      ],
+      fresh: [],
+      invalid: [],
+    });
+    const adminReach = new Map([[FILE, { cls: "admin", entry: "/admin", path: [] }]]);
+    expect(
+      guestLoginOnlyDrift(f, adminReach, { [KEY]: [1, SHAPE, evidence] }, guarded).stale,
+    ).toEqual([`${KEY} (klasa pliku admin, wpis tylko dla public)`]);
     const problems = seamCoverageProblems(
       f,
       {},
       {
         reach: PUBLIC_REACH,
         unknownRole: {},
-        guestLoginOnly: { "src/lib/queries/archives.ts: gone": evidence },
+        guestLoginOnly: { [`${FILE}: gone: .from(builder_templates)`]: [1, SHAPE, evidence] },
+        sources: guarded,
       },
     );
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("GUEST_LOGIN_ONLY_REVIEWED");
-    expect(problems[0]).toContain("src/lib/queries/archives.ts: gone");
+    expect(problems[0]).toContain(`${FILE}: gone: .from(builder_templates)`);
+  });
+
+  it("dowód bramki sprawdzany w źródłach (recenzja S9): plik i linia muszą istnieć, a linia (±2) mieć rozpoznaną bramkę; usunięta bramka - czerwono", () => {
+    const drift = (evidence: string, sources?: ReadonlyMap<string, string>): string[] =>
+      guestLoginOnlyDrift(f, PUBLIC_REACH, { [KEY]: [1, SHAPE, evidence] }, sources).invalid;
+    const guardedCode = NOVEMBER[FILE].replace(
+      "export async function featured()",
+      "// enabled: !!user - wołane wyłącznie z panelu zalogowanego\n    export async function featured()",
+    );
+    const sources = new Map([[FILE, guardedCode]]);
+    expect(drift(`${FILE}:4 enabled: !!user`, sources)).toEqual([]);
+    expect(drift("tylko po zalogowaniu", sources)).toEqual([
+      `${KEY} (powód bez dowodu bramki plik:linia)`,
+    ]);
+    expect(drift("x.ts:1 brak", sources)).toEqual([`${KEY} (x.ts:1 - pliku nie ma w źródłach)`]);
+    expect(drift("src/does/not/exist.tsx:99999 brak", sources)).toEqual([
+      `${KEY} (src/does/not/exist.tsx:99999 - pliku nie ma w źródłach)`,
+    ]);
+    expect(drift(`${FILE}:99999 enabled: !!user`, sources)).toEqual([
+      `${KEY} (${FILE}:99999 - linii nie ma w pliku)`,
+    ]);
+    // Bramka usunięta z kodu - ten sam wpis przestaje być ważny.
+    expect(drift(`${FILE}:4 enabled: !!user`, new Map([[FILE, NOVEMBER[FILE]]]))[0]).toContain(
+      `${FILE}:4 (±2) - brak rozpoznanej bramki`,
+    );
+    // Bez źródeł dowodu nie da się sprawdzić.
+    expect(drift(`${FILE}:4 enabled: !!user`)).toEqual([
+      `${KEY} (${FILE}:4 - pliku nie ma w źródłach)`,
+    ]);
   });
 
   it("lista w repozytorium jest pusta - wypełnia ją przegląd wyniku `--guest-gaps`", () => {
     expect(GUEST_LOGIN_ONLY_REVIEWED).toEqual({});
   });
 
-  it("`--guest-gaps`: zwykły SQL z tymi samymi wierszami i sondami, wynik - klucze (plik: funkcja) padające jako gość", () => {
+  it("`--guest-gaps`: zwykły SQL z tymi samymi wierszami i sondami, wynik - klucze (plik: funkcja: relacja) padające jako gość ze szkieletem wpisu", () => {
     const sql = renderGuestGaps(f, { reach: PUBLIC_REACH });
     expect(sql).not.toContain("plan(");
     expect(sql).not.toContain("SELECT is(");
-    expect(sql).toContain("SELECT site || ': ' || func AS key, site, func, count(*) AS violations");
-    expect(sql).toContain("SELECT site, func, msg FROM ts_v_probe WHERE guest");
+    expect(sql).toContain(
+      "SELECT v.site || ': ' || v.func || ': ' || v.call AS key, v.site, v.func, v.call,",
+    );
+    expect(sql).toContain("SELECT site, func, call, msg FROM ts_v_probe WHERE guest");
+    expect(sql).toContain(
+      `INSERT INTO ts_guest_key (key, n, shape) VALUES\n  ('${KEY}', 1, '${SHAPE}'),`,
+    );
     expect(sql).toContain(
       "('posts', 'views_count', NULL, 'order', 'select', 'anon', 'authenticated', true,",
     );
@@ -3617,7 +3720,7 @@ describe("bramka z miary: klient przeglądarki wykonany na serwerze - anon zawsz
     );
     expect(anonRows(sql, FILE, "revAdminServerRead").length).toBeGreaterThan(1);
     expect(anonRows(sql, FILE, "CouponTable.queryFn")).toEqual([]);
-    expect(sql).toContain("anon sprawdzany zawsze,\n--   w tym 1 w plikach albo funkcjach");
+    expect(sql).toContain("anon sprawdzany zawsze,\n--   w tym 1 w plikach admin i session-gate");
   });
 
   it("pomocnik i opcje zapytania rozgrzewane w `loader` trasy (SSR) w pliku `session-gate` - anon; `ssr: false` i `.client(...)` - bez drogi serwera", () => {
@@ -3704,7 +3807,9 @@ describe("bramka z miary: klient przeglądarki wykonany na serwerze - anon zawsz
       {},
       {
         reach: reachOf("public", FILE),
-        guestLoginOnly: { [`${FILE}: read`]: `${FILE}:2 enabled: !!user` },
+        guestLoginOnly: {
+          [`${FILE}: read: .from(posts)`]: [1, "select[id]", `${FILE}:2 enabled: !!user`],
+        },
       },
     );
     expect(anonRows(sql, FILE, "read").length).toBeGreaterThan(0);
@@ -3909,7 +4014,7 @@ describe("stan repozytorium - miara poza bramką", () => {
       unknownFacts.filter((x) => checkedRoles(x).length === 0).length,
     );
     expect(unknownFacts.filter((x) => checkedRoles(x).length > 0).length).toBeGreaterThan(0);
-    expect(guestLoginOnlyDrift(measured, reach)).toEqual({ stale: [], invalid: [] });
+    expect(guestLoginOnlyDrift(measured, reach)).toEqual({ stale: [], fresh: [], invalid: [] });
     expect(measured.observed.unresolvedFilters.length).toBe(MAX_UNRESOLVED_FILTER_SITES);
     expect(measured.observed.filtersOutsideChains.length).toBe(MAX_FILTERS_OUTSIDE_CHAINS);
     // Bez miary sprawdzenia miary nie przechodzą po cichu.
