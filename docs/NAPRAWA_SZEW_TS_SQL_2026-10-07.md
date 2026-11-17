@@ -74,6 +74,21 @@ dla `authenticated`, usunięty indeks `user_roles_unique_per_tenant`, cel
 | `20261007120510_career_cv_gc_service_only`                    | dowolna (job retencji woła rolą serwisową)                  |
 | `20261007120600_event_codes_server_only`                      | NAJPIERW KOD (fallback na stare RPC przy PGRST202)          |
 
+**17.11.2026 - ścieżki zapasowe usunięte (gałąź `p8/fallbacks`).** Kod nie
+wraca już przy PGRST202/42883 do starego RPC (ani panel slotów do
+`select("*")`) dla `20261007120100`, `20261007120200`, `20261007120600`
+i `20261007140400` oraz w pięciu miejscach tej samej klasy: zapis na wydarzenie
+(`event_register_for_client`, `20261012140100`), goście grupy
+(`event_register_group_guests_for_client`, `20261012180300`), potwierdzenie
+zapisu i bilety grupy (`event_registration_notify_payload_for_tenant`,
+`20261012130500`) oraz zwolnienie kodu (`release_b2b_coupon_for_user`,
+`20261007140200`); brak funkcji to teraz błąd zwracany wołającemu, więc
+kolumna „Kolejność” opisuje stan sprzed tej zmiany. Dowód: typy regenerowane
+z bazy produkcji przez bota Lovable (68ba76e1 z 22.10.2026, bb61b8b7
+z 25.10.2026) usuwały obiekty, których produkcja nie miała, a wszystkie te
+funkcje zostawiły z wpisem identycznym jak w HEAD. Ścieżkę zapasową zachowuje
+`20261007120400` (`verify_content_password_for_tenant`).
+
 Runner `bun run test:pgtap-local` odtwarza domyślne EXECUTE platformy na NOWE
 funkcje (jak baza stawiana w CI przez `supabase db start`); tabel i sekwencji
 platforma domyślnie nie nadaje, więc runner ich nie emuluje. Bez tej linii
