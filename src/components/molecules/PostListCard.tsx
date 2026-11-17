@@ -92,6 +92,18 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/**
+ * Atrybut `datetime` z TEJ SAMEJ chwili, którą `formatDateShort` drukuje w
+ * strefie serwisu - data na ekranie i w atrybucie nie mogą się rozejść.
+ * `toISOString()` (UTC, bez locale i strefy maszyny) daje ten sam napis w SSR i
+ * w kliencie. Surowej wartości nie przepisujemy: Postgres (`now()`) oddaje
+ * mikrosekundy, a HTML przyjmuje najwyżej trzy cyfry ułamka sekundy.
+ */
+function machineDateTime(iso: string): string | undefined {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+}
+
 export function PostListCard({
   post,
   href,
@@ -191,7 +203,10 @@ export function PostListCard({
           excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>
         )}
         {post.published_at && (
-          <time className="block mt-3 text-xs text-muted-foreground">
+          <time
+            className="block mt-3 text-xs text-muted-foreground"
+            dateTime={machineDateTime(post.published_at)}
+          >
             {formatDateShort(post.published_at, lang)}
           </time>
         )}
