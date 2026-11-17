@@ -4971,16 +4971,14 @@ describe("stan repozytorium - miara poza bramką", () => {
     // `ticket.server.ts` (od b80f1e81): parametr klienta miejsc z wołającymi
     // o różnych rolach - reguła nazwy zgadywała `authenticated`; miara mówi
     // `unknown` (lista UNKNOWN_ROLE_REVIEWED), a asercja 5 sprawdza dalej rolę
-    // bramki.
+    // bramki. Po usunięciu ścieżek zapasowych (p8/fallbacks2: `legacySeatsFor`
+    // i zapis `event_rsvps` w `claimPaidRsvpSeat`) zostaje tylko `seatsFor`.
     // `gateway.server.ts` (recenzja r2 F): `ctx.supabase` z wiązania - `ctx` to
     // wynik `toAnalyticsGatewayCtx(context)`, więc `unknown` z kandydatem
     // `authenticated` (reguła nazwy) i resztą na liście UNKNOWN_ROLE_REVIEWED.
     expect(conflicts).toEqual([
-      "src/lib/events/ticket.server.ts legacySeatsFor get_event_rsvp_counts: authenticated -> unknown",
       "src/lib/events/ticket.server.ts seatsFor event_seat_state: authenticated -> unknown",
       "src/lib/analytics/gateway.server.ts readStoredAnalyticsSettings site_settings: authenticated -> unknown",
-      "src/lib/events/ticket.server.ts legacySeatsFor events: authenticated -> unknown",
-      "src/lib/events/ticket.server.ts assertSeatAvailable event_rsvps: authenticated -> unknown",
       "src/lib/menus/menu.functions.ts listMenuSummaries menus: authenticated -> anon",
       "src/lib/menus/menu.functions.ts fetchMenuWithItems menus: authenticated -> anon",
       "src/lib/mobileDrawer.functions.ts readMobileDrawerConfig mobile_drawer_configs: authenticated -> anon",
