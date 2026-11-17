@@ -68,7 +68,7 @@ describe.each([
 
   it("ten sam podmiot adresu co walidacja kodu planu - jeden kubełek adresu", async () => {
     await call(userClient, USER, payload);
-    await validatePlanCouponForUser(userClient, {
+    await validatePlanCouponForUser({
       userId: USER,
       code: "PARTNER2026",
       planId: "cccccccc-0000-4000-8000-00000000000c",

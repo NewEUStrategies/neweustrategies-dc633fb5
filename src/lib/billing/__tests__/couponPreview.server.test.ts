@@ -21,8 +21,8 @@ const h = vi.hoisted(() => ({
   probeHeaders: [] as unknown[],
   probeUsers: [] as (string | null)[],
   rpc: vi.fn(),
-  // Rola serwisowa (`couponRpc.server.ts`): domyślnie oddaje odpowiedź tej
-  // samej atrapy co klient kupującego, żeby werdykty testów grały w obu.
+  // Rola serwisowa (`couponRpc.server.ts`): domyślnie oddaje odpowiedź atrapy
+  // `rpc`, w której testy ustawiają werdykt bazy.
   adminRpc: vi.fn(),
   request: new Request("https://nes.example/_serverFn", {
     headers: { "cf-connecting-ip": "192.0.2.7" },
@@ -63,9 +63,14 @@ const PLAN = "cccccccc-0000-4000-8000-00000000000c";
 const USER = "dddddddd-0000-4000-8000-00000000000d";
 const TENANT = "aaaaaaaa-0000-4000-8000-00000000000a";
 
-type Client = Parameters<typeof previewPlanCouponForUser>[0];
-// Atrapa ma tylko `rpc` - jedyna metoda, ktorej podglad uzywa.
-const supabase: Client = { rpc: h.rpc } as never;
+// Klient sesji z middleware. Podgląd go NIE używa - walidacja idzie rolą
+// serwisową, a stara ścieżka JWT kupującego nie istnieje - więc każde jego RPC
+// wywraca test.
+const supabase = {
+  rpc: (name: string) => {
+    throw new Error(`test: podgląd zawołał ${name} klientem sesji`);
+  },
+};
 
 function input(planId: string | null = PLAN) {
   return { code: " rabat-10 ", planId, amountCents: 10_000, currency: "PLN" };
@@ -110,9 +115,7 @@ beforeEach(() => {
 describe("previewPlanCouponForUser", () => {
   it("odmowa limitu zapada przed bazą i ma własny powód", async () => {
     h.allowed = false;
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(
-      refusal("rate_limited"),
-    );
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("rate_limited"));
     expect(h.rpc).not.toHaveBeenCalled();
     expect(h.probeUsers).toEqual([USER]);
   });
@@ -121,7 +124,7 @@ describe("previewPlanCouponForUser", () => {
     // Od 20261007120200 `validate_b2b_coupon` nie jest wykonywalne dla
     // `authenticated` - zalogowany wołający PostgREST wprost omijał kubełek
     // adresu (N-13-1). Adres idzie do bazy wyłącznie jako skrót z solą.
-    await previewPlanCouponForUser(supabase, USER, input());
+    await previewPlanCouponForUser(USER, input());
     expect(h.adminRpc).toHaveBeenCalledWith("validate_b2b_coupon_for_user", {
       _tenant_id: TENANT,
       _user_id: USER,
@@ -135,38 +138,35 @@ describe("previewPlanCouponForUser", () => {
     expect(subject).not.toContain("192.0.2.7");
   });
 
-  it("OKNO WDROŻENIA: bez funkcji serwerowej (PGRST202) stare RPC klientem kupującego", async () => {
-    h.adminRpc.mockResolvedValueOnce({
-      data: null,
-      error: { code: "PGRST202", message: "Could not find the function" },
-    });
-    await previewPlanCouponForUser(supabase, USER, input());
-    expect(h.rpc).toHaveBeenLastCalledWith("validate_b2b_coupon", {
-      _code: "RABAT-10",
-      _plan_id: PLAN,
-      _amount_cents: 10_000,
-      _currency: "PLN",
-    });
-  });
+  it.each(["PGRST202", "42883"])(
+    "brak funkcji serwerowej (%s) to awaria, NIE stare RPC i NIE orzeczenie o kodzie",
+    async (code) => {
+      h.adminRpc.mockResolvedValueOnce({
+        data: null,
+        error: { code, message: "Could not find the function" },
+      });
+      expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("technical_error"));
+      expect(h.adminRpc).toHaveBeenCalledTimes(1);
+      expect(h.rpc).not.toHaveBeenCalledWith("validate_b2b_coupon", expect.anything());
+    },
+  );
 
   it("odmowa uprawnień funkcji serwerowej to awaria, NIE powód do starej ścieżki", async () => {
     h.adminRpc.mockResolvedValueOnce({
       data: null,
       error: { code: "42501", message: "permission denied for function" },
     });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(
-      refusal("technical_error"),
-    );
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("technical_error"));
     expect(h.rpc).not.toHaveBeenCalledWith("validate_b2b_coupon", expect.anything());
   });
 
   it("brak planu idzie do RPC jako zerowy UUID, jak dotąd z przeglądarki", async () => {
-    await previewPlanCouponForUser(supabase, USER, input(null));
+    await previewPlanCouponForUser(USER, input(null));
     expect(h.rpc.mock.lastCall?.[1]).toMatchObject({ _plan_id: ZERO_UUID });
   });
 
   it("sukces NIE niesie coupon_id ani nazwy kodu do przeglądarki", async () => {
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual({
+    expect(await previewPlanCouponForUser(USER, input())).toEqual({
       ok: true,
       error: null,
       coupon_id: null,
@@ -183,12 +183,12 @@ describe("previewPlanCouponForUser", () => {
       data: [{ ...refusal("expired"), coupon_id: "x", label: "Stary", discount_percent: 30 }],
       error: null,
     });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("expired"));
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("expired"));
   });
 
   it("powód nieznany ekranowi (np. event_not_eligible ze starej bazy) mówi to samo co pudło", async () => {
     h.rpc.mockResolvedValue({ data: [refusal("event_not_eligible")], error: null });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("not_found"));
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("not_found"));
   });
 
   it("odmowa limitu z bazy (kubełek pudeł konta) to rate_limited, nie pudło", async () => {
@@ -196,16 +196,12 @@ describe("previewPlanCouponForUser", () => {
       data: null,
       error: { message: "rate_limited: too many code attempts, try again later", code: "P0001" },
     });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(
-      refusal("rate_limited"),
-    );
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("rate_limited"));
   });
 
   it("każdy inny błąd bazy to technical_error", async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: "permission denied for function" } });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(
-      refusal("technical_error"),
-    );
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("technical_error"));
   });
 
   it("kod kwotowy zostaje kwotowy (bez coupon_id)", async () => {
@@ -224,7 +220,7 @@ describe("previewPlanCouponForUser", () => {
       ],
       error: null,
     });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toMatchObject({
+    expect(await previewPlanCouponForUser(USER, input())).toMatchObject({
       ok: true,
       coupon_id: null,
       label: null,
@@ -235,31 +231,32 @@ describe("previewPlanCouponForUser", () => {
 
   it("brak kontekstu żądania nie znosi limitu - limiter dostaje null (wspólny kubełek)", async () => {
     h.requestThrows = true;
-    await previewPlanCouponForUser(supabase, USER, input());
+    await previewPlanCouponForUser(USER, input());
     expect(h.probeHeaders).toEqual([null]);
     expect(h.rpc).toHaveBeenCalledTimes(1);
   });
 
   it("odmowa bez powodu (error null) mówi to samo co pudło", async () => {
     h.rpc.mockResolvedValue({ data: [{ ...refusal("not_found"), error: null }], error: null });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("not_found"));
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("not_found"));
   });
 
   it("kwota <= 0 to invalid_amount bez bazy i bez próby z limitu (jak dawniej RPC)", async () => {
-    expect(await previewPlanCouponForUser(supabase, USER, { ...input(), amountCents: 0 })).toEqual({
+    expect(await previewPlanCouponForUser(USER, { ...input(), amountCents: 0 })).toEqual({
       ...refusal("invalid_amount"),
       final_cents: 0,
     });
-    expect(
-      await previewPlanCouponForUser(supabase, USER, { ...input(), amountCents: -5 }),
-    ).toMatchObject({ error: "invalid_amount", final_cents: 0 });
+    expect(await previewPlanCouponForUser(USER, { ...input(), amountCents: -5 })).toMatchObject({
+      error: "invalid_amount",
+      final_cents: 0,
+    });
     expect(h.rpc).not.toHaveBeenCalled();
     expect(h.probeUsers).toEqual([]);
   });
 
   it("pusta odpowiedź RPC to null, nie wynik-widmo", async () => {
     h.rpc.mockResolvedValue({ data: [], error: null });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toBeNull();
+    expect(await previewPlanCouponForUser(USER, input())).toBeNull();
   });
 });
 
@@ -281,9 +278,9 @@ describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 2026100
 
   it("sukces jako obiekt: rabat jak przy wierszu, bez coupon_id i nazwy kodu", async () => {
     h.rpc.mockResolvedValue({ data: SUCCESS, error: null });
-    const fromObject = await previewPlanCouponForUser(supabase, USER, input());
+    const fromObject = await previewPlanCouponForUser(USER, input());
     h.rpc.mockResolvedValue({ data: [SUCCESS], error: null });
-    const fromRow = await previewPlanCouponForUser(supabase, USER, input());
+    const fromRow = await previewPlanCouponForUser(USER, input());
 
     expect(fromObject).toEqual({
       ok: true,
@@ -303,7 +300,7 @@ describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 2026100
       data: { ...refusal("expired"), coupon_id: "x", label: "Stary", discount_percent: 30 },
       error: null,
     });
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("expired"));
+    expect(await previewPlanCouponForUser(USER, input())).toEqual(refusal("expired"));
   });
 
   it.each([
@@ -319,12 +316,12 @@ describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 2026100
     delete verdict[key];
     h.rpc.mockResolvedValue({ data: shape === "obiekt" ? verdict : [verdict], error: null });
 
-    expect(await previewPlanCouponForUser(supabase, USER, input())).toBeNull();
+    expect(await previewPlanCouponForUser(USER, input())).toBeNull();
   });
 });
 
 describe("previewPlanCoupon (deklaracja)", () => {
-  it("handler woła warstwę serwerową klientem i kontem z middleware", async () => {
+  it("handler woła warstwę serwerową kontem z middleware", async () => {
     expect(
       await callServerFn(previewPlanCoupon, {
         data: { code: "RABAT", planId: PLAN, amountCents: 10_000, currency: "PLN" },

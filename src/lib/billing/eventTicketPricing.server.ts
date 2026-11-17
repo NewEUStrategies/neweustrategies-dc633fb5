@@ -436,12 +436,10 @@ export type EventTicketCouponResult =
  * poniżej minimum operatora (`final_amount_too_low`).
  */
 export async function applyEventTicketCoupon(
-  supabase: Client,
   input: EventTicketCouponInput,
 ): Promise<EventTicketCouponResult> {
-  // Rola serwisowa z jawnym kontem i skrótem adresu (20261007120600); przed
-  // migracją - stare wywołanie JWT kupującego (`couponRpc.server.ts`).
-  const { data: rows, error } = await validateEventTicketCouponForUser(supabase, {
+  // Rola serwisowa z jawnym kontem i skrótem adresu (20261007120600).
+  const { data: rows, error } = await validateEventTicketCouponForUser({
     userId: input.userId,
     code: input.code,
     eventId: input.eventId,
@@ -587,7 +585,7 @@ export async function quoteEventTicketOrder(
   // Bilet z planu nie ma kwoty, z której kod mógłby zejść - kodu nie
   // sprawdzamy (ani nie przyjmujemy, ani nie odrzucamy).
   if (code === "" || base.planRedemption) return base;
-  const applied = await applyEventTicketCoupon(supabase, {
+  const applied = await applyEventTicketCoupon({
     userId: input.userId,
     code,
     eventId: input.eventId,

@@ -6,8 +6,11 @@
 //      w najemcy `null`; tu to awaria, nie orzeczenie o kodzie, i baza nie
 //      jest w ogóle pytana.
 //   2. SUROWY ADRES W BAZIE - do `rate_limits` trafia wyłącznie solony skrót.
-//   3. ZŁE OKNO WDROŻENIA - stara ścieżka JWT kupującego wolno użyć tylko przy
-//      braku funkcji (PGRST202/42883); odmowa uprawnień czy timeout to awaria.
+//   3. CICHA STARA ŚCIEŻKA - walidacja i rezerwacja nie mają już powrotu do
+//      starego RPC z JWT kupującego: brak funkcji (PGRST202/42883) to awaria
+//      wdrożenia i idzie do wołającego jako błąd. Zwolnienie ma jeszcze okno
+//      wdrożenia - wolno w nie wejść tylko przy braku funkcji; odmowa uprawnień
+//      czy timeout to awaria.
 //   4. CICHE ŁĄCZENIE KODU - reguła kumulacji (TIX-13a), której nie dało się
 //      odczytać, nie może zamienić się w „łączy się ze wszystkim"; wyjątek
 //      to wyłącznie okno wdrożenia kolumn (42703/PGRST204).
@@ -107,7 +110,7 @@ beforeEach(() => {
 
 describe("validatePlanCouponForUser", () => {
   it("woła funkcję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
-    const result = await validatePlanCouponForUser(userClient, validation);
+    const result = await validatePlanCouponForUser(validation);
 
     expect(result).toEqual({ data: { ok: true }, error: null });
     expect(h.admin).toHaveBeenCalledWith("validate_b2b_coupon_for_user", {
@@ -120,7 +123,6 @@ describe("validatePlanCouponForUser", () => {
       _currency: "PLN",
     });
     expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("198.51.100.23");
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -128,29 +130,21 @@ describe("validatePlanCouponForUser", () => {
     ["awaria katalogu najemców", () => (h.tenantThrows = true)],
   ])("%s: awaria bez pytania bazy - to nie jest orzeczenie o kodzie", async (_label, arrange) => {
     arrange();
-    const result = await validatePlanCouponForUser(userClient, validation);
+    const result = await validatePlanCouponForUser(validation);
 
     expect(result.data).toBeNull();
     expect(result.error?.message).toMatch(/^tenant_unresolved/);
     expect(h.admin).not.toHaveBeenCalled();
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it.each(["PGRST202", "42883"])(
-    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego, te same argumenty kodu",
+    "brak funkcji serwerowej (%s) to błąd dla wołającego - bez starej ścieżki",
     async (code) => {
-      h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
-      h.user.mockResolvedValue({ data: [{ ok: true }], error: null });
+      const error = { code, message: "Could not find the function" };
+      h.admin.mockResolvedValue({ data: null, error });
 
-      const result = await validatePlanCouponForUser(userClient, validation);
-
-      expect(result).toEqual({ data: [{ ok: true }], error: null });
-      expect(h.user).toHaveBeenCalledWith("validate_b2b_coupon", {
-        _code: "PARTNER-CEE",
-        _plan_id: PLAN,
-        _amount_cents: 4900,
-        _currency: "PLN",
-      });
+      expect(await validatePlanCouponForUser(validation)).toEqual({ data: null, error });
+      expect(h.admin).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -160,18 +154,18 @@ describe("validatePlanCouponForUser", () => {
       { code: "P0001", message: "rate_limited: too many code attempts, try again later" },
     ]) {
       h.admin.mockResolvedValueOnce({ data: null, error });
-      expect(await validatePlanCouponForUser(userClient, validation)).toEqual({
+      expect(await validatePlanCouponForUser(validation)).toEqual({
         data: null,
         error,
       });
     }
-    expect(h.user).not.toHaveBeenCalled();
+    expect(h.admin).toHaveBeenCalledTimes(2);
   });
 });
 
 describe("validateEventTicketCouponForUser (kod na bilet, 20261007120600)", () => {
   it("woła funkcję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
-    const result = await validateEventTicketCouponForUser(userClient, eventValidation);
+    const result = await validateEventTicketCouponForUser(eventValidation);
 
     expect(result).toEqual({ data: { ok: true }, error: null });
     expect(h.admin).toHaveBeenCalledWith("validate_event_ticket_coupon_for_user", {
@@ -185,12 +179,11 @@ describe("validateEventTicketCouponForUser (kod na bilet, 20261007120600)", () =
       _currency: "PLN",
     });
     expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("198.51.100.23");
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it("ten sam adres = ten sam podmiot co kod planu (jeden kubełek adresu dla obu ścieżek)", async () => {
-    await validatePlanCouponForUser(userClient, validation);
-    await validateEventTicketCouponForUser(userClient, eventValidation);
+    await validatePlanCouponForUser(validation);
+    await validateEventTicketCouponForUser(eventValidation);
 
     const [plan, event] = h.admin.mock.calls.map(
       (call) => (call[1] as { _probe_subject: string })._probe_subject,
@@ -200,29 +193,23 @@ describe("validateEventTicketCouponForUser (kod na bilet, 20261007120600)", () =
 
   it("host bez najemcy: awaria bez pytania bazy", async () => {
     h.tenant = null;
-    const result = await validateEventTicketCouponForUser(userClient, eventValidation);
+    const result = await validateEventTicketCouponForUser(eventValidation);
 
     expect(result.error?.message).toMatch(/^tenant_unresolved/);
     expect(h.admin).not.toHaveBeenCalled();
-    expect(h.user).not.toHaveBeenCalled();
   });
 
   it.each(["PGRST202", "42883"])(
-    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego, te same argumenty kodu",
+    "brak funkcji serwerowej (%s) to błąd dla wołającego - bez starej ścieżki",
     async (code) => {
-      h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
-      h.user.mockResolvedValue({ data: { ok: false, error: "not_found" }, error: null });
+      const error = { code, message: "Could not find the function" };
+      h.admin.mockResolvedValue({ data: null, error });
 
-      const result = await validateEventTicketCouponForUser(userClient, eventValidation);
-
-      expect(result).toEqual({ data: { ok: false, error: "not_found" }, error: null });
-      expect(h.user).toHaveBeenCalledWith("validate_event_ticket_coupon", {
-        _code: "PARTNER-EVENT",
-        _event_id: EVENT,
-        _ticket_type_id: TICKET,
-        _amount_cents: 30000,
-        _currency: "PLN",
+      expect(await validateEventTicketCouponForUser(eventValidation)).toEqual({
+        data: null,
+        error,
       });
+      expect(h.admin).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -233,11 +220,11 @@ describe("validateEventTicketCouponForUser (kod na bilet, 20261007120600)", () =
     };
     h.admin.mockResolvedValue({ data: null, error });
 
-    expect(await validateEventTicketCouponForUser(userClient, eventValidation)).toEqual({
+    expect(await validateEventTicketCouponForUser(eventValidation)).toEqual({
       data: null,
       error,
     });
-    expect(h.user).not.toHaveBeenCalled();
+    expect(h.admin).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -245,25 +232,10 @@ describe("redeemCouponForUser", () => {
   it("rezerwuje rolą serwisową w najemcy ZAMÓWIENIA, nie hosta", async () => {
     h.admin.mockResolvedValue({ data: true, error: null });
 
-    expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: true, error: null });
+    expect(await redeemCouponForUser(redemption)).toEqual({ data: true, error: null });
     expect(h.admin).toHaveBeenCalledWith("redeem_b2b_coupon_for_user", {
       _tenant_id: "bbbbbbbb-0000-4000-8000-00000000000b",
       _user_id: USER,
-      _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
-      _order_id: "ffffffff-0000-4000-8000-00000000000f",
-      _applied_cents: 1000,
-      _original_cents: 4900,
-      _currency: "PLN",
-    });
-    expect(h.user).not.toHaveBeenCalled();
-  });
-
-  it("OKNO WDROŻENIA: stara rezerwacja klientem kupującego", async () => {
-    h.admin.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "no function" } });
-    h.user.mockResolvedValue({ data: true, error: null });
-
-    expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: true, error: null });
-    expect(h.user).toHaveBeenCalledWith("redeem_b2b_coupon", {
       _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
       _order_id: "ffffffff-0000-4000-8000-00000000000f",
       _applied_cents: 1000,
@@ -275,32 +247,22 @@ describe("redeemCouponForUser", () => {
   it("odmowa bazy (false) wraca jak jest - kasa unieważnia zamówienie", async () => {
     h.admin.mockResolvedValue({ data: false, error: null });
 
-    expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: false, error: null });
-    expect(h.user).not.toHaveBeenCalled();
+    expect(await redeemCouponForUser(redemption)).toEqual({ data: false, error: null });
   });
 
+  // Kasa nie może udawać zajęcia kodu: każdy błąd rezerwacji - także brak
+  // funkcji, dawniej przepustka do starej rezerwacji JWT kupującego - wraca
+  // do wołającego, a ten unieważnia zamówienie.
   it.each([
+    { code: "PGRST202", message: "Could not find the function public.redeem_b2b_coupon_for_user" },
+    { code: "42883", message: "function public.redeem_b2b_coupon_for_user does not exist" },
     { code: "42501", message: "permission denied for function redeem_b2b_coupon_for_user" },
     { code: "57014", message: "canceling statement due to statement timeout" },
-  ])(
-    "awaria spoza okna wdrożenia ($code) idzie do wołającego bez starej ścieżki",
-    async (error) => {
-      h.admin.mockResolvedValue({ data: null, error });
+  ])("awaria ($code) idzie do wołającego bez starej ścieżki", async (error) => {
+    h.admin.mockResolvedValue({ data: null, error });
 
-      expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: null, error });
-      expect(h.user).not.toHaveBeenCalled();
-    },
-  );
-
-  it("OKNO WDROŻENIA: błąd starej rezerwacji też idzie do wołającego (kasa nie udaje zajęcia kodu)", async () => {
-    const legacyError = { code: "P0001", message: "coupon_exhausted" };
-    h.admin.mockResolvedValue({ data: null, error: { code: "42883", message: "no function" } });
-    h.user.mockResolvedValue({ data: null, error: legacyError });
-
-    expect(await redeemCouponForUser(userClient, redemption)).toEqual({
-      data: null,
-      error: legacyError,
-    });
+    expect(await redeemCouponForUser(redemption)).toEqual({ data: null, error });
+    expect(h.admin).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -362,7 +324,7 @@ describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)"
 describe("requestProbeIdentity (tożsamość sond kodów: wycena, pakiet, licznik treści)", () => {
   it("najemca hosta i ten sam solony kubełek adresu, który dostaje walidacja kodu planu", async () => {
     const identity = await requestProbeIdentity();
-    await validatePlanCouponForUser(userClient, validation);
+    await validatePlanCouponForUser(validation);
 
     expect(identity.tenantId).toBe("aaaaaaaa-0000-4000-8000-00000000000a");
     expect(identity.probeSubject).toMatch(/^ip:[0-9a-f]{32}$/);
@@ -385,7 +347,7 @@ describe("requestProbeIdentity (tożsamość sond kodów: wycena, pakiet, liczni
   it("walidacja poza zasięgiem żądania liczy pudło w kubełku nieznanego adresu, nie gubi konta", async () => {
     h.requestThrows = true;
 
-    await validateEventTicketCouponForUser(userClient, eventValidation);
+    await validateEventTicketCouponForUser(eventValidation);
 
     expect(h.admin.mock.lastCall?.[1]).toMatchObject({
       _user_id: USER,

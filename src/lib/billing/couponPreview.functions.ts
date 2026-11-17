@@ -3,11 +3,11 @@
 // DLACZEGO FUNKCJA SERWEROWA, A NIE RPC Z PRZEGLĄDARKI. Odpowiedź walidacji
 // mówi, czy kod istnieje - bez limitu prób to wyrocznia do zgadywania kodów.
 // Limit po IP zna wyłącznie serwer, a `validate_b2b_coupon` od migracji
-// 20261001100000 nie jest już wykonywalny dla anon. Serwer woła RPC klientem
-// z JWT kupującego (ten sam najemca i ten sam limit na osobę co
-// `createPlanCheckoutSession`), a do przeglądarki oddaje wynik BEZ coupon_id
-// i nazwy kodu - ekran ich nie czyta, a coupon_id nie ma czego szukać poza
-// serwerem.
+// 20261001100000 nie jest już wykonywalny dla anon. Serwer woła walidację
+// rolą serwisową z kontem sesji, najemcą hosta i skrótem adresu
+// (`couponRpc.server.ts`, ta sama ścieżka co `createPlanCheckoutSession`),
+// a do przeglądarki oddaje wynik BEZ coupon_id i nazwy kodu - ekran ich nie
+// czyta, a coupon_id nie ma czego szukać poza serwerem.
 //
 // Strona kasy stoi za `GuestCheckoutGate`, więc wołający zawsze ma sesję.
 //
@@ -31,5 +31,5 @@ export const previewPlanCoupon = createServerFn({ method: "POST" })
   .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }) => {
     const { previewPlanCouponForUser } = await import("@/lib/billing/couponPreview.server");
-    return previewPlanCouponForUser(context.supabase, context.userId, data);
+    return previewPlanCouponForUser(context.userId, data);
   });

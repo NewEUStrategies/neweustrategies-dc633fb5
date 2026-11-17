@@ -13,10 +13,8 @@
 // „nie ma takiego kodu" powiedziane w czasie blokady albo awarii to nieprawda
 // o ważnym kuponie. Powód, którego ekran nie zna (np. `event_not_eligible`
 // z bazy sprzed 20261001100000), mówi to samo co pudło. Kod nie trafia do logów.
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { getRequest } from "@tanstack/react-start/server";
 
-import type { Database } from "@/integrations/supabase/types";
 import {
   COUPON_ERROR_I18N_KEY,
   isCodeProbeRateLimited,
@@ -69,7 +67,6 @@ function requestHeaders(): Headers | null {
 }
 
 export async function previewPlanCouponForUser(
-  supabase: SupabaseClient<Database>,
   userId: string,
   input: PlanCouponPreviewInput,
 ): Promise<ValidateCouponResult | null> {
@@ -81,7 +78,7 @@ export async function previewPlanCouponForUser(
   const allowed = await allowCodeProbe(requestHeaders(), async () => userId);
   if (!allowed) return refusal("rate_limited", input.amountCents);
 
-  const { data, error } = await validatePlanCouponForUser(supabase, {
+  const { data, error } = await validatePlanCouponForUser({
     userId,
     code: normalizeCouponCode(input.code),
     planId: input.planId ?? NO_PLAN,
