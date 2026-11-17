@@ -1251,7 +1251,9 @@ const LEAD_AVATAR_CHUNK = 100;
 // leada i jego klucz (`normalizeEmail`) leżą w różnych klasach `pgCaseFold`:
 // `İ`, `Σ` na końcu słowa, wielkie litery spoza zaufanych zakresów - nie `Ł`
 // czy `Ż` (postaci z `*` idą tańszą listą dokładną `in`). Wtedy już 254 znaki
-// (limit RFC 5321) z `İ` i 248 `\` to ponad 6 tys. Klucz droższy niż budżet
+// (limit formularzy aplikacji, nie RFC 5321 - tam lokalna część ma najwyżej
+// 64 oktety, więc adres zgodny z RFC zostaje poniżej ok. 3 tys.) z `İ` i 248 `\`
+// to ponad 6 tys. Klucz droższy niż budżet
 // `avatarLookupChunks` więc pomija (lead bez zdjęcia), zamiast wysłać
 // zapytanie, które proxy odrzuci razem z lookupem całej strony.
 const LEAD_AVATAR_FILTER_URL_BUDGET = 6000;

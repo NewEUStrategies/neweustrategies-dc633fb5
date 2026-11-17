@@ -101,11 +101,15 @@ describe("avatarLookupKeys", () => {
     expect(ilikeOf("İzmir@example.test")).toEqual([
       ["i\u0307zmir@example.test", "İzmir@example.test"],
     ]);
-    // `email_norm` z `lower(btrim())` bazy: `lower()` zrównuje `İ` z `i`, ale
-    // `pgCaseFold` nie - dwa liście (ten sam wynik w bazie), bo przypisanie
-    // potrzebuje obu postaci.
-    expect(ilikeOf("İzmir@example.test", "izmir@example.test")).toEqual([
-      ["izmir@example.test", "İzmir@example.test"],
+    // `email_norm` z `lower(btrim())` bazy zamienia `İ` na `i`. Taki klucz to
+    // tylko złożona przez bazę postać adresu zapisanego, więc nie wyznacza klasy
+    // kontaktu (`İ` to nie `I`) - jeden liść z postacią zapisaną. W bazie ten
+    // liść i tak zwraca też `IZMIR@`; przypisanie go odrzuca.
+    expect(ilikeOf("İzmir@example.test", "izmir@example.test")).toEqual([["İzmir@example.test"]]);
+    // Klucz `email_norm`, który NIE jest samym złożeniem `İ` (np. inny adres),
+    // zostaje osobną postacią jak dotąd.
+    expect(ilikeOf("İzmir@example.test", "inny@example.test")).toEqual([
+      ["inny@example.test", "İzmir@example.test"],
     ]);
     // Wielka litera ASCII nie tworzy osobnej klasy obok klucza.
     expect(ilikeOf("IZMIR@example.test")).toEqual([["izmir@example.test"]]);
@@ -214,7 +218,8 @@ describe("avatarLookupChunks", () => {
         maxEncodedLength: budget,
       }),
     ).toEqual([]);
-    // Za drogi bywa już adres w limicie RFC 5321 (254 znaki): `İ` (dwa liście)
+    // Za drogi bywa adres w limicie formularzy aplikacji (254 znaki; nie RFC
+    // 5321 - tam część lokalna ma najwyżej 64 oktety): `İ` (dwa liście)
     // i 248 `\`. Ta sama długość w jednym liściu mieści się z zapasem.
     const costOf = (email: string) =>
       avatarLookupKeyCost(avatarLookupKeys([lead("l4", email)])[0] as (typeof keys)[number]);
@@ -436,6 +441,22 @@ describe("matchChunkAvatars", () => {
     // Lead `İzmir@` - nadal członek z `İzmir@`, w obu postaciach klucza.
     expect(avatarFor("İzmir@firma.test", rows)).toBe("https://cdn.test/23.png");
     expect(avatarFor("İzmir@firma.test", rows, "izmir@firma.test")).toBe("https://cdn.test/23.png");
+  });
+
+  it("lead `İzmir@` z kluczem bazy `izmir@` nie bierze członka `IZMIR@`, choćby z mniejszym id", () => {
+    // Formularze zapisują `email_norm` przez `lower()` bazy (`İ` -> `i`). Gdyby
+    // taki klucz wyznaczał klasę, `IZMIR@` (mniejsze id) wygrywałby z identycznym
+    // `İzmir@`, a wynik zależałby od tego, kto zapisał `email_norm`.
+    const rows = [
+      profile({ contact_email: "IZMIR@firma.test", avatar_url: "https://cdn.test/22.png" }),
+      profile({ contact_email: "İzmir@firma.test", avatar_url: "https://cdn.test/23.png" }),
+    ];
+    expect(avatarFor("İzmir@firma.test", rows, "izmir@firma.test")).toBe("https://cdn.test/23.png");
+    expect(avatarFor("İzmir@firma.test", rows)).toBe("https://cdn.test/23.png");
+    // Tylko `IZMIR@`: brak zdjęcia - tak samo dla klucza bazy i klucza JS.
+    const onlyAscii = [rows[0] as ProfileAvatarRow];
+    expect(avatarFor("İzmir@firma.test", onlyAscii, "izmir@firma.test")).toBeNull();
+    expect(avatarFor("İzmir@firma.test", onlyAscii)).toBeNull();
   });
 
   it("wiersz przypisuje się wyłącznie przez `lower()` bazy, nie przez JS `toLowerCase`", () => {

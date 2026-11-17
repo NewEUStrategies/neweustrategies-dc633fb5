@@ -146,7 +146,19 @@ function lookupKeyOf(lead: LeadEmailRow): AvatarLookupKey | null {
   const ilike: string[] = [];
   const exact: string[] = [];
   const folds = new Set<string>();
-  for (const form of new Set(raw ? [key, raw] : [key])) {
+  // `email_norm` z bazy to `lower(trim(email))`, a PG `lower('İ')` = `i`. Gdy
+  // klucz jest TYLKO taką postacią adresu zapisanego (różni się od niego samym
+  // `İ` -> `i`), nie może wyznaczać klasy kontaktu: `pgCaseFold` zostawia `İ`,
+  // bo `İ` to nie `I`. Inaczej lead `İzmir@` z kluczem bazy `izmir@` brałby
+  // zdjęcie członka `IZMIR@` przed członkiem z identycznym `İzmir@`, a wynik
+  // zależałby od tego, kto zapisał `email_norm`. Klucz zostaje w `email.in`
+  // (adres logowania z auth jest zawsze małymi literami).
+  const keyIsOnlyDbFoldOfRaw =
+    raw.includes("\u0130") &&
+    key !== normalizeEmail(raw) &&
+    pgCaseFold(key) === pgCaseFold(raw.replace(/\u0130/g, "i"));
+  const forms = raw ? (keyIsOnlyDbFoldOfRaw ? [raw] : [key, raw]) : [key];
+  for (const form of new Set(forms)) {
     if (!ilikeEqualityExpressible(form)) {
       exact.push(form);
       continue;
@@ -210,7 +222,8 @@ export function avatarLookupKeyCost(key: AvatarLookupKey): number {
  * żądania, a odrzucone zapytanie wywróciłoby lookup całej strony (lista -
  * błąd, karta - log). Za drogi jest adres długi i pełen znaków, które liść
  * mnoży (`\` to 12 znaków po ucieczce LIKE, cytowaniu i kodowaniu URL), nie
- * sam długi - i nie tylko ponad limitem RFC 5321: 254 znaki z `İ` (dwa
+ * sam długi. Przekracza go dopiero adres spoza walidatorów: 254 znaki (limit
+ * formularzy aplikacji; RFC 5321 dopuszcza najwyżej 64 oktety części lokalnej) z `İ` (dwa
  * liście, zob. `AvatarLookupKey`) i 248 `\` to już ponad 6 tys. Schemat bazy
  * długości adresu nie ogranicza, więc limit trzymamy tu.
  */
