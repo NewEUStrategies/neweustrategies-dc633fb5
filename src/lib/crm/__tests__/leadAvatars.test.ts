@@ -363,7 +363,7 @@ describe("pgCaseFold", () => {
       [0, 0x58f],
       [0x1e00, 0x1eff],
     ] as const) {
-      for (let cp = from; cp <= to; cp += 1) {
+      for (let cp: number = from; cp <= to; cp += 1) {
         if (cp === 0x130) continue;
         const ch = String.fromCodePoint(cp);
         expect([cp, pgCaseFold(ch)]).toEqual([cp, pgLower(ch)]);
