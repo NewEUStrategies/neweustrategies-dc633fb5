@@ -2719,7 +2719,7 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
     ]);
   });
 
-  it("render: zapytania i sondy - SELECT … LIMIT 0, zapis jako EXPLAIN, RPC tylko SECURITY INVOKER z EXECUTE, rola i JWT w podtransakcji z wartownikiem, naruszenie tylko 42501 „permission denied for”", () => {
+  it("render: zapytania i sondy - SELECT … LIMIT 1, zapis jako EXPLAIN, RPC tylko SECURITY INVOKER z EXECUTE, rola i JWT w podtransakcji z wartownikiem, naruszenie tylko 42501 „permission denied for”", () => {
     const f = observed({
       "src/a.server.ts": `${ADMIN_FILE}
         export async function write() {
@@ -2731,16 +2731,22 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
     expect(sql).toContain(
       "('orders', 'update', 'service_role', 'service_role', ARRAY['id']::text[], false, ARRAY['status']::text[], ARRAY['id']::text[], NULL::text[],",
     );
-    expect(sql).toContain("format('SELECT %s FROM public.%I%s LIMIT 0'");
+    // Odczyt dla JEDNEGO wiersza (kolumny widoku i funkcje wiersza liczą się),
+    // kolumny filtrów zostają w WHERE dla uprawnień, `OR true` nie odrzuca wiersza.
+    expect(sql).toContain("format('SELECT %s FROM public.%I%s LIMIT 1'");
+    expect(sql).toContain(
+      "coalesce(' WHERE (' || pg_temp.ts_list(s.where_cols, '%I IS NULL', ' AND ') || ') OR true', '') AS clause) ws",
+    );
+    expect(sql).not.toContain("LIMIT 0");
     expect(sql).toContain("format('EXPLAIN UPDATE public.%I SET %s%s%s'");
     expect(sql).toContain("pg_temp.ts_list(s.payload, '%I = DEFAULT', ', ')");
     expect(sql).toContain("pg_temp.ts_list(s.payload, '%1$I = EXCLUDED.%1$I', ', ')");
     expect(sql).toContain("WHEN t.cols IS NULL THEN ' ON CONFLICT DO NOTHING'");
-    expect(sql).toContain("format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 0', f.rel, f.col)");
+    expect(sql).toContain("format('SELECT FROM public.%I WHERE %I IS NULL LIMIT 1', f.rel, f.col)");
     expect(sql).toContain("WHERE r.role IN ('anon', 'authenticated')");
     expect(sql).toContain("AND NOT p.prosecdef AND p.prokind = 'f'");
     expect(sql).toContain("AND has_function_privilege(r.role, p.oid, 'EXECUTE')");
-    expect(sql).toContain("PERFORM set_config('role', r.role, true);");
+    expect(sql).toContain("PERFORM set_config('role', v_roles[i], true);");
     expect(sql).toContain("PERFORM set_config('request.jwt.claims',");
     expect(sql).toContain("RAISE SQLSTATE 'PRB00';");
     expect(sql).toContain("WHEN SQLSTATE 'PRB00' THEN");
@@ -2751,6 +2757,107 @@ describe("miara: zapytania łańcuchów do sond wykonania", () => {
     expect(sql).toContain("'execution-probe'");
     expect(sql).toContain("'privilege-check' AS caught_by");
     expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
+  });
+});
+
+describe("sondy wykonania: limit czasu, ASSERT i argumenty syntetyczne", () => {
+  const f = observed({
+    "src/a.server.ts": `${ADMIN_FILE}
+      export async function write() {
+        await supabaseAdmin.from("orders").update({ status: "x" }).eq("id", id).select("id");
+      }
+    `,
+  });
+  const gate = renderContractTest(f);
+  const measure = renderObservedQueries(f);
+  const runner = (sql: string): string => {
+    const start = sql.search(/CREATE FUNCTION pg_temp\.(ts|obs)_probe_run\(\)/);
+    expect(start).toBeGreaterThan(0);
+    return sql.slice(start, sql.indexOf("END $run$;\n\nCREATE TEMP TABLE", start));
+  };
+
+  it("limit instrukcji uzbrajany na partię (DO najwyższego poziomu), partia kończy się sama, `lock_timeout` w podtransakcji sondy; ustawienia sesji wracają", () => {
+    for (const [sql, probe] of [
+      [gate, "ts_probe"],
+      [measure, "obs_probe"],
+    ] as const) {
+      const batch = `DO $run$ BEGIN PERFORM pg_temp.${probe}_run(); END $run$;`;
+      expect(sql.split(batch).length - 1).toBe(30);
+      const armed = sql.indexOf("SET LOCAL statement_timeout = '10s';");
+      const saved = sql.indexOf(
+        `CREATE TEMP TABLE ${probe}_guc ON COMMIT DROP AS SELECT current_setting('statement_timeout') AS statement_timeout;`,
+      );
+      const restored = sql.indexOf(
+        `DO $run$ BEGIN PERFORM set_config('statement_timeout', (SELECT statement_timeout FROM ${probe}_guc), true); END $run$;`,
+      );
+      const notRun = sql.indexOf(
+        `UPDATE ${probe} SET outcome = 'nie uruchomiona' WHERE sql IS NOT NULL AND state IS NULL;`,
+      );
+      expect(saved).toBeGreaterThan(0);
+      expect(armed).toBeGreaterThan(saved);
+      expect(sql.indexOf(batch)).toBeGreaterThan(armed);
+      expect(restored).toBeGreaterThan(sql.lastIndexOf(batch));
+      expect(notRun).toBeGreaterThan(restored);
+      // \`set_config\` limitu instrukcji WEWNĄTRZ bloku nie działa - tylko przywrócenie.
+      expect(sql).not.toMatch(/set_config\('statement_timeout', '/);
+      const body = runner(sql);
+      expect(body).toContain(
+        "EXIT WHEN clock_timestamp() - statement_timestamp() > interval '2s';",
+      );
+      const lock = body.indexOf("PERFORM set_config('lock_timeout', '5s', true);");
+      const exec = body.indexOf("EXECUTE v_sqls[i];");
+      const sentinel = body.indexOf("RAISE SQLSTATE 'PRB00';");
+      expect(lock).toBeGreaterThan(0);
+      expect(exec).toBeGreaterThan(lock);
+      expect(sentinel).toBeGreaterThan(exec);
+      expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
+    }
+  });
+
+  it("ASSERT (P0004) i limit czasu (57014) łapane jawnie - WHEN OTHERS ich nie łapie; anulowanie z zewnątrz przerywa plik; limit i blokada - naruszenie z plikiem i funkcją", () => {
+    for (const sql of [gate, measure]) {
+      const body = runner(sql);
+      const explicit = body.indexOf("WHEN assert_failure OR query_canceled THEN");
+      expect(explicit).toBeGreaterThan(body.indexOf("WHEN SQLSTATE 'PRB00' THEN"));
+      expect(body.indexOf("WHEN OTHERS THEN")).toBeGreaterThan(explicit);
+      expect(body).toContain(
+        "IF v_state = '57014' AND NOT (clock_timestamp() - statement_timestamp() >= interval '10s' - interval '1 s') THEN\n            RAISE;",
+      );
+      // Osłona MIĘDZY sondami i przy zapisie wyników - limit nie przerywa pliku.
+      expect(body.split("EXCEPTION WHEN query_canceled THEN").length - 1).toBe(2);
+      expect(body).toContain("v_stop := v_state = '57014';");
+      expect(sql).toContain("WHEN v_state IN ('57014', '55P03') THEN 'przekroczony czas'");
+    }
+    expect(gate).toContain(
+      "coalesce(p.state, '-'), coalesce(p.msg, p.outcome)) AS msg\n  FROM ts_probe p\n WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona');",
+    );
+    // P0004 nie ma własnej gałęzi klasyfikacji - to „inny blad”, nie naruszenie.
+    expect(gate).not.toContain("'P0004'");
+  });
+
+  it("RPC: druga sonda z argumentami syntetycznymi (stałe wartości typów, bez losowości); funkcja bez argumentów - jedna", () => {
+    for (const sql of [gate, measure]) {
+      expect(sql).toContain("CREATE FUNCTION pg_temp.ts_synth(p_type oid, p_depth int DEFAULT 0)");
+      expect(sql).toContain(
+        "WHEN p_type = 'uuid'::regtype THEN '00000000-0000-4000-8000-0000000000aa'",
+      );
+      expect(sql).toContain(
+        "FROM pg_enum e WHERE e.enumtypid = p_type ORDER BY e.enumsortorder LIMIT 1;",
+      );
+      expect(sql).toContain(
+        "RETURN format('(%s)::%s', pg_temp.ts_synth(t.typbasetype, p_depth + 1), v_name);",
+      );
+      expect(sql).toContain("SELECT format('ROW(%s)::%s'");
+      expect(sql).toContain(
+        "RETURN format('ARRAY[%s]::%s', pg_temp.ts_synth(t.typelem, p_depth + 1), v_name);",
+      );
+      expect(sql).toContain("CASE WHEN p_synth THEN pg_temp.ts_synth(v_types[i])");
+      expect(sql).toContain(
+        "SELECT 'probe-rpc-synth', s.args, s.args <> pg_temp.ts_rpc_args(p.oid, r.keys)\n           FROM (SELECT pg_temp.ts_rpc_args(p.oid, r.keys, true) AS args) s) a",
+      );
+      expect(sql).toContain("   AND a.differs;");
+      expect(sql).not.toMatch(/random|clock_timestamp\(\)::text|now\(\)::text/);
+    }
   });
 });
 
@@ -2950,13 +3057,15 @@ describe("miara: zasoby osadzone listy `select` jako fakty relacji osadzonej", (
     );
     expect(sql).toContain("AND NOT has_column_privilege(m.role, x.target, col.col, 'SELECT'))");
     expect(sql).toContain(
-      "format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 0', tc.list,",
+      "format('SELECT %s FROM public.%I p JOIN public.%I t ON %s LIMIT 1', tc.list,",
     );
     expect(sql).toContain("THEN format('p.%I = t.%I', a.attname, b.attname)");
     expect(sql).toContain("CASE WHEN x.target IS NULL THEN 'relacja osadzenia nieczytelna' END");
+    // Sondy bez wyniku, każda para (rola, instrukcja) raz, w partiach.
     expect(sql).toContain(
-      "FOR r IN SELECT id, role, sql FROM obs_probe WHERE sql IS NOT NULL ORDER BY id LOOP",
+      "FROM (SELECT min(id) AS id, role, sql FROM obs_probe\n           WHERE sql IS NOT NULL AND state IS NULL GROUP BY role, sql) g;",
     );
+    expect(sql).toContain("DO $run$ BEGIN PERFORM pg_temp.obs_probe_run(); END $run$;");
   });
 });
 
@@ -3232,7 +3341,9 @@ describe("bramka z miary: fakty listopadowych defektów idą do pgTAP z rolą", 
       "WHEN v_state = '42501' AND v_msg LIKE 'permission denied for %' THEN 'brak uprawnienia'",
     );
     expect(sql).toContain("WHEN v_state IN ('42703', '42P01', '42883') THEN 'brak obiektu'");
-    expect(sql).toContain("WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu')");
+    expect(sql).toContain(
+      "WHERE p.outcome IN ('brak uprawnienia', 'brak obiektu', 'przekroczony czas', 'nie uruchomiona')",
+    );
     // Wartownik wycofuje każdą sondę; cały plik kończy `ROLLBACK`.
     expect(sql).toContain("RAISE SQLSTATE 'PRB00';");
     expect(sql.trimEnd().endsWith("ROLLBACK;")).toBe(true);
