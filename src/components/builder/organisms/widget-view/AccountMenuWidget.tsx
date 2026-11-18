@@ -373,11 +373,12 @@ interface AccountMenuKit {
  * zestaw rozgrzany wcześniej (najechanie, start zalogowanego) jest gotowy
  * synchronicznie - panel montuje się bez zawieszenia i bez klatki fallbacku.
  */
-type AccountMenuKitThenable = Promise<AccountMenuKit> & {
-  status: "pending" | "fulfilled" | "rejected";
-  value?: AccountMenuKit;
-  reason?: unknown;
-};
+type AccountMenuKitThenable = Promise<AccountMenuKit> &
+  (
+    | { status: "pending"; value?: AccountMenuKit; reason?: unknown }
+    | { status: "fulfilled"; value: AccountMenuKit; reason?: unknown }
+    | { status: "rejected"; value?: AccountMenuKit; reason: unknown }
+  );
 
 /** Jeden zestaw na dokument (import i tak jest buforowany przez mapę modułów). */
 let kitThenable: AccountMenuKitThenable | null = null;
@@ -401,9 +402,9 @@ function loadAccountMenuKit(): AccountMenuKitThenable {
     AvatarFallback: avatar.AvatarFallback,
     useGreeting: greeting.useGreeting,
   }));
-  const thenable: AccountMenuKitThenable = Object.assign(promise, {
+  const thenable = Object.assign(promise, {
     status: "pending" as const,
-  });
+  }) as AccountMenuKitThenable;
   promise.then(
     (value) => {
       thenable.status = "fulfilled";

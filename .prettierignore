@@ -78,3 +78,6 @@ src/integrations/supabase/previewAuthStorage.ts
 # Surowe artefakty diagnozy P0.5 (księgi Lantern per zadanie, podsumowania przebiegów,
 # skrypty robocze) trzymane dosłownie, poza formatowaniem - to dowody pomiaru, nie kod produktu.
 docs/performance/*/faza2/raporty/P0.5-robocze/
+
+# Pamięć podręczna narzędzi budowania - pliki generowane, nie kod projektu.
+.oj-cache
