@@ -123,6 +123,33 @@ describe("scanHeadings", () => {
   });
 });
 
+describe("scanHeadings - tytuł etykiety sekcji (h2.cms-sl)", () => {
+  // Tytuł etykiety sekcji był `span[role=heading]`; jako natywny `h2` nadal
+  // nie jest pozycją spisu treści - dla KAŻDEGO konsumenta skanera.
+  const LABEL = `<h2 class="text-sm cms-sl" data-title-root>Najnowsze</h2>`;
+
+  it("domyślny selektor (pływający spis treści) pomija etykietę i nie nadaje jej id", () => {
+    const root = mount(`${LABEL}<h2>Rozdział</h2><h3>Podrozdział</h3>`);
+    const items = scanHeadings(root);
+    expect(items.map((i) => i.text)).toEqual(["Rozdział", "Podrozdział"]);
+    const label = root.querySelector<HTMLElement>("h2.cms-sl");
+    expect(label?.hasAttribute("id")).toBe(false);
+    expect(label?.querySelector("[data-anchor-alias]")).toBeNull();
+    expect(label?.textContent).toBe("Najnowsze");
+  });
+
+  it("własny selektor konsumenta też nie wciąga etykiety", () => {
+    const root = mount(`${LABEL}<h2>Rozdział</h2>`);
+    expect(scanHeadings(root, { selector: "h2, h3" }).map((i) => i.text)).toEqual(["Rozdział"]);
+    expect(root.querySelector("h2.cms-sl")?.hasAttribute("id")).toBe(false);
+  });
+
+  it("etykieta o tej samej treści nie zajmuje kotwicy właściwego nagłówka", () => {
+    const root = mount(`<h2 class="cms-sl">Wnioski</h2><h2>Wnioski</h2>`);
+    expect(scanHeadings(root).map((i) => i.id)).toEqual(["wnioski"]);
+  });
+});
+
 describe("scanHeadings - opcje konsumentów (widget spisu treści)", () => {
   it("narrows the scan to the requested heading levels", () => {
     const root = mount(`<h1>Jeden</h1><h2>Dwa</h2><h3>Trzy</h3><h4>Cztery</h4>`);

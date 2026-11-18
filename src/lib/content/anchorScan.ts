@@ -20,6 +20,15 @@ export interface ScannedHeading {
 export const HEADING_SELECTOR = "h1, h2, h3, h4, h5";
 
 /**
+ * Klasa tytułu etykiety sekcji buildera (`h2.cms-sl`, sectionLabelVariants).
+ * To nagłówek dla czytników ekranu, ale NIE pozycja spisu treści: dawniej
+ * był to `span`, którego żaden skaner nie widział. Wykluczamy go tu, w
+ * jednym miejscu, więc każdy konsument (pływający spis, widget spisu, dowolny
+ * własny `selector`) zachowuje się jak przed zmianą - bez wpisu i bez `id`.
+ */
+export const SECTION_LABEL_TITLE_CLASS = "cms-sl";
+
+/**
  * Kanoniczna kotwica nagłówka. Re-eksport, żeby konsumenci skanera (i test
  * parytetu międzysilnikowego) nie musieli znać ścieżki do `anchorSlug`.
  */
@@ -76,7 +85,7 @@ export function scanHeadings(
   const skipText = options.skipText?.trim().toLowerCase() ?? "";
   const nodes = Array.from(
     root.querySelectorAll<HTMLElement>(options.selector ?? HEADING_SELECTOR),
-  );
+  ).filter((node) => !node.classList.contains(SECTION_LABEL_TITLE_CLASS));
   const allocator = createAnchorAllocator();
   // Najpierw rezerwujemy WSZYSTKIE istniejące id (także nagłówków wykluczonych
   // i pomijanych), żeby kotwica nadana nagłówkowi bez id nie przechwyciła

@@ -62,8 +62,8 @@ function useTocItems(manual: TocItem[], skipText: string): TocItem[] {
       // Wspólny skaner nadaje brakujące `id` kanonicznym slugifyAnchor,
       // deduplikuje od bazy i dokłada aliasy legacy dla starych `#kotwic`.
       const items = scanHeadings(getScanRoot(), {
-        // Etykieta sekcji (`h2.cms-sl`) nie jest pozycją spisu - jak dawny `span`.
-        selector: "h2:not(.cms-sl), h3",
+        // Etykietę sekcji (`h2.cms-sl`) pomija sam skaner (anchorScan).
+        selector: "h2, h3",
         excludeAncestor: "[data-widget-toc]",
         skipText,
       }).filter(isTocLevel);

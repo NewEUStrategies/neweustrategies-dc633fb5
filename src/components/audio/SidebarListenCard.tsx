@@ -212,11 +212,13 @@ export function SidebarListenCard({
         ].join(" ")}
       />
       {/* Section label + kontrolki: obie są ikonami z tooltipem po najechaniu.
-          `h2`: karta stoi pod `h1` wpisu (`h3` przeskakiwał poziom). */}
+          Celowo `h3`: tag wybiera slot typografii/hover Global Colors
+          (`--gc-h3-*`) i reguły nagłówków widgetów, więc `h2` zmieniłby
+          wygląd karty (np. ciemny hover #f3f4f6 -> #ffffff). */}
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
+        <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
           {copy("label")}
-        </h2>
+        </h3>
         <div className="h-px flex-1 bg-border/60" />
         <TooltipProvider delayDuration={200}>
           {/* Headphones informują o możliwości odsłuchu / narracji AI - ukrywamy

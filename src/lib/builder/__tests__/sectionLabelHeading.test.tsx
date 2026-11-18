@@ -125,3 +125,52 @@ describe("Etykieta sekcji - natywny h2", () => {
     }
   });
 });
+
+describe("Etykieta sekcji - światło tytułu po zmianie opakowania span -> div", () => {
+  // `badge-filled`/`slanted-ribbon-rule`: tytuł dziedziczył `tracking-wider`
+  // (em OPAKOWANIA), a `span` opakowania brał rozmiar ogólny typografii widgetu
+  // (`[data-wt~="fs"]`). `div` już go nie bierze, więc tytuł liczy światło sam,
+  // gdy `--wt-fs` istnieje; bez `fs` deklaracja jest nieważna i światło
+  // dziedziczy jak dawniej. Usunięcie tej kompensacji zmieniłoby wygląd.
+  const COMPENSATED = new Set(["badge-filled", "slanted-ribbon-rule"]);
+  const FS_TRACKING = "calc(var(--tracking-wider) + 0*var(--wt-fs))";
+
+  // HTML z serwera, bo to on niesie styl do przeglądarki - happy-dom odrzuca
+  // `calc(var(...))` przy parsowaniu `style` w renderze klienckim.
+  const ssrTitle = (variant: string, extra: Record<string, unknown> = {}) => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(
+      <SectionLabelRender
+        label="Najnowszy raport"
+        accent="#FA9346"
+        variant={variant as SectionLabelVariant}
+        {...extra}
+      />,
+    );
+    return host.querySelector<HTMLElement>("[data-title-root]");
+  };
+  const styleAttr = (el: HTMLElement | null) =>
+    (el?.getAttribute("style") ?? "").replace(/\s+/g, "");
+
+  it.each([...COMPENSATED])("wariant %s: h2 niesie kompensację światła", (variant) => {
+    const h2 = ssrTitle(variant);
+    expect(h2?.tagName).toBe("H2");
+    expect(styleAttr(h2)).toContain(`letter-spacing:${FS_TRACKING.replace(/\s+/g, "")}`);
+    // Bez `fs` światło dziedziczy z opakowania - ono musi nieść `tracking-wider`.
+    expect(h2?.parentElement?.tagName).toBe("DIV");
+    expect(h2?.parentElement?.classList.contains("tracking-wider")).toBe(true);
+  });
+
+  it.each([...COMPENSATED])("wariant %s: rozmiar sm (span) bez kompensacji", (variant) => {
+    const title = ssrTitle(variant, { size: "sm" });
+    expect(title?.tagName).toBe("SPAN");
+    expect(styleAttr(title)).not.toContain("letter-spacing");
+  });
+
+  it("pozostałe warianty nie dostają kompensacji światła", () => {
+    for (const variant of VARIANTS) {
+      if (COMPENSATED.has(variant)) continue;
+      expect(styleAttr(ssrTitle(variant)), variant).not.toContain("0*var(--wt-fs)");
+    }
+  });
+});

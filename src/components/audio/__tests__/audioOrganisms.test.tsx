@@ -235,11 +235,13 @@ describe("SidebarListenCard", () => {
     }
   });
 
-  it("nagłówek karty to h2 - karta stoi pod h1 wpisu, bez przeskoku poziomu", () => {
+  it("nagłówek karty zostaje h3 - tag wybiera slot typografii/hover Global Colors", () => {
+    // `h2` czytałby `--gc-h2-*` (np. ciemny hover #ffffff zamiast #f3f4f6)
+    // i reguły nagłówków widgetów dla h2 - zmiana wyglądu karty.
     h.player = playerStub({ status: "idle" });
     const { container } = mount();
     const heading = container.querySelector("h1, h2, h3, h4, h5, h6");
-    expect(heading?.tagName).toBe("H2");
+    expect(heading?.tagName).toBe("H3");
     expect(heading).toHaveClass("cms-widget-note");
   });
 
