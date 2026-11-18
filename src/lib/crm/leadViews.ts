@@ -33,7 +33,7 @@ export const LeadFilterSchema = z.object({
   lifecycle: z.enum(LIFECYCLE_STAGES).optional(),
   sourceType: z.enum(CRM_SOURCE_TYPES).optional(),
   tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
-  ownerIds: z.array(z.string().uuid()).max(50).optional(),
+  ownerIds: z.array(z.guid()).max(50).optional(),
 });
 export type LeadFilter = z.infer<typeof LeadFilterSchema>;
 

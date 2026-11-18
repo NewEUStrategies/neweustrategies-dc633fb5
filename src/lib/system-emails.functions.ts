@@ -28,7 +28,7 @@ export const getSystemEmailReport = createServerFn({ method: "GET" })
         page: z.number().int().min(1).max(500).default(1),
         pageSize: z.number().int().min(10).max(100).default(50),
       })
-      .default({})
+      .prefault({})
       .parse(data ?? {}),
   )
   .handler(async ({ data, context }): Promise<SystemEmailReport> => {

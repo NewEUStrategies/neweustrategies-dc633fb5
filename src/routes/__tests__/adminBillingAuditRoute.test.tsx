@@ -11,7 +11,7 @@
 //      podpisany jako komplet.
 //   2. FILTR WYDARZENIA JEST WALIDOWANY PO STRONIE KLIENTA (UUID) - wartość
 //      niepełna NIE jedzie do serwera. Ta reguła istnieje, żeby schemat
-//      `z.string().uuid()` nie odbijał operatora odmową w połowie wpisywania.
+//      `z.guid()` nie odbijał operatora odmową w połowie wpisywania.
 //   3. EKSPORT POWSTAJE Z BASE64 BEZ POŚREDNICTWA SIECI. Plik składa się w
 //      przeglądarce; utrata typu MIME albo nazwy oznacza plik, którego arkusz
 //      księgowy nie otworzy.
@@ -317,7 +317,7 @@ describe("trasa /admin/billing-audit - zakres pytania", () => {
 
   it("niepełny identyfikator wydarzenia nie jedzie do serwera", async () => {
     // Walidacja po stronie klienta istnieje po to, żeby schemat
-    // `z.string().uuid()` nie odbijał operatora odmową w połowie wpisywania.
+    // `z.guid()` nie odbijał operatora odmową w połowie wpisywania.
     await mount();
 
     fireEvent.change(auditEventFilter(), { target: { value: "3f2504e0-4f89" } });

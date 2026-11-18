@@ -100,10 +100,10 @@ const ListSchema = z.object({
   page: z.number().int().min(1).max(400).default(1),
 });
 
-const TargetSchema = z.object({ userId: z.string().uuid() });
+const TargetSchema = z.object({ userId: z.guid() });
 
 const GrantSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.guid(),
   tierKey: z.string().trim().min(1).max(64),
   /** `null` = bezterminowo. */
   months: z.number().int().min(1).max(120).nullable().default(null),
@@ -571,7 +571,7 @@ export const setMemberTier = createServerFn({ method: "POST" })
  */
 export const revokeMemberTier = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: unknown) => z.object({ grantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ grantId: z.guid() }).parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true; crmSynced: boolean }> => {
     const { error } = await (context.supabase as unknown as RpcCallable).rpc(
       "admin_membership_grant_revoke",
@@ -619,7 +619,7 @@ export const syncMembersWithCrm = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        cursor: z.string().uuid().nullable().default(null),
+        cursor: z.guid().nullable().default(null),
         batchSize: z.number().int().min(1).max(100).default(25),
       })
       .parse(input ?? {}),

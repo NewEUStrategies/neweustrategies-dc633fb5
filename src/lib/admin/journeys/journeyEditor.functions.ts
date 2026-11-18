@@ -385,7 +385,7 @@ export function toJourneyVersion(
   };
 }
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 
 const DEFINITION_COLUMNS =
   "id, key, name, description, status, category, legal_basis, template_key, draft, published_version_id, created_at, updated_at";

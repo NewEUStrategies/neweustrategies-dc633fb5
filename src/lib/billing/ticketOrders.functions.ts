@@ -22,7 +22,7 @@ export const listTicketOrders = createServerFn({ method: "GET" })
 
 export const getTicketOrderHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ orderId: z.guid() }).parse(input))
   .handler(async ({ data, context }): Promise<TicketOrderHistoryEntry[]> =>
     loadTicketOrderHistory(context.supabase, data.orderId),
   );

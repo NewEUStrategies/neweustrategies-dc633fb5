@@ -41,7 +41,7 @@ export type ClubApplicationNotifyResult =
   | { ok: false; error: string };
 
 const Input = z.object({
-  applicationId: z.string().uuid(),
+  applicationId: z.guid(),
   status: z.enum(NOTIFIABLE_STATUSES),
 });
 

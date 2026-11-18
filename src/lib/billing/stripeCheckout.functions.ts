@@ -29,7 +29,7 @@ const localeSchema = z.enum(CHECKOUT_LOCALES);
 // pozycja planu = odmowa `plan_price_mismatch`, nigdy źródło ceny), a
 // `quantity` to dawna nazwa `seats` - obie liczą się tylko dla planu za miejsce.
 const planCheckoutSchema = z.object({
-  planId: z.string().uuid(),
+  planId: z.guid(),
   // Liczba miejsc - honorowana WYŁĄCZNIE dla wpisów katalogu `perSeat`
   // (ta sama semantyka co `seats` w `checkout.functions.ts`).
   seats: z.number().int().min(1).max(100).optional(),
@@ -373,8 +373,8 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
 const adhocCheckoutSchema = z.object({
   purpose: z.enum(["content_unlock", "event_ticket"]),
   entityType: z.enum(["post", "page"]).optional(),
-  entityId: z.string().uuid().optional(),
-  eventId: z.string().uuid().optional(),
+  entityId: z.guid().optional(),
+  eventId: z.guid().optional(),
   returnUrl: z.string().url(),
   environment: envSchema.optional(),
   locale: localeSchema.optional(),

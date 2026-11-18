@@ -20,8 +20,8 @@ import { clientIpFromHeaders } from "@/lib/http/rateLimit";
 import { normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
 const BodySchema = z.object({
-  sourcePostId: z.string().uuid(),
-  targetPostId: z.string().uuid(),
+  sourcePostId: z.guid(),
+  targetPostId: z.guid(),
 });
 
 // Adres z JEDYNEJ definicji „kto dzwoni" (`clientIpFromHeaders`) - pierwszy wpis

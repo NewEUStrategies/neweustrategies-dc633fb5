@@ -35,9 +35,9 @@ type CrmAdmin = SupabaseClient<Omit<Database, "public"> & { public: CrmSchema }>
 const syncResult = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("synced"),
-    leadId: z.string().uuid(),
+    leadId: z.guid(),
     stage: z.string(),
-    companyId: z.string().uuid().nullable(),
+    companyId: z.guid().nullable(),
     companyName: z.string().nullable(),
     companyCreated: z.boolean(),
   }),

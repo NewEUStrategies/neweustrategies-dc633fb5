@@ -153,7 +153,7 @@ const ListLinksInput = z.object({
   limit: z.number().int().min(1).max(200).default(50),
   offset: z.number().int().min(0).default(0),
   status: z.enum(["all", "active", "revoked", "expired"]).default("all"),
-  post_id: z.string().uuid().nullish(),
+  post_id: z.guid().nullish(),
 });
 
 export const listGiftLinksAdmin = createServerFn({ method: "POST" })
@@ -171,7 +171,7 @@ export const listGiftLinksAdmin = createServerFn({ method: "POST" })
     return { rows: list, total: list.length > 0 ? Number(list[0].total_count) : 0 };
   });
 
-const RevokeInput = z.object({ link_id: z.string().uuid() });
+const RevokeInput = z.object({ link_id: z.guid() });
 
 export const revokeGiftLinkAdmin = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
@@ -213,7 +213,7 @@ const ListEventsInput = z.object({
   event_type: z
     .enum(["all", "created", "redeemed", "revoked", "expired", "exhausted"])
     .default("all"),
-  link_id: z.string().uuid().nullish(),
+  link_id: z.guid().nullish(),
 });
 
 export const listGiftEventsAdmin = createServerFn({ method: "POST" })

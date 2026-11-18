@@ -52,7 +52,7 @@ export type TicketResendResult =
   | { ok: false; error: string };
 
 const Input = z.object({
-  registrationId: z.string().uuid(),
+  registrationId: z.guid(),
   includeGroup: z.boolean().default(true),
 });
 

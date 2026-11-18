@@ -123,7 +123,7 @@ export const listCrmCompanies = createServerFn({ method: "POST" })
     return { json: j(enriched) };
   });
 
-const IdInput = z.object({ id: z.string().uuid() });
+const IdInput = z.object({ id: z.guid() });
 
 export const getCrmCompany = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -242,7 +242,7 @@ const SocialLinksInput = z
   });
 
 const UpdateInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   name: z.string().trim().min(1).max(200).optional(),
   domain: z.string().trim().max(200).nullable().optional(),
   country: z.string().trim().max(120).nullable().optional(),
@@ -389,7 +389,7 @@ export const createCrmCompany = createServerFn({ method: "POST" })
 
 // ---- Dodawanie kontaktu (lead) powiązanego z firmą ----------------------
 const CreateContactInput = z.object({
-  company_id: z.string().uuid(),
+  company_id: z.guid(),
   email: z.string().trim().toLowerCase().email().max(200),
   first_name: z.string().trim().max(100).optional().nullable(),
   last_name: z.string().trim().max(100).optional().nullable(),
@@ -445,7 +445,7 @@ export const createCrmContactForCompany = createServerFn({ method: "POST" })
 
 // ---- Notatka na poziomie firmy (przez audit_log, brak dedykowanej tabeli) ---
 const NoteInput = z.object({
-  company_id: z.string().uuid(),
+  company_id: z.guid(),
   body: z.string().trim().min(1).max(4000),
 });
 
@@ -575,7 +575,7 @@ export const getCrmCompanyActivity = createServerFn({ method: "POST" })
 // ============ Bulk operations ============
 
 const BulkUpdateInput = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(500),
+  ids: z.array(z.guid()).min(1).max(500),
   country: z.string().trim().max(120).nullable().optional(),
   branch: z.string().trim().max(200).nullable().optional(),
 });
@@ -602,7 +602,7 @@ export const bulkUpdateCrmCompanies = createServerFn({ method: "POST" })
     return { ok: true, updated: ids.length };
   });
 
-const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
+const BulkDeleteInput = z.object({ ids: z.array(z.guid()).min(1).max(200) });
 
 export const bulkDeleteCrmCompanies = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])

@@ -35,7 +35,7 @@ import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 // visitorId: crypto.randomUUID() albo fallback base36 z getVisitorId() -
 // oba mieszczą się w [a-z0-9-]{8,64}.
 const BodySchema = z.object({
-  experimentId: z.string().uuid(),
+  experimentId: z.guid(),
   variant: z.enum(["a", "b"]),
   event: z.enum(["exposure", "conversion"]),
   visitorId: z.string().regex(/^[a-z0-9-]{8,64}$/i),

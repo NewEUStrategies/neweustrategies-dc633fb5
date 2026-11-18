@@ -37,12 +37,12 @@ import {
 } from "@/lib/organizations/teamSeats";
 
 const seatsSchema = z.object({
-  org_id: z.string().uuid(),
+  org_id: z.guid(),
   seats: z.number().int().min(MIN_TEAM_SEATS).max(MAX_TEAM_SEATS),
 });
 
 const linkSchema = z.object({
-  org_id: z.string().uuid(),
+  org_id: z.guid(),
   subscription_id: z
     .string()
     .trim()
@@ -272,7 +272,7 @@ export const linkTeamSubscription = createServerFn({ method: "POST" })
  */
 export const reconcileTeamSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ org_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ org_id: z.guid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { data: org } = await supabase
@@ -301,7 +301,7 @@ export const setTeamSeatGraceDays = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        org_id: z.string().uuid(),
+        org_id: z.guid(),
         days: z.number().int().min(MIN_GRACE_DAYS).max(MAX_GRACE_DAYS),
       })
       .parse(input),
@@ -347,7 +347,7 @@ export const setTeamSeatGraceReminderDays = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        org_id: z.string().uuid(),
+        org_id: z.guid(),
         days: z
           .array(z.number().int().min(MIN_REMINDER_DAY).max(MAX_REMINDER_DAY))
           .max(MAX_REMINDER_SLOTS),

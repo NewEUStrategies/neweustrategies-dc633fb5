@@ -9,6 +9,7 @@
 //   - is rate-limited per user
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { patchSchema } from "@/lib/validation/patchSchema";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { postDocumentPaths } from "@/lib/http/documentCache";
 import { requireStaff } from "@/integrations/supabase/require-staff";
@@ -274,7 +275,7 @@ async function captureAutoRedirect(
 
 // ---------- shared schemas ----------
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 // Posts carry the full editorial workflow; pages keep the simple lifecycle.
 const PostStatus = z.enum(POST_STATUSES);
 const PageStatus = z.enum(["draft", "published", "scheduled", "archived"]);
@@ -345,7 +346,7 @@ const OrganizationBlock = {
 // src/lib/content/sponsored.ts + migracja 20260817090000.
 //
 // Kompletności deklaracji NIE da się sprawdzić na poziomie tego schematu:
-// `updatePost` przyjmuje PostCore.partial(), więc autozapis potrafi przysłać
+// `updatePost` przyjmuje patchSchema(PostCore), więc autozapis potrafi przysłać
 // samo `is_sponsored: true`, a reklamodawca siedzi już w wierszu. Reguła
 // dwuczęściowa (UOKiK) dotyczy STANU PO ZAPISIE, dlatego bramka stoi w
 // handlerze `updatePost`, na scaleniu `existing` z patchem (szukaj
@@ -588,7 +589,7 @@ export const updatePost = createServerFn({ method: "POST" })
     z
       .object({
         id: UUID,
-        fields: PostCore.partial(),
+        fields: patchSchema(PostCore),
         categories: z.array(UUID).max(50).optional(),
         tags: z.array(UUID).max(50).optional(),
         programs: z.array(UUID).max(50).optional(),
@@ -696,7 +697,7 @@ export const updatePost = createServerFn({ method: "POST" })
       // nikogo nie wprowadza w błąd - opublikowana wprowadza, i dokładnie tam
       // stoi bramka.
       //
-      // Liczy się STAN PO ZAPISIE, nie sam patch: PostCore.partial() pozwala
+      // Liczy się STAN PO ZAPISIE, nie sam patch: patchSchema(PostCore) pozwala
       // przysłać samo `is_sponsored: true`, gdy reklamodawca jest już w wierszu
       // (i odwrotnie - wyczyszczenie nazwy przy włączonej fladze też musi oblać).
       // Dlatego scalamy `existing` z patchem.
@@ -1326,7 +1327,7 @@ export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((i: unknown) =>
     z
-      .object({ id: UUID, fields: PageCore.partial(), baseUpdatedAt: z.string().optional() })
+      .object({ id: UUID, fields: patchSchema(PageCore), baseUpdatedAt: z.string().optional() })
       .parse(i),
   )
   .handler(async ({ data, context }) => {

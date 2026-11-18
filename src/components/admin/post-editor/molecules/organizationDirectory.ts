@@ -20,7 +20,7 @@ import { z } from "zod";
  * wyjątek w środku dialogu ani `as` zdejmujący kontrolę typów.
  */
 export const organizationRowSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   name: z.string(),
   website: z.string().nullable(),
   logo_url: z.string().nullable(),

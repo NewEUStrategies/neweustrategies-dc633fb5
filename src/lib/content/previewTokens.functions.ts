@@ -8,7 +8,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import { rateLimit } from "@/lib/server/rate-limit.server";
 import type { Database, Json } from "@/integrations/supabase/types";
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 
 /** 24 losowe bajty w base64url - nieodgadywalny, krótki w URL. */
 function generateToken(): string {

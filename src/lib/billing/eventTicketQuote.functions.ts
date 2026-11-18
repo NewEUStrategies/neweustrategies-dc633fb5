@@ -16,9 +16,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { EventTicketQuote } from "@/lib/billing/eventTicketPricing.server";
 
 const quoteSchema = z.object({
-  event_id: z.string().uuid(),
-  ticket_type_id: z.string().uuid(),
-  registration_id: z.string().uuid().nullable().optional(),
+  event_id: z.guid(),
+  ticket_type_id: z.guid(),
+  registration_id: z.guid().nullable().optional(),
   coupon_code: z.string().trim().max(64).optional(),
   access_code: z.string().trim().max(64).optional(),
 });

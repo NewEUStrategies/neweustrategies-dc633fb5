@@ -90,14 +90,14 @@ const Input = z
     jobTitle: text(LIMITS.jobTitle).nullable().optional(),
     companyText: text(LIMITS.companyText).nullable().optional(),
     socialProfileUrl: text(LIMITS.socialProfileUrl).nullable().optional(),
-    ticketTypeId: z.string().uuid().nullable().optional(),
+    ticketTypeId: z.guid().nullable().optional(),
     accessCode: code(LIMITS.code).nullable().optional(),
     revealCode: code(LIMITS.code).nullable().optional(),
     answers: z
       .array(z.object({ key: z.string().max(200), value: answerValue }).strict())
       .max(200)
       .optional(),
-    acceptedTermIds: z.array(z.string().uuid()).max(100).optional(),
+    acceptedTermIds: z.array(z.guid()).max(100).optional(),
     consentDataProcessing: z.boolean(),
     consentMarketing: z.boolean().optional(),
     consentPartnerSharing: z.boolean().optional(),

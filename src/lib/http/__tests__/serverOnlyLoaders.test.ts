@@ -6,7 +6,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// `vitest.setup.ts` podmienia loadery globalnie (semantyka poza kompilatorem Start);
+// ten plik sprawdza PRAWDZIWY moduł.
+vi.unmock("../serverOnlyLoaders");
 
 const ROOT = join(__dirname, "../../../..");
 const read = (file: string): string => readFileSync(join(ROOT, file), "utf8");

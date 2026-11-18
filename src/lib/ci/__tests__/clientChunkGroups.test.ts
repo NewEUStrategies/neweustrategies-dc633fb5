@@ -362,7 +362,9 @@ describe("clientChunkGroups - zasada priorytetów na zainstalowanym grafie", () 
 
   it("moduły grup aplikacji importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
     const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
-    expect([...Object.keys(APP_GROUP_MODULES), ...Object.keys(DICTIONARY_GROUP_MODULES)].sort()).toEqual(
+    expect(
+      [...Object.keys(APP_GROUP_MODULES), ...Object.keys(DICTIONARY_GROUP_MODULES)].sort(),
+    ).toEqual(
       PATH_GROUPS.filter(
         (group) =>
           (group.priority ?? 0) <= CHUNK_PRIORITY.app &&

@@ -97,7 +97,7 @@ export const requestNewsletterMeasurement = createServerFn({ method: "POST" })
 
 export const getCampaignMeasurement = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
-  .validator((input: unknown) => z.object({ campaignId: z.string().uuid() }).strict().parse(input))
+  .validator((input: unknown) => z.object({ campaignId: z.guid() }).strict().parse(input))
   .handler(async ({ data, context }): Promise<DataRetentionRead<CampaignMeasurementDto>> => {
     const { data: raw, error } = await asRpc(context.supabase).rpc(
       "admin_newsletter_campaign_measurement",

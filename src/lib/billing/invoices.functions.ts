@@ -14,7 +14,7 @@ const localeSchema = z.enum(["pl", "en"]);
 export const generateMyInvoicePdf = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: { documentId: string; locale: "pl" | "en" }) =>
-    z.object({ documentId: z.string().uuid(), locale: localeSchema }).parse(data),
+    z.object({ documentId: z.guid(), locale: localeSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { buildInvoicePdf } = await import("@/lib/billing/invoiceDocument.server");

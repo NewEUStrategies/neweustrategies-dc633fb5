@@ -34,7 +34,7 @@ import { z } from "zod";
 
 const FeaturedSectionInput = z.object({
   kind: z.enum(["category", "tag"]),
-  termId: z.string().uuid(),
+  termId: z.guid(),
 });
 
 /** Dokument sekcji kreatora - obiekt z `kind: "section"`; nic innego nie wychodzi. */

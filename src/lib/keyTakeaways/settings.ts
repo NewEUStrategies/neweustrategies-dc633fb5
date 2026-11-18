@@ -40,7 +40,7 @@ export const KeyTakeawaysSettingsSchema = z
         sizeScale: z.number().min(0.5).max(3).default(1),
         offsetY: z.number().min(-200).max(200).default(0),
       })
-      .default({}),
+      .prefault({}),
     colors: z
       .object({
         bg: COLOR.default("#fff4ea"),
@@ -56,9 +56,9 @@ export const KeyTakeawaysSettingsSchema = z
         borderDark: COLOR.default("transparent"),
         borderWidth: z.number().min(0).max(8).default(0),
       })
-      .default({}),
+      .prefault({}),
   })
-  .default({});
+  .prefault({});
 
 export type KeyTakeawaysSettings = z.infer<typeof KeyTakeawaysSettingsSchema>;
 

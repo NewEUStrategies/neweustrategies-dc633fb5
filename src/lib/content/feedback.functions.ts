@@ -14,9 +14,7 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 export const submitPostFeedback = createServerFn({ method: "POST" })
-  .validator((i: unknown) =>
-    z.object({ postId: z.string().uuid(), helpful: z.boolean() }).parse(i ?? {}),
-  )
+  .validator((i: unknown) => z.object({ postId: z.guid(), helpful: z.boolean() }).parse(i ?? {}))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ resolveTenantIdForHost }, { currentTenantHost }, { rateLimit }] = await Promise.all([

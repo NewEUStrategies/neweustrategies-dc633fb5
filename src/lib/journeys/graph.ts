@@ -114,7 +114,7 @@ export const NODE_PARAMS_SCHEMAS = {
       dueInDays: z.number().int().min(0).max(JOURNEY_LIMITS.taskDueDaysMax),
       assignee: z.union([
         z.object({ mode: z.literal("owner_or_default") }).strict(),
-        z.object({ mode: z.literal("user"), userId: z.string().uuid() }).strict(),
+        z.object({ mode: z.literal("user"), userId: z.guid() }).strict(),
       ]),
     })
     .strict(),
@@ -128,7 +128,7 @@ export const NODE_PARAMS_SCHEMAS = {
       recipients: z.union([
         z.literal("owner"),
         z.literal("admins"),
-        z.object({ userIds: z.array(z.string().uuid()).min(1).max(20) }).strict(),
+        z.object({ userIds: z.array(z.guid()).min(1).max(20) }).strict(),
       ]),
       message: z.string().trim().min(1).max(JOURNEY_LIMITS.staffMessageMax),
     })
@@ -143,7 +143,7 @@ export const JourneyNodeSchema = z
   .object({
     id: z.string().regex(NODE_ID_RE),
     type: z.enum(JOURNEY_NODE_TYPES),
-    params: z.unknown(),
+    params: z.unknown().optional(),
     /** Pozycja na kanwie (S8) - silnik jej nie czyta. */
     position: z.object({ x: z.number(), y: z.number() }).strict().optional(),
   })

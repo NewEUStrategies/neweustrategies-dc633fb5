@@ -30,7 +30,7 @@ export const megaConfigSchema = z.object({
   columns_per_row: z.number().int().min(1).max(6).default(4),
   width: z.enum(["container", "full"]).default("container"),
   columns: z.array(megaColumnSchema).max(12).default([]),
-  featured_post_id: z.string().uuid().nullable().default(null),
+  featured_post_id: z.guid().nullable().default(null),
 });
 export type MegaConfig = z.infer<typeof megaConfigSchema>;
 
@@ -60,7 +60,7 @@ export const menuItemInputSchema = /* @__PURE__ */ (() =>
     parent_local_id: z.string().min(1).max(64).nullable(),
     position: z.number().int().min(0).max(9999),
     item_type: z.enum(MENU_ITEM_TYPES),
-    ref_id: z.string().uuid().nullable(),
+    ref_id: z.guid().nullable(),
     label_pl: z.string().trim().min(1).max(200),
     label_en: z.string().trim().max(200).default(""),
     href: z.string().trim().max(1000).default(""),

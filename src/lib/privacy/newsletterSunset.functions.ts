@@ -83,7 +83,7 @@ export const getDataRetentionNewsletterDue = createServerFn({ method: "POST" })
 export const NewsletterExclusionSchema = /* @__PURE__ */ (() =>
   z
     .object({
-      subscriberId: z.string().uuid(),
+      subscriberId: z.guid(),
       reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {
         message: "reason_length",
       }),

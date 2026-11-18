@@ -110,8 +110,10 @@ export function buildSpeculationRules(): SpeculationRuleSet {
           and: [
             ...baseConditions(),
             { selector_matches: PROSE_LINK_SELECTOR },
-            { not: { selector_matches: "[target]" } },
-            { not: { selector_matches: "[download]" } },
+            // Jedna lista selektorów zamiast dwóch warunków `not`: ta sama
+            // semantyka (element pasujący do któregokolwiek jest pomijany),
+            // -45 B w `<head>` każdego dokumentu.
+            { not: { selector_matches: "[target],[download]" } },
           ],
         },
         eagerness: "moderate",

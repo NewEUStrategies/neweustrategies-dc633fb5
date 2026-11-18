@@ -12,7 +12,7 @@ import { rateLimit } from "./server/rate-limit.server";
 import { pickRestorableFields, pickRevisionSnapshot } from "./content/revisions";
 import { PRE_RESTORE_NOTE, projectRevisionList } from "./revisions/listProjection";
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 const EntityType = z.enum(["post", "page"]);
 
 async function resolveTenant(supabase: SupabaseClient<Database>, userId: string): Promise<string> {

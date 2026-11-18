@@ -37,7 +37,7 @@ const runSchema = z
   .object({
     mode: z.enum(["preview", "execute"]).default("preview"),
     /** `subscriptions.id` ostatniego wiersza poprzedniej partii. */
-    cursor: z.string().uuid().nullable().optional(),
+    cursor: z.guid().nullable().optional(),
     batchSize: z.number().int().min(1).max(50).optional(),
     /** Podpowiedź dla środowiska deweloperskiego - w produkcji zawsze `live`. */
     environment: z.enum(["sandbox", "live"]).optional(),

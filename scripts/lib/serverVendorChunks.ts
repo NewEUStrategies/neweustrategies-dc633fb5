@@ -17,9 +17,11 @@
 //
 // CO ROBI. Dwie grupy z priorytetem wyższym niż grupa Nitro (0): Rolldown przydziela im moduły
 // PIERWSZYM, więc grupa SDK MCP nie ma już czego zabrać. `zod` zawężony do wejścia paczki
-// i katalogu `v3` - tego używa aplikacja (`zod/index.js` eksportuje `./v3/external.js`);
-// `zod/v4` i `zod/v4-mini` importuje wyłącznie SDK MCP i zostają przy nim. Ta sama funkcja
-// w obu presetach (parytet: src/lib/ci/__tests__/viteChunkParity.test.ts).
+// i tego, co ono ciągnie: od zod 4 `zod/index.js` eksportuje `./v4/classic/external.js`,
+// a ten moduł sięga do `v4/core` i `v4/locales` (do 3.x było to `./v3/external.js`).
+// `zod/v4/index.js`, `zod/v4-mini`, `zod/v4/mini` i `zod/v3` importuje wyłącznie SDK MCP
+// i zostają przy nim. Ta sama funkcja w obu presetach (parytet:
+// src/lib/ci/__tests__/viteChunkParity.test.ts).
 //
 // CZEGO NIE ZMIENIA. Zestaw modułów w artefakcie i ich kod są te same - zmienia się tylko to,
 // w którym pliku `_libs/` leżą. Bundel przeglądarki i środowisko `ssr` nie są dotykane
@@ -46,7 +48,7 @@ export interface ServerVendorGroup {
 export const SERVER_BASELINE_VENDOR_GROUPS: readonly ServerVendorGroup[] = [
   {
     name: "_libs/zod",
-    test: /[\\/]node_modules[\\/]zod[\\/](?:index\.js$|v3[\\/])/,
+    test: /[\\/]node_modules[\\/]zod[\\/](?:index\.js$|v4[\\/](?:classic|core|locales)[\\/])/,
     priority: 10,
   },
   {

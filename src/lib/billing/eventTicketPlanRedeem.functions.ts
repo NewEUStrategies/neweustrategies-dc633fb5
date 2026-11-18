@@ -12,9 +12,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { PlanTicketRedeemResult } from "@/lib/billing/eventTicketPlanRedeem.server";
 
 const redeemSchema = z.object({
-  event_id: z.string().uuid(),
-  ticket_type_id: z.string().uuid(),
-  registration_id: z.string().uuid(),
+  event_id: z.guid(),
+  ticket_type_id: z.guid(),
+  registration_id: z.guid(),
   access_code: z.string().trim().max(64).optional(),
 });
 

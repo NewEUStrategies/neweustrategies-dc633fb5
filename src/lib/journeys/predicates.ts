@@ -52,7 +52,7 @@ export const PREDICATE_SUBSCRIPTION_STATUSES = [
 ] as const;
 
 const NODE_ID = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
-const UUID = z.string().uuid();
+const UUID = z.guid();
 const EVENT_TYPE = z.string().regex(/^[a-z0-9_]+(\.[a-z0-9_]+)+\.v[0-9]+$/);
 const WITHIN_HOURS = z.number().int().min(1).max(8760);
 const SHORT_TEXT = z.string().trim().min(1).max(64);

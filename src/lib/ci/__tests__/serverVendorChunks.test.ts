@@ -24,26 +24,30 @@ const grupa = (name: string) => {
 };
 
 describe("serverVendorChunks - paczki bazowe dokumentu poza chunkiem SDK MCP", () => {
-  it("grupa `zod` bierze wejście paczki i katalog `v3`, na obu separatorach ścieżek", () => {
+  it("grupa `zod` bierze wejście paczki i katalogi `v4/classic|core|locales`, na obu separatorach", () => {
     const { test } = grupa("_libs/zod");
     for (const id of [
       "/repo/node_modules/zod/index.js",
-      "/repo/node_modules/zod/v3/types.js",
-      "/repo/node_modules/zod/v3/helpers/util.js",
-      "C:\\repo\\node_modules\\zod\\v3\\ZodError.js",
+      "/repo/node_modules/zod/v4/classic/external.js",
+      "/repo/node_modules/zod/v4/classic/schemas.js",
+      "/repo/node_modules/zod/v4/core/schemas.js",
+      "/repo/node_modules/zod/v4/locales/en.js",
+      "C:\\repo\\node_modules\\zod\\v4\\core\\errors.js",
     ]) {
       expect(test.test(id), id).toBe(true);
     }
   });
 
-  it("`zod/v4`, `zod/v4-mini` i paczki o podobnej nazwie zostają przy SDK MCP", () => {
+  it("`zod/v4`, `zod/v4-mini`, `zod/v4/mini`, `zod/v3` i paczki o podobnej nazwie zostają przy SDK MCP", () => {
     // SDK importuje `zod/v4`, `zod/v4-mini` i `zod-to-json-schema`; aplikacja ich nie używa.
     // W grupie bazowej ewaluowałyby się przy każdym pierwszym dokumencie zimnego izolatu.
     const { test } = grupa("_libs/zod");
     for (const id of [
-      "/repo/node_modules/zod/v4/core/schemas.js",
       "/repo/node_modules/zod/v4-mini/index.js",
+      "/repo/node_modules/zod/v4/mini/schemas.js",
       "/repo/node_modules/zod/v4/index.js",
+      "/repo/node_modules/zod/v3/types.js",
+      "/repo/node_modules/zod/mini/index.js",
       "/repo/node_modules/zod-to-json-schema/dist/esm/index.js",
       "/repo/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js",
       "/repo/src/lib/zod/index.js",
@@ -52,13 +56,16 @@ describe("serverVendorChunks - paczki bazowe dokumentu poza chunkiem SDK MCP", (
     }
   });
 
-  it("wejście zainstalowanej paczki `zod` eksportuje wyłącznie `./v3/external.js`", () => {
-    // Założenie wzorca: `import … from "zod"` w `src/` kończy się w `zod/v3`. Wersja paczki,
-    // która przepnie wejście na v4, zapali ten test, zanim grupa zacznie łapać nie ten kod.
+  it("wejście zainstalowanej paczki `zod` eksportuje wyłącznie `./v4/classic/external.js`", () => {
+    // Założenie wzorca: `import … from "zod"` w `src/` kończy się w `zod/v4/classic`. Wersja
+    // paczki, która przepnie wejście gdzie indziej, zapali ten test, zanim grupa zacznie
+    // łapać nie ten kod.
     const entry = readFileSync(resolve(process.cwd(), "node_modules/zod/index.js"), "utf8");
-    const specifiers = [...entry.matchAll(/from\s*["']([^"']+)["']/g)].map((match) => match[1]);
+    // Komentarze wycięte: zod 4.6 opisuje w nich `import z from "zod"`, co nie jest importem.
+    const code = entry.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const specifiers = [...code.matchAll(/from\s*["']([^"']+)["']/g)].map((match) => match[1]);
     expect(specifiers.length).toBeGreaterThan(0);
-    expect([...new Set(specifiers)]).toEqual(["./v3/external.js"]);
+    expect([...new Set(specifiers)]).toEqual(["./v4/classic/external.js"]);
   });
 
   it("grupa `unenv` bierze całą paczkę polyfilli, nie paczki o wspólnym przedrostku", () => {

@@ -17,7 +17,7 @@ import type { AuditExport, AuditReport } from "@/lib/billing/audit.server";
 const querySchema = z.object({
   environment: z.enum(["sandbox", "live"]),
   sinceHours: z.number().int().min(1).max(8760).default(168),
-  eventId: z.string().uuid().nullable().optional(),
+  eventId: z.guid().nullable().optional(),
 });
 
 const exportSchema = querySchema.extend({

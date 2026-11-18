@@ -44,10 +44,7 @@
 // i18n: brak treści dla użytkownika - kod biblioteki.
 
 /** `_.extend` z underscore: klucze własne i dziedziczone (`for...in`). */
-function extendIn(
-  target: Record<string, unknown>,
-  ...sources: unknown[]
-): Record<string, unknown> {
+function extendIn(target: Record<string, unknown>, ...sources: unknown[]): Record<string, unknown> {
   for (const source of sources) {
     if (source !== null && (typeof source === "object" || typeof source === "function")) {
       for (const key in source) target[key] = (source as Record<string, unknown>)[key];

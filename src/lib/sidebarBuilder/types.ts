@@ -50,7 +50,7 @@ const widgetSchema = z.object({
   id: z.string().min(1),
   type: z.enum(["reading-panel", "tags", "author-card", "related-posts", "newsletter", "ad-slot"]),
   hidden: z.boolean().optional(),
-  settings: z.record(z.unknown()).default({}),
+  settings: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const widgetsArraySchema = z.array(widgetSchema).max(40);

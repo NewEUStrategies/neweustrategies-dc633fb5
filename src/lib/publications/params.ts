@@ -25,7 +25,7 @@ export const PublicationsParams = z.object({
   // warianty tej samej treści w cache i w indeksie. Zła strona nie oblewa
   // walidacji (jak nieznany `sort`) - adres z ręcznie wpisanym `?page=abc` ma
   // otworzyć bibliotekę, nie ekran błędu.
-  page: z.unknown().transform((raw) => parsePageSearch({ page: raw }).page),
+  page: z.unknown().optional().transform((raw) => parsePageSearch({ page: raw }).page),
 });
 
 export type PublicationsInput = z.infer<typeof PublicationsParams>;

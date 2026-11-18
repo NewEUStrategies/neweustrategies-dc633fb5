@@ -63,7 +63,7 @@ function client(): ReturnType<typeof createAnonClient> {
 }
 
 const recordSchema = z.object({
-  postId: z.string().uuid(),
+  postId: z.guid(),
   viewerHash: z.string().min(16).max(64),
 });
 
@@ -239,8 +239,8 @@ const tickerSchema = z.object({
   source: z.enum(["latest", "pinned", "selected", "mixed"]),
   limit: z.number().int().min(1).max(50).default(8),
   days: z.number().int().min(1).max(90).optional(),
-  pinnedPostId: z.string().uuid().optional(),
-  selectedPostIds: z.array(z.string().uuid()).max(3).optional(),
+  pinnedPostId: z.guid().optional(),
+  selectedPostIds: z.array(z.guid()).max(3).optional(),
   mixedFill: z.enum(["trending", "latest"]).optional(),
 });
 
