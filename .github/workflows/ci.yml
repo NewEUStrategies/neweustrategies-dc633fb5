@@ -352,6 +352,28 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
+      # Zgodność HTML (Nu Html Checker, vnu przypięty w skrypcie) na tym samym
+      # artefakcie z backendem fixture: `/`, archiwum i wpis. WYŁĄCZNIE RAPORT -
+      # `continue-on-error`, poza `Required release checks`; znane odstępstwa
+      # i dług opisuje scripts/performance/html-conformance-allowlist.json.
+      # Ocena zmiany = kolumna NOWE w logu i raport w artefakcie `html-conformance`.
+      - name: HTML conformance report (vnu, non-blocking)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          java -version
+          bun run check:html-conformance --root . --path / --path /blog --path /blog/fixture-2 --json reports/html-conformance.json
+
+      - name: Upload HTML conformance report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: html-conformance
+          path: reports/html-conformance.json
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload artifact boot report
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
