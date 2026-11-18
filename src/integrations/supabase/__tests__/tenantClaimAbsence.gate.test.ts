@@ -132,12 +132,23 @@ describe("brak claimu tenant_id - hook i jego czytelnicy", () => {
       ),
     );
     expect(offenders).toEqual([]);
-  });
+    // Pełny odczyt i odkomentowanie ok. 1,4 tys. migracji: sam plik trwa
+    // ok. 5 s, a pod równoległością całej suity przekraczał domyślne 20 s.
+    // Wstępnego filtra tu nie ma, bo usunięcie komentarza SQL może SKLEIĆ
+    // sygnaturę `(event jsonb)` - surowe źródło nie jest bezpiecznym sitem.
+  }, 60_000);
 
   it("żaden kod ani fixture nie wyprowadza najemcy z claimów tokenu", () => {
-    const offenders = scanned.flatMap((file) =>
-      hits(file, maskComments(readFileSync(file, "utf8")), TENANT_FROM_CLAIMS, true),
-    );
+    // Wstępny filtr na surowym źródle, zanim zapłacimy za `maskComments`
+    // (znak po znaku, ok. 4 tys. plików - pod obciążeniem suity przekraczało
+    // to limit 20 s). Wynik jest identyczny: maskowanie zamienia znaki na
+    // spacje i zostawia podziały linii, więc może trafienie tylko ZDJĄĆ,
+    // nigdy dodać. Plik bez trafienia w surowej postaci nie ma go też po masce.
+    const offenders = scanned.flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      if (!TENANT_FROM_CLAIMS.test(source)) return [];
+      return hits(file, maskComments(source), TENANT_FROM_CLAIMS, true);
+    });
     expect(offenders).toEqual([]);
   });
 });

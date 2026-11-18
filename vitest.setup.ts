@@ -2,6 +2,13 @@ import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/react";
 import { vi } from "vitest";
 
+import { isolateHostSecrets } from "./src/test/hostSecretIsolation";
+
+// Ten sam przebieg co CI: bez sekretów hosta w `process.env` (szczegóły i
+// powód: `src/test/hostSecretIsolation.ts`). Zanim jakikolwiek plik testowy
+// wczyta moduł, który czyta klucz przy imporcie.
+isolateHostSecrets(process.env);
+
 // LIMIT NARZĘDZI ASYNCHRONICZNYCH RTL JEST OSOBNY OD `testTimeout` I DOMYŚLNIE
 // MA SEKUNDĘ. `vitest.config.ts` podnosi `testTimeout` do 20 s z uzasadnieniem
 // „margines na kontencję CPU, bez maskowania realnych zawieszeń" - ale `waitFor`
