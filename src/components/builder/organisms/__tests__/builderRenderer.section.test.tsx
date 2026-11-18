@@ -202,7 +202,9 @@ describe("typografia zakresowa", () => {
       />,
     );
     const css = [...container.querySelectorAll("style")].map((s) => s.textContent).join("\n");
-    expect(css).toContain('[data-sec-id="a"] :is(h1,h2,h3,h4,h5,h6){color:rgb(1, 2, 3);}');
+    expect(css).toContain(
+      '[data-sec-id="a"] :is(h1,h2,h3,h4,h5,h6):where(:not(.cms-sl)){color:rgb(1, 2, 3);}',
+    );
     expect(css).toContain('[data-sec-id="a"] a:hover{color:rgb(10, 11, 12);}');
   });
 

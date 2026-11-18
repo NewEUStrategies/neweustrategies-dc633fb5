@@ -13,10 +13,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // komponent), więc asercja mierzy teraz wartość ze słownika.
 import "@/lib/i18n";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type { TFunction } from "i18next";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "../chromeWidgets";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { realT } from "@/test/i18nReal";
+import { expectOwnClipPaths } from "@/test/svgClipIds";
 
 const changeLanguage = vi.hoisted(() => vi.fn(async () => {}));
 /**
@@ -214,6 +216,26 @@ describe("LangSwitcherDropdown - nawigacja przez router", () => {
       hashScrollIntoView: false,
       state: expect.any(Function),
     });
+  });
+});
+
+describe("LangSwitcherDropdown - id flagi", () => {
+  const twice = (
+    <>
+      <LangSwitcherDropdown label="Język" />
+      <LangSwitcherDropdown label="Język" />
+    </>
+  );
+
+  it("dwie instancje (header i szuflada) mają własne id clipPath", () => {
+    const { container } = render(twice);
+    expectOwnClipPaths(container, 2);
+  });
+
+  it("HTML z serwera też ma unikalne id, bezpieczne w url(#...)", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(twice);
+    expectOwnClipPaths(host, 2);
   });
 });
 

@@ -316,10 +316,9 @@ export function GlobalAudioBar() {
                       onBlur={(e) => {
                         if (scrub !== null) commitSeek(Number(e.target.value));
                       }}
+                      // Natywny suwak: wartości niosą min/max/value (aria-value* przy nich
+                      // to błąd walidatora); `aria-valuetext` dodaje czas do przeczytania.
                       aria-label={shared("seek")}
-                      aria-valuemin={0}
-                      aria-valuemax={Math.max(duration, 0)}
-                      aria-valuenow={Math.floor(displayTime)}
                       aria-valuetext={`${formatAudioTime(displayTime)} / ${formatAudioTime(duration)}`}
                       className="absolute inset-0 w-full h-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     />

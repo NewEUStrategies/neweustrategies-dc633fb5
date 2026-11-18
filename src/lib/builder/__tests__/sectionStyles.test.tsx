@@ -454,7 +454,8 @@ describe("typographyCss", () => {
         linkHoverColor: "#4",
       }),
     );
-    expect(css).toContain(":is(h1,h2,h3,h4,h5,h6){color:#1;}");
+    // Etykieta sekcji (`h2.cms-sl`) zostaje w kolorze dawnego `span`.
+    expect(css).toContain(":is(h1,h2,h3,h4,h5,h6):where(:not(.cms-sl)){color:#1;}");
     expect(css).toContain('[data-sec-id="s1"]{color:#2;}');
     expect(css).toContain("a{color:#3;}");
     expect(css).toContain("a:hover{color:#4;}");

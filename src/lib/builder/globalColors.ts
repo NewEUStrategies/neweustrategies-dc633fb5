@@ -997,10 +997,12 @@ const GLOBAL_COLORS_BRIDGE_CSS = /* @nes-static-css */ `
        live in the same cascade layer. Without this layer, the inline
        <style> rules would sit outside any layer and win over utilities
        regardless of specificity, growing card titles to --gc-h2-size after
-       the header finished hydrating. */
+       the header finished hydrating. The section-label title (h2.cms-sl)
+       keeps the look of its former span, so the H2 bridge (and its hover
+       rule below) skips it. */
     @layer utilities {
       :where(main h1, article h1){color:var(--gc-h1, inherit);font-family:var(--gc-h1-font, inherit);font-size:var(--gc-h1-size, inherit);font-weight:var(--gc-h1-weight, inherit);font-style:var(--gc-h1-style, inherit);text-decoration:var(--gc-h1-decoration, inherit);}
-      :where(main h2, article h2){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);font-weight:var(--gc-h2-weight, inherit);font-style:var(--gc-h2-style, inherit);text-decoration:var(--gc-h2-decoration, inherit);}
+      :where(main h2:not(.cms-sl), article h2:not(.cms-sl)){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);font-weight:var(--gc-h2-weight, inherit);font-style:var(--gc-h2-style, inherit);text-decoration:var(--gc-h2-decoration, inherit);}
       :where(main h3, article h3){color:var(--gc-h3, inherit);font-family:var(--gc-h3-font, inherit);font-size:var(--gc-h3-size, inherit);font-weight:var(--gc-h3-weight, inherit);font-style:var(--gc-h3-style, inherit);text-decoration:var(--gc-h3-decoration, inherit);}
       :where(main h4, article h4){color:var(--gc-h4, inherit);font-family:var(--gc-h4-font, inherit);font-size:var(--gc-h4-size, inherit);font-weight:var(--gc-h4-weight, inherit);font-style:var(--gc-h4-style, inherit);text-decoration:var(--gc-h4-decoration, inherit);}
       :where(main h5, article h5){color:var(--gc-h5, inherit);font-family:var(--gc-h5-font, inherit);font-size:var(--gc-h5-size, inherit);font-weight:var(--gc-h5-weight, inherit);font-style:var(--gc-h5-style, inherit);text-decoration:var(--gc-h5-decoration, inherit);}
@@ -1026,7 +1028,7 @@ const GLOBAL_COLORS_BRIDGE_CSS = /* @nes-static-css */ `
        transparent on hover, otherwise the solid hover color would hide
        the gradient behind an opaque foreground. */
     :where(main h1:hover:not(.text-gradient-brand):not(.bg-clip-text), article h1:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h1-hover, var(--gc-h1, inherit));}
-    :where(main h2:hover:not(.text-gradient-brand):not(.bg-clip-text), article h2:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
+    :where(main h2:hover:not(.text-gradient-brand):not(.bg-clip-text):not(.cms-sl), article h2:hover:not(.text-gradient-brand):not(.bg-clip-text):not(.cms-sl)){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
     :where(main h3:hover:not(.text-gradient-brand):not(.bg-clip-text), article h3:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h3-hover, var(--gc-h3, inherit));}
     :where(main h4:hover:not(.text-gradient-brand):not(.bg-clip-text), article h4:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h4-hover, var(--gc-h4, inherit));}
     :where(main h5:hover:not(.text-gradient-brand):not(.bg-clip-text), article h5:hover:not(.text-gradient-brand):not(.bg-clip-text)){color:var(--gc-h5-hover, var(--gc-h5, inherit));}

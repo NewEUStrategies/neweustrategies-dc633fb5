@@ -16,7 +16,9 @@
 //     preferencji jest LANG_STORAGE_KEY zapisywany w `src/lib/i18n.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
+import { expectOwnClipPaths } from "@/test/svgClipIds";
 import { LangReelSwitcher } from "../LangReelSwitcher";
 
 type FakeLocation = { pathname: string; searchStr?: string; hash?: string };
@@ -86,6 +88,28 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+describe("LangReelSwitcher - id flagi", () => {
+  const twice = (
+    <>
+      <LangReelSwitcher label={LABEL} />
+      <LangReelSwitcher label={LABEL} />
+    </>
+  );
+
+  it("dwie instancje (header i szuflada) mają własne id clipPath", () => {
+    withRouter({ pathname: "/" });
+    const { container } = render(twice);
+    expectOwnClipPaths(container, 2);
+  });
+
+  it("HTML z serwera też ma unikalne id, bezpieczne w url(#...)", () => {
+    withRouter({ pathname: "/" });
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(twice);
+    expectOwnClipPaths(host, 2);
+  });
 });
 
 describe("LangReelSwitcher - aktywny język", () => {

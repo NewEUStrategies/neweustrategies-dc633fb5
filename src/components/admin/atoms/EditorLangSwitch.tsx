@@ -5,6 +5,7 @@
 // aktywna opcja rozszerza się i pokazuje kod języka. Różnica jest wyłącznie
 // funkcjonalna - tu przełączamy edytowaną wersję językową treści, a nie język
 // interfejsu, więc komponent jest sterowany (controlled) i nie nawiguje.
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AppLang } from "@/lib/i18n/localePath";
@@ -12,6 +13,9 @@ import type { AppLang } from "@/lib/i18n/localePath";
 type FlagCode = "pl" | "gb";
 
 function FlagSvg({ code }: { code: FlagCode }) {
+  // Id `clipPath` unikalne per instancja (dwa przełączniki na ekranie nie
+  // dublują id); `useId` stabilne między SSR a hydratacją.
+  const clipId = `uj${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   if (code === "pl") {
     return (
       <svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -23,7 +27,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
   return (
     <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
-        <clipPath id="uj-diag-editor">
+        <clipPath id={clipId}>
           <polygon points="0,0 30,20 60,0 60,4 34,20 60,36 60,40 30,20 0,40 0,36 26,20 0,4" />
         </clipPath>
       </defs>
@@ -33,7 +37,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
         d="M0,0 L60,40 M60,0 L0,40"
         stroke="#C8102E"
         strokeWidth="4"
-        clipPath="url(#uj-diag-editor)"
+        clipPath={`url(#${clipId})`}
       />
       <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
       <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />

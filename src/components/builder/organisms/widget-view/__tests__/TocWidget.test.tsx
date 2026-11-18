@@ -59,6 +59,18 @@ describe("TocWidget - autoscan z kanonicznymi kotwicami", () => {
     expect(hrefs).toEqual(["#wnioski", "#wnioski-2"]);
   });
 
+  it("skips section-label titles (h2.cms-sl) - like their former span", async () => {
+    const host = mountContent(
+      `<h2 class="cms-sl" data-title-root>Najnowsze</h2><h2>Rozdział właściwy</h2>`,
+    );
+    renderWidget();
+
+    await waitFor(() => expect(screen.getAllByRole("link")).toHaveLength(1));
+    expect(screen.getByRole("link", { name: /Rozdział właściwy/ })).toBeInTheDocument();
+    // Skaner nie nadaje etykiecie `id` - jej znacznik zostaje jak z serwera.
+    expect(host.querySelector("h2.cms-sl")?.hasAttribute("id")).toBe(false);
+  });
+
   it("keeps server-rendered ids untouched", async () => {
     mountContent(`<h2 id="z-serwera">Rozdział</h2>`);
     renderWidget();

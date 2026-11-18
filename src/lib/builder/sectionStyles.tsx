@@ -298,7 +298,9 @@ export function typographyCss(scopeAttr: string, t: TypographySettings | undefin
   if (!t) return "";
   const sel = `[data-sec-id="${scopeAttr}"]`;
   const lines: string[] = [];
-  if (t.headingColor) lines.push(`${sel} :is(h1,h2,h3,h4,h5,h6){color:${t.headingColor};}`);
+  // Etykieta sekcji (`h2.cms-sl`) trzyma kolor dawnego `span`; `:where()` bez wzrostu wagi.
+  if (t.headingColor)
+    lines.push(`${sel} :is(h1,h2,h3,h4,h5,h6):where(:not(.cms-sl)){color:${t.headingColor};}`);
   if (t.textColor) lines.push(`${sel}{color:${t.textColor};}`);
   if (t.linkColor) lines.push(`${sel} a{color:${t.linkColor};}`);
   if (t.linkHoverColor) lines.push(`${sel} a:hover{color:${t.linkHoverColor};}`);
