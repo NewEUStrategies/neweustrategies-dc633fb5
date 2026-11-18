@@ -10,7 +10,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
-import { SECTION_LABEL_VARIANTS, SectionLabelRender } from "@/lib/builder/sectionLabelVariants";
+import {
+  SECTION_LABEL_VARIANTS,
+  SectionLabelRender,
+  type SectionLabelVariant,
+} from "@/lib/builder/sectionLabelVariants";
 
 afterEach(cleanup);
 
@@ -25,7 +29,7 @@ const INLINE_TITLE = new Set(["small-corners", "only-text", "underline-sweep"]);
 /** Przodkowie dopuszczający wyłącznie treść frazową - `h2` w nich to błąd walidatora. */
 const PHRASING_ONLY = "span, a, button, label, p, em, strong, small, b, i, q, cite, time";
 
-const renderLabel = (variant: string, extra: Record<string, unknown> = {}) =>
+const renderLabel = (variant: SectionLabelVariant, extra: Record<string, unknown> = {}) =>
   render(
     <SectionLabelRender
       label="Najnowszy raport"
