@@ -335,10 +335,11 @@ export function vnuCacheDir(root = REPO_ROOT): string {
 }
 
 function run(command: string, args: readonly string[], cwd: string): string {
+  // Bez powłoki na każdej platformie: argumenty (ścieżki z REPO_ROOT) idą
+  // tablicą, więc spacja albo `&` w ścieżce checkoutu nic nie wstrzykują.
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
-    shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.error || result.status !== 0) {
@@ -357,6 +358,14 @@ function run(command: string, args: readonly string[], cwd: string): string {
  * połowicznego cache: katalog wersji powstaje dopiero po weryfikacji.
  */
 function downloadVnuJar(dir: string): void {
+  // `npm` na Windows to `npm.cmd`, którego Node nie uruchomi bez powłoki,
+  // a powłoka skleja argumenty bez cytowania - tam wymagamy jawnego VNU_JAR.
+  if (process.platform === "win32") {
+    throw new ConformanceSetupError(
+      "Na Windows pobranie vnu-jar nie jest automatyczne: pobierz vnu.jar " +
+        `(npm pack vnu-jar@${VNU_VERSION}) i ustaw VNU_JAR na jego ścieżkę.`,
+    );
+  }
   const parent = dirname(dir);
   mkdirSync(parent, { recursive: true });
   const staging = mkdtempSync(join(parent, `.pobieranie-${VNU_VERSION}-`));
