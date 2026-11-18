@@ -167,6 +167,26 @@ describe("inviteOrgSeat", () => {
     expect(result).toMatchObject({ ok: true, emailSent: false });
   });
 
+  it("log nieudanej wysyłki NIE zawiera adresu zaproszonej osoby", async () => {
+    // Dziennik serwera nie jest miejscem na dane osobowe osoby trzeciej -
+    // do diagnozy wystarcza domena i błąd dostawcy.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.emailOk = false;
+    rpcResults.org_add_seat = ok(SEAT_ID);
+    db.setResponse("member_organizations", () => ok({ name: "Acme" }));
+    db.setResponse("profiles", () => ok(null));
+    await callServerFn(selfservice.inviteOrgSeat, { data: input, context: context() });
+
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain("anna@example.test");
+    expect(logged).not.toContain("anna");
+    expect(warn.mock.calls[0]?.[1]).toEqual({
+      recipientDomain: "example.test",
+      error: "smtp down",
+    });
+    warn.mockRestore();
+  });
+
   it("adres, który nie jest e-mailem, nie przechodzi walidacji", async () => {
     await expect(
       callServerFn(selfservice.inviteOrgSeat, {

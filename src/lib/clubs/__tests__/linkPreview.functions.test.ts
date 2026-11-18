@@ -94,6 +94,7 @@ const h = vi.hoisted(() => {
     box,
     guard,
     rateLimit: vi.fn(),
+    canPreview: vi.fn<(userId: string) => Promise<boolean>>(),
     fetch: vi.fn<FetchStub>(),
   };
 });
@@ -122,6 +123,9 @@ vi.mock("@/lib/http/egressGuard.server", async () => {
 });
 
 vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: h.rateLimit }));
+vi.mock("@/lib/clubs/linkPreviewEligibility.server", () => ({
+  canRequestClubLinkPreview: h.canPreview,
+}));
 
 vi.stubGlobal("fetch", h.fetch);
 
@@ -247,6 +251,8 @@ beforeEach(() => {
   h.guard.mockClear();
   h.rateLimit.mockReset();
   h.rateLimit.mockResolvedValue(true);
+  h.canPreview.mockReset();
+  h.canPreview.mockResolvedValue(true);
   h.fetch.mockReset();
   h.fetch.mockImplementation(async () => {
     throw new Error("test: fetch nie miał prawa zostać tu wywołany");
@@ -260,6 +266,17 @@ describe("czy serwerowi wolno w ogóle wyjść na sieć", () => {
     h.rateLimit.mockResolvedValue(false);
 
     expect(await preview()).toBeNull();
+    expect(h.guard).not.toHaveBeenCalled();
+    expect(h.fetch).toHaveBeenCalledTimes(0);
+  });
+
+  it("konto BEZ aktywnego członkostwa w klubie nie wychodzi na sieć", async () => {
+    // Podgląd służy wyłącznie kompozytorowi treści klubowej - samo zalogowanie
+    // nie daje prawa do zlecania serwerowi żądań pod dowolny adres.
+    h.canPreview.mockResolvedValue(false);
+
+    expect(await preview()).toBeNull();
+    expect(h.canPreview).toHaveBeenCalledWith(USER_ID);
     expect(h.guard).not.toHaveBeenCalled();
     expect(h.fetch).toHaveBeenCalledTimes(0);
   });

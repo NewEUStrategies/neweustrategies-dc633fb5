@@ -23,6 +23,12 @@ function siteOrigin(): string {
   return process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL ?? "";
 }
 
+/** Sama domena adresu (`example.com`) - bez części identyfikującej osobę. */
+export function emailDomain(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : "invalid";
+}
+
 async function sendInviteEmail(input: {
   orgName: string;
   invitedEmail: string;
@@ -41,7 +47,12 @@ async function sendInviteEmail(input: {
   });
   const res = await sendTransactionalEmail({ to: input.invitedEmail, subject, html });
   if (!res.ok) {
-    console.warn("[orgs] invite email failed", input.invitedEmail, res.error);
+    // Bez adresu zaproszonego: log serwera nie jest miejscem na dane osobowe
+    // osoby trzeciej. Do diagnozy wystarcza domena i błąd dostawcy.
+    console.warn("[orgs] invite email failed", {
+      recipientDomain: emailDomain(input.invitedEmail),
+      error: res.error,
+    });
   }
   return res.ok;
 }

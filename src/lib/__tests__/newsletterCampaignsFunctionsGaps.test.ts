@@ -33,6 +33,7 @@ const h = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   fetchSuppressedEmails: vi.fn(),
   evaluateSendGate: vi.fn(),
+  isAllowedCampaignTestRecipient: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", async () =>
@@ -50,6 +51,9 @@ vi.mock("@/lib/email/suppression.server", () => ({
   fetchSuppressedEmails: h.fetchSuppressedEmails,
 }));
 vi.mock("@/lib/email/reputationGate.server", () => ({ evaluateSendGate: h.evaluateSendGate }));
+vi.mock("@/lib/newsletter/testRecipient.server", () => ({
+  isAllowedCampaignTestRecipient: h.isAllowedCampaignTestRecipient,
+}));
 
 import {
   countCampaignAudience,
@@ -155,6 +159,7 @@ let savedEnv: Record<string, string | undefined>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.isAllowedCampaignTestRecipient.mockResolvedValue(true);
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   savedEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
@@ -320,6 +325,29 @@ describe("segment członkowski - treść dla członków nie może wyjść do ca�
 // ---------------------------------------------------------------------------
 // WYSYŁKA TESTOWA Z KREATORA
 // ---------------------------------------------------------------------------
+
+describe("wysyłka testowa - odbiorcą jest tylko redakcja najemcy", () => {
+  it("adres spoza redakcji NIE dostaje wiadomości", async () => {
+    // Bez tej granicy członek redakcji wysłałby treść kampanii z domeny
+    // nadawczej najemcy pod dowolny adres - bez listy wykluczeń.
+    h.isAllowedCampaignTestRecipient.mockResolvedValue(false);
+
+    await expect(
+      sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "obcy@example.test" } }),
+    ).rejects.toThrow("test_recipient_not_allowed");
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("sprawdzenie odbiorcy dostaje najemcę i wołającego z sesji, nie z wejścia", async () => {
+    await sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "redakcja@example.test" } });
+
+    expect(h.isAllowedCampaignTestRecipient).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: TENANT,
+      callerId: "user-1",
+      toEmail: "redakcja@example.test",
+    });
+  });
+});
 
 describe("wysyłka testowa - podgląd musi być tym samym, co pójdzie do ludzi", () => {
   it("kampania z kreatora renderuje się do treści testu, z prefiksem [TEST]", async () => {

@@ -814,7 +814,20 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const tenantId = await getTenantId(context);
+    // Rola PRZED klientem serwisowym (def. 10): kampanię widzi tylko admin
+    // i editor najemcy (RLS), więc autor nie wyśle nawet testu.
+    await readCampaignAsUser(context, data.id, tenantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Odbiorca testu = potwierdzony adres redakcji tego najemcy, nigdy dowolny
+    // adres z formularza (patrz testRecipient.server.ts).
+    const { isAllowedCampaignTestRecipient } =
+      await import("@/lib/newsletter/testRecipient.server");
+    const recipientAllowed = await isAllowedCampaignTestRecipient(supabaseAdmin, {
+      tenantId,
+      callerId: context.userId,
+      toEmail: data.toEmail,
+    });
+    if (!recipientAllowed) throw new Error("test_recipient_not_allowed");
     const { data: c } = await supabaseAdmin
       .from("newsletter_campaigns")
       .select("*")

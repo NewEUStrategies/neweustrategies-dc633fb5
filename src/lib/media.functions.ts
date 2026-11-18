@@ -139,16 +139,26 @@ export const deleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((input: unknown) => DeleteSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    // GRANICA NAJEMCY PRZED KLIENTEM SERWISOWYM. Polityka publicznego odczytu
+    // `media` pokazuje każdemu wiersze publicznego najemcy, więc sam odczyt
+    // klientem użytkownika NIE dowodzi własności - a obiekt w storage kasuje
+    // niżej `supabaseAdmin` z pominięciem RLS. Najemcę bierzemy z profilu
+    // wołającego (nigdy z wejścia) i zawężamy nim odczyt oraz kasowanie.
+    const tenantId = await requireTenantId(supabase, userId);
 
     // Read via user client - RLS makes sure the user is allowed to see this row.
     const { data: row, error } = await supabase
       .from("media")
       .select("id, tenant_id, storage_path")
       .eq("id", data.mediaId)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Media not found or access denied");
+    if (!isTenantStoragePath(row.storage_path, tenantId)) {
+      throw new Error("Media not found or access denied");
+    }
 
     // Delete the storage object via admin (bypasses storage RLS but we already
     // validated ownership via the user-client SELECT above).
@@ -157,7 +167,11 @@ export const deleteMedia = createServerFn({ method: "POST" })
     if (rmErr) console.warn("[media.delete] storage remove failed:", rmErr.message);
 
     // Delete the DB row via user client so RLS enforces ownership.
-    const { error: delErr } = await supabase.from("media").delete().eq("id", row.id);
+    const { error: delErr } = await supabase
+      .from("media")
+      .delete()
+      .eq("id", row.id)
+      .eq("tenant_id", tenantId);
     if (delErr) throw new Error(delErr.message);
 
     await recordAudit(supabase, {
@@ -288,6 +302,37 @@ export const getMediaUsage = createServerFn({ method: "POST" })
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 
+/** Origin magazynu plików z env serwera (`SUPABASE_URL`) - `null`, gdy brak. */
+function mediaStorageOrigin(): string | null {
+  const raw = process.env["SUPABASE_URL"];
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Publiczny adres obiektu bucketu `media` albo `null` dla ścieżki spoza najemcy. */
+function storageObjectUrl(origin: string, path: string | null, tenantId: string): string | null {
+  if (!isTenantStoragePath(path, tenantId) || path === null) return null;
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return `${origin}/storage/v1/object/public/media/${encoded}`;
+}
+
+/** Wariant musi trafić w transformację obrazu NASZEGO magazynu - nic poza nim. */
+function isStorageRenderUrl(candidate: string, origin: string): boolean {
+  try {
+    const url = new URL(candidate);
+    return (
+      url.origin === origin && url.pathname.startsWith("/storage/v1/render/image/public/media/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface ThumbnailRegenResult {
   media: number;
   sizes: number;
@@ -321,17 +366,24 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
     const tenantId = profile?.tenant_id as string | undefined;
     if (!tenantId) throw new Error("No tenant");
 
+    // CEL ŻĄDAŃ WYBIERA SERWER. `public_url` podaje przeglądarka przy rejestracji
+    // uploadu, więc rozgrzewka po tym polu wychodziłaby HEAD-em pod dowolny
+    // adres. Adres wariantu budujemy wyłącznie z origin magazynu (env serwera)
+    // i ścieżki obiektu w katalogu najemcy; wszystko inne pomijamy.
+    const storageOrigin = mediaStorageOrigin();
+    if (storageOrigin === null) throw new Error("Storage origin not configured");
+
     const [{ data: media }, { data: sizes }] = await Promise.all([
       supabase
         .from("media")
-        .select("public_url")
+        .select("storage_path")
         .eq("tenant_id", tenantId)
-        .not("public_url", "is", null)
+        .not("storage_path", "is", null)
         .limit(data.limit),
       supabase.from("custom_crop_sizes").select("name, width, height").eq("tenant_id", tenantId),
     ]);
 
-    const mediaRows = (media ?? []) as Array<{ public_url: string | null }>;
+    const mediaRows = (media ?? []) as Array<{ storage_path: string | null }>;
     const sizeRows = (sizes ?? []) as Array<{ name: string; width: number; height: number }>;
 
     const details: ThumbnailRegenResult["details"] = [];
@@ -339,10 +391,15 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
     let failed = 0;
 
     for (const m of mediaRows) {
-      const src = m.public_url;
-      if (!src) continue;
+      const src = storageObjectUrl(storageOrigin, m.storage_path, tenantId);
+      if (src === null) continue;
       for (const s of sizeRows) {
         const url = buildTransformedImageUrl(src, { width: s.width, height: s.height });
+        if (!isStorageRenderUrl(url, storageOrigin)) {
+          failed++;
+          details.push({ url, size: s.name, ok: false });
+          continue;
+        }
         try {
           const res = await fetch(url, { method: "HEAD" });
           const success = res.ok;
@@ -401,6 +458,18 @@ export function normalizeFolderPath(input: string): string {
 /** @internal - eksport wyłącznie na potrzeby testu escapowania LIKE. */
 export function likePrefix(prefix: string): string {
   return prefix.replace(/[\\%_]/g, (ch) => `\\${ch}`) + "%";
+}
+
+/**
+ * Czy ścieżka obiektu leży w katalogu najemcy (`<tenantId>/...`, bez `..`).
+ * Ten sam prefiks egzekwuje rejestracja uploadu i polityka storage; tu chroni
+ * operacje, które idą klientem serwisowym z pominięciem tej polityki.
+ * @internal
+ */
+export function isTenantStoragePath(path: string | null | undefined, tenantId: string): boolean {
+  if (typeof path !== "string" || path.length === 0 || path.includes("..")) return false;
+  const [first] = path.split("/");
+  return first.toLowerCase() === tenantId.toLowerCase() && path.length > first.length + 1;
 }
 
 async function requireTenantId(
@@ -498,14 +567,21 @@ export const bulkDeleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((i: unknown) => BulkDeleteSchema.parse(i))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: rows, error } = await supabase
+    const { supabase, userId } = context;
+    // Ta sama granica najemcy co w `deleteMedia`: publiczny odczyt `media`
+    // nie dowodzi własności, a storage kasuje klient serwisowy.
+    const tenantId = await requireTenantId(supabase, userId);
+    const { data: found, error } = await supabase
       .from("media")
       .select("id, tenant_id, storage_path")
-      .in("id", data.mediaIds);
+      .in("id", data.mediaIds)
+      .eq("tenant_id", tenantId);
     if (error) throw new Error(error.message);
-    if (!rows?.length) return { ok: true, deleted: 0 };
-    const paths = rows.map((r) => r.storage_path).filter(Boolean) as string[];
+    const rows = (found ?? []).filter(
+      (r) => r.tenant_id === tenantId && isTenantStoragePath(r.storage_path, tenantId),
+    );
+    if (!rows.length) return { ok: true, deleted: 0 };
+    const paths = rows.map((r) => r.storage_path);
     if (paths.length) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { error: rmErr } = await supabaseAdmin.storage.from("media").remove(paths);
@@ -514,13 +590,14 @@ export const bulkDeleteMedia = createServerFn({ method: "POST" })
     const { error: delErr } = await supabase
       .from("media")
       .delete()
+      .eq("tenant_id", tenantId)
       .in(
         "id",
         rows.map((r) => r.id),
       );
     if (delErr) throw new Error(delErr.message);
     await recordAudit(supabase, {
-      tenantId: rows[0].tenant_id,
+      tenantId,
       action: "media.bulk_delete",
       entityType: "media",
       entityId: rows[0].id,

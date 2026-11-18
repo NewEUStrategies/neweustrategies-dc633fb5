@@ -7,11 +7,15 @@
 // zapisany, na jaką listę i jakie mam tematy - żeby po lewej pokazać stan, a po
 // prawej wyłącznie wybór kolejnych tematów / list.
 //
-// BEZPIECZEŃSTWO. Wyłącznie własny rekord: czytamy po e-mailu z tokenu sesji
+// BEZPIECZEŃSTWO. Wyłącznie własny rekord: czytamy po e-mailu z sesji
 // (nigdy z payloadu), w obrębie tenanta rozwiązanego z hosta żądania. Odczyt
 // idzie `service_role`, bo `newsletter_subscribers` nie jest wystawione do
-// Data API dla `authenticated` - ale zapytanie jest zawężone do adresu
-// właściciela sesji, więc nie da się nim przeczytać cudzej subskrypcji.
+// Data API dla `authenticated` - dlatego adres musi być POTWIERDZONY.
+// Sam `email` z tokenu nie wystarcza: konto założone na cudzy adres bez
+// potwierdzenia skrzynki niesie ten adres w tokenie. Adres bierzemy więc
+// z serwera uwierzytelniania (`auth.getUser()`), tylko gdy ma
+// `email_confirmed_at` i zgadza się z tokenem. Wiersz już przypięty do INNEGO
+// konta (`user_id`) też nie jest „mój", nawet przy zgodnym adresie.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -42,7 +46,51 @@ import {
   readPreferences,
 } from "@/lib/newsletter/preferences";
 
-async function loadContext(email: string) {
+type SessionContext = {
+  supabase: {
+    auth: {
+      getUser: () => Promise<{
+        data: {
+          user: { id: string; email?: string | null; email_confirmed_at?: string | null } | null;
+        };
+        error: unknown;
+      }>;
+    };
+  };
+  userId: string;
+  claims?: { email?: unknown } | null;
+};
+
+function normalizeEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+/** Adres z tokenu (do wyświetlenia) - NIE służy do wyboru wiersza. */
+function claimedEmail(context: SessionContext): string {
+  return normalizeEmail(context.claims?.email);
+}
+
+/**
+ * Potwierdzony adres właściciela sesji albo `null`. Pyta serwer
+ * uwierzytelniania, więc niepotwierdzona skrzynka (lub token z adresem, który
+ * już nie należy do konta) nie otwiera cudzej subskrypcji.
+ */
+async function verifiedSessionEmail(context: SessionContext): Promise<string | null> {
+  const claimed = claimedEmail(context);
+  if (!claimed) return null;
+  try {
+    const { data, error } = await context.supabase.auth.getUser();
+    const user = data?.user ?? null;
+    if (error || user === null || user.id !== context.userId) return null;
+    if (!user.email_confirmed_at) return null;
+    const confirmed = normalizeEmail(user.email);
+    return confirmed !== "" && confirmed === claimed ? confirmed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadContext(email: string, userId: string) {
   const [{ supabaseAdmin }, { resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
     import("@/integrations/supabase/client.server"),
     import("@/lib/server/tenant.server"),
@@ -56,25 +104,29 @@ async function loadContext(email: string) {
     .eq("tenant_id", tenantId)
     .eq("email", email)
     .maybeSingle();
-  return { supabaseAdmin, tenantId, row: data };
+  // Wiersz przypięty do innego konta nie jest „mój" - nawet przy zgodnym adresie.
+  const row = data && data.user_id && data.user_id !== userId ? null : data;
+  return { supabaseAdmin, tenantId, row };
 }
 
 export const getMyNewsletterStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MyNewsletterStatus> => {
-    const email = (context.claims?.email ?? "").toString().trim().toLowerCase();
+    const claimed = claimedEmail(context);
     const empty: MyNewsletterStatus = {
       subscribed: false,
       status: null,
-      email: email || null,
+      email: claimed || null,
       listName: null,
       mailingLists: [],
       topics: [],
       since: null,
     };
-    if (!email) return empty;
+    if (!claimed) return empty;
+    const email = await verifiedSessionEmail(context);
+    if (email === null) return empty;
 
-    const ctx = await loadContext(email);
+    const ctx = await loadContext(email, context.userId);
     if (ctx === null || !ctx.row) return empty;
     const meta = (ctx.row.meta ?? {}) as Record<string, unknown>;
 
@@ -99,10 +151,11 @@ export const updateMyNewsletterTopics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => TopicsInput.parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
-    const email = (context.claims?.email ?? "").toString().trim().toLowerCase();
-    if (!email) return { ok: false, error: "no_email" };
+    if (!claimedEmail(context)) return { ok: false, error: "no_email" };
+    const email = await verifiedSessionEmail(context);
+    if (email === null) return { ok: false, error: "email_not_verified" };
 
-    const ctx = await loadContext(email);
+    const ctx = await loadContext(email, context.userId);
     if (ctx === null) return { ok: false, error: "not_configured" };
     if (!ctx.row) return { ok: false, error: "not_subscribed" };
 

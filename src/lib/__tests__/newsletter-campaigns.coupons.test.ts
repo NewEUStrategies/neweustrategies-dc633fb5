@@ -41,6 +41,10 @@ vi.mock("@/lib/email/suppression.server", () => ({
   fetchSuppressedEmails: h.fetchSuppressedEmails,
 }));
 vi.mock("@/lib/email/reputationGate.server", () => ({ evaluateSendGate: h.evaluateSendGate }));
+// Odbiorca testu (redakcja najemcy) ma własne testy - tu liczy się treść maila.
+vi.mock("@/lib/newsletter/testRecipient.server", () => ({
+  isAllowedCampaignTestRecipient: async () => true,
+}));
 
 import {
   createCouponNewsletterCampaign,

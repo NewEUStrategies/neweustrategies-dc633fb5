@@ -65,6 +65,8 @@ export const newsletterAdminPl = {
         "Wskaźnik liczy RÓŻNYCH odbiorców, więc nie przekroczy 100%. Zdarzenia to najwyżej jedno na odbiorcę i dobę - kolejne dni pokazują powroty do wiadomości. Otwarcia mierzy piksel, kliknięcia przekierowanie: klient blokujący obrazy zaniża otwarcia, proxy prywatności je zawyża.",
       testSendHeading: "Wysyłka testowa",
       testEmail: "Adres testowy",
+      testRecipientNotAllowed:
+        "Test można wysłać tylko na potwierdzony adres konta z rolą w redakcji tej przestrzeni.",
       sendTest: "Wyślij test",
       noDueCampaigns: "Brak zaległych kampanii",
       dueFired: "Wysłano {{count}} zaplanowanych kampanii",
@@ -354,6 +356,8 @@ export const newsletterAdminEn: typeof newsletterAdminPl = {
         "The rate counts DISTINCT recipients, so it cannot exceed 100%. Events are capped at one per recipient per day - later days show returns to the message. Opens are measured by the pixel, clicks by the redirect: image-blocking clients understate opens, privacy proxies overstate them.",
       testSendHeading: "Test send",
       testEmail: "Test email",
+      testRecipientNotAllowed:
+        "Tests can only be sent to a confirmed address of an account with an editorial role in this workspace.",
       sendTest: "Send test",
       noDueCampaigns: "No due campaigns",
       dueFired: "Sent {{count}} scheduled campaigns",

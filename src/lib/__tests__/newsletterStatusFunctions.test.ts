@@ -52,9 +52,27 @@ const db = supabaseFromStub();
 const SUBSCRIBERS = "newsletter_subscribers";
 const TENANT = "tenant-1";
 
+const USER_ID = "user-anna";
+
+/** Konto po stronie serwera uwierzytelniania (`auth.getUser()`). */
+let kontoAuth: { id: string; email: string | null; email_confirmed_at: string | null } | null;
+
 /** Kontekst, jaki middleware uwierzytelniające wstrzykuje handlerowi. */
 function sesja(email: unknown = "Anna.Nowak@Example.Test") {
-  return { supabase: { from: db.from }, claims: { email } };
+  return {
+    supabase: {
+      from: db.from,
+      auth: { getUser: async () => ({ data: { user: kontoAuth }, error: null }) },
+    },
+    userId: USER_ID,
+    claims: { email },
+  };
+}
+
+/** Sesja innego konta z tym samym, potwierdzonym adresem. */
+function sesjaKonta(userId: string) {
+  if (kontoAuth !== null) kontoAuth = { ...kontoAuth, id: userId };
+  return { ...sesja(), userId };
 }
 
 /** Wiersz subskrybenta w kształcie czytanym przez handler. */
@@ -95,6 +113,78 @@ beforeEach(() => {
   );
   h.currentTenantHost.mockResolvedValue("nes.example.test");
   h.resolveTenantIdForHost.mockResolvedValue(TENANT);
+  kontoAuth = {
+    id: USER_ID,
+    email: "anna.nowak@example.test",
+    email_confirmed_at: "2026-01-01T00:00:00.000Z",
+  };
+});
+
+describe("tożsamość - tylko POTWIERDZONY adres właściciela sesji", () => {
+  it("niepotwierdzona skrzynka NIE czyta cudzej subskrypcji", async () => {
+    // Konto założone na cudzy adres bez potwierdzenia skrzynki niesie ten adres
+    // w tokenie. Odczyt po nim oddałby preferencje prawdziwego właściciela.
+    kontoAuth = { id: USER_ID, email: "anna.nowak@example.test", email_confirmed_at: null };
+
+    const res = await callServerFn<MyNewsletterStatus>(getMyNewsletterStatus, {
+      context: sesja(),
+    });
+
+    expect(res.subscribed).toBe(false);
+    expect(db.chainsFor(SUBSCRIBERS)).toHaveLength(0);
+  });
+
+  it("niepotwierdzona skrzynka NIE zmienia cudzych preferencji", async () => {
+    kontoAuth = { id: USER_ID, email: "anna.nowak@example.test", email_confirmed_at: null };
+
+    const res = await callServerFn<{ ok: boolean; error?: string }>(updateMyNewsletterTopics, {
+      data: { topics: ["klimat"] },
+      context: sesja(),
+    });
+
+    expect(res).toEqual({ ok: false, error: "email_not_verified" });
+    expect(db.chainsFor(SUBSCRIBERS)).toHaveLength(0);
+  });
+
+  it("adres w tokenie inny niż na koncie (np. po zmianie) nie otwiera wiersza", async () => {
+    kontoAuth = {
+      id: USER_ID,
+      email: "nowy@example.test",
+      email_confirmed_at: "2026-01-01T00:00:00.000Z",
+    };
+
+    await callServerFn(getMyNewsletterStatus, { context: sesja() });
+    expect(db.chainsFor(SUBSCRIBERS)).toHaveLength(0);
+  });
+
+  it("konto z serwera uwierzytelniania musi być tym z sesji", async () => {
+    kontoAuth = {
+      id: "ktos-inny",
+      email: "anna.nowak@example.test",
+      email_confirmed_at: "2026-01-01T00:00:00.000Z",
+    };
+
+    await callServerFn(getMyNewsletterStatus, { context: sesja() });
+    expect(db.chainsFor(SUBSCRIBERS)).toHaveLength(0);
+  });
+
+  it("wiersz przypięty do INNEGO konta nie jest „mój” - ani do odczytu, ani do zapisu", async () => {
+    db.setResponse(SUBSCRIBERS, (chain: RecordedChain) =>
+      chain.has("update") ? ok(null) : ok(wiersz({ user_id: "ktos-inny" })),
+    );
+
+    const status = await callServerFn<MyNewsletterStatus>(getMyNewsletterStatus, {
+      context: sesja(),
+    });
+    expect(status.subscribed).toBe(false);
+
+    const res = await callServerFn<{ ok: boolean; error?: string }>(updateMyNewsletterTopics, {
+      data: { topics: ["klimat"] },
+      context: sesja(),
+    });
+    expect(res).toEqual({ ok: false, error: "not_subscribed" });
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("update"))).toBe(false);
+  });
 });
 
 describe("obudowa - kto może pytać o cudzą subskrypcję", () => {
@@ -443,7 +533,7 @@ it("keeps saved preferences when CRM returns an error", async () => {
   );
   const result = await callServerFn(updateMyNewsletterTopics, {
     data: { topics: ["energia"] },
-    context: { ...sesja(), userId: "member" },
+    context: sesjaKonta("member"),
   });
   expect(result).toEqual({ ok: true });
   expect(h.rpc).toHaveBeenCalledWith(
@@ -459,7 +549,7 @@ it("keeps saved preferences when the CRM transport rejects", async () => {
   try {
     const result = await callServerFn(updateMyNewsletterTopics, {
       data: { topics: ["energia"] },
-      context: { ...sesja(), userId: "member" },
+      context: sesjaKonta("member"),
     });
     expect(result).toEqual({ ok: true });
     expect(db.lastChain(SUBSCRIBERS)?.argsOf("update")?.[0]).toEqual(

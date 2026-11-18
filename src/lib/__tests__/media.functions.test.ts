@@ -13,7 +13,7 @@
 //
 // Bramki ścieżek (`normalizeFolderPath`, `likePrefix`) mają osobny plik z
 // tabelą granic - `mediaFolderPaths.test.ts`.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ok,
   okCount,
@@ -374,6 +374,36 @@ describe("deleteMedia", () => {
   it("ODRZUCA identyfikator, który nie jest UUID-em", async () => {
     await expect(callServerFn(deleteMedia, { mediaId: "../etc/passwd" }, ctx())).rejects.toThrow();
   });
+
+  it("odczyt i kasowanie są zawężone do najemcy WOŁAJĄCEGO", async () => {
+    // Publiczny odczyt `media` pokazuje wiersze publicznego najemcy każdemu -
+    // bez filtra po najemcy z profilu redaktor innego najemcy skasowałby cudzy
+    // plik klientem serwisowym.
+    user.setResponse("media", (chain) => (chain.has("delete") ? ok(null) : ok(row)));
+    await callServerFn(deleteMedia, { mediaId: MEDIA_A }, ctx());
+    for (const chain of user.chainsFor("media")) {
+      expect(chain.calls.filter((c) => c.method === "eq").map((c) => [...c.args])).toContainEqual([
+        "tenant_id",
+        TENANT,
+      ]);
+    }
+  });
+
+  it("wiersz CUDZEGO najemcy (np. publicznego) NIE dotyka storage", async () => {
+    user.setResponse("media", ok({ ...row, storage_path: `${OTHER_TENANT}/x/a.png` }));
+    await expect(callServerFn(deleteMedia, { mediaId: MEDIA_A }, ctx())).rejects.toThrow(
+      "Media not found or access denied",
+    );
+    expect(h.storage.removed).toEqual([]);
+  });
+
+  it("użytkownik bez najemcy nie kasuje niczego", async () => {
+    withProfile(null);
+    await expect(callServerFn(deleteMedia, { mediaId: MEDIA_A }, ctx())).rejects.toThrow(
+      "No tenant for current user",
+    );
+    expect(h.storage.removed).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -410,6 +440,26 @@ describe("bulkDeleteMedia", () => {
     await callServerFn(bulkDeleteMedia, { mediaIds: [MEDIA_A, MEDIA_B] }, ctx());
     const del = user.chainsFor("media").find((c) => c.has("delete"));
     expect(del?.argsOf("in")).toEqual(["id", [MEDIA_A]]);
+  });
+
+  it("wiersze CUDZEGO najemcy odpadają przed storage, a zapytania niosą filtr najemcy", async () => {
+    user.setResponse("media", (chain) =>
+      chain.has("delete")
+        ? ok(null)
+        : ok([
+            rows[0],
+            { id: MEDIA_B, tenant_id: OTHER_TENANT, storage_path: `${OTHER_TENANT}/b.png` },
+          ]),
+    );
+    const out = await callServerFn(bulkDeleteMedia, { mediaIds: [MEDIA_A, MEDIA_B] }, ctx());
+    expect(out).toEqual({ ok: true, deleted: 1 });
+    expect(h.storage.removed).toEqual([[rows[0].storage_path]]);
+    for (const chain of user.chainsFor("media")) {
+      expect(chain.calls.filter((c) => c.method === "eq").map((c) => [...c.args])).toContainEqual([
+        "tenant_id",
+        TENANT,
+      ]);
+    }
   });
 
   it("ODRZUCA pustą listę i listę powyżej 500 pozycji", async () => {
@@ -948,12 +998,60 @@ describe("getMediaUsage", () => {
 // ---------------------------------------------------------------------------
 
 describe("regenerateThumbnails", () => {
-  const SRC = "https://proj.supabase.co/storage/v1/object/public/media/a.jpg";
+  const STORAGE = "https://proj.supabase.co";
+  const SRC = `${TENANT}/${USER}/a.jpg`;
 
-  function library(urls: Array<string | null>, sizes: Array<Record<string, unknown>>) {
-    user.setResponse("media", ok(urls.map((public_url) => ({ public_url }))));
+  beforeEach(() => {
+    vi.stubEnv("SUPABASE_URL", STORAGE);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function library(paths: Array<string | null>, sizes: Array<Record<string, unknown>>) {
+    user.setResponse("media", ok(paths.map((storage_path) => ({ storage_path }))));
     user.setResponse("custom_crop_sizes", ok(sizes));
   }
+
+  it("cel HEAD buduje serwer z origin magazynu i ścieżki najemcy, nie z `public_url`", async () => {
+    // `public_url` podaje przeglądarka przy rejestracji uploadu - rozgrzewka po
+    // nim wychodziłaby pod dowolny adres. Wiersz z cudzą ścieżką lub `..` nie
+    // generuje ŻADNEGO żądania.
+    const fetchMock = vi.fn(async (_url: string, _init?: { method?: string }) => ({
+      ok: true,
+      status: 200,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    user.setResponse(
+      "media",
+      ok([
+        { storage_path: SRC, public_url: "https://attacker.example/x.jpg" },
+        { storage_path: `${OTHER_TENANT}/x.jpg` },
+        { storage_path: `${TENANT}/../${OTHER_TENANT}/x.jpg` },
+      ]),
+    );
+    user.setResponse("custom_crop_sizes", ok([{ name: "karta", width: 640, height: 360 }]));
+
+    await callServerFn<ThumbnailRegenResult>(regenerateThumbnails, {}, ctx());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const target = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(target.origin).toBe(STORAGE);
+    expect(target.pathname).toBe(`/storage/v1/render/image/public/media/${SRC}`);
+    expect(user.chainsFor("media")[0]?.argsOf("select")).toEqual(["storage_path"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("bez skonfigurowanego magazynu odmawia, zamiast zgadywać cel", async () => {
+    vi.stubEnv("SUPABASE_URL", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    library([SRC], [{ name: "karta", width: 640, height: 360 }]);
+    await expect(callServerFn(regenerateThumbnails, {}, ctx())).rejects.toThrow(
+      "Storage origin not configured",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 
   it("odpytuje KAŻDY rozmiar dla KAŻDEGO pliku metodą HEAD", async () => {
     // Natywny `sharp` nie działa w Workers - warianty materializuje sam

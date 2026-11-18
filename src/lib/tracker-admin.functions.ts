@@ -2,12 +2,29 @@
 // /admin/tracker - dzięki temu redakcja może natychmiast wypchnąć alerty
 // (push/notyfikacje) po dodaniu aktualizacji dossier, bez czekania na pg_cron.
 import { createServerFn } from "@tanstack/react-start";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+// requireAdminEditor, nie requireStaff: tick jedzie klientem serwisowym przez
+// kolejki WSZYSTKICH najemców, więc nie może go wyzwolić autor. Bramka jest ta
+// sama co w bliźniaczym `runSchedulerTickNow` (/admin/scheduler) - jedno
+// działanie, jeden zakres ról. Do tego twardy limit per operator (fail-closed):
+// przycisk nie może stać się pętlą drenującą kolejki ponad rytm crona.
+import { requireAdminEditor } from "@/integrations/supabase/require-staff";
 import { runJobsTick, type JobsTickResult } from "@/lib/server/jobsTick.server";
 
+/** Ręczne ticki na operatora na minutę. */
+export const TRACKER_TICKS_PER_MINUTE = 3;
+
 export const runTrackerTickNow = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<JobsTickResult> => {
+    const { rateLimit } = await import("@/lib/server/rate-limit.server");
+    const allowed = await rateLimit({
+      scope: "tracker.tick-now",
+      subjectId: context.userId,
+      max: TRACKER_TICKS_PER_MINUTE,
+      failClosed: true,
+    });
+    if (!allowed) throw new Error("Too many manual ticks, slow down");
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // ŚLAD AUDYTOWY: NAJEMCA OPERATORA, NIE TYLKO OPERATOR. `JobsTickMeta`

@@ -29,6 +29,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   calls: [] as Array<{ admin: unknown; meta: Record<string, unknown> }>,
   result: {} as unknown,
+  rateAllowed: true,
+  rateCalls: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@tanstack/react-start", async () => {
@@ -39,6 +41,13 @@ vi.mock("@tanstack/react-start", async () => {
 // test ma dowieść, że funkcja deklaruje DOKŁADNIE tę straż.
 vi.mock("@/integrations/supabase/require-staff", () => ({
   requireStaff: { name: "requireStaff" },
+  requireAdminEditor: { name: "requireAdminEditor" },
+}));
+vi.mock("@/lib/server/rate-limit.server", () => ({
+  rateLimit: async (opts: Record<string, unknown>) => {
+    h.rateCalls.push(opts);
+    return h.rateAllowed;
+  },
 }));
 vi.mock("@/lib/server/jobsTick.server", () => ({
   runJobsTick: async (admin: unknown, meta: Record<string, unknown>) => {
@@ -74,6 +83,8 @@ const call = (userId?: string) =>
 
 beforeEach(() => {
   h.calls = [];
+  h.rateAllowed = true;
+  h.rateCalls = [];
   h.result = { newsletter: { fired: 0, continued: 0, sent: 0 } };
   sessionDb.reset();
   sessionDb.setResponse("profiles", (chain) => {
@@ -90,7 +101,8 @@ describe("obudowa funkcji", () => {
   });
 
   it("deklaruje straż roli sztabowej", () => {
-    expect(serverFnMiddlewareNames(runTrackerTickNow)).toEqual(["requireStaff"]);
+    // Autor (requireStaff) NIE wyzwala ticku ponad RLS wszystkich najemców.
+    expect(serverFnMiddlewareNames(runTrackerTickNow)).toEqual(["requireAdminEditor"]);
   });
 
   it("NIE ma walidatora - nie przyjmuje od klienta żadnych parametrów ticku", () => {
@@ -201,5 +213,18 @@ describe("ślad audytowy: najemca operatora", () => {
     expect(h.calls).toHaveLength(1);
     expect(h.calls[0].meta.tenantId).toBeNull();
     expect(h.calls[0].meta.source).toBe("admin");
+  });
+});
+
+describe("limit ręcznych ticków", () => {
+  it("przekroczony limit (także awaria licznika - fail-closed) NIE uruchamia ticku", async () => {
+    h.rateAllowed = false;
+    await expect(call("operator-1")).rejects.toThrow("Too many manual ticks");
+    expect(h.calls).toHaveLength(0);
+    expect(h.rateCalls[0]).toMatchObject({
+      scope: "tracker.tick-now",
+      subjectId: "operator-1",
+      failClosed: true,
+    });
   });
 });

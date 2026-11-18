@@ -19,6 +19,7 @@ import { setServerFnContext, resetServerFnContext, serverFnMeta } from "@/test/s
 const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   sendEmail: vi.fn(),
+  isAllowedCampaignTestRecipient: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", async () =>
@@ -32,6 +33,9 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => db.from(t), rpc: h.rpc },
 }));
 vi.mock("@/lib/email/provider.server", () => ({ sendEmail: h.sendEmail }));
+vi.mock("@/lib/newsletter/testRecipient.server", () => ({
+  isAllowedCampaignTestRecipient: h.isAllowedCampaignTestRecipient,
+}));
 
 import {
   countCampaignAudience,
@@ -103,6 +107,7 @@ beforeEach(() => {
   setServerFnContext({ supabase: { from: db.from, rpc: h.rpc }, userId: "user-1" });
   h.rpc.mockResolvedValue({ data: null, error: null });
   h.sendEmail.mockResolvedValue({ ok: true, messageId: "m-1" });
+  h.isAllowedCampaignTestRecipient.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -524,6 +529,15 @@ describe("wysyłka testowa", () => {
     await expect(
       sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "redakcja@example.test" } }),
     ).rejects.toThrow("invalid_content_doc");
+    expect(h.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("adres spoza redakcji najemcy nie dostaje testu", async () => {
+    h.isAllowedCampaignTestRecipient.mockResolvedValue(false);
+
+    await expect(
+      sendCampaignTest({ data: { id: CAMPAIGN_ID, toEmail: "obcy@example.test" } }),
+    ).rejects.toThrow("test_recipient_not_allowed");
     expect(h.sendEmail).not.toHaveBeenCalled();
   });
 

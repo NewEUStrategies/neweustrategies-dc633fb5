@@ -223,7 +223,12 @@ function CampaignEditor() {
   const testMut = useMutation({
     mutationFn: () => test({ data: { id, toEmail: testEmail, language: testLang } }),
     onSuccess: () => toast.success(t("adminNewsletter.campaigns.testSent")),
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) =>
+      toast.error(
+        err.message.includes("test_recipient_not_allowed")
+          ? t("adminNewsletter.campaigns.testRecipientNotAllowed")
+          : err.message,
+      ),
   });
 
   const sendMut = useMutation({

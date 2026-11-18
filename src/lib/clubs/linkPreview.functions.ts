@@ -9,7 +9,10 @@
 // SSRF. To jest funkcja, która na życzenie użytkownika wchodzi pod DOWOLNY
 // adres, czyli klasyczna dziura na sieć wewnętrzną. Dlatego:
 //   * woła ją wyłącznie ZALOGOWANY (bez tego serwer jest otwartym proxy
-//     wyjścia na sieć dla każdego anonima) i tylko w limicie żądań,
+//     wyjścia na sieć dla każdego anonima), i to tylko AKTYWNY członek klubu
+//     w swoim najemcy (`canRequestClubLinkPreview`) - podgląd służy wyłącznie
+//     kompozytorowi treści klubowej, więc samo konto nie daje prawa do
+//     wyjścia na sieć - i tylko w limicie żądań,
 //   * adres przechodzi przez wspólną bramkę egress `assertPublicHttpUrl`,
 //     która ROZWIĄZUJE nazwę i odrzuca każdą odpowiedź DNS w zakresie
 //     prywatnym/loopback/link-local/metadata. Lista zakazanych nazw, którą ta
@@ -117,6 +120,9 @@ export const fetchClubLinkPreview = createServerFn({ method: "POST" })
       failClosed: true,
     });
     if (!allowed) return null;
+
+    const { canRequestClubLinkPreview } = await import("@/lib/clubs/linkPreviewEligibility.server");
+    if (!(await canRequestClubLinkPreview(context.userId))) return null;
 
     const target = await resolveClubPreviewTarget(data.url);
     if (target === null) return null;
