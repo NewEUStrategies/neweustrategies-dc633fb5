@@ -209,6 +209,12 @@ export function TrendingTicker({
         style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
       >
         <TickerPaletteStyle vid={vid} palette={palette} />
+        {/* Geometria pasma (`TICKER_CSS`) PRZED pasmem, nie po nim: przy
+            strumieniowanym HTML parser maluje karty, zanim dojdzie do stylu
+            stojącego ~20 KB dalej, i po jego wczytaniu pasmo przeskakuje
+            (CLS w chwili FCP, PSI mobile 2026-11-18) - ta sama zasada co
+            `<style>` sekcji przed kolumnami (F29c). */}
+        <TickerStyles />
         <div className={`${innerMax} px-4 lg:px-8`}>
           {geometry.engine === "cards" ? (
             <TickerGlassCards
@@ -237,7 +243,6 @@ export function TrendingTicker({
             />
           )}
         </div>
-        <TickerStyles />
       </div>
     );
   }
@@ -255,6 +260,8 @@ export function TrendingTicker({
       }}
     >
       <TickerPaletteStyle vid={vid} palette={palette} />
+      {/* Geometria pasma przed pasmem - patrz gałąź szklana wyżej. */}
+      <TickerStyles />
       <div
         data-tt-band=""
         className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} ${geometry.bandClass} flex items-stretch gap-0 overflow-hidden`}
@@ -347,7 +354,6 @@ export function TrendingTicker({
           )}
         </div>
       </div>
-      <TickerStyles />
     </div>
   );
 }

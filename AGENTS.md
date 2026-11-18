@@ -6,6 +6,7 @@
 - Keep signup/newsletter payloads free of measurement declarations when no explicit measurement choice is offered; account measurement information must not masquerade as a generic personalization toggle, because mailbox-confirmed measurement has its own evidence path.
 
 - Keep streamed-boundary visibility recovery in the shared head script; drain React's shared queue when a queued frame is suspended so later frames cannot duplicate content.
+- Hold any column that CSS `order` would place before a later-parsed sibling through `columnOrderGate` (hold `<style>` before the columns, release as the last child of the completing column's slot, `visibility:inherit`), and keep every other layout `<style>` (section, ticker) before the markup it lays out, so streamed HTML never paints content before its visual predecessors.
 
 - Share plan currency formatting between pricing and checkout; derive displayed currency from each plan, not the interface language, to match provider charges without changing donation FX.
 
