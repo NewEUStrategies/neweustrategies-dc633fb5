@@ -18,31 +18,29 @@
 //    domyślnej dla wartości spoza katalogu. Inaczej redaktor wybiera opcję,
 //    która „nic nie robi" - najczęstsza skarga na ten widget.
 //
-// 2. ARKUSZ INSTANCJI TO BIAŁA LISTA, A NIE CZYSZCZENIE. Rozmiary z panelu
-//    trafiają do `<style>` jako reguły `!important` (inline-style przegrywał
-//    z regułami `WidgetView`). Wartość spoza białej listy ma być ODRZUCONA
-//    w całości, a nie „oczyszczona" do połowicznej deklaracji - inaczej pole
-//    tekstowe panelu staje się wektorem wstrzyknięcia CSS.
+// 2. TYPOGRAFIA INSTANCJI TO BIAŁA LISTA, A NIE CZYSZCZENIE. Rozmiary z panelu
+//    trafiają do zmiennych w stylu korzenia, a klasa-znacznik włącza statyczną
+//    regułę `!important` arkusza wspólnego (inline-style przegrywał z regułami
+//    `WidgetView`). Wartość spoza białej listy ma być ODRZUCONA w całości -
+//    bez zmiennej i bez znacznika - a nie „oczyszczona" do połowicznej
+//    deklaracji, inaczej pole tekstowe panelu staje się wektorem wstrzyknięcia.
 //
-// 3. REGUŁY MOBILNE MAJĄ TRZY ADRESY. Ten sam rozmiar musi wyjść jako
-//    `@media (max-width: 767px)` (prawdziwa przeglądarka), jako
-//    `[data-builder-renderer][data-device="mobile"]` (kanwa edytora) i jako
-//    `[data-visual-canvas][data-device="mobile"]` (podgląd wizualny), bo dwa
-//    ostatnie symulują telefon ATRYBUTEM, nie szerokością okna. I odwrotnie:
-//    gdy rozmiar mobilny równa się desktopowemu, żadna z tych reguł nie ma
-//    powstać.
+// 3. REGUŁY MOBILNE MAJĄ TRZY ADRESY. Ten sam rozmiar musi działać pod
+//    `@media (max-width: 767px)` (prawdziwa przeglądarka) i pod
+//    `[data-builder-renderer]` / `[data-visual-canvas]` z `data-device=mobile`
+//    (kanwa i podgląd symulują telefon ATRYBUTEM, nie szerokością okna). Gdy
+//    rozmiar mobilny równa się desktopowemu, znacznika mobilnego nie ma.
 //
-// 4. SELEKTOR NALEŻY DO INSTANCJI. Klasa `eh-i-<useId>` jest potrajana w
-//    selektorze dla specyficzności; dwa slidery na jednej stronie nie mogą
-//    nadpisywać sobie typografii.
+// 4. ŻADNEGO `<style>` W `<body>`. Wartości instancji żyją w stylu korzenia,
+//    reguły raz na dokument w arkuszach `precedence` (React przenosi je do
+//    `<head>`); dwa slidery na jednej stronie niosą własne zmienne.
 //
 // GRANICA DOWODU
 //  * Responsywność renderera jest w CZYSTYM CSS (arkusz `SHARED_STYLES`), a
-//    happy-dom nie liczy kaskady ani nie ma viewportu - dlatego media query
-//    sprawdzamy jako TEKST w `<style>`, nie przez zmianę szerokości okna.
-//  * `useId` generuje identyfikator zależny od drzewa, więc nigdy nie
-//    asertujemy literału `eh-i-r0`, tylko kształt selektora wyrażeniem
-//    regularnym.
+//    happy-dom nie liczy kaskady ani nie ma viewportu - dlatego reguły
+//    sprawdzamy jako TEKST arkusza, a wartości jako zmienne korzenia.
+//  * Arkusze `precedence` zostają w `<head>` między testami (React ich nie
+//    zdejmuje), więc BRAK arkusza mobilnego sprawdzamy w HTML-u serwera.
 //  * Gałęzie osiągalne wyłącznie zdarzeniem (przeciąganie, klik w strzałkę,
 //    nawigacja, autoplay) leżą poza tym plikiem z premedytacją - mają własne
 //    pliki i własne atrapy routera.
@@ -52,6 +50,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
+import { minifyStaticCss } from "@/lib/css/minifyStaticCss";
 import type { SupabaseFromStub } from "@/test/supabase";
 import type { LcpImage } from "../aboveFold";
 
@@ -127,18 +126,46 @@ function renderSlider(config: Partial<SliderConfig> = {}, lang: "pl" | "en" = "p
   return render(<SliderRender config={{ items: ITEMS, autoplay: false, ...config }} lang={lang} />);
 }
 
-/** Cała treść arkuszy stylów zamontowanych przez widget. */
-function styleText(container: HTMLElement): string {
-  return [...container.querySelectorAll("style")].map((s) => s.textContent ?? "").join("\n");
+/** Korzeń slidera (niesie zmienne i znaczniki typografii instancji). */
+function sliderRoot(container: ParentNode): HTMLElement {
+  const root = container.querySelector<HTMLElement>(".eh-slider");
+  if (!root) throw new Error("brak korzenia slidera");
+  return root;
 }
 
-/**
- * Arkusz instancji ma własny znacznik. Wspólny arkusz React przenosi do head
- * i deduplikuje; jego pozycja w DOM nie określa już numeru arkusza instancji.
- */
-function instanceCss(container: HTMLElement): string {
-  return container.querySelector("style[data-slider-instance]")?.textContent ?? "";
+/** Zmienna typografii instancji ze stylu korzenia (`""`, gdy nieustawiona). */
+const rootVar = (container: ParentNode, name: string) =>
+  sliderRoot(container).style.getPropertyValue(name);
+
+/** Znaczniki typografii instancji na korzeniu, w kolejności klas. */
+const typographyMarkers = (container: ParentNode) =>
+  [...sliderRoot(container).classList].filter((c) => /^eh-(t|d|g|tm|dm)$/.test(c));
+
+/** Zminifikowana treść arkusza zasobu `href` (React scala zasoby w jeden `<style>`). */
+function resourceCss(href: string): string {
+  const el = document.querySelector<HTMLStyleElement>(`style[data-href~="${href}"]`);
+  return minifyStaticCss(el?.textContent ?? "");
 }
+
+/** HTML serwera samego slidera (zasoby `precedence` lądują na początku napisu). */
+function serverHtml(config: Partial<SliderConfig>): string {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderToString(
+    <QueryClientProvider client={client}>
+      <SliderRender config={{ items: ITEMS, autoplay: false, ...config }} lang="pl" />
+    </QueryClientProvider>,
+  );
+}
+
+/** Zmienne typografii instancji w stylu korzenia. */
+const TYPOGRAPHY_VARS = ["--abl-title-fs", "--eh-d", "--eh-g", "--eh-tm", "--eh-dm"];
+
+/** Reguły typografii instancji w arkuszu wspólnym: korzeń (0,4,0) + cel. */
+const BASE_TYPOGRAPHY_RULES = [
+  ".eh-t.eh-t.eh-t.eh-t .cms-post-title{font-size:var(--abl-title-fs)!important}",
+  ".eh-d.eh-d.eh-d.eh-d .cms-post-excerpt{font-size:var(--eh-d)!important}",
+  ".eh-g.eh-g.eh-g.eh-g [data-eh-gap]{margin-top:var(--eh-g)!important}",
+];
 
 const prevButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>("button.eh-prev");
 const nextButton = (root: HTMLElement) => root.querySelector<HTMLButtonElement>("button.eh-next");
@@ -459,10 +486,12 @@ describe("SliderRender - katalog wariantów", () => {
     expect(VARIANT_MARKER["editorial-hero"](container)).toBe(true);
   });
 
-  it("znakuje korzeń klasą instancji obok wspólnej klasy eh-slider", () => {
+  it("bez typografii korzeń niesie wyłącznie wspólną klasę eh-slider i zmienne przejścia", () => {
     const { container } = renderSlider();
-    const root = container.querySelector<HTMLElement>(".eh-slider");
-    expect(root?.className).toMatch(/\beh-i-[A-Za-z0-9_-]+\b/);
+    const root = sliderRoot(container);
+    expect(root.className).toBe("w-full h-full min-h-0 eh-slider");
+    for (const name of TYPOGRAPHY_VARS) expect(root.style.getPropertyValue(name)).toBe("");
+    expect(root.style.getPropertyValue("--eh-columns")).toBe("3");
   });
 
   it("przenosi czas przejścia ślizgu do zmiennej CSS korzenia", () => {
@@ -529,18 +558,17 @@ describe("SliderRender - chrom nawigacji przy jednym slajdzie", () => {
 });
 
 // ------------------------------------------------------------------
-// Arkusz CSS instancji
+// Typografia instancji: zmienne korzenia + statyczne reguły arkusza wspólnego
 // ------------------------------------------------------------------
 
-describe("SliderRender - arkusz CSS instancji: biała lista jednostek", () => {
+describe("SliderRender - typografia instancji: biała lista jednostek", () => {
   it.each(["26", "26px", "1.5rem", "80%", "12pt", "5vw", "3vh", "2em"])(
-    "przyjmuje zapis rozmiaru %s i emituje z niego regułę instancji",
+    "przyjmuje zapis rozmiaru %s i wystawia go zmienną korzenia ze znacznikiem",
     (raw) => {
       const { container } = renderSlider({ typography: { fontSize: { desktop: raw } } });
       const expected = /^\d+(\.\d+)?$/.test(raw) ? `${raw}px` : raw;
-      expect(instanceCss(container)).toContain(
-        `.cms-post-title{font-size:${expected} !important;}`,
-      );
+      expect(rootVar(container, "--abl-title-fs")).toBe(expected);
+      expect(typographyMarkers(container)).toEqual(["eh-t"]);
     },
   );
 
@@ -548,26 +576,26 @@ describe("SliderRender - arkusz CSS instancji: biała lista jednostek", () => {
     "odrzuca zapis rozmiaru %s w całości, zamiast go czyścić",
     (raw) => {
       const { container } = renderSlider({ typography: { fontSize: { desktop: raw } } });
-      // Reguła instancji nie może powstać ANI w postaci okrojonej, ANI z
-      // resztką wejścia - to jedyna bariera między polem tekstowym panelu
-      // a arkuszem wstrzykniętym do dokumentu.
-      expect(instanceCss(container)).not.toContain(".cms-post-title{font-size:");
-      expect(styleText(container)).not.toContain("script");
+      // Ani zmienna, ani znacznik nie mogą powstać - to jedyna bariera między
+      // polem tekstowym panelu a deklaracją `!important` w dokumencie.
+      expect(rootVar(container, "--abl-title-fs")).toBe("");
+      expect(typographyMarkers(container)).toEqual([]);
+      expect(sliderRoot(container).getAttribute("style")).not.toContain("script");
     },
   );
 
-  it("nie montuje arkusza instancji, gdy nie ma ani typografii, ani rozmiarów z panelu", () => {
+  it("nie montuje żadnego arkusza w treści, gdy nie ma ani typografii, ani rozmiarów z panelu", () => {
     const { container } = renderSlider();
-    expect(container.querySelectorAll("style[data-slider-instance]")).toHaveLength(0);
-    expect(document.querySelectorAll('style[data-href="nes-slider-shared-v1"]')).toHaveLength(1);
-    expect(instanceCss(container)).toBe("");
+    expect(container.querySelectorAll("style")).toHaveLength(0);
+    expect(typographyMarkers(container)).toEqual([]);
+    expect(document.querySelectorAll('style[data-href~="nes-slider-shared-v1"]')).toHaveLength(1);
   });
 
   it("bierze rozmiary z panelu slidera, gdy sekcja typografii ich nie definiuje", () => {
     const { container } = renderSlider({ titleSizePx: 30, subtitleSizePx: 14 });
-    const css = instanceCss(container);
-    expect(css).toContain(".cms-post-title{font-size:30px !important;}");
-    expect(css).toContain(".cms-post-excerpt{font-size:14px !important;}");
+    expect(rootVar(container, "--abl-title-fs")).toBe("30px");
+    expect(rootVar(container, "--eh-d")).toBe("14px");
+    expect(typographyMarkers(container)).toEqual(["eh-t", "eh-d"]);
   });
 
   it("pozwala typografii wygrać z rozmiarem wpisanym w panelu slidera", () => {
@@ -575,50 +603,78 @@ describe("SliderRender - arkusz CSS instancji: biała lista jednostek", () => {
       titleSizePx: 30,
       typography: { fontSize: { desktop: "44px" } },
     });
-    const css = instanceCss(container);
-    expect(css).toContain(".cms-post-title{font-size:44px !important;}");
-    expect(css).not.toContain("30px");
+    expect(rootVar(container, "--abl-title-fs")).toBe("44px");
+    expect(sliderRoot(container).getAttribute("style")).not.toContain("30px");
   });
 
-  it("potraja klasę instancji w selektorze, żeby przebić reguły widoku widgetu", () => {
-    // Specyficzność [0,4,0] to jedyny powód istnienia tego arkusza: inline-style
-    // przegrywa z `!important` generowanym przez WidgetView.
-    const { container } = renderSlider({ titleSizePx: 22 });
-    expect(instanceCss(container)).toMatch(
-      /\.eh-slider\.(eh-i-[A-Za-z0-9_-]+)\.\1\.\1 \.cms-post-title\{/,
-    );
+  it("arkusz wspólny niesie reguły (0,5,0) z !important, które biją reguły widoku widgetu", () => {
+    // Korzeń (0,4,0) + cel: ta sama waga co dawny arkusz instancji
+    // (`.eh-slider` + potrojona klasa `useId`), więc kaskada się nie zmienia.
+    renderSlider({ titleSizePx: 22 });
+    const css = resourceCss("nes-slider-shared-v1");
+    for (const rule of BASE_TYPOGRAPHY_RULES) expect(css).toContain(rule);
   });
 
-  it("daje dwóm sliderom na jednej stronie rozłączne selektory instancji", () => {
+  it("daje dwóm sliderom na jednej stronie własne wartości przy jednym arkuszu", () => {
     const { container } = render(
       <>
         <SliderRender config={{ items: ITEMS, autoplay: false, titleSizePx: 20 }} lang="pl" />
         <SliderRender config={{ items: ITEMS, autoplay: false, titleSizePx: 40 }} lang="pl" />
       </>,
     );
-    const ids = [...styleText(container).matchAll(/\.eh-slider\.(eh-i-[A-Za-z0-9_-]+)\./g)].map(
-      (m) => m[1],
-    );
-    expect(new Set(ids).size).toBe(2);
+    const roots = [...container.querySelectorAll<HTMLElement>(".eh-slider")];
+    expect(roots.map((r) => r.style.getPropertyValue("--abl-title-fs"))).toEqual(["20px", "40px"]);
+    expect(container.querySelectorAll("style")).toHaveLength(0);
+    expect(document.querySelectorAll('style[data-href~="nes-slider-shared-v1"]')).toHaveLength(1);
+  });
+
+  it("rozmiar tytułu ze zmiennej korzenia bije (0,4,0) !important widgetu, a (0,5,1) nie", () => {
+    // happy-dom liczy kaskadę tylko częściowo, ale `!important` i specyficzność
+    // rozstrzyga. Zapis "26" bez jednostki jest nieważny jako inline `font-size`,
+    // więc 26px może pochodzić wyłącznie z reguły arkusza i zmiennej korzenia.
+    // Rywale stoją w `<head>` PO arkuszu wspólnym (najtrudniejsza kolejność),
+    // więc wygrana może wynikać wyłącznie ze specyficzności.
+    const fontSizeWith = (rival: string, config: Partial<SliderConfig>) => {
+      const { container, unmount } = renderSlider(config);
+      container.setAttribute("data-w-id", "w1");
+      const sheet = document.createElement("style");
+      sheet.textContent = `${rival}{font-size:11px!important}`;
+      document.head.append(sheet);
+      try {
+        const title = titleOf(container)!;
+        return { inline: title.style.fontSize, computed: getComputedStyle(title).fontSize };
+      } finally {
+        sheet.remove();
+        unmount();
+      }
+    };
+    const widgetClass = "[data-w-id][data-w-id][data-w-id] .cms-post-title"; // (0,4,0)
+    const widgetHeading = "[data-w-id][data-w-id][data-w-id] h3:not(.a):not(.b)"; // (0,5,1)
+    const typed: Partial<SliderConfig> = { typography: { fontSize: { desktop: "26" } } };
+    expect(fontSizeWith(widgetClass, typed)).toEqual({ inline: "", computed: "26px" });
+    expect(fontSizeWith(widgetClass, {}).computed).toBe("11px");
+    expect(fontSizeWith(widgetHeading, typed).computed).toBe("11px");
   });
 });
 
 describe("SliderRender - odstęp tytuł-opis", () => {
   it("nie emituje marginesu, gdy redakcja odstępu nie ustawiła", () => {
     const { container } = renderSlider({ titleSizePx: 22 });
-    expect(instanceCss(container)).not.toContain("[data-eh-gap]{margin-top");
+    expect(rootVar(container, "--eh-g")).toBe("");
+    expect(typographyMarkers(container)).not.toContain("eh-g");
     expect(excerptOf(container)?.style.marginTop).toBe("");
   });
 
   it("traktuje odstęp 0 jako świadome zero, a nie jako brak wartości", () => {
     const { container } = renderSlider({ typography: { titleDescriptionGapPx: 0 } });
-    expect(instanceCss(container)).toContain("[data-eh-gap]{margin-top:0px !important;}");
+    expect(rootVar(container, "--eh-g")).toBe("0px");
+    expect(typographyMarkers(container)).toEqual(["eh-g"]);
     expect(excerptOf(container)?.style.marginTop).toBe("0px");
   });
 
-  it("przenosi dodatni odstęp jednocześnie do arkusza instancji i do inline-stylu", () => {
+  it("przenosi dodatni odstęp jednocześnie do zmiennej korzenia i do inline-stylu", () => {
     const { container } = renderSlider({ typography: { titleDescriptionGapPx: 18 } });
-    expect(instanceCss(container)).toContain("[data-eh-gap]{margin-top:18px !important;}");
+    expect(rootVar(container, "--eh-g")).toBe("18px");
     expect(excerptOf(container)?.style.marginTop).toBe("18px");
   });
 });
@@ -693,60 +749,129 @@ describe("SliderRender - wspólna typografia w inline-stylu", () => {
 // ------------------------------------------------------------------
 
 describe("SliderRender - reguły mobilne", () => {
-  it("pomija media query, gdy rozmiar mobilny jest równy desktopowemu", () => {
-    const { container } = renderSlider({
+  it("pomija znacznik i arkusz mobilny, gdy rozmiar mobilny jest równy desktopowemu", () => {
+    const config: Partial<SliderConfig> = {
       typography: {
         fontSize: { desktop: "26px", tablet: "26px", mobile: "26px" },
         descriptionFontSize: { desktop: "16px", tablet: "16px", mobile: "16px" },
       },
-    });
-    const css = instanceCss(container);
-    expect(css).toContain(".cms-post-title{font-size:26px !important;}");
-    expect(css).not.toContain("@media (max-width: 767px)");
-    expect(css).not.toContain('[data-device="mobile"]');
+    };
+    const { container } = renderSlider(config);
+    expect(rootVar(container, "--abl-title-fs")).toBe("26px");
+    expect(typographyMarkers(container)).toEqual(["eh-t", "eh-d"]);
+    expect(rootVar(container, "--eh-tm")).toBe("");
+    expect(serverHtml(config)).not.toContain("nes-slider-m-v1");
   });
 
-  it("emituje media query, gdy rozmiar mobilny różni się od desktopowego", () => {
+  it("wystawia rozmiar mobilny zmienną i montuje arkusz z media query, gdy różni się od desktopowego", () => {
     const { container } = renderSlider({
       typography: { fontSize: { desktop: "34px", mobile: "26px" } },
     });
-    expect(instanceCss(container)).toMatch(
-      /@media \(max-width: 767px\)\{[^}]*\.cms-post-title\{font-size:26px !important;\}\}/,
+    expect(rootVar(container, "--abl-title-fs")).toBe("34px");
+    expect(rootVar(container, "--eh-tm")).toBe("26px");
+    expect(typographyMarkers(container)).toEqual(["eh-t", "eh-tm"]);
+    expect(resourceCss("nes-slider-m-v1")).toContain(
+      "@media (max-width: 767px){.eh-tm{--abl-title-fs:var(--eh-tm)!important}" +
+        ".eh-tm.eh-tm.eh-tm.eh-tm .cms-post-title{font-size:var(--eh-tm)!important}",
     );
   });
 
-  it("dubluje reguły mobilne dla kanwy edytora i dla podglądu wizualnego", () => {
+  it("dubluje reguły mobilne dla kanwy edytora i dla podglądu wizualnego (0,7,0)", () => {
     // Obie powierzchnie symulują telefon ATRYBUTEM data-device, a nie
     // szerokością okna, więc samo media query ich nie obsłuży.
-    const { container } = renderSlider({
-      typography: { fontSize: { desktop: "34px", mobile: "26px" } },
-    });
-    const css = instanceCss(container);
-    expect(css).toMatch(
-      /\[data-builder-renderer\]\[data-device="mobile"\] \.eh-slider\.eh-i-[A-Za-z0-9_-]+/,
+    renderSlider({ typography: { fontSize: { desktop: "34px", mobile: "26px" } } });
+    const css = resourceCss("nes-slider-m-v1");
+    const device = ":is([data-builder-renderer],[data-visual-canvas])[data-device=mobile]";
+    expect(css).toContain(
+      `${device} .eh-tm.eh-tm.eh-tm.eh-tm .cms-post-title{font-size:var(--eh-tm)!important}`,
     );
-    expect(css).toMatch(
-      /\[data-visual-canvas\]\[data-device="mobile"\] \.eh-slider\.eh-i-[A-Za-z0-9_-]+/,
+    expect(css).toContain(
+      `${device} .eh-dm.eh-dm.eh-dm.eh-dm .cms-post-excerpt{font-size:var(--eh-dm)!important}`,
     );
   });
 
   it("tworzy regułę mobilną także wtedy, gdy zdefiniowano wyłącznie mobilny rozmiar zajawki", () => {
-    const { container } = renderSlider({
+    const config: Partial<SliderConfig> = {
       typography: { descriptionFontSize: { mobile: "13px" } },
-    });
-    const css = instanceCss(container);
-    expect(css).toContain("@media (max-width: 767px)");
-    expect(css).toContain(".cms-post-excerpt{font-size:13px !important;}");
+    };
+    const { container } = renderSlider(config);
+    expect(rootVar(container, "--eh-dm")).toBe("13px");
+    expect(typographyMarkers(container)).toEqual(["eh-dm"]);
+    expect(serverHtml(config)).toContain("nes-slider-m-v1");
+    expect(resourceCss("nes-slider-m-v1")).toContain(
+      ".eh-dm.eh-dm.eh-dm.eh-dm .cms-post-excerpt{font-size:var(--eh-dm)!important}}",
+    );
   });
 
-  it("odrzuca mobilny rozmiar spoza białej listy, nie psując reguły desktopowej", () => {
-    const { container } = renderSlider({
+  it("odrzuca mobilny rozmiar spoza białej listy, nie psując wartości desktopowej", () => {
+    const config: Partial<SliderConfig> = {
       typography: { fontSize: { desktop: "34px", mobile: "26px}<style>" } },
+    };
+    const { container } = renderSlider(config);
+    expect(rootVar(container, "--abl-title-fs")).toBe("34px");
+    expect(typographyMarkers(container)).toEqual(["eh-t"]);
+    expect(sliderRoot(container).getAttribute("style")).not.toContain("style>");
+    expect(serverHtml(config)).not.toContain("nes-slider-m-v1");
+  });
+});
+
+// ------------------------------------------------------------------
+// HTML serwera: wartości instancji w atrybutach korzenia, reguły w arkuszach
+// `precedence` (bez `<style>` w treści), hydratacja bez rozjazdu
+// ------------------------------------------------------------------
+
+describe("SliderRender - typografia instancji w HTML-u serwera", () => {
+  const FULL: Partial<SliderConfig> = {
+    typography: {
+      fontSize: { desktop: "34px", mobile: "26px" },
+      descriptionFontSize: { desktop: "16px", mobile: "14px" },
+      titleDescriptionGapPx: 0,
+    },
+  };
+
+  it("nie emituje arkusza instancji; korzeń niesie zmienne i znaczniki tylko ustawionych wartości", () => {
+    const html = serverHtml(FULL);
+    expect(html).not.toContain("data-slider-instance");
+    expect(html).not.toMatch(/eh-i-/);
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    expect(typographyMarkers(host)).toEqual(["eh-t", "eh-d", "eh-g", "eh-tm", "eh-dm"]);
+    expect(sliderRoot(host).getAttribute("style")).toMatch(
+      /^--eh-speed:\d+ms;--eh-columns:3;--abl-title-fs:34px;--eh-d:16px;--eh-g:0px;--eh-tm:26px;--eh-dm:14px$/,
+    );
+    // Oba zasoby w jednym `<style>` precedencji (scalanie Reacta), wspólny pierwszy.
+    expect(html).toContain('data-href="nes-slider-shared-v1 nes-slider-m-v1"');
+    expect(sliderRoot(host).querySelectorAll("style")).toHaveLength(0);
+  });
+
+  it("hydratacja przejmuje korzeń z typografią instancji bez rozjazdu", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (
+      <QueryClientProvider client={client}>
+        <SliderRender config={{ items: ITEMS, autoplay: false, ...FULL }} lang="pl" />
+      </QueryClientProvider>
+    );
+    const host = document.createElement("div");
+    host.innerHTML = serverHtml(FULL);
+    document.body.append(host);
+    const root = sliderRoot(host);
+    const errors: unknown[] = [];
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation((error) => errors.push(error));
+    const reactRoot = hydrateRoot(host, tree, {
+      onRecoverableError: (error) => errors.push(error),
     });
-    const css = instanceCss(container);
-    expect(css).toContain(".cms-post-title{font-size:34px !important;}");
-    expect(css).not.toContain("@media (max-width: 767px)");
-    expect(css).not.toContain("style>");
+    try {
+      await act(async () => {});
+      expect(errors).toEqual([]);
+      expect(sliderRoot(host)).toBe(root);
+      expect(rootVar(host, "--eh-tm")).toBe("26px");
+    } finally {
+      await act(async () => reactRoot.unmount());
+      consoleError.mockRestore();
+      host.remove();
+    }
   });
 });
 
