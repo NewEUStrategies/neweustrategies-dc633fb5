@@ -161,7 +161,10 @@ const ALIGNS = ["start", "center", "end"] as const satisfies readonly GoogleSour
  * same piksele co przed nią - bramka tylko czyni typ `number` prawdziwym.
  */
 const clampedField = (clamp: (value: unknown) => number, fallback: number) =>
-  z.unknown().optional().transform((value) => (value === undefined ? fallback : clamp(value)));
+  z
+    .unknown()
+    .optional()
+    .transform((value) => (value === undefined ? fallback : clamp(value)));
 
 const TRUE_LIKE: ReadonlySet<unknown> = new Set([true, 1, "true", "1"]);
 const FALSE_LIKE: ReadonlySet<unknown> = new Set([false, 0, "false", "0", null]);
@@ -175,12 +178,15 @@ const FALSE_LIKE: ReadonlySet<unknown> = new Set([false, 0, "false", "0", null])
  * Napisy są porównywane po `trim` i małych literach.
  */
 const switchField = (fallback: boolean) =>
-  z.unknown().optional().transform((value): boolean => {
-    const v = typeof value === "string" ? value.trim().toLowerCase() : value;
-    if (TRUE_LIKE.has(v)) return true;
-    if (FALSE_LIKE.has(v)) return false;
-    return fallback;
-  });
+  z
+    .unknown()
+    .optional()
+    .transform((value): boolean => {
+      const v = typeof value === "string" ? value.trim().toLowerCase() : value;
+      if (TRUE_LIKE.has(v)) return true;
+      if (FALSE_LIKE.has(v)) return false;
+      return fallback;
+    });
 
 const placementSchema = (d: GoogleSourceBadgePlacement) =>
   z

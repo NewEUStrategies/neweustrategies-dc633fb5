@@ -142,12 +142,20 @@ describe("MoneyText - kwota czytelna dla człowieka I dla maszyny", () => {
 });
 
 describe("BillingDate - dzień, w którym pobrano pieniądze", () => {
-  it("data jest elementem `<time>` z surowym znacznikiem czasu", () => {
+  it("data jest elementem `<time>` z dniem widocznym na karcie", () => {
     render(<BillingDate iso="2026-08-18T10:00:00.000Z" />);
 
     const time = screen.getByText(/2026/);
     expect(time.tagName).toBe("TIME");
-    expect(time).toHaveAttribute("datetime", "2026-08-18T10:00:00.000Z");
+    expect(time).toHaveAttribute("datetime", "2026-08-18");
+  });
+
+  it("22:30 UTC z mikrosekundami `now()` to w atrybucie dzień warszawski z ekranu", () => {
+    render(<BillingDate iso="2026-08-18T22:30:00.123456+00:00" />);
+
+    const time = screen.getByText(/2026/);
+    expect(time).toHaveAttribute("datetime", "2026-08-19");
+    expect(time.textContent).toBe("19 sierpnia 2026");
   });
 
   it("BRAK daty pokazuje kreskę, nie puste miejsce", () => {
@@ -178,7 +186,7 @@ describe("BillingDate - dzień, w którym pobrano pieniądze", () => {
     );
 
     expect(long.textContent).not.toBe(short.textContent);
-    expect(short.querySelector("time")).toHaveAttribute("datetime", "2026-08-18T10:00:00.000Z");
+    expect(short.querySelector("time")).toHaveAttribute("datetime", "2026-08-18");
   });
 
   it("po angielsku data jest formatowana europejsko (dzień przed miesiącem)", () => {

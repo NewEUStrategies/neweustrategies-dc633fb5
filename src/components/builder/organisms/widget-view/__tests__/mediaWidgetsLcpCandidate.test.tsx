@@ -226,23 +226,27 @@ describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
     ],
   };
 
-  it("slider-kandydat: slajd 0 eager + high + znacznik, slajd 1 leniwy", async () => {
+  it("slider-kandydat: slajd 0 eager + high + znacznik, slajd 1 bez pobierania", async () => {
     const { container } = renderNode("slider", slides, { lcpCandidate: true });
     await waitFor(() => expect(container.querySelector("img.eh-img")).not.toBeNull());
-    const imgs = container.querySelectorAll("img.eh-img");
-    expect(imgs[0]).toHaveAttribute("loading", "eager");
-    expect(imgs[0]).toHaveAttribute("fetchpriority", "high");
-    expect(imgs[0]).toHaveAttribute("data-lcp-candidate", "");
-    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    const layers = container.querySelectorAll(".eh-img");
+    expect(layers[0].tagName).toBe("IMG");
+    expect(layers[0]).toHaveAttribute("loading", "eager");
+    expect(layers[0]).toHaveAttribute("fetchpriority", "high");
+    expect(layers[0]).toHaveAttribute("data-lcp-candidate", "");
+    // Slajd niepokazany to zaślepka bez adresu - nic nie pobiera do pokazania.
+    expect(layers[1].tagName).toBe("SPAN");
+    expect(layers[1]).not.toHaveAttribute("src");
     expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(1);
   });
 
   it("slider w pierwszej sekcji renderu klienckiego (`eager`): slajd 0 eager BEZ znacznika", async () => {
     const { container } = renderNode("slider", slides, { eagerSection: true });
     await waitFor(() => expect(container.querySelector("img.eh-img")).not.toBeNull());
-    const imgs = container.querySelectorAll("img.eh-img");
-    expect(imgs[0]).toHaveAttribute("loading", "eager");
-    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    const layers = container.querySelectorAll(".eh-img");
+    expect(layers[0]).toHaveAttribute("loading", "eager");
+    expect(layers[1].tagName).toBe("SPAN");
+    expect(layers[1]).not.toHaveAttribute("src");
     expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(0);
   });
 

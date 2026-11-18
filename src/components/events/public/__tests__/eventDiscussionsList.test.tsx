@@ -310,6 +310,19 @@ describe("EventDiscussionsList", () => {
     expect(screen.queryByRole("button", { name: OPEN_ANNA })).toBeNull();
   });
 
+  it("`datetime` ostatniej aktywności to dzień z ekranu w Warszawie, nie dzień UTC", async () => {
+    // 22:30 UTC 9 października (mikrosekundy z `now()`) to już 10 października w Warszawie.
+    fetchDiscussions.mockResolvedValue(
+      discussions({ threads: [thread({ lastReplyAt: "2026-10-09T22:30:00.123456+00:00" })] }),
+    );
+    const { container } = renderList();
+
+    await screen.findByText("Anna Adamska");
+    const time = container.querySelector("time");
+    expect(time).toHaveAttribute("dateTime", "2026-10-10");
+    expect(time?.textContent).toMatch(/"date":"10 .+2026"/);
+  });
+
   it("wątek przypięty i ostatnia aktywność mówią się w wierszu", async () => {
     fetchDiscussions.mockResolvedValue(
       discussions({
@@ -327,9 +340,9 @@ describe("EventDiscussionsList", () => {
 
     expect(await screen.findByText("eventFront.directory.pinned")).toBeInTheDocument();
     expect(screen.getByText("eventFront.discussions.kind.question")).toBeInTheDocument();
-    // Ostatnia odpowiedź wygrywa z datą założenia; znacznik maszynowy zostaje ISO.
+    // Ostatnia odpowiedź wygrywa z datą założenia; znacznik maszynowy to dzień z ekranu.
     const time = container.querySelector("time");
-    expect(time).toHaveAttribute("dateTime", "2026-10-09T12:00:00Z");
+    expect(time).toHaveAttribute("dateTime", "2026-10-09");
     expect(time?.textContent).toMatch(
       /^eventFront\.directory\.lastActivity:\{"date":"9 .+2026"\}$/,
     );

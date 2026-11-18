@@ -291,6 +291,17 @@ describe("LiveBlogBlock - znaczniki czasu", () => {
     const { container } = renderBlock();
     await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
     expect(container.querySelector("time")?.getAttribute("title")).toBe(occurred_at);
+    // Atrybut maszynowy tylko z czytelnej chwili - nigdy `datetime=""`.
+    expect(container.querySelector("time")?.hasAttribute("datetime")).toBe(false);
+  });
+
+  it("`datetime` to chwila z milisekundami w UTC - bez mikrosekund `now()`", async () => {
+    h.entries = [entry({ occurred_at: "2026-08-19T11:59:30.123456+00:00" })];
+    const { container } = renderBlock();
+    await waitFor(() => expect(container.textContent).toContain("Wpis pierwszy"));
+    expect(container.querySelector("time")?.getAttribute("datetime")).toBe(
+      "2026-08-19T11:59:30.123Z",
+    );
   });
 
   it("etykiety względne odświeżają się co 30 sekund", async () => {

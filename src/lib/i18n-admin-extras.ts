@@ -906,9 +906,9 @@ export const adminExtrasPl = {
   },
   // `linkPicker.*` NIE tutaj: jedyny czytelnik (`LinkPicker.tsx`) importuje
   // `i18n-builder` wprost, a druga kopia z overwrite=true podmieniała napis
-  // buildera w całym panelu. `nav.account` i `builder.sectionLoading` czytają
-  // komponenty PUBLICZNE bez własnej nakładki (`AccountMenuWidget`,
-  // `sectionStreaming`), więc należą do RDZENIA (`locale/*.ts`). Ta nakładka
+  // buildera w całym panelu. `nav.account` czyta komponent PUBLICZNY bez
+  // własnej nakładki (`AccountMenuWidget`), więc należy do RDZENIA
+  // (`locale/*.ts`). Ta nakładka
   // dawała je publicznemu /profile tylko przypadkiem (import z dialogu firmy),
   // a każda inna strona publiczna czytała goły klucz.
   themeOptions: {

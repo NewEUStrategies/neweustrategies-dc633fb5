@@ -56,9 +56,6 @@ export const en = {
     newsletter: "Newsletter",
     skipToContent: "Skip to content",
   },
-  builder: {
-    sectionLoading: "Loading the section…",
-  },
   quiz: {
     share: {
       title: "Share quiz",

@@ -18,9 +18,11 @@ import {
   DATE_ONLY_TIME_ZONE,
   SITE_TIME_ZONE,
   formatDate,
+  formatDateAttr,
   formatDateOnly,
   formatDateShort,
   formatDateTime,
+  formatDateTimeAttr,
   formatNumber,
   uiLang,
   uiLocale,
@@ -310,6 +312,69 @@ describe("formatDateShort", () => {
     // dla en-GB daje "5/03/2026", a `day: "2-digit"` dla pl - "05.03.2026".
     expect(formatDateShort("2026-03-05T10:00:00.000Z", "pl")).toBe("5.03.2026");
     expect(formatDateShort("2026-03-05T10:00:00.000Z", "en")).toBe("05/03/2026");
+  });
+});
+
+describe("formatDateAttr - `datetime` dla dat bez godziny", () => {
+  it("dzień kalendarzowy w strefie serwisu, nie w UTC", () => {
+    // 22:30 UTC 5 września to 00:30 6 września w Warszawie (CEST).
+    expect(formatDateAttr("2026-09-05T22:30:00.123456+00:00")).toBe("2026-09-06");
+    expect(formatDateShort("2026-09-05T22:30:00.123456+00:00", "pl")).toBe("6.09.2026");
+    // Zima (CET, +1): 23:30 UTC 31 grudnia to już Nowy Rok w Warszawie.
+    expect(formatDateAttr("2026-12-31T23:30:00Z")).toBe("2027-01-01");
+  });
+
+  it('zawsze "valid date string" HTML (RRRR-MM-DD z zerami)', () => {
+    expect(formatDateAttr("2026-03-05T10:00:00.000Z")).toBe("2026-03-05");
+    expect(formatDateAttr(new Date("2026-03-05T10:00:00.000Z"))).toBe("2026-03-05");
+  });
+
+  it("nieczytelna wartość albo rok spoza 4 cyfr = brak atrybutu", () => {
+    expect(formatDateAttr("nie-data")).toBeUndefined();
+    expect(formatDateAttr(Number.NaN)).toBeUndefined();
+    expect(formatDateAttr(new Date(-62198755200000 * 2))).toBeUndefined();
+  });
+});
+
+describe("formatDateTimeAttr - `datetime` dla godziny i czasu względnego", () => {
+  // "valid global date and time string" HTML: ułamek sekundy ma 1-3 cyfry.
+  const HTML_GLOBAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("mikrosekundy `now()` przycina do milisekund, chwila bez zmian", () => {
+    const raw = "2026-09-05T22:30:00.123456+00:00";
+    expect(formatDateTimeAttr(raw)).toBe("2026-09-05T22:30:00.123Z");
+    expect(formatDateTimeAttr(raw)).toMatch(HTML_GLOBAL_DATETIME);
+    // Ta sama chwila: godzina na ekranie liczy się z atrybutu identycznie.
+    expect(formatDateTime(formatDateTimeAttr(raw) ?? "", "pl")).toBe(formatDateTime(raw, "pl"));
+  });
+
+  it("przesunięcie strefy sprowadza do UTC; obiekt Date i liczba też", () => {
+    expect(formatDateTimeAttr("2026-09-06T00:30:00+02:00")).toBe("2026-09-05T22:30:00.000Z");
+    expect(formatDateTimeAttr(new Date("2026-09-05T22:30:00Z"))).toBe("2026-09-05T22:30:00.000Z");
+    expect(formatDateTimeAttr(Date.UTC(2026, 8, 5, 22, 30))).toBe("2026-09-05T22:30:00.000Z");
+  });
+
+  it("nie zależy od strefy maszyny (parytet SSR/hydratacji)", () => {
+    const original = process.env.TZ;
+    try {
+      const out = ["UTC", "America/Los_Angeles", "Pacific/Kiritimati"].map((tz) => {
+        process.env.TZ = tz;
+        return formatDateTimeAttr("2026-09-05T22:30:00.123456+00:00");
+      });
+      expect(new Set(out).size).toBe(1);
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+
+  it("nieczytelna wartość albo rok spoza 4 cyfr = brak atrybutu (nie pusty napis)", () => {
+    expect(formatDateTimeAttr("nie-data")).toBeUndefined();
+    expect(formatDateTimeAttr("")).toBeUndefined();
+    expect(formatDateTimeAttr(Number.NaN)).toBeUndefined();
+    // `toISOString` dałby tu "+010000-…" - to nie jest wartość HTML.
+    expect(formatDateTimeAttr(Date.UTC(10000, 0, 1))).toBeUndefined();
+    expect(formatDateTimeAttr(new Date(-62198755200000 * 2))).toBeUndefined();
   });
 });
 

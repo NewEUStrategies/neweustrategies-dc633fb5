@@ -19,7 +19,7 @@ import {
   clubThreadTone,
 } from "@/components/clubs/atoms/ClubDossierRow";
 import { toAuthorLabel, type ClubLayout, type ClubThreadListRow } from "@/lib/clubs/types";
-import { formatDateShort, uiLang } from "@/lib/i18n/format";
+import { formatDateAttr, formatDateShort, uiLang } from "@/lib/i18n/format";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
 import { normalizeClubThreadIcon } from "@/lib/clubs/threadIcons";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
@@ -63,7 +63,7 @@ function ThreadMeta({ thread }: { thread: ClubThreadListRow }) {
       <span aria-hidden="true">·</span>
       <span className="max-w-[14rem] truncate font-medium text-foreground">{author.name}</span>
       <span aria-hidden="true">·</span>
-      <time dateTime={thread.last_reply_at ?? thread.created_at}>
+      <time dateTime={formatDateAttr(thread.last_reply_at ?? thread.created_at)}>
         {formatDateShort(thread.last_reply_at ?? thread.created_at, lang)}
       </time>
       {thread.pinned_at !== null ? (

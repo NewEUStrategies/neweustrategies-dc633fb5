@@ -23,7 +23,7 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { LEGACY_AVATAR_RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
 
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
 import {
   User,
@@ -570,7 +570,7 @@ export function RelatedPostsView({
                 {p.published_at && (
                   <time
                     className="text-xs text-muted-foreground mt-1 block"
-                    dateTime={p.published_at}
+                    dateTime={formatDateAttr(p.published_at)}
                   >
                     {formatDate(p.published_at, lang, { dateStyle: "medium" })}
                   </time>

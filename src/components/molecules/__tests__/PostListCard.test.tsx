@@ -11,6 +11,7 @@
 //   * tytuł i zajawka idą za językiem z odwrotem do drugiego języka.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({ track: vi.fn() }));
@@ -114,6 +115,60 @@ describe("PostListCard - treść", () => {
     );
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByRole("link").querySelector("time")).toBeNull();
+  });
+});
+
+describe("PostListCard - maszynowa data `<time datetime>`", () => {
+  // Walidator HTML na /blog: `<time>` bez `datetime` musi mieć w treści wartość
+  // maszynową, a „6.09.2026" nią nie jest. Karta pokazuje SAMĄ datę, więc atrybut
+  // to "valid date string" tego samego dnia w strefie serwisu (Europe/Warsaw).
+  const HTML_VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const ORIGINAL_TZ = process.env.TZ;
+  afterEach(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  const timeOf = () => screen.getByRole("link").querySelector("time") as HTMLTimeElement;
+
+  it("wartość fixture'a /blog dostaje `datetime` dnia widocznego na karcie", () => {
+    render(
+      <PostListCard
+        post={{ ...POST, published_at: "2026-09-06T00:00:00Z" }}
+        href="/blog/unia"
+        lang="pl"
+      />,
+    );
+    expect(timeOf().getAttribute("datetime")).toBe("2026-09-06");
+    expect(timeOf().textContent).toBe("6.09.2026");
+  });
+
+  it("wpis z 22:30 UTC to już następny dzień w Warszawie - atrybut i ekran zgodne", () => {
+    // Mikrosekundy Postgresa (`now()`) nie trafiają do atrybutu.
+    const raw = "2026-09-05T22:30:00.123456+00:00";
+    render(<PostListCard post={{ ...POST, published_at: raw }} href="/blog/unia" lang="pl" />);
+    const attr = timeOf().getAttribute("datetime") ?? "";
+    expect(attr).toBe("2026-09-06");
+    expect(attr).toMatch(HTML_VALID_DATE);
+    expect(timeOf().textContent).toBe("6.09.2026");
+  });
+
+  it("SSR nie zależy od strefy maszyny (parytet z hydratacją)", () => {
+    const post = { ...POST, published_at: "2026-09-05T22:30:00.123456+00:00" };
+    const html = (tz: string) => {
+      process.env.TZ = tz;
+      return renderToString(<PostListCard post={post} href="/blog/unia" lang="en" />);
+    };
+    const utc = html("UTC");
+    // React serializuje nazwę jako `dateTime` - nazwy atrybutów HTML są bez wielkości liter.
+    expect(utc).toMatch(/ datetime="2026-09-06">06\/09\/2026<\/time>/i);
+    expect(html("America/Los_Angeles")).toBe(utc);
+    expect(html("Pacific/Kiritimati")).toBe(utc);
+  });
+
+  it("nieczytelna wartość nie dostaje atrybutu (zamiast `Invalid Date`)", () => {
+    render(<PostListCard post={{ ...POST, published_at: "nie-data" }} href="/x" lang="pl" />);
+    expect(timeOf().hasAttribute("datetime")).toBe(false);
   });
 });
 

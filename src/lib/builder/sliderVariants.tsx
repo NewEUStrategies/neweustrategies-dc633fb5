@@ -2,7 +2,7 @@ import { useBuilderImageSlot } from "./imageSlotContext";
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants share data resolution (post bindings, fallback covers,
 // autoplay, drag), and each variant renders the slides differently.
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
@@ -15,6 +15,7 @@ import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQu
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -261,11 +262,22 @@ function ResilientSliderImage({
   // Opacity does not stop native lazy loading for stacked slides. Only give
   // the browser a real URL after this slide has first become visible. Keep
   // previously shown images mounted so crossfades and backwards navigation work.
-  const [requested, setRequested] = useState(active || alwaysVisible);
-  const shouldLoad = active || alwaysVisible || requested;
-  useEffect(() => {
-    if (active || alwaysVisible) setRequested(true);
-  }, [active, alwaysVisible]);
+  // Stan startowy zależy wyłącznie od `active`/`alwaysVisible` (slajd 0 po obu
+  // stronach), więc SSR i pierwszy render klienta są identyczne.
+  const shown = active || alwaysVisible;
+  const [requested, setRequested] = useState(shown);
+  const shouldLoad = shown || requested;
+  // Pierwsze pokazanie montuje świeży `<img>` z `opacity:0`; krycie zdejmujemy
+  // dopiero po przeliczeniu tego stylu, więc przejście 700 ms z arkusza biegnie
+  // jak wtedy, gdy ukryty `<img>` czekał w DOM-ie. Wszystko przed malowaniem.
+  useIsomorphicLayoutEffect(() => {
+    if (!shown || requested) return;
+    const img = imgRef.current;
+    // Odczyt wymusza przeliczenie stylu - bez niego przeglądarka od razu
+    // zobaczyłaby krycie 1 i pominęła przejście.
+    if (img) void getComputedStyle(img).opacity;
+    setRequested(true);
+  }, [shown, requested]);
 
   const originalSrc = safeImageUrl(src) || src;
   const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
@@ -284,18 +296,36 @@ function ResilientSliderImage({
     }
   }, [displaySrc, fallback, onBrokenSource, originalSrc, shouldLoad]);
 
-  const visible = alwaysVisible || active;
+  const fillClassName =
+    className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg";
+  // Dieta znaczników (P2.6, HW-6): przejście siedzi w arkuszu wspólnym
+  // (`.eh-slider [data-fill-image]`, ta sama deklaracja), a inline zostaje
+  // wyłącznie stan per slajd - `opacity:0` slajdu ukrytego. Widoczny obraz
+  // nie ma atrybutu `style` (krycie 1 to wartość początkowa), więc
+  // 152 B × 21 obrazów znika z dokumentu.
+  const hiddenStyle: CSSProperties = { opacity: 0, ...style };
+  if (!shouldLoad) {
+    // Slajd jeszcze niepokazany: pusty `<span>` zamiast `<img>` bez src/srcset
+    // (błąd walidatora HTML). Te same klasy i krycie trzymają pudełko
+    // (absolute inset-0) i kolejność warstw stosu; bez atrybutów pobierania
+    // znacznik jest krótszy, a żądanie sieciowe startuje dopiero z `<img>`.
+    return (
+      <span aria-hidden="true" data-fill-image className={fillClassName} style={hiddenStyle} />
+    );
+  }
+
+  const visible = alwaysVisible || (active && requested);
   // Responsive candidates for Supabase-storage covers: hero sliders previously
   // downloaded the full-resolution original on every device - the single
   // biggest LCP cost on slider homepages. buildImageSrcSet returns "" for
   // non-transformable (external/fallback) URLs, so those keep plain `src`.
-  const srcSet = shouldLoad ? buildImageSrcSet(displaySrc) : "";
+  const srcSet = buildImageSrcSet(displaySrc);
   return (
     <img
       ref={imgRef}
       // Atrybut względny obok względnego `srcSet` (P3.2a/P4.2); stan (`displaySrc`,
       // `originalSrc`, `onBrokenSource`) zostaje absolutny.
-      src={shouldLoad ? (srcSet ? renderedMediaUrl(displaySrc) : displaySrc) : undefined}
+      src={srcSet ? renderedMediaUrl(displaySrc) : displaySrc}
       srcSet={srcSet || undefined}
       sizes={srcSet ? `${priority ? "" : "auto, "}${sizes}` : undefined}
       alt=""
@@ -303,20 +333,13 @@ function ResilientSliderImage({
       data-fill-image
       data-lcp-candidate={lcpCandidate ? "" : undefined}
       loading={priority ? "eager" : "lazy"}
-      // Slajdy 2..N leżą w viewporcie (stack absolute, ukryte tylko przez
-      // opacity), więc natywne lazy i tak startuje ich pobieranie od razu -
-      // "low" zdejmuje je z drogi prawdziwego kandydata LCP (slajd aktywny).
-      // Deterministyczne dla SSR/hydratacji: obie strony renderują idx=0
-      // jako aktywny.
+      // "low" dostaje już pokazany, a teraz ukryty slajd stosu - zdejmuje go
+      // z drogi prawdziwego kandydata LCP (slajd aktywny). Deterministyczne
+      // dla SSR/hydratacji: obie strony renderują idx=0 jako aktywny.
       fetchPriority={priority && active ? "high" : active ? "auto" : "low"}
       decoding="async"
-      className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
-      // Dieta znaczników (P2.6, HW-6): przejście siedzi w arkuszu wspólnym
-      // (`.eh-slider [data-fill-image]`, ta sama deklaracja), a inline zostaje
-      // wyłącznie stan per slajd - `opacity:0` slajdu ukrytego. Widoczny obraz
-      // nie ma atrybutu `style` (krycie 1 to wartość początkowa), więc
-      // 152 B × 21 obrazów znika z dokumentu.
-      style={visible ? style : { opacity: 0, ...style }}
+      className={fillClassName}
+      style={visible ? style : hiddenStyle}
       onError={(e) => {
         onBrokenSource(originalSrc);
         const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;
@@ -568,7 +591,37 @@ const SHARED_STYLES = /* @nes-static-css */ `
 /* Liczbę kolumn na węższych szerokościach liczy JS (effectiveSliderColumns)
    z szerokości KONTENERA - szerokość karty i przesunięcie toru muszą wynikać
    z tej samej wartości, inaczej na telefonie slajdy rozjeżdżają się z kropkami. */
+
+/* Typografia instancji: wartość w stylu korzenia, klasa-znacznik tylko przy
+   ustawionej wartości (bez niej reguła nie pasuje - nigdy var() bez definicji).
+   Korzeń (0,4,0) + cel = (0,5,0) z !important, jak dawny arkusz instancji:
+   bije szablon i generator typografii widgetu na klasie (0,4,0), przegrywa
+   z ich gałęzią nagłówków (0,5,1). Tytuł czyta --abl-title-fs - tę samą
+   zmienną bierze szacunek bylinu „tytuł minus 2 px” (styles.css). */
+.eh-t.eh-t.eh-t.eh-t .cms-post-title { font-size: var(--abl-title-fs)!important; }
+.eh-d.eh-d.eh-d.eh-d .cms-post-excerpt { font-size: var(--eh-d)!important; }
+.eh-g.eh-g.eh-g.eh-g [data-eh-gap] { margin-top: var(--eh-g)!important; }
 `;
+
+/**
+ * Rozmiary mobilne instancji (`eh-tm`, `eh-dm`): osobny zasób `precedence`,
+ * montowany tylko przez slider, który je ma - strona bez nich nie płaci
+ * bajtami `<head>`. React układa zasoby jednej precedencji w kolejności
+ * napotkania, a każdy slider montuje najpierw `nes-slider-shared-v1`, więc
+ * reguły mobilne stoją po desktopowych i wygrywają remis (0,5,0).
+ * Napis już zwarty (wtyczka `staticCssPlugin` minifikuje jeden literał modułu).
+ */
+const MOBILE_TYPOGRAPHY_STYLES =
+  // Telefon: `--abl-title-fs` z `!important` bije zmienną ze stylu korzenia,
+  // więc rozmiar mobilny biorą tytuł i szacunek bylinu.
+  "@media (max-width: 767px){" +
+  ".eh-tm{--abl-title-fs:var(--eh-tm)!important}" +
+  ".eh-tm.eh-tm.eh-tm.eh-tm .cms-post-title{font-size:var(--eh-tm)!important}" +
+  ".eh-dm.eh-dm.eh-dm.eh-dm .cms-post-excerpt{font-size:var(--eh-dm)!important}}" +
+  // Kanwa i renderer symulują telefon atrybutem (0,7,0); szacunek bylinu bez
+  // zmian, bo kanwa mierzy tytuł przed malowaniem.
+  ":is([data-builder-renderer],[data-visual-canvas])[data-device=mobile] .eh-tm.eh-tm.eh-tm.eh-tm .cms-post-title{font-size:var(--eh-tm)!important}" +
+  ":is([data-builder-renderer],[data-visual-canvas])[data-device=mobile] .eh-dm.eh-dm.eh-dm.eh-dm .cms-post-excerpt{font-size:var(--eh-dm)!important}";
 
 interface NavArrowsProps {
   prevLabel: string;
@@ -840,11 +893,12 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     ...(titleDescriptionGapPx >= 0 ? { marginTop: `${titleDescriptionGapPx}px` } : {}),
   };
 
-  // Rozstrzygnięte wartości typografii, wystawione dodatkowo jako CSS o
-  // specyficzności [0,4,0] scopowany do TEJ instancji slidera. Inline-style
-  // przegrywa z regułami `!important`, które `WidgetView` generuje dla
-  // `.cms-post-title` / `.cms-post-excerpt`, więc bez tego rozmiar tytułu,
-  // rozmiar opisu i odstęp tytuł-opis potrafiły nie ruszać podglądu.
+  // Rozstrzygnięte wartości typografii jadą jako zmienne w stylu korzenia,
+  // a klasy-znaczniki włączają statyczne reguły (0,5,0) z `!important`
+  // (`SHARED_STYLES`, `MOBILE_TYPOGRAPHY_STYLES`). Sam inline-style przegrywa
+  // z regułami `!important`, które `WidgetView` generuje dla `.cms-post-title`
+  // / `.cms-post-excerpt`, więc bez nich rozmiar tytułu, rozmiar opisu
+  // i odstęp tytuł-opis potrafiły nie ruszać podglądu.
   const cssLen = (value: string | number | undefined): string | undefined => {
     if (value === undefined || value === "") return undefined;
     // Panel wpisuje "26" albo "26px"; twarde odsiewanie znaków, które mogłyby
@@ -860,54 +914,38 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   const resolvedTitleFs = cssLen(titleSize) ?? (titleSizePx > 0 ? `${titleSizePx}px` : undefined);
   const resolvedDescFs =
     cssLen(descSize) ?? (subtitleSizePx > 0 ? `${subtitleSizePx}px` : undefined);
-  // Osobne wartości mobilne (panel: sekcja "Mobile") - emitowane w media query,
-  // więc na telefonie tytuł może mieć np. 26px zamiast desktopowych 34px.
+  // Osobne wartości mobilne (panel: sekcja "Mobile") - tylko gdy różnią się od
+  // desktopowych, więc na telefonie tytuł może mieć np. 26px zamiast 34px.
   const resolvedTitleFsMobile = cssLen(config.typography?.fontSize?.mobile);
   const resolvedDescFsMobile = cssLen(config.typography?.descriptionFontSize?.mobile);
   const resolvedGap = titleDescriptionGapPx >= 0 ? `${titleDescriptionGapPx}px` : undefined;
-  const instanceId = `eh-i-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const instanceSel = `.eh-slider.${instanceId}.${instanceId}.${instanceId}`;
-  const mobileRules = [
-    resolvedTitleFsMobile && resolvedTitleFsMobile !== resolvedTitleFs
-      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFsMobile} !important;}`
-      : "",
-    resolvedDescFsMobile && resolvedDescFsMobile !== resolvedDescFs
-      ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFsMobile} !important;}`
-      : "",
-  ].filter(Boolean);
-  const instanceCss = [
-    // Ten sam rozmiar dla szacunku bylinu „tytuł minus 2 px” przed pomiarem
-    // (`styles.css`): HTML z serwera ma rozmiar, który pomiar potwierdzi.
-    // `:where()` - bez wagi: gdy ramka niesie typografię widgetu (`tfs`), tytuł
-    // bierze rozmiar z niej, więc szacunek też (reguła `tfs` w `styles.css`).
-    resolvedTitleFs
-      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}:where(${instanceSel}) [data-author-title-relative]{--abl-title-fs:${resolvedTitleFs};}`
-      : "",
-    resolvedDescFs
-      ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFs} !important;}`
-      : "",
-    resolvedGap ? `${instanceSel} [data-eh-gap]{margin-top:${resolvedGap} !important;}` : "",
-    mobileRules.length ? `@media (max-width: 767px){${mobileRules.join("")}}` : "",
-    // Szacunek bylinu na telefonie - osobny blok, bo dotyczy wyłącznie HTML-u
-    // sprzed pomiaru (kanwa mierzy przed malowaniem, więc kopii z atrybutem
-    // urządzenia nie potrzebuje).
-    resolvedTitleFsMobile && resolvedTitleFsMobile !== resolvedTitleFs
-      ? `@media (max-width: 767px){:where(${instanceSel}) [data-author-title-relative]{--abl-title-fs:${resolvedTitleFsMobile};}}`
-      : "",
-    // Kanwa buildera symuluje szerokość urządzenia atrybutem, nie viewportem.
-    mobileRules.length
-      ? mobileRules
-          .map((rule) =>
-            [
-              `[data-builder-renderer][data-device="mobile"] ${rule}`,
-              `[data-visual-canvas][data-device="mobile"] ${rule}`,
-            ].join(""),
-          )
-          .join("")
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  // Klasa i zmienna wyłącznie dla ustawionej wartości: bez znacznika reguła nie
+  // pasuje, więc kaskada jest taka jak bez wartości. Tytuł idzie zmienną
+  // `--abl-title-fs`, z której szacunek bylinu „tytuł minus 2 px” (`styles.css`)
+  // liczy rozmiar przed pomiarem - HTML z serwera ma rozmiar, który pomiar
+  // potwierdzi. Reguły bylinu ustawiające zmienną na nim samym (skala H3,
+  // `tfs` widgetu) wygrywają z dziedziczeniem, jak dawniej z `:where()`.
+  const typographyClasses: string[] = [];
+  const typographyVars: Record<string, string> = {};
+  const typographyValue = (marker: string, name: string, value: string | undefined) => {
+    if (!value) return;
+    typographyClasses.push(marker);
+    typographyVars[name] = value;
+  };
+  typographyValue("eh-t", "--abl-title-fs", resolvedTitleFs);
+  typographyValue("eh-d", "--eh-d", resolvedDescFs);
+  typographyValue("eh-g", "--eh-g", resolvedGap);
+  typographyValue(
+    "eh-tm",
+    "--eh-tm",
+    resolvedTitleFsMobile !== resolvedTitleFs ? resolvedTitleFsMobile : undefined,
+  );
+  typographyValue(
+    "eh-dm",
+    "--eh-dm",
+    resolvedDescFsMobile !== resolvedDescFs ? resolvedDescFsMobile : undefined,
+  );
+  const hasMobileTypography = "--eh-tm" in typographyVars || "--eh-dm" in typographyVars;
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -1121,21 +1159,32 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   return (
     <div
       ref={rootRef}
-      className={`w-full h-full min-h-0 eh-slider ${instanceId}`}
+      className={["w-full h-full min-h-0 eh-slider", ...typographyClasses].join(" ")}
       data-variant={variant}
       data-hide-cover={showCover ? undefined : "true"}
       data-show-title={showTitle ? "true" : "false"}
       data-author-display={author.mode}
-      style={{ "--eh-speed": `${speedMs}ms`, "--eh-columns": configuredColumns } as CSSProperties}
+      style={
+        {
+          "--eh-speed": `${speedMs}ms`,
+          "--eh-columns": configuredColumns,
+          ...typographyVars,
+        } as CSSProperties
+      }
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Immutable React stylesheet resource: shared across slider instances,
-          SSR streams and client navigation. Instance overrides stay local. */}
+      {/* Immutable React stylesheet resources: shared across slider instances,
+          SSR streams and client navigation; React hoists them to <head>.
+          Instance values live in the root style above, not in body CSS. */}
       <style href="nes-slider-shared-v1" precedence="builder">
         {SHARED_STYLES}
       </style>
-      {instanceCss && <style data-slider-instance>{instanceCss}</style>}
+      {hasMobileTypography && (
+        <style href="nes-slider-m-v1" precedence="builder">
+          {MOBILE_TYPOGRAPHY_STYLES}
+        </style>
+      )}
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
       {variant === "split-feature" && <SplitFeatureVariant {...sharedProps} />}

@@ -54,6 +54,11 @@ describe("BuilderRenderer server gate visibility", () => {
     expect(client.prefetchQuery).not.toHaveBeenCalled();
     const desktop = renderSection(value, "desktop");
     expect(desktop).toContain("data-section-stream-skeleton");
+    // Szkielet w HTML serwera jest niemy: bez `aria-label`/`aria-busy` na
+    // generycznym div (walidator: naming prohibited) - i o te bajty lżejszy.
+    const skeletonTag = desktop.match(/<div[^>]*data-section-stream-skeleton[^>]*>/)?.[0];
+    expect(skeletonTag).toBeDefined();
+    expect(skeletonTag).not.toMatch(/\saria-|\srole=/);
     expect(desktop).not.toContain("T-heading");
     expect(client.prefetchQuery).toHaveBeenCalled();
   });

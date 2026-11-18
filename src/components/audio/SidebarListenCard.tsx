@@ -211,7 +211,10 @@ export function SidebarListenCard({
           playing ? "scale-x-100" : "scale-x-[0.18]",
         ].join(" ")}
       />
-      {/* Section label + kontrolki: obie są ikonami z tooltipem po najechaniu. */}
+      {/* Section label + kontrolki: obie są ikonami z tooltipem po najechaniu.
+          Celowo `h3`: tag wybiera slot typografii/hover Global Colors
+          (`--gc-h3-*`) i reguły nagłówków widgetów, więc `h2` zmieniłby
+          wygląd karty (np. ciemny hover #f3f4f6 -> #ffffff). */}
       <div className="flex items-center gap-2 mb-3">
         <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
           {copy("label")}
@@ -377,10 +380,9 @@ export function SidebarListenCard({
               onBlur={(e) => {
                 if (scrub !== null) commitSeek(Number(e.target.value));
               }}
+              // Natywny suwak: wartości niosą min/max/value (aria-value* przy nich
+              // to błąd walidatora); `aria-valuetext` dodaje czas do przeczytania.
               aria-label={shared("seek")}
-              aria-valuemin={0}
-              aria-valuemax={Math.max(duration, 0)}
-              aria-valuenow={Math.floor(displayTime)}
               aria-valuetext={`${currentLabel} / ${formatAudioTime(duration)}`}
               className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed rounded-[6px] ${FOCUS_RING}`}
             />

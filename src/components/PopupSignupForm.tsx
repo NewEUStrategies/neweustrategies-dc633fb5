@@ -11,7 +11,7 @@ import { PlatformSelect } from "@/components/ui/platform-select";
 //
 // Kolory nie są tu hardkodowane: panel popupu (SignupPopupPanel) ustawia tokeny
 // palety, a pola i checkboxy to niezmienione komponenty platformy.
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
 import "@/lib/i18n-signup-popup";
@@ -113,6 +113,9 @@ export function PopupSignupForm({
   const [newsletterFailed, setNewsletterFailed] = useState(false);
 
   const [honey, setHoney] = useState("");
+  // Stabilne id pól zgód (`useId` - ta sama wartość w SSR i po hydratacji)
+  // dla etykiet `htmlFor` obok atomów.
+  const boxId = useId();
   const mountedAt = useRef<number>(Date.now());
   const runPreAuthGuard = useServerFn(preAuthGuard);
   const subscribe = useServerFn(subscribeToNewsletter);
@@ -606,11 +609,15 @@ export function PopupSignupForm({
         </div>
       )}
 
-      {/* Checkboxy: domyślny komponent platformy, jeden blok, spójne odstępy. */}
+      {/* Checkboxy: domyślny komponent platformy, jeden blok, spójne odstępy.
+          Atom stoi OBOK etykiety (`htmlFor`), nie w niej: w formularzu Radix
+          dokłada ukryty natywny checkbox, a `<label>` może mieć tylko jedną
+          kontrolkę (Nu Html Checker). */}
       <div className="space-y-2 pt-2.5">
         {showNewsletter && (
-          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
+              id={`${boxId}-nl`}
               checked={v.newsletter}
               onCheckedChange={(checked) =>
                 // Odznaczenie newslettera czyści też osobne pole pomiaru.
@@ -621,44 +628,48 @@ export function PopupSignupForm({
               }
               className="mt-px h-[16px] w-[16px] shrink-0"
             />
-            <span>
+            <label htmlFor={`${boxId}-nl`}>
               {newsletterConsent.isDefault ? (
                 <NewsletterConsentText lang={lang} />
               ) : (
                 newsletterConsent.text
               )}
-            </span>
-          </label>
+            </label>
+          </div>
         )}
 
         {requirePrivacy && privacyHtml && (
-          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
+              id={`${boxId}-privacy`}
               checked={v.privacy}
               onCheckedChange={(checked) => upd("privacy", checked === true)}
               aria-required="true"
               className="mt-px h-[16px] w-[16px] shrink-0"
             />
-            <span
+            <label
+              htmlFor={`${boxId}-privacy`}
               className="nl-consent"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(privacyHtml) }}
             />
-          </label>
+          </div>
         )}
 
         {requireTerms && (
-          <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
+          <div className="flex items-start gap-2.5 text-[12.5px] leading-relaxed [color:var(--nl-muted)]">
             <Checkbox
+              id={`${boxId}-terms`}
               checked={v.terms}
               onCheckedChange={(checked) => upd("terms", checked === true)}
               aria-required="true"
               className="mt-px h-[16px] w-[16px] shrink-0"
             />
-            <span
+            <label
+              htmlFor={`${boxId}-terms`}
               className="nl-consent"
               dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }}
             />
-          </label>
+          </div>
         )}
       </div>
 

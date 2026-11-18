@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { realT } from "@/test/i18nReal";
+import { expectOwnClipPaths } from "@/test/svgClipIds";
 // Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
 // rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
 import "@/lib/i18n-admin-core";
@@ -24,6 +25,18 @@ const PL = t("common.lang.pl");
 const EN = t("common.lang.en");
 
 afterEach(cleanup);
+
+describe("EditorLangSwitch - id flagi", () => {
+  it("dwie instancje na ekranie mają własne id clipPath", () => {
+    const { container } = render(
+      <>
+        <EditorLangSwitch lang="pl" onLangChange={() => {}} />
+        <EditorLangSwitch lang="en" onLangChange={() => {}} />
+      </>,
+    );
+    expectOwnClipPaths(container, 2);
+  });
+});
 
 describe("EditorLangSwitch - zaznaczenie", () => {
   it("dla PL: aktywny polski z kodem, kciuk na początku", () => {

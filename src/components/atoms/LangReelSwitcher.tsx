@@ -1,5 +1,6 @@
 // Mobilny przełącznik języka w formie "taśmy": w spoczynku widać aktywny
 // język, a hover / focus / tap odsłania język docelowy przesunięciem w pionie.
+import { useId } from "react";
 import type { AppLang } from "@/lib/i18n/localePath";
 import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
 import { cn } from "@/lib/utils";
@@ -7,6 +8,10 @@ import { cn } from "@/lib/utils";
 type FlagCode = "pl" | "gb";
 
 function FlagSvg({ code }: { code: FlagCode }) {
+  // Id `clipPath` unikalne per instancja (przełącznik stoi w headerze i w
+  // szufladzie - stały id dublował się w dokumencie); `useId` jest stabilne
+  // między SSR a hydratacją, filtr zostawia znaki bezpieczne w `url(#...)`.
+  const clipId = `uj${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   if (code === "pl") {
     return (
       <svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -18,7 +23,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
   return (
     <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
-        <clipPath id="uj-diag-reel">
+        <clipPath id={clipId}>
           <polygon points="0,0 30,20 60,0 60,4 34,20 60,36 60,40 30,20 0,40 0,36 26,20 0,4" />
         </clipPath>
       </defs>
@@ -28,7 +33,7 @@ function FlagSvg({ code }: { code: FlagCode }) {
         d="M0,0 L60,40 M60,0 L0,40"
         stroke="#C8102E"
         strokeWidth="4"
-        clipPath="url(#uj-diag-reel)"
+        clipPath={`url(#${clipId})`}
       />
       <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
       <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />

@@ -1,5 +1,6 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
@@ -9,6 +10,10 @@ import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
 type FlagCode = "pl" | "gb";
 
 function FlagSvg({ code }: { code: FlagCode }) {
+  // Id `clipPath` unikalne per instancja (przełącznik stoi w headerze i w
+  // szufladzie - stały id dublował się w dokumencie); `useId` jest stabilne
+  // między SSR a hydratacją, filtr zostawia znaki bezpieczne w `url(#...)`.
+  const clipId = `uj${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   if (code === "pl") {
     return (
       <svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -20,13 +25,18 @@ function FlagSvg({ code }: { code: FlagCode }) {
   return (
     <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
-        <clipPath id="uj-diag">
+        <clipPath id={clipId}>
           <polygon points="0,0 30,20 60,0 60,4 34,20 60,36 60,40 30,20 0,40 0,36 26,20 0,4" />
         </clipPath>
       </defs>
       <rect width="60" height="40" fill="#012169" />
       <path d="M0,0 L60,40 M60,0 L0,40" stroke="#ffffff" strokeWidth="8" />
-      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="4" clipPath="url(#uj-diag)" />
+      <path
+        d="M0,0 L60,40 M60,0 L0,40"
+        stroke="#C8102E"
+        strokeWidth="4"
+        clipPath={`url(#${clipId})`}
+      />
       <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
       <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />
     </svg>

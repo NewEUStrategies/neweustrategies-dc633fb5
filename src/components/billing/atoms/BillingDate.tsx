@@ -6,12 +6,13 @@
 // pokazywał klientowi napis „Invalid Date" w miejscu daty faktury. Wspólny
 // `formatDate` z `lib/i18n/format` ma to zabezpieczenie od początku.
 //
-// Kontrakt dostępności i maszynowej czytelności: `<time dateTime={iso}>`. Data
+// Kontrakt dostępności i maszynowej czytelności: `<time dateTime={formatDateAttr(iso)}>`
+// (dzień kalendarzowy w strefie serwisu, ten sam co na ekranie). Data
 // płatności bez znacznika `<time>` jest dla maszyny zwykłym tekstem, a klient
 // i wsparcie muszą móc jednoznacznie ustalić DZIEŃ, w którym pobrano pieniądze.
 import { useTranslation } from "react-i18next";
 
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 
 /** Domyślny format: „12 lipca 2026" / „12 July 2026". */
 const LONG: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" };
@@ -37,7 +38,7 @@ export function BillingDate({
   // to samo, co przy braku daty, zamiast „Invalid Date".
   if (!text) return <span className={className}>{fallback}</span>;
   return (
-    <time dateTime={iso} className={className}>
+    <time dateTime={formatDateAttr(iso)} className={className}>
       {text}
     </time>
   );

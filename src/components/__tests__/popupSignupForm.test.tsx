@@ -418,6 +418,33 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 // OSOBNE POLE ZGODY NA POMIAR (I9d-Y2b, wariant (b))
 // ---------------------------------------------------------------------------
 
+describe("PopupSignupForm: znaczniki zgód (Nu Html Checker)", () => {
+  it("każdy atom zgody stoi obok etykiety `for`, etykieta bez kontrolki, klik w treść przełącza", () => {
+    renderForm({
+      settings: settings({
+        popup_require_terms: true,
+        popup_privacy_html_pl: "Zgoda na przetwarzanie danych.",
+        popup_terms_html_pl: "Akceptuję regulamin serwisu.",
+      }),
+    });
+    const boxes = consentBoxes();
+    // Newsletter, prywatność, regulamin.
+    expect(boxes).toHaveLength(3);
+    expect(new Set(boxes.map((box) => box.id)).size).toBe(3);
+    for (const box of boxes) {
+      const label = document.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`);
+      expect(label, box.id).toBeTruthy();
+      expect(label?.parentElement).toBe(box.parentElement);
+      expect(
+        label?.querySelectorAll("button, input, meter, output, progress, select, textarea"),
+      ).toHaveLength(0);
+      expect(box.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(label!);
+      expect(box.getAttribute("aria-checked")).toBe("true");
+    }
+  });
+});
+
 describe("PopupSignupForm: osobne pole zgody na pomiar", () => {
   it("bez zaznaczenia pola ładunek nie ma pozycji pomiaru", async () => {
     renderForm();

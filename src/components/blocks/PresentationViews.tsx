@@ -538,6 +538,21 @@ interface TimelineProps {
   cls?: string;
 }
 
+/**
+ * `<time>` bez `datetime` musi mieć w treści wartość maszynową, a data etapu to
+ * wolny tekst z CMS („Q3 2024", „marzec 2025"). `<time>` tylko dla RRRR,
+ * RRRR-MM i RRRR-MM-DD z istniejącym dniem; reszta jako `<span>`.
+ */
+function isHtmlDateValue(value: string): boolean {
+  if (!/^\d{4}(?:-\d{2}(?:-\d{2})?)?$/.test(value) || value.startsWith("0000")) return false;
+  const day = `${value}-01-01`.slice(0, 10);
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  // `Date.parse` przenosi 31.02 na marzec - dzień musi wrócić bez zmian.
+  return !Number.isNaN(ms) && new Date(ms).toISOString().startsWith(day);
+}
+
+const TIMELINE_DATE_CLS = "block text-xs font-semibold uppercase tracking-wide text-primary";
+
 export function TimelineView({ items, cls }: TimelineProps) {
   const parsed: TimelineLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
@@ -560,9 +575,11 @@ export function TimelineView({ items, cls }: TimelineProps) {
             aria-hidden
           />
           {it.date ? (
-            <time className="block text-xs font-semibold uppercase tracking-wide text-primary">
-              {it.date}
-            </time>
+            isHtmlDateValue(it.date) ? (
+              <time className={TIMELINE_DATE_CLS}>{it.date}</time>
+            ) : (
+              <span className={TIMELINE_DATE_CLS}>{it.date}</span>
+            )
           ) : null}
           {it.title ? (
             <h3 className="text-base font-semibold text-foreground mt-0.5">{it.title}</h3>

@@ -82,8 +82,10 @@ async function prepare(page: Page, keepNetworkBusy: boolean): Promise<void> {
         document.querySelector("img[data-lcp-candidate]")?.closest(".eh-slider") ??
         document.querySelector('.eh-slider[data-variant="editorial-hero"]');
       if (!slider) return -1;
-      const images = Array.from(slider.querySelectorAll<HTMLImageElement>("img[data-fill-image]"));
-      return images.findIndex((image) => image.style.opacity !== "0");
+      // Slajd jeszcze niepokazany to `<span data-fill-image>` (bez `src`),
+      // więc indeks liczymy po WSZYSTKICH wypełnieniach, nie po samych `<img>`.
+      const fills = Array.from(slider.querySelectorAll<HTMLElement>("[data-fill-image]"));
+      return fills.findIndex((fill) => fill.tagName === "IMG" && fill.style.opacity !== "0");
     };
     const tickerText = (): string =>
       document.querySelector<HTMLElement>('[data-testid="trending-ticker"]')?.innerText ?? "";

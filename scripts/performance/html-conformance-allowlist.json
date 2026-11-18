@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "LISTA KLASYFIKACJI RAPORTU ZGODNOŚCI HTML (scripts/performance/check-html-conformance.ts). Przeczytaj PRZED dodaniem wpisu.",
+    "",
+    "CO KLASYFIKUJE. Komunikaty Nu Html Checkera (vnu `vnu-jar@26.11.17`, ta sama wersja co raport produkcyjny; `--format json --also-check-css`) dla dokumentów SSR. Treść komunikatów zależy od wersji vnu - podbicie wersji w skrypcie (VNU_VERSION i suma tarballa) wymaga przejrzenia wzorców tutaj.",
+    "",
+    "DWIE GRUPY. `accepted` - ŚWIADOME odstępstwa i fałszywe alarmy: każdy wpis ma uzasadnienie (`reason`) i miejsce w kodzie albo źródło (`source`); w raporcie liczą się w kolumnie „akcept.”. `knownDebt` - DŁUG ZNANY: NIE zaakceptowany, tylko oczekiwany do refaktoru; w raporcie osobna kolumna „dług”, żeby było widać, czy maleje. Wszystko, czego nie dopasuje żaden wpis, to NOWE (`--strict` kończy się kodem 1 przy NOWYM błędzie).",
+    "",
+    "DOPASOWANIE. `message` - wyrażenie regularne (składnia JS, flaga `u`) na polu `message` komunikatu vnu; `extract` (opcjonalne) - wyrażenie na polu `extract` (wycinek dokumentu wokół miejsca); `type` (opcjonalne) - rodzaj: `error`, `warning` (vnu: `info` z `subType: warning`) albo `info`. Wygrywa pierwszy pasujący wpis, `accepted` przed `knownDebt`. Wzorce piszemy możliwie wąsko (kotwica `^`, dosłowna treść), żeby nowy, inny problem tej samej klasy nie wpadł do akceptowanych.",
+    "",
+    "ZASADA. Wpis `accepted` dodaje się wyłącznie dla zachowania zamierzonego (z odnośnikiem do kodu, który to robi) albo udowodnionego fałszywego alarmu vnu - nigdy po to, żeby raport był czystszy. Dług usunięty w kodzie przestaje się dopasowywać (raport wypisuje wpisy bez dopasowań) - wtedy wpis się kasuje.",
+    "",
+    "DŁUG `inline-style-*` (pakiet #5 planu docs/performance/2026-10-02-pagespeed-przyczyny.md §9): inline `<style>` w `<body>` (style widżetów, mostu motywu, obszaru treści) zamiast stałych arkuszy `precedence` w `<head>`. vnu wymaga, by `<style>` w `<body>` był pierwszym dzieckiem rodzica, a każda jego reguła stała w `@scope` - oba komunikaty znikną razem z refaktorem, nie wcześniej."
+  ],
+  "accepted": [
+    {
+      "id": "meta-content-language",
+      "type": "error",
+      "message": "^Using the “meta” element to specify the document-wide default language is obsolete\\.",
+      "extract": "http-equiv=\"content-language\"",
+      "reason": "Świadomy sygnał języka dla Binga: Bing traktuje `<meta http-equiv=\"content-language\">` jako sygnał języka strony. `lang` na `<html>` też jest ustawiony, więc dla przeglądarek i czytników to redundancja, nie sprzeczność.",
+      "source": "src/lib/seo/meta.ts"
+    },
+    {
+      "id": "css-container-type",
+      "type": "error",
+      "message": "^CSS: “container-type”: Property “container-type” doesn't exist\\.$",
+      "reason": "Fałszywy alarm silnika CSS vnu: `container-type` (CSS Containment Level 3) jest obsługiwane we wszystkich docelowych przeglądarkach, a walidator CSS w vnu go nie zna.",
+      "source": "src/lib/builder/sliderVariants.tsx (arkusz `nes-slider-shared-v1`)"
+    },
+    {
+      "id": "css-container-at-rule",
+      "type": "error",
+      "message": "^CSS: Unrecognized at-rule “@container”$",
+      "reason": "Fałszywy alarm silnika CSS vnu: reguła `@container` (CSS Containment Level 3) jest obsługiwana we wszystkich docelowych przeglądarkach, a walidator CSS w vnu jej nie zna.",
+      "source": "src/lib/builder/sliderVariants.tsx (arkusz `nes-slider-shared-v1`)"
+    },
+    {
+      "id": "css-view-transition-name",
+      "type": "error",
+      "message": "^CSS: “view-transition-name”: Property “view-transition-name” doesn't exist\\.$",
+      "reason": "Fałszywy alarm silnika CSS vnu: `view-transition-name` (CSS View Transitions Level 1) nazywa powłokę (nagłówek, `main`, stopka) do przejść między stronami; walidator CSS w vnu właściwości nie zna.",
+      "source": "src/components/Header.tsx, src/components/SiteChrome.tsx, src/components/Footer.tsx"
+    },
+    {
+      "id": "void-element-trailing-slash",
+      "type": "info",
+      "message": "^Trailing slash on void elements has no effect and interacts badly with unquoted attribute values\\.$",
+      "reason": "Serializacja Reacta: elementy puste wychodzą jako `<meta …/>`. Parser HTML ignoruje ukośnik, a React zawsze cytuje wartości atrybutów, więc ostrzeżenie o wartościach bez cudzysłowu nie dotyczy dokumentu.",
+      "source": "react-dom/server (serializacja SSR)"
+    },
+    {
+      "id": "ul-role-list",
+      "type": "warning",
+      "message": "^The “list” role is unnecessary for element “ul”\\.$",
+      "reason": "Świadome obejście Safari/VoiceOver: przy `list-style: none` (preflight Tailwinda zeruje je na każdym `<ul>`) Safari gubi semantykę listy, a jawne `role=\"list\"` ją przywraca.",
+      "source": "src/components/footer/LegalLinks.tsx"
+    }
+  ],
+  "knownDebt": [
+    {
+      "id": "inline-style-not-first-child",
+      "type": "error",
+      "message": "^A “style” element in “body” must be the first child of its parent\\.$",
+      "reason": "Architektura inline `<style>` w `<body>` (style widżetów, mostu motywu, obszaru treści) - do refaktoru #5 planu (stałe arkusze `precedence` w `<head>`).",
+      "source": "docs/performance/2026-10-02-pagespeed-przyczyny.md §9 #5"
+    },
+    {
+      "id": "inline-style-rule-outside-scope",
+      "type": "error",
+      "message": "^Style rule “[\\s\\S]*” not allowed outside an “@scope” rule in a “style” element in “body”\\.$",
+      "reason": "Ta sama architektura inline `<style>` w `<body>`: każda reguła takiego arkusza poza `@scope` daje osobny komunikat - do refaktoru #5 planu.",
+      "source": "docs/performance/2026-10-02-pagespeed-przyczyny.md §9 #5"
+    },
+    {
+      "id": "section-lacks-heading",
+      "type": "warning",
+      "message": "^Section lacks heading\\.",
+      "reason": "Sekcje buildera CMS renderują się jako `<section>` także wtedy, gdy redaktor nie dał im nagłówka - do przeglądu semantyki sekcji (nagłówek albo `<div>`).",
+      "source": "src/components/builder/organisms/BuilderRenderer.tsx (`<section data-sec-id>`)"
+    }
+  ]
+}

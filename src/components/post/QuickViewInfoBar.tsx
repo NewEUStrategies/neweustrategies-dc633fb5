@@ -1,7 +1,7 @@
 import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ReactNode } from "react";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 
 type Category =
   { slug: string; name_pl?: string | null; name_en?: string | null } | null | undefined;
@@ -68,7 +68,7 @@ export function QuickViewInfoBar({
               {t("post.updated")}
             </span>
           )}
-          <time dateTime={displayDate ?? undefined}>{dateText}</time>
+          <time dateTime={displayDate ? formatDateAttr(displayDate) : undefined}>{dateText}</time>
         </span>
       )}
       {trailing && <span className="ml-auto inline-flex items-center">{trailing}</span>}

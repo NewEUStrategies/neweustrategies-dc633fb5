@@ -17,7 +17,7 @@ import {
 import type { BlogListItem } from "@/lib/queries/public";
 import { useAuth } from "@/hooks/useAuth";
 import { isGpcCurrentlyHonored } from "@/lib/ads/consent";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
 import { accentFor } from "./relatedVisuals";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
@@ -267,7 +267,7 @@ function CardBody({
         <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
       )}
       {cfg.show_meta && p.published_at && (
-        <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
+        <time className="text-xs text-muted-foreground" dateTime={formatDateAttr(p.published_at)}>
           {formatDate(p.published_at, lang, { year: "numeric", month: "short", day: "numeric" })}
         </time>
       )}
@@ -447,7 +447,10 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
               )}
               <div className="mt-auto flex items-center justify-between pt-2">
                 {cfg.show_meta && p.published_at ? (
-                  <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
+                  <time
+                    className="text-xs text-muted-foreground"
+                    dateTime={formatDateAttr(p.published_at)}
+                  >
                     {formatDate(p.published_at, lang, {
                       year: "numeric",
                       month: "short",
@@ -540,7 +543,7 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
                   {cfg.show_meta && p.published_at && (
                     <time
                       className="mt-0.5 block text-xs text-muted-foreground"
-                      dateTime={p.published_at}
+                      dateTime={formatDateAttr(p.published_at)}
                     >
                       {formatDate(p.published_at, lang, {
                         year: "numeric",
@@ -585,7 +588,7 @@ function RelatedTimeline({ posts, cfg, lang, sourcePostId }: ViewProps) {
               {cfg.show_meta && p.published_at && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                   <Clock className="h-3 w-3" />
-                  <time dateTime={p.published_at}>
+                  <time dateTime={formatDateAttr(p.published_at)}>
                     {formatDate(p.published_at, lang, {
                       year: "numeric",
                       month: "long",

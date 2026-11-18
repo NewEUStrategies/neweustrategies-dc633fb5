@@ -287,9 +287,29 @@ describe("siatka, lista i treść karty", () => {
     await screen.findByRole("region");
 
     const times = document.querySelectorAll("time");
-    expect(times[0]).toHaveAttribute("dateTime", "2026-07-01T12:00:00Z");
+    expect(times[0]).toHaveAttribute("dateTime", "2026-07-01");
     expect(times[0].textContent).toBe("1 Jul 2026");
   });
+
+  it.each(["grid", "list", "slider", "cards", "magazine", "timeline"] as const)(
+    "układ %s: `datetime` to dzień z ekranu, bez mikrosekund Postgresa",
+    async (layout) => {
+      // 22:30 UTC 5 września to już 6 września w Warszawie (strefa serwisu).
+      h.config.mockResolvedValue(config({ layout }));
+      // Dwa wpisy: w magazynie datę ma dopiero lista boczna.
+      const published_at = "2026-09-05T22:30:00.123456+00:00";
+      h.posts.mockResolvedValue([related("r1", { published_at }), related("r2", { published_at })]);
+      const { container } = renderRelated(<RelatedPosts postId={SOURCE} lang="pl" />);
+      await screen.findByRole("region");
+
+      const times = Array.from(container.querySelectorAll("time"));
+      expect(times.length).toBeGreaterThan(0);
+      for (const time of times) {
+        expect(time).toHaveAttribute("dateTime", "2026-09-06");
+        expect(time.textContent).toMatch(/^6 \S+ 2026$/);
+      }
+    },
+  );
 
   it("brakujący tytuł w języku widoku spada na drugi język, a nie na pusty link", async () => {
     h.posts.mockResolvedValue([

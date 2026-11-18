@@ -228,12 +228,21 @@ describe("QueryLoopView", () => {
     expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent("Wpis pierwszy");
     expect(screen.getByRole("img", { name: "Wpis pierwszy" })).toBeTruthy();
     const time = container.querySelector("time");
-    expect(time?.getAttribute("dateTime")).toBe("2026-07-01T10:00:00.000Z");
+    expect(time?.getAttribute("dateTime")).toBe("2026-07-01");
     expect(time?.textContent).toBe("1 lip 2026");
     expect(container.textContent).toContain("Zajawka PL");
     for (const a of container.querySelectorAll("a")) {
       expect(a.getAttribute("href")).toBe("/post/wpis-pierwszy");
     }
+  });
+
+  it("`datetime` to dzień z ekranu: 22:30 UTC z mikrosekundami to już następny dzień", async () => {
+    h.loop = [post({ published_at: "2026-09-05T22:30:00.123456+00:00" })];
+    const { container } = view(<QueryLoopView {...base} lang="pl" />);
+    await screen.findByText("Wpis pierwszy");
+    const time = container.querySelector("time");
+    expect(time?.getAttribute("dateTime")).toBe("2026-09-06");
+    expect(time?.textContent).toBe("6 wrz 2026");
   });
 
   // Karta linkowała `/post/<slug>`, czyli adres odpowiadający 301 i dwoma

@@ -47,7 +47,7 @@ import {
   feedClockSnapshot,
   subscribeFeedClock,
 } from "@/lib/clubs/feedClock";
-import { formatDateShort, formatDateTime, type UiLang } from "@/lib/i18n/format";
+import { formatDateAttr, formatDateShort, formatDateTime, type UiLang } from "@/lib/i18n/format";
 
 /** Poziomy oddech wszystkich stref - jedna wartość, żeby krawędzie się zgadzały. */
 export const CLUB_FEED_PAD = "px-3.5 sm:px-4";
@@ -207,7 +207,7 @@ export function ClubFeedKindAvatar({
 export function ClubFeedTime({ iso, lang }: { iso: string; lang: UiLang }) {
   const now = useSyncExternalStore(subscribeFeedClock, feedClockSnapshot, feedClockServerSnapshot);
   return (
-    <time dateTime={iso} title={formatDateTime(iso, lang)}>
+    <time dateTime={formatDateAttr(iso)} title={formatDateTime(iso, lang)}>
       {/* Zegar tyka co 30 s, a wpis może być świeższy niż ostatnie tyknięcie
           (albo zegar klienta spóźnia się względem serwera) - punkt odniesienia
           nigdy nie jest wcześniejszy niż sam wpis, więc nie ma „za 20 sekund". */}

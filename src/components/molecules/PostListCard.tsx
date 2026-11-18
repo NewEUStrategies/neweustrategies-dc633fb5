@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateAttr, formatDateShort } from "@/lib/i18n/format";
 
 // `sizes` okładek mieszka w lib/cardImageSizes (wspólne z preloadem LCP w
 // head() tras archiwów - parytet preload<->render jest strukturalny).
@@ -191,7 +191,10 @@ export function PostListCard({
           excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>
         )}
         {post.published_at && (
-          <time className="block mt-3 text-xs text-muted-foreground">
+          <time
+            className="block mt-3 text-xs text-muted-foreground"
+            dateTime={formatDateAttr(post.published_at)}
+          >
             {formatDateShort(post.published_at, lang)}
           </time>
         )}

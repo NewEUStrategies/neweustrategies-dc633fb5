@@ -10,7 +10,7 @@ import {
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { postHref } from "@/lib/routing/postHref";
 
 type Lang = "pl" | "en";
@@ -177,7 +177,10 @@ export function QueryLoopView({
                 </AppLink>
               </h3>
               {showDate && p.published_at && (
-                <time className="text-xs text-muted-foreground" dateTime={p.published_at}>
+                <time
+                  className="text-xs text-muted-foreground"
+                  dateTime={formatDateAttr(p.published_at)}
+                >
                   {formatDate(p.published_at, lang, { dateStyle: "medium" })}
                 </time>
               )}

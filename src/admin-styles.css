@@ -260,7 +260,8 @@
 .cms-builder-compact .text-\[9px\] {
   font-size: 8.5px;
 }
-.cms-builder-compact :is(h1, h2, h3, h4) {
+/* `.cms-sl` - tytuł etykiety sekcji (`h2`) - wygląda w kanwie jak na stronie (`styles.css`). */
+.cms-builder-compact :is(h1, h2, h3, h4):where(:not(.cms-sl)) {
   font-size: 11.5px;
 }
 .cms-builder-compact .p-3 {
@@ -329,7 +330,7 @@
    (0,2,1) nie może go przykryć. `:where()` - bez zmiany wagi dla pozostałych. */
 .cms-builder-compact
   :is([data-visual-canvas], [data-builder-renderer])
-  :is(h1, h2, h3, h4):where(:not(.cms-post-title)) {
+  :is(h1, h2, h3, h4):where(:not(.cms-post-title)):where(:not(.cms-sl)) {
   font-size: revert;
 }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-3 {
@@ -419,7 +420,7 @@
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.admin-compact h2 {
+.admin-compact h2:where(:not(.cms-sl)) {
   font-size: 16px;
   line-height: 1.3;
   font-weight: 600;

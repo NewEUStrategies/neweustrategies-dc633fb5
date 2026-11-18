@@ -376,7 +376,13 @@ function SearchPage() {
   };
 
   const onInputKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggest) return;
+    if (!showSuggest) {
+      // Pole przestało być `type="search"`, więc natywne czyszczenie Escape'em
+      // (Chromium/WebKit) odtwarzamy jawnie, jak w APG combobox: przy otwartej
+      // liście Escape tylko ją zamyka, przy zamkniętej - czyści frazę.
+      if (e.key === "Escape" && draft && !e.nativeEvent.isComposing) setDraft("");
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSugIndex((i) => stepSuggestion(visibleSug, i, 1));
@@ -682,8 +688,10 @@ function SearchPage() {
           role="search"
         >
           <div className="input-group" style={{ height: "40px" }}>
+            {/* `type="text"`: rola `combobox` jest niedozwolona na `type="search"`
+                bez `list` (ARIA in HTML); Escape obsługuje `onInputKeyDown`. */}
             <input
-              type="search"
+              type="text"
               ref={searchInputRef}
               value={draft}
               onChange={(e) => {

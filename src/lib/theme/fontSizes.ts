@@ -229,12 +229,15 @@ export function fontSizesToCss(fs: FontSizesSettings): string {
  * Podwojona specyficzność klas wygrywa z `<ContentAreaStyle/>` i utility.
  */
 function lineHeightRulesCss(): string {
+  // Tytuł etykiety sekcji (`h2.cms-sl`) trzyma interlinię dawnego `span`.
+  // `:where()` nie podnosi wagi: reguła nagłówków widgetów (0,2,1) w
+  // `styles.css` dalej przykrywa tę (0,1,1) dla pozostałych `h2`.
   const heads = HEADING_LEVELS.map(
     (level) =>
       `.post-content.post-content ${level},` +
       `.blocks-content.blocks-content ${level},` +
       `.single-post-content.single-post-content ${level},` +
-      `[data-builder-renderer] ${level}` +
+      `[data-builder-renderer] ${level}${level === "h2" ? ":where(:not(.cms-sl))" : ""}` +
       `{line-height:var(--lh-${level});}`,
   ).join("");
   return [

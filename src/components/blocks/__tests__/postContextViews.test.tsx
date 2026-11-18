@@ -674,6 +674,15 @@ describe("RelatedPostsView", () => {
     assertNoLeak(container, "related bez okładki");
   });
 
+  it("`datetime` to dzień z ekranu: 22:30 UTC z mikrosekundami to już następny dzień", async () => {
+    h.posts = [row({ published_at: "2026-09-05T22:30:00.123456+00:00" })];
+    const container = view(<RelatedPostsView lang="pl" />);
+    await waitFor(() => expect(container.querySelector("time")).toBeTruthy());
+    const time = container.querySelector("time");
+    expect(time?.getAttribute("datetime")).toBe("2026-09-06");
+    expect(time?.textContent).toBe("6 wrz 2026");
+  });
+
   it("wpis BEZ daty publikacji nie wypisuje Invalid Date", async () => {
     h.posts = [row({ published_at: null })];
     const container = view(<RelatedPostsView />);

@@ -77,6 +77,7 @@
     "typecheck:e2e": "tsgo --noEmit -p tsconfig.e2e.json",
     "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs",
     "check:document-weight": "node scripts/performance/check-document-weight.ts",
+    "check:html-conformance": "bun run scripts/performance/check-html-conformance.ts",
     "check:structured-data-live": "node scripts/seo/check-structured-data.ts",
     "test:e2e:cms-performance": "node scripts/performance/run-cms-widgets.mjs",
     "test:events:integration": "playwright test --config playwright.integration.config.ts",

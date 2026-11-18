@@ -232,7 +232,6 @@ export function CountryCombobox({
         /* Spacja (nie pusty string) - `:placeholder-shown` steruje floating labelką. */
         placeholder=" "
         required={required}
-        aria-required={required || undefined}
         maxLength={maxLength}
         onChange={(e) => {
           onChange(e.target.value);

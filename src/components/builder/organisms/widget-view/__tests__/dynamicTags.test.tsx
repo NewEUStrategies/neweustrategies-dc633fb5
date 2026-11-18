@@ -225,6 +225,39 @@ describe("dynamic-tag widgets with full context", () => {
   });
 });
 
+describe("post-meta - `<time datetime>`", () => {
+  // Postgres (`now()`) oddaje mikrosekundy, a HTML przyjmuje najwyżej 3 cyfry
+  // ułamka sekundy. 22:30 UTC 5 września to już 6 września w Warszawie.
+  const RAW = "2026-09-05T22:30:00.123456+00:00";
+
+  it("format absolutny: dzień widoczny na ekranie (strefa serwisu)", () => {
+    const { container } = renderTag(
+      <DynamicTagWidget node={node("post-meta", { dateFormat: "short" })} lang="pl" />,
+      { ...FULL, publishedAt: RAW },
+    );
+    const time = container.querySelector("time");
+    expect(time?.getAttribute("datetime")).toBe("2026-09-06");
+    expect(time?.textContent).toBe("06.09.2026");
+  });
+
+  it("format relative: dzień z ekranu w strefie serwisu (SSR i starsze wpisy pokazują datę)", () => {
+    const { container } = renderTag(
+      <DynamicTagWidget node={node("post-meta", { dateFormat: "relative" })} lang="pl" />,
+      { ...FULL, publishedAt: RAW },
+    );
+    // RAW to 22:30 UTC 5 września = 6 września w Warszawie.
+    expect(container.querySelector("time")?.getAttribute("datetime")).toBe("2026-09-06");
+  });
+
+  it("nieczytelna data nie dostaje atrybutu (ani pustego)", () => {
+    const { container } = renderTag(<DynamicTagWidget node={node("post-meta")} lang="pl" />, {
+      ...FULL,
+      publishedAt: "not-a-real-date",
+    });
+    expect(container.querySelector("time")?.hasAttribute("datetime")).toBe(false);
+  });
+});
+
 describe("dynamic-tag widgets extra branches", () => {
   it("post-meta renders relative dates across thresholds", () => {
     const now = Date.now();

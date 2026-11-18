@@ -227,6 +227,22 @@ describe("SidebarListenCard", () => {
     const slider = screen.getByRole("slider");
     expect(slider).toBeEnabled();
     expect(slider).toHaveAttribute("aria-valuetext", "2:00 / 10:00");
+    // Zakres i wartość niesie natywny `input type="range"`, nie aria-value*.
+    expect(slider).toHaveAttribute("min", "0");
+    expect(slider).toHaveAttribute("max", "600");
+    for (const attr of ["aria-valuemin", "aria-valuemax", "aria-valuenow"]) {
+      expect(slider).not.toHaveAttribute(attr);
+    }
+  });
+
+  it("nagłówek karty zostaje h3 - tag wybiera slot typografii/hover Global Colors", () => {
+    // `h2` czytałby `--gc-h2-*` (np. ciemny hover #ffffff zamiast #f3f4f6)
+    // i reguły nagłówków widgetów dla h2 - zmiana wyglądu karty.
+    h.player = playerStub({ status: "idle" });
+    const { container } = mount();
+    const heading = container.querySelector("h1, h2, h3, h4, h5, h6");
+    expect(heading?.tagName).toBe("H3");
+    expect(heading).toHaveClass("cms-widget-note");
   });
 
   it("PRZEJŚCIE w błąd pokazuje komunikat", async () => {
@@ -980,7 +996,11 @@ describe("GlobalAudioBar", () => {
     fireEvent.blur(slider);
 
     expect(player.seek.mock.calls).toEqual([[300], [120]]);
-    expect(slider).toHaveAttribute("aria-valuemax", "600");
+    // Natywny suwak: zakres niesie `max`; aria-value* przy min/max/value to błąd walidatora.
+    expect(slider).toHaveAttribute("max", "600");
+    for (const attr of ["aria-valuemin", "aria-valuemax", "aria-valuenow"]) {
+      expect(slider).not.toHaveAttribute(attr);
+    }
   });
 
   it("błąd BEZ komunikatu od playera pokazuje zdanie w JĘZYKU MATERIAŁU", async () => {

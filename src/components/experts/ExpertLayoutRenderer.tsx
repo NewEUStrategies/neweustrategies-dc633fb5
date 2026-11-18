@@ -857,7 +857,9 @@ export function ExpertSectionRenderer({
                 </span>{" "}
                 <span className="text-muted-foreground truncate">{m.title}</span>
               </div>
-              <time className="text-xs text-muted-foreground shrink-0">{m.date}</time>
+              {m.date ? (
+                <time className="text-xs text-muted-foreground shrink-0">{m.date}</time>
+              ) : null}
             </li>
           ))}
         </ul>,
