@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ReadingTimeView } from "@/components/blocks/PostUtilityViews";
 import { Clock, User as UserIcon } from "@/lib/lucide-shim";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
@@ -135,7 +135,7 @@ export function PostOverlayMeta({
               <path d="M16 2v4M8 2v4M3 10h18" />
             </svg>
             <span className="opacity-80">{t.published}:</span>
-            <time dateTime={publishedAt}>{fmtDate(publishedAt, lang)}</time>
+            <time dateTime={formatDateAttr(publishedAt)}>{fmtDate(publishedAt, lang)}</time>
           </span>
         )}
         {readMinutes && readMinutes > 0 ? (

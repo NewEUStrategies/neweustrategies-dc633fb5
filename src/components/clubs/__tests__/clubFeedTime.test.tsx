@@ -6,6 +6,7 @@
 // wcześniejszy niż sam wpis. Tyknięcie zegara odświeża tekst bez przeładowania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { ClubFeedTime } from "@/components/clubs/molecules/ClubFeedCard";
 import { CLUB_FEED_CLOCK_TICK_MS } from "@/lib/clubs/feedClock";
 
@@ -28,6 +29,17 @@ describe("ClubFeedTime", () => {
     const time = screen.getByText(/./, { selector: "time" });
     expect(time.getAttribute("datetime")).toBe(future);
     expect(time.textContent).not.toMatch(/^za /);
+  });
+
+  it("`datetime` przycina mikrosekundy `now()` do milisekund, ten sam w SSR i po montażu", () => {
+    // Po hydratacji etykieta jest względna („5 min temu"), więc atrybut to pełna
+    // chwila w UTC; nie zależy od zegara strumienia, więc SSR i klient zgodne.
+    const raw = "2026-10-06T09:55:00.123456+00:00";
+    const html = renderToString(<ClubFeedTime iso={raw} lang="pl" />);
+    expect(html).toMatch(/ datetime="2026-10-06T09:55:00\.123Z"/i);
+    render(<ClubFeedTime iso={raw} lang="pl" />);
+    const time = screen.getByText(/./, { selector: "time" });
+    expect(time.getAttribute("datetime")).toBe("2026-10-06T09:55:00.123Z");
   });
 
   it("tyknięcie zegara przesuwa czas względny bez przeładowania", () => {

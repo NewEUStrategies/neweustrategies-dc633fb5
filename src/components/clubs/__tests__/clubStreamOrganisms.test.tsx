@@ -963,7 +963,8 @@ describe("ClubThreadList", () => {
     expect(within(row).getByText("club.repliesCount(count=3)")).toBeTruthy();
     expect(within(row).getByText("club.hub.feed.participantsCount(count=2)")).toBeTruthy();
     expect(within(row).getByText("club.reaction.insightful")).toBeTruthy();
-    expect(row.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
+    // Wiersz pokazuje sam dzień, więc atrybut to "valid date string" tego dnia.
+    expect(row.querySelector("time")?.getAttribute("datetime")).toBe("2026-08-18");
     expect(within(row).getByRole("link", { name: "Temat pierwszy" }).getAttribute("href")).toBe(
       "/club/klub-energetyczny/t/temat-pierwszy",
     );
@@ -1019,7 +1020,7 @@ describe("ClubThreadList", () => {
     expect(within(row).getByText("Ustawa o rynku mocy")).toBeTruthy();
     expect(within(row).getByLabelText("club.pinnedThread")).toBeTruthy();
     expect(row.className).toContain("bg-primary/[0.03]");
-    expect(row.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
+    expect(row.querySelector("time")?.getAttribute("datetime")).toBe("2026-08-18");
   });
 
   it("pusta kotwica, brak zajawki i zerowy licznik `insightful` nie zostawiają pustych miejsc", () => {

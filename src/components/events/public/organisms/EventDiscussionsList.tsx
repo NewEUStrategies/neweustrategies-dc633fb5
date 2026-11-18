@@ -41,7 +41,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDate, uiLang, type UiLang } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr, uiLang, type UiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import type { DirectoryPerson } from "@/lib/events/eventDirectory";
@@ -336,7 +336,7 @@ function ThreadRow({
             </span>
           )}
           {activityAt !== null && activity !== "" && (
-            <time dateTime={activityAt} className="tabular-nums">
+            <time dateTime={formatDateAttr(activityAt)} className="tabular-nums">
               {t("eventFront.directory.lastActivity", { date: activity })}
             </time>
           )}

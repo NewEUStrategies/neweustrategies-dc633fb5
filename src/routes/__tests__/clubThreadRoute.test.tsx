@@ -1186,6 +1186,15 @@ describe("post otwierający - meta i autorstwo", () => {
     expect(screen.getByText("club.edited")).toBeTruthy();
   });
 
+  it("data otwarcia ma `datetime` z milisekundami - bez mikrosekund `now()`", async () => {
+    // Meta pokazuje datę Z GODZINĄ, więc atrybut to pełna chwila w UTC.
+    h.thread = threadRow({ created_at: "2026-08-18T10:00:00.123456+00:00" });
+    await mount();
+    const attrs = Array.from(document.querySelectorAll("time"), (t) => t.getAttribute("datetime"));
+    expect(attrs).toContain("2026-08-18T10:00:00.123Z");
+    expect(attrs).not.toContain("2026-08-18T10:00:00.123456+00:00");
+  });
+
   it("obszar tematyczny dostaje katalog tematów, nie sam napis", async () => {
     await mount();
     const chip = screen.getByTestId("topic-chip");

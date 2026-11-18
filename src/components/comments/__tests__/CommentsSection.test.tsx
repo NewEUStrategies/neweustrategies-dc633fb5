@@ -940,6 +940,17 @@ describe("stany pojedynczego wiersza", () => {
     expect(replyButtons()).toHaveLength(0);
   });
 
+  it("`<time datetime>` to chwila z milisekundami - bez mikrosekund `now()`", async () => {
+    // Wiersz pokazuje datę Z GODZINĄ, więc atrybut to pełna chwila w UTC;
+    // HTML dopuszcza najwyżej trzy cyfry ułamka sekundy.
+    const { container } = show([viewRow({ created_at: "2026-08-18T22:30:00.123456+00:00" })]);
+
+    await waitFor(() => expect(container.querySelector("article time")).toBeTruthy());
+    expect(container.querySelector("article time")?.getAttribute("datetime")).toBe(
+      "2026-08-18T22:30:00.123Z",
+    );
+  });
+
   it("EDYTOWANY niesie znacznik edycji, USUNIĘTY - nie, mimo edited_at", async () => {
     show([
       viewRow({ id: "c-edited", edited_at: "2026-08-18T11:00:00.000Z" }),

@@ -114,8 +114,19 @@ describe("PostDateView", () => {
   it("format long pokazuje datę absolutną w strefie witryny i atrybut dateTime", () => {
     const { container } = view(<PostDateView format="long" showUpdated={false} lang="pl" cls="" />);
     const time = container.querySelector("time");
-    expect(time?.getAttribute("dateTime")).toBe(CTX.publishedAt);
+    // Ekran pokazuje SAM dzień, więc atrybut to "valid date string" tego dnia.
+    expect(time?.getAttribute("dateTime")).toBe("2026-08-19");
     expect(time?.textContent).toBe("19 sierpnia 2026");
+  });
+
+  it("wpis z 22:30 UTC (mikrosekundy z `now()`) ma w atrybucie dzień z ekranu", () => {
+    const { container } = view(
+      <PostDateView format="long" showUpdated={false} lang="pl" cls="" />,
+      { ...CTX, publishedAt: "2026-09-05T22:30:00.123456+00:00" },
+    );
+    const time = container.querySelector("time");
+    expect(time?.getAttribute("dateTime")).toBe("2026-09-06");
+    expect(time?.textContent).toBe("6 września 2026");
   });
 
   it("format short pokazuje datę numeryczną", () => {
@@ -126,14 +137,17 @@ describe("PostDateView", () => {
   });
 
   it("showUpdated bierze datę aktualizacji, a bez niej wraca do daty publikacji", () => {
-    const first = view(<PostDateView format="long" showUpdated lang="pl" cls="" />);
-    expect(first.container.querySelector("time")?.getAttribute("dateTime")).toBe(CTX.updatedAt);
+    const first = view(<PostDateView format="long" showUpdated lang="pl" cls="" />, {
+      ...CTX,
+      updatedAt: "2026-08-21T11:00:00.000Z",
+    });
+    expect(first.container.querySelector("time")?.getAttribute("dateTime")).toBe("2026-08-21");
     cleanup();
     const second = view(<PostDateView format="long" showUpdated lang="pl" cls="" />, {
       ...CTX,
       updatedAt: undefined,
     });
-    expect(second.container.querySelector("time")?.getAttribute("dateTime")).toBe(CTX.publishedAt);
+    expect(second.container.querySelector("time")?.getAttribute("dateTime")).toBe("2026-08-19");
   });
 
   it("format relative: HTML z serwera ma datę ABSOLUTNĄ (parytet hydratacji)", () => {
@@ -144,6 +158,9 @@ describe("PostDateView", () => {
     );
     expect(html).toContain("19 sierpnia 2026");
     expect(html).not.toContain("temu");
+    // Po montażu etykieta ma godziny, więc atrybut to pełna chwila (ms, UTC) -
+    // ten sam w SSR i po hydratacji, bo nie zależy od zegara.
+    expect(html).toMatch(/ datetime="2026-08-19T09:00:00\.000Z"/i);
   });
 
   it.each([
@@ -170,7 +187,7 @@ describe("PostDateView", () => {
       { ...CTX, publishedAt: "to-nie-data" },
     );
     const time = container.querySelector("time");
-    expect(time?.getAttribute("dateTime")).toBe("to-nie-data");
+    expect(time?.hasAttribute("dateTime")).toBe(false);
     assertNoLeak(container);
   });
 

@@ -22,6 +22,7 @@ import {
   formatDateOnly,
   formatDateShort,
   formatDateTime,
+  formatDateTimeAttr,
   formatNumber,
   uiLang,
   uiLocale,
@@ -332,6 +333,48 @@ describe("formatDateAttr - `datetime` dla dat bez godziny", () => {
     expect(formatDateAttr("nie-data")).toBeUndefined();
     expect(formatDateAttr(Number.NaN)).toBeUndefined();
     expect(formatDateAttr(new Date(-62198755200000 * 2))).toBeUndefined();
+  });
+});
+
+describe("formatDateTimeAttr - `datetime` dla godziny i czasu względnego", () => {
+  // "valid global date and time string" HTML: ułamek sekundy ma 1-3 cyfry.
+  const HTML_GLOBAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  it("mikrosekundy `now()` przycina do milisekund, chwila bez zmian", () => {
+    const raw = "2026-09-05T22:30:00.123456+00:00";
+    expect(formatDateTimeAttr(raw)).toBe("2026-09-05T22:30:00.123Z");
+    expect(formatDateTimeAttr(raw)).toMatch(HTML_GLOBAL_DATETIME);
+    // Ta sama chwila: godzina na ekranie liczy się z atrybutu identycznie.
+    expect(formatDateTime(formatDateTimeAttr(raw) ?? "", "pl")).toBe(formatDateTime(raw, "pl"));
+  });
+
+  it("przesunięcie strefy sprowadza do UTC; obiekt Date i liczba też", () => {
+    expect(formatDateTimeAttr("2026-09-06T00:30:00+02:00")).toBe("2026-09-05T22:30:00.000Z");
+    expect(formatDateTimeAttr(new Date("2026-09-05T22:30:00Z"))).toBe("2026-09-05T22:30:00.000Z");
+    expect(formatDateTimeAttr(Date.UTC(2026, 8, 5, 22, 30))).toBe("2026-09-05T22:30:00.000Z");
+  });
+
+  it("nie zależy od strefy maszyny (parytet SSR/hydratacji)", () => {
+    const original = process.env.TZ;
+    try {
+      const out = ["UTC", "America/Los_Angeles", "Pacific/Kiritimati"].map((tz) => {
+        process.env.TZ = tz;
+        return formatDateTimeAttr("2026-09-05T22:30:00.123456+00:00");
+      });
+      expect(new Set(out).size).toBe(1);
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+
+  it("nieczytelna wartość albo rok spoza 4 cyfr = brak atrybutu (nie pusty napis)", () => {
+    expect(formatDateTimeAttr("nie-data")).toBeUndefined();
+    expect(formatDateTimeAttr("")).toBeUndefined();
+    expect(formatDateTimeAttr(Number.NaN)).toBeUndefined();
+    // `toISOString` dałby tu "+010000-…" - to nie jest wartość HTML.
+    expect(formatDateTimeAttr(Date.UTC(10000, 0, 1))).toBeUndefined();
+    expect(formatDateTimeAttr(new Date(-62198755200000 * 2))).toBeUndefined();
   });
 });
 

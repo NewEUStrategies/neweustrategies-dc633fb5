@@ -42,7 +42,7 @@ import {
 import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
 import { collectMentionSlugs } from "@/lib/mentions/directory";
 import { countDescendants, revealBranch, toggleBranch } from "@/lib/discussion/branches";
-import { uiLocale } from "@/lib/i18n/format";
+import { formatDateTimeAttr, uiLocale } from "@/lib/i18n/format";
 
 interface Props {
   postId: string;
@@ -759,7 +759,10 @@ function CommentItem({
           {isGuest && (
             <span className="text-xs text-muted-foreground/80">({t("comments.guestBadge")})</span>
           )}
-          <time className="text-xs text-muted-foreground" dateTime={c.created_at}>
+          <time
+            className="text-xs text-muted-foreground"
+            dateTime={formatDateTimeAttr(c.created_at)}
+          >
             {when}
           </time>
           {c.edited_at && !isDeleted && (

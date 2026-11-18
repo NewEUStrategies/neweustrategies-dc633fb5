@@ -156,6 +156,20 @@ describe("PostOverlayMeta - nakładka meta nad okładką", () => {
     expect(screen.getByText("01.08.2026")).toBeInTheDocument();
   });
 
+  it("`datetime` to dzień z ekranu: 22:30 UTC z mikrosekundami to już następny dzień", () => {
+    const { container } = renderWithQuery(
+      <PostOverlayMeta
+        lang="pl"
+        author={null}
+        publishedAt="2026-09-05T22:30:00.123456+00:00"
+        readMinutes={null}
+      />,
+    );
+    const time = container.querySelector("time");
+    expect(time).toHaveAttribute("dateTime", "2026-09-06");
+    expect(time).toHaveTextContent("06.09.2026");
+  });
+
   it("BRAK daty i czasu czytania nie renderuje ich pozycji", () => {
     const { container } = renderWithQuery(
       <PostOverlayMeta lang="pl" author={null} publishedAt={null} readMinutes={null} />,
@@ -182,7 +196,8 @@ describe("PostOverlayMeta - nakładka meta nad okładką", () => {
     );
     expect(container.textContent).not.toContain("Invalid");
     expect(container.querySelector("time")).toHaveTextContent("nie-data");
-    expect(container.querySelector("time")).toHaveAttribute("dateTime", "nie-data");
+    // Atrybut tylko z wartości maszynowej - nieczytelnej nie przepisujemy.
+    expect(container.querySelector("time")).not.toHaveAttribute("dateTime");
   });
 
   it("wariant angielski prefiksuje adres autora `/en/`", () => {

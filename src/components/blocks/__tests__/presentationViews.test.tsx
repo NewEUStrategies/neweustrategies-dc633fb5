@@ -364,4 +364,24 @@ describe("TimelineView", () => {
   it("pusta lista = brak bloku", () => {
     expect(render(<TimelineView items={[]} />).container).toBeEmptyDOMElement();
   });
+
+  it("`<time>` tylko dla wartości maszynowej HTML; wolny tekst z CMS to `<span>` z tą samą klasą", () => {
+    // `<time>` bez `datetime` musi mieć w treści rok, miesiąc albo datę HTML.
+    const dates = ["2024", "2024-05", "2024-02-29", "Q3 2024", "2026-02-29", "2024-13", "0000"];
+    const { container } = render(<TimelineView items={dates.map((date) => ({ date }))} />);
+    const marks = Array.from(container.querySelectorAll("li"), (li) => li.children[1]!);
+    expect(marks.map((el) => [el.tagName, el.textContent])).toEqual([
+      ["TIME", "2024"],
+      ["TIME", "2024-05"],
+      ["TIME", "2024-02-29"],
+      ["SPAN", "Q3 2024"],
+      ["SPAN", "2026-02-29"],
+      ["SPAN", "2024-13"],
+      ["SPAN", "0000"],
+    ]);
+    expect(new Set(marks.map((el) => el.className)).size).toBe(1);
+    expect(marks[0]!.className).toBe(
+      "block text-xs font-semibold uppercase tracking-wide text-primary",
+    );
+  });
 });

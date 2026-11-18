@@ -130,7 +130,7 @@ import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDateTime, formatDateTimeAttr } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,
   toAuthorLabel,
@@ -569,7 +569,9 @@ function ClubThreadView() {
                   nameClassName="truncate font-semibold text-foreground"
                 />
                 <span aria-hidden="true">·</span>
-                <time dateTime={thread.created_at}>{formatDateTime(thread.created_at, lang)}</time>
+                <time dateTime={formatDateTimeAttr(thread.created_at)}>
+                  {formatDateTime(thread.created_at, lang)}
+                </time>
                 {thread.edited_at !== null ? <span>{t("club.edited")}</span> : null}
               </>
             }

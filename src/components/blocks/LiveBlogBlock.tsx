@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { liveBlogEntriesBlockQueryOptions, type LiveBlogEntryRow } from "@/lib/queries/blocks";
-import { formatDate } from "@/lib/i18n/format";
+import { formatDate, formatDateTimeAttr } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
 import { useInView } from "@/hooks/use-in-view";
 
@@ -240,7 +240,7 @@ function LiveEntryRow({
       <div className="flex items-baseline gap-3 mb-1">
         <time
           className="text-xs font-mono text-muted-foreground shrink-0"
-          dateTime={entry.occurred_at}
+          dateTime={formatDateTimeAttr(entry.occurred_at)}
           title={fmtTime(entry.occurred_at, lang)}
         >
           {fmtRelative(entry.occurred_at, lang, now)}

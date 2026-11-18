@@ -327,9 +327,9 @@ describe("EventDiscussionsList", () => {
 
     expect(await screen.findByText("eventFront.directory.pinned")).toBeInTheDocument();
     expect(screen.getByText("eventFront.discussions.kind.question")).toBeInTheDocument();
-    // Ostatnia odpowiedź wygrywa z datą założenia; znacznik maszynowy zostaje ISO.
+    // Ostatnia odpowiedź wygrywa z datą założenia; znacznik maszynowy to dzień z ekranu.
     const time = container.querySelector("time");
-    expect(time).toHaveAttribute("dateTime", "2026-10-09T12:00:00Z");
+    expect(time).toHaveAttribute("dateTime", "2026-10-09");
     expect(time?.textContent).toMatch(
       /^eventFront\.directory\.lastActivity:\{"date":"9 .+2026"\}$/,
     );

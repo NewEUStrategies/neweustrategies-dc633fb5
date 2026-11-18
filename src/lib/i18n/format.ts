@@ -220,6 +220,19 @@ const SITE_DATE_ATTR_OPTIONS: Intl.DateTimeFormatOptions = {
 };
 
 /**
+ * Chwila dla atrybutu `datetime`; `undefined` dla nieczytelnej wartości.
+ * Wartości HTML wymagają roku > 0 (4+ cyfry), a `en-CA` drukuje lata p.n.e.
+ * bez ery, `toISOString` zaś rozszerza rok poza 9999 do `+010000` - poza
+ * zakresem 1000-9999 atrybutu nie ma.
+ */
+function attrInstant(date: string | number | Date): Date | undefined {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return undefined;
+  const utcYear = d.getUTCFullYear();
+  return utcYear < 1000 || utcYear > 9999 ? undefined : d;
+}
+
+/**
  * Atrybut `datetime` dla `<time>`, który pokazuje SAMĄ datę (`formatDate`,
  * `formatDateShort`): "valid date string" HTML ("2026-09-06") w strefie serwisu,
  * czyli ten sam dzień kalendarzowy co na ekranie. Pełny znacznik UTC dawałby
@@ -228,12 +241,8 @@ const SITE_DATE_ATTR_OPTIONS: Intl.DateTimeFormatOptions = {
  * Nieczytelna wartość = `undefined` (bez atrybutu zamiast `Invalid Date`).
  */
 export function formatDateAttr(date: string | number | Date): string | undefined {
-  const d = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(d.getTime())) return undefined;
-  // "valid date string" wymaga roku > 0 (4+ cyfry), a `en-CA` drukuje lata p.n.e.
-  // bez ery - poza zakresem 1000-9999 atrybutu nie ma.
-  const utcYear = d.getUTCFullYear();
-  if (utcYear < 1000 || utcYear > 9999) return undefined;
+  const d = attrInstant(date);
+  if (d === undefined) return undefined;
   const parts = cachedFormatter(
     dateFormatters,
     "en-CA",
@@ -243,6 +252,18 @@ export function formatDateAttr(date: string | number | Date): string | undefined
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/**
+ * Atrybut `datetime` dla `<time>`, który pokazuje GODZINĘ albo czas względny
+ * (`formatDateTime`, „5 min temu"): "valid global date and time string" HTML
+ * w UTC (`toISOString`, "2026-09-05T22:30:00.123Z"). Surowy timestamptz z
+ * `now()` ma mikrosekundy, a HTML dopuszcza najwyżej 3 cyfry ułamka sekundy.
+ * Bez strefy maszyny i locale, więc SSR i klient dają ten sam napis.
+ * Nieczytelna wartość = `undefined` (bez atrybutu).
+ */
+export function formatDateTimeAttr(date: string | number | Date): string | undefined {
+  return attrInstant(date)?.toISOString();
 }
 
 /**

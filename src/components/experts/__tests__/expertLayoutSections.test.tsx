@@ -246,6 +246,23 @@ describe("sekcja: wzmianki prasowe", () => {
     expect(container.textContent).not.toContain(t.placeholder);
     expect(container.textContent).not.toContain(ph.mentions[0].title);
   });
+
+  it("wzmianka bez daty nie zostawia pustego `<time>`", () => {
+    // `published_on` z bazy bywa NULL (normalizacja daje ""), a pusty `<time>`
+    // bez `datetime` nie jest poprawnym HTML.
+    const { container } = section("media_mentions", {
+      hub: {
+        mediaMentions: [
+          expertMention({ id: "m-dated", published_on: "2026-06-12" }),
+          expertMention({ id: "m-undated", published_on: "" }),
+        ],
+      },
+    });
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    expect(items[0]!.querySelector("time")?.textContent).toBe("2026-06-12");
+    expect(items[1]!.querySelector("time")).toBeNull();
+  });
 });
 
 describe("sekcja: pasek podcastów", () => {
