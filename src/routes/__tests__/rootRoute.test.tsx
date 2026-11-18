@@ -1585,6 +1585,21 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     expect(container.querySelector("[data-consent-shell]")).toBe(before);
   });
 
+  it("gniazdo serwera i przeglądarki to JEDEN element JSX (ten sam znacznik źródła w dev)", async () => {
+    // Narzędzia deweloperskie dopisują do elementu `data-tsd-source` z numerem
+    // linii JSX. Dwa `<div data-consent-shell-slot>` w dwóch gałęziach dawały
+    // serwerowi i przeglądarce różne wartości - ostrzeżenie o niezgodności
+    // atrybutów przy każdej hydratacji. Pilnujemy jednego miejsca w kodzie.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const source = readFileSync(resolve(process.cwd(), "src/routes/__root.tsx"), "utf8");
+    const start = source.indexOf("export const ConsentShellSlot = memo(");
+    const end = source.indexOf("\n});", start);
+    expect(start).toBeGreaterThan(-1);
+    const body = source.slice(start, end);
+    expect(body.match(/data-consent-shell-slot=""/g)).toHaveLength(1);
+  });
+
   it("gniazdo serwera: skrypt odsłonięcia stoi ZA kartą (ostatnie dziecko) i ustawia `data-consent-parsed`", async () => {
     const { init } = await consentMods();
     const { renderToStaticMarkup } = await import("react-dom/server");
