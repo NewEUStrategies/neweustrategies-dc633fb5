@@ -2906,6 +2906,13 @@
       "when": 1794940938182,
       "tag": "0414_newsletter_settings_patch_static_sql",
       "breakpoints": true
+    },
+    {
+      "idx": 415,
+      "version": "7",
+      "when": 1795002165062,
+      "tag": "0415_pr543_deployment_completion",
+      "breakpoints": true
     }
   ]
 }
