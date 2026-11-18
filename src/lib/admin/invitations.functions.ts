@@ -286,7 +286,7 @@ const InviteItemSchema = z.object({
   role: z.enum(INVITABLE_ROLES),
   mode: z.enum(["magic_link", "temp_password"]),
   source: z.string().max(80).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const createInvitations = createServerFn({ method: "POST" })
@@ -1016,7 +1016,7 @@ async function performSend(
 
 export const sendInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.guid() }).parse(input))
   .handler(async ({ data, context }): Promise<SendResult> => {
     await assertAdmin(context.supabase, context.userId);
     return performSend(context.supabase, context.userId, data.id);
@@ -1029,7 +1029,7 @@ export const sendInvitation = createServerFn({ method: "POST" })
  */
 export const sendActivationEmailForUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) => z.object({ userId: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ userId: z.guid() }).parse(input))
   .handler(async ({ data, context }): Promise<SendResult> => {
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
     // `profiles.email` nie jest czytelne dla `authenticated` (grant kolumnowy,
@@ -1118,7 +1118,7 @@ export const sendActivationEmailForUser = createServerFn({ method: "POST" })
 
 export const sendInvitationsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) => z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).parse(input))
+  .validator((input) => z.object({ ids: z.array(z.guid()).min(1).max(100) }).parse(input))
   .handler(async ({ data, context }): Promise<{ results: SendResult[] }> => {
     await assertAdmin(context.supabase, context.userId);
     const results: SendResult[] = [];
@@ -1179,7 +1179,7 @@ export const resendInvitationsForEmails = createServerFn({ method: "POST" })
 
 export const revokeInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input) => z.object({ id: z.guid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { error } = await context.supabase

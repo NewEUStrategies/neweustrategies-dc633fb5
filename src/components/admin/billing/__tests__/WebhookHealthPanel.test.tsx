@@ -20,7 +20,7 @@
 //      błyskawicznym webhooku, czyli nieprawdą o stanie systemu.
 //   3. PONOWNA WYSYŁKA IDZIE WYŁĄCZNIE Z POPRAWNYM IDENTYFIKATOREM. Przycisk
 //      jest zablokowany, dopóki wpisane nie jest UUID-em - server fn i tak
-//      waliduje `z.string().uuid()`, więc bez tej blokady operator dostawałby
+//      waliduje `z.guid()`, więc bez tej blokady operator dostawałby
 //      odmowę schematu zamiast podpowiedzi.
 //   4. PUSTA LISTA AWARII MÓWI, ŻE ICH NIE MA. Cisza w tym miejscu czyta się
 //      jak „nie sprawdzono".

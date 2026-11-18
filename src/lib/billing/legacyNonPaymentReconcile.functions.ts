@@ -25,7 +25,7 @@ const inputSchema = z.object({
   environment: z.enum(["sandbox", "live"]).optional(),
   mode: z.enum(["dry_run", "apply"]).default("dry_run"),
   /** `subscriptions.id` ostatniego wiersza poprzedniej partii (UUID). */
-  cursor: z.string().uuid().nullable().optional(),
+  cursor: z.guid().nullable().optional(),
   batchSize: z.number().int().min(1).max(100).optional(),
 });
 

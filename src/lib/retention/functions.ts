@@ -38,26 +38,26 @@ const REUSE_STARTED_HOURS = 24;
 const DAY_MS = 86_400_000;
 
 const reasonFields = {
-  reasonId: z.string().uuid().nullable(),
+  reasonId: z.guid().nullable(),
   // `null` = klient nie wybrał powodu („Anuluj mimo to" od razu).
   reasonLabel: z.string().trim().min(1).max(200).nullable(),
   comment: z.string().trim().max(2000).optional(),
 };
 
-const startSchema = z.object({ subscriptionId: z.string().uuid() });
+const startSchema = z.object({ subscriptionId: z.guid() });
 
 const feedbackSchema = z.object({
-  subscriptionId: z.string().uuid(),
+  subscriptionId: z.guid(),
   /** Wiersz z `startRetentionFlow`; brak = klient sprzed S2 (wstawienie). */
-  feedbackId: z.string().uuid().nullable().optional(),
+  feedbackId: z.guid().nullable().optional(),
   outcome: z.enum(["canceled", "saved"]).default("canceled"),
   offerShown: z.boolean(),
   ...reasonFields,
 });
 
 const acceptSchema = z.object({
-  subscriptionId: z.string().uuid(),
-  feedbackId: z.string().uuid(),
+  subscriptionId: z.guid(),
+  feedbackId: z.guid(),
   ...reasonFields,
 });
 

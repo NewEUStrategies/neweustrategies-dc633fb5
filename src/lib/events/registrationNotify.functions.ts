@@ -74,7 +74,7 @@ export type RegistrationNotifyResult =
   | { ok: false; error: string; ticketsSent?: number };
 
 const Input = z.object({
-  registrationId: z.string().uuid(),
+  registrationId: z.guid(),
   notice: z.enum(REGISTRATION_NOTICES),
 });
 

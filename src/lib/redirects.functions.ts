@@ -16,7 +16,7 @@ import {
   parseRedirectsCsv,
 } from "./seo/redirects";
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 
 const RedirectFields = z.object({
   source_path: z.string().min(1).max(2048),

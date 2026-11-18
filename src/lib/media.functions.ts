@@ -133,7 +133,7 @@ export const registerMediaUpload = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
-const DeleteSchema = z.object({ mediaId: z.string().uuid() });
+const DeleteSchema = z.object({ mediaId: z.guid() });
 
 export const deleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -187,7 +187,7 @@ export const deleteMedia = createServerFn({ method: "POST" })
 // żeby zrobić `includes` w JavaScripcie - koszt liniowy z archiwum, płacony
 // przy każdym otwarciu podglądu pliku. Teraz wraca wyłącznie lista trafień,
 // przycięta do `MEDIA_USAGE_LIMIT`.
-const UsageSchema = z.object({ mediaId: z.string().uuid() });
+const UsageSchema = z.object({ mediaId: z.guid() });
 
 /** Górna granica trafień zwracanych do podglądu pliku. */
 export const MEDIA_USAGE_LIMIT = 200;
@@ -418,7 +418,7 @@ async function requireTenantId(
 
 // ---------- Update media (rename / alt / move) ----------
 const UpdateMediaSchema = z.object({
-  mediaId: z.string().uuid(),
+  mediaId: z.guid(),
   filename: z.string().min(1).max(255).optional(),
   altText: z.string().max(500).nullable().optional(),
   folderPath: z.string().min(1).max(512).optional(),
@@ -463,7 +463,7 @@ export const updateMediaMeta = createServerFn({ method: "POST" })
 
 // ---------- Bulk move ----------
 const BulkMoveSchema = z.object({
-  mediaIds: z.array(z.string().uuid()).min(1).max(500),
+  mediaIds: z.array(z.guid()).min(1).max(500),
   folderPath: z.string().min(1).max(512),
 });
 
@@ -492,7 +492,7 @@ export const bulkMoveMedia = createServerFn({ method: "POST" })
   });
 
 // ---------- Bulk delete ----------
-const BulkDeleteSchema = z.object({ mediaIds: z.array(z.string().uuid()).min(1).max(500) });
+const BulkDeleteSchema = z.object({ mediaIds: z.array(z.guid()).min(1).max(500) });
 
 export const bulkDeleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -531,7 +531,7 @@ export const bulkDeleteMedia = createServerFn({ method: "POST" })
 
 // ---------- Duplicate (copy-paste) ----------
 const DuplicateSchema = z.object({
-  mediaIds: z.array(z.string().uuid()).min(1).max(100),
+  mediaIds: z.array(z.guid()).min(1).max(100),
   folderPath: z.string().min(1).max(512),
 });
 

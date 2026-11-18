@@ -10,9 +10,9 @@ import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
 
 const GuestCommentInput = z.object({
-  postId: z.string().uuid(),
+  postId: z.guid(),
   body: z.string().trim().min(1).max(5000),
-  parentId: z.string().uuid().nullable().optional(),
+  parentId: z.guid().nullable().optional(),
   authorName: z.string().trim().min(2).max(80),
   /** Honeypot - ukryte pole formularza; wypełnione = bot. */
   website: z.string().optional(),

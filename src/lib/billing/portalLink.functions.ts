@@ -74,7 +74,7 @@ export const openMyBillingPortal = createServerFn({ method: "POST" })
 export const resendPortalLinkForUser = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
   .validator((data: { userId: string; environment: "sandbox" | "live" }) =>
-    z.object({ userId: z.string().uuid(), environment: envSchema }).parse(data),
+    z.object({ userId: z.guid(), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");

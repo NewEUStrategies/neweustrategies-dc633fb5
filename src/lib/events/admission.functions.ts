@@ -20,8 +20,8 @@ import type { AdmissionRpcResult } from "@/lib/events/admissionRpc.server";
  */
 const quoteSchema = z
   .object({
-    ticket_type_id: z.string().uuid().optional(),
-    package_id: z.string().uuid().optional(),
+    ticket_type_id: z.guid().optional(),
+    package_id: z.guid().optional(),
     coupon_code: z.string().trim().max(64).optional(),
   })
   .strict();
@@ -32,7 +32,7 @@ const quoteSchema = z
  */
 const purchaseSchema = z
   .object({
-    package_id: z.string().uuid(),
+    package_id: z.guid(),
     buyer_name: z.string().trim().max(500).optional(),
     buyer_email: z.string().trim().max(320).optional(),
     invoice_note: z.string().trim().max(4000).optional(),

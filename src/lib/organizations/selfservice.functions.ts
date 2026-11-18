@@ -14,7 +14,7 @@ import { buildOrgInviteEmail } from "@/lib/organizations/inviteEmail";
 const langSchema = z.enum(["pl", "en"]).default("pl");
 
 const inviteSeatSchema = z.object({
-  org_id: z.string().uuid(),
+  org_id: z.guid(),
   email: z.string().email().max(200),
   lang: langSchema,
 });
@@ -96,7 +96,7 @@ export const inviteOrgSeat = createServerFn({ method: "POST" })
   });
 
 const resendSchema = z.object({
-  seat_id: z.string().uuid(),
+  seat_id: z.guid(),
   lang: langSchema,
 });
 

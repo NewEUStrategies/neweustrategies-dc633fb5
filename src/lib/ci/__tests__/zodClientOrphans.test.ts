@@ -90,7 +90,7 @@ describe("findZodClientOrphans - wycinki", () => {
       orphans({
         "src/router.tsx": router("@/lib/a"),
         "src/lib/a.ts": `${ZOD}
-          const Inner = /* @__PURE__ */ (() => z.string().uuid())();
+          const Inner = /* @__PURE__ */ (() => z.guid())();
           const Outer = /* @__PURE__ */ (() => z.object({ id: Inner }))();
           export type O = z.infer<typeof Outer>;
           export const marker = 1;
@@ -104,7 +104,7 @@ describe("findZodClientOrphans - wycinki", () => {
       orphans({
         "src/router.tsx": router("@/lib/a"),
         "src/lib/a.ts": `${ZOD}
-          const Id = z.string().uuid();
+          const Id = z.guid();
           const Dead = z.object({ id: Id });
           export type DeadT = z.infer<typeof Dead>;
           const Tag = z.string();

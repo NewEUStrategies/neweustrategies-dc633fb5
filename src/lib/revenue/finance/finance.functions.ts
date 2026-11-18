@@ -110,14 +110,17 @@ const TimeZone = z
   .default("Europe/Warsaw");
 
 /**
- * Granice okna w `refine`. Pola opcjonalne celowo: przez generyczne `T` zod
- * typuje je jako „może `undefined`”, choć `Instant` jest wymagany - brak albo
- * zły napis daje `NaN`, a porównanie z `NaN` odrzuca okno.
+ * Granice okna w `refine`. Pola `unknown` celowo: przez generyczne `T` zod 4
+ * nie rozwiązuje typu kluczy (`sinceIso` bywa `unknown`), choć `Instant` jest
+ * wymagany - brak albo zły napis daje `NaN`, a porównanie z `NaN` odrzuca okno.
  */
-type WindowBounds = { sinceIso?: string; untilIso?: string };
+type WindowBounds = { readonly sinceIso?: unknown; readonly untilIso?: unknown };
+
+const instantMs = (value: unknown): number =>
+  typeof value === "string" ? Date.parse(value) : Number.NaN;
 
 function windowLengthMs(w: WindowBounds): number {
-  return Date.parse(w.untilIso ?? "") - Date.parse(w.sinceIso ?? "");
+  return instantMs(w.untilIso) - instantMs(w.sinceIso);
 }
 
 function windowSchema<T extends z.ZodRawShape>(extra: T) {

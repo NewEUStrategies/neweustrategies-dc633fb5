@@ -111,7 +111,7 @@ const ThemeDesignSchema = z
         marginBottom: PX.default("16px"),
         underline: z.enum(["none", "left", "full", "dotted"]).default("none"),
       })
-      .default({}),
+      .prefault({}),
     thumbnail: z
       .object({
         radius: PX.default("8px"),
@@ -119,7 +119,7 @@ const ThemeDesignSchema = z
         hoverEffect: z.enum(["none", "zoom", "fade", "slide"]).default("zoom"),
         shadow: z.enum(["none", "sm", "md", "lg"]).default("none"),
       })
-      .default({}),
+      .prefault({}),
     readMoreButton: z
       .object({
         // Inherits from the "Przyciski" tab.
@@ -133,7 +133,7 @@ const ThemeDesignSchema = z
         uppercase: z.boolean().default(false),
         arrow: z.boolean().default(true),
       })
-      .default({}),
+      .prefault({}),
     metaInfo: z
       .object({
         // Inherits from "Kolory pól tekstowych" (muted body text).
@@ -143,7 +143,7 @@ const ThemeDesignSchema = z
         gap: PX.default("12px"),
         separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
       })
-      .default({}),
+      .prefault({}),
     toolbarButton: z
       .object({
         // Toolbar surface inherits from "Pola tekstowe"; active state from "Przyciski".
@@ -162,7 +162,7 @@ const ThemeDesignSchema = z
         paddingY: PX.default("6px"),
         size: PX.default("16px"),
       })
-      .default({}),
+      .prefault({}),
     modeSwitcher: z
       .object({
         // Track = "Pola tekstowe", inactive = "Kolory pól tekstowych" muted,
@@ -177,7 +177,7 @@ const ThemeDesignSchema = z
         radius: PX.default("6px"),
         showLabel: z.boolean().default(true),
       })
-      .default({}),
+      .prefault({}),
     socialIcons: z
       .object({
         // Inherits from "Kolory ikon".
@@ -191,7 +191,7 @@ const ThemeDesignSchema = z
         paddingX: PX.default("6px"),
         paddingY: PX.default("6px"),
       })
-      .default({}),
+      .prefault({}),
     listIndex: z
       .object({
         // Global defaults for "numbered" / "ranked" post-list variants.
@@ -201,7 +201,7 @@ const ThemeDesignSchema = z
         opacity: z.number().min(0).max(1).default(0.18),
         weight: z.number().min(100).max(900).default(800),
       })
-      .default({}),
+      .prefault({}),
     postTitle: z
       .object({
         // Unified title styling shared by every post card / list / slider / grid widget.
@@ -220,7 +220,7 @@ const ThemeDesignSchema = z
         textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
         letterSpacing: PX.default("0px"),
       })
-      .default({}),
+      .prefault({}),
     postExcerpt: z
       .object({
         // Inherits from "Kolory pól tekstowych" (muted body text).
@@ -235,7 +235,7 @@ const ThemeDesignSchema = z
         color: COLOR.default(THEME_DESIGN_COLOR_INHERITANCE.postExcerpt.color.token),
         marginTop: PX.default("6px"),
       })
-      .default({}),
+      .prefault({}),
     // Optional per-mode dark overrides. Shape mirrors the sibling sections
     // above but only for color-typed fields. An empty string means "inherit
     // the light value" (which itself may reference a global token like
@@ -243,7 +243,7 @@ const ThemeDesignSchema = z
     // the site's global tokens still kicks in automatically).
     darkOverrides: z.record(z.string(), z.record(z.string(), z.string())).default({}),
   })
-  .default({});
+  .prefault({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 

@@ -240,9 +240,17 @@ async function measureBoundaryCommits({ Provider, useValue }: BootHarness): Prom
         onRecoverableError: (error) => errors.push(error),
       });
     });
+    // Minimum 150 ms jak dotąd, potem czekanie NA WARUNEK, nie na zegar: pod
+    // pełną równoległością suity harmonogram potrafi nie zdążyć uwodnić
+    // wszystkich granic w 150 ms (zmierzone: 3 z 6), a to nie mówi nic o
+    // podziale na commity. Termin zostaje, więc granica, która nigdy się nie
+    // uwodni, nadal oblewa asercję.
+    const hydratedCount = () => hydratedAt.filter((at) => at !== undefined).length;
+    const deadline = Date.now() + 5000;
     await sleep(150);
+    while (hydratedCount() < BOUNDARIES && Date.now() < deadline) await sleep(25);
     return {
-      boundaries: hydratedAt.filter((at) => at !== undefined).length,
+      boundaries: hydratedCount(),
       boundaryCommits: new Set(hydratedAt).size,
       readerText: container.querySelector("#czytelnik")?.textContent ?? null,
       serverHtmlKept: [...container.querySelectorAll("section")].every(

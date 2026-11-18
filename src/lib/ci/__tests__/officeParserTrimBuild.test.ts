@@ -19,8 +19,8 @@
 // tablica dingbatów) i styl akapitu z mapy stylów, której używa podgląd.
 // Drugi plik testowy to Unicode spoza BMP, pismo od prawej, znaki łączące,
 // końce linii XML 1.1, tabela, przypis, hiperłącze i osadzony obraz.
-// Zastępcy bluebirda, underscore, jszip i xmldom są na ścieżce KAŻDEJ
-// konwersji, więc dodatkowo porównujemy oba bundle na wszystkich plikach .docx
+// Zastępcy modułu obietnic mammoth, underscore, jszip i xmldom są na ścieżce
+// KAŻDEJ konwersji, więc dodatkowo porównujemy oba bundle na wszystkich plikach .docx
 // i .zip z testów mammoth (obrazy, przypisy, komentarze, tabele, listy, pola
 // tekstowe, błąd zewnętrznego obrazu, format strict, BOM, pusty dokument, zip
 // bez dokumentu) i na plikach uszkodzonych.
@@ -328,16 +328,17 @@ describe("nes:office-parser-trim - prawdziwy build mammoth", () => {
 
   it("z bundla zniknęły wycięte i zastąpione części", () => {
     // `Aacute` - pierwsza pozycja tablicy encji HTML; „Missing element name"
-    // - komunikat `XMLElement` z xmlbuilder; „circular promise resolution
-    // chain" - błąd bluebirda; „Typeface name" - klucz wierszy tablicy
-    // dingbatów; „[xmldom " - prefiks komunikatów parsera xmldom; „1.13.8" -
-    // `VERSION` underscore; „removed in JSZip 3.0" - komunikat jszip.
+    // - komunikat `XMLElement` z xmlbuilder; „process.stderr" - gałąź `done`
+    // z `promises.js` mammoth, niedostępna w przeglądarce; „Typeface name" -
+    // klucz wierszy tablicy dingbatów; „[xmldom " - prefiks komunikatów parsera
+    // xmldom; „1.13.8" - `VERSION` underscore; „removed in JSZip 3.0" -
+    // komunikat jszip.
     // Wszystkie są w bundlu bez wtyczki, więc ich brak dowodzi, że
     // przekierowanie zadziałało, a nie że test szuka nieistniejącego napisu.
     for (const marker of [
       "Aacute",
       "Missing element name",
-      "circular promise resolution chain",
+      "process.stderr",
       "Typeface name",
       "[xmldom ",
       "1.13.8",
@@ -347,6 +348,9 @@ describe("nes:office-parser-trim - prawdziwy build mammoth", () => {
       expect(trimmed.code, marker).not.toContain(marker);
     }
     expect(trimmed.code).toContain("DOMParser");
-    expect(trimmed.code.length).toBeLessThan(full.code.length - 400_000);
+    // Pomiar przy mammoth 1.13.0: 412 000 znaków bez wtyczki, 85 000 z nią.
+    // Próg 300 000 zostawia margines na minifikację, ale łapie powrót dużej
+    // biblioteki do bundla przeglądarki.
+    expect(trimmed.code.length).toBeLessThan(full.code.length - 300_000);
   });
 });

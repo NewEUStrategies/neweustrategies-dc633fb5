@@ -48,7 +48,7 @@ export interface CrmDueTaskRow extends CrmTaskRow {
   lead: { id: string; email: string; first_name: string | null; last_name: string | null } | null;
 }
 
-const LeadTasksInput = z.object({ lead_id: z.string().uuid() });
+const LeadTasksInput = z.object({ lead_id: z.guid() });
 
 export const listCrmLeadTasks = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -91,11 +91,11 @@ export const listCrmDueTasks = createServerFn({ method: "POST" })
   });
 
 const CreateTaskInput = z.object({
-  lead_id: z.string().uuid(),
+  lead_id: z.guid(),
   title: z.string().trim().min(1).max(200),
   note: z.string().trim().max(2000).optional(),
   due_at: z.string().datetime(),
-  assignee_id: z.string().uuid().nullable().optional(),
+  assignee_id: z.guid().nullable().optional(),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
 });
 
@@ -140,12 +140,12 @@ export const createCrmTask = createServerFn({ method: "POST" })
   });
 
 const UpdateTaskInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   title: z.string().trim().min(1).max(200).optional(),
   note: z.string().trim().max(2000).nullable().optional(),
   due_at: z.string().datetime().optional(),
   status: z.enum(TASK_STATUSES).optional(),
-  assignee_id: z.string().uuid().nullable().optional(),
+  assignee_id: z.guid().nullable().optional(),
 });
 
 export const updateCrmTask = createServerFn({ method: "POST" })
@@ -158,7 +158,7 @@ export const updateCrmTask = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const IdInput = z.object({ id: z.string().uuid() });
+const IdInput = z.object({ id: z.guid() });
 
 export const deleteCrmTask = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -179,7 +179,7 @@ export const deleteCrmTask = createServerFn({ method: "POST" })
 
 const AssignUnassignedInput = z.object({
   /** Osoba dla zadań, których lead nie ma właściciela (tylko zespół CRM). */
-  fallback_assignee_id: z.string().uuid().nullable().optional(),
+  fallback_assignee_id: z.guid().nullable().optional(),
   limit: z.number().int().min(1).max(1000).default(500),
 });
 

@@ -156,7 +156,7 @@ export const preAuthGuard = createServerFn({ method: "POST" })
 // -----------------------------------------------------------------------------
 const unlockSchema = z.object({
   entityType: z.enum(["post", "page"]),
-  entityId: z.string().uuid(),
+  entityId: z.guid(),
   password: z.string().min(1).max(200),
 });
 

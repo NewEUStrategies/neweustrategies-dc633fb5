@@ -31,10 +31,10 @@ export const listSavedViews = createServerFn({ method: "POST" })
   });
 
 const UpsertInput = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   entity: ENTITY,
   name: z.string().trim().min(1).max(80),
-  config: z.unknown(),
+  config: z.unknown().optional(),
   is_shared: z.boolean().optional().default(false),
 });
 
@@ -62,7 +62,7 @@ export const upsertSavedView = createServerFn({ method: "POST" })
     return { ok: true, id: hasId(row) ? row.id : null };
   });
 
-const DeleteInput = z.object({ id: z.string().uuid() });
+const DeleteInput = z.object({ id: z.guid() });
 
 export const deleteSavedView = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])

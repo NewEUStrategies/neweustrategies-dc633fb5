@@ -34,7 +34,7 @@ import type { Database } from "@/integrations/supabase/types";
 
 const retrySchema = z.object({
   /** Identyfikator wiersza dziennika (`payment_webhook_events.id`). */
-  id: z.string().uuid(),
+  id: z.guid(),
 });
 
 /**

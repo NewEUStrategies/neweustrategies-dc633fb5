@@ -18,7 +18,7 @@ import { z } from "zod";
 
 const consumeSchema = z.object({
   entityType: z.enum(["post", "page"]),
-  entityId: z.string().uuid(),
+  entityId: z.guid(),
 });
 
 /** Konsumpcja slotu gościa dla bytu (albo werdykt odmowy z pełnym stanem licznika). */

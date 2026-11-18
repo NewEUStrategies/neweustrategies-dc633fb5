@@ -121,7 +121,7 @@ const FontSizesSchema = z
       .default({ headingTopRem: 2, headingBottomRem: 0.75, listRem: 1.5, blockquoteRem: 1.75 }),
     mobileBreakpoint: clamp(360, 1024).default(768),
   })
-  .default({});
+  .prefault({});
 
 export type FontSizesSettings = z.infer<typeof FontSizesSchema>;
 export type HeadingLevel = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";

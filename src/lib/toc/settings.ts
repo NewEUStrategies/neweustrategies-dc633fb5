@@ -56,9 +56,9 @@ export const TocDefaultsSchema = z
         text: COLOR.default("#0f172a"),
         textDark: COLOR.default("#e2e8f0"),
       })
-      .default({}),
+      .prefault({}),
   })
-  .default({});
+  .prefault({});
 
 export type TocDefaults = z.infer<typeof TocDefaultsSchema>;
 export const TOC_DEFAULTS: TocDefaults = TocDefaultsSchema.parse({});

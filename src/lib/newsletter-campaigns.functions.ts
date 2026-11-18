@@ -395,7 +395,7 @@ async function claimCouponCode(
 }
 
 const CampaignUpsert = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   name: z.string().trim().min(1).max(200),
   subject_pl: z.string().trim().max(300).default(""),
   subject_en: z.string().trim().max(300).default(""),
@@ -579,7 +579,7 @@ async function couponInfo(client: DbClient, link: CouponLink): Promise<CampaignC
 
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireStaff])
-  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.guid() }).parse(data))
   .handler(async ({ data, context }): Promise<CampaignWithCoupon | null> => {
     const { data: row, error } = await context.supabase
       .from("newsletter_campaigns")
@@ -665,7 +665,7 @@ function readEngagement(data: unknown): CampaignEngagement {
 
 export const getCampaignEngagement = createServerFn({ method: "GET" })
   .middleware([requireStaff])
-  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.guid() }).parse(data))
   .handler(async ({ data, context }): Promise<CampaignEngagement> => {
     const client = context.supabase as unknown as EngagementRpcCallable;
     const { data: rows, error } = await client.rpc("newsletter_campaign_engagement", {
@@ -739,7 +739,7 @@ export const upsertCampaign = createServerFn({ method: "POST" })
 // ----------------------------------------------------------------------------
 export const deleteCampaign = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.guid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("newsletter_campaigns")
@@ -806,7 +806,7 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     z
       .object({
-        id: z.string().uuid(),
+        id: z.guid(),
         toEmail: z.string().trim().email().max(254),
         language: z.enum(["pl", "en"]).default("pl"),
       })
@@ -871,7 +871,7 @@ export const sendCampaign = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     z
       .object({
-        id: z.string().uuid(),
+        id: z.guid(),
         // Świadome potwierdzenie ryzyka reputacyjnego przez operatora
         // (checkbox w dialogu wysyłki). Bez niego przekroczony próg skarg
         // twardo zatrzymuje wysyłkę.
@@ -983,7 +983,7 @@ export function couponNewsletterTemplate(coupon: { name: string; valid_until: st
  */
 export const createCouponNewsletterCampaign = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
-  .validator((data: unknown) => z.object({ couponCampaignId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ couponCampaignId: z.guid() }).parse(data))
   .handler(async ({ data, context }): Promise<{ newsletterCampaignId: string }> => {
     const tenantId = await getTenantId(context);
     const { data: coupon, error } = await context.supabase
@@ -1753,7 +1753,7 @@ async function logRecipient(
 // renderEmailHtml, którym wysyła serwer (podgląd = wysyłka).
 export const resolveCampaignDocPosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .validator((data: unknown) => z.object({ doc: z.unknown() }).parse(data))
+  .validator((data: unknown) => z.object({ doc: z.unknown().optional() }).parse(data))
   .handler(async ({ data, context }): Promise<{ json: string }> => {
     const tenantId = await getTenantId(context);
     // Ten sam limit rozmiaru co przy zapisie (upsertCampaign) - podgląd nie

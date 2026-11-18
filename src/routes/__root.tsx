@@ -390,20 +390,23 @@ export const ConsentShellSlot = memo(function ConsentShellSlot({
   server?: ComponentType | null;
 }) {
   const [shellHtml] = useState(readShellSlotHtml);
-  if (Server) {
-    return (
-      <div data-consent-shell-slot="" className="contents">
-        <Server />
-        <script dangerouslySetInnerHTML={{ __html: SERVER_SHELL_REVEAL_SCRIPT }} />
-      </div>
-    );
-  }
+  // JEDEN element gniazda dla serwera i przeglądarki: dwa osobne `<div>` w dwóch
+  // gałęziach dostawały w trybie deweloperskim różne znaczniki źródła
+  // (`data-tsd-source` z numerem linii), więc React zgłaszał niezgodność
+  // atrybutów przy KAŻDEJ hydratacji. Różni się wyłącznie zawartość.
   return (
     <div
       data-consent-shell-slot=""
       className="contents"
-      dangerouslySetInnerHTML={{ __html: shellHtml }}
-    />
+      dangerouslySetInnerHTML={Server ? undefined : { __html: shellHtml }}
+    >
+      {Server ? (
+        <>
+          <Server />
+          <script dangerouslySetInnerHTML={{ __html: SERVER_SHELL_REVEAL_SCRIPT }} />
+        </>
+      ) : undefined}
+    </div>
   );
 });
 

@@ -13,7 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const downloadSchema = z.object({ resourceId: z.string().uuid() });
+const downloadSchema = z.object({ resourceId: z.guid() });
 
 const SIGNED_URL_TTL_SECONDS = 120;
 

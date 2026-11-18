@@ -13,7 +13,7 @@ import { requireAdmin } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
-const TargetSchema = z.object({ userId: z.string().uuid() });
+const TargetSchema = z.object({ userId: z.guid() });
 
 /**
  * Kody błędów tłumaczone w UI (i18n) - handler nigdy nie zwraca surowego,
@@ -251,7 +251,7 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
   });
 
 const DeleteSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.guid(),
   // Potwierdzenie adresem e-mail - świadome, nieodwracalne działanie.
   confirmEmail: z.string().min(3).max(320),
 });

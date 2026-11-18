@@ -11,7 +11,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const InputSchema = z.object({
-  clubId: z.string().uuid(),
+  clubId: z.guid(),
   positionY: z.number().int().min(0).max(100),
 });
 

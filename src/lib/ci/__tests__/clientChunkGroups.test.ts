@@ -135,6 +135,16 @@ const APP_GROUP_MODULES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Rdzenie słownika NAD `app-initial` -> plik. `lib/i18n.ts` ładuje je `import()` pod top-level
+ * await; w `app-initial` dałyby cykl TLA (boot czeka na fasadę, fasada na boot) i hydratacja
+ * by nie ruszyła. Kontrakt: moduł bez importów, więc grupa nie zabiera nic poza słownikiem.
+ */
+const DICTIONARY_GROUP_MODULES: Readonly<Record<string, string>> = {
+  pl: "src/lib/locale/pl.ts",
+  en: "src/lib/locale/en.ts",
+};
+
+/**
  * Rodziny leniwe POD `app-initial` -> ich pliki. Importują kod bootu (zabrany wcześniej przez
  * `app-initial`), więc reguła importów wyżej ich nie dotyczy - pilnujemy, że każdy plik istnieje
  * i łapie go dokładnie jego grupa (zmiana nazwy pliku cicho wyłączyłaby grupę).
@@ -337,9 +347,24 @@ describe("clientChunkGroups - zasada priorytetów na zainstalowanym grafie", () 
     }
   });
 
+  it("rdzenie słownika: własna grupa nad `app-initial`, bez tagu i bez importów", () => {
+    const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
+    for (const [name, file] of Object.entries(DICTIONARY_GROUP_MODULES)) {
+      const group = byName.get(name);
+      expect(group, name).toBeDefined();
+      if (!group) continue;
+      expect(matches(group, join(REPO, file)), `${name} nie łapie ${file}`).toBe(true);
+      expect(group.priority ?? 0, name).toBeGreaterThan(CHUNK_PRIORITY.initial);
+      expect(group.tags, name).toBeUndefined();
+      expect(valueImports(readFileSync(join(REPO, file), "utf8")), file).toEqual([]);
+    }
+  });
+
   it("moduły grup aplikacji importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
     const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
-    expect(Object.keys(APP_GROUP_MODULES).sort()).toEqual(
+    expect(
+      [...Object.keys(APP_GROUP_MODULES), ...Object.keys(DICTIONARY_GROUP_MODULES)].sort(),
+    ).toEqual(
       PATH_GROUPS.filter(
         (group) =>
           (group.priority ?? 0) <= CHUNK_PRIORITY.app &&

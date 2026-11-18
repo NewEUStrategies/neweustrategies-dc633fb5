@@ -19,11 +19,15 @@
 // wyjątek - XML niepoprawny składniowo i każda deklaracja DTD w punkcie 5,
 // odrzucane zamiast czytane częściowo - opisuje zastępca):
 //
-//   3. bluebird (~21 KB gzip) pod `mammoth/lib/promises.js`. Mammoth bierze
-//      z niego kilka funkcji i metod łańcucha; `vendor/mammothPromises.ts`
-//      daje je na natywnym `Promise`. Przekierowany jest import `promises`
-//      z KAŻDEGO pliku mammoth, który go wymaga (lista niżej, test pilnuje
-//      kompletności i tego, że mammoth nie woła niczego spoza zastępcy).
+//   3. `mammoth/lib/promises.js` - moduł obietnic mammoth. Do 1.12.3 był
+//      przykrywką dla bluebirda (~21 KB gzip), od 1.13.0 stoi na natywnych
+//      obietnicach i niesie już tylko ich okładkę: `props` z metodą `also`,
+//      `forEachSeries`, `try` i `toExternalPromise` z `done` oraz wykrywaniem
+//      Node. `vendor/mammothPromises.ts` daje TE SAME eksporty i zachowania bez
+//      ścieżek niedostępnych w przeglądarce (`process.stderr`, `process.exit`).
+//      Przekierowany jest import `promises` z KAŻDEGO pliku mammoth, który go
+//      wymaga (lista niżej, test pilnuje kompletności i tego, że mammoth nie
+//      woła niczego spoza zastępcy).
 //   4. Tablica `dingbat-to-unicode` (~12 KB gzip, 1061 obiektów z pięcioma
 //      polami tekstowymi), z której `docx/body-reader.js` czyta jedno: znak
 //      Unicode dla `<w:sym>`. `vendor/dingbatToUnicode.ts` niesie te same
@@ -48,8 +52,9 @@
 //      `officeParse.ts#parsePptx`, więc jszip znika z bundla przeglądarki.
 //
 // Bramka `overall` w `scripts/check-bundle-size.ts` liczy ten chunk przy każdym
-// buildzie (kronika, wpisy XXII i XXIV); razem to ~100 KB gzip kodu, który albo
-// nie ma prawa się wykonać, albo robi to samo co kilka kB zastępcy.
+// buildzie (kronika, wpisy XXII i XXIV); razem to ~327 kB znaków bundla
+// (pomiar przy mammoth 1.13.0: 412 kB bez wtyczki, 85 kB z nią) kodu, który
+// albo nie ma prawa się wykonać, albo robi to samo co kilka kB zastępcy.
 //
 // ZASADA: PRZEKIEROWANIE WYŁĄCZNIE PO PARZE (specyfikator, importer). Ten sam
 // specyfikator z innego pliku rozwiązuje się normalnie - inny pakiet, który
@@ -154,11 +159,16 @@ export const OFFICE_PARSER_REDIRECTS: readonly OfficeParserRedirect[] = [
   // `require("…/promises")` z każdego pliku mammoth poza CLI (`lib/main.js`).
   // `lib/unzip.js` i `lib/docx/files.js` w przeglądarce podmienia pole
   // `browser` pakietu, ale para zostaje - gdyby mapa `browser` się zmieniła.
+  // `lib/fs.js` (od 1.13.0) wymaga `promises` i wymaganego `fs`; do bundla
+  // przeglądarki nie wchodzi, bo oba pliki, które go wymagają, są podmieniane
+  // przez `browser` - para zostaje jako bezpiecznik na wypadek nowego klienta.
   ...(
     [
       ["./promises", "lib/images.js"],
       ["./promises", "lib/document-to-html.js"],
+      ["./promises", "lib/index.js"],
       ["./promises", "lib/unzip.js"],
+      ["./promises", "lib/fs.js"],
       ["../promises", "lib/xml/reader.js"],
       ["../promises", "lib/docx/office-xml-reader.js"],
       ["../promises", "lib/docx/files.js"],

@@ -24,7 +24,7 @@ import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 
 const hitSchema = z.object({
   entityType: z.enum(["post", "page", "media", "club"]),
-  entityId: z.string().uuid(),
+  entityId: z.guid(),
   reason: z.enum(["members", "paid", "tier_rank", "password", "quota", "registration"]),
   requiredTierKey: z.string().max(64).nullable(),
   variant: z.string().regex(/^[a-z0-9_-]{1,32}$/),

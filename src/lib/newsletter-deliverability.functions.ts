@@ -263,7 +263,7 @@ export const releaseSuppression = createServerFn({ method: "POST" })
   .validator((data: unknown) =>
     z
       .object({
-        id: z.string().uuid(),
+        id: z.guid(),
         // Przywrócenie subskrypcji jest osobną, świadomą decyzją - zdjęcie
         // blokady po skardze bez zgody odbiorcy wraca prosto pod próg Google.
         resubscribe: z.boolean().default(false),

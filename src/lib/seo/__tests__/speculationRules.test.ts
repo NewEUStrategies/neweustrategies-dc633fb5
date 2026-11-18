@@ -55,8 +55,19 @@ describe("speculationRules", () => {
 
   it("prerender pomija nową kartę i pobierane pliki", () => {
     const selectors = selectorClauses(buildSpeculationRules().prerender[0].where);
-    expect(selectors).toContain("not:[target]");
-    expect(selectors).toContain("not:[download]");
+    // Jedna lista selektorów w jednym `not` (krótszy `<head>`), ta sama semantyka.
+    expect(selectors).toContain("not:[target],[download]");
+    const excluded = "[target],[download]";
+    const link = (attrs: string) => {
+      const host = document.createElement("div");
+      host.innerHTML = `<a href="/x" ${attrs}>x</a>`;
+      const anchor = host.querySelector("a");
+      if (!anchor) throw new Error("test: brak linku");
+      return anchor;
+    };
+    expect(link('target="_blank"').matches(excluded)).toBe(true);
+    expect(link("download").matches(excluded)).toBe(true);
+    expect(link("").matches(excluded)).toBe(false);
   });
 
   it("oba zestawy wykluczają powierzchnie zalogowane/transakcyjne w obu językach", () => {

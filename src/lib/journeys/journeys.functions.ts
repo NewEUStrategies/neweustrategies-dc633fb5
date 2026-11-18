@@ -123,7 +123,7 @@ function mutation<T>(
 // łańcucha zod i zostawiał w chunku klienta gołe wywołanie. Ten zapis pozwala
 // mu usunąć je w całości; na serwerze schemat powstaje jak dotąd, raz, przy
 // ładowaniu modułu. Pełne uzasadnienie: `lib/menus/types.ts`.
-const UUID = /* @__PURE__ */ (() => z.string().uuid())();
+const UUID = /* @__PURE__ */ (() => z.guid())();
 const ISO = z.string().datetime({ offset: true });
 const NODE_ID = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
@@ -314,7 +314,7 @@ export const installJourneyTemplate = createServerFn({ method: "POST" })
 const SaveDraftInput = z.object({
   journeyId: UUID,
   expectedUpdatedAt: ISO,
-  draft: z.object({ graph: z.unknown(), settings: z.unknown() }),
+  draft: z.object({ graph: z.unknown().optional(), settings: z.unknown().optional() }),
   name: z.string().trim().min(JOURNEY_LIMITS.nameMin).max(JOURNEY_LIMITS.nameMax).optional(),
   description: z.string().trim().max(JOURNEY_LIMITS.descriptionMax).optional(),
   category: z.enum(JOURNEY_CATEGORIES).optional(),
@@ -423,7 +423,7 @@ const ContentInput = z.object({
   subjectEn: z.string().trim().max(JOURNEY_LIMITS.subjectMax).nullable().default(null),
   preheaderPl: z.string().trim().max(JOURNEY_LIMITS.preheaderMax).nullable().default(null),
   preheaderEn: z.string().trim().max(JOURNEY_LIMITS.preheaderMax).nullable().default(null),
-  doc: z.unknown(),
+  doc: z.unknown().optional(),
 });
 
 export const saveJourneyEmailContent = createServerFn({ method: "POST" })

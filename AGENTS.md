@@ -18,6 +18,8 @@
 
 - Keep `governance/release/main-ruleset.json` applicable to the Lovable direct-push channel (Lovable app bypass `always`, no approval a sole code owner cannot give, status checks pinned to GitHub Actions) and apply it only via `governance:apply-ruleset`; give every `main` commit its own uncancelled CI run and run `post-deploy` only after a green `Required release checks`, failing without credentials, so no green status claims an unchecked release.
 - Use `tsgo --noEmit` for the preview timeout.
+- Load server-only modules from client-reachable code only through `createServerOnlyFn` loaders in `src/lib/http/serverOnlyLoaders.ts`, never a raw `import()` behind an SSR guard, because the preview bundler resolves dead branches and rejects the whole client bundle.
+- Keep modules loaded by `import()` under a top-level await (locale cores) in their own client chunk group above `app-initial`, so a facade re-exporting the awaiting chunk cannot deadlock hydration.
 - Share date/time/select atoms and sizing tokens; preserve local dates and native form values to prevent date shifts and corrupt submissions.
 - Use section-specific `adminPageHead` metadata on private admin screens to avoid generic titles.
 
@@ -46,4 +48,6 @@
 - Gate club hub presentation and shared club-card viewer keys with useHydrated so settled auth cannot replace guest SSR markup before hydration.
 - Stop search overflow propagation before the mobile drawer scroll root so search labels cannot disable native menu scrolling or panel clipping.
 - Keep the happy-dom `Node.prototype.nodeName` shim in `vitest.setup.ts` so the pinned DOMPurify release is tested like real browsers; never pin the sanitizer below a security fix to suit the emulator.
+- Strip host secrets from `process.env` in `vitest.setup.ts` via `src/test/hostSecretIsolation.ts` (tests set values with `vi.stubEnv`), so local runs match secret-less CI instead of hitting real backends.
 - Serve `/mcp` and its OAuth resource metadata through hand-authored routes that delegate to `src/lib/mcp/routeHandlers.ts`, which loads the MCP SDK and definition only via `import()`; keep `auth` always configured (project issuer from build-time env, `.invalid` fail-closed fallback, OAuth client claim required) and run tools as the caller's bearer with explicit tenant/published filters and the gated content RPC, so copied app sessions, anonymous calls and drafts never reach the tools and cold starts stay light.
+- Build partial-update (patch) schemas with `patchSchema` from `src/lib/validation/patchSchema.ts`, never `.partial()` on a schema with top-level defaults, because Zod 4 applies defaults inside `optional` and an autosave would silently reset status or titles.

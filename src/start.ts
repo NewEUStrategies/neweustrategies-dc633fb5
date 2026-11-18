@@ -13,6 +13,7 @@ import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { readCrawlerUnavailable, readRouteCacheDirective } from "@/lib/http/responseHeaders";
 import { crawlerUnavailableResponse } from "@/lib/http/crawlerUnavailable";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+import { loadSsrTimingServer } from "@/lib/http/serverOnlyLoaders";
 import { renderErrorPage } from "@/lib/error-page";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 
@@ -354,7 +355,7 @@ export const EDGE_ROUTING_PHASE = "edge-routing";
 async function recordEdgeRoutingPhase(request: Request, durationMs: number): Promise<void> {
   if (!import.meta.env.SSR) return;
   try {
-    const timing = await import("@/lib/http/ssrTiming.server");
+    const timing = await loadSsrTimingServer();
     timing.recordRequestPhase(request, EDGE_ROUTING_PHASE, durationMs);
   } catch {
     /* pomiar nigdy nie może zerwać potoku dokumentu */

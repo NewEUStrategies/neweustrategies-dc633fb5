@@ -36,13 +36,13 @@ export const FTS_COLUMN = "search_vector" satisfies keyof PostsRow;
 export const MAX_FINAL_CANDIDATES = 100;
 
 const Input = z.object({
-  postId: z.string().uuid().nullable().optional(),
+  postId: z.guid().nullable().optional(),
   titlePl: z.string().max(500).nullable().optional(),
   titleEn: z.string().max(500).nullable().optional(),
   contentPl: z.string().max(20000).nullable().optional(),
   contentEn: z.string().max(20000).nullable().optional(),
-  categoryIds: z.array(z.string().uuid()).max(50).optional(),
-  tagIds: z.array(z.string().uuid()).max(200).optional(),
+  categoryIds: z.array(z.guid()).max(50).optional(),
+  tagIds: z.array(z.guid()).max(200).optional(),
   limit: z.number().int().min(1).max(20).default(8),
 });
 

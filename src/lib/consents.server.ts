@@ -23,7 +23,7 @@ export const SetConsentSchema = z.object({
   /** Wersja banera/treści CMP w chwili decyzji - trafia do audytu. */
   bannerVersion: z.string().trim().max(32).optional(),
   /** Wspólne id decyzji obejmującej kilka kategorii naraz. */
-  decisionId: z.string().uuid().optional(),
+  decisionId: z.guid().optional(),
   /** Adres strony (origin + path), na której decyzja zapadła. */
   pageUrl: z.string().trim().max(500).optional(),
 });

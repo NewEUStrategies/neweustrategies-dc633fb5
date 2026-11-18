@@ -25,7 +25,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const Input = z.object({
-  eventId: z.string().uuid(),
+  eventId: z.guid(),
   /** Kod w bazie ma najwyżej 64 znaki - dłuższy nie ma czego szukać. */
   code: z.string().trim().min(1).max(64),
 });

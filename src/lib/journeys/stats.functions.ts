@@ -33,8 +33,8 @@ function readState<T>(
 
 const StatsInput = z
   .object({
-    journeyId: z.string().uuid(),
-    versionId: z.string().uuid().nullable().default(null),
+    journeyId: z.guid(),
+    versionId: z.guid().nullable().default(null),
     sinceIso: ISO.nullable().default(null),
     untilIso: ISO.nullable().default(null),
   })
@@ -59,7 +59,7 @@ export const getJourneyStats = createServerFn({ method: "POST" })
   });
 
 const SeriesInput = z
-  .object({ journeyId: z.string().uuid(), sinceIso: ISO, untilIso: ISO })
+  .object({ journeyId: z.guid(), sinceIso: ISO, untilIso: ISO })
   .refine((w) => Date.parse(w.untilIso) >= Date.parse(w.sinceIso), { message: "window_invalid" })
   .refine(
     (w) => Date.parse(w.untilIso) - Date.parse(w.sinceIso) <= JOURNEY_SERIES_MAX_DAYS * DAY_MS,

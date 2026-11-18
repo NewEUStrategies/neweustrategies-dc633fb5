@@ -14,7 +14,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ResendOutcomeResult } from "@/lib/events/outcomeResend.server";
 
-const schema = z.object({ registrationId: z.string().uuid() });
+const schema = z.object({ registrationId: z.guid() });
 
 /** Ponawia wysyłkę maila/SMS o statusie zgłoszenia - bez zmiany płatności. */
 export const resendRegistrationNotifications = createServerFn({ method: "POST" })

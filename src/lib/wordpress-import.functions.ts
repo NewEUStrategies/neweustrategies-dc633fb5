@@ -952,7 +952,7 @@ export const createWpImportJob = createServerFn({ method: "POST" })
     return { jobId: row.id as string };
   });
 
-const RunInput = JobInput.extend({ jobId: z.string().uuid() });
+const RunInput = JobInput.extend({ jobId: z.guid() });
 
 export const runWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -1322,7 +1322,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
     }
   });
 
-const GetJobInput = z.object({ jobId: z.string().uuid() });
+const GetJobInput = z.object({ jobId: z.guid() });
 
 export const getWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -1343,7 +1343,7 @@ export const getWpImportJob = createServerFn({ method: "POST" })
 
 // ---- cancel ----
 
-const CancelInput = z.object({ jobId: z.string().uuid() });
+const CancelInput = z.object({ jobId: z.guid() });
 
 export const cancelWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireStaff])

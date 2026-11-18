@@ -31,7 +31,7 @@ import type { CfpMailNotice } from "@/lib/events/cfpNotify.server";
 export type CfpNotifyResult =
   { ok: true; skipped?: "duplicate" | "not_applicable" } | { ok: false; error: string };
 
-const Input = z.object({ submissionId: z.string().uuid() });
+const Input = z.object({ submissionId: z.guid() });
 
 function asRow(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

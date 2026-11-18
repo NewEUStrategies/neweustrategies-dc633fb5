@@ -302,7 +302,7 @@ const OverlayMetricSchema = z
     caveat_sources: z.record(digits, z.array(text).min(1)).optional(),
     pairs: z.array(text).optional(),
     review_by: isoDate.optional(),
-    default_context_by_segment: z.record(z.enum(SEGMENTS), text).optional(),
+    default_context_by_segment: z.partialRecord(z.enum(SEGMENTS), text).optional(),
     contexts: z.array(OverlayContextSchema),
   })
   .strict();

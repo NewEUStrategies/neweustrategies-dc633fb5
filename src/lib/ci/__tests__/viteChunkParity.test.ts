@@ -111,8 +111,9 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
 
   it("oba presety tną martwy kod parsera .docx TĄ SAMĄ wtyczką", () => {
     // `officeParserTrimPlugin` przekierowuje zależności podglądu .docx
-    // w bundlu przeglądarki (zapis XML mammoth, xmldom, bluebird, underscore,
-    // jszip, tablica dingbatów). Smoke bez niej budowałby inny chunk podglądu
+    // w bundlu przeglądarki (zapis XML mammoth, xmldom, moduł obietnic,
+    // underscore, jszip, tablica dingbatów). Smoke bez niej budowałby inny
+    // chunk podglądu
     // .docx niż produkcja.
     const helperImport =
       'import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim.ts";';

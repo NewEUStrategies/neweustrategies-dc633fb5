@@ -11,8 +11,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.union([
-  z.object({ invoiceIds: z.array(z.string().uuid()).min(1).max(200) }),
-  z.object({ eventId: z.string().uuid(), pending: z.literal(true) }),
+  z.object({ invoiceIds: z.array(z.guid()).min(1).max(200) }),
+  z.object({ eventId: z.guid(), pending: z.literal(true) }),
 ]);
 
 export const prepareEventInvoiceFx = createServerFn({ method: "POST" })

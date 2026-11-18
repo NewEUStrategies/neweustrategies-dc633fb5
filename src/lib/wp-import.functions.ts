@@ -254,7 +254,7 @@ const importInput = z.object({
       z.object({
         plId: z.number().int().positive(),
         enId: z.number().int().positive().optional(),
-        targetPageId: z.string().uuid().optional(),
+        targetPageId: z.guid().optional(),
         slugOverride: z.string().max(120).optional(),
       }),
     )
@@ -491,7 +491,7 @@ const wxrItemInput = z.object({
   clientId: z.number().int().positive(),
   slug: z.string().min(1).max(160),
   slugOverride: z.string().max(120).optional(),
-  targetPageId: z.string().uuid().optional(),
+  targetPageId: z.guid().optional(),
 
   title_pl: z.string().max(500).default(""),
   content_pl_html: z.string().max(5_000_000).default(""),

@@ -52,13 +52,13 @@ export const TxCopyOverrideSchema = z
     /** Ramka "co dalej". */
     note: field,
   })
-  .default({});
+  .prefault({});
 
 export type TxCopyOverride = z.infer<typeof TxCopyOverrideSchema>;
 
 export const TxLangOverrideSchema = z
   .object({ pl: TxCopyOverrideSchema, en: TxCopyOverrideSchema })
-  .default({});
+  .prefault({});
 
 export type TxLangOverride = z.infer<typeof TxLangOverrideSchema>;
 
@@ -68,7 +68,7 @@ export const TxOverridesSchema = z
     team_seat_grace_reminder: TxLangOverrideSchema,
     team_seat_access_ended: TxLangOverrideSchema,
   })
-  .default({});
+  .prefault({});
 
 export type TxOverrides = z.infer<typeof TxOverridesSchema>;
 

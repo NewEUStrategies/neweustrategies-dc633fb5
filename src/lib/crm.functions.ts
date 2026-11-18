@@ -112,7 +112,7 @@ export const listCrmLeads = createServerFn({ method: "POST" })
     };
   });
 
-const IdInput = z.object({ id: z.string().uuid() });
+const IdInput = z.object({ id: z.guid() });
 
 export const getCrmLead = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -175,14 +175,14 @@ export const getCrmLead = createServerFn({ method: "POST" })
   });
 
 const UpdateInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   stage: STAGE_ENUM.optional(),
-  owner_id: z.string().uuid().nullable().optional(),
+  owner_id: z.guid().nullable().optional(),
   tags: z.array(z.string().max(CRM_TAG_MAX)).max(40).optional(),
   follow_up_at: z.string().datetime().nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   company: z.string().max(200).nullable().optional(),
-  company_id: z.string().uuid().nullable().optional(),
+  company_id: z.guid().nullable().optional(),
   first_name: z.string().max(100).nullable().optional(),
   last_name: z.string().max(100).nullable().optional(),
   position: z.string().max(200).nullable().optional(),
@@ -239,7 +239,7 @@ export const updateCrmLead = createServerFn({ method: "POST" })
 // `manual`. Etapów klienta panel nie nadaje (należą do billingu).
 
 const LifecycleInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   // Etapy klienta odrzucone już tu (należą do billingu) - wspólny słownik
   // z listą wyboru karty kontaktu (`leadListSpec.MANUAL_LIFECYCLE_STAGES`).
   stage: ManualLifecycleStageSchema,
@@ -290,7 +290,7 @@ export interface LeadStageHistoryRow {
 }
 
 const StageHistoryInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   limit: z.number().int().min(1).max(500).default(100),
 });
 
@@ -492,7 +492,7 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
 // 20260711120000 usunęła je z widoczności nawet dla adminów tenanta jako dane
 // psychometryczne; odczyt service-rolem w CRM obchodziłby tę decyzję bez zgody
 // i bez celu przetwarzania (audyt RODO). Do CRM nie są potrzebne.
-const ProfileSyncInput = z.object({ lead_id: z.string().uuid() });
+const ProfileSyncInput = z.object({ lead_id: z.guid() });
 export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ProfileSyncInput.parse(d))
@@ -577,7 +577,7 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   });
 
 const NoteInput = z.object({
-  lead_id: z.string().uuid(),
+  lead_id: z.guid(),
   body: z.string().trim().min(1).max(4000),
   idempotency_key: z.string().trim().min(8).max(120).optional(),
 });
@@ -674,8 +674,8 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
 // backoff + status dead), a potem opportunistycznie budzi dispatcher.
 
 const PushInput = z.object({
-  lead_id: z.string().uuid(),
-  endpoint_id: z.string().uuid().optional(),
+  lead_id: z.guid(),
+  endpoint_id: z.guid().optional(),
 });
 
 export type PushLeadResult = {
@@ -987,7 +987,7 @@ export const recomputeLeadScore = createServerFn({ method: "POST" })
 const RecomputeAllInput = z.object({
   // Rozmiar porcji; klient pętli po kursorze `after_id` aż done=true.
   limit: z.number().int().min(1).max(1000).default(500),
-  after_id: z.string().uuid().nullable().optional(),
+  after_id: z.guid().nullable().optional(),
 });
 
 export const recomputeAllLeadScores = createServerFn({ method: "POST" })
@@ -1015,9 +1015,9 @@ export const recomputeAllLeadScores = createServerFn({ method: "POST" })
 // ============ Bulk operations & staff picker ============
 
 const BulkUpdateInput = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(500),
+  ids: z.array(z.guid()).min(1).max(500),
   stage: STAGE_ENUM.optional(),
-  owner_id: z.string().uuid().nullable().optional(),
+  owner_id: z.guid().nullable().optional(),
   add_tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   remove_tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   marketing_consent: z.boolean().optional(),
@@ -1116,7 +1116,7 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
     return { ok: true, updated: touched };
   });
 
-const BulkDeleteInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) });
+const BulkDeleteInput = z.object({ ids: z.array(z.guid()).min(1).max(200) });
 
 export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
@@ -1230,7 +1230,7 @@ export const listStaffUsers = createServerFn({ method: "GET" })
 // zdjęć.
 const LeadAvatarsInput = z.object({
   // Górna granica = maksymalny rozmiar strony listy (ListInput.limit).
-  lead_ids: z.array(z.string().uuid()).max(500),
+  lead_ids: z.array(z.guid()).max(500),
 });
 // Lista w `.in()` jedzie w adresie URL zapytania PostgREST - porcje trzymają go
 // w bezpiecznej długości także przy stronie 200-500 leadów.

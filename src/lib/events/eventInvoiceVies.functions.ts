@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const Input = z.object({ invoiceId: z.string().uuid() });
+const Input = z.object({ invoiceId: z.guid() });
 
 export const verifyEventInvoiceVies = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

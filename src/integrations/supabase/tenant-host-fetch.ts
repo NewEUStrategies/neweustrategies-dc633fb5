@@ -33,6 +33,7 @@
 // functions (src/lib/views/postViews.functions.ts).
 import { TENANT_HOST_HEADER } from "@/lib/http/host";
 import { currentTenantAssertion, currentTenantHost } from "@/lib/http/requestHost";
+import { loadSsrTimingServer } from "@/lib/http/serverOnlyLoaders";
 import { TENANT_ASSERTION_HEADER } from "@/lib/http/tenantAssertion";
 
 /**
@@ -87,7 +88,7 @@ async function timedFetch(input: RequestInfo | URL, init?: RequestInit): Promise
     return await fetch(input, withSsrDeadline(input, init));
   } finally {
     try {
-      const timing = await import("@/lib/http/ssrTiming.server");
+      const timing = await loadSsrTimingServer();
       timing.recordDbRoundTrip(Date.now() - startedAt);
     } catch {
       /* telemetria jest best-effort - nigdy nie może zerwać zapytania */

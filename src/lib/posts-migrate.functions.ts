@@ -9,7 +9,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import { migratePostContent } from "@/lib/blocks/migrate";
 import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 
-const UUID = z.string().uuid();
+const UUID = z.guid();
 
 interface LegacyRow {
   id: string;

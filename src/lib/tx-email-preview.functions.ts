@@ -18,7 +18,7 @@ export const getTxEmailPreviews = createServerFn({ method: "GET" })
         firstName: z.string().max(60).nullable().default("Marek"),
         gender: z.enum(["male", "female", "unknown"]).default("unknown"),
       })
-      .default({})
+      .prefault({})
       .parse(data ?? {}),
   )
   .handler(async ({ data, context }): Promise<TxEmailPreview[]> => {

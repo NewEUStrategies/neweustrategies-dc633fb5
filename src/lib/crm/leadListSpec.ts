@@ -153,7 +153,7 @@ export const LeadListFilterSchema = z.object({
   stage: LeadStageSchema.optional(),
   band: LeadBandSchema.optional(),
   source: LeadSourceSchema.optional(),
-  owner_ids: z.array(z.string().uuid()).max(50).optional(),
+  owner_ids: z.array(z.guid()).max(50).optional(),
   tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   score_min: z.number().int().min(0).max(100).optional(),
   score_max: z.number().int().min(0).max(100).optional(),

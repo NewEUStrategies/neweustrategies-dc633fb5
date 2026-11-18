@@ -1,5 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/react";
+import { vi } from "vitest";
+
+import { isolateHostSecrets } from "./src/test/hostSecretIsolation";
+
+// Ten sam przebieg co CI: bez sekretów hosta w `process.env` (szczegóły i
+// powód: `src/test/hostSecretIsolation.ts`). Zanim jakikolwiek plik testowy
+// wczyta moduł, który czyta klucz przy imporcie.
+isolateHostSecrets(process.env);
 
 // LIMIT NARZĘDZI ASYNCHRONICZNYCH RTL JEST OSOBNY OD `testTimeout` I DOMYŚLNIE
 // MA SEKUNDĘ. `vitest.config.ts` podnosi `testTimeout` do 20 s z uzasadnieniem
@@ -95,3 +103,17 @@ if (typeof Node !== "undefined") {
     });
   }
 }
+
+// LOADERY SERVER-ONLY (`src/lib/http/serverOnlyLoaders.ts`) POZA KOMPILATOREM START.
+// Moduł owija `import()` w `createServerOnlyFn` z `@tanstack/react-start`; poza
+// kompilatorem Start ta funkcja to tożsamość (`fn => fn`, `@tanstack/start-fn-stubs`).
+// Setki plików testowych mockują `@tanstack/react-start` fabryką bez tego eksportu,
+// więc sam import loaderów wywracał cały plik („No createServerOnlyFn export").
+// Tu loadery dostają DOKŁADNIE semantykę poza kompilatorem: ten sam dynamiczny
+// import, bez opakowania - więc mock `requestHost.server`/`ssrTiming.server`
+// w teście nadal działa. Prawdziwy moduł sprawdza
+// `src/lib/http/__tests__/serverOnlyLoaders.test.ts` (tam `vi.unmock`).
+vi.mock("@/lib/http/serverOnlyLoaders", () => ({
+  loadRequestHostServer: () => import("@/lib/http/requestHost.server"),
+  loadSsrTimingServer: () => import("@/lib/http/ssrTiming.server"),
+}));

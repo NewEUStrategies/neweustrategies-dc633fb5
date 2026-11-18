@@ -23,9 +23,11 @@
 //   2. ID PROJEKTU CZYTANE TYLKO Z POZYCJI HOSTA NIEKONTROLOWANYCH PRZEZ
 //      UŻYTKOWNIKA (:10-16). Komentarz w źródle mówi wprost, po co ta reguła
 //      istnieje: żeby host nazwany przez użytkownika (`preview--<nazwa>`) NIE
-//      PRZEMYCIŁ id CUDZEGO projektu. Regex dopuszcza `id-preview[-sufiks]--<UUIDv4>[-dev]`
-//      albo `project--<UUIDv4>[-dev]` na POCZĄTKU hosta, albo `<UUIDv4>` na
-//      samym początku - i nic więcej.
+//      PRZEMYCIŁ id CUDZEGO projektu. Regex dopuszcza `id-preview[-sufiks]--<UUID>[-dev]`,
+//      `project--<UUID>[-dev]` albo `live--<UUID>[-thr_<id>]` na POCZĄTKU hosta, albo
+//      `<UUID>` na samym początku - i nic więcej. Od generacji z 2026-11 `<UUID>` to
+//      dowolna wersja (kształt 8-4-4-4-12), nie tylko v4: zabezpieczeniem jest
+//      POZYCJA w hoście, nie wersja UUID.
 //
 //   3. WALIDACJA ORIGINU ADRESATA (:20-29, :47, :54-55). Token wychodzi
 //      `postMessage`-em z `targetOrigin` per ZAUFANY origin edytora, nigdy
@@ -67,8 +69,8 @@ import { brokeredPreviewStorage } from "../previewAuthStorage";
 const UUID_PROJEKTU = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 /** UUID v4 CUDZEGO projektu - to jego próbuje przemycić host napastnika. */
 const UUID_OFIARY = "9f8e7d6c-5b4a-4938-b271-605f4e3d2c1b";
-/** Ten sam kształt, ale wersja 1 (`1a7b` zamiast `4a7b`) - regex go odrzuca. */
-const UUID_NIE_V4 = "1a2b3c4d-5e6f-1a7b-8c9d-0e1f2a3b4c5d";
+/** Ten sam kształt, ale wersja 1 (`1a7b` zamiast `4a7b`) - generator przyjmuje każdą wersję. */
+const UUID_V1 = "1a2b3c4d-5e6f-1a7b-8c9d-0e1f2a3b4c5d";
 
 const KLUCZ = "sb-projekt-testowy-auth-token";
 const TOKEN = "token-testowy";
@@ -322,6 +324,8 @@ describe("predykat 1: broker włącza się TYLKO w strefie podglądu", () => {
     [`${UUID_PROJEKTU}-preview.lovableproject.com`, "id na samym początku, granica myślnikiem"],
     [`id-preview--${UUID_PROJEKTU}.lovable.app`, "inna strefa z allowlisty"],
     [`id-preview--${UUID_PROJEKTU}.gptengineer.run`, "kolejna strefa z allowlisty"],
+    [`live--${UUID_PROJEKTU}.lovable.app`, "host podglądu na żywo"],
+    [`live--${UUID_PROJEKTU}-thr_abc123.lovable.app`, "host podglądu na żywo z wątkiem"],
   ])("host `%s` włącza brokera i niesie id z hosta - %s", async (host) => {
     ustawSrodowisko({ host, ancestorOrigins: [LOVABLE] });
 
@@ -369,10 +373,8 @@ describe("predykat 2: id projektu tylko z pozycji hosta poza kontrolą użytkown
       `id-preview--${UUID_OFIARY}x.lovableproject.com`,
       "brak granicy po UUID (lookahead `(?=\\.|$)`)",
     ],
-    [
-      `id-preview--${UUID_NIE_V4}.lovableproject.com`,
-      "kształt UUID owszem, ale wersja 1 - regex wymaga v4",
-    ],
+    [`live-${UUID_OFIARY}.lovableproject.com`, "jeden myślnik zamiast `--` po `live`"],
+    [`live--${UUID_OFIARY}-thr_.lovableproject.com`, "pusty identyfikator wątku po `-thr_`"],
     [
       `id-preview--${UUID_OFIARY}.evil-lovableproject.com`,
       "strefa jako SUFIKS bez granicy kropki - to chroni `endsWith('.' + z)`",
@@ -393,6 +395,23 @@ describe("predykat 2: id projektu tylko z pozycji hosta poza kontrolą użytkown
     expect(wynik).toBe(localStorage);
     expect(wynik?.getItem(KLUCZ)).toBe(TOKEN_LOKALNY);
     expect(postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("predykat 2: wersja UUID nie jest bramką", () => {
+  it("UUID w wersji 1 na uznanej pozycji hosta też jest id projektu", async () => {
+    // Generator od 2026-11 nie wymaga v4. Ten test pilnuje, że to świadoma zmiana
+    // kształtu, a nie poluzowanie pozycji: id nadal pochodzi wyłącznie z początku hosta.
+    ustawSrodowisko({
+      host: `id-preview--${UUID_V1}.lovableproject.com`,
+      ancestorOrigins: [LOVABLE],
+    });
+
+    const broker = jakoBroker(brokeredPreviewStorage());
+    const p = broker.removeItem(KLUCZ);
+    expect(wysylka(0).msg.projectId).toBe(UUID_V1);
+    await przeczekajTimeout();
+    await expect(p).resolves.toBeUndefined();
   });
 });
 
@@ -971,12 +990,13 @@ describe("bramka regeneracji: trzy predykaty bezpieczeństwa w treści źródła
   });
 
   it("PREDYKAT 2: id projektu czytane wyłącznie z początku hosta", () => {
-    // Dwie dopuszczone pozycje i nic więcej. Zakotwiczenie `^` jest tu całym
+    // Trzy dopuszczone pozycje i nic więcej. Zakotwiczenie `^` jest tu całym
     // zabezpieczeniem: bez niego `moj-projekt-<uuid>` pasuje.
     expect(source).toContain("'^(?:id-preview(?:-[a-z0-9]+)?|project)--('");
+    expect(source).toContain("'^live--(' + UUID + ')(?:-thr_[a-z0-9]+)?(?=\\\\.|$)'");
     expect(source).toContain("'^(' + UUID + ')(?=[.-])'");
     expect(source).toContain(
-      "const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'",
+      "const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'",
     );
   });
 

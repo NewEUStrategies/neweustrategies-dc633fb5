@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const Input = z.object({ invoiceIds: z.array(z.string().uuid()).min(1).max(200) });
+const Input = z.object({ invoiceIds: z.array(z.guid()).min(1).max(200) });
 
 export const notifyEventInvoicesIssued = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

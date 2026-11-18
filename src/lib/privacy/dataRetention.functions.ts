@@ -133,7 +133,7 @@ export const setDataRetentionEnforcement = createServerFn({ method: "POST" })
 export const ExtendContactSchema = /* @__PURE__ */ (() =>
   z
     .object({
-      leadId: z.string().uuid(),
+      leadId: z.guid(),
       // Powód po obcięciu brzegów 3-500 znaków - dłuższy jest odrzucany, nie
       // skracany (ten sam predykat co RPC i CHECK tabeli).
       reason: z.string().refine((value) => normalizeExtensionReason(value) !== null, {

@@ -29,29 +29,30 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "lang": {
+              "default": "pl",
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English).",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ],
-              "default": "pl",
-              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
+              ]
             },
             "limit": {
+              "default": 10,
+              "description": "Maximum posts to return (1-50).",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50,
-              "default": 10,
-              "description": "Maximum posts to return (1-50)."
+              "maximum": 50
             }
           },
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "results": {
@@ -102,8 +103,7 @@
           "required": [
             "results"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         }
       },
       {
@@ -116,6 +116,7 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "query": {
@@ -125,29 +126,29 @@
               "description": "Search phrase."
             },
             "lang": {
+              "default": "pl",
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English).",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ],
-              "default": "pl",
-              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
+              ]
             },
             "limit": {
+              "default": 10,
+              "description": "Maximum posts to return (1-50).",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50,
-              "default": 10,
-              "description": "Maximum posts to return (1-50)."
+              "maximum": 50
             }
           },
           "required": [
             "query"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "results": {
@@ -198,8 +199,7 @@
           "required": [
             "results"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         }
       },
       {
@@ -212,6 +212,7 @@
           "openWorldHint": false
         },
         "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "slug": {
@@ -221,22 +222,22 @@
               "description": "Post slug."
             },
             "lang": {
+              "default": "pl",
+              "description": "Language variant: 'pl' (Polish, default) or 'en' (English).",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ],
-              "default": "pl",
-              "description": "Language variant: 'pl' (Polish, default) or 'en' (English)."
+              ]
             }
           },
           "required": [
             "slug"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         },
         "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "post": {
@@ -302,8 +303,7 @@
           "required": [
             "post"
           ],
-          "additionalProperties": false,
-          "$schema": "http://json-schema.org/draft-07/schema#"
+          "additionalProperties": false
         }
       }
     ]

@@ -25,9 +25,9 @@ import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 const createOrderSchema = z
   .object({
     kind: z.enum(["subscription", "one_time"]),
-    plan_id: z.string().uuid().nullable().optional(),
+    plan_id: z.guid().nullable().optional(),
     entity_type: z.enum(["post", "page"]).nullable().optional(),
-    entity_id: z.string().uuid().nullable().optional(),
+    entity_id: z.guid().nullable().optional(),
     success_path: z.string().min(1),
     cancel_path: z.string().min(1),
     // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
@@ -39,17 +39,17 @@ const createOrderSchema = z
     // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
     display_currency: z.enum(["PLN", "EUR"]).optional(),
     // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
-    event_id: z.string().uuid().nullable().optional(),
+    event_id: z.guid().nullable().optional(),
     // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
     // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
-    ticket_type_id: z.string().uuid().nullable().optional(),
+    ticket_type_id: z.guid().nullable().optional(),
     // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
     // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
     // robi to `event_registration_payment_context` (baza, nie ten plik).
     // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
     // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
     // wiersza, niekoniecznie tego, za który zapłacił.
-    registration_id: z.string().uuid().nullable().optional(),
+    registration_id: z.guid().nullable().optional(),
     // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
     // nie zna kodu i nie może go obejść.
     access_code: z.string().trim().max(64).optional(),
@@ -866,7 +866,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 // źródłem prawdy jest webhook - więc nie da się nią ominąć realnej płatności.
 export const finalizeCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ order_id: z.guid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer()) {
@@ -905,7 +905,7 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-const cancelSubscriptionSchema = z.object({ subscriptionId: z.string().uuid() });
+const cancelSubscriptionSchema = z.object({ subscriptionId: z.guid() });
 
 // Cancel-at-period-end for the caller's own subscription. user_subscriptions
 // grants no UPDATE to authenticated (a client UPDATE could self-grant access),
@@ -961,8 +961,8 @@ export const cancelSubscription = createServerFn({ method: "POST" })
   });
 
 const changePlanSchema = z.object({
-  subscriptionId: z.string().uuid(),
-  newPlanId: z.string().uuid(),
+  subscriptionId: z.guid(),
+  newPlanId: z.guid(),
 });
 
 // Kody odmowy DOPŁATY z warstwy operatora. Te jedyne wracają jako wynik

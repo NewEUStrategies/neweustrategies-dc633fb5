@@ -32,7 +32,7 @@ import { toast } from "sonner";
 import { profileEditorKey } from "@/lib/profile/useProfileEditor";
 
 const companyRowSchema = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   name: z.string(),
   country: z.string().nullable(),
   branch: z.string().nullable(),

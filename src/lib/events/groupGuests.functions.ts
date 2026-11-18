@@ -44,7 +44,7 @@ const Guest = z
 
 const Input = z
   .object({
-    leadRegistrationId: z.string().uuid(),
+    leadRegistrationId: z.guid(),
     guests: z.array(Guest).max(GUESTS_MAX),
   })
   .strict();

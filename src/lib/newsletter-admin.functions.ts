@@ -126,7 +126,7 @@ export const importNewsletterSubscribers = createServerFn({ method: "POST" })
 // (bez adresu, języka i identyfikatora najemcy).
 // ----------------------------------------------------------------------------
 
-const SubscriberMeasurementInput = z.object({ subscriberId: z.string().uuid() }).strict();
+const SubscriberMeasurementInput = z.object({ subscriberId: z.guid() }).strict();
 
 export const getSubscriberMeasurementConsent = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])

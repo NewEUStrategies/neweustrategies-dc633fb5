@@ -162,7 +162,7 @@ export const listFunnelSubscribers = createServerFn({ method: "POST" })
 
 export const getFunnelSubscriber = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
-  .validator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d) => z.object({ id: z.guid() }).parse(d))
   .handler(async ({ data, context }) => {
     const tenantId = await funnelReaderTenant(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -232,7 +232,7 @@ export const funnelStats = createServerFn({ method: "POST" })
   });
 
 const BulkInput = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(500),
+  ids: z.array(z.guid()).min(1).max(500),
 });
 
 export const bulkUnsubscribeFunnel = createServerFn({ method: "POST" })
@@ -247,7 +247,7 @@ export const bulkUnsubscribeFunnel = createServerFn({ method: "POST" })
   });
 
 const ConvertInput = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(500),
+  ids: z.array(z.guid()).min(1).max(500),
 });
 
 /**
@@ -331,7 +331,7 @@ export const convertFunnelToContacts = createServerFn({ method: "POST" })
   });
 
 const TagInput = z.object({
-  id: z.string().uuid(),
+  id: z.guid(),
   status: FunnelStatus,
 });
 
