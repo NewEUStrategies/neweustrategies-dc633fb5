@@ -163,7 +163,7 @@ import {
   postDraftKey,
   writeFeedDraft,
 } from "@/components/clubs/molecules/feedDrafts";
-import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
+import { CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
 import { clubPostRow } from "@/test/clubs/hubFixtures";
 
 const CLUB_SLUG = "klub-energetyczny";
@@ -211,7 +211,8 @@ describe("ClubPostCard - autor i pochodzenie", () => {
     expect(within(card).getByRole("link", { name: "Anna Nowak" }).getAttribute("href")).toBe(
       "/people/anna-nowak",
     );
-    expect(card.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
+    // `ClubFeedTime`: dzień z ekranu w strefie serwisu (10:00 UTC = 18 sierpnia).
+    expect(card.querySelector("time")?.getAttribute("datetime")).toBe("2026-08-18");
     expect(within(card).getByText("club.post.edited")).toBeTruthy();
 
     const chip = within(card).getByRole("button", { name: /Kuluary/ });

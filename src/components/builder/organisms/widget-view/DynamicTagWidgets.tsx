@@ -35,7 +35,7 @@ import {
   Link as LinkIcon,
 } from "@/lib/lucide-shim";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
-import { formatDate, formatDateAttr, formatDateTimeAttr } from "@/lib/i18n/format";
+import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import {
@@ -195,15 +195,11 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     );
   }
   if (asBool(c.showDate, true) && ctx.publishedAt) {
-    // „relative" po montażu pokazuje godziny („5 min temu") - wtedy pełna
-    // chwila, inaczej dzień z ekranu. Zależy od ustawienia, nie od zegara,
-    // więc SSR i hydratacja dają ten sam atrybut.
-    const dateAttr =
-      dateFmt === "relative"
-        ? formatDateTimeAttr(ctx.publishedAt)
-        : formatDateAttr(ctx.publishedAt);
+    // Dzień z ekranu w strefie serwisu - także dla „relative": SSR i wpisy
+    // starsze niż doba pokazują samą datę, a data jest poprawną wartością
+    // `datetime` również dla „5 min temu". Bez zależności od zegara.
     parts.push(
-      <time key="d" dateTime={dateAttr}>
+      <time key="d" dateTime={formatDateAttr(ctx.publishedAt)}>
         {fmtDate(ctx.publishedAt, lang, dateFmt, now)}
       </time>,
     );

@@ -148,7 +148,7 @@ vi.mock("@/components/clubs/molecules/ClubFeedThreadReplies", () => ({
 
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { ClubThreadList } from "@/components/clubs/organisms/ClubThreadList";
-import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
+import { CLUB_IDS, clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
 import {
   clubDocumentRow,
   clubEventRow,
@@ -221,7 +221,11 @@ describe("ClubFeedItem - karta wątku, dane pełne", () => {
     expect(within(card).getByText("club.hub.feed.pinned")).toBeTruthy();
     expect(within(card).getByText("Zajawka wątku")).toBeTruthy();
     // Data: kontrakt maszynowy, nie napis z ICU. Najświeższa odpowiedź wygrywa.
-    expect(card.querySelector("time")?.getAttribute("datetime")).toBe(clubIsoOffset(30));
+    // Czas karty niesie dzień z ekranu w strefie serwisu (ClubFeedTime), a
+    // godzinę najświeższej odpowiedzi (10:30 UTC = 12:30 w Warszawie) - `title`.
+    const cardTime = card.querySelector("time");
+    expect(cardTime?.getAttribute("datetime")).toBe("2026-08-18");
+    expect(cardTime?.getAttribute("title")).toContain("12:30");
     // Aktywny filtr działu i obszaru - oba chipy przełączone, nie tylko jeden.
     expect(
       within(card)
@@ -440,7 +444,7 @@ describe("ClubFeedItem - karta wątku, dane puste i częściowe", () => {
     expect(within(card).queryByText("Energetyka")).toBeNull();
     expect(card.textContent).not.toContain("undefined");
     // Bez odpowiedzi datą wpisu jest data założenia.
-    expect(card.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
+    expect(card.querySelector("time")?.getAttribute("datetime")).toBe("2026-08-18");
     // Bez `onReact` pasek nie proponuje reakcji, ale nadal prowadzi do wątku.
     expect(screen.queryByTestId("club-add-reaction")).toBeNull();
     expect(screen.getByTestId("club-comment-link")).toBeTruthy();
@@ -937,6 +941,21 @@ describe("ClubThreadList", () => {
 
     expect(screen.queryByTestId("club-thread-row")).toBeNull();
     expect(container.querySelector("ul")?.className).toContain("space-y-2");
+  });
+
+  it("`datetime` wiersza to dzień z ekranu w Warszawie, nie dzień UTC", () => {
+    // 22:30 UTC 18 sierpnia (mikrosekundy z `now()`) to już 19 sierpnia w Warszawie.
+    render(
+      <ClubThreadList
+        clubSlug={CLUB_SLUG}
+        threads={[clubThreadListRow({ last_reply_at: "2026-08-18T22:30:00.123456+00:00" })]}
+        layout="list"
+      />,
+    );
+
+    const time = screen.getByTestId("club-thread-row").querySelector("time");
+    expect(time?.getAttribute("datetime")).toBe("2026-08-19");
+    expect(time?.textContent).toBe("19.08.2026");
   });
 
   it("układ prestiżowy korzysta z tej samej jednej kolumny", () => {

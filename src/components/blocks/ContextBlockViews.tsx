@@ -8,12 +8,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { profileHref } from "@/lib/profile/profileHref";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import {
-  formatDate as intlFormatDate,
-  formatDateAttr,
-  formatDateShort,
-  formatDateTimeAttr,
-} from "@/lib/i18n/format";
+import { formatDate as intlFormatDate, formatDateAttr, formatDateShort } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
 
 type Lang = "pl" | "en";
@@ -77,11 +72,10 @@ export function PostDateView({
   const now = useNowMs();
   const iso = showUpdated ? (ctx?.updatedAt ?? ctx?.publishedAt) : ctx?.publishedAt;
   if (!iso) return null;
-  // „relative" po montażu pokazuje godziny - wtedy pełna chwila, inaczej dzień
-  // z ekranu. Zależy od formatu, nie od zegara: SSR i hydratacja zgodne.
-  const dateAttr = format === "relative" ? formatDateTimeAttr(iso) : formatDateAttr(iso);
+  // Dzień z ekranu w strefie serwisu - także dla „relative" (SSR i starsze
+  // wpisy pokazują datę); bez zależności od zegara, więc SSR = hydratacja.
   return (
-    <time className={`text-sm text-muted-foreground ${cls}`} dateTime={dateAttr}>
+    <time className={`text-sm text-muted-foreground ${cls}`} dateTime={formatDateAttr(iso)}>
       {formatDate(iso, format, lang, now)}
     </time>
   );

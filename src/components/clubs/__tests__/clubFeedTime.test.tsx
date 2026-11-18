@@ -27,19 +27,20 @@ describe("ClubFeedTime", () => {
     const future = new Date(BASE + 20_000).toISOString();
     render(<ClubFeedTime iso={future} lang="pl" />);
     const time = screen.getByText(/./, { selector: "time" });
-    expect(time.getAttribute("datetime")).toBe(future);
+    expect(time.getAttribute("datetime")).toBe("2026-10-06");
     expect(time.textContent).not.toMatch(/^za /);
   });
 
-  it("`datetime` przycina mikrosekundy `now()` do milisekund, ten sam w SSR i po montażu", () => {
-    // Po hydratacji etykieta jest względna („5 min temu"), więc atrybut to pełna
-    // chwila w UTC; nie zależy od zegara strumienia, więc SSR i klient zgodne.
-    const raw = "2026-10-06T09:55:00.123456+00:00";
+  it("`datetime` to dzień z SSR w strefie serwisu, ten sam w SSR i po montażu", () => {
+    // SSR pokazuje datę (a wpisy starsze niż tydzień - także po hydratacji),
+    // więc atrybut to ten sam dzień w Warszawie; nie zależy od zegara strumienia.
+    // 22:30 UTC 5 października to już 6 października w Warszawie.
+    const raw = "2026-10-05T22:30:00.123456+00:00";
     const html = renderToString(<ClubFeedTime iso={raw} lang="pl" />);
-    expect(html).toMatch(/ datetime="2026-10-06T09:55:00\.123Z"/i);
+    expect(html).toMatch(/ datetime="2026-10-06"/i);
     render(<ClubFeedTime iso={raw} lang="pl" />);
     const time = screen.getByText(/./, { selector: "time" });
-    expect(time.getAttribute("datetime")).toBe("2026-10-06T09:55:00.123Z");
+    expect(time.getAttribute("datetime")).toBe("2026-10-06");
   });
 
   it("tyknięcie zegara przesuwa czas względny bez przeładowania", () => {

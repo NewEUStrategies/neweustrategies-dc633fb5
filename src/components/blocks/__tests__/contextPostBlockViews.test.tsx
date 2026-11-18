@@ -158,9 +158,9 @@ describe("PostDateView", () => {
     );
     expect(html).toContain("19 sierpnia 2026");
     expect(html).not.toContain("temu");
-    // Po montażu etykieta ma godziny, więc atrybut to pełna chwila (ms, UTC) -
-    // ten sam w SSR i po hydratacji, bo nie zależy od zegara.
-    expect(html).toMatch(/ datetime="2026-08-19T09:00:00\.000Z"/i);
+    // Atrybut to dzień z ekranu w strefie serwisu - ten sam w SSR i po
+    // hydratacji, bo nie zależy od zegara (data jest poprawna i dla „temu").
+    expect(html).toMatch(/ datetime="2026-08-19"/i);
   });
 
   it.each([

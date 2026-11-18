@@ -240,14 +240,13 @@ describe("post-meta - `<time datetime>`", () => {
     expect(time?.textContent).toBe("06.09.2026");
   });
 
-  it("format relative: pełna chwila w ms - etykieta po montażu ma godziny", () => {
+  it("format relative: dzień z ekranu w strefie serwisu (SSR i starsze wpisy pokazują datę)", () => {
     const { container } = renderTag(
       <DynamicTagWidget node={node("post-meta", { dateFormat: "relative" })} lang="pl" />,
       { ...FULL, publishedAt: RAW },
     );
-    expect(container.querySelector("time")?.getAttribute("datetime")).toBe(
-      "2026-09-05T22:30:00.123Z",
-    );
+    // RAW to 22:30 UTC 5 września = 6 września w Warszawie.
+    expect(container.querySelector("time")?.getAttribute("datetime")).toBe("2026-09-06");
   });
 
   it("nieczytelna data nie dostaje atrybutu (ani pustego)", () => {
