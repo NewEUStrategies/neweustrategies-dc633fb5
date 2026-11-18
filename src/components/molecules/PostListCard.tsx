@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { formatDateShort } from "@/lib/i18n/format";
+import { formatDateAttr, formatDateShort } from "@/lib/i18n/format";
 
 // `sizes` okładek mieszka w lib/cardImageSizes (wspólne z preloadem LCP w
 // head() tras archiwów - parytet preload<->render jest strukturalny).
@@ -90,18 +90,6 @@ interface PostListCardProps {
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-/**
- * Atrybut `datetime` z TEJ SAMEJ chwili, którą `formatDateShort` drukuje w
- * strefie serwisu - data na ekranie i w atrybucie nie mogą się rozejść.
- * `toISOString()` (UTC, bez locale i strefy maszyny) daje ten sam napis w SSR i
- * w kliencie. Surowej wartości nie przepisujemy: Postgres (`now()`) oddaje
- * mikrosekundy, a HTML przyjmuje najwyżej trzy cyfry ułamka sekundy.
- */
-function machineDateTime(iso: string): string | undefined {
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
 }
 
 export function PostListCard({
@@ -205,7 +193,7 @@ export function PostListCard({
         {post.published_at && (
           <time
             className="block mt-3 text-xs text-muted-foreground"
-            dateTime={machineDateTime(post.published_at)}
+            dateTime={formatDateAttr(post.published_at)}
           >
             {formatDateShort(post.published_at, lang)}
           </time>

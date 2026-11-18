@@ -18,6 +18,7 @@ import {
   DATE_ONLY_TIME_ZONE,
   SITE_TIME_ZONE,
   formatDate,
+  formatDateAttr,
   formatDateOnly,
   formatDateShort,
   formatDateTime,
@@ -310,6 +311,27 @@ describe("formatDateShort", () => {
     // dla en-GB daje "5/03/2026", a `day: "2-digit"` dla pl - "05.03.2026".
     expect(formatDateShort("2026-03-05T10:00:00.000Z", "pl")).toBe("5.03.2026");
     expect(formatDateShort("2026-03-05T10:00:00.000Z", "en")).toBe("05/03/2026");
+  });
+});
+
+describe("formatDateAttr - `datetime` dla dat bez godziny", () => {
+  it("dzień kalendarzowy w strefie serwisu, nie w UTC", () => {
+    // 22:30 UTC 5 września to 00:30 6 września w Warszawie (CEST).
+    expect(formatDateAttr("2026-09-05T22:30:00.123456+00:00")).toBe("2026-09-06");
+    expect(formatDateShort("2026-09-05T22:30:00.123456+00:00", "pl")).toBe("6.09.2026");
+    // Zima (CET, +1): 23:30 UTC 31 grudnia to już Nowy Rok w Warszawie.
+    expect(formatDateAttr("2026-12-31T23:30:00Z")).toBe("2027-01-01");
+  });
+
+  it('zawsze "valid date string" HTML (RRRR-MM-DD z zerami)', () => {
+    expect(formatDateAttr("2026-03-05T10:00:00.000Z")).toBe("2026-03-05");
+    expect(formatDateAttr(new Date("2026-03-05T10:00:00.000Z"))).toBe("2026-03-05");
+  });
+
+  it("nieczytelna wartość albo rok spoza 4 cyfr = brak atrybutu", () => {
+    expect(formatDateAttr("nie-data")).toBeUndefined();
+    expect(formatDateAttr(Number.NaN)).toBeUndefined();
+    expect(formatDateAttr(new Date(-62198755200000 * 2))).toBeUndefined();
   });
 });
 

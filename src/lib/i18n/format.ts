@@ -212,6 +212,39 @@ export function formatDateShort(date: string | number | Date, lang: string | und
   return formatDate(date, lang, { year: "numeric", month: "numeric", day: "numeric" });
 }
 
+const SITE_DATE_ATTR_OPTIONS: Intl.DateTimeFormatOptions = {
+  timeZone: SITE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+};
+
+/**
+ * Atrybut `datetime` dla `<time>`, który pokazuje SAMĄ datę (`formatDate`,
+ * `formatDateShort`): "valid date string" HTML ("2026-09-06") w strefie serwisu,
+ * czyli ten sam dzień kalendarzowy co na ekranie. Pełny znacznik UTC dawałby
+ * dla wpisów z 22:00-24:00 UTC dzień wcześniejszy niż widoczny i 14 B więcej na
+ * każdą kartę. Strefa jest jawna, więc SSR i klient dają ten sam napis.
+ * Nieczytelna wartość = `undefined` (bez atrybutu zamiast `Invalid Date`).
+ */
+export function formatDateAttr(date: string | number | Date): string | undefined {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return undefined;
+  // "valid date string" wymaga roku > 0 (4+ cyfry), a `en-CA` drukuje lata p.n.e.
+  // bez ery - poza zakresem 1000-9999 atrybutu nie ma.
+  const utcYear = d.getUTCFullYear();
+  if (utcYear < 1000 || utcYear > 9999) return undefined;
+  const parts = cachedFormatter(
+    dateFormatters,
+    "en-CA",
+    SITE_DATE_ATTR_OPTIONS,
+    () => new Intl.DateTimeFormat("en-CA", SITE_DATE_ATTR_OPTIONS),
+  ).formatToParts(d);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 /**
  * Data z godziną: "12.07.2026, 14:30" / "12/07/2026, 14:30".
  *
