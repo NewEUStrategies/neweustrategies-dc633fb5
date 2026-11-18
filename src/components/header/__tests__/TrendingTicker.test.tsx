@@ -580,6 +580,28 @@ function stubReducedMotion(reduce: boolean) {
   }));
 }
 
+describe("arkusz geometrii paska stoi PRZED pasmem (CLS przy strumieniowanym HTML)", () => {
+  // Parser maluje to, co już wczytał: styl z geometrią pasma (`.tt-glass-chip`,
+  // wysokość okna kart) stojący PO kartach dawał klatkę pasma bez geometrii, a po
+  // wczytaniu stylu pasmo przeskakiwało w chwili FCP (PSI mobile 2026-11-18).
+  it.each(["classic", "badge", "glassMarquee", "glassCards", "glassLive"] as const)(
+    "%s: blok z `.tt-glass-chip` poprzedza pierwszy element pasma",
+    async (layoutStyle) => {
+      const { container } = render(renderTicker({ layoutStyle }));
+      const bar = await screen.findByTestId("trending-ticker");
+      const geometry = [...container.querySelectorAll("style")].find((el) =>
+        el.textContent?.includes(".tt-glass-chip"),
+      );
+      expect(geometry).toBeDefined();
+      const firstBand = bar.querySelector("[data-tt-band], .tt-glass")!;
+      expect(firstBand).not.toBeNull();
+      expect(
+        geometry!.compareDocumentPosition(firstBand) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+});
+
 describe("TypewriterText - bramka ruchu", () => {
   it("serwer i montaż przed otwarciem: pełny tytuł i zero timerów, także po otwarciu", () => {
     expect(renderToString(<TypewriterText text="Abc" delayMs={90} />)).toContain("Abc");

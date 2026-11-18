@@ -12,6 +12,9 @@ Diagnoza źródłowa: [`docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md`](../AUDYT_C
 Przyczyny wyniku PageSpeed 49/74 krok po kroku (koszt `:has()`, bundel bootu,
 arkusz, LCP) i plan do 85/95: [`2026-10-02-pagespeed-przyczyny.md`](./2026-10-02-pagespeed-przyczyny.md).
 
+CLS 0,16 na telefonie (kolejność kolumn hero przy strumieniowanym HTML, ticker w nagłówku),
+diagnoza, pomiary A/B i bramka kolejności: [`2026-11-18-cls-kolejnosc-kolumn.md`](./2026-11-18-cls-kolejnosc-kolumn.md).
+
 ---
 
 ## 1. RUM - Core Web Vitals z przeglądarek czytelników

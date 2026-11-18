@@ -225,7 +225,12 @@ describe("typografia zakresowa", () => {
       />,
     );
     const sekcja = container.querySelector('[data-sec-id="a"]')!;
-    const wezly = [...sekcja.querySelectorAll("style, [data-col-id]")];
+    // Jedyny świadomy wyjątek: `release` bramki kolejności MA stać na końcu slotu
+    // kolumny domykającej (osobny przypadek niżej) - poza nim każdy blok stylu
+    // sekcji jest przed kolumnami.
+    const wezly = [
+      ...sekcja.querySelectorAll('style:not([data-order-gate-css="release"]), [data-col-id]'),
+    ];
     const pierwszaKolumna = wezly.findIndex((el) => el.hasAttribute("data-col-id"));
     const style = wezly.filter((el) => el.tagName === "STYLE");
     // Oba bloki sekcji (typografia + kolejność kolumn na telefonie) są
@@ -237,6 +242,104 @@ describe("typografia zakresowa", () => {
     }
     const css = style.map((el) => el.textContent).join("\n");
     expect(css).toContain('[data-sec-id="a"] [data-col-id="a-c"]{order:2 !important;}');
+  });
+
+  it("odwrócona kolejność mobilna: A wstrzymana od `hold` przed kolumnami do `release` na końcu slotu B", () => {
+    // CLS PSI mobile 0,16 (2026-11-18). Parser maluje kolumnę A (order 2), zanim
+    // dotrze B (order 1); reguła `order` przestawia je dopiero po wczytaniu B, więc
+    // A zjeżdża. Bramka chowa A do pełnego wczytania B; B (slider, kandydat LCP)
+    // i C nie czekają. Asercje idą na KOLEJNOŚĆ W DRZEWIE, bo tylko ona odpowiada
+    // kolejności w strumieniu.
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([
+          section("hero", [
+            column("a", [widget("wa")], { order: { mobile: 2 } }),
+            column("b", [widget("wb")], { order: { mobile: 1 } }),
+            column("c", [widget("wc")], { order: { mobile: 3 } }),
+          ]),
+        ])}
+        lang="pl"
+      />,
+    );
+    const sekcja = container.querySelector('[data-sec-id="hero"]')!;
+    const slot = (id: string) => sekcja.querySelector(`[data-column-slot][data-col-id="${id}"]`)!;
+    const wezly = [...sekcja.querySelectorAll("style, [data-column-slot]")];
+    const hold = sekcja.querySelector('style[data-order-gate-css="hold"]')!;
+    const releases = [...sekcja.querySelectorAll('style[data-order-gate-css="release"]')];
+    expect(wezly.indexOf(hold)).toBeLessThan(wezly.indexOf(slot("a")));
+    expect(hold.textContent).toBe(
+      '@media (max-width: 767px){[data-sec-id="hero"] [data-column-slot][data-col-id="a"]{visibility:hidden}}',
+    );
+    // Jedno zwolnienie, jako OSTATNIE dziecko slotu B - nie między slotami, więc
+    // selektory `slot + slot` z styles.css widzą sąsiadów jak dotąd.
+    expect(releases).toHaveLength(1);
+    expect(releases[0].parentElement).toBe(slot("b"));
+    expect(slot("b").lastElementChild).toBe(releases[0]);
+    expect(releases[0].textContent).toBe(
+      '@media (max-width: 767px){[data-sec-id="hero"] [data-column-slot][data-col-id="a"]{visibility:inherit}}',
+    );
+    const rzad = sekcja.querySelector("[data-columns-row]")!;
+    expect([...rzad.children].every((el) => el.hasAttribute("data-column-slot"))).toBe(true);
+  });
+
+  it.each(["desktop", "tablet", "mobile"] as const)(
+    "każde wstrzymanie ma zwolnienie w renderowanym slocie PO wstrzymanej kolumnie (%s)",
+    (device) => {
+      // Zwolnienie w kolumnie, której nie ma w DOM-ie, chowałoby kolumnę na zawsze.
+      const { container } = renderWithQueryClient(
+        <BuilderRenderer
+          doc={doc([
+            section("m", [
+              column("m1", [widget("m1w")], { order: { mobile: 3, desktop: 2 } }),
+              column("m2", [widget("m2w")], { order: { mobile: 1, desktop: 1 } }),
+              column("m3", [widget("m3w")], { order: { mobile: 2 } }),
+              column("m4", [widget("m4w")], {
+                order: { mobile: 0 },
+                advanced: { hideOn: { desktop: true } },
+              }),
+              innerSection("m5", [column("m5c", [widget("m5w")])]),
+            ]),
+          ])}
+          lang="pl"
+          device={device}
+        />,
+      );
+      const sekcja = container.querySelector('[data-sec-id="m"]')!;
+      const hold = sekcja.querySelector('style[data-order-gate-css="hold"]')?.textContent ?? "";
+      const wstrzymane = [...hold.matchAll(/\[data-col-id="([^"]+)"\]\{visibility:hidden\}/g)];
+      expect(wstrzymane.length).toBeGreaterThan(0);
+      const drzewo = [...sekcja.querySelectorAll("[data-column-slot], style")];
+      for (const [regula, id] of wstrzymane) {
+        const selektor = regula.replace("{visibility:hidden}", "{visibility:inherit}");
+        const slotX = sekcja.querySelector(`[data-column-slot][data-col-id="${id}"]`)!;
+        const zwolnienie = [
+          ...sekcja.querySelectorAll('style[data-order-gate-css="release"]'),
+        ].find((el) => el.textContent?.includes(selektor));
+        expect(zwolnienie, `zwolnienie ${id} (${device})`).toBeDefined();
+        expect(zwolnienie!.parentElement!.hasAttribute("data-column-slot")).toBe(true);
+        expect(drzewo.indexOf(zwolnienie!)).toBeGreaterThan(drzewo.indexOf(slotX));
+      }
+      // Sloty kolumn sekcji zagnieżdżonej nie noszą `data-col-id`, więc żadna
+      // reguła bramki ich nie dotyka.
+      expect(sekcja.querySelector('[data-column-slot][data-col-id="m5c"]')).toBeNull();
+    },
+  );
+
+  it("kolejność zgodna z dokumentem albo jej brak - żadnej bramki", () => {
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([
+          section("zgodna", [
+            column("a", [widget("wa")], { order: { mobile: 1 } }),
+            column("b", [widget("wb")], { order: { mobile: 2 } }),
+          ]),
+          section("bez", [column("c", [widget("wc")]), column("d", [widget("wd")])]),
+        ])}
+        lang="pl"
+      />,
+    );
+    expect(container.querySelectorAll("style[data-order-gate-css]")).toHaveLength(0);
   });
 
   it("wartość z bazy NIE potrafi zamknąć elementu <style>", () => {

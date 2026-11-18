@@ -44,6 +44,7 @@ import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitizePure";
 import { StyleSink } from "@/components/theme/StyleSink";
+import { columnOrderGate, cssOrder, mobileColumnOrderCss } from "@/lib/builder/columnOrderGate";
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -120,9 +121,11 @@ function resolveOrder(
   device: Device,
 ): number | undefined {
   if (!order) return undefined;
-  if (device === "mobile") return order.mobile ?? undefined;
-  if (device === "tablet") return order.tablet ?? order.desktop ?? undefined;
-  return order.desktop ?? undefined;
+  // `cssOrder`: ta sama normalizacja co reguły CSS i bramka kolejności - wartość,
+  // której CSS nie przyjmie (ułamek, tekst), jest brakiem wartości.
+  if (device === "mobile") return cssOrder(order.mobile);
+  if (device === "tablet") return cssOrder(order.tablet) ?? cssOrder(order.desktop);
+  return cssOrder(order.desktop);
 }
 
 /**
@@ -1274,6 +1277,14 @@ const RenderSection = memo(function RenderSection({
   const videoUrl =
     section.background?.type === "video" ? safeImageUrl(section.background.videoUrl) : "";
   const mobileHidden = hostsMobileHiddenNode(section, visibleCols);
+  // Mobilna kolejność kolumn (CSS przed kolumnami, F29c) i bramka malowania
+  // kolumn, które przy parsowaniu stanęłyby przed swoimi wizualnymi
+  // poprzednikami (`@/lib/builder/columnOrderGate`). Obie liczą się z TYCH
+  // SAMYCH renderowanych slotów (`visibleCols`), które są identyczne w SSR
+  // i pierwszym renderze klienta - stąd zgodny HTML i zwolnienie zawsze
+  // w istniejącym slocie.
+  const mobileOrderCss = mobileColumnOrderCss(section.id, visibleCols);
+  const orderGate = columnOrderGate(section.id, visibleCols);
 
   const preloadRef = useSectionPreload(section, lang);
 
@@ -1303,19 +1314,9 @@ const RenderSection = memo(function RenderSection({
           (ten sam `hardenStyleCss`, ten sam napis). */}
       {typoCss && <StyleSink css={typoCss} />}
       {mobileHidden && <StyleSink css={HIDE_ON_MOBILE_CSS} />}
-      {(() => {
-        const mobileOrderCss = visibleCols
-          .filter((c): c is ColumnNode => c.kind === "column" && !!c.order)
-          .map(
-            (c) =>
-              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order?.mobile ?? 0} !important;}`,
-          )
-          .join("");
-        // Napis budowany poza atrybutem JSX: szablon wprost w `css={...}`
-        // Prettier formatuje jako CSS i dokłada białe znaki do HTML-a serwera.
-        const mobileOrderMedia = `@media (max-width: 767px){${mobileOrderCss}}`;
-        return mobileOrderCss ? <StyleSink css={mobileOrderMedia} /> : null;
-      })()}
+      {mobileOrderCss && <StyleSink css={mobileOrderCss} />}
+      {/* Bramka kolejności: `hold` PRZED kolumnami, `release` w slocie kolumny domykającej (niżej). */}
+      {orderGate && <StyleSink data-order-gate-css="hold" css={orderGate.hold} />}
       {section.background?.type === "video" && videoUrl && (
         <SectionBackgroundVideo src={videoUrl} />
       )}
@@ -1396,6 +1397,7 @@ const RenderSection = memo(function RenderSection({
                 const span = c.kind === "column" ? resolveSpan(c.span, layoutDevice, 12) : 12;
                 const gridColumn = `span ${span}`;
                 const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
+                const orderRelease = orderGate?.release.get(c.id);
                 return (
                   <div
                     key={c.id}
@@ -1417,6 +1419,12 @@ const RenderSection = memo(function RenderSection({
                         <RenderColumn column={c} lang={lang} device={device} />
                       </BuilderImageSlotContext.Provider>
                     )}
+                    {/* Zwolnienie bramki kolejności MUSI być ostatnim dzieckiem slotu
+                        kolumny domykającej: parser dochodzi do niego dopiero po jej
+                        pełnym wczytaniu. Jedyny blok stylu sekcji, który świadomie
+                        stoi PO kolumnie (wyjątek od F29c). W slocie, nie między
+                        slotami, żeby nie rozbić `slot + slot` z `styles.css`. */}
+                    {orderRelease && <StyleSink data-order-gate-css="release" css={orderRelease} />}
                   </div>
                 );
               })
