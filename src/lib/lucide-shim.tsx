@@ -143,7 +143,7 @@ import {
   Twitter as LTwitter,
   Instagram as LInstagram,
   Youtube as LYoutube,
-} from "@/lib/icons/brandIcons";
+} from "lucide-react";
 
 export type LucideIcon = React.FC<IconProps>;
 
