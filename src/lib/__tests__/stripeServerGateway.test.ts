@@ -144,7 +144,7 @@ describe("getStripeClient - transport przez bramkę konektorów", () => {
     expect(headers.get("Lovable-API-Key")).toBe("lovable_test_1");
     // Nagłówki samego SDK (autoryzacja, wersja API) jadą dalej bez zmian.
     expect(headers.get("Authorization")).toBe("Bearer conn_sandbox_test_1");
-    expect(headers.get("Stripe-Version")).toBe("2026-08-26.dahlia");
+    expect(headers.get("Stripe-Version")).toBe("2026-10-28.endive");
     expect(init?.method).toBe("GET");
     // Sygnał przerwania SDK (jego timeout) nie może zginąć przy przepięciu.
     expect(init?.signal).toBeInstanceOf(AbortSignal);

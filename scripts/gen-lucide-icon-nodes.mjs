@@ -27,7 +27,10 @@ for (const fn of readdirSync(ICONS_DIR).sort()) {
     continue;
   const name = fn.replace(/\.m?js$/, "");
   const src = readFileSync(join(ICONS_DIR, fn), "utf8");
-  const m = /const __iconNode\S* = (\[[\s\S]*?\]);\n/.exec(src);
+  // lucide-react <1: `const __iconNode = [...]`; >=1: `const __iconData = { name, size, node: [...] }`.
+  const m =
+    /const __iconNode\S* = (\[[\s\S]*?\]);\n/.exec(src) ??
+    /const __iconData\S* = \{[\s\S]*?\n  node: (\[[\s\S]*?\n  \])\n\};\n/.exec(src);
   if (!m) {
     // Pliki-aliasy re-eksportują kanoniczną ikonę: zapisz mapowanie nazw.
     const alias = /export \{ default(?: as \w+)? \} from '\.\/([a-z0-9-]+)\.m?js'/.exec(src);
@@ -42,6 +45,13 @@ for (const fn of readdirSync(ICONS_DIR).sort()) {
   } catch {
     failed++;
   }
+}
+
+// Lucide 1.x usunął ikony marek; treści CMS nadal używają tych nazw, więc
+// katalog dostaje te same glify co `src/lib/icons/brandIcons.ts`.
+const { BRAND_ICON_NODES } = await import("../src/lib/icons/brandIconNodes.mjs");
+for (const [name, node] of Object.entries(BRAND_ICON_NODES)) {
+  if (!out[name]) out[name] = node;
 }
 
 const names = Object.keys(out);

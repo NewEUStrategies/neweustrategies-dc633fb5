@@ -25,18 +25,8 @@ import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card
 
 import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
-import {
-  User,
-  Mail,
-  Phone,
-  Globe,
-  Linkedin,
-  Facebook,
-  Instagram,
-  Music,
-  Link as LinkIcon,
-  UserPlus,
-} from "lucide-react";
+import { User, Mail, Phone, Globe, Music, Link as LinkIcon, UserPlus } from "lucide-react";
+import { Linkedin, Facebook, Instagram } from "@/lib/icons/brandIcons";
 
 // X (dawniej Twitter) - własny logotyp. Lucide nie zawiera ikony X.
 const XIcon = (props: SVGProps<SVGSVGElement>) => (

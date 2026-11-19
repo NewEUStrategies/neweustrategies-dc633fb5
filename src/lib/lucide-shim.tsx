@@ -120,11 +120,6 @@ import {
   Printer as LPrinter,
   Download as LDownload,
   RotateCcw as LRotateCcw,
-  Facebook as LFacebook,
-  Linkedin as LLinkedin,
-  Twitter as LTwitter,
-  Instagram as LInstagram,
-  Youtube as LYoutube,
   Folder as LFolder,
   FolderOpen as LFolderOpen,
   FolderPlus as LFolderPlus,
@@ -142,6 +137,13 @@ import {
   Zap as LZap,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
+import {
+  Facebook as LFacebook,
+  Linkedin as LLinkedin,
+  Twitter as LTwitter,
+  Instagram as LInstagram,
+  Youtube as LYoutube,
+} from "@/lib/icons/brandIcons";
 
 export type LucideIcon = React.FC<IconProps>;
 

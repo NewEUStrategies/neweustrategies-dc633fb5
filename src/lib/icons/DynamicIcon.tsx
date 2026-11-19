@@ -119,21 +119,15 @@ import {
   AlertTriangle,
   CircleUser,
   CreditCard,
-  Facebook,
-  Github,
-  Instagram,
   LayoutDashboard,
-  Linkedin,
   LogIn,
   LogOut,
   MessagesSquare,
   ShoppingBag,
   SlidersHorizontal,
-  Twitter,
   UserCheck,
   UserCircle,
   UserPlus,
-  Youtube,
   // - dołożone 2026-09-20 wraz z bramką `check:menu-icons` (F24) -
   // Te dziewięć nazw KONFIGURACJA CHROME PODAJE NAPRAWDĘ: pasek dolny
   // (`users-round` z migracji 20260808120627), menu konta (`Crown`, `Ticket`,
@@ -158,6 +152,7 @@ import {
   type IconNode,
   type LucideProps,
 } from "lucide-react";
+import { Facebook, Linkedin, Twitter, Instagram, Youtube, Github } from "@/lib/icons/brandIcons";
 
 const DynamicIconChunk = lazy(() => import("./DynamicIconChunk"));
 

@@ -3,7 +3,8 @@
 // bilingual sample copy; colors come from the scoped `--td-*` variables set on
 // the ancestor preview root.
 import { useTranslation } from "react-i18next";
-import { Facebook, Instagram, Youtube, Linkedin, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
+import { Facebook, Instagram, Youtube, Linkedin } from "@/lib/icons/brandIcons";
 import type { ThemeDesign, ThemeDesignLang } from "@/lib/theme/themeDesign";
 import { MetaSeparator } from "../../atoms";
 import { ToolbarButtonPreview } from "../../molecules";

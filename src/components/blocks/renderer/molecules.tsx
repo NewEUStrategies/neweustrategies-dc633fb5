@@ -7,16 +7,12 @@ import type { ComponentType, ReactNode } from "react";
 import {
   ThumbsUp,
   ThumbsDown,
-  Facebook,
-  Instagram,
-  Youtube,
-  Linkedin,
-  Github,
   Mail,
   Rss,
   Search as SearchIcon,
   Music as TikTokIcon,
 } from "lucide-react";
+import { Facebook, Instagram, Youtube, Linkedin, Github } from "@/lib/icons/brandIcons";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { resolveStandaloneShortcode } from "@/lib/content/shortcodes";

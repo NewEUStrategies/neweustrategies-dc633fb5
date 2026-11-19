@@ -26,11 +26,13 @@ import {
   Info,
   RefreshCcw,
   ExternalLink,
+  Link2 as LucideLink,
+} from "lucide-react";
+import {
   Linkedin as LucideLinkedin,
   Facebook as LucideFacebook,
   Instagram as LucideInstagram,
-  Link2 as LucideLink,
-} from "lucide-react";
+} from "@/lib/icons/brandIcons";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
 import type { ComponentType, SVGAttributes } from "react";

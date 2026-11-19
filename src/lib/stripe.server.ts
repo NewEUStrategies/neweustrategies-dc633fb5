@@ -113,7 +113,7 @@ async function buildStripeClient(connectionApiKey: string, lovableApiKey: string
   const { default: Stripe } = await loadStripeSdk();
 
   return new Stripe(connectionApiKey, {
-    apiVersion: "2026-08-26.dahlia",
+    apiVersion: "2026-10-28.endive",
     timeout: STRIPE_REQUEST_TIMEOUT_MS,
     maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
     // `FetchHttpClient` SDK woła transport zawsze z adresem jako napisem i z

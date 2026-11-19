@@ -1275,7 +1275,7 @@ export async function resumeProviderSubscription(
       // `paused` i dostęp nie wraca.
       const resumed = await stripe.subscriptions.resume(
         subscriptionId,
-        { billing_cycle_anchor: "now", expand: ["latest_invoice.payments"] },
+        { billing_cycle_anchor: { type: "now" }, expand: ["latest_invoice.payments"] },
         { idempotencyKey: await idempotencyKey("resume-paused", fingerprint) },
       );
       if (resumed.status !== "active" && resumed.status !== "trialing") {

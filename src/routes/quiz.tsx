@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Check,
-  ChevronRight,
-  Copy,
-  Facebook,
-  Linkedin,
-  Mail,
-  MessageCircle,
-  Share2,
-} from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
+import { Facebook, Linkedin } from "@/lib/icons/brandIcons";
 import { toast } from "sonner";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
 import { Footer } from "@/components/Footer";
