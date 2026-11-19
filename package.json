@@ -142,7 +142,7 @@
     "i18n-iso-countries": "^7.14.0",
     "i18next": "^26.7.2",
     "jszip": "^3.10.2",
-    "lucide-react": "^1.74.0",
+    "lucide-react": "^0.577.0",
     "mammoth": "1.13.0",
     "marked": "18.2.1",
     "node-html-parser": "^9.0.7",
