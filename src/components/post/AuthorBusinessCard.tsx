@@ -8,7 +8,7 @@ import { FastForwardIcon } from "@/components/atoms/FastForwardIcon";
 import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Mail, User as UserIcon, Check, Plus } from "@/lib/lucide-shim";
-import { Instagram } from "lucide-react";
+import { Instagram } from "@/lib/icons/brandIcons";
 import { safeUrl } from "@/lib/sanitize";
 import { useFollows, useToggleFollow } from "@/hooks/useFollows";
 import { useAuth } from "@/hooks/useAuth";

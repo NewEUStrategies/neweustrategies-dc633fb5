@@ -120,11 +120,6 @@ import {
   Printer as LPrinter,
   Download as LDownload,
   RotateCcw as LRotateCcw,
-  Facebook as LFacebook,
-  Linkedin as LLinkedin,
-  Twitter as LTwitter,
-  Instagram as LInstagram,
-  Youtube as LYoutube,
   Folder as LFolder,
   FolderOpen as LFolderOpen,
   FolderPlus as LFolderPlus,
@@ -141,6 +136,13 @@ import {
   XCircle as LXCircle,
   Zap as LZap,
   type LucideIcon as LucideIconImpl,
+} from "lucide-react";
+import {
+  Facebook as LFacebook,
+  Linkedin as LLinkedin,
+  Twitter as LTwitter,
+  Instagram as LInstagram,
+  Youtube as LYoutube,
 } from "lucide-react";
 
 export type LucideIcon = React.FC<IconProps>;

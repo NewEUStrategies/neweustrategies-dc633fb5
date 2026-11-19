@@ -29,7 +29,6 @@ import {
   ListTree as TocIcon,
   Mail as MailIcon,
   ShoppingBag as AffiliateIcon,
-  Twitter as XIcon,
   GitCompareArrows as CompareIcon,
   Link2 as LinkPreviewIcon,
   LogIn as LoginIcon,
@@ -109,6 +108,7 @@ import {
   Globe2 as DataMapIcon,
   type LucideIcon,
 } from "lucide-react";
+import { Twitter as XIcon } from "@/lib/icons/brandIcons";
 
 export interface BlockSpec {
   type: BlockType;

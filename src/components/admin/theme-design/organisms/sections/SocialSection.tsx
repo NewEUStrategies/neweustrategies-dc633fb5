@@ -1,7 +1,8 @@
 // Organism: editor for the social-media icon row.
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { Facebook, Instagram, Youtube, Linkedin, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
+import { Facebook, Instagram, Youtube, Linkedin } from "@/lib/icons/brandIcons";
 import { Section, FieldGrid, Field, PreviewFrame, PxStepper } from "../../atoms";
 import { ColorControl } from "../../molecules";
 import type { SectionEditorProps } from "../../types";

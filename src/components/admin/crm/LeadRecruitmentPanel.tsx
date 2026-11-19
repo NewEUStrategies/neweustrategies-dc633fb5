@@ -16,14 +16,8 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import {
-  BriefcaseBusiness,
-  ChevronDown,
-  ExternalLink,
-  FileText,
-  Linkedin,
-  Loader2,
-} from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
+import { Linkedin } from "@/lib/icons/brandIcons";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -7,13 +7,8 @@ import { htmlToPlainText } from "@/lib/sanitize";
 // (BrandIcon) - "twitter" mapuje się do "x". Bio jako punktory (max 5).
 import type { CSSProperties, ReactNode } from "react";
 import { Mail, Newspaper, Mic, BookOpen, Layers } from "@/lib/lucide-shim";
-import {
-  Globe as LucideGlobe,
-  Linkedin as LucideLinkedin,
-  Phone,
-  Briefcase,
-  GraduationCap,
-} from "lucide-react";
+import { Globe as LucideGlobe, Phone, Briefcase, GraduationCap } from "lucide-react";
+import { Linkedin as LucideLinkedin } from "@/lib/icons/brandIcons";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { VerifiedProfileBadge } from "@/components/profile/VerifiedProfileBadge";
 import { XIcon } from "@/components/atoms/XIcon";

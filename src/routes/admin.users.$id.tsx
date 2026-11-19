@@ -34,9 +34,6 @@ import {
   MapPin,
   Globe,
   // Twitter removed - use XIcon
-  Linkedin,
-  Facebook,
-  Instagram,
   Music2,
   Camera,
   Loader2,
@@ -46,6 +43,7 @@ import {
   KeyRound,
   Clock,
 } from "lucide-react";
+import { Facebook, Instagram, Linkedin } from "@/lib/icons/brandIcons";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {

@@ -18,7 +18,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
+import { Globe, Music2, Mail } from "lucide-react";
+import { Linkedin, Facebook, Instagram } from "@/lib/icons/brandIcons";
 import { XIcon } from "@/components/atoms/XIcon";
 import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 

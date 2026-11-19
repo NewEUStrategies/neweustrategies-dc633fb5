@@ -21,7 +21,6 @@ import {
   Camera,
   Image as ImageIcon,
   Loader2,
-  Linkedin,
   // Twitter removed
   Phone,
   Heart,
@@ -31,6 +30,7 @@ import {
   Flag,
   BellPlus,
 } from "lucide-react";
+import { Linkedin } from "@/lib/icons/brandIcons";
 
 import { useAuth } from "@/hooks/useAuth";
 import { BrandIcon } from "@/components/atoms/BrandIcon";

@@ -332,7 +332,7 @@ describe("resumeProviderSubscription - żywy stan rozstrzyga mechanizm", () => {
     expect(result).toEqual({ ok: true, mode: "unpaused" });
     expect(h.subscriptions.resume).toHaveBeenCalledWith(
       "sub_1",
-      { billing_cycle_anchor: "now", expand: ["latest_invoice.payments"] },
+      { billing_cycle_anchor: { type: "now" }, expand: ["latest_invoice.payments"] },
       { idempotencyKey: expect.stringMatching(/^nes-sub-resume-paused-/) },
     );
     // Dawna ścieżka: `update({ pause_collection: null })` - subskrypcji

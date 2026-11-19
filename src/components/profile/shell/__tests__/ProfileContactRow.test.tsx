@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
-import { Linkedin, Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
+import { Linkedin } from "@/lib/icons/brandIcons";
 import { describe, expect, it } from "vitest";
 
 import { XIcon } from "@/components/atoms/XIcon";

@@ -14,15 +14,14 @@ import {
   Home,
   Clock,
   Eye,
-  Facebook,
   // Twitter removed
-  Linkedin,
   MessageCircle,
   Send,
   Mail,
   Link2,
   Check,
 } from "lucide-react";
+import { Facebook, Linkedin } from "@/lib/icons/brandIcons";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { cn } from "@/lib/utils";
 import { uiLocale } from "@/lib/i18n/format";

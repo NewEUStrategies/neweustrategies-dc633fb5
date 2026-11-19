@@ -1,6 +1,7 @@
 // Organizm: profil członka społeczności (/people/<slug>).
 import { Link } from "@tanstack/react-router";
-import { BadgeCheck, Briefcase, Globe, Linkedin, MapPin, PenLine } from "lucide-react";
+import { BadgeCheck, Briefcase, Globe, MapPin, PenLine } from "lucide-react";
+import { Linkedin } from "@/lib/icons/brandIcons";
 import { useTranslation } from "react-i18next";
 import type { MemberProfile } from "@/lib/profile/memberProfile";
 import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";

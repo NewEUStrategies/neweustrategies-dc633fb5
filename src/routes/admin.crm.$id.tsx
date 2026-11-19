@@ -18,7 +18,6 @@ import {
   Building2,
   Briefcase,
   MapPin,
-  Linkedin,
   Activity,
   BarChart3,
   StickyNote,
@@ -30,6 +29,7 @@ import {
   ShieldCheck,
   Tag,
 } from "lucide-react";
+import { Linkedin } from "@/lib/icons/brandIcons";
 
 import {
   getCrmLead,

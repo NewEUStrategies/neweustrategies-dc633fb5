@@ -1040,7 +1040,7 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
       expect(await resume()).toEqual({ ok: true });
       expect(stripe.subscriptions.resume).toHaveBeenCalledWith(
         "sub_operator_1",
-        expect.objectContaining({ billing_cycle_anchor: "now" }),
+        expect.objectContaining({ billing_cycle_anchor: { type: "now" } }),
         expect.objectContaining({ idempotencyKey: expect.any(String) }),
       );
       // Dostęp przywraca webhook po potwierdzeniu operatora - wiersz `canceled`
