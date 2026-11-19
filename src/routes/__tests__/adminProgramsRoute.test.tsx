@@ -171,7 +171,7 @@ const slugField = () => screen.getByLabelText("Slug");
 
 /** Klika kosz w wierszu programu (jedyny kosz na liście). */
 function clickRowTrash(): void {
-  const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"));
+  const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"));
   if (!trash) throw new Error("test: brak przycisku usunięcia w wierszu programu");
   fireEvent.click(trash);
 }
@@ -696,7 +696,7 @@ describe("admin.programs - członkowie programu", () => {
     await screen.findByText("Jan Testowy");
     const trash = screen
       .getAllByRole("button")
-      .filter((b) => b.querySelector("svg.lucide-trash2"))
+      .filter((b) => b.querySelector("svg.lucide-trash-2"))
       .at(-1);
     fireEvent.click(trash!);
 
@@ -731,7 +731,7 @@ describe("admin.programs - członkowie programu", () => {
     const spy = vi.spyOn(view.queryClient, "invalidateQueries");
     const trash = screen
       .getAllByRole("button")
-      .filter((b) => b.querySelector("svg.lucide-trash2"))
+      .filter((b) => b.querySelector("svg.lucide-trash-2"))
       .at(-1);
     fireEvent.click(trash!);
     await waitFor(() =>

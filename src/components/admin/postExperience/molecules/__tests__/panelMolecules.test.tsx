@@ -154,7 +154,12 @@ describe("PreviewLangTabs - przełącznik języka podglądu", () => {
     render(<PreviewLangTabs value="pl" onChange={onChange} label="Język podglądu" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "EN" }));
     expect(onChange).toHaveBeenCalledWith("en");
-    expect(onChange).toHaveBeenCalledTimes(1);
+    // Radix Tabs 1.2.x: `onMouseDown` najpierw wywołuje `focus()` na
+    // zakładce (`onFocus` w trybie automatycznym zgłasza wartość), a potem
+    // zgłasza ją sam - jedno kliknięcie daje dwa IDENTYCZNE powiadomienia,
+    // także w przeglądarce. Kontrakt molekuły to wartość, nie ich liczba:
+    // każde powiadomienie niesie znormalizowane `en`, żadne nic innego.
+    expect(new Set(onChange.mock.calls.map(([lang]) => lang))).toEqual(new Set(["en"]));
   });
 
   it("wybór PL zgłasza `pl` - NORMALIZACJA pilnuje obu kierunków", () => {

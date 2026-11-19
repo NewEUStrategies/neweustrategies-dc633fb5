@@ -194,7 +194,7 @@ describe("ProfileSyncCard", () => {
   it("brak dopasowania mówi, że kontakt nie ma konta", async () => {
     h.profileSync = { matched: false };
     renderWithQueryClient(<ProfileSyncCard leadId={LEAD_ID} lang="pl" />);
-    expect(await screen.findByText(/Brak dopasowanego profilu/)).toBeInTheDocument();
+    expect(await screen.findByText(/nie jest powiązany z kontem członka/)).toBeInTheDocument();
   });
 
   it("pokazuje doświadczenie, umiejętności i rozmiar CV", async () => {
@@ -276,6 +276,6 @@ describe("ProfileSyncCard", () => {
   it("po angielsku karta profilu też nazywa swoje sekcje", async () => {
     h.profileSync = { matched: false };
     renderWithQueryClient(<ProfileSyncCard leadId={LEAD_ID} lang="en" />);
-    expect(await screen.findByText(/No matching in-system profile/i)).toBeInTheDocument();
+    expect(await screen.findByText(/not linked to a member account/i)).toBeInTheDocument();
   });
 });

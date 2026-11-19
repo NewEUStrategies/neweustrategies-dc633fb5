@@ -3,13 +3,19 @@
 -- Kazda pozycja ma tez kontrole dodatnia: service_role zachowuje EXECUTE, wiec
 -- wolajacy serwerowi i funkcje SECURITY DEFINER dzialaja dalej.
 -- Dopisane pozniej: _event_seats_left (20261012150000_event_waitlist_settlement,
--- REG-08 - najemca z argumentu, wolaja ja wylacznie funkcje SECURITY DEFINER).
+-- REG-08 - najemca z argumentu, wolaja ja wylacznie funkcje SECURITY DEFINER)
+-- oraz _event_page_seats_left (20261119190000, skan 2026-11-19 - ta sama
+-- regula, wolajacy: piec funkcji SECURITY DEFINER stron wydarzen).
 BEGIN;
-SELECT plan(86);
+SELECT plan(88);
 SELECT ok(NOT has_function_privilege('anon', 'public._are_connected(uuid,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._are_connected(uuid,uuid)', 'EXECUTE'),
   '_are_connected(uuid,uuid): bez EXECUTE dla anon i authenticated');
 SELECT ok(has_function_privilege('service_role', 'public._are_connected(uuid,uuid)', 'EXECUTE'),
   '_are_connected(uuid,uuid): service_role zachowuje EXECUTE');
+SELECT ok(NOT has_function_privilege('anon', 'public._event_page_seats_left(uuid,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._event_page_seats_left(uuid,uuid)', 'EXECUTE'),
+  '_event_page_seats_left(uuid,uuid): bez EXECUTE dla anon i authenticated');
+SELECT ok(has_function_privilege('service_role', 'public._event_page_seats_left(uuid,uuid)', 'EXECUTE'),
+  '_event_page_seats_left(uuid,uuid): service_role zachowuje EXECUTE');
 SELECT ok(NOT has_function_privilege('anon', 'public._event_registration_verdict(uuid,uuid,jsonb)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._event_registration_verdict(uuid,uuid,jsonb)', 'EXECUTE'),
   '_event_registration_verdict(uuid,uuid,jsonb): bez EXECUTE dla anon i authenticated');
 SELECT ok(has_function_privilege('service_role', 'public._event_registration_verdict(uuid,uuid,jsonb)', 'EXECUTE'),

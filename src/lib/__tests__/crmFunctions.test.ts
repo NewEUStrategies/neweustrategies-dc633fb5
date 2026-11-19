@@ -1737,28 +1737,86 @@ describe("push leada do partnerów", () => {
 });
 
 describe("metering i profil leada", () => {
-  it("lead bez e-maila nie ma czego mierzyć", async () => {
+  // Karty leada wiążą konto WYŁĄCZNIE przez systemowe `crm_leads.user_id`
+  // w najemcy leada (lib/crm/leadAccount.ts, commit 09d7f4d6). E-mail leada
+  // edytuje staff - dopasowanie po nim ujawniało rolą serwisową dane
+  // dowolnego członka (metering, członkostwo, profil/CV). Baza pilnuje, że
+  // `user_id` nie ustawi rola sesji (Z-06 i trg_crm_leads_000_user_id_guard).
+  const LINKED_LEAD = { user_id: USER_ID, tenant_id: TENANT };
+  const MEMBER_EMAIL = "member@example.test";
+
+  const LEAD_CARDS = [
+    { card: "metering", fn: crm.getCrmLeadMonthlyMetering, data: { id: LEAD_ID }, none: null },
+    { card: "członkostwo", fn: crm.getCrmLeadMembership, data: { id: LEAD_ID }, none: null },
+    {
+      card: "profil/CV",
+      fn: crm.getCrmLeadProfileSync,
+      data: { lead_id: LEAD_ID },
+      none: { matched: false },
+    },
+  ];
+
+  // Każdy odczyt profili rolą serwisową idzie po identyfikatorze konta
+  // z leada i po najemcy leada - nigdy po adresie (`.or`/`.ilike`/`email`).
+  function expectProfilesReadByLeadAccount(expectedChains: number): void {
+    const chains = admin.chainsFor("profiles");
+    expect(chains).toHaveLength(expectedChains);
+    for (const chain of chains) {
+      expect(chain.calls).toContainEqual({ method: "eq", args: ["id", USER_ID] });
+      expect(chain.calls).toContainEqual({ method: "eq", args: ["tenant_id", TENANT] });
+      expect(chain.has("or")).toBe(false);
+      expect(chain.has("ilike")).toBe(false);
+      expect(chain.calls.some((c) => c.args[0] === "email" || c.args[0] === "contact_email")).toBe(
+        false,
+      );
+    }
+  }
+
+  it("lead niewidoczny pod RLS sesji nie ma czego mierzyć", async () => {
     lead.setResponse("crm_leads", () => ok(null));
     const result = await callServerFn(crm.getCrmLeadMonthlyMetering, {
       data: { id: LEAD_ID },
       context: context(),
     });
     expect(parsed(result)).toBeNull();
+    expect(admin.chains).toEqual([]);
   });
 
-  it("brak dopasowanego użytkownika kończy pomiar", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([]));
-    const result = await callServerFn(crm.getCrmLeadMonthlyMetering, {
-      data: { id: LEAD_ID },
-      context: context(),
-    });
-    expect(parsed(result)).toBeNull();
-  });
+  it.each(LEAD_CARDS)(
+    "$card: lead z adresem członka, ale bez user_id - brak karty i zero odczytów rolą serwisową",
+    async ({ fn, data, none }) => {
+      // Adres leada = adres członka, a atrapa profili ODDAŁABY tego członka:
+      // powrót do dopasowania po e-mailu dałby kartę i czerwień tutaj.
+      lead.setResponse("crm_leads", () =>
+        ok({ user_id: null, tenant_id: TENANT, email: MEMBER_EMAIL }),
+      );
+      admin.setResponse("profiles", () =>
+        ok([{ id: USER_ID, tenant_id: TENANT, email: MEMBER_EMAIL, display_name: "Anna" }]),
+      );
+      const result = await callServerFn(fn, { data, context: context() });
+      expect(parsed(result)).toEqual(none);
+      expect(lead.lastChain("crm_leads")?.argsOf("select")).toEqual(["user_id, tenant_id"]);
+      expect(admin.chains).toEqual([]);
+    },
+  );
+
+  it.each(LEAD_CARDS)(
+    "$card: konto spoza najemcy leada - brak karty i brak odczytu danych członka",
+    async ({ fn, data, none }) => {
+      lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
+      // `ok(null)`, nie `ok([])`: atrapa oddaje ten sam ładunek dla
+      // `.maybeSingle()`, a `[] !== null` znaczyłoby „profil w najemcy".
+      admin.setResponse("profiles", () => ok(null));
+      const result = await callServerFn(fn, { data, context: context() });
+      expect(parsed(result)).toEqual(none);
+      expect(admin.chains.map((c) => c.table)).toEqual(["profiles"]);
+      expectProfilesReadByLeadAccount(1);
+    },
+  );
 
   it("zużycie liczy wiersze bieżącego miesiąca i domyka limit", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([{ id: USER_ID }]));
+    lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
+    admin.setResponse("profiles", () => ok({ id: USER_ID }));
     admin.setResponse("metering_settings", () => ok({ member_monthly_limit: 5, enabled: true }));
     admin.setResponse("metered_views", () => ok([{ id: "v1" }, { id: "v2" }]));
     const result = await callServerFn(crm.getCrmLeadMonthlyMetering, {
@@ -1771,11 +1829,12 @@ describe("metering i profil leada", () => {
       remaining: 3,
       enabled: true,
     });
+    expectProfilesReadByLeadAccount(1);
   });
 
   it("brak ustawień meteringu spada na domyślne 5 artykułów", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([{ id: USER_ID }]));
+    lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
+    admin.setResponse("profiles", () => ok({ id: USER_ID }));
     admin.setResponse("metering_settings", () => ok(null));
     admin.setResponse("metered_views", () => ok([]));
     const result = await callServerFn(crm.getCrmLeadMonthlyMetering, {
@@ -1790,18 +1849,10 @@ describe("metering i profil leada", () => {
     });
   });
 
-  it("synchronizacja profilu bez dopasowania oddaje matched:false", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([]));
-    const result = await callServerFn(crm.getCrmLeadProfileSync, {
-      data: { lead_id: LEAD_ID },
-      context: context(),
-    });
-    expect(parsed(result)).toEqual({ matched: false });
-  });
-
   it("synchronizacja profilu zbiera doświadczenie, umiejętności i CV", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
+    // Ten sam ładunek obsługuje sprawdzenie najemcy (`.maybeSingle()`)
+    // i odczyt profilu (`.limit(1)`).
     admin.setResponse("profiles", () =>
       ok([{ id: USER_ID, tenant_id: TENANT, display_name: "Anna" }]),
     );
@@ -1822,10 +1873,11 @@ describe("metering i profil leada", () => {
       awards: [{ id: "aw1" }],
       education: [{ id: "ed1" }],
     });
+    expectProfilesReadByLeadAccount(2);
   });
 
   it("RODO: synchronizacja NIE czyta wyników testu osobowości", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
     admin.setResponse("profiles", () => ok([{ id: USER_ID, tenant_id: TENANT }]));
     for (const table of [
       "profile_experiences",
@@ -1836,29 +1888,22 @@ describe("metering i profil leada", () => {
     ]) {
       admin.setResponse(table, () => ok([]));
     }
-    await callServerFn(crm.getCrmLeadProfileSync, {
+    const result = await callServerFn(crm.getCrmLeadProfileSync, {
       data: { lead_id: LEAD_ID },
       context: context(),
     });
+    // Pełna ścieżka odczytu przeszła - inaczej brak big5 niczego by nie dowodził.
+    expect(parsed(result)).toMatchObject({ matched: true });
+    expect(admin.chainsFor("profile_experiences")).toHaveLength(1);
     // Dane psychometryczne zostały odcięte migracją 20260711120000 - odczyt
     // service-rolem obchodziłby tę decyzję bez celu przetwarzania.
     expect(admin.chains.map((c) => c.table)).not.toContain("profile_big5_results");
     expect(admin.chains.map((c) => c.table).some((t) => t.includes("big5"))).toBe(false);
   });
 
-  it("członkostwo leada bez dopasowanego profilu oddaje null", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([]));
-    const result = await callServerFn(crm.getCrmLeadMembership, {
-      data: { id: LEAD_ID },
-      context: context(),
-    });
-    expect(parsed(result)).toBeNull();
-  });
-
   it("członkostwo leada składa się ze źródeł tego samego tenanta", async () => {
-    lead.setResponse("crm_leads", () => ok({ email: "a@example.test", tenant_id: TENANT }));
-    admin.setResponse("profiles", () => ok([{ id: USER_ID }]));
+    lead.setResponse("crm_leads", () => ok(LINKED_LEAD));
+    admin.setResponse("profiles", () => ok({ id: USER_ID }));
     admin.setResponse("membership_tiers", () =>
       ok([{ key: "member", rank: 10, name_pl: "Członek", name_en: "Member", is_default: true }]),
     );
@@ -1870,8 +1915,9 @@ describe("metering i profil leada", () => {
       context: context(),
     });
     expect(parsed(result)).toMatchObject({ user_id: USER_ID, source: "default" });
+    expectProfilesReadByLeadAccount(1);
+    // Profil też filtruje najemcą leada, więc wymóg obejmuje każdy odczyt.
     for (const chain of admin.chains) {
-      if (chain.table === "profiles") continue;
       expect(chain.calls.some((c) => c.method === "eq" && c.args[0] === "tenant_id")).toBe(true);
     }
   });

@@ -2760,7 +2760,30 @@ const FROZEN_BUDGET_KB = {
   // publicCss 84,1 / 85, chunk 261,4 / 286, boot 475,2 / 579, public
   // 2802,5 / 2881 w zamrożonych progach.
   // Host 5387,7 -> 5388 -> +0.
-  overall: 5388,
+  //
+  // Ratchet 5388 -> 5431 (2026-11-19, PR #545), decyzją właściciela z
+  // 2026-11-19 („Podnieś próg do 5431 KB"). MAIN CZERWONY od aktualizacji
+  // zależności bota Lovable z 2026-11-18/19 (faa37710 ... 3b24c74f: Lucide
+  // 0.577 -> 1.75, ProseMirror/tiptap, i18next, Radix w jednej kopii,
+  // supabase-js 2.119, marked 18.2.1). Pomiar na jednym hoście, każde drzewo
+  // z `git archive` i z WŁASNYM `bun install --frozen-lockfile`:
+  //   37969c26 (ostatni zielony main, scalenie PR #544): 5384,9 / public
+  //            2797,1 / admin-only 2587,8
+  //   f08aa5e4 (PR #545 = main c5e9def3 + migracja i testy): 5429,3 / public
+  //            2833,1 / admin-only 2596,1
+  // Razem +44,4 KB (public +36,0, admin-only +8,3). Rozbicie (gzip -9 per
+  // chunk, bez hashy): katalog ikon `icons-0..3` +23,2 (472 nowe ikony
+  // Lucide 1.75: 1950 -> 2421 wpisów; generator już tnie klucze Reacta,
+  // trzyma same `d` jako napisy i aliasy jako odwołania - duplikatów 866 B),
+  // `vendor-lucide` +3,2, `vendor-lucide-boot` +2,5, `LucideIconPicker` +1,6,
+  // `PostBlockEditor` +3,8 i `admin.posts._slug` +1,5 (ProseMirror/tiptap,
+  // marked), `vendor-i18n` +2,1, `vendor-radix` +1,1 (+0,9 w `vendor-radix-*`),
+  // `app-initial` +1,0, `vendor-supabase` +0,6. Odzyskanie bez usunięcia ikon
+  // albo cofnięcia bibliotek niemożliwe - to dane i kod nowych wersji, bez
+  // martwego kodu. css 100,1 / 101, publicCss 83,8 / 85, chunk 254,7 / 286,
+  // boot 487,1 / 579, public 2833,1 / 2881 w zamrożonych progach.
+  // Host 5429,3 -> 5430 -> +1 (różnica hostów, jak przed 2026-11-15).
+  overall: 5431,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
