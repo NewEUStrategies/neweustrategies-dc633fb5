@@ -169,7 +169,7 @@ const COPY_PL: CookieBannerCopy = {
     "Nasza platforma wykorzystuje pliki cookie i podobne technologie w celu zapewnienia bezpieczeństwa, personalizacji oraz analizy ruchu. Poniżej znajdziesz szczegółowe informacje o każdej kategorii i podmiotach przetwarzających dane. Pełne informacje zawiera nasza",
   policyLabel: "Polityka Prywatności",
   compactMessage:
-    "Używamy plików cookie, aby serwis działał poprawnie i by lepiej dopasować treści. Szczegóły znajdziesz w dokumentach:",
+    "Używamy plików cookie, aby serwis działał poprawnie i by lepiej dopasować treści. Szczegóły:",
   acceptAll: "Akceptuj wszystkie",
   rejectAll: "Tylko niezbędne",
   saveSelection: "Zapisz wybrane",
@@ -197,8 +197,7 @@ const COPY_EN: CookieBannerCopy = {
   intro:
     "Our platform uses cookies and similar technologies to ensure security, personalisation and traffic analysis. Below you will find detailed information about each category and the entities processing the data. Full information is available in our",
   policyLabel: "Privacy Policy",
-  compactMessage:
-    "We use cookies to keep the site working and to tailor content. You will find the details in:",
+  compactMessage: "We use cookies to keep the site working and to tailor content. Details:",
   acceptAll: "Accept all",
   rejectAll: "Only necessary",
   saveSelection: "Save selection",

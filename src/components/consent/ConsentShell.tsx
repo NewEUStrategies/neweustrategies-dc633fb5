@@ -494,6 +494,16 @@ export interface ConsentCompactCardProps {
   shell?: boolean;
 }
 
+/*
+ * KOMPAKT MOBILE. Poniżej `sm` karta zajmuje pełną szerokość okna od dołu
+ * i przy 412x823 zasłaniała dużą część ekranu. Ten sam układ (nagłówek,
+ * akapit, rząd decyzji, rząd „Dostosuj"/język) dostaje tam mniejsze wcięcie
+ * (`p-3`) i mniejszy odstęp kolumny (`gap-2`), a zwinięty panel preferencji
+ * nie zajmuje odstępu kolumny. Wysokości przycisków, „X" i kafla znaku bez
+ * zmian (cele dotyku, logo z panelu). Od `sm` geometria bez zmian.
+ * Powłoka i baner renderują ten komponent, więc podmiana po interakcji
+ * nie przesuwa karty.
+ */
 export function ConsentCompactCard({
   title,
   closeLabel,
@@ -535,8 +545,8 @@ export function ConsentCompactCard({
     >
       <div
         className={cn(
-          "relative flex max-h-[calc(100svh-1.5rem)] flex-col gap-3 overflow-y-auto",
-          "rounded-xl border p-4 shadow-2xl backdrop-blur-md",
+          "relative flex max-h-[calc(100svh-1.5rem)] flex-col gap-2 overflow-y-auto sm:gap-3",
+          "rounded-xl border p-3 shadow-2xl backdrop-blur-md sm:p-4",
           CB_SURFACE,
           CB_FG,
           "border-(--cbb)/70",
@@ -618,7 +628,11 @@ export function ConsentCompactCard({
           id="cookie-preferences-inline"
           ref={prefsRef}
           style={{ height: prefsHeight ? `${prefsHeight}px` : 0 }}
-          className="overflow-hidden transition-[height] duration-300 ease-out will-change-[height] motion-reduce:transition-none"
+          className={cn(
+            "overflow-hidden transition-[height] duration-300 ease-out will-change-[height] motion-reduce:transition-none",
+            // Zwinięty panel na telefonie nie zajmuje odstępu kolumny (KOMPAKT MOBILE).
+            !prefsOpen && !prefsHeight && "max-sm:hidden",
+          )}
         >
           {prefsOpen ? prefsPanel : null}
         </div>
