@@ -112,6 +112,9 @@ export const PLATFORM_CORE = [
   // i magazyn zgód CMP z klamrą GPC (10).
   /^src\/lib\/tenant\.ts$/,
   /^src\/lib\/ads\/consent\.ts$/,
+  // Glify marek (Lucide 1.x ich nie ma): prymityw ikon jak `lucide-shim`, który
+  // je reeksportuje, więc należą do rdzenia, a nie do domeny biblioteki ikon.
+  /^src\/lib\/icons\/brandIcon(s\.ts|Nodes\.mjs)$/,
 ];
 
 /** Plik domenowy importowany statycznie z tylu innych obszarów to jądro platformy. */

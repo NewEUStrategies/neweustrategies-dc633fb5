@@ -19,11 +19,13 @@
 // (`useTheme`). Samo rozstrzyganie - aliasy, priorytet, wybór wariantu URL -
 // zostaje prawdziwe, razem z `resolveIconUrl` i `slugifyIconName`.
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { Globe } from "lucide-react";
 import type { ReactElement } from "react";
 import type { IconRow } from "@/lib/iconLibrary";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { Facebook } from "@/lib/icons/brandIcons";
+import { listIcons } from "@/lib/iconLibrary";
 import { BrandIcon } from "../BrandIcon";
 
 const h = vi.hoisted(() => ({
@@ -230,5 +232,59 @@ describe("BrandIcon - etykieta dostępności", () => {
     const img = await renderedImage(<BrandIcon name="x" fallback={Globe} className="w-4 h-4" />);
 
     expect(img.getAttribute("alt")).toBe("x");
+  });
+});
+
+describe("BrandIcon - wgrana ikona marki ma pierwszeństwo przed glifem w kodzie", () => {
+  it("wiersz `facebook` z biblioteki wypiera glif Facebooka z modułu marek", async () => {
+    h.rows = [
+      iconRow({ name: "facebook", url_light: "/i/fb-light.png", url_dark: "/i/fb-dark.png" }),
+    ];
+
+    const img = await renderedImage(
+      <BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" alt="" />,
+    );
+
+    expect(img.getAttribute("src")).toBe("/i/fb-light.png");
+    expect(img.closest("div")?.querySelector("svg")).toBeNull();
+  });
+
+  it("wgrana ikona przejmuje wymiar miejsca (`style`, `width`/`height`) zapasu", async () => {
+    h.rows = [iconRow({ name: "linkedin", url_default: "/i/li.png" })];
+
+    const img = await renderedImage(
+      <BrandIcon
+        name="linkedin"
+        fallback={Globe}
+        width={14}
+        height={14}
+        style={{ width: "22px", height: "22px" }}
+      />,
+    );
+
+    expect(img.getAttribute("width")).toBe("14");
+    expect(img.getAttribute("height")).toBe("14");
+    expect(img.style.width).toBe("22px");
+    expect(img.style.objectFit).toBe("contain");
+  });
+
+  it("bez wiersza w bibliotece rysuje glif marki z modułu (Lucide 1.x go nie ma)", async () => {
+    const container = await renderedAfterLoad(
+      <BrandIcon name="facebook" fallback={Facebook} className="w-4 h-4" />,
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("svg.lucide-facebook")).not.toBeNull();
+  });
+
+  it("poza `QueryClientProvider` pokazuje zapas zamiast wywracać render i nie pyta bazy", () => {
+    vi.mocked(listIcons).mockClear();
+    h.rows = [iconRow({ name: "facebook", url_default: "/i/fb.png" })];
+
+    const { container } = render(<BrandIcon name="facebook" fallback={Facebook} />);
+
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(listIcons).not.toHaveBeenCalled();
   });
 });

@@ -137,13 +137,15 @@ import {
   Zap as LZap,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
+// Lucide 1.x nie ma ikon marek; wspólny moduł zachowuje ich geometrię z 0.577.
+// Ikony wgrane w /admin/icons mają pierwszeństwo przez `BrandIcon`.
 import {
   Facebook as LFacebook,
   Linkedin as LLinkedin,
   Twitter as LTwitter,
   Instagram as LInstagram,
   Youtube as LYoutube,
-} from "lucide-react";
+} from "@/lib/icons/brandIcons";
 
 export type LucideIcon = React.FC<IconProps>;
 
@@ -284,9 +286,8 @@ export const Gauge = /* @__PURE__ */ makeIcon(LGauge);
 export const Printer = /* @__PURE__ */ makeIcon(LPrinter);
 export const Download = /* @__PURE__ */ makeIcon(LDownload);
 
-// Brands. Kept behind makeIcon() so a future lucide-react release that drops
-// any of these exports degrades to a neutral Circle glyph instead of a
-// build-time TS2305 or a runtime crash.
+// Brands come from the shared brand module (Lucide 1.x has none); makeIcon()
+// keeps the same flat namespace shape as every other export here.
 export const Facebook = /* @__PURE__ */ makeIcon(LFacebook);
 export const Linkedin = /* @__PURE__ */ makeIcon(LLinkedin);
 export const Twitter = /* @__PURE__ */ makeIcon(LTwitter);

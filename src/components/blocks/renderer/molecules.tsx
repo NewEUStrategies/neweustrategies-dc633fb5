@@ -17,6 +17,7 @@ import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { resolveStandaloneShortcode } from "@/lib/content/shortcodes";
 import { XIcon } from "@/components/atoms/XIcon";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import type { BlockRenderer } from "./context";
 import { bool, jsonList, num, objList, sanitize, str, strList } from "./data";
@@ -553,7 +554,8 @@ export const renderSocialIcons: BlockRenderer = ({ block, cls }) => {
   return (
     <div className={`not-prose flex flex-wrap gap-3 ${alignCls} ${cls}`}>
       {items.map((it, i) => {
-        const Icon = SOCIAL_ICON_MAP[it.platform.toLowerCase()] ?? Rss;
+        const platform = it.platform.toLowerCase();
+        const Icon = SOCIAL_ICON_MAP[platform] ?? Rss;
         const url = safeUrl(it.url, "");
         if (!url) return null;
         return (
@@ -565,7 +567,8 @@ export const renderSocialIcons: BlockRenderer = ({ block, cls }) => {
             aria-label={it.platform || "social"}
             className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
           >
-            <Icon className={sizeCls} />
+            {/* Ikona wgrana w bibliotece ikon ma pierwszeństwo przed glifem w kodzie. */}
+            <BrandIcon name={platform || "rss"} fallback={Icon} className={sizeCls} alt="" />
           </a>
         );
       })}

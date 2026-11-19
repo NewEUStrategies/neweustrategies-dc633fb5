@@ -1,5 +1,5 @@
 ## divider (wariant z ikoną)
-nazwy katalogu z nowym HTML-em: 1702 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 166)
+nazwy katalogu z nowym HTML-em: 2108 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 161)
 nazwy katalogu bez zmiany HTML (1): "star"
 inne nazwy z nowym HTML-em (12):
   "Bell" [sync lucide-bell]
@@ -10,13 +10,13 @@ inne nazwy z nowym HTML-em (12):
   "default" [Suspense +brak-w-katalogu lucide-star]
   "fileText" [sync lucide-file-text]
   "file_text" [sync lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu lucide-star]
   "none" [Suspense +brak-w-katalogu lucide-star]
 
 ## timeline (ikona wpisu)
-nazwy katalogu z nowym HTML-em: 1702 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 166)
+nazwy katalogu z nowym HTML-em: 2108 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 161)
 nazwy katalogu bez zmiany HTML (1): "file-text"
 inne nazwy z nowym HTML-em (13):
   " Star" [sync lucide-star]
@@ -27,14 +27,14 @@ inne nazwy z nowym HTML-em (13):
   "Star " [sync lucide-star]
   "auto" [Suspense +brak-w-katalogu lucide-file-text]
   "default" [Suspense +brak-w-katalogu lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu lucide-file-text]
   "none" [Suspense +brak-w-katalogu lucide-file-text]
   "star-" [sync lucide-star]
 
 ## timeline (ikona tytułu)
-nazwy katalogu z nowym HTML-em: 1703 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 167)
+nazwy katalogu z nowym HTML-em: 2109 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 162)
 nazwy katalogu bez zmiany HTML (0): 
 inne nazwy z nowym HTML-em (17):
   " Star" [sync lucide-star]
@@ -49,14 +49,14 @@ inne nazwy z nowym HTML-em (17):
   "default" [Suspense +brak-w-katalogu bez-svg]
   "fileText" [sync lucide-file-text]
   "file_text" [sync lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu bez-svg]
   "none" [Suspense +brak-w-katalogu bez-svg]
   "star-" [sync lucide-star]
 
 ## hot-topic-bar
-nazwy katalogu z nowym HTML-em: 1702 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 166)
+nazwy katalogu z nowym HTML-em: 2108 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 161)
 nazwy katalogu bez zmiany HTML (1): "flame"
 inne nazwy z nowym HTML-em (17):
   " Star" [sync lucide-star,lucide-arrow-right]
@@ -71,14 +71,14 @@ inne nazwy z nowym HTML-em (17):
   "default" [Suspense +brak-w-katalogu lucide-flame,lucide-arrow-right]
   "fileText" [sync lucide-file-text,lucide-arrow-right]
   "file_text" [sync lucide-file-text,lucide-arrow-right]
-  "home" [sync lucide-house,lucide-arrow-right]
-  "more-horizontal" [Suspense lucide-more-horizontal,lucide-arrow-right]
+  "home" [sync lucide-house+lucide-home,lucide-arrow-right]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal,lucide-arrow-right]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu lucide-flame,lucide-arrow-right]
   "none" [Suspense +brak-w-katalogu lucide-flame,lucide-arrow-right]
   "star-" [sync lucide-star,lucide-arrow-right]
 
 ## newsletter (wariant icon)
-nazwy katalogu z nowym HTML-em: 1702 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 166)
+nazwy katalogu z nowym HTML-em: 2108 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 161)
 nazwy katalogu bez zmiany HTML (1): "mail"
 inne nazwy z nowym HTML-em (17):
   " Star" [sync lucide-star]
@@ -93,14 +93,14 @@ inne nazwy z nowym HTML-em (17):
   "default" [Suspense +brak-w-katalogu lucide-mail]
   "fileText" [sync lucide-file-text]
   "file_text" [sync lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu lucide-mail]
   "none" [Suspense +brak-w-katalogu lucide-mail]
   "star-" [sync lucide-star]
 
 ## heading
-nazwy katalogu z nowym HTML-em: 1703 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 167)
+nazwy katalogu z nowym HTML-em: 2109 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 162)
 nazwy katalogu bez zmiany HTML (0): 
 inne nazwy z nowym HTML-em (17):
   " Star" [sync lucide-star]
@@ -115,14 +115,14 @@ inne nazwy z nowym HTML-em (17):
   "default" [Suspense +brak-w-katalogu bez-svg]
   "fileText" [sync lucide-file-text]
   "file_text" [sync lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu bez-svg]
   "none" [Suspense +brak-w-katalogu bez-svg]
   "star-" [sync lucide-star]
 
 ## button
-nazwy katalogu z nowym HTML-em: 1703 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 167)
+nazwy katalogu z nowym HTML-em: 2109 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 162)
 nazwy katalogu bez zmiany HTML (0): 
 inne nazwy z nowym HTML-em (17):
   " Star" [sync lucide-star]
@@ -137,14 +137,14 @@ inne nazwy z nowym HTML-em (17):
   "default" [Suspense +brak-w-katalogu bez-svg]
   "fileText" [sync lucide-file-text]
   "file_text" [sync lucide-file-text]
-  "home" [sync lucide-house]
-  "more-horizontal" [Suspense lucide-more-horizontal]
+  "home" [sync lucide-house+lucide-home]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu bez-svg]
   "none" [Suspense +brak-w-katalogu bez-svg]
   "star-" [sync lucide-star]
 
 ## alert-bar
-nazwy katalogu z nowym HTML-em: 1702 z 1703 (porcja katalogu (Suspense): 1536, synchronicznie: zestaw kuratorowany albo eksport shimu: 166)
+nazwy katalogu z nowym HTML-em: 2108 z 2109 (porcja katalogu (Suspense): 1947, synchronicznie: zestaw kuratorowany albo eksport shimu: 161)
 nazwy katalogu bez zmiany HTML (1): "megaphone"
 inne nazwy z nowym HTML-em (15):
   " Star" [sync lucide-star,lucide-x]
@@ -158,7 +158,7 @@ inne nazwy z nowym HTML-em (15):
   "default" [Suspense +brak-w-katalogu lucide-megaphone,lucide-x]
   "fileText" [sync lucide-file-text,lucide-x]
   "file_text" [sync lucide-file-text,lucide-x]
-  "home" [sync lucide-house,lucide-x]
-  "more-horizontal" [Suspense lucide-more-horizontal,lucide-x]
+  "home" [sync lucide-house+lucide-home,lucide-x]
+  "more-horizontal" [sync lucide-ellipsis+lucide-more-horizontal,lucide-x]
   "nie-ma-takiej-ikony" [Suspense +brak-w-katalogu lucide-megaphone,lucide-x]
   "star-" [sync lucide-star,lucide-x]

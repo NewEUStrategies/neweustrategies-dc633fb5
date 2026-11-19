@@ -28,6 +28,15 @@
 //     bajtu ALBO jest wymieniona w pliku zamierzonych różnic;
 //  3. klucze prototypu obiektu: zawsze zastępnik co do bajtu.
 //
+// PRZERYSOWANIE LUCIDE 1.x (zgoda właściciela, 19.11.2026). Aktualizacja
+// lucide-react 0.577 -> 1.x zmienia WYŁĄCZNIE wnętrze `<svg>` (ścieżki glifu)
+// i listę klas `lucide-*` części ikon. Plik `__snapshots__/
+// contentIconNameMarkup.lucide1.json` (zamrożony, z obu wersji pakietu) mapuje
+// klasy `lucide-*` z 1.x na klasy i glif z 0.577. Reguła 1 i porównanie
+// zastępnika przyjmują HTML, który PO cofnięciu tej mapy jest bajt w bajt
+// równy bazie - dowód, że układ, atrybuty, wymiary i granice Suspense są
+// nietknięte. Mapa obowiązuje tylko dla dokładnie tego nowego glifu.
+//
 // Render: `renderToString` (nie `renderToStaticMarkup`), więc znaczniki granic
 // Suspense (`<!--$-->`) są częścią porównywanego HTML-a. Nazwy idące przez
 // leniwą porcję katalogu są przed porównaniem „rozgrzane" renderem
@@ -35,7 +44,7 @@
 // `renderToString` oddałby zastępnik granicy zamiast ikony.
 // Rejestr leniwych widgetów -> lustro eager (jak w `chromeWidgetViewParity`).
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -80,6 +89,9 @@ const { AlertBar } = await import("@/components/AlertBar");
 
 const BASE_FILE = resolve(__dirname, "__snapshots__/contentIconNameMarkup.baza.txt");
 const WRITE_BASE = process.env.IKONY_WZORZEC === "zapisz";
+const LUCIDE1_FILE = resolve(__dirname, "__snapshots__/contentIconNameMarkup.lucide1.json");
+/** Tryb zbierania klas `lucide-*` do zbudowania mapy (`IKONY_LUCIDE1=klucze`). */
+const LUCIDE1_KEYS_OUT = process.env.IKONY_LUCIDE1 === "klucze" ? "/tmp/lucide1-keys.json" : null;
 
 // ---------- dziedzina nazw ----------
 
@@ -320,6 +332,49 @@ function describeHtml(html: string): string {
   return `[${suspense}${missing} ${classes || "bez-svg"}]`;
 }
 
+// ---------- przerysowanie Lucide 1.x ----------
+
+interface Lucide1Redraw {
+  /** Klasy `lucide lucide-*` tej ikony w 0.577. */
+  oldClass: string;
+  /** Wnętrze `<svg>` w 0.577. */
+  oldInner: string;
+  /** Wnętrze `<svg>` w 1.x - mapa działa tylko dla dokładnie tego glifu. */
+  newInner: string;
+}
+
+const LUCIDE1: Readonly<Record<string, Lucide1Redraw>> = existsSync(LUCIDE1_FILE)
+  ? (JSON.parse(readFileSync(LUCIDE1_FILE, "utf8")) as Record<string, Lucide1Redraw>)
+  : {};
+const lucide1Keys = new Set<string>();
+
+/** Rozdziela atrybut `class` na prefiks klas lucide i klasy miejsca. */
+function splitLucideClass(value: string): { lucide: string; rest: string[] } {
+  const tokens = value.split(" ");
+  let end = 0;
+  while (end < tokens.length && (tokens[end] === "lucide" || tokens[end].startsWith("lucide-"))) {
+    end += 1;
+  }
+  return { lucide: tokens.slice(0, end).join(" "), rest: tokens.slice(end) };
+}
+
+/** HTML z glifami 1.x cofniętymi do 0.577 wg zamrożonej mapy. */
+function asLucide0(html: string): string {
+  return html.replace(
+    /<svg\b([^>]*?) class="([^"]*)"([^>]*)>([\s\S]*?)<\/svg>/g,
+    (whole, before: string, cls: string, after: string, inner: string) => {
+      const { lucide, rest } = splitLucideClass(cls);
+      if (LUCIDE1_KEYS_OUT && lucide) lucide1Keys.add(lucide);
+      const redraw = Object.prototype.hasOwnProperty.call(LUCIDE1, lucide)
+        ? LUCIDE1[lucide]
+        : undefined;
+      if (!redraw || redraw.newInner !== inner) return whole;
+      const oldClass = [redraw.oldClass, ...rest].join(" ");
+      return `<svg${before} class="${oldClass}"${after}>${redraw.oldInner}</svg>`;
+    },
+  );
+}
+
 // ---------- plik bazowy ----------
 
 interface BaseSite {
@@ -344,7 +399,7 @@ const EXTRA_SECTION = "alert-bar (auto wg stylu)";
 /** Pasek ogłoszeń w trybie „auto": nazwa ikony wynika ze stylu paska. */
 function alertBarAutoRows(): string[] {
   return ["brand", "info", "warning", "success", "nieznany", "constructor"].map(
-    (style) => `auto/${style} ${sha(renderToString(alertBarElement("auto", style)))}`,
+    (style) => `auto/${style} ${sha(asLucide0(renderToString(alertBarElement("auto", style))))}`,
   );
 }
 
@@ -406,13 +461,24 @@ describe("ikony z treści CMS: HTML każdego miejsca wobec kodu bazowego", () =>
       writeFileSync(BASE_FILE, `${HEADER}\n\n${body}\n`);
     }
     const base = parseBase(readFileSync(BASE_FILE, "utf8"));
+    if (LUCIDE1_KEYS_OUT) {
+      // Tylko zbiór klas `lucide-*` w HTML-u nazw z bazy, zastępników i trybu „auto".
+      for (const site of SITES) {
+        const ref = base.sites.get(site.id);
+        asLucide0(await serverMarkup(site, UNKNOWN));
+        for (const name of ref?.resolving.keys() ?? []) asLucide0(await serverMarkup(site, name));
+      }
+      alertBarAutoRows();
+      writeFileSync(LUCIDE1_KEYS_OUT, JSON.stringify([...lucide1Keys].sort()));
+      return;
+    }
     const changes: string[] = [];
     for (const site of SITES) {
       const ref = base.sites.get(site.id);
       expect(ref, site.id).toBeDefined();
       if (!ref) continue;
       const fallback = await serverMarkup(site, UNKNOWN);
-      expect(fallback, `${site.id}: zastępnik`).toBe(ref.fallback);
+      expect(asLucide0(fallback), `${site.id}: zastępnik`).toBe(ref.fallback);
 
       const broken: string[] = [];
       const changed = new Map<string, string>();
@@ -423,7 +489,7 @@ describe("ikony z treści CMS: HTML każdego miejsca wobec kodu bazowego", () =>
           // Reguła 1: bajt w bajt to samo co na bazie.
           const [oldHtml, oldSvg] = old;
           const nowSvg = sha(svgDescriptor(html));
-          if (sha(html) !== oldHtml) {
+          if (sha(html) !== oldHtml && sha(asLucide0(html)) !== oldHtml) {
             broken.push(
               `${JSON.stringify(name)}: HTML ${oldHtml} -> ${sha(html)}` +
                 (nowSvg === oldSvg ? " (glif ten sam)" : ` (glif ${oldSvg} -> ${nowSvg})`),
@@ -431,7 +497,7 @@ describe("ikony z treści CMS: HTML każdego miejsca wobec kodu bazowego", () =>
           }
           continue;
         }
-        if (html === ref.fallback) continue;
+        if (html === ref.fallback || asLucide0(html) === ref.fallback) continue;
         if (PROTOTYPE_KEYS.includes(name)) {
           // Reguła 3: klucz prototypu nigdy nie jest ikoną.
           broken.push(`${JSON.stringify(name)}: klucz prototypu nie dał zastępnika`);

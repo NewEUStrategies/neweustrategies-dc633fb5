@@ -30,6 +30,7 @@ import {
   Tag,
 } from "lucide-react";
 import { Linkedin } from "@/lib/icons/brandIcons";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 import {
   getCrmLead,
@@ -499,7 +500,13 @@ function AdminCrmDetailPage() {
                       rel="noreferrer noopener"
                       className="flex items-center gap-2 text-primary hover:underline"
                     >
-                      <Linkedin className="h-3.5 w-3.5" /> LinkedIn
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="h-3.5 w-3.5"
+                        alt=""
+                      />{" "}
+                      LinkedIn
                     </a>
                   )}
                   <div className="flex justify-end pt-1">

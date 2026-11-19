@@ -165,13 +165,23 @@ export default defineConfig({
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
-    // wywraca SSR. Alias przypina WSZYSTKIE importy do hoistowanej 4.5.0.
+    // wywraca SSR. Alias przypina stare ścieżki i GOŁY `entities` do
+    // hoistowanej 4.5.0. Tylko dokładna nazwa (wyrażenie `^entities$`), bo
+    // htmlparser2 10 (html-to-text 10 z @react-email/render 2.3) importuje
+    // podścieżkę `entities/decode` z własnej 7.x - prefiks aliasu kierował ją
+    // do 4.5.0, która jej nie ma, i wywracał bundel klienta.
     resolve: {
-      alias: {
-        "entities/lib/decode.js": path.resolve(rootDir, "node_modules/entities/lib/decode.js"),
-        "entities/lib/encode.js": path.resolve(rootDir, "node_modules/entities/lib/encode.js"),
-        entities: path.resolve(rootDir, "node_modules/entities"),
-      },
+      alias: [
+        {
+          find: "entities/lib/decode.js",
+          replacement: path.resolve(rootDir, "node_modules/entities/lib/decode.js"),
+        },
+        {
+          find: "entities/lib/encode.js",
+          replacement: path.resolve(rootDir, "node_modules/entities/lib/encode.js"),
+        },
+        { find: /^entities$/, replacement: path.resolve(rootDir, "node_modules/entities") },
+      ],
     },
 
     // These are only reached through TanStack Start's dev-time SSR/client

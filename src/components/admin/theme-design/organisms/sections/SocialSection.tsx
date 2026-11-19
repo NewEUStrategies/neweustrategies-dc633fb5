@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Mail } from "lucide-react";
 import { Facebook, Instagram, Youtube, Linkedin } from "@/lib/icons/brandIcons";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Section, FieldGrid, Field, PreviewFrame, PxStepper } from "../../atoms";
 import { ColorControl } from "../../molecules";
 import type { SectionEditorProps } from "../../types";
@@ -83,19 +84,19 @@ export function SocialSection({ draft, set, setColor, previewMode }: SectionEdit
         <div style={previewVars}>
           <div className="cms-social">
             <button className="cms-social__btn" aria-label="Facebook">
-              <Facebook />
+              <BrandIcon name="facebook" fallback={Facebook} alt="" />
             </button>
             <button className="cms-social__btn" aria-label="Instagram">
-              <Instagram />
+              <BrandIcon name="instagram" fallback={Instagram} alt="" />
             </button>
             <button className="cms-social__btn" aria-label="YouTube">
-              <Youtube />
+              <BrandIcon name="youtube" fallback={Youtube} alt="" />
             </button>
             <button className="cms-social__btn" aria-label="LinkedIn">
-              <Linkedin />
+              <BrandIcon name="linkedin" fallback={Linkedin} alt="" />
             </button>
             <button className="cms-social__btn" aria-label="Email">
-              <Mail />
+              <BrandIcon name="email" fallback={Mail} alt="" />
             </button>
           </div>
         </div>

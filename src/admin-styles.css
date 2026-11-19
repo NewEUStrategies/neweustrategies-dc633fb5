@@ -44,7 +44,9 @@
     transform 0.15s ease;
 }
 .cms-social a svg,
-.cms-social__btn svg {
+.cms-social__btn svg,
+.cms-social a img,
+.cms-social__btn img {
   width: var(--td-si-size, 18px);
   height: var(--td-si-size, 18px);
 }

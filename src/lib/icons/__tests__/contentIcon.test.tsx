@@ -19,6 +19,8 @@ import { renderToReadableStream, renderToStaticMarkup, renderToString } from "re
 import * as Lucide from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import catalogIconNames from "@/lib/icons/iconNames.generated.json";
+import * as BrandIcons from "@/lib/icons/brandIcons";
+import { LEGACY_BRAND_ICON_NODES } from "@/lib/icons/brandIconNodes.mjs";
 
 // Przestrzeń nazw shimu jako ZWYKŁY obiekt (prototyp `Object`), jak w buildzie.
 vi.mock("@/lib/lucide-shim", async (importOriginal) => {
@@ -61,7 +63,18 @@ function glyph(html: string): string {
 describe("contentIcon - nazwy z wybieraka ikon na serwerze", () => {
   it("każda nazwa katalogu rysuje glif komponentu lucide-react tej nazwy", async () => {
     expect(CATALOG.length).toBeGreaterThan(1000);
-    const lucide = Lucide as unknown as Record<string, IconComponent | undefined>;
+    // Lucide 1.x nie ma ikon marek: wzorcem jest wspólny moduł marek
+    // (komponenty i pozostałe glify usunięte bez zamiennika).
+    const legacyBrands = Object.fromEntries(
+      Object.entries(LEGACY_BRAND_ICON_NODES).map(([name, node]) => [
+        lucideExportName(name),
+        Lucide.createLucideIcon(name, node),
+      ]),
+    );
+    const lucide = { ...Lucide, ...BrandIcons, ...legacyBrands } as unknown as Record<
+      string,
+      IconComponent | undefined
+    >;
     const wrong: string[] = [];
     // Jeden render na całą listę (porcje katalogu ładują się raz). Render
     // strumieniowy czeka na porcje, ale przy ~1600 granicach Fizz wysyła
@@ -161,6 +174,32 @@ describe("contentIcon - kolejność rozstrzygania", () => {
     expect(contentIcon("redo-2", Fallback, 16)).not.toBe(shim.Redo2);
     expect(contentIcon("redo-2", Fallback, 16)).toBe(contentIcon("redo-2", Fallback, 16));
     expect(contentIcon("redo-2", Fallback, 16)).not.toBe(Fallback);
+  });
+
+  it("eksport shimu wybrany z nazwy wybieraka rysuje glif lucide-react tej nazwy (także po zmianie nazwy w lucide)", () => {
+    const shim = ShimNamespace as unknown as Record<string, unknown>;
+    const lucide = { ...Lucide, ...BrandIcons } as unknown as Record<
+      string,
+      IconComponent | undefined
+    >;
+    const wrong: string[] = [];
+    let checked = 0;
+    for (const pascal of Object.keys(shim)) {
+      const kebab = pascal.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+      if (contentIcon(kebab, Fallback, 16) !== shim[pascal]) continue;
+      checked += 1;
+      const Reference = lucide[pascal];
+      const Picked = shim[pascal] as IconComponent;
+      if (!Reference) {
+        wrong.push(`${kebab}: brak wzorca ${pascal}`);
+        continue;
+      }
+      if (glyph(renderToStaticMarkup(<Picked />)) !== glyph(renderToStaticMarkup(<Reference />))) {
+        wrong.push(`${kebab}: inny glif niż ${pascal}`);
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
+    expect(wrong).toEqual([]);
   });
 
   it.each([

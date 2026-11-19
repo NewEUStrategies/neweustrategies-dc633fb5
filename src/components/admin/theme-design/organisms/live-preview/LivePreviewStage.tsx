@@ -5,13 +5,21 @@
 import { useTranslation } from "react-i18next";
 import { Mail } from "lucide-react";
 import { Facebook, Instagram, Youtube, Linkedin } from "@/lib/icons/brandIcons";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import type { ThemeDesign, ThemeDesignLang } from "@/lib/theme/themeDesign";
 import { MetaSeparator } from "../../atoms";
 import { ToolbarButtonPreview } from "../../molecules";
 import { getPreviewCopy, getTabTitle, type PreviewSection } from "../../lib";
 import "@/lib/i18n-admin-theme-design";
 
-const SOCIAL_ICONS = [Facebook, Instagram, Youtube, Linkedin, Mail] as const;
+// Podgląd = strona: ikona wgrana w bibliotece ikon wygrywa z glifem w kodzie.
+const SOCIAL_ICONS = [
+  { name: "facebook", Icon: Facebook },
+  { name: "instagram", Icon: Instagram },
+  { name: "youtube", Icon: Youtube },
+  { name: "linkedin", Icon: Linkedin },
+  { name: "email", Icon: Mail },
+] as const;
 
 export function LivePreviewStage({
   draft,
@@ -149,9 +157,9 @@ export function LivePreviewStage({
 
       {activeTab === "social" && (
         <div className="inline-flex items-center" style={{ gap: draft.socialIcons.gap }}>
-          {SOCIAL_ICONS.map((Icon, index) => (
+          {SOCIAL_ICONS.map(({ name, Icon }) => (
             <span
-              key={index}
+              key={name}
               className="inline-flex items-center justify-center"
               style={{
                 background: "var(--td-si-bg, transparent)",
@@ -160,7 +168,12 @@ export function LivePreviewStage({
                 borderRadius: draft.socialIcons.radius,
               }}
             >
-              <Icon style={{ width: draft.socialIcons.size, height: draft.socialIcons.size }} />
+              <BrandIcon
+                name={name}
+                fallback={Icon}
+                alt=""
+                style={{ width: draft.socialIcons.size, height: draft.socialIcons.size }}
+              />
             </span>
           ))}
         </div>

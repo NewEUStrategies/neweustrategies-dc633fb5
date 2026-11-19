@@ -18,6 +18,7 @@ import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { BriefcaseBusiness, ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { Linkedin } from "@/lib/icons/brandIcons";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -274,7 +275,13 @@ export function LeadRecruitmentPanel({
                         rel="noopener noreferrer"
                         className="mt-2 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                       >
-                        <Linkedin className="h-3 w-3" aria-hidden />
+                        <BrandIcon
+                          name="linkedin"
+                          fallback={Linkedin}
+                          className="h-3 w-3"
+                          aria-hidden
+                          alt=""
+                        />
                         {L.linkedin}
                       </a>
                     )}

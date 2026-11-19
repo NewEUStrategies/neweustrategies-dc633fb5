@@ -133,7 +133,7 @@ export function QuoteShareBar({
         <Quote className="h-3.5 w-3.5" />
       </span>
       <PostIconButton label={t("shareX")} onClick={onShareX}>
-        <XIcon className="h-3.5 w-3.5" />
+        <BrandIcon name="x" fallback={XIcon} className="h-3.5 w-3.5" alt="" />
       </PostIconButton>
       <PostIconButton label={t("shareLinkedin")} onClick={onShareLinkedin}>
         <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" />

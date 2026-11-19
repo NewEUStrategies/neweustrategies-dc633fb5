@@ -27,6 +27,7 @@ import { formatDate, formatDateAttr } from "@/lib/i18n/format";
 import { postHref, type PostHrefSource } from "@/lib/routing/postHref";
 import { User, Mail, Phone, Globe, Music, Link as LinkIcon, UserPlus } from "lucide-react";
 import { Linkedin, Facebook, Instagram } from "@/lib/icons/brandIcons";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 // X (dawniej Twitter) - własny logotyp. Lucide nie zawiera ikony X.
 const XIcon = (props: SVGProps<SVGSVGElement>) => (
@@ -243,7 +244,7 @@ export function AuthorBioView({
               loading="lazy"
             />
           ) : Icon ? (
-            <Icon width={14} height={14} aria-hidden />
+            <BrandIcon name={key} fallback={Icon} width={14} height={14} aria-hidden alt="" />
           ) : (
             <LinkIcon width={14} height={14} aria-hidden />
           )}

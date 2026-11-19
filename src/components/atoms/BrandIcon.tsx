@@ -1,8 +1,13 @@
 // Hook + komponent: ładuje ikony brandów z biblioteki ikon (icon_library)
 // i pozwala ich używać jako drop-in zastępstwo dla ikon Lucide. Jeśli dla
-// danego brandu nie ma wpisu w bibliotece - renderujemy fallback (Lucide).
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+// danego brandu nie ma wpisu w bibliotece - renderujemy fallback.
+//
+// PIERWSZEŃSTWO MAREK. Ikona wgrana w /admin/icons ZAWSZE wygrywa z glifem
+// w kodzie. Glify marek (Facebook, LinkedIn, X...) pochodzą ze wspólnego
+// modułu `@/lib/icons/brandIcons` (Lucide 1.x nie ma ikon marek) i są tylko
+// zapasem. Każde miejsce rysujące markę idzie przez `BrandIcon`.
+import { useContext, useMemo } from "react";
+import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { listIcons, resolveIconUrl, slugifyIconName, type IconRow } from "@/lib/iconLibrary";
 import { useTheme } from "@/components/ThemeProvider";
 import type { ComponentType, SVGAttributes } from "react";
@@ -21,12 +26,22 @@ export interface BrandIconMap {
  * "custom" po imporcie hurtowym) były dostępne wszędzie tam, gdzie używamy
  * BrandIcon - bez wymagania ręcznej rekategoryzacji.
  */
+// Bezczynny klient dla drzew bez `QueryClientProvider` (podgląd w izolacji,
+// e-maile): zapytanie wyłączone, więc atom pokazuje zapas zamiast wywracać render.
+let inertClient: QueryClient | null = null;
+const getInertClient = (): QueryClient => (inertClient ??= new QueryClient());
+
 function useBrandIcons(kind?: "brand" | "flag" | "custom"): BrandIconMap {
-  const { data = [] } = useQuery({
-    queryKey: ["icon-library", kind ?? "all"],
-    queryFn: () => listIcons(kind),
-    staleTime: STALE,
-  });
+  const client = useContext(QueryClientContext);
+  const { data = [] } = useQuery(
+    {
+      queryKey: ["icon-library", kind ?? "all"],
+      queryFn: () => listIcons(kind),
+      staleTime: STALE,
+      enabled: client !== undefined,
+    },
+    client ?? getInertClient(),
+  );
 
   return useMemo(() => {
     const byName: Record<string, IconRow> = {};
@@ -66,6 +81,13 @@ const ALIASES: Record<string, string[]> = {
   youtube: ["youtube", "yt"],
   instagram: ["instagram", "ig"],
   tiktok: ["tiktok", "tik-tok"],
+  github: ["github", "git-hub"],
+  gitlab: ["gitlab", "git-lab"],
+  slack: ["slack"],
+  twitch: ["twitch"],
+  dribbble: ["dribbble"],
+  figma: ["figma"],
+  trello: ["trello"],
   threads: ["threads", "meta-threads"],
   spotify: ["spotify"],
   email: ["email", "mail", "envelope", "at"],
@@ -96,15 +118,19 @@ export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }:
     const mode = theme === "dark" ? "dark" : "light";
     const src = resolveIconUrl(row, mode);
     if (src) {
+      // Wymiar miejsca (klasa, `style`, `width`/`height`) obowiązuje też wgraną
+      // ikonę, więc zamiana zapasu na plik nie zmienia geometrii.
       return (
         <img
           src={src}
           alt={alt ?? row.label ?? name}
           className={className}
+          width={rest.width}
+          height={rest.height}
           loading="lazy"
           decoding="async"
           draggable={false}
-          style={{ objectFit: "contain" }}
+          style={{ objectFit: "contain", ...rest.style }}
         />
       );
     }

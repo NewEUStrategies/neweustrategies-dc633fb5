@@ -22,8 +22,9 @@
 //     `star`, `file-text`...);
 //  3. poprawna nazwa wybieraka (małe litery i cyfry rozdzielone pojedynczym
 //     `-`, alfabet katalogu `iconNames.generated.json`), której odpowiednik
-//     PascalCase jest eksportem shimu (`send` -> `Send`, `trash-2` -> `Trash2`;
-//     51 nazw; aliasy innych ikon, `redo-2` i `undo-2`, idą do katalogu) - ten
+//     PascalCase jest eksportem shimu (`send` -> `Send`, `trash-2` -> `Trash2`,
+//     także aliasy lucide po zmianie nazwy; aliasy własne shimu, `redo-2`
+//     i `undo-2`, idą do katalogu) - ten
 //     komponent synchronicznie: jest już w chunku startowym,
 //     więc porcja katalogu (22-24 KB gzip w renderze czysto klienckim) byłaby
 //     tylko kosztem (przegląd naprawy);
@@ -66,6 +67,22 @@ const pickerToPascal = (name: string): string =>
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");
+
+/**
+ * Czy eksport shimu `pascal` JEST ikoną lucide tej nazwy. `displayName`
+ * (z `createLucideIcon`) to nazwa kanoniczna: równa `pascal` - ta sama ikona;
+ * inna, gdy lucide >=1 przemianował ikonę i zostawił starą nazwę jako swój
+ * alias (`Trash2` -> `Trash`, `TriangleAlert` -> `TriangleExclamationPoint`) -
+ * katalog ma ten sam alias, więc glif jest identyczny. Odrzucamy tylko aliasy
+ * WŁASNE shimu (`Redo2` = `Redo`, `Undo2` = `Undo`): wskazują inny eksport
+ * shimu, a nazwa z wybieraka ma rysować glif z katalogu.
+ */
+function isLucideIconOfName(Icon: ContentIconComponent, pascal: string): boolean {
+  const canonical = (Icon as { displayName?: string }).displayName;
+  if (!canonical) return false;
+  if (canonical === pascal) return true;
+  return !(hasOwn(SHIM, canonical) && SHIM[canonical] === Icon);
+}
 
 // Stała tożsamość komponentu na (zastępnik, pudełko, nazwa): nowy typ przy
 // każdym renderze przemontowywałby ikonę (nowy węzeł SVG, utrata granicy).
@@ -123,12 +140,7 @@ export function contentIcon(
   if (PICKER_NAME.test(value) && !hasOwn(Object.prototype, value)) {
     const pascal = pickerToPascal(value);
     const ShimByPicker = hasOwn(SHIM, pascal) ? SHIM[pascal] : undefined;
-    // Tylko gdy eksport shimu JEST ikoną lucide tej nazwy (`displayName`
-    // z `createLucideIcon`): shim ma aliasy innych ikon (`Redo2` = `Redo`,
-    // `Undo2` = `Undo`), a nazwa z wybieraka ma rysować glif z katalogu.
-    if (ShimByPicker && (ShimByPicker as { displayName?: string }).displayName === pascal) {
-      return ShimByPicker;
-    }
+    if (ShimByPicker && isLucideIconOfName(ShimByPicker, pascal)) return ShimByPicker;
     return catalogIcon(value, fallback, boxSize);
   }
   return fallback;

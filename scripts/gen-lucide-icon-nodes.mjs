@@ -21,6 +21,7 @@ const version = JSON.parse(readFileSync("node_modules/lucide-react/package.json"
 
 const out = {};
 const aliases = {};
+const inlineAliases = {};
 let failed = 0;
 for (const fn of readdirSync(ICONS_DIR).sort()) {
   if ((!fn.endsWith(".js") && !fn.endsWith(".mjs")) || fn === "index.js" || fn === "index.mjs")
@@ -30,7 +31,9 @@ for (const fn of readdirSync(ICONS_DIR).sort()) {
   // lucide-react <1: `const __iconNode = [...]`; >=1: `const __iconData = { name, size, node: [...] }`.
   const m =
     /const __iconNode\S* = (\[[\s\S]*?\]);\n/.exec(src) ??
-    /const __iconData\S* = \{[\s\S]*?\n  node: (\[[\s\S]*?\n  \])\n\};\n/.exec(src);
+    /const __iconData\S* = \{[\s\S]*?\n  node: (\[[\s\S]*?\n  \]|\[[^\n]*\])(?:,\n  aliases: (\[[^\n]*\]))?\n\};\n/.exec(
+      src,
+    );
   if (!m) {
     // Pliki-aliasy re-eksportują kanoniczną ikonę: zapisz mapowanie nazw.
     const alias = /export \{ default(?: as \w+)? \} from '\.\/([a-z0-9-]+)\.m?js'/.exec(src);
@@ -44,14 +47,26 @@ for (const fn of readdirSync(ICONS_DIR).sort()) {
     out[name] = JSON.parse(arr);
   } catch {
     failed++;
+    continue;
+  }
+  // lucide-react >=1 trzyma część starych nazw tylko w `aliases` danych ikony
+  // (bez osobnego pliku); zachowujemy je, żeby nazwy zapisane w treściach CMS
+  // nadal wskazywały tę samą ikonę.
+  if (m[2]) {
+    for (const alias of JSON.parse(m[2])) inlineAliases[alias] = name;
   }
 }
 
 // Lucide 1.x usunął ikony marek; treści CMS nadal używają tych nazw, więc
 // katalog dostaje te same glify co `src/lib/icons/brandIcons.ts`.
-const { BRAND_ICON_NODES } = await import("../src/lib/icons/brandIconNodes.mjs");
-for (const [name, node] of Object.entries(BRAND_ICON_NODES)) {
+const { BRAND_ICON_NODES, LEGACY_BRAND_ICON_NODES } =
+  await import("../src/lib/icons/brandIconNodes.mjs");
+for (const [name, node] of Object.entries({ ...BRAND_ICON_NODES, ...LEGACY_BRAND_ICON_NODES })) {
   if (!out[name]) out[name] = node;
+}
+
+for (const [alias, target] of Object.entries(inlineAliases)) {
+  if (!out[alias] && !aliases[alias]) aliases[alias] = target;
 }
 
 const names = Object.keys(out);
