@@ -639,7 +639,7 @@ describe("admin.research-programs - zapis dossier", () => {
     // Usuwamy PIERWSZE pytanie (z wiersza programu), drugie ma zostać.
     const questionTrash = dialog
       .getAllByRole("button")
-      .filter((b) => b.querySelector("svg.lucide-trash2"));
+      .filter((b) => b.querySelector("svg.lucide-trash-2"));
     fireEvent.click(questionTrash[0]);
     fireEvent.click(button("adminResearchPrograms.save"));
 
@@ -689,7 +689,7 @@ describe("admin.research-programs - usunięcie programu", () => {
   async function clickDelete() {
     await mount();
     await screen.findByText(/Bezpieczeństwo Wschodu/);
-    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"));
+    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"));
     if (!trash) throw new Error("test: brak przycisku usunięcia w wierszu programu");
     fireEvent.click(trash);
   }
@@ -729,7 +729,7 @@ describe("admin.research-programs - usunięcie programu", () => {
     // czyli wszystkie programy obszaru roboczego.
     await mount();
     await screen.findByText(/Bezpieczeństwo Wschodu/);
-    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"));
+    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"));
     if (!trash) throw new Error("test: brak przycisku usunięcia w wierszu programu");
     fireEvent.click(trash);
 
@@ -756,7 +756,7 @@ describe("admin.research-programs - usunięcie programu", () => {
     const view = await mount();
     await screen.findByText(/Bezpieczeństwo Wschodu/);
     const spy = vi.spyOn(view.queryClient, "invalidateQueries");
-    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"));
+    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"));
     if (!trash) throw new Error("test: brak przycisku usunięcia w wierszu programu");
     fireEvent.click(trash);
 
@@ -775,7 +775,7 @@ describe("admin.research-programs - usunięcie programu", () => {
     const view = await mount();
     await screen.findByText(/Bezpieczeństwo Wschodu/);
     const spy = vi.spyOn(view.queryClient, "invalidateQueries");
-    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"));
+    const trash = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"));
     if (!trash) throw new Error("test: brak przycisku usunięcia w wierszu programu");
     fireEvent.click(trash);
 
@@ -835,7 +835,7 @@ describe("admin.research-programs - okno treści programu i cztery zakładki", (
 
     const trash = screen
       .getAllByRole("button")
-      .filter((b) => b.querySelector("svg.lucide-trash2"))
+      .filter((b) => b.querySelector("svg.lucide-trash-2"))
       .at(-1);
     if (!trash) throw new Error("test: brak przycisku usunięcia członka");
     fireEvent.click(trash);
@@ -871,7 +871,7 @@ describe("admin.research-programs - okno treści programu i cztery zakładki", (
     await screen.findByText("Zofia Testowa");
     const trash = screen
       .getAllByRole("button")
-      .filter((b) => b.querySelector("svg.lucide-trash2"))
+      .filter((b) => b.querySelector("svg.lucide-trash-2"))
       .at(-1);
     fireEvent.click(trash!);
 
@@ -1294,7 +1294,7 @@ describe("admin.research-programs - okno treści programu i cztery zakładki", (
       const spy = vi.spyOn(view.queryClient, "invalidateQueries");
       const trash = within(screen.getByRole("tabpanel"))
         .getAllByRole("button")
-        .find((b) => b.querySelector("svg.lucide-trash2"));
+        .find((b) => b.querySelector("svg.lucide-trash-2"));
       if (!trash) throw new Error(`test: brak kosza w zakładce ${cacheKey}`);
       fireEvent.click(trash);
 

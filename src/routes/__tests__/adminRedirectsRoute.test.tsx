@@ -677,7 +677,7 @@ describe("usuwanie i przełączanie", () => {
     await waitFor(() => expect(screen.getByText("/2023/05/stary-wpis/")).toBeInTheDocument());
 
     fireEvent.click(
-      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"))!,
+      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"))!,
     );
 
     const box = await waitFor(() => screen.getByTestId("confirm"));
@@ -691,7 +691,7 @@ describe("usuwanie i przełączanie", () => {
     const view = await renderList();
     await waitFor(() => expect(screen.getByText("/2023/05/stary-wpis/")).toBeInTheDocument());
     fireEvent.click(
-      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"))!,
+      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"))!,
     );
     const box = await waitFor(() => screen.getByTestId("confirm"));
     const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
@@ -710,7 +710,7 @@ describe("usuwanie i przełączanie", () => {
     await renderList();
     await waitFor(() => expect(screen.getByText("/2023/05/stary-wpis/")).toBeInTheDocument());
     fireEvent.click(
-      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"))!,
+      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"))!,
     );
     const box = await waitFor(() => screen.getByTestId("confirm"));
 
@@ -724,7 +724,7 @@ describe("usuwanie i przełączanie", () => {
     await renderList();
     await waitFor(() => expect(screen.getByText("/2023/05/stary-wpis/")).toBeInTheDocument());
     fireEvent.click(
-      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"))!,
+      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"))!,
     );
     const box = await waitFor(() => screen.getByTestId("confirm"));
 
@@ -738,7 +738,7 @@ describe("usuwanie i przełączanie", () => {
     await renderList();
     await waitFor(() => expect(screen.getByText("/2023/05/stary-wpis/")).toBeInTheDocument());
     fireEvent.click(
-      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash2"))!,
+      screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-trash-2"))!,
     );
     const box = await waitFor(() => screen.getByTestId("confirm"));
 

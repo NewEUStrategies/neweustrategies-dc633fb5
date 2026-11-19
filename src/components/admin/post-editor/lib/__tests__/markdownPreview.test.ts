@@ -224,13 +224,32 @@ describe("markdownToUnsafeHtml - odporność: szkic autora nie zamraża ani nie 
     expect(timed("[a](".repeat(16000)).ms).toBeLessThan(2000);
   });
 
+  // marked 18.2.1 sam przestał skanować otwarcia, dla których w akapicie nie
+  // ma żadnego możliwego zamknięcia (`lastPossibleEmStrongCloserIndex`): lexer
+  // woła wtedy tokenizer akcentu raz na akapit, nie raz na otwarcie. Te kształty
+  // są liniowe upstream (zmierzone bez strażnika: 74-168 ms; 18.1.1: 8-30 s),
+  // więc strażnik nie ma czego rezerwować, a budżet zostaje dla dalszej treści -
+  // akcent w następnym akapicie MA się wyrenderować. Strażnik zostaje dla
+  // kształtów niżej, które 18.2.1 wciąż skanuje kwadratowo.
   it.each([
     ["`_a `", "_a ".repeat(8000)],
     ["`**a `", "**a ".repeat(6000)],
     ["`*(a `", "*(a ".repeat(8000)],
-    ["`[*a](`", "[*a](".repeat(6000)],
     ["`*_ `", "*_ ".repeat(16000)],
   ])(
+    "niedomknięte otwarcia akcentu %s: tekst dosłownie, liniowo, budżet nietknięty dla dalszej treści",
+    (_, src) => {
+      const { html, ms } = timed(src + TAIL);
+      const root = dom(sanitizeMarkdownHtml(html));
+      const [patho, tail] = Array.from(root.querySelectorAll("p"));
+      expect(patho?.querySelector("em, strong")).toBeNull();
+      expect(patho?.textContent).toContain(src.trim());
+      expect(tail?.querySelector("em")?.textContent).toBe("ostatni");
+      expect(ms).toBeLessThan(3000);
+    },
+  );
+
+  it.each([["`[*a](`", "[*a](".repeat(6000)]])(
     "niedomknięte otwarcia akcentu %s wyczerpują budżet - tekst dosłownie, dalej bez akcentów",
     (_, src) => {
       const { html, ms } = timed(src + TAIL);

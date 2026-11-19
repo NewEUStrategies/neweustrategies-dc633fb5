@@ -19,7 +19,11 @@
 // ~ 2 s), dopiero 18.1.1 liniowo (64 KB ~ 30 ms). Koszt: ~2 KB gzip więcej niż
 // 15.0.12 w chunku `admin.posts._slug` (tylko OVERALL). Przypięte dokładnie
 // (`--exact`), bo ta własność nie jest kontraktem semvera, a strażnik akcentów
-// niżej odtwarza warunki wstępne właśnie tej wersji.
+// niżej odtwarza warunki wstępne przypiętej wersji. Obecnie 18.2.1 (2026-11-18):
+// warunki strażnika sprawdzone na niej - żadne rzeczywiste skanowanie
+// `Tokenizer.emStrong` nie przechodzi bez rezerwacji budżetu (akcenty zwykłe,
+// serie ograniczników, zagnieżdżenia, `[*a](`); każda kolejna zmiana wersji
+// wymaga tego samego sprawdzenia.
 //
 // TA FUNKCJA NIE SANITYZUJE - i to celowo nie jest ukryte w nazwie. marked
 // przepuszcza surowy HTML z treści (`<script>`, `onerror=`) i nie filtruje
@@ -53,11 +57,14 @@ import { escapeHtmlToText } from "@/lib/sanitizeEngineGuard";
  * Budżet skanu akapitu (w znakach) na dopasowywanie akcentów `*`/`_` w JEDNYM
  * parsowaniu.
  *
- * Tego 18.1.1 nie naprawia (żadna wersja marked): `Tokenizer.emStrong` dla
- * każdego otwarcia akcentu skanuje resztę akapitu w poszukiwaniu zamknięcia,
- * więc dwa kształty są KWADRATOWE:
+ * Tego 18.1.1 nie naprawia: `Tokenizer.emStrong` dla każdego otwarcia akcentu
+ * skanuje resztę akapitu w poszukiwaniu zamknięcia, więc dwa kształty są
+ * KWADRATOWE:
  *   - same niedomknięte otwarcia (`"_a ".repeat(n)`, `*a `, `**a `, `*(a `,
- *     `[*a](`): 24 KB ~ 8-9 s na V8, `"*_ "` 48 KB ~ 30 s;
+ *     `[*a](`): 24 KB ~ 8-9 s na V8, `"*_ "` 48 KB ~ 30 s. 18.2.1 nie skanuje
+ *     już otwarć bez możliwego zamknięcia w akapicie
+ *     (`lastPossibleEmStrongCloserIndex`), więc `_a `, `**a `, `*(a `, `*_ `
+ *     są tam liniowe (74-168 ms bez strażnika); `[*a](` nadal nie (6000 x ~ 4 s);
  *   - otwarcia DOMKNIĘTE, ale zagnieżdżone (`"*a ".repeat(n) + "a* ".repeat(n)`):
  *     każdy poziom skanuje i re-lexuje całe wnętrze - 10 akapitów po 1500
  *     poziomów (90 KB) ~ 5 s, a od ~3000 poziomów RangeError po ~2 s.
@@ -112,11 +119,11 @@ const previewParser = new Marked({
       const first = src.charCodeAt(0);
       if (first !== STAR && first !== UNDERSCORE) return false;
       if (emphasisScanSpent > EMPHASIS_SCAN_BUDGET) return undefined;
-      // Warunki wstępne `Tokenizer.emStrong` z marked 18.1.1 (pin `--exact`),
-      // przepisane 1:1: tylko otwarcie, które je przejdzie, skanuje resztę
-      // akapitu. Reszta (`a_b` wewnątrz słowa, `* ` przed spacją) wraca od razu
-      // i nic nie kosztuje - inaczej każde `snake_case` w długim akapicie
-      // płaciłoby za cały akapit. Wszystkie trzy wyrażenia mają tylko flagę
+      // Warunki wstępne `Tokenizer.emStrong` z marked 18.1.1, sprawdzone na
+      // przypiętej 18.2.1 (pin `--exact`): tylko otwarcie, które je przejdzie,
+      // może skanować resztę akapitu. Reszta (`a_b` wewnątrz słowa, `* ` przed
+      // spacją) wraca od razu i nic nie kosztuje - inaczej każde `snake_case`
+      // w długim akapicie płaciłoby za cały akapit. Wszystkie trzy wyrażenia mają tylko flagę
       // `u`, więc `exec`/`test` nie niosą stanu (`lastIndex`) między wywołaniami.
       const { inline, other } = this.rules;
       const m = inline.emStrongLDelim.exec(src);
