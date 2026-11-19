@@ -11,6 +11,8 @@
 --   * Z-06: admin i redaktor przez PostgREST (rola `authenticated` + claims)
 --     dostają 42501 przy zmianie `user_id`, `lifecycle_stage`,
 --     `lifecycle_changed_at` i `crm_tasks.source`/`origin_ref`; RPC przechodzi;
+--     dla `user_id` komunikat `crm_lead_user_id_managed` daje strażnik
+--     `trg_crm_leads_000_user_id_guard` (20261119190000), odpalany przed Z-06;
 --     `customer` bez źródła billing - odmowa także dla `service_role`;
 --   * granty kolumnowe `crm_tasks` kompletne (nowa kolumna = czerwień);
 --   * dwóch najemców (lead B niewidoczny dla RPC A), autor bez dostępu;
@@ -111,7 +113,7 @@ SELECT pg_temp.as_user('d4100000-0000-0000-0000-00000000a002');
 SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$ UPDATE public.crm_leads SET user_id = 'd4100000-0000-0000-0000-00000000a002' WHERE id = 'd4100000-0000-0000-0000-0000000001a1' $$,
-  '42501', 'crm_hub_column_protected', 'Z-06: redaktor nie podepnie konta (user_id) pod lead');
+  '42501', 'crm_lead_user_id_managed', 'Z-06: redaktor nie podepnie konta (user_id) pod lead - straz user_id (20261119190000) odpala przed trg_crm_leads_00_hub_guard');
 SELECT throws_ok(
   $$ INSERT INTO public.crm_leads (tenant_id, email, email_norm, lifecycle_stage)
      VALUES ('d4100000-0000-0000-0000-0000000000a0', 'new1@hub-s4-lc.test', 'new1@hub-s4-lc.test', 'lead') $$,

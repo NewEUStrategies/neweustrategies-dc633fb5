@@ -99,8 +99,8 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
     return (
       <div className="text-[11px] text-muted-foreground">
         {t(
-          "Brak dopasowanego profilu w systemie (po e-mailu).",
-          "No matching in-system profile (by email).",
+          "Kontakt nie jest powiązany z kontem członka w tym najemcy.",
+          "This contact is not linked to a member account in this tenant.",
         )}
       </div>
     );

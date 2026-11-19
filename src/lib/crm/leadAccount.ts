@@ -6,9 +6,11 @@
 // wpisać w leadzie adres dowolnego członka i odczytać rolą serwisową jego
 // profil, CV, subskrypcje i licznik artykułów. Powiązanie bierzemy więc
 // WYŁĄCZNIE z `crm_leads.user_id`: zapisują je funkcje bazy z prawami
-// właściciela (profil, synchronizacja członka, backfill), a zmianę z roli
-// sesji blokuje wyzwalacz `tg_crm_leads_user_id_guard`. Dodatkowo profil
-// musi należeć do najemcy leada - konto z innego najemcy nigdy nie wychodzi.
+// właściciela (`crm_upsert_lead_from_profile`, backfill, wymazanie konta),
+// a ustawienie lub zmianę z roli sesji blokują dwa wyzwalacze:
+// `trg_crm_leads_000_user_id_guard` (20261119190000) i strażnik Z-06
+// `trg_crm_leads_00_hub_guard` (20261020130000). Dodatkowo profil musi
+// należeć do najemcy leada - konto z innego najemcy nigdy nie wychodzi.
 
 /** Wiersz leada widoczny pod RLS sesji (najemca z sesji, rola admin/editor). */
 export interface LeadAccountRow {
