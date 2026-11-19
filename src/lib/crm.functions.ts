@@ -39,6 +39,7 @@ import {
   type ProfileAvatarRow,
 } from "@/lib/crm/leadAvatars";
 import { resolveCallerTenantId } from "@/lib/crm/callerTenant";
+import { resolveLeadAccount, type LeadAccountRow } from "@/lib/crm/leadAccount";
 import { postgrestQuotedList } from "@/lib/supabase/postgrestFilterValue";
 import {
   LeadListFilterSchema,
@@ -310,31 +311,52 @@ export const getCrmLeadStageHistory = createServerFn({ method: "POST" })
     return { json: j(rowsOf(result)) };
   });
 
+// Konto członka leada dla kart czytanych rolą serwisową: lead pod RLS sesji,
+// powiązanie wyłącznie z systemowego `crm_leads.user_id`, profil w najemcy
+// leada (lib/crm/leadAccount.ts). Nigdy po edytowalnym e-mailu leada.
+async function leadAccountFor(context: { readonly supabase: unknown }, leadId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const admin = looseClient({ supabase: supabaseAdmin });
+  return resolveLeadAccount(
+    {
+      readLead: async (id) => {
+        const res = await looseTable(context, "crm_leads")
+          .select("user_id, tenant_id")
+          .eq("id", id)
+          .returns<LeadAccountRow>()
+          .maybeSingle();
+        if (res.error) throw new Error(res.error.message);
+        return res.data;
+      },
+      profileInTenant: async (userId, tenantId) => {
+        const res = await admin
+          .from("profiles")
+          .select("id")
+          .eq("id", userId)
+          .eq("tenant_id", tenantId)
+          .returns<{ id: string }>()
+          .maybeSingle();
+        if (res.error) throw new Error(res.error.message);
+        return res.data !== null;
+      },
+    },
+    leadId,
+  );
+}
+
 // Metering: ile bezpłatnych artykułów zużył użytkownik powiązany z leadem
-// w bieżącym miesiącu kalendarzowym. Dopasowanie po e-mailu (email/contact_email)
-// w obrębie tenanta. Widoczne wyłącznie dla staff (requireCrmStaff).
+// w bieżącym miesiącu kalendarzowym. Konto z systemowego powiązania leada
+// (leadAccountFor) w obrębie tenanta. Widoczne wyłącznie dla staff (requireCrmStaff).
 export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await looseTable(context, "crm_leads")
-      .select("email, tenant_id")
-      .eq("id", data.id)
-      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
-    if (!lead?.email) return { json: j(null) };
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
-    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
-    const profRes = await admin
-      .from("profiles")
-      .select("id")
-      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
-      .eq("tenant_id", lead.tenant_id)
-      .limit(1)
-      .returns<{ id: string }>();
-    const userId = profRes.data?.[0]?.id ?? null;
-    if (!userId) return { json: j(null) };
+    const account = await leadAccountFor(context, data.id);
+    if (!account) return { json: j(null) };
+    const { userId } = account;
+    const lead = { tenant_id: account.tenantId };
 
     const period = new Date();
     period.setUTCDate(1);
@@ -371,7 +393,7 @@ export const getCrmLeadMonthlyMetering = createServerFn({ method: "POST" })
     };
   });
 
-// Członkostwo leada: dopasowanie lead → profil po e-mailu (email/contact_email)
+// Członkostwo leada: konto z systemowego powiązania leada (leadAccountFor)
 // w obrębie tenanta, potem te same źródła co RPC current_membership_tier
 // (aktywne subskrypcje płatne, nadania poza planem, miejsca w organizacjach),
 // rozstrzygnięte czystą funkcją resolveLeadMembership (lib/crm/membershipSummary).
@@ -381,24 +403,12 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await looseTable(context, "crm_leads")
-      .select("email, tenant_id")
-      .eq("id", data.id)
-      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
-    if (!lead?.email) return { json: j(null) };
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
-    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
-    const profRes = await admin
-      .from("profiles")
-      .select("id")
-      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
-      .eq("tenant_id", lead.tenant_id)
-      .limit(1)
-      .returns<{ id: string }>();
-    const userId = profRes.data?.[0]?.id ?? null;
-    if (!userId) return { json: j(null) };
+    const account = await leadAccountFor(context, data.id);
+    if (!account) return { json: j(null) };
+    const { userId } = account;
+    const lead = { tenant_id: account.tenantId };
 
     const { resolveLeadMembership } = await import("@/lib/crm/membershipSummary");
     const [tiersRes, subsRes, grantsRes, seatsRes] = await Promise.all([
@@ -483,8 +493,8 @@ export const getCrmLeadMembership = createServerFn({ method: "POST" })
     return { json: j(summary) };
   });
 
-// Profile sync: dopasowuje lead → profil po e-mailu (email/contact_email),
-// zwraca podstawowe dane profilu + doświadczenie, umiejętności, aktualne CV,
+// Profile sync: lead → profil przez systemowe powiązanie `crm_leads.user_id`
+// (leadAccountFor; nigdy po edytowalnym e-mailu leada), zwraca podstawowe dane profilu + doświadczenie, umiejętności, aktualne CV,
 // nagrody i wykształcenie. RLS experiences/skills jest owner-only, więc staff
 // (po requireCrmStaff) używa admina.
 //
@@ -497,23 +507,18 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => ProfileSyncInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead } = (await looseTable(context, "crm_leads")
-      .select("email, tenant_id")
-      .eq("id", data.lead_id)
-      .maybeSingle()) as { data: { email: string; tenant_id: string } | null };
-    if (!lead?.email) return { json: j(null) };
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
+    const account = await leadAccountFor(context, data.lead_id);
+    if (!account) return { json: j({ matched: false }) };
 
-    const emailLc = lead.email.toLowerCase().replace(/[%_,()"\\]/g, "");
     const profileRes = (await admin
       .from("profiles")
       .select(
         "id, tenant_id, display_name, first_name, last_name, avatar_url, cover_url, job_title, current_company, current_company_id, location, phone, slug, bio_pl, bio_en, linkedin_url, twitter_url, website_url, discoverable, verified_at, contact_email, email",
       )
-      .or(`email.ilike.${emailLc},contact_email.ilike.${emailLc}`)
-      .eq("tenant_id", lead.tenant_id)
+      .eq("id", account.userId)
+      .eq("tenant_id", account.tenantId)
       .limit(1)) as { data: Array<Record<string, unknown>> | null };
     const profile = profileRes.data?.[0] ?? null;
     if (!profile) return { json: j({ matched: false }) };
