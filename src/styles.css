@@ -5746,6 +5746,14 @@ textarea::placeholder {
     transform: translateY(-50%) scale(0.8);
     transform-origin: left center;
     background-color: var(--background);
+    /* Chip leży na ramce: górna połowa na tle sekcji, dolna na wypełnieniu
+       pola (`--gc-input-bg`, także półprzezroczystym) - nakładamy to wypełnienie
+       na dolną połowę, więc chip zlewa się z oboma odcieniami. */
+    background-image: linear-gradient(
+      to bottom,
+      transparent 50%,
+      var(--gc-input-bg, transparent) 50%
+    );
     padding: 0 0.35em;
     color: var(--ring);
   }
@@ -5768,6 +5776,14 @@ textarea::placeholder {
     transform: translateY(-50%) scale(0.8);
     transform-origin: left center;
     background-color: var(--background);
+    /* Chip leży na ramce: górna połowa na tle sekcji, dolna na wypełnieniu
+       pola (`--gc-input-bg`, także półprzezroczystym) - nakładamy to wypełnienie
+       na dolną połowę, więc chip zlewa się z oboma odcieniami. */
+    background-image: linear-gradient(
+      to bottom,
+      transparent 50%,
+      var(--gc-input-bg, transparent) 50%
+    );
     padding: 0 0.35em;
     color: var(--ring);
   }
@@ -5789,6 +5805,11 @@ textarea::placeholder {
     transform: translateY(-50%) scale(0.8);
     transform-origin: left center;
     background-color: var(--background);
+    background-image: linear-gradient(
+      to bottom,
+      transparent 50%,
+      var(--gc-input-bg, transparent) 50%
+    );
     /* Float state: keep horizontal chip padding tight, drop the vertical
        padding so the shrunk label sits flush on the border line. */
     padding: 0 0.35em;
