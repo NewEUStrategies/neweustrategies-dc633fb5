@@ -29,9 +29,9 @@ import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { useTheme } from "@/components/ThemeProvider";
 import { rafThrottle } from "@/lib/rafThrottle";
-import { headerLogoSize, headerLogoSrc, type HeaderLogoConfig } from "@/lib/brand/headerLogo";
+import type { HeaderLogoConfig } from "@/lib/brand/headerLogo";
+import { HeaderLogoImage } from "@/components/atoms/HeaderLogoImage";
 
 type ReadingHeaderThemeLogo = { logo?: HeaderLogoConfig };
 
@@ -162,19 +162,14 @@ export function ReadingHeader({
   const isAuthed = mounted && !!session;
 
   // Logo poziome (wariant mobile = poziomy wordmark) z Branding → Logo, przez
-  // TEN SAM helper co pasek mobilny `Header.tsx`: ten sam łańcuch wariantów
-  // dla motywu i ten sam adres (względny `/media/...` dla kanonicznego
-  // originu), czyli jeden wpis cache'u przeglądarki dla obu pasków. Dawny adres
-  // absolutny stąd był drugim kluczem tego samego pliku: drugi preload logo
-  // w `<head>` każdego wpisu, póki ten obraz był eager (patrz
-  // `lib/brand/headerLogo`), a dziś byłby drugim pobraniem przy odsłonięciu.
+  // TEN SAM komponent co pasek mobilny `Header.tsx` (`atoms/HeaderLogoImage`):
+  // ten sam łańcuch wariantów, ten sam adres (względny `/media/...` dla
+  // kanonicznego originu - jeden wpis cache'u przeglądarki dla obu pasków;
+  // dawny adres absolutny stąd był drugim kluczem tego samego pliku, patrz
+  // `lib/brand/headerLogo`) i `width`/`height` pliku każdego wariantu. Wariant
+  // jasny/ciemny przełącza CSS (`.dark` ze skryptu w `<head>`), nie motyw
+  // Reacta, więc pasek nie czeka z właściwym logo na hydratację.
   const themeSettings = useSiteSetting<ReadingHeaderThemeLogo>("theme_options", {});
-  const { theme: themeMode } = useTheme();
-  const horizontalLogo = headerLogoSrc(themeSettings.logo, themeMode === "dark");
-  // Naturalny rozmiar tego samego pliku - same atrybuty `width`/`height` obu
-  // logo paska (parytet z paskiem mobilnym `Header.tsx`); rozmiar na ekranie
-  // dalej wyznaczają klasy `h-* w-auto`.
-  const horizontalLogoSize = headerLogoSize(themeSettings.logo, themeMode === "dark");
   // Logo paska LENIWE, gdy pasek startuje ukryty (wpis: `aria-hidden` + `inert`,
   // przesunięty nad ekran do chwili, gdy pasek serwisu wyjedzie z kadru; lewa
   // kolumna z logo na telefonie to w ogóle `display: none`). Eager nic tu nie
@@ -186,7 +181,8 @@ export function ReadingHeader({
   // Leniwy obraz w kadrze i tak ładuje się zaraz po pierwszym układzie. Pasek
   // PRZYPIĘTY (`pinned`, /quiz) jest widoczny od pierwszej klatki i jest tam
   // jedynym chrome'em strony, więc jego logo zostaje eager jak logo nagłówka
-  // powłoki.
+  // powłoki. To `loading` pliku jasnego (motyw serwera); osobny wariant ciemny
+  // jest zawsze leniwy (`atoms/HeaderLogoImage`), żeby ukryty nie był pobierany.
   const logoLoading = pinned ? "eager" : "lazy";
 
   const [visible, setVisible] = useState(pinned);
@@ -312,21 +308,17 @@ export function ReadingHeader({
                 data-reading-icon
                 className="shrink-0 inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
               >
-                {horizontalLogo ? (
-                  <img
-                    src={horizontalLogo}
-                    alt=""
-                    width={horizontalLogoSize?.width}
-                    height={horizontalLogoSize?.height}
-                    className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
-                    loading={logoLoading}
-                    decoding="async"
-                  />
-                ) : (
-                  <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
-                    New European Strategies
-                  </span>
-                )}
+                <HeaderLogoImage
+                  logo={themeSettings.logo}
+                  alt=""
+                  className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
+                  loading={logoLoading}
+                  fallback={
+                    <span className="font-display text-[12px] lg:text-[13px] font-bold tracking-tight text-foreground">
+                      New European Strategies
+                    </span>
+                  }
+                />
               </Link>
             )}
             <div className="relative z-50 min-w-0 overflow-visible w-[160px] md:w-[200px] lg:w-[240px]">
@@ -400,21 +392,17 @@ export function ReadingHeader({
               data-reading-title
               className="inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded"
             >
-              {horizontalLogo ? (
-                <img
-                  src={horizontalLogo}
-                  alt=""
-                  width={horizontalLogoSize?.width}
-                  height={horizontalLogoSize?.height}
-                  className="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain"
-                  loading={logoLoading}
-                  decoding="async"
-                />
-              ) : (
-                <span className="font-display text-[13px] sm:text-[14px] lg:text-[15px] font-bold tracking-tight text-foreground">
-                  New European Strategies
-                </span>
-              )}
+              <HeaderLogoImage
+                logo={themeSettings.logo}
+                alt=""
+                className="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain"
+                loading={logoLoading}
+                fallback={
+                  <span className="font-display text-[13px] sm:text-[14px] lg:text-[15px] font-bold tracking-tight text-foreground">
+                    New European Strategies
+                  </span>
+                }
+              />
             </Link>
           ) : (
             <>

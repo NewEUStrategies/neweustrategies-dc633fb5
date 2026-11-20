@@ -161,11 +161,18 @@ interface Mounted {
   /** Logo paska mobilnego z HTML serwera: węzeł i znacznik sprzed hydratacji. */
   readonly serverLogo: HTMLImageElement | null;
   readonly serverLogoTag: string;
+  /** Wszystkie obrazy logo paska mobilnego (para jasny/ciemny) sprzed hydratacji. */
+  readonly serverLogos: HTMLImageElement[];
+  readonly serverLogoTags: string[];
   island(): HTMLElement;
 }
 
-/** Logo paska mobilnego (jedyny `<img>` nagłówka przy atrapie renderera buildera). */
+/** Logo paska mobilnego (pierwszy `<img>` nagłówka przy atrapie renderera buildera). */
 const mobileLogo = (container: HTMLElement) => container.querySelector<HTMLImageElement>("img.h-8");
+/** Wszystkie obrazy logo paska mobilnego (wariant jasny, potem ciemny). */
+const mobileLogos = (container: HTMLElement) => [
+  ...container.querySelectorAll<HTMLImageElement>("img.h-8"),
+];
 
 const roots: Root[] = [];
 
@@ -190,6 +197,8 @@ async function hydrateHeader(settings: Record<string, unknown> = {}): Promise<Mo
   if (!serverSection) throw new Error("brak nagłówka desktopowego w HTML serwera");
   const serverLogo = mobileLogo(container);
   const serverLogoTag = serverLogo?.outerHTML ?? "";
+  const serverLogos = mobileLogos(container);
+  const serverLogoTags = serverLogos.map((img) => img.outerHTML);
   const errors: unknown[] = [];
   await act(async () => {
     roots.push(hydrateRoot(container, element, { onRecoverableError: (e) => errors.push(e) }));
@@ -200,7 +209,16 @@ async function hydrateHeader(settings: Record<string, unknown> = {}): Promise<Mo
     if (!found) throw new Error("brak wyspy hdr-desktop");
     return found;
   };
-  return { container, errors, serverSection, serverLogo, serverLogoTag, island };
+  return {
+    container,
+    errors,
+    serverSection,
+    serverLogo,
+    serverLogoTag,
+    serverLogos,
+    serverLogoTags,
+    island,
+  };
 }
 
 beforeEach(() => {
@@ -344,34 +362,48 @@ describe("Header - logo paska mobilnego: width/height z HTML serwera po hydratac
     expect(mismatches()).toEqual([]);
   });
 
-  it("zapisany motyw ciemny: hydratacja na jasnym HTML, potem `src` i rozmiar przechodzą RAZEM na plik ciemny", async () => {
+  // Regresja, którą para naprawia: serwer nie zna zapisanego wyboru, więc HTML
+  // niósł tylko plik jasny, a ciemny dochodził podmianą `src` po hydratacji
+  // nagłówka (na produkcji 4,5-5 s jasnego logo na ciemnym pasku). Teraz HTML
+  // serwera niesie OBA pliki, wariant przełącza CSS (`.dark` ze skryptu w
+  // `<head>`), a hydratacja z zapisanym motywem ciemnym nie dotyka żadnego węzła.
+  it("zapisany motyw ciemny: HTML serwera niesie oba warianty, hydratacja nie zmienia żadnego", async () => {
     installMatchMedia(false);
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
     const mismatches = spyHydrationMismatch();
     const page = await hydrateHeader(withLogo(SIZES));
 
-    // Serwer nie zna zapisanego wyboru: jasny plik i JEGO rozmiar.
-    expect(page.serverLogoTag).toContain(`src="${LIGHT}" alt="NES" width="350" height="150"`);
+    expect(page.serverLogoTags).toHaveLength(2);
+    const [lightTag, darkTag] = page.serverLogoTags;
+    // Jasny: dokładnie dzisiejszy znacznik motywu serwera (eager, z preloadem
+    // Reacta) plus `dark:hidden`.
+    expect(lightTag).toContain(`src="${LIGHT}" alt="NES" width="350" height="150"`);
+    expect(lightTag).toMatch(/class="[^"]*\bdark:hidden"/);
+    expect(lightTag).toContain('loading="eager"');
+    // Ciemny: własny plik i JEGO rozmiar, leniwy (ukryty leniwy obraz nie jest
+    // pobierany), widoczny tylko pod `.dark`.
+    expect(darkTag).toContain(`src="${DARK}" alt="NES" width="700" height="300"`);
+    expect(darkTag).toMatch(/class="[^"]*\bhidden dark:block"/);
+    expect(darkTag).toContain('loading="lazy"');
+
+    const logos = mobileLogos(page.container);
+    expect(logos).toEqual(page.serverLogos);
+    expect(logos.map((img) => img.outerHTML)).toEqual(page.serverLogoTags);
     expect(page.errors).toEqual([]);
     expect(mismatches()).toEqual([]);
-    // Po montażu lustro motywu przechodzi na ciemny - na tym samym węźle.
-    const logo = mobileLogo(page.container);
-    expect(logo).toBe(page.serverLogo);
-    expect(logo?.getAttribute("src")).toBe(DARK);
-    expect([logo?.getAttribute("width"), logo?.getAttribute("height")]).toEqual(["700", "300"]);
   });
 
-  it("zapisany motyw ciemny, plik ciemny BEZ wpisu: atrybuty znikają razem ze zmianą `src`", async () => {
-    // Rozmiar jasnego pliku nie może zostać na `<img>` z plikiem ciemnym.
+  it("plik ciemny BEZ wpisu rozmiaru: wariant ciemny bez width/height, rozmiar jasnego nie jest pożyczany", async () => {
     installMatchMedia(false);
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
     const page = await hydrateHeader(withLogo([[LIGHT, "350x150"]]));
 
-    expect(page.serverLogoTag).toContain(' width="350" height="150"');
-    const logo = mobileLogo(page.container);
-    expect(logo?.getAttribute("src")).toBe(DARK);
-    expect(logo?.hasAttribute("width")).toBe(false);
-    expect(logo?.hasAttribute("height")).toBe(false);
+    const [light, dark] = mobileLogos(page.container);
+    expect([light?.getAttribute("width"), light?.getAttribute("height")]).toEqual(["350", "150"]);
+    expect(dark?.getAttribute("src")).toBe(DARK);
+    expect(dark?.hasAttribute("width")).toBe(false);
+    expect(dark?.hasAttribute("height")).toBe(false);
+    expect(mobileLogos(page.container).map((img) => img.outerHTML)).toEqual(page.serverLogoTags);
     expect(page.errors).toEqual([]);
   });
 

@@ -125,13 +125,20 @@ import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 const LOGO_PATH = "/media/theme/logo/nes-horizontal.svg";
 /** Adres tak, jak leży w `theme_options.logo` (stemplowany originem marki). */
 const CANONICAL_LOGO = `${PUBLIC_MEDIA_ORIGIN}${LOGO_PATH}`;
+const DARK_LOGO_PATH = "/media/theme/logo/nes-horizontal-dark.svg";
+const CANONICAL_DARK_LOGO = `${PUBLIC_MEDIA_ORIGIN}${DARK_LOGO_PATH}`;
 
 const HEADER_DOC: BuilderDocument = {
   version: 1,
   sections: [{ id: "hdr-sec-1", kind: "section", children: [] }],
 };
 
-type ThemeLogo = { main?: string; mobile?: string; intrinsic?: [string, string][] };
+type ThemeLogo = {
+  main?: string;
+  mobile?: string;
+  mobile_dark?: string;
+  intrinsic?: [string, string][];
+};
 
 /**
  * Pełny dokument z serwera: wspólny cache ustawień zasila OBA paski (jak
@@ -265,6 +272,34 @@ describe("SSR wpisu: pasek mobilny + pasek czytania = jeden preload logo", () =>
     } finally {
       h.chromeGate = null;
     }
+  });
+
+  // Para jasny/ciemny (`atoms/HeaderLogoImage`): wariant przełącza CSS, więc
+  // w HTML stoją oba pliki. Jasny zostaje dokładnie dzisiejszym znacznikiem
+  // (eager w nagłówku, z jednym preloadem), ciemny jest leniwy w obu paskach -
+  // React nie emituje dla niego preloadu, a przeglądarka pobiera go tylko pod
+  // `.dark` (ukryty leniwy obraz nie jest pobierany).
+  it("para jasny/ciemny: jeden preload (plik jasny), plik ciemny leniwy i bez preloadu", async () => {
+    const html = await ssrDocument(articleChrome, {
+      mobile: CANONICAL_LOGO,
+      mobile_dark: CANONICAL_DARK_LOGO,
+    });
+
+    expect(logoImgLoading(html)).toEqual(["eager", "lazy"]);
+    const darkTags = (html.match(/<img[^>]*>/g) ?? []).filter((tag) =>
+      (attr(tag, "src") ?? "").endsWith(DARK_LOGO_PATH),
+    );
+    expect(darkTags.map((tag) => [attr(tag, "src"), attr(tag, "loading")])).toEqual([
+      [DARK_LOGO_PATH, "lazy"],
+      [DARK_LOGO_PATH, "lazy"],
+    ]);
+    for (const tag of darkTags) expect(attr(tag, "class")).toMatch(/ hidden dark:block$/);
+    for (const tag of logoImgTags(html)) expect(attr(tag, "class")).toMatch(/ dark:hidden$/);
+
+    expect(logoPreloads(headOf(html))).toHaveLength(1);
+    expect(imagePreloads(html).filter((link) => attr(link, "href")?.includes("-dark."))).toEqual(
+      [],
+    );
   });
 
   it("KONTROLA NEGATYWNA: surowy adres absolutny obok nagłówka daje DWA preloady", async () => {
