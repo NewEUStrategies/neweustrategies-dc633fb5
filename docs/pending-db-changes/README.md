@@ -19,6 +19,11 @@ Pliki tutaj NIE są migracjami i nie są wdrażane. Każdy przenosi się w revie
   Sprawdzone lokalnie (PGlite, uproszczony schemat): dwukrotne wykonanie bez błędu,
   wszystkie scenariusze testu zgodne. Po wdrożeniu Lovable podpina wysyłkę i ustawienia.
 
+- `20261120220000_search_autosuggest_private_orgs.sql` - podpowiedzi wyszukiwarki nie
+  ujawniają gościom firm członkowskich (B2B) ani usuniętych stron; eksport skanów leadów
+  bez EXECUTE dla gościa. Test: `20261120220000_search_autosuggest_private_orgs.pgtap.sql` ->
+  `git mv` do `supabase/tests/search_autosuggest_private_orgs_test.sql`.
+
 Przeniesione:
 
 - `20261119190000_event_seats_helper_private_crm_lead_account_guard.sql` -> `supabase/migrations/`
