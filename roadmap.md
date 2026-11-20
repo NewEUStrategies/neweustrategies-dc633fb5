@@ -1,5 +1,12 @@
 # Roadmap
 
+## Powiadomienia o wzmiankach i prośbach o zdanie: e-mail, push, webhook (2026-11-20)
+
+- [x] Zmiana bazy przygotowana w `docs/pending-db-changes/20261120120000_notification_signal_channels.sql` (+ test pgTAP): natychmiastowy e-mail domyślnie wyłączony (decyzja właściciela), push „tylko wzmianki i prośby o zdanie", osobisty webhook (standard/Slack/Discord, podpis HMAC, wyłączanie po 10 porażkach albo 404/410), limit 12 e-maili/h, kolejka z ponowieniami. Sprawdzona lokalnie na uproszczonym schemacie (dwukrotne wykonanie, wszystkie scenariusze).
+- [x] Wspólne reguły w kodzie z testami (58): walidacja adresu webhooka, formaty Slack/Discord/standard, podpis, bezpieczna wysyłka (bramka SSRF, bez przekierowań), treść e-maila PL/EN, kategoria wypisu.
+- [ ] Przeniesienie zmiany bazy w PR na GitHubie i wdrożenie: BLOKADA - platforma nie pozwala wygenerować lustra migracji z czatu; wymaga PR (np. sesja Claude) według `docs/pending-db-changes/README.md`, scalenia i wdrożenia jednym wyzwalaczem.
+- [ ] Po wdrożeniu: dyspozytor kanałów w ticku zadań, ustawienia (przełącznik e-mail, zakres push, karta webhooka z testem i rotacją sekretu) PL/EN, testy i sprawdzenie w przeglądarce - BLOKADA: typy i bramki kontraktu wymagają wdrożonej bazy.
+
 ## Serwer narzędzi AI (MCP) 3.5 i zgoda OAuth (2026-11-17)
 
 - [x] SDK 3.5.0; trzy narzędzia (najnowsze, wyszukiwanie, pojedynczy wpis) z typowanym wyjściem, wyłącznie opublikowane wpisy najemcy, treść przez bramkowane RPC, token wołającego bez anonimowego obejścia.

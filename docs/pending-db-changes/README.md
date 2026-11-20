@@ -11,7 +11,15 @@ Pliki tutaj NIE są migracjami i nie są wdrażane. Każdy przenosi się w revie
 
 ## Lista
 
-Brak oczekujących plików. Przeniesione:
+- `20261120120000_notification_signal_channels.sql` - kanały sygnałów (@wzmianka, prośba
+  o zdanie): natychmiastowy e-mail (domyślnie wyłączony), push „tylko wzmianki",
+  osobisty webhook (standard/Slack/Discord, podpis HMAC), kolejka e-mail/webhook.
+  Test: `20261120120000_notification_signal_channels.pgtap.sql` ->
+  `git mv` do `supabase/tests/notification_signal_channels_test.sql`.
+  Sprawdzone lokalnie (PGlite, uproszczony schemat): dwukrotne wykonanie bez błędu,
+  wszystkie scenariusze testu zgodne. Po wdrożeniu Lovable podpina wysyłkę i ustawienia.
+
+Przeniesione:
 
 - `20261119190000_event_seats_helper_private_crm_lead_account_guard.sql` -> `supabase/migrations/`
   (lustro `drizzle/migrations/0416_event_seats_helper_private_crm_lead_account_guard.sql`).

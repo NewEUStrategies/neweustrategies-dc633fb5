@@ -239,6 +239,9 @@ const RAW_LABEL_CATEGORY: Readonly<Record<string, EmailCategory>> = {
   journey: "bulk",
   journey_service: "transactional",
   journey_test: "transactional",
+  // Natychmiastowy e-mail o @wzmiance i prośbie o zdanie: odbiorca sam go
+  // włącza, więc wypis ze stopki ma go zatrzymać jak digest - nie omijać.
+  notification_signal: "bulk",
   // Maile autoryzacyjne (magic link, reset hasła, zmiana adresu, zaproszenie):
   // odbiorca właśnie o nie poprosił i bez nich nie wejdzie na konto.
   auth_magic_link: "transactional",
