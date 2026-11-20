@@ -4746,6 +4746,9 @@ input.icon-input-with-action {
 .key-takeaways__card .key-takeaways__list > li::marker {
   color: var(--kt-accent, #fa9346);
 }
+.key-takeaways__card .key-takeaways__list > li:hover::marker {
+  color: color-mix(in oklab, var(--kt-accent, #fa9346) 72%, white);
+}
 .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text, #1f2937);
   border-top-color: color-mix(in oklab, var(--kt-accent, #fa9346) 30%, transparent);
@@ -4755,6 +4758,13 @@ input.icon-input-with-action {
 }
 .key-takeaways__bullet {
   background: var(--kt-accent, #fa9346);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+.key-takeaways__card .key-takeaways__list > li:hover .key-takeaways__bullet {
+  transform: scale(1.25);
+  background: color-mix(in oklab, var(--kt-accent, #fa9346) 72%, white);
 }
 
 /* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
@@ -8795,6 +8805,17 @@ sup.fn-ref {
   text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+:is(
+    .cms-content-list--ordered > .cms-list-item:hover,
+    .cms-block-list-editor--ordered > .cms-block-list-editor__item:hover
+  )
+  > .cms-list-number {
+  transform: scale(1.12);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 30%, transparent);
 }
 .cms-list-number-text {
   font-size: 0.72rem;
@@ -8843,6 +8864,15 @@ sup.fn-ref {
   text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+.cms-rich-content
+  ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+  > li:not(.task-list-item):hover::before {
+  transform: scale(1.12);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 30%, transparent);
 }
 .cms-rich-content
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
