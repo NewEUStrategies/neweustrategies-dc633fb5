@@ -46,11 +46,9 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { localizedPath, type AppLang } from "@/lib/i18n/localePath";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { useBrandMarkUrl } from "@/lib/brand/useBrandLogoUrl";
 import {
   bannerLinkHref,
   bannerStyleVars,
-  clampCookieBannerLogoSize,
   resolveBannerCopy,
   useCookieBannerConfig,
   type CookieBannerLink,
@@ -247,92 +245,6 @@ export function CheckIcon({ className }: IconProps) {
   );
 }
 
-// ---------- Znak marki w kaflu ikony ----------
-
-/** Bok kafla w px (24-72), ten sam co atrybuty `width`/`height` obrazu. */
-function consentMarkPx(size: number): number {
-  return Math.min(72, Math.max(24, Math.round(size)));
-}
-
-/** Kafel znaku - ramka wspólna dla powłoki i banera. */
-export function ConsentMarkFrame({ size, children }: { size: number; children: ReactNode }) {
-  const px = consentMarkPx(size);
-  return (
-    <span
-      aria-hidden
-      style={{ width: px, height: px }}
-      className={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-lg",
-        "bg-(--cba)/10 text-(--cbf) ring-1 ring-(--cba)/20",
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-/** Obraz znaku w kaflu (leniwy - poza zbiorem LCP, niski priorytet). */
-export function ConsentMarkImage({
-  src,
-  size,
-  className,
-  onError,
-}: {
-  src: string;
-  size: number;
-  className?: string;
-  onError?: () => void;
-}) {
-  const px = consentMarkPx(size);
-  return (
-    <img
-      src={src}
-      alt=""
-      width={px}
-      height={px}
-      loading="lazy"
-      decoding="async"
-      className={cn("size-full object-contain p-1", className)}
-      onError={onError}
-    />
-  );
-}
-
-/**
- * Znak powłoki. Serwer nie zna motywu (rozstrzyga go skrypt w `<head>` klasą
- * `.dark`), więc przy różnych wariantach jasnym/ciemnym oba stoją w kaflu
- * i przełącza je CSS (`dark:`). Ukryty obraz `loading="lazy"` nie jest
- * pobierany. Bez logo - ciasteczko, jak w banerze.
- */
-function ConsentStaticMark({
-  light,
-  dark,
-  size,
-}: {
-  light: string | null;
-  dark: string | null;
-  size: number;
-}) {
-  const variant = (src: string | null, className?: string) =>
-    src ? (
-      <ConsentMarkImage src={src} size={size} className={className} />
-    ) : (
-      <CookieIcon className={cn("size-[18px]", className)} />
-    );
-  return (
-    <ConsentMarkFrame size={size}>
-      {light === dark ? (
-        variant(light)
-      ) : (
-        <>
-          {variant(light, "dark:hidden")}
-          {variant(dark, "hidden dark:block")}
-        </>
-      )}
-    </ConsentMarkFrame>
-  );
-}
-
 // ---------- Zdanie o politykach ----------
 
 export interface ConsentPolicySentenceProps {
@@ -473,7 +385,6 @@ export interface ConsentCompactCardProps {
   customizeLabel: string;
   /** Treść akapitu: komunikat + zdanie o politykach. */
   message: ReactNode;
-  mark: ReactNode;
   styleVars: CSSProperties;
   langSwitcher?: ReactNode;
   /** Nota GPC przed przyciskami (tylko baner - sygnał zna dopiero klient). */
@@ -499,8 +410,7 @@ export interface ConsentCompactCardProps {
  * i przy 412x823 zasłaniała dużą część ekranu. Ten sam układ (nagłówek,
  * akapit, rząd decyzji, rząd „Dostosuj"/język) dostaje tam mniejsze wcięcie
  * (`p-3`) i mniejszy odstęp kolumny (`gap-2`), a zwinięty panel preferencji
- * nie zajmuje odstępu kolumny. Wysokości przycisków, „X" i kafla znaku bez
- * zmian (cele dotyku, logo z panelu). Od `sm` geometria bez zmian.
+ * nie zajmuje odstępu kolumny. Wysokości przycisków i przycisku zamknięcia bez zmian (cele dotyku). Od `sm` geometria bez zmian.
  * Powłoka i baner renderują ten komponent, więc podmiana po interakcji
  * nie przesuwa karty.
  */
@@ -511,7 +421,6 @@ export function ConsentCompactCard({
   acceptLabel,
   customizeLabel,
   message,
-  mark,
   styleVars,
   langSwitcher,
   gpcNotice,
@@ -557,7 +466,6 @@ export function ConsentCompactCard({
         )}
       >
         <div className="flex items-center gap-3">
-          {mark}
           <h2 id="consent-title" className={cn(TX.title, "min-w-0 flex-1")}>
             {title}
           </h2>
@@ -655,8 +563,6 @@ export function ConsentShell() {
   const lang = uiLang(i18n.language);
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const banner = useCookieBannerConfig();
-  const markLight = useBrandMarkUrl("light");
-  const markDark = useBrandMarkUrl("dark");
   if (!privacy.cookie_banner || !banner.enabled) return null;
 
   const t = resolveBannerCopy(banner.copy?.[lang], lang);
@@ -670,13 +576,6 @@ export function ConsentShell() {
       acceptLabel={t.acceptAll}
       customizeLabel={t.customize}
       styleVars={bannerStyleVars(banner.colors)}
-      mark={
-        <ConsentStaticMark
-          light={banner.logo.light || markLight}
-          dark={banner.logo.dark || banner.logo.light || markDark}
-          size={clampCookieBannerLogoSize(banner.logo.size)}
-        />
-      }
       message={
         <>
           {`${t.compactMessage} `}

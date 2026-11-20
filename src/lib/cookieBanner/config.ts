@@ -39,15 +39,6 @@ export type CookieBannerCopy = {
   descMarketing: string;
 };
 
-/** Logo banera - osobne warianty dla trybu jasnego i ciemnego. */
-export type CookieBannerLogo = {
-  /** Puste = sygnet marki z ustawień motywu. */
-  light: string;
-  dark: string;
-  /** Rozmiar kafla w px (24-72). */
-  size: number;
-};
-
 /** Schematy, które odnośnik z panelu może nieść wprost - wszystko inne odpada. */
 const BANNER_LINK_SCHEMES: ReadonlySet<string> = new Set(["http", "https", "mailto", "tel"]);
 
@@ -119,7 +110,6 @@ export type CookieBannerConfig = {
   languageSwitcher: boolean;
   /** Pokaż w szczegółach elementy wykryte automatycznie przez skaner. */
   autoInventory: boolean;
-  logo: CookieBannerLogo;
   links: CookieBannerLink[];
   colors: CookieBannerColors;
   copy: {
@@ -127,32 +117,6 @@ export type CookieBannerConfig = {
     en: CookieBannerCopy;
   };
 };
-
-export const COOKIE_BANNER_LOGO_DEFAULTS: CookieBannerLogo = {
-  light: "",
-  dark: "",
-  size: 36,
-};
-
-export const COOKIE_BANNER_LOGO_SIZE_MIN = 24;
-export const COOKIE_BANNER_LOGO_SIZE_MAX = 72;
-
-/**
- * Rozmiar kafla logo w zakresie 24-72 px, który panel obiecuje w podpowiedzi.
- *
- * Do tej poprawki zakres był wyłącznie atrybutem `min`/`max` pola liczbowego -
- * czyli NIE był egzekwowany ani przy zapisie, ani przy renderze: wpisane
- * „500" zapisywało się i baner na KAŻDEJ stronie rysował kafel 500 px.
- * Wartość spoza liczb (pusta, `NaN`) wraca do domyślnych 36 px.
- */
-export function clampCookieBannerLogoSize(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return COOKIE_BANNER_LOGO_DEFAULTS.size;
-  return Math.min(
-    COOKIE_BANNER_LOGO_SIZE_MAX,
-    Math.max(COOKIE_BANNER_LOGO_SIZE_MIN, Math.round(parsed)),
-  );
-}
 
 export const COOKIE_BANNER_COLOR_DEFAULTS: CookieBannerColors = {
   surface: "",
@@ -224,7 +188,6 @@ export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
   enabled: true,
   languageSwitcher: true,
   autoInventory: true,
-  logo: COOKIE_BANNER_LOGO_DEFAULTS,
   links: [],
   colors: COOKIE_BANNER_COLOR_DEFAULTS,
   copy: { pl: COPY_PL, en: COPY_EN },

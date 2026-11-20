@@ -27,19 +27,15 @@ import {
   ChevronUpIcon,
   ConsentCompactCard,
   ConsentLangSwitcher,
-  ConsentMarkFrame,
-  ConsentMarkImage,
   ConsentPolicySentence,
   consentCardStyle,
   consentPolicyHrefs,
-  CookieIcon,
   ICON_BTN,
   PRIVACY_DEFAULTS,
   TX,
   XIcon,
   type PrivacyConfig,
 } from "@/components/consent/ConsentShell";
-import { useTheme } from "@/components/ThemeProvider";
 import {
   useConsent,
   useGpcSignal,
@@ -50,14 +46,12 @@ import {
 import type { ConsentShellAction } from "@/lib/consent/consentInitScript";
 import { isGpcClampedCategory, isGpcOverrideValid } from "@/lib/consent/gpc";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { useBrandMarkUrl } from "@/lib/brand/useBrandLogoUrl";
 import { reportConsentSurface, setConsentOverlayVisible } from "@/lib/overlayCoordinator";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import {
   useCookieBannerConfig,
   bannerStyleVars,
   resolveBannerCopy,
-  clampCookieBannerLogoSize,
   type CookieBannerCopy,
   type CookieBannerConfig,
 } from "@/lib/cookieBanner/config";
@@ -82,24 +76,6 @@ const EXIT_MS = 300;
 // Tokeny wyglądu (TX, CB_*, BTN_*, ICON_BTN, LINK), ikony i kompaktowa karta
 // żyją w `components/consent/ConsentShell.tsx` - TEN SAM markup renderuje
 // powłoka SSR (P1.3), więc karta powłoki i karta banera nie mogą się rozjechać.
-
-/**
- * Znak marki w kaflu ikony. Gdy logo nie jest skonfigurowane (albo plik nie
- * wstaje), zostaje ciasteczko - baner nigdy nie pokazuje pustej ramki.
- */
-function ConsentMark({ src, size = 36 }: { src: string | null; size?: number }) {
-  const [failed, setFailed] = useState(false);
-  const showLogo = !!src && !failed;
-  return (
-    <ConsentMarkFrame size={size}>
-      {showLogo ? (
-        <ConsentMarkImage src={src} size={size} onError={() => setFailed(true)} />
-      ) : (
-        <CookieIcon className="size-[18px]" />
-      )}
-    </ConsentMarkFrame>
-  );
-}
 
 interface CategoryRowProps {
   name: string;
@@ -199,8 +175,6 @@ export interface ConsentBannerProps {
    * Podgląd w adminie: niezapisany szkic konfiguracji zamiast wartości z bazy.
    */
   configOverride?: CookieBannerConfig;
-  /** Podgląd wymusza motyw kafla logo (jasny/ciemny) niezależnie od strony. */
-  themeOverride?: "light" | "dark";
   /** Montaż w miejsce powłoki SSR (patrz `ConsentBannerTakeover`). */
   takeover?: ConsentBannerTakeover;
   /**
@@ -212,7 +186,6 @@ export interface ConsentBannerProps {
 
 export function ConsentBanner({
   configOverride,
-  themeOverride,
   takeover,
   onReady,
 }: ConsentBannerProps = {}) {
@@ -226,14 +199,6 @@ export function ConsentBanner({
   // Puste pole treści z panelu wraca do brzmienia domyślnego - patrz
   // `resolveBannerCopy` (panel pokazuje to brzmienie jako podpowiedź).
   const t: CookieBannerCopy = resolveBannerCopy(banner.copy?.[uiLanguage], uiLanguage);
-  const { theme } = useTheme();
-  const effectiveTheme = themeOverride ?? (theme === "dark" ? "dark" : "light");
-  const brandMark = useBrandMarkUrl(effectiveTheme);
-  const logoSrc =
-    (effectiveTheme === "dark" ? banner.logo.dark || banner.logo.light : banner.logo.light) ||
-    brandMark;
-  const logoSize = clampCookieBannerLogoSize(banner.logo.size);
-
   // Deklaracja elementów: rejestr + realnie wykryte klucze przeglądarki.
   // Skan biegnie po stronie klienta, dopiero gdy użytkownik otworzy szczegóły.
   const [inventory, setInventory] = useState<Record<ConsentCategory, DataElement[]>>(
@@ -485,7 +450,6 @@ export function ConsentBanner({
         acceptLabel={t.acceptAll}
         customizeLabel={t.customize}
         styleVars={styleVars}
-        mark={<ConsentMark src={logoSrc} size={logoSize} />}
         message={
           <>
             {`${t.compactMessage} `}
@@ -582,7 +546,6 @@ export function ConsentBanner({
             połowy szerokości modala. */}
         <div className={cn("border-b p-4 sm:p-5", CB_BORDER)}>
           <div className="flex items-center gap-3">
-            <ConsentMark src={logoSrc} size={logoSize} />
             <h2 id="consent-title" className={cn(TX.title, "min-w-0 flex-1")}>
               {t.title}
             </h2>

@@ -147,10 +147,10 @@ describe("parytet powłoki SSR z kartą banera", () => {
     expect(stripShellOnly(shell)).toBe(bannerCardHtml());
   });
 
-  it("bez logo obie karty pokazują to samo zapasowe ciasteczko", () => {
-    h.logo = { mobile: "", mobile_dark: "" };
+  it("żadna karta nie pokazuje logo marki - nawet gdy `theme_options` je ma", () => {
     const shell = shellHtml();
     expect(shell).not.toContain("<img");
+    expect(bannerCardHtml()).not.toContain("<img");
     expect(stripShellOnly(shell)).toBe(bannerCardHtml());
   });
 
@@ -206,20 +206,15 @@ describe("powłoka: widoczność, SEO i pokazanie bez animacji", () => {
     expect(shellHtml()).toBe("");
   });
 
-  it("różne logo jasne i ciemne: oba w kaflu, przełącza CSS (`dark:`), ukryty jest leniwy", () => {
+  it("logo z `theme_options` nie wraca do karty - powłoka nie ma kafla znaku", () => {
     h.logo = {
       mobile: "https://cdn.example.com/light.svg",
       mobile_dark: "https://cdn.example.com/dark.svg",
     };
     const { container } = render(<ConsentShell />);
-    const imgs = [...container.querySelectorAll("img")];
-    expect(imgs.map((img) => img.getAttribute("src"))).toEqual([
-      "https://cdn.example.com/light.svg",
-      "https://cdn.example.com/dark.svg",
-    ]);
-    expect(imgs[0].className).toContain("dark:hidden");
-    expect(imgs[1].className).toContain("hidden dark:block");
-    for (const img of imgs) expect(img.getAttribute("loading")).toBe("lazy");
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(shellHtml()).not.toContain("cdn.example.com");
+    expect(bannerCardHtml()).not.toContain("cdn.example.com");
   });
 
   it("ikony są inline SVG ukryte przed czytnikiem, a moduł nie importuje lucide", () => {
@@ -303,10 +298,11 @@ describe("bajty HTML-a powłoki: aliasy kolorów karty (poprawka 9)", () => {
   it("powłoka mieści się w budżecie surowych bajtów, bez długich par kolorów, `xmlns` i separatorów", () => {
     const html = shellHtml();
     // 6 206 B przed poprawką 9, 5 164 B po niej (domyślne treści PL, logo),
-    // +47 B po P1.3b (czwarta klasa ukrywania, `data-consent-parsed`).
-    // Zapas na drobne zmiany treści; większy przyrost = nowy pomiar
-    // `check-document-weight` i decyzja o progach (plik P1.4).
-    expect(Buffer.byteLength(html)).toBeLessThanOrEqual(5_400);
+    // +47 B po P1.3b (czwarta klasa ukrywania, `data-consent-parsed`),
+    // 5 075 B po usunięciu logo z karty (2026-11-20) - kafeł znaku marki więcej
+    // się nie renderuje. Zapas na drobne zmiany treści; większy przyrost = nowy
+    // pomiar `check-document-weight` i decyzja o progach (plik P1.4).
+    expect(Buffer.byteLength(html)).toBeLessThanOrEqual(5_200);
     expect(html).not.toMatch(/\[color:var\(--cb-(?:fg|accent|accent-fg|border),/);
     expect(html).not.toContain("xmlns=");
     expect(html).not.toContain("<!-- -->");

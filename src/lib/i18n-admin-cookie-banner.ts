@@ -19,8 +19,6 @@ const pl = {
     subtitle:
       "Kolory, treści (PL/EN) oraz mechanizmy zgody. Zmiany są widoczne na żywo po zapisie.",
     preview: "Podgląd",
-    previewLogoLight: "Logo: jasne",
-    previewLogoDark: "Logo: ciemne",
     previewClose: "Zamknij podgląd",
     restoreDefaults: "Przywróć domyślne",
     restoreConfirm: "Przywrócić wartości domyślne (kolory + treści)?",
@@ -68,13 +66,6 @@ const pl = {
       },
     },
     branding: {
-      logoTitle: "Logo banera",
-      logoHint:
-        "Puste pole = sygnet marki z ustawień motywu. Wariant ciemny jest używany, gdy strona działa w trybie ciemnym (brak wariantu ciemnego = użyty jasny).",
-      logoLight: "Logo - tryb jasny",
-      logoDark: "Logo - tryb ciemny",
-      sizeLabel: "Rozmiar kafla (px)",
-      sizeHint: "Zakres 24-72 px.",
       linksTitle: "Odnośniki w banerze",
       addLink: "Dodaj odnośnik",
       linksEmpty:
@@ -125,8 +116,6 @@ const en: typeof pl = {
     subtitle:
       "Colours, copy (PL/EN) and consent mechanisms. Changes go live on the site right after saving.",
     preview: "Preview",
-    previewLogoLight: "Logo: light",
-    previewLogoDark: "Logo: dark",
     previewClose: "Close preview",
     restoreDefaults: "Restore defaults",
     restoreConfirm: "Restore the default values (colours + copy)?",
@@ -174,13 +163,6 @@ const en: typeof pl = {
       },
     },
     branding: {
-      logoTitle: "Banner logo",
-      logoHint:
-        "Empty field = the brand mark from the theme settings. The dark variant is used when the site runs in dark mode (no dark variant = the light one is used).",
-      logoLight: "Logo - light mode",
-      logoDark: "Logo - dark mode",
-      sizeLabel: "Tile size (px)",
-      sizeHint: "Range 24-72 px.",
       linksTitle: "Links in the banner",
       addLink: "Add link",
       linksEmpty:

@@ -1688,11 +1688,8 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     expect(copy.pl.descMarketing).toBe("Nowy opis marketingu");
   });
 
-  it("sekcja marki dostaje logo i odnośniki, i oddaje je z powrotem", async () => {
-    await mountBanner2({ logo: { src: "https://example.org/l.svg" }, links: [] });
-    expect(h.props.CookieBannerBrandingSection.logo).toMatchObject({
-      src: "https://example.org/l.svg",
-    });
+  it("sekcja marki dostaje odnośniki i oddaje je z powrotem", async () => {
+    await mountBanner2({ links: [] });
     const onLinksChange = h.props.CookieBannerBrandingSection.onLinksChange;
     if (typeof onLinksChange !== "function") throw new Error("test: brak `onLinksChange`");
     act(() => onLinksChange([{ label: "Polityka", href: "/polityka" }]));
@@ -1701,18 +1698,6 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     expect(lastSave(COOKIE_BANNER_SETTINGS_KEY)?.links).toEqual([
       { label: "Polityka", href: "/polityka" },
     ]);
-  });
-
-  it("zmiana logo w sekcji marki trafia do ładunku", async () => {
-    await mountBanner2();
-    const onLogoChange = h.props.CookieBannerBrandingSection.onLogoChange;
-    if (typeof onLogoChange !== "function") throw new Error("test: brak `onLogoChange`");
-    act(() => onLogoChange({ src: "https://example.org/nowe.svg" }));
-    fireEvent.click(saveButton() as HTMLButtonElement);
-    await waitFor(() => expect(lastSave(COOKIE_BANNER_SETTINGS_KEY)).toBeTruthy());
-    expect(lastSave(COOKIE_BANNER_SETTINGS_KEY)?.logo).toEqual({
-      src: "https://example.org/nowe.svg",
-    });
   });
 
   it("PRZYWRÓCENIE domyślnych PYTA o potwierdzenie i bez zgody nic nie zmienia", async () => {

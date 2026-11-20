@@ -101,7 +101,6 @@ describe("/admin/settings/cookie-banner - język interfejsu", () => {
     expect(screen.getByRole("heading", { name: "Mechanisms" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Colours (empty = theme)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Copy" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Banner logo" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Detected items" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore defaults" })).toBeInTheDocument();

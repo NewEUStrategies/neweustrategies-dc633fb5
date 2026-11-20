@@ -27,8 +27,7 @@
 //      ekranu ogłasza stan, a nie tylko nazwę.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
-// - REGRESJI WYGLĄDU I TREŚCI: `ConsentBanner.test.tsx` pilnuje tytułu, logo
-//   marki, obu polityk, wersji PL/EN i tego, że „X" odrzuca. Ten plik nie
+// - REGRESJI WYGLĄDU I TREŚCI: `ConsentBanner.test.tsx` pilnuje tytułu, obu polityk, wersji PL/EN i tego, że „X" odrzuca. Ten plik nie
 //   powtarza tych asercji - dokłada INTEGRALNOŚĆ i DOSTĘPNOŚĆ.
 // - MECHANIKI ZGÓD: `useConsent` (`src/lib/ads/consent.ts`) ma własne testy;
 //   tutaj jest atrapą i sprawdzamy WYŁĄCZNIE, co baner do niej wysyła.

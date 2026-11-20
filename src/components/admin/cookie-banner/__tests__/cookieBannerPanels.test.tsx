@@ -1,12 +1,10 @@
 // Sekcje panelu `/admin/settings/cookie-banner`, które do tego pliku stały na
-// ZERZE: branding (logo + odnośniki) i skaner „Wykryte elementy". Trasa
+// ZERZE: odnośniki w banerze i skaner „Wykryte elementy". Trasa
 // (`adminSettingsRoutes.test.tsx`) montuje je jako zaślepki.
 //
 // PRZEDMIOT DOWODU:
 //   * każda zmiana pola trafia do WŁAŚCIWEGO pola konfiguracji, a pozostałe
 //     zostają nietknięte (sekcja dostaje i oddaje cały obiekt);
-//   * NAPRAWA: rozmiar kafla logo jest trzymany w zakresie 24-72 px, który
-//     panel obiecuje - wcześniej „500" zapisywało się i rysowało na każdej stronie;
 //   * skaner pokazuje tylko niepuste kategorie, oznacza elementy „auto"
 //     i skanuje ponownie na żądanie;
 //   * OBA JĘZYKI INTERFEJSU: do 2026-10-02 panel był w całości po polsku, także
@@ -16,32 +14,12 @@
 //     poprowadzi on w wersji PL i EN banera (`bannerLinkHref`), i ostrzega
 //     przed adresem, którego baner nie pokaże.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useState } from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "@/lib/i18n";
 
-vi.mock("@/components/admin/CoverImagePicker", () => ({
-  CoverImagePicker: ({
-    label,
-    value,
-    onChange,
-  }: {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <input aria-label={label} value={value} onChange={(e) => onChange(e.currentTarget.value)} />
-  ),
-}));
-
 import { CookieBannerBrandingSection } from "@/components/admin/cookie-banner/CookieBannerBrandingSection";
 import { DetectedElementsPanel } from "@/components/admin/cookie-banner/DetectedElementsPanel";
-import {
-  COOKIE_BANNER_LOGO_DEFAULTS,
-  clampCookieBannerLogoSize,
-  type CookieBannerLink,
-  type CookieBannerLogo,
-} from "@/lib/cookieBanner/config";
+import { type CookieBannerLink } from "@/lib/cookieBanner/config";
 
 const t = (key: string, options?: Record<string, unknown>) =>
   i18n.t(`adminCookieBanner.${key}`, options);
@@ -69,29 +47,7 @@ afterEach(async () => {
   await i18n.changeLanguage("pl");
 });
 
-describe("clampCookieBannerLogoSize - zakres kafla logo (NAPRAWA)", () => {
-  it.each([
-    [36, 36],
-    [24, 24],
-    [72, 72],
-    [10, 24],
-    [500, 72],
-    [47.6, 48],
-    ["60", 60],
-    ["", 36],
-    ["abc", 36],
-    [0, 36],
-    [-5, 36],
-    [null, 36],
-    [undefined, 36],
-    [Number.POSITIVE_INFINITY, 36],
-  ])("%s -> %s", (input, expected) => {
-    expect(clampCookieBannerLogoSize(input)).toBe(expected);
-  });
-});
-
 describe("CookieBannerBrandingSection", () => {
-  const LOGO: CookieBannerLogo = { light: "https://cdn.example.com/l.svg", dark: "", size: 40 };
   const LINK: CookieBannerLink = {
     id: "lnk_a",
     url: "/cookies",
@@ -100,63 +56,10 @@ describe("CookieBannerBrandingSection", () => {
   };
 
   function setup(links: CookieBannerLink[] = [LINK]) {
-    const onLogoChange = vi.fn();
     const onLinksChange = vi.fn();
-    render(
-      <CookieBannerBrandingSection
-        logo={LOGO}
-        links={links}
-        onLogoChange={onLogoChange}
-        onLinksChange={onLinksChange}
-      />,
-    );
-    return { onLogoChange, onLinksChange };
+    render(<CookieBannerBrandingSection links={links} onLinksChange={onLinksChange} />);
+    return { onLinksChange };
   }
-
-  it("wariant jasny i ciemny zmieniają TYLKO swoje pole", () => {
-    const { onLogoChange } = setup();
-    fireEvent.change(screen.getByLabelText(t("branding.logoDark")), {
-      target: { value: "https://cdn.example.com/d.svg" },
-    });
-    expect(onLogoChange).toHaveBeenLastCalledWith({
-      ...LOGO,
-      dark: "https://cdn.example.com/d.svg",
-    });
-    fireEvent.change(screen.getByLabelText(t("branding.logoLight")), { target: { value: "" } });
-    expect(onLogoChange).toHaveBeenLastCalledWith({ ...LOGO, light: "" });
-  });
-
-  it("rozmiar: wpisywanie przechodzi bez klamry, opuszczenie pola klamruje do 24-72", () => {
-    // Pole jest kontrolowane, więc test trzyma stan jak trasa panelu.
-    const seen: CookieBannerLogo[] = [];
-    function Harness() {
-      const [logo, setLogo] = useState<CookieBannerLogo>(LOGO);
-      return (
-        <CookieBannerBrandingSection
-          logo={logo}
-          links={[]}
-          onLogoChange={(next) => {
-            seen.push(next);
-            setLogo(next);
-          }}
-          onLinksChange={() => {}}
-        />
-      );
-    }
-    render(<Harness />);
-    const size = screen.getByRole("spinbutton");
-    expect(size).toHaveValue(40);
-    // Pośredni znak „4" (w drodze do „48") NIE może zostać przestawiony na 24.
-    fireEvent.change(size, { target: { value: "4" } });
-    expect(seen.at(-1)).toEqual({ ...LOGO, size: 4 });
-    fireEvent.change(size, { target: { value: "" } });
-    expect(seen.at(-1)).toEqual({ ...LOGO, size: 36 });
-
-    fireEvent.change(size, { target: { value: "500" } });
-    fireEvent.blur(size);
-    expect(seen.at(-1)).toEqual({ ...LOGO, size: 72 });
-    expect(size).toHaveValue(72);
-  });
 
   it("odnośnik: każde z trzech pól zmienia tylko siebie, „Usuń” zdejmuje właściwy wiersz", () => {
     const other: CookieBannerLink = { ...LINK, id: "lnk_b", url: "/regulamin" };
@@ -259,9 +162,7 @@ describe("CookieBannerBrandingSection", () => {
   it("JĘZYK INTERFEJSU: przy angielskim interfejsie sekcja jest po angielsku", async () => {
     await i18n.changeLanguage("en");
     setup();
-    expect(screen.getByRole("heading", { name: "Banner logo" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Links in the banner" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Logo - dark mode")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add link" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
     expect(screen.getByLabelText("Label (English)")).toHaveValue("Cookies EN");
@@ -269,9 +170,6 @@ describe("CookieBannerBrandingSection", () => {
     expect(document.body.textContent).not.toMatch(/Odnośniki|Dodaj|Usuń|Logo banera|Rozmiar/);
   });
 
-  it("domyślny rozmiar kafla to 36 px", () => {
-    expect(COOKIE_BANNER_LOGO_DEFAULTS.size).toBe(36);
-  });
 });
 
 describe("DetectedElementsPanel - skaner przeglądarki", () => {

@@ -6,7 +6,7 @@
 //  3. panel „Dostosuj” ma cztery kategorie, niezbędne są zablokowane,
 //     a „Zapisz wybrane” zapisuje dokładnie zaznaczony zestaw,
 //  4. teksty idą z konfiguracji w wersji PL/EN (bez hardkodów w komponencie),
-//  5. w kaflu ikony ląduje logo marki, a bez logo - zapasowa ikona.
+//  5. karta NIE pokazuje logo marki - kafla znaku w banerze już nie ma.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
 
@@ -125,18 +125,10 @@ describe("ConsentBanner - kompaktowa karta", () => {
     expect(h.acceptAll).not.toHaveBeenCalled();
   });
 
-  it("renderuje logo marki w kaflu ikony", () => {
-    const { container } = render(<ConsentBanner />);
-    const img = container.querySelector("img");
-    expect(img).not.toBeNull();
-    expect(img).toHaveAttribute("src", "https://cdn.example.com/mark.svg");
-  });
-
-  it("bez skonfigurowanego logo pokazuje zapasową ikonę zamiast pustej ramki", () => {
-    h.logo.current = "";
+  it("karta nie pokazuje logo marki - ani obrazka, ani kafla znaku", () => {
     const { container } = render(<ConsentBanner />);
     expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.innerHTML).not.toContain("cdn.example.com");
   });
 
   it("po angielsku bierze angielską wersję treści", async () => {
@@ -482,14 +474,6 @@ describe("ConsentBanner - modal szczegółów: decyzje i podmioty", () => {
     await i18n.changeLanguage("pl");
   });
 
-  it("logo, które się nie wczytało, ustępuje zapasowej ikonie", () => {
-    const { container } = render(<ConsentBanner />);
-    const img = container.querySelector("img");
-    if (!img) throw new Error("brak logo");
-    fireEvent.error(img);
-    expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
 });
 
 // PRZEJĘCIE POWŁOKI SSR (P1.3). Korzeń montuje baner po pierwszej interakcji

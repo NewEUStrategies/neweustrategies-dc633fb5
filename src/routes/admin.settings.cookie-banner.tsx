@@ -300,9 +300,7 @@ function CookieBannerSettings() {
       </div>
 
       <CookieBannerBrandingSection
-        logo={draft.logo}
         links={draft.links}
-        onLogoChange={(logo) => setDraft({ ...draft, logo })}
         onLinksChange={(links) => setDraft({ ...draft, links })}
       />
 
@@ -434,10 +432,9 @@ function CookieBannerSettings() {
 }
 
 // Podgląd na żywo: ConsentBanner dostaje NIEZAPISANY szkic (configOverride),
-// więc kolory, logo, treści i odnośniki widać przed kliknięciem „Zapisz".
+// więc kolory, treści i odnośniki widać przed kliknięciem „Zapisz".
 function PreviewOverlay({ config, onClose }: { config: CookieBannerConfig; onClose: () => void }) {
   const { t } = useTranslation();
-  const [surface, setSurface] = useState<"light" | "dark">("light");
   // ConsentBanner hides once the user has decided; dispatch OPEN_PREFS so
   // it opens the expanded modal for the preview regardless of prior consent.
   useEffectOnce(() => {
@@ -445,17 +442,8 @@ function PreviewOverlay({ config, onClose }: { config: CookieBannerConfig; onClo
   });
   return (
     <div className="fixed inset-0 z-[70]">
-      <ConsentBanner configOverride={config} themeOverride={surface} />
+      <ConsentBanner configOverride={config} />
       <div className="fixed top-4 right-4 z-[90] flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setSurface((s) => (s === "light" ? "dark" : "light"))}
-          className="h-9 px-3 rounded-md border border-border bg-card text-sm shadow-sm"
-        >
-          {surface === "light"
-            ? t("adminCookieBanner.previewLogoLight")
-            : t("adminCookieBanner.previewLogoDark")}
-        </button>
         <button
           type="button"
           onClick={onClose}
