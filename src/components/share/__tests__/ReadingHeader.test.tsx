@@ -919,68 +919,97 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
     expect(centerLogoEl()?.textContent).toBe(LOGO_NAME);
   });
 
+  // Wariant motywu wybiera CSS (`.dark` na `<html>` ze skryptu w `<head>`),
+  // nie motyw Reacta: przy różnych plikach pasek niesie OBA `<img>` - jasny
+  // z `dark:hidden`, ciemny z `hidden dark:block`, leniwy (ukryty leniwy obraz
+  // nie jest pobierany). Jeden plik dla obu motywów = jeden `<img>` jak dotąd.
+  // Łańcuch każdego motywu: `lib/brand/__tests__/headerLogo.test.ts`.
   const CHAIN: Array<{
-    theme: "light" | "dark";
     logo: NonNullable<LogoSettings["logo"]>;
-    expected: string;
+    light: string;
+    dark: string;
     opis: string;
   }> = [
     {
-      theme: "light",
       logo: { mobile: "m.png", main: "M.png", mobile_dark: "md.png", main_dark: "Md.png" },
-      expected: "m.png",
-      opis: "jasny: mobile wygrywa",
+      light: "m.png",
+      dark: "md.png",
+      opis: "komplet: mobile / mobile_dark",
     },
     {
-      theme: "light",
       logo: { main: "M.png", mobile_dark: "md.png" },
-      expected: "M.png",
-      opis: "jasny: brak mobile -> main",
+      light: "M.png",
+      dark: "md.png",
+      opis: "brak mobile -> main / mobile_dark",
     },
     {
-      theme: "light",
-      logo: { mobile_dark: "md.png", main_dark: "Md.png" },
-      expected: "md.png",
-      opis: "jasny: same warianty ciemne -> mobile_dark",
-    },
-    {
-      theme: "light",
-      logo: { main_dark: "Md.png" },
-      expected: "Md.png",
-      opis: "jasny: ostatnie ogniwo main_dark",
-    },
-    {
-      theme: "dark",
-      logo: { mobile: "m.png", main: "M.png", mobile_dark: "md.png", main_dark: "Md.png" },
-      expected: "md.png",
-      opis: "ciemny: mobile_dark wygrywa",
-    },
-    {
-      theme: "dark",
       logo: { main_dark: "Md.png", mobile: "m.png" },
-      expected: "Md.png",
-      opis: "ciemny: brak mobile_dark -> main_dark",
+      light: "m.png",
+      dark: "Md.png",
+      opis: "brak mobile_dark -> mobile / main_dark",
     },
     {
-      theme: "dark",
+      logo: { mobile_dark: "md.png", main_dark: "Md.png" },
+      light: "md.png",
+      dark: "md.png",
+      opis: "same warianty ciemne -> jeden plik mobile_dark",
+    },
+    {
+      logo: { main_dark: "Md.png" },
+      light: "Md.png",
+      dark: "Md.png",
+      opis: "ostatnie ogniwo main_dark -> jeden plik",
+    },
+    {
       logo: { mobile: "m.png", main: "M.png" },
-      expected: "m.png",
-      opis: "ciemny: same warianty jasne -> mobile",
+      light: "m.png",
+      dark: "m.png",
+      opis: "same warianty jasne -> jeden plik mobile",
     },
     {
-      theme: "dark",
       logo: { main: "M.png" },
-      expected: "M.png",
-      opis: "ciemny: ostatnie ogniwo main",
+      light: "M.png",
+      dark: "M.png",
+      opis: "ostatnie ogniwo main -> jeden plik",
     },
   ];
 
-  it.each(CHAIN)("łańcuch logotypu, $opis", ({ theme, logo, expected }) => {
-    h.theme = theme;
+  /** `[src, class, loading]` obrazów logo w linku, w kolejności dokumentu. */
+  const logoImgs = (link: Element | null | undefined) =>
+    [...(link?.querySelectorAll("img") ?? [])].map((img) => [
+      img.getAttribute("src"),
+      img.getAttribute("class"),
+      img.getAttribute("loading"),
+    ]);
+  const LEFT_CLASS = "h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain";
+
+  it.each(CHAIN)("łańcuch logotypu, $opis", ({ logo, light, dark }) => {
     h.themeSettings = { logo };
     renderHeader({ pinned: true });
 
-    expect(leftLogo()?.querySelector("img")).toHaveAttribute("src", expected);
+    expect(logoImgs(leftLogo())).toEqual(
+      light === dark
+        ? [[light, LEFT_CLASS, "eager"]]
+        : [
+            [light, `${LEFT_CLASS} dark:hidden`, "eager"],
+            [dark, `${LEFT_CLASS} hidden dark:block`, "lazy"],
+          ],
+    );
+  });
+
+  // Regresja, którą ta para naprawia: wariant szedł za motywem Reacta, a ten
+  // na wpisie dochodzi dopiero po hydratacji - do tej chwili ciemny pasek
+  // pokazywał jasne logo. Znacznik ma nie zależeć od motywu Reacta wcale.
+  it("znacznik logo nie zależy od motywu Reacta (wariant przełącza CSS)", () => {
+    h.themeSettings = { logo: { mobile: "m.svg", mobile_dark: "md.svg" } };
+    h.theme = "light";
+    const view = renderHeader({ pinned: true, centerLogo: true });
+    const lightHtml = [leftLogo()?.innerHTML, centerLogoEl()?.innerHTML];
+    view.unmount();
+
+    h.theme = "dark";
+    renderHeader({ pinned: true, centerLogo: true });
+    expect([leftLogo()?.innerHTML, centerLogoEl()?.innerHTML]).toEqual(lightHtml);
   });
 
   it("motyw ciemny bez ŻADNEGO wariantu logotypu spada na wordmark tekstowy", () => {
@@ -1005,58 +1034,57 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
   });
 
   it("puste napisy w ustawieniach nie wygrywają w łańcuchu logotypu", () => {
-    h.theme = "light";
     h.themeSettings = { logo: { mobile: "", main: "M.png" } };
     renderHeader({ pinned: true });
 
-    expect(leftLogo()?.querySelector("img")).toHaveAttribute("src", "M.png");
+    expect(logoImgs(leftLogo())).toEqual([["M.png", LEFT_CLASS, "eager"]]);
   });
 
-  // Naturalny rozmiar (`width`/`height`) ma opisywać TEN SAM plik, który trafia
-  // do `src`: adres i rozmiar idą jednym łańcuchem wariantów dla motywu.
-  // `chromeLogoPreload.test.tsx` przypina to tylko dla motywu jasnego - rozmiar
-  // liczony zawsze z łańcucha jasnego przechodził tam i tutaj na zielono, a w
-  // motywie ciemnym dawałby logo ciemnemu atrybuty innego pliku.
-  const bothLogos = () => [leftLogo()?.querySelector("img"), centerLogoEl()?.querySelector("img")];
+  // Naturalny rozmiar (`width`/`height`) ma opisywać TEN SAM plik, który stoi
+  // w `src` danego `<img>`: każdy wariant pary dostaje rozmiar własnego pliku.
+  // `chromeLogoPreload.test.tsx` przypina pojedynczy plik.
+  const variantImg = (link: Element | null | undefined, theme: "light" | "dark") =>
+    link?.querySelector(`img[data-logo-theme="${theme}"]`);
 
-  it.each([
-    ["light", "m.svg", "350", "150"],
-    ["dark", "md.svg", "700", "300"],
-  ] as const)(
-    "motyw %s: oba logo paska niosą width/height pliku %s",
-    (theme, src, width, height) => {
-      h.theme = theme;
-      h.themeSettings = {
-        logo: {
-          mobile: "m.svg",
-          mobile_dark: "md.svg",
-          intrinsic: [
-            ["m.svg", "350x150"],
-            ["md.svg", "700x300"],
-          ],
-        },
-      };
-      renderHeader({ pinned: true, centerLogo: true });
+  it("para wariantów: oba logo paska niosą width/height pliku swojego wariantu", () => {
+    h.themeSettings = {
+      logo: {
+        mobile: "m.svg",
+        mobile_dark: "md.svg",
+        intrinsic: [
+          ["m.svg", "350x150"],
+          ["md.svg", "700x300"],
+        ],
+      },
+    };
+    renderHeader({ pinned: true, centerLogo: true });
 
-      for (const img of bothLogos()) {
+    for (const link of [leftLogo(), centerLogoEl()]) {
+      for (const [theme, src, width, height] of [
+        ["light", "m.svg", "350", "150"],
+        ["dark", "md.svg", "700", "300"],
+      ] as const) {
+        const img = variantImg(link, theme);
         expect(img).toHaveAttribute("src", src);
         expect(img).toHaveAttribute("width", width);
         expect(img).toHaveAttribute("height", height);
+        expect(img).toHaveAttribute("alt", "");
       }
-    },
-  );
+    }
+  });
 
-  it("motyw ciemny bez wpisu pliku ciemnego: logo zostaje bez width/height, rozmiar pliku jasnego nie jest pożyczany", () => {
-    h.theme = "dark";
+  it("plik ciemny bez wpisu: wariant ciemny zostaje bez width/height, rozmiar pliku jasnego nie jest pożyczany", () => {
     h.themeSettings = {
       logo: { mobile: "m.svg", mobile_dark: "md.svg", intrinsic: [["m.svg", "350x150"]] },
     };
     renderHeader({ pinned: true, centerLogo: true });
 
-    for (const img of bothLogos()) {
-      expect(img).toHaveAttribute("src", "md.svg");
-      expect(img).not.toHaveAttribute("width");
-      expect(img).not.toHaveAttribute("height");
+    for (const link of [leftLogo(), centerLogoEl()]) {
+      expect(variantImg(link, "light")).toHaveAttribute("width", "350");
+      const dark = variantImg(link, "dark");
+      expect(dark).toHaveAttribute("src", "md.svg");
+      expect(dark).not.toHaveAttribute("width");
+      expect(dark).not.toHaveAttribute("height");
     }
   });
 

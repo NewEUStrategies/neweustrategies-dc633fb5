@@ -92,7 +92,7 @@ const h = vi.hoisted(() => ({
   rawReadingBarLogo: false,
   /** KONTROLA NEGATYWNA 3: logo paska czytania eager (stan sprzed P1.4 na wpisie). */
   eagerReadingBarLogo: false,
-  /** Ustawiane na czas renderu `ReadingHeader` w kontroli 2 (patrz atrapa niżej). */
+  /** Ustawiane na czas renderu logo paska czytania w kontroli 2 (patrz atrapa niżej). */
   inReadingBar: false,
 }));
 
@@ -168,11 +168,12 @@ vi.mock("@/lib/seo/request", async (importOriginal) => ({
 
 // KONTROLA NEGATYWNA 2 bez kopii paska czytania. Poza nią obie atrapy są
 // przezroczyste (prawdziwy helper, prawdziwy `ReadingHeader` jako element).
-// W kontroli PRAWDZIWY `ReadingHeader` jest wołany jako funkcja w obrębie
-// flagi `inReadingBar`, więc tylko jego odczyt logo dostaje stan sprzed
-// wspólnego helpera - ten sam łańcuch wariantów BEZ `renderedMediaUrl`
-// (dosłownie dawne wyrażenie z `ReadingHeader.tsx`). `Header` liczy dalej
-// przez prawdziwy helper (adres względny).
+// W kontroli logo PRAWDZIWEGO `ReadingHeader` (wspólny `HeaderLogoImage`) jest
+// wołane jako funkcja w obrębie flagi `inReadingBar`, więc tylko odczyt logo
+// paska czytania dostaje stan sprzed wspólnego helpera - ten sam łańcuch
+// wariantów BEZ `renderedMediaUrl` (dosłownie dawne wyrażenie z
+// `ReadingHeader.tsx`). `Header` liczy dalej przez prawdziwy helper (adres
+// względny).
 vi.mock("@/lib/brand/headerLogo", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/brand/headerLogo")>();
   return {
@@ -186,34 +187,46 @@ vi.mock("@/lib/brand/headerLogo", async (importOriginal) => {
     },
   };
 });
-// KONTROLA NEGATYWNA 3: drzewo zwrócone przez PRAWDZIWY `ReadingHeader` z każdym
-// `<img>` przestawionym na `loading="eager"` - dokładnie atrybut sprzed poprawki,
+// KONTROLE NEGATYWNE 2 i 3 na drzewie zwróconym przez PRAWDZIWY
+// `ReadingHeader`: każde logo paska (`HeaderLogoImage` - obraz stoi w jego
+// wyjściu) dostaje `loading="eager"` (kontrola 3, dokładnie atrybut sprzed
+// poprawki) albo jest renderowane w obrębie flagi `inReadingBar` (kontrola 2),
 // reszta paska bez zmian. Spacer idzie wyłącznie po `props.children` elementów
-// (obraz logo stoi w dzieciach `<Link>`), komponentów nie renderuje.
+// (logo stoi w dzieciach `<Link>`), komponentów nie renderuje.
 vi.mock("@/components/share/ReadingHeader", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/share/ReadingHeader")>();
-  const { Children, cloneElement, isValidElement } = await import("react");
+  const { HeaderLogoImage } = await import("@/components/atoms/HeaderLogoImage");
+  const { Children, cloneElement, createElement, isValidElement } = await import("react");
   type Node = import("react").ReactNode;
-  const eagerImages = (node: Node): Node =>
+  type LogoProps = Parameters<typeof HeaderLogoImage>[0];
+  /** Logo paska czytania z odczytem helpera w obrębie flagi (kontrola 2). */
+  const RawReadingBarLogo = (props: LogoProps) => {
+    h.inReadingBar = true;
+    try {
+      return HeaderLogoImage(props);
+    } finally {
+      h.inReadingBar = false;
+    }
+  };
+  const mapLogos = (node: Node, swap: (logo: LogoProps) => Node): Node =>
     Children.map(node, (child) => {
       if (!isValidElement<{ children?: Node }>(child)) return child;
-      if (child.type === "img") return cloneElement(child as never, { loading: "eager" });
+      if (child.type === HeaderLogoImage) return swap(child.props as unknown as LogoProps);
       return child.props.children === undefined
         ? child
-        : cloneElement(child, undefined, eagerImages(child.props.children));
+        : cloneElement(child, undefined, mapLogos(child.props.children, swap));
     });
   const Real = actual.ReadingHeader;
   return {
     ...actual,
     ReadingHeader: (props: Parameters<typeof Real>[0]) => {
-      if (h.eagerReadingBarLogo) return eagerImages(Real(props));
-      if (!h.rawReadingBarLogo) return <Real {...props} />;
-      h.inReadingBar = true;
-      try {
-        return Real(props);
-      } finally {
-        h.inReadingBar = false;
-      }
+      if (h.eagerReadingBarLogo)
+        return mapLogos(Real(props), (logo) =>
+          createElement(HeaderLogoImage, { ...logo, loading: "eager" }),
+        );
+      if (h.rawReadingBarLogo)
+        return mapLogos(Real(props), (logo) => createElement(RawReadingBarLogo, logo));
+      return <Real {...props} />;
     },
   };
 });

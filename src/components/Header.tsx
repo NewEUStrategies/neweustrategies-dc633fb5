@@ -7,7 +7,8 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
-import { headerLogoSize, headerLogoSrc, type HeaderLogoConfig } from "@/lib/brand/headerLogo";
+import type { HeaderLogoConfig } from "@/lib/brand/headerLogo";
+import { HeaderLogoImage } from "@/components/atoms/HeaderLogoImage";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -155,16 +156,6 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
   const { theme: mode, toggle } = useTheme();
   const isDark = mode === "dark";
-  // Łańcuch wariantów (dark: mobile_dark -> main_dark -> jasne awaryjnie) i
-  // adres względny `/media/...` z JEDNEGO helpera, wspólnego z paskiem czytania
-  // wpisu: ten sam `src` = jeden auto-preload Reacta w `<head>` (patrz
-  // `lib/brand/headerLogo`).
-  const mobileLogo = headerLogoSrc(theme.logo, isDark);
-  // Naturalny rozmiar TEGO SAMEGO pliku (ten sam łańcuch wariantów), z listy
-  // zapisywanej przez Opcje motywu: same atrybuty `width`/`height`, z których
-  // przeglądarka zna proporcję przed pobraniem (Lighthouse `unsized-images`).
-  // Klasy `h-8 w-auto` dalej decydują o rozmiarze; brak wpisu = brak atrybutów.
-  const mobileLogoSize = headerLogoSize(theme.logo, isDark);
 
   const [open, setOpen] = useState(false);
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
@@ -302,21 +293,22 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
             aria-label={siteName}
             className="flex items-center justify-center min-w-0 text-foreground justify-self-center"
           >
-            {mobileLogo ? (
-              <img
-                src={mobileLogo}
-                alt={siteName}
-                width={mobileLogoSize?.width}
-                height={mobileLogoSize?.height}
-                className="h-8 w-auto max-w-[180px] object-contain"
-                loading="eager"
-                decoding="async"
-              />
-            ) : (
-              <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">
-                {siteName}
-              </span>
-            )}
+            {/* Wariant jasny/ciemny przełącza CSS (`.dark` ze skryptu w
+                `<head>`), nie lustro motywu - bez czekania na hydratację
+                (`atoms/HeaderLogoImage`). Łańcuch wariantów, adres względny
+                `/media/...` i `width`/`height` każdego pliku z helpera
+                wspólnego z paskiem czytania (`lib/brand/headerLogo`). */}
+            <HeaderLogoImage
+              logo={theme.logo}
+              alt={siteName}
+              className="h-8 w-auto max-w-[180px] object-contain"
+              loading="eager"
+              fallback={
+                <span className="text-base font-bold tracking-tight truncate min-w-0 max-w-[180px]">
+                  {siteName}
+                </span>
+              }
+            />
           </AppLink>
           <div className="flex items-center gap-2 justify-self-end">
             <LangReelSwitcher label={t("mobileDrawer.language")} />
