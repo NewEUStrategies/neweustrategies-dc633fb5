@@ -18,6 +18,7 @@ import { trackAdsFormGoals } from "./adsGoals";
 import { ga4Event } from "./ga4Client";
 import { GOOGLE_ADS_ID } from "./tagIds";
 import { track } from "./track";
+import { recordAdPixelConversion } from "./adPixelTelemetry";
 
 /** Etykieta konwersji Ads dla leada z formularza (np. `abCdEfGhIj`). */
 const ADS_LEAD_LABEL = String(import.meta.env.VITE_GOOGLE_ADS_LEAD_LABEL ?? "").trim();
@@ -72,6 +73,7 @@ export function trackFormConversion(input: FormConversionInput): void {
   // Cele zdarzeniowe Google Ads (fragmenty z panelu Ads, 2026-10-22):
   // `ads_conversion_Formularz_1` + `ads_submit_form` - patrz `adsGoals.ts`.
   trackAdsFormGoals();
+  recordAdPixelConversion("form_submit");
 }
 
 export interface StrategyConversionInput {
@@ -102,4 +104,5 @@ export function trackStrategyConversion(input: StrategyConversionInput): void {
   adsConversion(ADS_CONTENT_LABEL, {
     transaction_id: `strategy_${input.strategyId}_${Date.now()}`,
   });
+  recordAdPixelConversion("strategy_click");
 }

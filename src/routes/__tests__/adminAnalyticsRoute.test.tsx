@@ -355,11 +355,11 @@ describe("siedem zakładek, jeden montowany pulpit", () => {
     await waitFor(() => expect(screen.getByTestId("pulpit-audience")).toBeTruthy());
   });
 
-  it("lista ma DOKŁADNIE siedem zakładek i każda ma dostępną nazwę", async () => {
+  it("lista ma DOKŁADNIE osiem zakładek i każda ma dostępną nazwę", async () => {
     await mount();
 
     const tabs = screen.getAllByRole("tab");
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(8);
     for (const tab of tabs) expect((tab.textContent ?? "").trim().length).toBeGreaterThan(0);
   });
 
