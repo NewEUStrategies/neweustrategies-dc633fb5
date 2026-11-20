@@ -5712,7 +5712,11 @@ textarea::placeholder {
     /* Smaller rest-state font so long placeholders fit narrow fields and the
        label feels lighter before the user interacts with the field. */
     font-size: 0.8125rem;
-    line-height: 1;
+    /* Line box taller than the font's content area (ascent + descent), so
+       `overflow: hidden` (needed for the ellipsis) never clips descenders and
+       diacritics (ę, ą, g, j, y, p). Centering is unchanged: the baseline
+       offset from the line-box center does not depend on line-height. */
+    line-height: 1.4;
     padding: 0;
     max-width: calc(100% - 1.7rem);
     white-space: nowrap;
@@ -9214,7 +9218,8 @@ button,
 .builder-search-widget .input-group > input.input.input.input {
   min-height: 0 !important;
   height: var(--search-h, 36px) !important;
-  line-height: 1 !important;
+  /* 1.4, not 1: a 1em line box clips descenders/ogonki (ę, g, j) of typed text. */
+  line-height: 1.4 !important;
   padding-block: 0 !important;
 }
 

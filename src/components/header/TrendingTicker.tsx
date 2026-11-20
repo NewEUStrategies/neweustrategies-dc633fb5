@@ -458,7 +458,7 @@ function TickerItem({
         // (zerowanie licznika dzieje się dopiero w efekcie po commicie).
         <TypewriterText key={title} text={title} delayMs={delayMs} />
       ) : (
-        <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
+        <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none py-[0.2em] -my-[0.2em]">
           {title}
         </span>
       )}
@@ -528,7 +528,7 @@ export function TypewriterText({ text, delayMs }: { text: string; delayMs: numbe
     };
   }, [types, text, delayMs]);
   return (
-    <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
+    <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none py-[0.2em] -my-[0.2em]">
       {text.slice(0, n)}
       <span className="tt-caret" data-motion-loop="" aria-hidden>
         |

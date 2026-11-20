@@ -152,7 +152,7 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
                 size="xs"
                 className="shrink-0"
               />
-              <span className="truncate leading-none">{chat.name}</span>
+              <span className="truncate leading-none py-[0.2em] -my-[0.2em]">{chat.name}</span>
             </button>
             <button
               type="button"
