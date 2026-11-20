@@ -16,6 +16,7 @@ import {
   Users,
   Scale,
   MousePointerClick,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -33,6 +34,7 @@ import { InsightSection, type Insight } from "@/components/admin/analytics/Insig
 // Nakładka wnosi gałąź `admin.analyticsPanel.*` - bez tego importu i18next
 // nie ma tych kluczy i panel renderuje surowe identyfikatory.
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureAdPixelsI18n } from "@/lib/i18n-admin-ad-pixels";
 
 // BI dashboards are heavy (chart configs + per-widget datasets and insight
 // logic). Lazy-load them so the SSR route chunk stays under V8's mark-compact
@@ -66,6 +68,11 @@ const AudienceSegmentsDashboard = lazy(() =>
 );
 // Warstwa semantyczna: jedna definicja metryki, jedno okno, jedna liczba do
 // raportu plus werdykt uzgodnienia dla pozostałych strumieni.
+const AdPixelsDashboard = lazy(() =>
+  import("@/components/admin/analytics/AdPixelsDashboard").then((m) => ({
+    default: m.AdPixelsDashboard,
+  })),
+);
 const SemanticReconciliationPanel = lazy(() =>
   import("@/components/admin/analytics/semantic/organisms/SemanticReconciliationPanel").then(
     (m) => ({ default: m.SemanticReconciliationPanel }),
@@ -648,6 +655,7 @@ function OverviewPanel({ status }: { status: AnalyticsStatus }) {
 
 function AnalyticsPage() {
   ensureExtrasI18n();
+  ensureAdPixelsI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
   // Ten sam klucz co /admin/analytics/bi i /admin/settings/analytics - jeden
@@ -698,6 +706,9 @@ function AnalyticsPage() {
           <TabsTrigger value="semantic">
             <Scale className="w-3.5 h-3.5 mr-2" /> {t("admin.nav.analyticsReconciliation")}
           </TabsTrigger>
+          <TabsTrigger value="adPixels">
+            <Megaphone className="w-3.5 h-3.5 mr-2" /> {t("adminAdPixels.tab")}
+          </TabsTrigger>
           <TabsTrigger value="footer">
             <MousePointerClick className="w-3.5 h-3.5 mr-2" />{" "}
             {t("admin.analyticsPanel.tabs.footer")}
@@ -747,6 +758,12 @@ function AnalyticsPage() {
         <TabsContent value="semantic" className="mt-4">
           <Suspense fallback={<DashboardFallback />}>
             <SemanticReconciliationPanel />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="adPixels" className="mt-4">
+          <Suspense fallback={<DashboardFallback />}>
+            <AdPixelsDashboard />
           </Suspense>
         </TabsContent>
 

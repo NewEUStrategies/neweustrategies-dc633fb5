@@ -23,6 +23,7 @@ import {
   GOOGLE_ADS_ID,
   resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
+import type { AdPlatform } from "@/lib/analytics/adPixels";
 
 type CleanupFn = () => void;
 
@@ -317,7 +318,22 @@ export function ConsentScriptInjector() {
     if (!mounted) return;
     if (categories.marketing) {
       marketingCleanup.current = loadMarketing(marketing);
+      // Lustro pikseli do panelu admina (Piksele Ads) - patrz adPixels.ts.
+      const platforms: AdPlatform[] = [];
+      if (marketing.meta_pixel_id) platforms.push("meta");
+      if (ga4Id && GOOGLE_ADS_ID) platforms.push("google_ads");
+      if (marketing.linkedin_partner_id) platforms.push("linkedin");
+      // Leniwie: lustro ciągnie `track()`, którego nie chcemy w chunku bootu.
+      void import("@/lib/analytics/adPixelTelemetry")
+        .then((m) => {
+          m.setActiveAdPlatforms(platforms);
+          m.recordAdPixelVisit();
+        })
+        .catch(() => undefined);
     } else {
+      void import("@/lib/analytics/adPixelTelemetry")
+        .then((m) => m.setActiveAdPlatforms([]))
+        .catch(() => undefined);
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     }
@@ -326,7 +342,7 @@ export function ConsentScriptInjector() {
       marketingCleanup.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, categories.marketing, JSON.stringify(marketing)]);
+  }, [mounted, categories.marketing, ga4Id, JSON.stringify(marketing)]);
 
   return null;
 }
