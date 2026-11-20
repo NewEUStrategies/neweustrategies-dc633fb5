@@ -4,8 +4,8 @@
 
 - [x] Zmiana bazy przygotowana w `docs/pending-db-changes/20261120120000_notification_signal_channels.sql` (+ test pgTAP): natychmiastowy e-mail domyślnie wyłączony (decyzja właściciela), push „tylko wzmianki i prośby o zdanie", osobisty webhook (standard/Slack/Discord, podpis HMAC, wyłączanie po 10 porażkach albo 404/410), limit 12 e-maili/h, kolejka z ponowieniami. Sprawdzona lokalnie na uproszczonym schemacie (dwukrotne wykonanie, wszystkie scenariusze).
 - [x] Wspólne reguły w kodzie z testami (58): walidacja adresu webhooka, formaty Slack/Discord/standard, podpis, bezpieczna wysyłka (bramka SSRF, bez przekierowań), treść e-maila PL/EN, kategoria wypisu.
-- [ ] Przeniesienie zmiany bazy w PR na GitHubie i wdrożenie: BLOKADA - platforma nie pozwala wygenerować lustra migracji z czatu; wymaga PR (np. sesja Claude) według `docs/pending-db-changes/README.md`, scalenia i wdrożenia jednym wyzwalaczem.
-- [ ] Po wdrożeniu: dyspozytor kanałów w ticku zadań, ustawienia (przełącznik e-mail, zakres push, karta webhooka z testem i rotacją sekretu) PL/EN, testy i sprawdzenie w przeglądarce - BLOKADA: typy i bramki kontraktu wymagają wdrożonej bazy.
+- [x] Okienko w aplikacji przy @wzmiance i prośbie o zdanie (priorytet właściciela 2026-11-20): wspólny kanał na żywo dzwonka, jedno okienko na powiadomienie, akcja „Otwórz" przechodzi do dyskusji i oznacza przeczytane, wyciszenia z bazy; bez zmiany bazy. Testy przechodzą; okienka na żywo nie wywołano (baza w podglądzie jest tylko do odczytu), strona zalogowana bez błędów.
+- [ ] Opcjonalne (właściciel: „ok, ale nie musi być"): przeniesienie przygotowanej zmiany bazy (e-mail, push tylko-wzmianki, webhook) w PR na GitHubie i podłączenie ustawień - czeka na decyzję i PR.
 
 ## Serwer narzędzi AI (MCP) 3.5 i zgoda OAuth (2026-11-17)
 

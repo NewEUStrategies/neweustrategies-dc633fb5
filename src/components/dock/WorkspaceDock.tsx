@@ -69,6 +69,7 @@ import { dismissIncomingChatToast, useIncomingChatToasts } from "@/lib/chat/useI
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { stripLangPrefix } from "@/lib/i18n/localePath";
 import { useNotificationPreferences } from "@/lib/notifications/preferencesQuery";
+import { useIncomingSignalToasts } from "@/lib/notifications/useIncomingSignalToasts";
 import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useDockReservedSpace } from "@/lib/dock/useDockReservedSpace";
@@ -211,6 +212,13 @@ export function WorkspaceDock() {
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  // OKIENKA @WZMIANEK I PRÓŚB O ZDANIE - ten sam pasek i ta sama sesja co
+  // toasty czatu. Wyciszenie rodzaju (np. „Kluby") rozstrzyga baza: takie
+  // powiadomienie nie powstaje. Do wczytania preferencji okienek nie ma,
+  // z tego samego powodu co przy czacie (brak okna sprzecznego z wyborem).
+  useIncomingSignalToasts(!!notificationPrefs || prefsQuery.isError, (href) => {
+    void navigateRef.current({ href });
+  });
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   useEffect(

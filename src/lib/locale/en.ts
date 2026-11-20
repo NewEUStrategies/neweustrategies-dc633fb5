@@ -198,6 +198,9 @@ export const en = {
     markAllRead: "Mark all read",
     markRead: "Mark as read",
     openInbox: "Open inbox",
+    signalToast: {
+      open: "Open",
+    },
     unread_one: "{{count}} unread",
     unread_other: "{{count}} unread",
     inboxSubtitle: "Your private inbox - you only see your own notifications.",

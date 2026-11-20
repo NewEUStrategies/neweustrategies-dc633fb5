@@ -215,6 +215,9 @@ export const pl = {
     markAllRead: "Oznacz wszystkie",
     markRead: "Oznacz jako przeczytane",
     openInbox: "Otwórz skrzynkę",
+    signalToast: {
+      open: "Otwórz",
+    },
     unread_one: "{{count}} nieprzeczytane",
     unread_few: "{{count}} nieprzeczytane",
     unread_many: "{{count}} nieprzeczytanych",

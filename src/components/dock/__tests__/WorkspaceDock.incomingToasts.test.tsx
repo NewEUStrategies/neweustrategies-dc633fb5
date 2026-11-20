@@ -133,6 +133,11 @@ vi.mock("@/lib/dock/prefetchDockData", () => ({ prefetchDockData: () => {} }));
 vi.mock("@/lib/dock/useTodos", () => ({ useOpenTodoCount: () => 0 }));
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({ LiveTabBadge: () => null }));
 vi.mock("@/components/chat/chatWindowChunk", () => ({ prefetchChatWindow: () => {} }));
+// Okienka wzmianek mają własny kanał `notifications` i własny test
+// (useIncomingSignalToasts.test.tsx) - tu liczymy wyłącznie kanał czatu.
+vi.mock("@/lib/notifications/useIncomingSignalToasts", () => ({
+  useIncomingSignalToasts: () => {},
+}));
 // Szyna zminimalizowanych rozmów dociąga awatary z listy rozmów - bez sieci.
 // Specyfikacja kanału własnych wierszy i `mutedUntilMs` zostają prawdziwe.
 vi.mock("@/lib/chat/useConversations", async (importOriginal) => ({
