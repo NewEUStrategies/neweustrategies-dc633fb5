@@ -22,6 +22,7 @@ import {
   CB_DIM,
   CB_FG,
   CB_SURFACE,
+  CB_FRAME,
   CheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -534,7 +535,7 @@ export function ConsentBanner({
           "flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-2xl",
           CB_SURFACE,
           CB_FG,
-          "border-[color:var(--cb-border,var(--border))]/70",
+          CB_FRAME,
           "animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out",
         )}
         onClick={(e) => e.stopPropagation()}

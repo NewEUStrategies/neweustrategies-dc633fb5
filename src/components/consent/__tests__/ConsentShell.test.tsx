@@ -267,6 +267,7 @@ describe("bajty HTML-a powłoki: aliasy kolorów karty (poprawka 9)", () => {
       "--cbm": "var(--cb-fg,var(--muted-foreground))",
       "--cbt": "var(--cb-fg,var(--foreground))",
       "--cbb": "var(--cb-border,var(--border))",
+      "--cbl": "var(--cb-border,var(--consent-line))",
       "--cb-fg": "#111",
     });
   });

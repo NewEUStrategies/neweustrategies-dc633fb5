@@ -6998,6 +6998,20 @@ html {
   }
 }
 
+/* Karta banera zgód: własna powierzchnia i obrys, żeby baner odcinał się od
+   strony w obu motywach. W ciemnym `--card` jest CIEMNIEJSZY od tła, więc
+   karta znikała - podnosimy ją względem bieżącego tła (działa też przy
+   tle z Theme Design) i obrysowujemy akcentem marki. Panel nadal nadpisuje
+   oba kolory przez `--cb-surface` / `--cb-border`. */
+:root {
+  --consent-card: var(--card);
+  --consent-line: color-mix(in oklab, var(--brand) 45%, var(--border));
+}
+.dark {
+  --consent-card: color-mix(in oklab, var(--background) 90%, var(--foreground));
+  --consent-line: color-mix(in oklab, var(--brand) 55%, transparent);
+}
+
 /* Wariant banera zgód: taśma języka w kompaktowej karcie consent - ten sam
    wygląd co w headerze, ale geometrię niesie KRÓTKA klasa zamiast łańcuchów
    utility, bo powłoka SSR wysyła ten markup w HTML-u każdej strony

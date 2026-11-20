@@ -116,6 +116,8 @@ const CARD_COLOR_VARS = {
   "--cbt": "var(--cb-fg,var(--foreground))",
   /** Obramowanie. */
   "--cbb": "var(--cb-border,var(--border))",
+  /** Obrys samej karty/modala (akcent marki - baner odcina się od strony). */
+  "--cbl": "var(--cb-border,var(--consent-line))",
 } as const;
 
 /** Nazwy aliasów - test pilnuje, że każda klasa `-(--cb…)` czyta zdefiniowany alias. */
@@ -137,7 +139,9 @@ export const TX = {
 } as const;
 
 export const CB_BORDER = "border-(--cbb)";
-export const CB_SURFACE = "bg-[color:var(--cb-surface,var(--card))]";
+export const CB_SURFACE = "bg-[color:var(--cb-surface,var(--consent-card))]";
+/** Obrys samej karty/modala (akcent marki), wnętrze zostaje przy `--cbb`. */
+export const CB_FRAME = "border-(--cbl)";
 export const CB_FG = "text-(--cbf)";
 export const CB_DIM = "text-(--cbm)/85";
 export const CB_ACCENT_BAR = "bg-(--cba)";
@@ -458,7 +462,7 @@ export function ConsentCompactCard({
           "rounded-xl border p-3 shadow-2xl backdrop-blur-md sm:p-4",
           CB_SURFACE,
           CB_FG,
-          "border-(--cbb)/70",
+          CB_FRAME,
           // Pokazanie BEZ `animate-in` (P0.5, F8): start animacji `enter` był
           // zadaniem w śladzie, a powłoka i baner mają się podmienić niewidocznie.
           dismissing && "animate-out fade-out slide-out-to-bottom-4 fill-mode-forwards",
