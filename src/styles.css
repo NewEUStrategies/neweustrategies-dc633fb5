@@ -5752,7 +5752,7 @@ textarea::placeholder {
     background-image: linear-gradient(
       to bottom,
       transparent 50%,
-      var(--gc-input-bg, transparent) 50%
+      var(--input-group-chip-fill, var(--gc-input-bg, transparent)) 50%
     );
     padding: 0 0.35em;
     color: var(--ring);
@@ -5782,7 +5782,7 @@ textarea::placeholder {
     background-image: linear-gradient(
       to bottom,
       transparent 50%,
-      var(--gc-input-bg, transparent) 50%
+      var(--input-group-chip-fill, var(--gc-input-bg, transparent)) 50%
     );
     padding: 0 0.35em;
     color: var(--ring);
@@ -5808,12 +5808,17 @@ textarea::placeholder {
     background-image: linear-gradient(
       to bottom,
       transparent 50%,
-      var(--gc-input-bg, transparent) 50%
+      var(--input-group-chip-fill, var(--gc-input-bg, transparent)) 50%
     );
     /* Float state: keep horizontal chip padding tight, drop the vertical
        padding so the shrunk label sits flush on the border line. */
     padding: 0 0.35em;
     color: var(--ring);
+  }
+  /* Dolna połowa chipa podąża za stanem wypełnienia pola: po najechaniu pole
+     jaśnieje (`--gc-input-hover-bg`), więc chip musi przejąć ten sam odcień. */
+  .input-group > .input:hover:not(:disabled) ~ .user-label {
+    --input-group-chip-fill: var(--gc-input-hover-bg, var(--gc-input-bg, transparent));
   }
   .input-group[data-invalid="true"] > .input {
     border-color: var(--destructive);
