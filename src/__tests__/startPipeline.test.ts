@@ -539,6 +539,7 @@ describe("security headers across deployment modes", () => {
       "https://www.google.com",
       "https://googleads.g.doubleclick.net",
       "https://pagead2.googlesyndication.com",
+      "https://ad.doubleclick.net",
     ]) {
       expect(directive("connect-src")).toContain(host);
     }

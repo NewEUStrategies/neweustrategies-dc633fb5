@@ -289,6 +289,8 @@ const GOOGLE_TAG_CONNECT_SRC = /* @__PURE__ */ [
   "https://www.googleadservices.com",
   "https://pagead2.googlesyndication.com",
   "https://td.doubleclick.net",
+  // Pomiar Google Ads (ccm/s/collect) po zgodzie na marketing.
+  "https://ad.doubleclick.net",
 ].join(" ");
 
 /**
