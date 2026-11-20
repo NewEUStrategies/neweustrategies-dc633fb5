@@ -117,6 +117,9 @@ function injectCustomHtml(html: string, owner: string, target: HTMLElement): voi
 
 // ---------------- Analytics loaders ----------------
 
+/** Typy tagów GTM, które obsługujemy poza kontenerem, z właściwą bramką zgody. */
+const GTM_BLOCKLIST: readonly string[] = ["bzi"];
+
 function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
   const owner = "consent-analytics";
   removeMarked(owner);
@@ -125,8 +128,12 @@ function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
   // uruchamiany niezależnie od tej bramki (patrz `Ga4ConsentBridge` niżej).
 
   if (cfg.gtm_container_id) {
+    // `gtm.blocklist` (przed wczytaniem kontenera) wyłącza w GTM szablon
+    // LinkedIn Insight (`bzi`): kontener startuje już po zgodzie analitycznej,
+    // a LinkedIn jest pomiarem marketingowym - ładuje go wyłącznie
+    // `loadMarketing` po zgodzie na marketing, bez podwójnych odsłon.
     injectInlineScript(
-      `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;j.setAttribute('data-consent-owner','${owner}');f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(cfg.gtm_container_id)});`,
+      `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.blocklist':${JSON.stringify(GTM_BLOCKLIST)}});w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;j.setAttribute('data-consent-owner','${owner}');f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(cfg.gtm_container_id)});`,
       owner,
     );
   }

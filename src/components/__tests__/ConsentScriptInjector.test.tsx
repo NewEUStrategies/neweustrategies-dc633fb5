@@ -798,6 +798,18 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(inline[0].textContent).toContain(`setAttribute('${MARK_ATTR}','${ANALYTICS_OWNER}')`);
   });
 
+  it("GTM blokuje w kontenerze szablon LinkedIn Insight (bzi), zanim wczyta gtm.js", () => {
+    setAnalytics({ gtm_container_id: GTM_ID });
+
+    renderInjector();
+
+    const text = inlineScripts(ANALYTICS_OWNER)[0]?.textContent ?? "";
+    const blocklistAt = text.indexOf(`'gtm.blocklist':["bzi"]`);
+    expect(blocklistAt).toBeGreaterThan(-1);
+    // Blokada musi trafić do dataLayer przed startem kontenera.
+    expect(blocklistAt).toBeLessThan(text.indexOf("gtm.js?id="));
+  });
+
   it("plausible dodaje skrypt zewnętrzny z defer i data-domain", () => {
     setAnalytics({ plausible_domain: PLAUSIBLE_DOMAIN, plausible_script_url: PLAUSIBLE_URL });
 
