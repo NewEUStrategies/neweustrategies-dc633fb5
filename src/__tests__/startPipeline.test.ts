@@ -544,6 +544,19 @@ describe("security headers across deployment modes", () => {
     }
     expect(directive("connect-src")).not.toMatch(/\shttps:(\s|$)/);
   });
+  it("dopuszcza piksel Meta: fbevents.js w script-src, zdarzenia /tr w connect-src", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");
+    vi.stubEnv("SUPABASE_URL", "");
+    const csp =
+      applySecurityHeaders(request(), document()).headers.get("content-security-policy") ?? "";
+    const directive = (name: string) =>
+      csp
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name} `)) ?? "";
+    expect(directive("script-src")).toContain("https://connect.facebook.net");
+    expect(directive("connect-src")).toContain("https://www.facebook.com");
+  });
   it("preserves existing CSP and HSTS", () => {
     const res = document();
     res.headers.set("content-security-policy", "default-src 'none'");

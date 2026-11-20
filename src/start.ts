@@ -291,6 +291,14 @@ const GOOGLE_TAG_CONNECT_SRC = /* @__PURE__ */ [
   "https://td.doubleclick.net",
 ].join(" ");
 
+/**
+ * Piksel Meta (fbevents.js): skrypt z connect.facebook.net, zdarzenia do
+ * www.facebook.com/tr. Ładuje go wyłącznie `ConsentScriptInjector` po zgodzie
+ * na marketing - wpis w CSP tylko na to pozwala, niczego nie uruchamia.
+ */
+const META_PIXEL_SCRIPT_SRC = "https://connect.facebook.net";
+const META_PIXEL_CONNECT_SRC = "https://connect.facebook.net https://www.facebook.com";
+
 function contentSecurityPolicy(request?: Request): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   let supabaseOrigins = "";
@@ -305,7 +313,7 @@ function contentSecurityPolicy(request?: Request): string {
   const preview = request ? isPreviewRequest(request) : false;
   // Kurs EUR/PLN w koszyku pobieramy bezpośrednio z NBP (Tabela A), a Stripe.js
   // odpytuje własne API - bez tych origin-ów CSP blokuje checkout w przeglądarce.
-  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC}`;
+  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC} ${META_PIXEL_CONNECT_SRC}`;
   const connectSrc = supabaseOrigins
     ? `connect-src 'self' ${supabaseOrigins} ${extraOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
@@ -315,7 +323,7 @@ function contentSecurityPolicy(request?: Request): string {
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
     // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
     // ładowanie SDK i checkout nie startuje.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC} ${META_PIXEL_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
