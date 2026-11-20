@@ -8785,6 +8785,15 @@ sup.fn-ref {
   background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent);
   transform: none;
 }
+:is(
+    .cms-content-list--unordered .cms-content-list--unordered > .cms-list-item:hover,
+    .cms-block-list-editor--unordered
+      .cms-block-list-editor__item[data-level]:not([data-level="1"]):hover
+  )
+  > .cms-list-bullet {
+  transform: scale(1.3);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 70%, transparent);
+}
 .cms-list-number {
   box-sizing: border-box;
   display: inline-flex;
@@ -8807,15 +8816,27 @@ sup.fn-ref {
   white-space: nowrap;
   transition:
     transform 180ms ease,
-    background-color 180ms ease;
+    background-color 180ms ease,
+    color 180ms ease;
 }
+/* Hover plakietki numeru = efekt kropki: akcent jaśnieje i pełnieje.
+ * W dark tło jest pełniejsze, a cyfra rozjaśniona, żeby efekt był widoczny. */
 :is(
     .cms-content-list--ordered > .cms-list-item:hover,
     .cms-block-list-editor--ordered > .cms-block-list-editor__item:hover
   )
   > .cms-list-number {
   transform: scale(1.12);
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 30%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 26%, transparent);
+}
+.dark
+  :is(
+    .cms-content-list--ordered > .cms-list-item:hover,
+    .cms-block-list-editor--ordered > .cms-block-list-editor__item:hover
+  )
+  > .cms-list-number {
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 40%, transparent);
+  color: color-mix(in oklab, var(--cms-list-accent, #fa9346) 45%, white);
 }
 .cms-list-number-text {
   font-size: 0.72rem;
@@ -8866,13 +8887,21 @@ sup.fn-ref {
   white-space: nowrap;
   transition:
     transform 180ms ease,
-    background-color 180ms ease;
+    background-color 180ms ease,
+    color 180ms ease;
 }
 .cms-rich-content
   ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):hover::before {
   transform: scale(1.12);
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 30%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 26%, transparent);
+}
+.dark
+  .cms-rich-content
+  ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
+  > li:not(.task-list-item):hover::before {
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 40%, transparent);
+  color: color-mix(in oklab, var(--cms-list-accent, #fa9346) 45%, white);
 }
 .cms-rich-content
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
@@ -8911,6 +8940,13 @@ sup.fn-ref {
   border-radius: 1px !important;
   background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent) !important;
   transform: none !important;
+}
+.cms-rich-content
+  ul:not(.task-list):not(.contains-task-list)
+  ul:not(.task-list):not(.contains-task-list)
+  > li:not(.task-list-item):hover::before {
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 70%, transparent) !important;
+  transform: scale(1.3) !important;
 }
 .cms-inline-status-icon {
   display: inline-block;
