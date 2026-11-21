@@ -39,6 +39,7 @@ export const LINKEDIN_GOALS = [
   "newsletter",
   "event_registration",
   "purchase",
+  "page_view",
 ] as const;
 
 export type LinkedInGoal = (typeof LINKEDIN_GOALS)[number];
@@ -107,6 +108,12 @@ export function configureLinkedInConversions(ids: Partial<Record<LinkedInGoal, s
   for (const event of queued) {
     if (now - event.queuedAt <= PENDING_TTL_MS) send(lintrk, normalized, event);
   }
+  // Konwersja "Wyświetlenie strony" dla strony wejścia (odsłonę liczy sam tag).
+  sendPageViewConversion(lintrk, normalized);
+}
+
+function sendPageViewConversion(lintrk: LintrkFn, ids: LinkedInConversionIds): boolean {
+  return send(lintrk, ids, { goal: "page_view", eventId: newEventId("page_view"), queuedAt: Date.now() });
 }
 
 /** Wycofanie zgody / brak tagu: zapomina konfigurację i kolejkę. */
@@ -130,10 +137,11 @@ export function trackLinkedInPageView(path?: string): boolean {
   lastPagePath = next;
   try {
     lintrk("track");
-    return true;
   } catch {
     return false;
   }
+  sendPageViewConversion(lintrk, conversionIds);
+  return true;
 }
 
 export interface LinkedInGoalOptions {

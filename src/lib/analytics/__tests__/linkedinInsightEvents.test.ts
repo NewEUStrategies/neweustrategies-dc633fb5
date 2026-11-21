@@ -121,6 +121,16 @@ describe("LinkedIn Insight SPA page views", () => {
   });
 });
 
+describe("page_view conversion", () => {
+  it("counts the landing page and each new route once when an id is set", () => {
+    configureLinkedInConversions({ page_view: "777" });
+    trackLinkedInPageView("/en/blog/a");
+    trackLinkedInPageView("/en/blog/a");
+    const conv = calls.filter(([, p]) => p?.["conversion_id"] === 777);
+    expect(conv).toHaveLength(2);
+  });
+});
+
 describe("MarketingConfigSchema.linkedin_conversions", () => {
   it("defaults every goal to empty and keeps other marketing IDs on bad input", () => {
     const parsed = MarketingConfigSchema.parse({
