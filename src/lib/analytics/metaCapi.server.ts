@@ -62,12 +62,20 @@ export function requestHostnames(request: Request): Set<string> {
   return hosts;
 }
 
-/** Bramka 1: wołający i każde zdarzenie pochodzą z tego samego serwisu. */
-export function isSameSiteBatch(request: Request, batch: MetaCapiBatch): boolean {
+/** Wołający i każdy adres zdarzenia pochodzą z tego samego serwisu (Meta i X). */
+export function isSameSiteSources(request: Request, sourceUrls: readonly string[]): boolean {
   const origin = hostnameOf(request.headers.get("origin"));
   if (!origin) return false;
   if (!requestHostnames(request).has(origin)) return false;
-  return batch.events.every((event) => hostnameOf(event.event_source_url) === origin);
+  return sourceUrls.every((url) => hostnameOf(url) === origin);
+}
+
+/** Bramka 1: wołający i każde zdarzenie pochodzą z tego samego serwisu. */
+export function isSameSiteBatch(request: Request, batch: MetaCapiBatch): boolean {
+  return isSameSiteSources(
+    request,
+    batch.events.map((event) => event.event_source_url),
+  );
 }
 
 async function loadTenantPixelId(tenantId: string, now: number): Promise<string | null> {

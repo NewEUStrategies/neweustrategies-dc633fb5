@@ -470,6 +470,9 @@ export const adminExtrasPl = {
           "Nie rozpoznano zdarzenia - wklej identyfikator tw-…-… albo cały kod twq('event', ...).",
         eventOtherPixel:
           "To zdarzenie należy do innego piksela niż {{id}} - X go nie przypisze. Utwórz zdarzenie w pikselu {{id}}.",
+        capiHint:
+          "Każde zdarzenie X wysyłamy także z serwera (X Conversion API) z tym samym conversion_id, więc X liczy je raz, a konwersja nie ginie przy blokadzie reklam. Token API trzymamy w sekretach serwera - nie wpisujesz go tutaj.",
+        capiTitle: "API konwersji X (kopia serwerowa)",
         eventSent: "Platforma wyśle po potwierdzonej akcji:",
         eventTypeLabel: "Typ zdarzenia w X: {{type}}",
         eventsHint:
@@ -1458,6 +1461,9 @@ export const adminExtrasEn = {
           "Event not recognised - paste the tw-…-… ID or the whole twq('event', ...) code.",
         eventOtherPixel:
           "This event belongs to a pixel other than {{id}} - X will not attribute it. Create the event in pixel {{id}}.",
+        capiHint:
+          "Every X event is also sent from the server (X Conversion API) with the same conversion_id, so X counts it once and the conversion survives ad blockers. The API token is kept in server secrets - you do not enter it here.",
+        capiTitle: "X Conversion API (server copy)",
         eventSent: "The platform sends after a confirmed action:",
         eventTypeLabel: "Event type in X: {{type}}",
         eventsHint:

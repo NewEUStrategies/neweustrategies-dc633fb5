@@ -1,2 +1,3 @@
 - Read Google Ads ID/labels only via `googleAdsId()`/`googleAdsLabel()` so Pixels edits need no code change.
 - Count X pixel router page views only through `trackXPageView` (repeat `twq('config')`, landing view left to the base code, `__nesXPixel` marker guard), because uwt.js ignores pushState and re-running the base code would double-count.
+- Mirror X pixel events to the X Conversion API only via `xCapiMirror` -> `xCapi.server` (same `conversion_id`, origin/consent/GPC rechecked, only event IDs configured for the host tenant's pixel, token from `X_PIXEL_TOKEN`, no contact data), so X deduplicates and payloads cannot target other events.

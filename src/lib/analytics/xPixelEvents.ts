@@ -18,6 +18,10 @@
 // i `conversion_id` równe transakcji, raz na kartę (X deduplikuje po nim).
 // Cel bez identyfikatora nie wysyła niczego. Bez danych osobowych.
 //
+// KOPIA SERWEROWA. Każde wysłane zdarzenie idzie też przez X Conversion API
+// (`xCapiMirror` -> `xCapi.server`) z tym samym `conversion_id`, więc X liczy
+// parę raz, a konwersja nie ginie, gdy blokada reklam zatrzyma uwt.js.
+//
 // KOLEJKA STARTOWA. Wynik potwierdzony przed startem piksela (powrót z
 // płatności) czeka w pamięci (max 20, 60 s). Bez zgody nic nie jest kolejkowane.
 //
@@ -26,6 +30,7 @@
 // i pozwala, by ponowna zgoda znów policzyła bieżącą odsłonę.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { installAdAutoGoals } from "./adAutoGoals";
+import { clearXCapiQueue, mirrorXEventToCapi, noteXLanding } from "./xCapiMirror";
 import { X_GOALS, type XGoal } from "./xGoals";
 import { extractXEventId, extractXPixelId, X_PIXEL_MARKER } from "./xPixelId";
 
@@ -99,10 +104,20 @@ function send(twq: TwqFn, ids: XEventIds, event: PendingXEvent): boolean {
   }
   try {
     twq("event", id, params);
-    return true;
   } catch {
     return false;
   }
+  // Kopia serwerowa (X Conversion API) z tym samym `conversion_id`.
+  mirrorXEventToCapi({
+    eventId: id,
+    conversionId: event.conversionId,
+    occurredAt: event.queuedAt,
+    href: window.location.href,
+    ...(event.value !== undefined && event.currency
+      ? { value: event.value, currency: event.currency }
+      : {}),
+  });
+  return true;
 }
 
 function sendPageViewConversion(twq: TwqFn, ids: XEventIds): boolean {
@@ -124,6 +139,7 @@ export function configureXPixel(raw: string, events: Partial<Record<XGoal, strin
   pixelId = id || null;
   lastPagePath = id ? normalizePath(window.location.pathname) : null;
   eventIds = id ? normalizeIds(events) : null;
+  if (id) noteXLanding();
   const queued = pending.splice(0, pending.length);
   const ids = eventIds;
   if (!ids || !hasCategoryConsent("marketing")) return;
@@ -142,6 +158,7 @@ export function resetXPixel(): void {
   eventIds = null;
   lastPagePath = null;
   pending.length = 0;
+  clearXCapiQueue();
   if (typeof window !== "undefined") {
     delete (window as Window & { [X_PIXEL_MARKER]?: unknown })[X_PIXEL_MARKER];
   }

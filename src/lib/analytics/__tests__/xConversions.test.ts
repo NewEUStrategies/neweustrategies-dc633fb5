@@ -120,3 +120,25 @@ describe("X conversions", () => {
     expect(events().map((c) => c[1])).toEqual(["tw-rjppz-dl001"]);
   });
 });
+
+describe("X server copy", () => {
+  it("mirrors every sent event to the Conversion API with the same conversion_id", async () => {
+    const { setXCapiSenderForTests, flushXCapiQueue, resetXCapiMirrorForTests } =
+      await import("../xCapiMirror");
+    resetXCapiMirrorForTests();
+    const batches: Array<{ events: Array<{ event_id: string; conversion_id: string }> }> = [];
+    setXCapiSenderForTests(async (b) => {
+      batches.push(b);
+    });
+    configureXPixel("rjppz", { purchase: "tw-rjppz-buy01" });
+    trackXGoal("purchase", { eventId: "ord_9", value: 10, currency: "EUR" });
+    await flushXCapiQueue();
+    setXCapiSenderForTests(null);
+    const browser = events()[0];
+    expect(browser?.[2]).toMatchObject({ conversion_id: "ord_9" });
+    expect(batches[0]?.events[0]).toMatchObject({
+      event_id: "tw-rjppz-buy01",
+      conversion_id: "ord_9",
+    });
+  });
+});

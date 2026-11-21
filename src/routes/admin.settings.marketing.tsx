@@ -329,6 +329,15 @@ function PixelsSettings() {
               </pre>
             ) : null}
           </section>
+          <section
+            className="mb-4 rounded-md border border-border p-4"
+            aria-labelledby="pixels-x-capi-title"
+          >
+            <h3 id="pixels-x-capi-title" className="font-display text-base mb-1">
+              {t("admin.marketing.x.capiTitle")}
+            </h3>
+            <p className="text-sm text-muted-foreground">{t("admin.marketing.x.capiHint")}</p>
+          </section>
           <p className="text-sm text-muted-foreground mb-4">{t("admin.marketing.x.eventsHint")}</p>
           {X_FUNNEL.map((group) => (
             <fieldset key={group.stage} className="mb-4 rounded-md border border-border p-4">
