@@ -20,6 +20,7 @@ import {
 } from "@/lib/http/host";
 import { aiCrawlerGroups, buildRobotsTxt, robotsUsagePolicy } from "@/lib/seo/robots";
 import type { SeoSettings } from "@/lib/seo/settings";
+import { robotsSitemapPaths } from "@/lib/seo/seoEcosystem";
 
 /**
  * Origin, którym podgląd się posługuje. Host podglądu/edytora nie jest adresem
@@ -41,9 +42,7 @@ export function RobotsTxtPreview({ settings }: { settings: SeoSettings }) {
     mode: "canonical",
     origin,
     // Indeks jest zawsze; news sitemap tylko gdy trasa faktycznie odpowiada.
-    sitemapPaths: settings.news_sitemap_enabled
-      ? ["/sitemap.xml", "/news-sitemap.xml"]
-      : ["/sitemap.xml"],
+    sitemapPaths: robotsSitemapPaths(settings),
     groups: aiCrawlerGroups(settings),
     // Redakcja musi widzieć w podglądzie także warunek wskazania źródła -
     // inaczej panel pokazywałby politykę łagodniejszą niż realny plik.

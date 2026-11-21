@@ -8,7 +8,7 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, NumberInput, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { LinkedSourceHeader, LinkedImagePreview } from "@/components/admin/settings/LinkedSource";
-import { RobotsTxtPreview } from "@/components/admin/seo/RobotsTxtPreview";
+import { SeoEcosystemPanel } from "@/components/admin/seo/SeoEcosystemPanel";
 import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
 import { SITE_NAME } from "@/lib/seo/meta";
 
@@ -61,11 +61,6 @@ function SeoSettingsTab() {
       <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionFeeds")}</h3>
       <Field label={t("admin.seoSettings.rss")} hint={t("admin.seoSettings.rssHint")}>
         <div className="flex flex-wrap items-center gap-4">
-          <Checkbox
-            label={t("admin.seoSettings.rssEnabled")}
-            checked={draft.rss_enabled}
-            onChange={(v) => set("rss_enabled", v)}
-          />
           <label className="inline-flex items-center gap-2 text-sm">
             {t("admin.seoSettings.rssCount")}
             <NumberInput
@@ -84,11 +79,6 @@ function SeoSettingsTab() {
         hint={t("admin.seoSettings.newsSitemapHint")}
       >
         <div className="space-y-2">
-          <Checkbox
-            label={t("admin.seoSettings.newsSitemapEnabled")}
-            checked={draft.news_sitemap_enabled}
-            onChange={(v) => set("news_sitemap_enabled", v)}
-          />
           <Text
             value={draft.news_publication_name}
             onChange={(e) => set("news_publication_name", e.target.value)}
@@ -99,35 +89,13 @@ function SeoSettingsTab() {
         </div>
       </Field>
 
-      <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionAi")}</h3>
-      <Field label="llms.txt" hint={t("admin.seoSettings.llmsHint")}>
-        <Checkbox
-          label={t("admin.seoSettings.llmsEnabled")}
-          checked={draft.llms_txt_enabled}
-          onChange={(v) => set("llms_txt_enabled", v)}
-        />
-      </Field>
-      <Field label={t("admin.seoSettings.aiCrawlers")} hint={t("admin.seoSettings.aiCrawlersHint")}>
-        <div className="space-y-2">
-          <Checkbox
-            label={t("admin.seoSettings.aiSearchAllowed")}
-            checked={draft.ai_search_crawlers_allowed}
-            onChange={(v) => set("ai_search_crawlers_allowed", v)}
-          />
-          <Checkbox
-            label={t("admin.seoSettings.aiTrainingAllowed")}
-            checked={draft.ai_training_crawlers_allowed}
-            onChange={(v) => set("ai_training_crawlers_allowed", v)}
-          />
-        </div>
-      </Field>
-
-      <Field
-        label={t("admin.seoSettings.robotsPreview")}
-        hint={t("admin.seoSettings.robotsPreviewHint")}
-      >
-        <RobotsTxtPreview settings={draft} />
-      </Field>
+      {/* Przełączniki plików (RSS, Google News, llms.txt), crawlery AI i podgląd
+          robots.txt - wspólny organizm z zakładką „Tytuł i opis serwisu". */}
+      <SeoEcosystemPanel
+        settings={draft}
+        onChange={(patch) => setDraft({ ...draft, ...patch })}
+        host="seo"
+      />
 
       <h3 className="text-sm font-semibold mt-6 mb-1">{t("admin.seoSettings.sectionEntity")}</h3>
       <Field
