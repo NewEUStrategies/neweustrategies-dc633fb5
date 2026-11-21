@@ -7,6 +7,7 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
@@ -496,6 +497,8 @@ export function JoinUsForm({
         setState("err");
         return;
       }
+      // Meta: zapis przyjęty przez serwer (bez adresu).
+      trackMetaEvent("CompleteRegistration", { content_category: "newsletter_join_us" });
     } catch (err) {
       // Wspólny słownik (`subscribeFeedback`) jak w pozostałych formularzach
       // newslettera: błąd sieci ma własne zdanie, technikalia - ogólne.

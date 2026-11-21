@@ -303,8 +303,14 @@ function CheckoutPage() {
       // Meta: kwota i plan dla strony powrotu - Purchase/Subscribe wyśle
       // dopiero /checkout/success, gdy operator odeśle tam kupującego.
       rememberMetaCheckout("membership", {
-        event: planData.interval === "one_time" ? "Purchase" : "Subscribe",
-        value: finalCentsDisplay / 100,
+        event: trialOffered
+          ? "StartTrial"
+          : planData.interval === "one_time"
+            ? "Purchase"
+            : "Subscribe",
+        // Okres próbny nic nie pobiera dziś - wartość planu idzie jako LTV.
+        value: trialOffered ? 0 : finalCentsDisplay / 100,
+        ...(trialOffered ? { predictedLtv: finalCentsDisplay / 100 } : {}),
         currency: planCurrency,
         contentId: planData.id,
         category: "membership_plan",
@@ -360,7 +366,18 @@ function CheckoutPage() {
                       {/* Capture billing inline - no ejecting out of the funnel. On
                         save the my-billing query invalidates, hasBilling flips and
                         the pay button enables in place. */}
-                      <BillingProfileForm submitLabel={t("checkout.saveBillingContinue")} />
+                      <BillingProfileForm
+                        submitLabel={t("checkout.saveBillingContinue")}
+                        onSaved={() =>
+                          trackMetaEvent("AddPaymentInfo", {
+                            value: finalCentsDisplay / 100,
+                            currency: planCurrency,
+                            content_ids: planData ? [planData.id] : [],
+                            content_type: "product",
+                            content_category: "membership_plan",
+                          })
+                        }
+                      />
                     </div>
                   )}
                 </CardContent>

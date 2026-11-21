@@ -318,6 +318,7 @@ export function ConsentScriptInjector() {
     if (!mounted) return;
     let active = true;
     let stopMetaContact: (() => void) | null = null;
+    let stopTicketWatch: (() => void) | null = null;
     if (categories.marketing) {
       marketingCleanup.current = loadMarketing(marketing);
       // Piksel Meta stoi: wysyłamy zdarzenia zakolejkowane przed jego startem
@@ -328,6 +329,12 @@ export function ConsentScriptInjector() {
             if (!active) return;
             m.flushPendingMetaEvents();
             stopMetaContact = m.installMetaContactListener();
+          })
+          .catch(() => undefined);
+        // Powrót z płatności za bilet: Purchase po potwierdzeniu zamówienia w bazie.
+        void import("@/lib/analytics/metaTicketPurchase")
+          .then((m) => {
+            if (active) stopTicketWatch = m.watchMetaTicketPurchase();
           })
           .catch(() => undefined);
       }
@@ -362,6 +369,7 @@ export function ConsentScriptInjector() {
     return () => {
       active = false;
       stopMetaContact?.();
+      stopTicketWatch?.();
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     };

@@ -35,7 +35,11 @@ export type MetaStandardEvent =
   | "Subscribe"
   | "Donate"
   | "SubmitApplication"
-  | "Contact";
+  | "Contact"
+  | "AddPaymentInfo"
+  | "AddToWishlist"
+  | "StartTrial"
+  | "Schedule";
 
 export interface MetaEventParams {
   value?: number;
@@ -43,6 +47,12 @@ export interface MetaEventParams {
   content_ids?: readonly string[];
   content_category?: string;
   num_items?: number;
+  /** `product` dla pojedynczych pozycji (bilet, plan), `product_group` dla grup. */
+  content_type?: "product" | "product_group";
+  /** Pozycje z ilością - wymagane przez Meta dla katalogu. */
+  contents?: readonly { id: string; quantity: number }[];
+  /** Przewidywana wartość klienta (StartTrial, Subscribe). */
+  predicted_ltv?: number;
 }
 
 type FbqFn = (...args: unknown[]) => void;
@@ -91,6 +101,22 @@ export function sanitizeMetaParams(params: MetaEventParams): Record<string, unkn
   if (params.content_category) {
     const category = clip(params.content_category);
     if (category) out["content_category"] = category;
+  }
+  if (params.content_type === "product" || params.content_type === "product_group") {
+    out["content_type"] = params.content_type;
+  }
+  const contents = (params.contents ?? [])
+    .map((entry) => ({ id: clip(entry.id), quantity: entry.quantity }))
+    .filter((entry) => entry.id.length > 0 && Number.isInteger(entry.quantity) && entry.quantity > 0)
+    .slice(0, MAX_CONTENT_IDS);
+  if (contents.length > 0) out["contents"] = contents;
+  if (
+    typeof params.predicted_ltv === "number" &&
+    Number.isFinite(params.predicted_ltv) &&
+    params.predicted_ltv >= 0 &&
+    out["currency"] !== undefined
+  ) {
+    out["predicted_ltv"] = Math.round(params.predicted_ltv * 100) / 100;
   }
   if (
     typeof params.num_items === "number" &&

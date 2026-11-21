@@ -5,6 +5,7 @@
 // Opcjonalny `widgetConfig` pozwala nadpisywać etykiety / placeholdery per-pole,
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze - całość leci do CRM przez server.
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import * as React from "react";
 import { useId, useMemo, useState, type FormEvent } from "react";
@@ -312,6 +313,8 @@ export function NewsletterForm({
       }
       setOkStatus(res.status);
       setState("ok");
+      // Meta: zapis na newsletter przyjęty przez serwer (bez adresu).
+      trackMetaEvent("CompleteRegistration", { content_category: "newsletter" });
       setEmail("");
       setName("");
       setFirstName("");

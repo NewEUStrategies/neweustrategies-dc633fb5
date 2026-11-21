@@ -20,6 +20,8 @@
 // wydarzeń bez rodzajów wejściówek - musi mieć własne. Kod sprawdza serwer
 // (`createCheckoutOrder` -> `validate_event_ticket_coupon`); odmowa wraca
 // jako `mode: "coupon"` i mówimy ją przy polu, a nie jako awarię płatności.
+import { rememberMetaCheckout } from "@/lib/analytics/metaCheckoutMarker";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -148,6 +150,19 @@ export function EventTicketPurchase({
     // w kasę (raz na sesję, bramka zgody w beaconie) - tak samo jak
     // `RegistrationPayAction`. Autorytetem płatności jest zamówienie w bazie.
     sendEventFunnelStep("checkout_start", { eventId });
+    // Meta: rozpoczęcie płatności za bilet (cena przed ewentualnym kodem).
+    // Kwota do zapłaty wg podglądu (bilet w planie lub darmowy = brak płatności).
+    const metaCents = "amountCents" in offer ? offer.amountCents : 0;
+    if (metaCents > 0) {
+      trackMetaEvent("InitiateCheckout", {
+        value: metaCents / 100,
+        currency,
+        content_ids: [eventId],
+        content_type: "product",
+        content_category: "event_ticket",
+        num_items: 1,
+      });
+    }
     setBusy(true);
     setCodeRefusal(null);
     const code = promo.trim();
@@ -171,6 +186,15 @@ export function EventTicketPurchase({
         return;
       }
       if (res.mode === "stripe") {
+        rememberMetaCheckout("ticket", {
+          event: "Purchase",
+          value: metaCents / 100,
+          currency,
+          contentId: eventId,
+          category: "event_ticket",
+          eventId: `purchase_${res.orderId}`,
+          orderId: res.orderId,
+        });
         setCheckoutSecret(res.clientSecret);
         return;
       }

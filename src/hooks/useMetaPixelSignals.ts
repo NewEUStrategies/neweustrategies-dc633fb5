@@ -38,7 +38,9 @@ export function useMetaCheckoutCompletion(kind: MetaCheckoutKind, enabled: boole
         currency: marker.currency,
         content_ids: [marker.contentId],
         content_category: marker.category,
+        content_type: "product",
         num_items: 1,
+        ...(marker.predictedLtv !== undefined ? { predicted_ltv: marker.predictedLtv } : {}),
       },
       marker.eventId,
     );

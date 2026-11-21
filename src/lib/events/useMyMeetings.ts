@@ -12,6 +12,7 @@
 // oraz zbior wolnych terminow kazdej pary - bo miejsce przy stoliku wlasnie
 // znikelo. Punktowe uniewaznienie listy zostawialoby na ekranie licznik sprzed
 // decyzji, czyli liczbe wygladajaca wiarygodnie i nieprawdziwa.
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import {
   keepPreviousData,
   useMutation,
@@ -138,7 +139,17 @@ export function useInviteToMeeting(
   slug: string | null,
 ): UseMutationResult<Json, Error, Parameters<typeof inviteToMeeting>[0]> {
   const invalidate = useMyInvalidation(slug);
-  return useMutation({ mutationFn: inviteToMeeting, onSuccess: invalidate });
+  return useMutation({
+    mutationFn: inviteToMeeting,
+    onSuccess: () => {
+      // Meta: umówienie spotkania na wydarzeniu (bez danych rozmówcy).
+      trackMetaEvent("Schedule", {
+        ...(hasSlug(slug) ? { content_ids: [slug] } : {}),
+        content_category: "event_meeting",
+      });
+      invalidate();
+    },
+  });
 }
 
 export function useRespondToMeeting(

@@ -1,17 +1,23 @@
 // Znacznik płatności dla piksela Meta: most między kasą a stroną powrotu.
 //
-// Kasa (plan, darowizna) zna kwotę i walutę, ale wynik płatności zna dopiero
-// operator, który odsyła kupującego na stronę potwierdzenia (`return_url`).
-// Kasa zapisuje więc w `sessionStorage` TEJ karty, co zostało zamówione, a
-// strona potwierdzenia ZUŻYWA znacznik (odczyt = usunięcie) i wysyła
-// Purchase/Subscribe/Donate jeden raz. Wejście na stronę potwierdzenia bez
-// świeżej płatności (zakładka, odświeżenie) nie wysyła niczego.
+// Kasa (plan, darowizna, bilet) zna kwotę i walutę, ale wynik płatności zna
+// dopiero operator, który odsyła kupującego na stronę powrotu (`return_url`).
+// Kasa zapisuje więc w `sessionStorage` TEJ karty, co zostało zamówione:
+// - plan i darowizna: strona potwierdzenia ZUŻYWA znacznik (odczyt =
+//   usunięcie) i wysyła Purchase/Subscribe/StartTrial/Donate jeden raz,
+// - bilet: powrót trafia na stronę wydarzenia, więc znacznik niesie numer
+//   zamówienia, a zdarzenie wychodzi dopiero, gdy baza potwierdzi `paid`
+//   (patrz `metaTicketPurchase.ts`).
+// Wejście na stronę potwierdzenia bez świeżej płatności nie wysyła niczego.
 //
-// Bez danych osobowych: kwota, waluta, identyfikator planu i kategoria.
+// Bez danych osobowych: kwota, waluta, identyfikatory planu/wydarzenia/zamówienia.
 import type { MetaStandardEvent } from "./metaPixelEvents";
 
-export type MetaCheckoutKind = "membership" | "donation";
-export type MetaCheckoutEvent = Extract<MetaStandardEvent, "Purchase" | "Subscribe" | "Donate">;
+export type MetaCheckoutKind = "membership" | "donation" | "ticket";
+export type MetaCheckoutEvent = Extract<
+  MetaStandardEvent,
+  "Purchase" | "Subscribe" | "Donate" | "StartTrial"
+>;
 
 export interface MetaCheckoutMarker {
   event: MetaCheckoutEvent;
@@ -21,11 +27,15 @@ export interface MetaCheckoutMarker {
   category: string;
   eventId: string;
   createdAt: number;
+  /** Zamówienie do potwierdzenia w bazie (bilety). */
+  orderId?: string;
+  /** Przewidywana wartość klienta (StartTrial). */
+  predictedLtv?: number;
 }
 
 /** Płatność dłuższa niż 6 h to już nie ten sam powrót z kasy. */
 export const META_CHECKOUT_MARKER_TTL_MS = 6 * 60 * 60 * 1000;
-const EVENTS: readonly MetaCheckoutEvent[] = ["Purchase", "Subscribe", "Donate"];
+const EVENTS: readonly MetaCheckoutEvent[] = ["Purchase", "Subscribe", "Donate", "StartTrial"];
 
 function storageKey(kind: MetaCheckoutKind): string {
   return `meta:checkout:${kind}`;
@@ -37,6 +47,14 @@ function storage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || (typeof value === "string" && value.length > 0);
+}
+
+function isOptionalNumber(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isFinite(value));
 }
 
 function isMarker(value: unknown): value is MetaCheckoutMarker {
@@ -51,7 +69,9 @@ function isMarker(value: unknown): value is MetaCheckoutMarker {
     typeof v["contentId"] === "string" &&
     typeof v["category"] === "string" &&
     typeof v["eventId"] === "string" &&
-    typeof v["createdAt"] === "number"
+    typeof v["createdAt"] === "number" &&
+    isOptionalString(v["orderId"]) &&
+    isOptionalNumber(v["predictedLtv"])
   );
 }
 
@@ -69,8 +89,8 @@ export function rememberMetaCheckout(
   }
 }
 
-/** Odczytuje i USUWA znacznik; zwraca go tylko, gdy jest poprawny i świeży. */
-export function consumeMetaCheckout(
+/** Odczytuje znacznik BEZ usuwania; nieważny lub przeterminowany usuwa i zwraca null. */
+export function peekMetaCheckout(
   kind: MetaCheckoutKind,
   now: number = Date.now(),
 ): MetaCheckoutMarker | null {
@@ -79,19 +99,40 @@ export function consumeMetaCheckout(
   let raw: string | null = null;
   try {
     raw = store.getItem(storageKey(kind));
-    store.removeItem(storageKey(kind));
   } catch {
     return null;
   }
   if (!raw) return null;
-  let parsed: unknown;
+  let parsed: unknown = null;
   try {
     parsed = JSON.parse(raw);
   } catch {
+    parsed = null;
+  }
+  const age = isMarker(parsed) ? now - parsed.createdAt : -1;
+  if (!isMarker(parsed) || age < 0 || age > META_CHECKOUT_MARKER_TTL_MS) {
+    clearMetaCheckout(kind);
     return null;
   }
-  if (!isMarker(parsed)) return null;
-  const age = now - parsed.createdAt;
-  if (age < 0 || age > META_CHECKOUT_MARKER_TTL_MS) return null;
   return parsed;
+}
+
+export function clearMetaCheckout(kind: MetaCheckoutKind): void {
+  const store = storage();
+  if (!store) return;
+  try {
+    store.removeItem(storageKey(kind));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Odczytuje i USUWA znacznik; zwraca go tylko, gdy jest poprawny i świeży. */
+export function consumeMetaCheckout(
+  kind: MetaCheckoutKind,
+  now: number = Date.now(),
+): MetaCheckoutMarker | null {
+  const marker = peekMetaCheckout(kind, now);
+  clearMetaCheckout(kind);
+  return marker;
 }

@@ -80,6 +80,8 @@
 // promocją biletu (`coupon_not_combinable`), albo zostawiłby kwotę poniżej
 // minimum operatora (`final_amount_too_low`) dostaje własne zdanie - ogólne
 // „kod nie obejmuje tego biletu" byłoby tu nieprawdą.
+import { rememberMetaCheckout } from "@/lib/analytics/metaCheckoutMarker";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -444,6 +446,19 @@ export function RegistrationPayAction({
     if (override === undefined) {
       if (!freeWithCode && !(await invoice.commit())) return;
       sendEventFunnelStep("checkout_start", { eventId: eventId as string });
+      // Meta: dane do faktury zapisane i rozpoczęta płatność za bilet.
+      if (!freeWithCode) {
+        const metaTicket = {
+          ...(amountCents !== null && currency !== null
+            ? { value: amountCents / 100, currency }
+            : {}),
+          content_ids: [eventId as string],
+          content_type: "product" as const,
+          content_category: "event_ticket",
+        };
+        trackMetaEvent("AddPaymentInfo", metaTicket);
+        trackMetaEvent("InitiateCheckout", { ...metaTicket, num_items: 1 });
+      }
     }
     setBusy(true);
     setRefusal(null);
@@ -505,6 +520,15 @@ export function RegistrationPayAction({
       }
       onBeforeCheckout?.();
       if (result.mode === "stripe") {
+        rememberMetaCheckout("ticket", {
+          event: "Purchase",
+          value: amountCents !== null ? amountCents / 100 : 0,
+          currency: currency ?? "PLN",
+          contentId: eventId as string,
+          category: "event_ticket",
+          eventId: `purchase_${result.orderId}`,
+          orderId: result.orderId,
+        });
         setClientSecret(result.clientSecret);
         return;
       }

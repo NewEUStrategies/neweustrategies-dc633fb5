@@ -11,6 +11,7 @@
 // Guest entries honour the admin's `guestExpirationDays` TTL: every item is
 // stamped with `savedAt`, expired items are pruned from localStorage on read,
 // and the post-login merge (anonMerge) applies the same cutoff.
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -147,6 +148,12 @@ export function useSaveArticle({
       return;
     }
     setLocalSaved(!exists);
+    if (!exists) {
+      trackMetaEvent("AddToWishlist", {
+        ...(entityId ? { content_ids: [entityId] } : {}),
+        content_category: entityType,
+      });
+    }
     if (exists) toast.success(removedMsg);
     else savedToast();
   }, [url, title, guestTtlDays, removedMsg, errorMsg, savedToast]);
@@ -166,6 +173,12 @@ export function useSaveArticle({
         { entityType, entityId, on: next },
         {
           onSuccess: () => {
+            if (next) {
+              trackMetaEvent("AddToWishlist", {
+                content_ids: [entityId],
+                content_category: entityType,
+              });
+            }
             if (!settings.popupNotification) return;
             if (next) savedToast();
             else toast.success(removedMsg);

@@ -9,6 +9,7 @@
 //
 // KWOTA Z KOSZYKA NIE TRAFIA DO KASY. Do serwera jedzie wyłącznie wskazanie
 // pozycji (`event_id`, `ticket_type_id`); cenę, fazę i dostępność liczy baza.
+import { rememberMetaCheckout } from "@/lib/analytics/metaCheckoutMarker";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -91,6 +92,17 @@ export function CartPanel() {
         return;
       }
       if (res.mode === "stripe") {
+        // Meta: Purchase wyśle `metaTicketPurchase` po powrocie, gdy baza
+        // potwierdzi opłacenie TEGO zamówienia.
+        rememberMetaCheckout("ticket", {
+          event: "Purchase",
+          value: item.priceCents / 100,
+          currency: item.currency,
+          contentId: item.eventId,
+          category: "event_ticket",
+          eventId: `purchase_${res.orderId}`,
+          orderId: res.orderId,
+        });
         setCheckoutSecret(res.clientSecret);
         return;
       }
