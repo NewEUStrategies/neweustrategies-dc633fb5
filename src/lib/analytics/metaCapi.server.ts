@@ -9,6 +9,8 @@
 //   3. User-Agent obecny (Meta wymaga go dla zdarzeń witryny).
 //   4. Piksel z ustawień marketingu NAJEMCY tego hosta - cel wysyłki ustala
 //      serwer, nigdy ładunek.
+//   5. Dopiero potem skróty kluczy dopasowania (`metaCapiMatch.server.ts`):
+//      e-mail i ID konta tylko z ważnej sesji konta tego najemcy.
 // Uwierzytelnienie wobec Meta dokłada bramka konektora; token nie trafia do
 // przeglądarki ani do kodu.
 import { getRequest } from "@tanstack/react-start/server";
@@ -21,6 +23,7 @@ import {
   hasMarketingConsentCookie,
   type MetaCapiBatch,
 } from "./metaCapiContract";
+import { resolveMetaMatchKeys, type MetaMatchDeps } from "./metaCapiMatch.server";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/meta_ads";
 const TIMEOUT_MS = 4_000;
@@ -33,12 +36,7 @@ export type MetaCapiRelayResult =
   | { status: "failed"; httpStatus: number };
 
 export type MetaCapiSkipReason =
-  | "no_request"
-  | "origin_mismatch"
-  | "no_consent"
-  | "no_user_agent"
-  | "no_pixel"
-  | "not_configured";
+  "no_request" | "origin_mismatch" | "no_consent" | "no_user_agent" | "no_pixel" | "not_configured";
 
 const pixelCache = new Map<string, { pixelId: string | null; at: number }>();
 
@@ -106,6 +104,7 @@ export async function relayMetaCapiBatch(
   request: Request | null = safeRequest(),
   fetcher: typeof fetch = fetch,
   now: number = Date.now(),
+  matchDeps?: MetaMatchDeps,
 ): Promise<MetaCapiRelayResult> {
   if (!request) return { status: "skipped", reason: "no_request" };
   if (!isSameSiteBatch(request, batch)) return { status: "skipped", reason: "origin_mismatch" };
@@ -130,10 +129,13 @@ export async function relayMetaCapiBatch(
 
   const ip = clientIpFromHeaders(headers);
   const testEventCode = process.env["META_CAPI_TEST_EVENT_CODE"]?.trim();
+  // Klucze dopasowania (skróty) - dopiero PO bramkach zgody, pochodzenia i piksela.
+  const match = await resolveMetaMatchKeys(headers, tenantId, matchDeps).catch(() => ({}));
   const payload = buildMetaCapiPayload(batch, {
     clientIp: ip && ip !== "unknown" ? ip : null,
     userAgent,
     nowS: Math.floor(now / 1000),
+    match,
     ...(testEventCode ? { testEventCode } : {}),
   });
 
@@ -156,7 +158,9 @@ export async function relayMetaCapiBatch(
       console.error(`Meta CAPI: request failed [${response.status}]: ${body.slice(0, 500)}`);
       return { status: "failed", httpStatus: response.status };
     }
-    const parsed = (await response.json().catch(() => null)) as { events_received?: unknown } | null;
+    const parsed = (await response.json().catch(() => null)) as {
+      events_received?: unknown;
+    } | null;
     const received = typeof parsed?.events_received === "number" ? parsed.events_received : 0;
     return { status: "sent", received };
   } catch (error) {

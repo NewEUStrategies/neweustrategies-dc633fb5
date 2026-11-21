@@ -121,7 +121,10 @@ const CONSENT_VERSION = 2;
  * udzielona świadomie przy widocznej nocie o GPC (`gpcOverrideAt`) - ta sama
  * reguła co `hasCategoryConsent` w przeglądarce.
  */
-export function hasMarketingConsentCookie(cookieHeader: string | null, gpcActive: boolean): boolean {
+export function hasMarketingConsentCookie(
+  cookieHeader: string | null,
+  gpcActive: boolean,
+): boolean {
   if (!cookieHeader) return false;
   const raw = readCookie(cookieHeader, CONSENT_COOKIE);
   if (!raw) return false;
@@ -157,6 +160,8 @@ export interface MetaCapiRequestContext {
   userAgent: string;
   nowS: number;
   testEventCode?: string;
+  /** Skróty SHA-256 kluczy dopasowania (zalogowany odwiedzający / kraj). */
+  match?: { em?: string; externalId?: string; country?: string };
 }
 
 export interface MetaCapiPayload {
@@ -171,6 +176,9 @@ export interface MetaCapiPayload {
       client_ip_address?: string;
       fbp?: string;
       fbc?: string;
+      em?: string[];
+      external_id?: string[];
+      country?: string[];
     };
     custom_data?: MetaCapiCustomData;
   }>;
@@ -179,12 +187,18 @@ export interface MetaCapiPayload {
 }
 
 /** Ładunek `POST /<pixel>/events` - jeden wpis na zdarzenie przeglądarki. */
-export function buildMetaCapiPayload(batch: MetaCapiBatch, ctx: MetaCapiRequestContext): MetaCapiPayload {
+export function buildMetaCapiPayload(
+  batch: MetaCapiBatch,
+  ctx: MetaCapiRequestContext,
+): MetaCapiPayload {
   const userData: MetaCapiPayload["data"][number]["user_data"] = {
     client_user_agent: ctx.userAgent,
     ...(ctx.clientIp ? { client_ip_address: ctx.clientIp } : {}),
     ...(batch.fbp ? { fbp: batch.fbp } : {}),
     ...(batch.fbc ? { fbc: batch.fbc } : {}),
+    ...(ctx.match?.em ? { em: [ctx.match.em] } : {}),
+    ...(ctx.match?.externalId ? { external_id: [ctx.match.externalId] } : {}),
+    ...(ctx.match?.country ? { country: [ctx.match.country] } : {}),
   };
   const payload: MetaCapiPayload = {
     data: batch.events.map((event) => {
