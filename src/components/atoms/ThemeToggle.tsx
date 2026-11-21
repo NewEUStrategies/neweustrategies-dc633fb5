@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Moon, Sun } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
+import { ThemeToggleIcon } from "@/components/atoms/ThemeToggleIcon";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
@@ -21,16 +21,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
         className,
       )}
     >
-      <span
-        key={isDark ? "sun" : "moon"}
-        className="inline-flex items-center justify-center transition-transform duration-300 ease-out rotate-0"
-      >
-        {isDark ? (
-          <Sun className="w-[18px] h-[18px]" aria-hidden="true" />
-        ) : (
-          <Moon className="w-[18px] h-[18px]" aria-hidden="true" />
-        )}
-      </span>
+      <ThemeToggleIcon isDark={isDark} iconClassName="w-[18px] h-[18px]" />
     </button>
   );
 }

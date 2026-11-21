@@ -1958,6 +1958,45 @@ body {
   }
 }
 
+/* Przełącznik motywu (`ThemeToggleIcon`) - animowana wymiana słońce/księżyc.
+   React remontuje węzeł przez `key`, więc animacja startuje od nowa przy
+   każdym przełączeniu: słońce wjeżdża z obrotem zgodnym z ruchem wskazówek,
+   księżyc przeciwnym. `backwards`, NIE `both`: po zakończeniu element wraca
+   pod kontrolę zwykłych reguł (hover/active przycisku), a `backwards`
+   wypełnia tylko stan sprzed startu, więc nic nie miga. */
+@keyframes theme-icon-in-cw {
+  from {
+    opacity: 0;
+    transform: rotate(-120deg) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes theme-icon-in-ccw {
+  from {
+    opacity: 0;
+    transform: rotate(120deg) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.theme-icon-in-cw {
+  animation: theme-icon-in-cw 450ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.theme-icon-in-ccw {
+  animation: theme-icon-in-ccw 450ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-icon-in-cw,
+  .theme-icon-in-ccw {
+    animation: none;
+  }
+}
+
 /* Karta trasy (`TravelRouteCard`) - odpowiednik `framer-motion` z wklejonego
    wzorca bez biblioteki. Trzy ruchy wzorca, trzy klasy: wejście karty,
    uniesienie na hoverze i podmiana licznika polubień (React remontuje węzeł

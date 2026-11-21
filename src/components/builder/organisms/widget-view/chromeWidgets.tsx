@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import * as LucideIcons from "@/lib/lucide-shim";
+import { ThemeToggleIcon } from "@/components/atoms/ThemeToggleIcon";
 import { useTheme } from "@/components/ThemeProvider";
 import type { AppLang } from "@/lib/i18n/localePath";
 import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
@@ -123,16 +123,7 @@ export function ThemeToggleWidget() {
       title={isDark ? t("common.preview.lightMode") : t("common.preview.darkMode")}
       className="inline-flex items-center justify-center w-8 h-8 rounded-full text-foreground hover:text-brand transition-colors duration-200 ease-out active:scale-95"
     >
-      <span
-        key={isDark ? "sun" : "moon"}
-        className="inline-flex items-center justify-center transition-transform duration-300 ease-out"
-      >
-        {isDark ? (
-          <LucideIcons.Sun className="w-4 h-4" aria-hidden="true" />
-        ) : (
-          <LucideIcons.Moon className="w-4 h-4" aria-hidden="true" />
-        )}
-      </span>
+      <ThemeToggleIcon isDark={isDark} iconClassName="w-4 h-4" />
     </button>
   );
 }
