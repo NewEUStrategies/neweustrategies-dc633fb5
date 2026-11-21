@@ -19,6 +19,7 @@ import { formatPlanMoney, planDisplayCurrency } from "@/lib/billing/planMoney";
 
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { track } from "@/lib/analytics/track";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -257,6 +258,14 @@ function CheckoutPage() {
           meta: { interval: planData.interval, has_coupon: !!coupon },
         });
       }
+      // Meta: rozpoczęcie płatności (kwota po kuponie, w walucie planu).
+      trackMetaEvent("InitiateCheckout", {
+        value: finalCentsDisplay / 100,
+        currency: planCurrency,
+        content_ids: [planData.id],
+        content_category: "membership_plan",
+        num_items: 1,
+      });
       const result = await openPlanCheckout({
         planId: planData.id,
         couponCode: coupon?.code,

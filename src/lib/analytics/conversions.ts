@@ -19,6 +19,7 @@ import { ga4Event } from "./ga4Client";
 import { GOOGLE_ADS_ID } from "./tagIds";
 import { track } from "./track";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
+import { newMetaEventId, trackMetaEvent } from "./metaPixelEvents";
 
 /** Etykieta konwersji Ads dla leada z formularza (np. `abCdEfGhIj`). */
 const ADS_LEAD_LABEL = String(import.meta.env.VITE_GOOGLE_ADS_LEAD_LABEL ?? "").trim();
@@ -74,6 +75,8 @@ export function trackFormConversion(input: FormConversionInput): void {
   // `ads_conversion_Formularz_1` + `ads_submit_form` - patrz `adsGoals.ts`.
   trackAdsFormGoals();
   recordAdPixelConversion("form_submit");
+  // Meta: zdarzenie standardowe "Lead" (bez danych z formularza).
+  trackMetaEvent("Lead", { content_category: "form" }, newMetaEventId(`lead_${input.formId}`));
 }
 
 export interface StrategyConversionInput {
@@ -105,4 +108,6 @@ export function trackStrategyConversion(input: StrategyConversionInput): void {
     transaction_id: `strategy_${input.strategyId}_${Date.now()}`,
   });
   recordAdPixelConversion("strategy_click");
+  // Meta: przejście do konkretnej strategii = "ViewContent".
+  trackMetaEvent("ViewContent", { content_ids: [input.strategyId], content_category: "strategy" });
 }
