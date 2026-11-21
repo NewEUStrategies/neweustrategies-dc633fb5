@@ -384,6 +384,7 @@ export const adminExtrasPl = {
         conversionsHint:
           "Przy każdej akcji wklej etykietę konwersji albo cały fragment zdarzenia z send_to: 'AW-…/etykieta'. Puste pole - Google Ads tej konwersji nie liczy.",
         conversionsTitle: "Konwersje Google Ads (tag strony)",
+        conversionLabelSuffix: "(Etykieta konwersji)",
         counting: {
           every: "Każda, z wartością - okno 30 dni",
           one: "Jedna na kliknięcie - okno 90 dni",
@@ -437,6 +438,7 @@ export const adminExtrasPl = {
           video_view: "Wyświetlenie wideo",
         },
         hint: "W LinkedIn Campaign Manager: Analiza -> Śledzenie konwersji -> Utwórz konwersję -> Insight Tag -> Ręczna konfiguracja -> Określonego zdarzenia. Wybierz kategorię podaną pod polem i wklej numer conversion_id albo cały fragment window.lintrk(...). Puste pole - LinkedIn tej konwersji nie liczy.",
+        conversionIdSuffix: "(conversion_id)",
         invalid: "Nie rozpoznano numeru konwersji - wklej sam numer albo fragment z conversion_id.",
         qualifiedNote:
           "Kategorie „Kwalifikowany potencjalny klient” (także marketingowy i sprzedażowy) nadaje CRM po ocenie kontaktu, a nie strona. LinkedIn przyjmuje je tylko przez API konwersji, dlatego nie mają tu pól.",
@@ -475,6 +477,7 @@ export const adminExtrasPl = {
         capiTitle: "API konwersji X (kopia serwerowa)",
         eventSent: "Platforma wyśle po potwierdzonej akcji:",
         eventTypeLabel: "Typ zdarzenia w X: {{type}}",
+        eventIdSuffix: "(Event ID)",
         eventsHint:
           "W X Ads: Tools -> Events Manager -> piksel -> Add events -> Define event -> wybierz typ podany pod polem, metoda „Define event with code”. Wklej identyfikator zdarzenia (tw-…-…) albo cały kod twq('event', ...) - zapiszemy tylko identyfikator, a kod platforma wywoła sama po potwierdzonej akcji i zgodzie marketingowej. Puste pole - X tej konwersji nie liczy.",
         pixelHint:
@@ -1374,6 +1377,7 @@ export const adminExtrasEn = {
         conversionsHint:
           "For each action paste the conversion label or the whole event snippet with send_to: 'AW-…/label'. Empty field - Google Ads does not count that conversion.",
         conversionsTitle: "Google Ads conversions (website tag)",
+        conversionLabelSuffix: "(Conversion label)",
         counting: {
           every: "Every, with value - 30-day window",
           one: "One per click - 90-day window",
@@ -1427,6 +1431,7 @@ export const adminExtrasEn = {
           video_view: "Video view",
         },
         hint: "In LinkedIn Campaign Manager: Analyze -> Conversion tracking -> Create conversion -> Insight Tag -> Manual setup -> Specific event. Pick the category shown under the field and paste the conversion_id number or the whole window.lintrk(...) snippet. Leave empty and LinkedIn does not count that conversion.",
+        conversionIdSuffix: "(conversion_id)",
         invalid:
           "Conversion number not recognised - paste the number alone or the snippet with conversion_id.",
         qualifiedNote:
@@ -1466,6 +1471,7 @@ export const adminExtrasEn = {
         capiTitle: "X Conversion API (server copy)",
         eventSent: "The platform sends after a confirmed action:",
         eventTypeLabel: "Event type in X: {{type}}",
+        eventIdSuffix: "(Event ID)",
         eventsHint:
           "In X Ads: Tools -> Events Manager -> pixel -> Add events -> Define event -> pick the type shown under the field, method “Define event with code”. Paste the event ID (tw-…-…) or the whole twq('event', ...) code - only the ID is saved and the platform calls the code itself after a confirmed action and marketing consent. Empty field - X does not count this conversion.",
         pixelHint:

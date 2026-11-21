@@ -189,6 +189,7 @@ function PixelsSettings() {
               <Field
                 key={goal}
                 label={t(`admin.marketing.google.goals.${goal}`)}
+                labelSuffix={t("admin.marketing.google.conversionLabelSuffix")}
                 hint={t("admin.marketing.google.countingLabel", {
                   counting: t(`admin.marketing.google.counting.${GOOGLE_ADS_GOAL_COUNTING[goal]}`),
                 })}
@@ -258,6 +259,7 @@ function PixelsSettings() {
                 <Field
                   key={goal}
                   label={t(`admin.marketing.linkedinConversions.goals.${goal}`)}
+                  labelSuffix={t("admin.marketing.linkedinConversions.conversionIdSuffix")}
                   hint={t("admin.marketing.linkedinConversions.categoryLabel", {
                     category: t(`admin.marketing.linkedinConversions.categories.${goal}`),
                     counting: t(
@@ -354,6 +356,7 @@ function PixelsSettings() {
                   <Field
                     key={goal}
                     label={t(`admin.marketing.linkedinConversions.goals.${goal}`)}
+                    labelSuffix={t("admin.marketing.x.eventIdSuffix")}
                     hint={t("admin.marketing.x.eventTypeLabel", { type: X_EVENT_TYPES[goal] })}
                     htmlFor={`pixels-x-${goal}`}
                   >

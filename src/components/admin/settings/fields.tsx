@@ -13,11 +13,23 @@ import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsB
 
 export function Field({
   label,
+  labelSuffix,
   hint,
   htmlFor,
   children,
 }: {
   label: string;
+  /**
+   * Krótki dopisek do nazwy pola, np. `(Event ID)` - mówi administratorowi,
+   * CO dokładnie ma w to pole wkleić.
+   *
+   * DLACZEGO W ETYKIECIE, A NIE W `hint`. `hint` stoi pod kontrolką, czyli
+   * dopiero po jej nazwie: osoba czytająca z etykietą „Formularz kontaktowy"
+   * i tak nie wie, czy wkleja numer konwersji, identyfikator zdarzenia czy
+   * etykietę. W `<label>` dopisek wchodzi w nazwę pola, więc czytnik ekranu
+   * wczytuje go razem z nią, a widoczna podpowiedź zostaje na instrukcję.
+   */
+  labelSuffix?: string;
   hint?: string;
   /**
    * Identyfikator kontrolki, ktora ta etykieta opisuje - `<label for>`.
@@ -38,6 +50,12 @@ export function Field({
     <div className="grid md:grid-cols-[200px_1fr] gap-3 md:gap-6 py-4 border-b border-border last:border-0">
       <label htmlFor={htmlFor} className="text-sm font-medium pt-2">
         {label}
+        {labelSuffix ? (
+          <>
+            {" "}
+            <span className="text-xs font-normal text-muted-foreground">{labelSuffix}</span>
+          </>
+        ) : null}
       </label>
       <div className="min-w-0">
         {children}

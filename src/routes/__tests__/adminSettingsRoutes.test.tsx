@@ -308,6 +308,9 @@ vi.mock("@/components/admin/blocks/AdminSelect", () => ({
 
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { analyticsStatusKey } from "@/lib/analytics/queryKeys";
+import { GOOGLE_ADS_GOALS } from "@/lib/analytics/googleAdsGoals";
+import { LINKEDIN_GOALS } from "@/lib/analytics/linkedinGoals";
+import { X_GOALS } from "@/lib/analytics/xGoals";
 // Ta sama funkcja, którą podstawia atrapa `react-i18next` powyżej - dzięki
 // temu helper paska zapisu liczy napis DOKŁADNIE tak, jak policzy go panel,
 // zamiast trzymać przepisany z ręki literał.
@@ -906,6 +909,58 @@ describe("admin.settings.marketing - identyfikatory pikseli i wstawki HTML", () 
     fireEvent.change(areas[0], { target: { value: snippet } });
     fireEvent.click(saveButton() as HTMLButtonElement);
     await waitFor(() => expect(lastSave("marketing")?.custom_head_html).toBe(snippet));
+  });
+
+  it("każde pole celu X Ads ma w etykiecie dopisek (Event ID)", async () => {
+    // Administrator widzi w X Ads Managerze „Event ID" i szuka go w panelu.
+    // Sama nazwa celu („Formularz kontaktowy") nie mówi, jaką wartość wkleić -
+    // bez dopisku pole jest czytelne dopiero po odnalezieniu podpowiedzi.
+    await renderRoute({
+      route: MarketingRoute,
+      path: "/admin/settings/marketing",
+      initialEntry: "/admin/settings/marketing?tab=x",
+    });
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+    const suffix = translateKey("admin.marketing.x.eventIdSuffix");
+    for (const goal of X_GOALS) {
+      const label = document.querySelector(`label[for="pixels-x-${goal}"]`);
+      expect(label?.textContent).toBe(
+        `${translateKey(`admin.marketing.linkedinConversions.goals.${goal}`)} ${suffix}`,
+      );
+    }
+  });
+
+  it("pola konwersji LinkedIn i Google Ads mówią w etykiecie, co wkleić", async () => {
+    // Ten sam dopisek co w X: bez niego trzy zakładki Pixels pytają o trzy
+    // różne numery, a etykiety wyglądają identycznie.
+    await renderRoute({
+      route: MarketingRoute,
+      path: "/admin/settings/marketing",
+      initialEntry: "/admin/settings/marketing?tab=linkedin",
+    });
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+    const liSuffix = translateKey("admin.marketing.linkedinConversions.conversionIdSuffix");
+    for (const goal of LINKEDIN_GOALS) {
+      const label = document.querySelector(`label[for="pixels-li-${goal}"]`);
+      expect(label?.textContent).toBe(
+        `${translateKey(`admin.marketing.linkedinConversions.goals.${goal}`)} ${liSuffix}`,
+      );
+    }
+
+    cleanup();
+    await renderRoute({
+      route: MarketingRoute,
+      path: "/admin/settings/marketing",
+      initialEntry: "/admin/settings/marketing?tab=google",
+    });
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+    const gSuffix = translateKey("admin.marketing.google.conversionLabelSuffix");
+    for (const goal of GOOGLE_ADS_GOALS) {
+      const label = document.querySelector(`label[for="pixels-gads-${goal}"]`);
+      expect(label?.textContent).toBe(
+        `${translateKey(`admin.marketing.google.goals.${goal}`)} ${gSuffix}`,
+      );
+    }
   });
 });
 
