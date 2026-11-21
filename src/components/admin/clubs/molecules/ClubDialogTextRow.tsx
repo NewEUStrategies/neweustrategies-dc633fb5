@@ -21,6 +21,7 @@
 import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Textarea } from "@/components/ui/textarea";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
 
@@ -68,7 +69,16 @@ export function ClubDialogTextRow({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{t(labelKey)}</Label>
-      {rows === undefined ? (
+      {rows === undefined && (type === "date" || type === "datetime-local") ? (
+        <DateInput
+          id={id}
+          type={type}
+          value={value}
+          autoFocus={autoFocus}
+          disabled={disabled}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+      ) : rows === undefined ? (
         <Input
           id={id}
           type={type}

@@ -220,10 +220,13 @@ describe("kalendarz i okładka", () => {
   it("kalendarz bez miesiąca ma puste pole (bieżący miesiąc), a wybór zapisuje `month`", () => {
     const start = blok("calendar", {});
     const { container, changes } = renderEditor(CalendarBlock, start);
-    const miesiac = container.querySelector('input[type="month"]') as HTMLInputElement;
-    expect(miesiac.value).toBe("");
-    fireEvent.change(miesiac, { target: { value: "2026-09" } });
-    expect(changes).toEqual([poZapisie(start, { month: "2026-09" })]);
+    // Miesiąc i rok wybiera się z list platformy, nie z systemowego `type="month"`.
+    expect(container.querySelector('input[type="month"]')).toBeNull();
+    const [miesiac] = Array.from(container.querySelectorAll("select"));
+    expect(miesiac?.value).toBe("");
+    fireEvent.change(miesiac as HTMLSelectElement, { target: { value: "9" } });
+    const rok = new Date().getFullYear();
+    expect(changes).toEqual([poZapisie(start, { month: `${rok}-09` })]);
   });
 
   it("okładka z adresem-OBIEKTEM to okładka BEZ obrazu: pokazuje pole adresu tła", () => {

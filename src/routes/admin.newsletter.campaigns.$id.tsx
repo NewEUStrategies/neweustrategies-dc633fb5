@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { Label } from "@/components/ui/label";
+import { DateInput } from "@/components/ui/date-input";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Textarea } from "@/components/ui/textarea";
 import { CampaignContentBuilder } from "@/components/admin/newsletter/CampaignContentBuilder";
@@ -462,8 +463,11 @@ function CampaignEditor() {
               <div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 max-w-[280px]">
-                    <FloatingInput
-                      label={t("adminNewsletter.campaigns.scheduleSend")}
+                    <Label htmlFor="campaign-schedule-send" className="mb-1 block text-xs">
+                      {t("adminNewsletter.campaigns.scheduleSend")}
+                    </Label>
+                    <DateInput
+                      id="campaign-schedule-send"
                       type="datetime-local"
                       value={form.scheduled_at_local}
                       onChange={(e) => setForm({ ...form, scheduled_at_local: e.target.value })}

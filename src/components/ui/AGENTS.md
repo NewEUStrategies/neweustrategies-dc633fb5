@@ -1,0 +1,1 @@
+- Keep the native <select>/<input> as the form contract in field atoms, but open lists, calendars and time pickers only in platform popovers (`platform-popover`), never the browser popup, so every admin field matches the platform layout.

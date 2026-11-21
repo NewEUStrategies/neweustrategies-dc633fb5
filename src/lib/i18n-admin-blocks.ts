@@ -626,6 +626,7 @@ export const blocksCorePl = {
       calendar: {
         title: "Kalendarz",
         monthPh: "Bieżący miesiąc",
+        year: "Rok",
       },
       xquote: {
         title: "X Quote / Click-to-Tweet",
@@ -1308,6 +1309,7 @@ export const blocksCoreEn = {
       calendar: {
         title: "Calendar",
         monthPh: "Current month",
+        year: "Year",
       },
       xquote: {
         title: "X Quote / Click-to-Tweet",

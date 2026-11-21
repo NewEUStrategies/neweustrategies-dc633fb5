@@ -17,6 +17,7 @@ export const dateTimePickerPl = {
     now: "Teraz",
     clear: "Wyczyść",
     openCalendar: "Otwórz kalendarz",
+    openTime: "Wybierz godzinę",
   },
 } as const;
 
@@ -31,6 +32,7 @@ export const dateTimePickerEn = {
     now: "Now",
     clear: "Clear",
     openCalendar: "Open calendar",
+    openTime: "Pick a time",
   },
 } as const;
 
