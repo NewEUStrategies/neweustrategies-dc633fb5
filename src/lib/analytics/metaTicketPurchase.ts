@@ -12,6 +12,7 @@
 // operatora potrafi przyjść kilka sekund po powrocie).
 import { clearMetaCheckout, peekMetaCheckout } from "./metaCheckoutMarker";
 import { trackMetaEvent } from "./metaPixelEvents";
+import { trackAdsPurchase } from "./adsPurchase";
 
 export interface MetaTicketOrderRow {
   status: string;
@@ -122,6 +123,11 @@ export function watchMetaTicketPurchase(
         },
         `purchase_${orderId}`,
       );
+      trackAdsPurchase({
+        transactionId: `purchase_${orderId}`,
+        value: order.amount_cents / 100,
+        currency: order.currency,
+      });
       markReported(orderId);
       clearMetaCheckout("ticket");
       return;

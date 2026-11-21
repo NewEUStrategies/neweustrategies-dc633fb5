@@ -360,3 +360,11 @@
 - [x] Testy: 63 przechodzi (`audioOrganisms`, `audioControlBorders`), `tsgo` bez błędów; w podglądzie tooltip „Pobierz MP3" nad ikoną, brak podpisu w karcie, brak błędów JS.
 
 - [x] Pełny skan bezpieczeństwa i naprawa krytycznych znalezisk przed szerokim udostępnieniem strony (dompurify 3.4.18, proxy-addr 2.0.8; 0 krytycznych)
+
+## Google Ads - konfiguracja i optymalizacja (2026-11-21)
+
+- [x] Nowa akcja „NES - Zakup (tag strony)” (główna); import zakupu z GA4 i `ads_submit_form` jako dodatkowe.
+- [x] Kampania „NES - Website visibility” pod wizyty: cele na poziomie kampanii, tylko odsłony sterują stawkami; `ads_conversion_PAGE_VIEW_1` dodatkowa.
+- [x] Strona wysyła zakup do Google Ads po potwierdzonej płatności (bilety, członkostwo, darowizny).
+- [ ] Akcja „Wyświetlenie strony (/en)” jako dodatkowa - tylko w panelu Google Ads (API nie pozwala).
+- [ ] Porządki w kampanii (słowa „Data”, „outcomes”, „scenarios”, literówka, budżet 200 USD/dzień) - czeka na decyzję właściciela.

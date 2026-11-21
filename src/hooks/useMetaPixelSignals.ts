@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { afterPrerendering } from "@/lib/prerender";
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { consumeMetaCheckout, type MetaCheckoutKind } from "@/lib/analytics/metaCheckoutMarker";
+import { trackAdsPurchase } from "@/lib/analytics/adsPurchase";
 
 /**
  * ViewContent raz na wyświetloną treść (artykuł, wydarzenie). Strona
@@ -44,5 +45,13 @@ export function useMetaCheckoutCompletion(kind: MetaCheckoutKind, enabled: boole
       },
       marker.eventId,
     );
+    // Google Ads: ten sam potwierdzony zakup (bez okresu próbnego bez opłaty).
+    if (marker.event !== "StartTrial") {
+      trackAdsPurchase({
+        transactionId: marker.eventId,
+        value: marker.value,
+        currency: marker.currency,
+      });
+    }
   }, [kind, enabled]);
 }

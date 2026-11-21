@@ -331,13 +331,15 @@ export function ConsentScriptInjector() {
             stopMetaContact = m.installMetaContactListener();
           })
           .catch(() => undefined);
-        // Powrót z płatności za bilet: Purchase po potwierdzeniu zamówienia w bazie.
-        void import("@/lib/analytics/metaTicketPurchase")
-          .then((m) => {
-            if (active) stopTicketWatch = m.watchMetaTicketPurchase();
-          })
-          .catch(() => undefined);
       }
+      // Powrót z płatności za bilet: Purchase (Meta) i zakup Google Ads po
+      // potwierdzeniu zamówienia w bazie - niezależnie od tego, czy piksel Meta
+      // jest skonfigurowany (każdy kanał sam pilnuje zgody marketingowej).
+      void import("@/lib/analytics/metaTicketPurchase")
+        .then((m) => {
+          if (active) stopTicketWatch = m.watchMetaTicketPurchase();
+        })
+        .catch(() => undefined);
       // Lustro pikseli do panelu admina (Piksele Ads) - patrz adPixels.ts.
       const platforms: AdPlatform[] = [];
       if (marketing.meta_pixel_id) platforms.push("meta");
