@@ -189,3 +189,27 @@ describe("Contact", () => {
     expect(fbq.mock.calls[0]?.[2]).toEqual({ content_category: "email" });
   });
 });
+
+describe("sanitizeMetaParams - catalog fields", () => {
+  it("keeps contents, content_type and predicted_ltv with a currency", () => {
+    expect(
+      sanitizeMetaParams({
+        value: 0,
+        currency: "PLN",
+        predicted_ltv: 49.9,
+        content_type: "product",
+        contents: [{ id: "plan-1", quantity: 1 }, { id: " ", quantity: 1 }, { id: "x", quantity: 0 }],
+      }),
+    ).toEqual({
+      value: 0,
+      currency: "PLN",
+      predicted_ltv: 49.9,
+      content_type: "product",
+      contents: [{ id: "plan-1", quantity: 1 }],
+    });
+  });
+
+  it("drops predicted_ltv without a currency", () => {
+    expect(sanitizeMetaParams({ predicted_ltv: 10 })).toEqual({});
+  });
+});

@@ -2,7 +2,7 @@
 
 - Load ad pixels (Meta, LinkedIn Insight, TikTok) only from `ConsentScriptInjector` after marketing consent and add each one's template to the GTM snippet's `gtm.blocklist`, because the GTM container starts on analytics consent and would otherwise fire them early and twice.
 
-- Send Meta Pixel standard events only through `trackMetaEvent` in `src/lib/analytics/metaPixelEvents.ts` (marketing-consent gate, startup queue flushed by `ConsentScriptInjector`, sanitized non-personal params, unique `eventID`); fire outcome events after server/payment-confirmed success and payment outcomes only by consuming the `metaCheckoutMarker` written at checkout, so withdrawn consent stops sends, success-page revisits never re-count, and a future Conversions API path can deduplicate.
+- Send Meta Pixel standard events only through `trackMetaEvent` in `src/lib/analytics/metaPixelEvents.ts` (marketing-consent gate, startup queue flushed by `ConsentScriptInjector`, sanitized non-personal params, unique `eventID`); fire outcome events after server/payment-confirmed success and payment outcomes only by consuming the `metaCheckoutMarker` written at checkout (event tickets: only after `metaTicketPurchase` reads the marked order as `paid`), so withdrawn consent stops sends, success-page revisits never re-count, and a future Conversions API path can deduplicate.
 
 - Load the shared Google tag immediately when the Ads destination is configured after marketing consent; reuse any existing gtag script so deferred GA4 loading cannot delay Ads or duplicate the install.
 
