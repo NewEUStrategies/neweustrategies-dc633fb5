@@ -118,8 +118,38 @@ function injectCustomHtml(html: string, owner: string, target: HTMLElement): voi
 
 // ---------------- Analytics loaders ----------------
 
-/** Typy tagów GTM, które obsługujemy poza kontenerem, z właściwą bramką zgody. */
-const GTM_BLOCKLIST: readonly string[] = ["bzi"];
+/**
+ * Typy tagów GTM wyłączone w kontenerze. Wszystko, co mierzy, ładuje strona
+ * sama, z właściwą bramką zgody - kontener nie może tego powielać ani obejść:
+ * - `bzi`: LinkedIn Insight (pomiar marketingowy, ładuje `loadMarketing`);
+ * - `gclidw`: Linker konwersji - łączenie kliknięć robi już tag Google
+ *   z `config AW` po zgodzie marketingowej;
+ * - `html`: własny kod HTML/JS, który omija bramki zgody (Clarity i weryfikacja
+ *   Bing są w kodzie strony; dawny tag "consent default" po zgodzie cofał ją).
+ */
+export const GTM_BLOCKLIST: readonly string[] = ["bzi", "gclidw", "html"];
+
+type ClarityFn = (...args: unknown[]) => void;
+
+function readClarity(): ClarityFn | null {
+  if (typeof window === "undefined") return null;
+  const candidate: unknown = (window as Window & { clarity?: unknown }).clarity;
+  return typeof candidate === "function" ? (candidate as ClarityFn) : null;
+}
+
+/** Consent API v2 Clarity: analityka i reklama osobno, wprost z decyzji odwiedzającego. */
+export function clarityConsent(analytics: boolean, marketing: boolean): void {
+  const clarity = readClarity();
+  if (!clarity) return;
+  try {
+    clarity("consentv2", {
+      ad_Storage: marketing ? "granted" : "denied",
+      analytics_Storage: analytics ? "granted" : "denied",
+    });
+  } catch {
+    /* Clarity niedostępna - nic do zaktualizowania */
+  }
+}
 
 function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
   const owner = "consent-analytics";
@@ -135,6 +165,15 @@ function loadAnalytics(cfg: AnalyticsConfig): CleanupFn {
     // `loadMarketing` po zgodzie na marketing, bez podwójnych odsłon.
     injectInlineScript(
       `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.blocklist':${JSON.stringify(GTM_BLOCKLIST)}});w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;j.setAttribute('data-consent-owner','${owner}');f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(cfg.gtm_container_id)});`,
+      owner,
+    );
+  }
+
+  // Microsoft Clarity (mapy cieplne, nagrania sesji) po zgodzie analitycznej.
+  // Oficjalny stub kolejkuje `consentv2` przed dociągnięciem skryptu.
+  if (cfg.clarity_project_id && !readClarity()) {
+    injectInlineScript(
+      `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;t.setAttribute('data-consent-owner','${owner}');y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",${JSON.stringify(cfg.clarity_project_id)});`,
       owner,
     );
   }
@@ -306,6 +345,8 @@ export function ConsentScriptInjector() {
     if (categories.analytics) {
       analyticsCleanup.current = loadAnalytics(analytics);
     } else {
+      // Wycofanie zgody: Clarity w pamięci przestaje zapisywać i wysyłać.
+      clarityConsent(false, false);
       analyticsCleanup.current?.();
       analyticsCleanup.current = null;
     }
@@ -315,6 +356,12 @@ export function ConsentScriptInjector() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, categories.analytics, JSON.stringify(analytics)]);
+
+  // Clarity dostaje każdą zmianę decyzji (także samą zgodę marketingową).
+  useEffect(() => {
+    if (!mounted || !categories.analytics || !analytics.clarity_project_id) return;
+    clarityConsent(true, categories.marketing === true);
+  }, [mounted, categories.analytics, categories.marketing, analytics.clarity_project_id]);
 
   useEffect(() => {
     if (!mounted) return;

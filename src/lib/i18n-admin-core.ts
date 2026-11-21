@@ -121,7 +121,11 @@ export const adminCorePl = {
         measurementId: "Measurement ID",
         measurementIdHint: "Publiczny identyfikator ładowany do gtag.js na froncie.",
         gtm: "Google Tag Manager (Container ID)",
-        gtmHint: "Opcjonalnie: jeśli używasz GTM zamiast bezpośredniego gtag.",
+        gtmHint:
+          "Opcjonalnie. Kontener startuje po zgodzie analitycznej i nie może uruchamiać własnego kodu HTML, LinkedIn Insight ani linkera konwersji - te pomiary prowadzi sama strona, z właściwą zgodą.",
+        clarity: "Microsoft Clarity - ID projektu",
+        clarityHint:
+          "Mapy cieplne i nagrania sesji po zgodzie analitycznej; zgoda marketingowa przekazywana osobno. ID z clarity.microsoft.com -> Ustawienia -> Konfiguracja.",
         activeMode: "Aktywny tryb odczytu",
         modes: {
           service_account: "Konto serwisowe (Data API)",
@@ -1417,7 +1421,11 @@ export const adminCoreEn = {
         measurementId: "Measurement ID",
         measurementIdHint: "Public identifier loaded into gtag.js on the front-end.",
         gtm: "Google Tag Manager (Container ID)",
-        gtmHint: "Optional: use only if you route tags through GTM instead of direct gtag.",
+        gtmHint:
+          "Optional. The container starts on analytics consent and cannot run custom HTML, LinkedIn Insight or the conversion linker - the site runs those measurements itself, with the right consent.",
+        clarity: "Microsoft Clarity - project ID",
+        clarityHint:
+          "Heatmaps and session recordings after analytics consent; marketing consent is passed separately. ID from clarity.microsoft.com -> Settings -> Setup.",
         activeMode: "Active read mode",
         modes: {
           service_account: "Service account (Data API)",

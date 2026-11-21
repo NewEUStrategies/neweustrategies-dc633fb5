@@ -572,6 +572,20 @@ describe("security headers across deployment modes", () => {
     expect(directive("connect-src")).toContain("https://px.ads.linkedin.com");
     expect(directive("connect-src")).not.toMatch(/\shttps:(\s|$)/);
   });
+  it("dopuszcza Microsoft Clarity: znacznik i skrypt w script-src, dane w connect-src", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");
+    vi.stubEnv("SUPABASE_URL", "");
+    const csp =
+      applySecurityHeaders(request(), document()).headers.get("content-security-policy") ?? "";
+    const directive = (name: string) =>
+      csp
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name} `)) ?? "";
+    expect(directive("script-src")).toContain("https://www.clarity.ms");
+    expect(directive("script-src")).toContain("https://scripts.clarity.ms");
+    expect(directive("connect-src")).toContain("https://*.clarity.ms");
+  });
   it("preserves existing CSP and HSTS", () => {
     const res = document();
     res.headers.set("content-security-policy", "default-src 'none'");

@@ -45,11 +45,14 @@ import type { ReactNode } from "react";
 // klucze, których rdzeń słownika nie ma. Bez tego importu i18next zwróciłby
 // same identyfikatory.
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 export const Route = createFileRoute("/admin/settings/analytics")({
-  head: () => ({
-    meta: [{ title: "Analityka - Ustawienia" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  head: () =>
+    adminPageHead(
+      "Analityka - Ustawienia",
+      "Google Analytics, Search Console, Tag Manager, Microsoft Clarity i Plausible uruchamiane po zgodzie analitycznej. Panel administracyjny New European Strategies.",
+    ),
   component: AnalyticsSettings,
 });
 
@@ -437,6 +440,16 @@ function AnalyticsSettings() {
             value={draft.gtm_container_id}
             onChange={(e) => set("gtm_container_id", e.target.value)}
             placeholder="GTM-XXXXXXX"
+          />
+        </Field>
+        <Field
+          label={t("admin.analyticsSettings.ga4.clarity")}
+          hint={t("admin.analyticsSettings.ga4.clarityHint")}
+        >
+          <Text
+            value={draft.clarity_project_id}
+            onChange={(e) => set("clarity_project_id", e.target.value)}
+            placeholder="abcd1234ef"
           />
         </Field>
         {st?.ga4 && (

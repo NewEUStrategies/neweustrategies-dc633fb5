@@ -313,6 +313,9 @@ export function buildRootHead(
     { title },
     { name: "description", content: description },
     { name: "google-site-verification", content: "F4uS74OW4AztK0xOVBDNbWSwkpo7fXJ6txlYBmK2Cug" },
+    // Bing Webmaster Tools: robot weryfikacji czyta surowy HTML, więc znacznik
+    // musi być w SSR (dawniej wstrzykiwał go GTM dopiero po zgodzie - za późno).
+    { name: "msvalidate.01", content: "886216CF70E0D6C60C399277E957E07C" },
 
     { name: "author", content: name },
     { property: "og:title", content: title },

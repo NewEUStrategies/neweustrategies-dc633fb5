@@ -310,6 +310,14 @@ const LINKEDIN_INSIGHT_SCRIPT_SRC = "https://snap.licdn.com";
 const LINKEDIN_INSIGHT_CONNECT_SRC =
   "https://px.ads.linkedin.com https://px4.ads.linkedin.com https://dc.ads.linkedin.com";
 
+/**
+ * Microsoft Clarity: znacznik z www.clarity.ms, właściwy skrypt ze
+ * scripts.clarity.ms, dane do <litera>.clarity.ms/collect. Ładuje go
+ * wyłącznie `ConsentScriptInjector` po zgodzie analitycznej.
+ */
+const CLARITY_SCRIPT_SRC = "https://www.clarity.ms https://scripts.clarity.ms";
+const CLARITY_CONNECT_SRC = "https://*.clarity.ms";
+
 function contentSecurityPolicy(request?: Request): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
   let supabaseOrigins = "";
@@ -324,7 +332,7 @@ function contentSecurityPolicy(request?: Request): string {
   const preview = request ? isPreviewRequest(request) : false;
   // Kurs EUR/PLN w koszyku pobieramy bezpośrednio z NBP (Tabela A), a Stripe.js
   // odpytuje własne API - bez tych origin-ów CSP blokuje checkout w przeglądarce.
-  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC} ${META_PIXEL_CONNECT_SRC} ${LINKEDIN_INSIGHT_CONNECT_SRC}`;
+  const extraOrigins = `https://api.nbp.pl https://api.stripe.com ${GOOGLE_TAG_CONNECT_SRC} ${META_PIXEL_CONNECT_SRC} ${LINKEDIN_INSIGHT_CONNECT_SRC} ${CLARITY_CONNECT_SRC}`;
   const connectSrc = supabaseOrigins
     ? `connect-src 'self' ${supabaseOrigins} ${extraOrigins}${preview ? " https: wss:" : ""}`
     : "connect-src 'self' https: wss:";
@@ -334,7 +342,7 @@ function contentSecurityPolicy(request?: Request): string {
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
     // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
     // ładowanie SDK i checkout nie startuje.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC} ${META_PIXEL_SCRIPT_SRC} ${LINKEDIN_INSIGHT_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC} ${META_PIXEL_SCRIPT_SRC} ${LINKEDIN_INSIGHT_SCRIPT_SRC} ${CLARITY_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",

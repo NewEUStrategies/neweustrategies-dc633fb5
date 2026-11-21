@@ -798,16 +798,45 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(inline[0].textContent).toContain(`setAttribute('${MARK_ATTR}','${ANALYTICS_OWNER}')`);
   });
 
-  it("GTM blokuje w kontenerze szablon LinkedIn Insight (bzi), zanim wczyta gtm.js", () => {
+  it("GTM blokuje w kontenerze LinkedIn Insight, linker konwersji i własny HTML, zanim wczyta gtm.js", () => {
     setAnalytics({ gtm_container_id: GTM_ID });
 
     renderInjector();
 
     const text = inlineScripts(ANALYTICS_OWNER)[0]?.textContent ?? "";
-    const blocklistAt = text.indexOf(`'gtm.blocklist':["bzi"]`);
+    const blocklistAt = text.indexOf(`'gtm.blocklist':["bzi","gclidw","html"]`);
     expect(blocklistAt).toBeGreaterThan(-1);
     // Blokada musi trafić do dataLayer przed startem kontenera.
     expect(blocklistAt).toBeLessThan(text.indexOf("gtm.js?id="));
+  });
+
+  it("Clarity startuje po zgodzie analitycznej z identyfikatorem projektu i znacznikiem sprzątania", () => {
+    setAnalytics({ clarity_project_id: "abc123xyz" });
+
+    renderInjector();
+
+    const code = inlineCode(ANALYTICS_OWNER);
+    expect(code).toContain('"https://www.clarity.ms/tag/"+i');
+    expect(code).toContain(JSON.stringify("abc123xyz"));
+    expect(code).toContain(`setAttribute('${MARK_ATTR}','${ANALYTICS_OWNER}')`);
+  });
+
+  it("Clarity dostaje zgodę v2: analityka tak, reklama dopiero ze zgodą marketingową", () => {
+    const calls: unknown[][] = [];
+    (window as Window & { clarity?: unknown }).clarity = (...args: unknown[]) => {
+      calls.push(args);
+    };
+    setAnalytics({ clarity_project_id: "abc123xyz" });
+
+    renderInjector();
+
+    expect(calls).toContainEqual([
+      "consentv2",
+      { ad_Storage: "denied", analytics_Storage: "granted" },
+    ]);
+    // Clarity już stoi - drugi skrypt nie jest wstrzykiwany.
+    expect(inlineCode(ANALYTICS_OWNER)).not.toContain("clarity.ms/tag");
+    delete (window as Window & { clarity?: unknown }).clarity;
   });
 
   it("plausible dodaje skrypt zewnętrzny z defer i data-domain", () => {
