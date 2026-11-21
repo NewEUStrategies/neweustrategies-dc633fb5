@@ -891,6 +891,16 @@ describe("ConsentScriptInjector - loadery marketingu", () => {
     expect(external[0].getAttribute("src")).toBe(LINKEDIN_SRC);
   });
 
+  it("LinkedIn zakłada kolejkowy stub lintrk, zanim dojedzie insight.min.js", () => {
+    setMarketing({ linkedin_partner_id: LINKEDIN_ID });
+
+    renderInjector();
+
+    const code = inlineCode(MARKETING_OWNER);
+    expect(code).toContain("window.lintrk=function(a,b){window.lintrk.q.push([a,b])}");
+    expect(code).toContain("window.lintrk.q=[]");
+  });
+
   it("TikTok dodaje inline z pixel id", () => {
     setMarketing({ tiktok_pixel_id: TIKTOK_ID });
 

@@ -11,6 +11,7 @@ import {
   extractLinkedInConversionId,
   resetLinkedInConversions,
   trackLinkedInGoal,
+  trackLinkedInPageView,
 } from "../linkedinInsightEvents";
 import { MarketingConfigSchema } from "../config";
 
@@ -88,6 +89,35 @@ describe("LinkedIn Insight conversions", () => {
     expect(trackLinkedInGoal("purchase")).toBe(false);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.[1]?.["event_id"]).toBe("order_1");
+  });
+});
+
+describe("LinkedIn Insight SPA page views", () => {
+  beforeEach(() => {
+    consent.marketing = true;
+    calls = [];
+    __resetLinkedInInsightForTests();
+    installLintrk();
+    window.history.replaceState(null, "", "/en");
+  });
+  afterEach(() => {
+    delete (window as Window & { lintrk?: unknown }).lintrk;
+  });
+
+  it("skips the landing page the tag already counted and sends each new route once", () => {
+    configureLinkedInConversions({});
+    expect(trackLinkedInPageView("/en")).toBe(false);
+    expect(trackLinkedInPageView("/en/blog/a?utm_source=x")).toBe(true);
+    expect(trackLinkedInPageView("/en/blog/a")).toBe(false);
+    expect(calls).toEqual([["track", undefined]]);
+  });
+
+  it("sends nothing before the tag starts or without marketing consent", () => {
+    expect(trackLinkedInPageView("/en/blog/a")).toBe(false);
+    configureLinkedInConversions({});
+    consent.marketing = false;
+    expect(trackLinkedInPageView("/en/blog/b")).toBe(false);
+    expect(calls).toHaveLength(0);
   });
 });
 

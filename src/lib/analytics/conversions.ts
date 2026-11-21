@@ -75,8 +75,8 @@ export function trackFormConversion(input: FormConversionInput): void {
   // Cele zdarzeniowe Google Ads (fragmenty z panelu Ads, 2026-10-22):
   // `ads_conversion_Formularz_1` + `ads_submit_form` - patrz `adsGoals.ts`.
   trackAdsFormGoals();
+  // `trackAdsGoal` zapisuje też lustro panelu (form_submit) - raz.
   trackAdsGoal("contact_form");
-  recordAdPixelConversion("form_submit");
   // Meta: zdarzenie standardowe "Lead" (bez danych z formularza).
   trackMetaEvent("Lead", { content_category: "form" }, newMetaEventId(`lead_${input.formId}`));
 }

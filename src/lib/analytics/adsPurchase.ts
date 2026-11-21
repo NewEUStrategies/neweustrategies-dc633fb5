@@ -15,6 +15,7 @@
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
 import { trackLinkedInGoal } from "./linkedinInsightEvents";
+import { recordAdPixelConversion } from "./adPixelTelemetry";
 
 /** Etykieta akcji "NES - Zakup (tag strony)" z fragmentu zdarzenia Google Ads. */
 export const ADS_PURCHASE_LABEL = "n02PCIG0wLwdEMD6kM5B";
@@ -44,5 +45,6 @@ export function trackAdsPurchase(input: AdsPurchaseInput): boolean {
   });
   // LinkedIn Ads: ta sama potwierdzona płatność, `event_id` = transakcja.
   trackLinkedInGoal("purchase", { eventId: transactionId });
+  recordAdPixelConversion("purchase");
   return true;
 }

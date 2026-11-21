@@ -3,12 +3,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
+import { adminPageHead } from "@/lib/adminPageHead";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
 import { defaultMarketingConfig, type MarketingConfig } from "@/lib/analytics/config";
 import { LINKEDIN_GOALS, type LinkedInGoal } from "@/lib/analytics/linkedinInsightEvents";
 import { extractLinkedInConversionId } from "@/lib/analytics/linkedinConversionId";
 
 export const Route = createFileRoute("/admin/settings/marketing")({
+  head: () =>
+    adminPageHead(
+      "Marketing i piksele reklamowe - Ustawienia",
+      "Meta Pixel, LinkedIn Insight z konwersjami LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
+    ),
   component: MarketingSettings,
 });
 

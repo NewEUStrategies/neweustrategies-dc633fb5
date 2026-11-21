@@ -20,6 +20,13 @@
 // równy identyfikatorowi transakcji i jest zgłaszany raz na kartę, więc
 // przyszła wysyłka serwerowa (Conversions API) może się z nim zdeduplikować.
 // Bez danych osobowych: tylko identyfikator konwersji i zdarzenia.
+//
+// ODSŁONY W SPA. insight.min.js wysyła odsłonę (`collect`) tylko przy
+// wczytaniu dokumentu; przejścia routera zgłaszamy sami (`lintrk('track')`
+// bez `conversion_id`) przez `trackLinkedInPageView`, wołane z tej samej
+// odsłony co GA4. Pierwsza strona po starcie tagu jest pomijana (liczy ją sam
+// skrypt), a ta sama ścieżka nie liczy się dwa razy z rzędu - inaczej
+// konwersje "odwiedzenie strony" i grupy odbiorców z URL zawyżałyby się.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { extractLinkedInConversionId } from "./linkedinConversionId";
 
@@ -50,6 +57,12 @@ const PENDING_TTL_MS = 60_000;
 const MAX_EVENT_ID = 64;
 
 let conversionIds: LinkedInConversionIds | null = null;
+let lastPagePath: string | null = null;
+
+function normalizePath(path: string): string {
+  const clean = path.split(/[?#]/)[0] ?? "";
+  return clean.length > 1 ? clean.replace(/\/+$/, "") : clean || "/";
+}
 const pending: PendingLinkedInEvent[] = [];
 const sentPurchases = new Set<string>();
 
@@ -85,6 +98,7 @@ export function configureLinkedInConversions(ids: Partial<Record<LinkedInGoal, s
     normalized[goal] = extractLinkedInConversionId(ids[goal] ?? "");
   }
   conversionIds = normalized;
+  if (lastPagePath === null) lastPagePath = normalizePath(window.location.pathname);
   const now = Date.now();
   const queued = pending.splice(0, pending.length);
   if (!hasCategoryConsent("marketing")) return;
@@ -98,7 +112,28 @@ export function configureLinkedInConversions(ids: Partial<Record<LinkedInGoal, s
 /** Wycofanie zgody / brak tagu: zapomina konfigurację i kolejkę. */
 export function resetLinkedInConversions(): void {
   conversionIds = null;
+  lastPagePath = null;
   pending.length = 0;
+}
+
+/**
+ * Odsłona po przejściu routera. Zwraca `true`, gdy poszła do tagu; bez zgody,
+ * przed startem tagu albo dla tej samej ścieżki - nic.
+ */
+export function trackLinkedInPageView(path?: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (!hasCategoryConsent("marketing") || conversionIds === null) return false;
+  const lintrk = readLintrk();
+  if (!lintrk) return false;
+  const next = normalizePath(path ?? window.location.pathname);
+  if (next === lastPagePath) return false;
+  lastPagePath = next;
+  try {
+    lintrk("track");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export interface LinkedInGoalOptions {

@@ -19,7 +19,6 @@
 // czyli raz na faktycznie wyrenderowana strone SPA.
 
 import { ga4Event } from "./ga4Client";
-import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { trackMetaEvent } from "./metaPixelEvents";
 import { trackAdsGoal } from "./adsNativeGoals";
 
@@ -51,7 +50,6 @@ export function trackAdsPageViewGoals(): void {
  */
 export function trackAdsRegistrationGoal(): void {
   ga4Event(ADS_GOAL_REGISTRATION);
-  recordAdPixelConversion("registration");
   trackMetaEvent("CompleteRegistration", { content_category: "account" });
   trackAdsGoal("account_signup");
 }

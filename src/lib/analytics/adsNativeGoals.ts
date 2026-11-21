@@ -13,6 +13,7 @@
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
 import { trackLinkedInGoal } from "./linkedinInsightEvents";
+import { recordAdPixelConversion } from "./adPixelTelemetry";
 
 /** Etykiety akcji z fragmentów zdarzeń Google Ads (konto 251-385-9854). */
 export const ADS_GOAL_LABELS = {
@@ -25,11 +26,24 @@ export const ADS_GOAL_LABELS = {
 
 export type AdsNativeGoal = keyof typeof ADS_GOAL_LABELS;
 
+/**
+ * Rodzaj konwersji w lustrze panelu "Piksele Ads". Formularz i rejestracja
+ * zachowują dotychczasowe nazwy, więc historia wykresów się nie rozjeżdża.
+ */
+export const AD_PIXEL_KIND_BY_GOAL: Readonly<Record<AdsNativeGoal, string>> = {
+  contact_form: "form_submit",
+  club_application: "club_application",
+  account_signup: "registration",
+  newsletter: "newsletter",
+  event_registration: "event_registration",
+};
+
 /** Zwraca `true`, gdy konwersja została przekazana do tagu. */
 export function trackAdsGoal(goal: AdsNativeGoal): boolean {
   if (typeof window === "undefined") return false;
   if (!hasCategoryConsent("marketing")) return false;
   adsConversion(ADS_GOAL_LABELS[goal]);
   trackLinkedInGoal(goal);
+  recordAdPixelConversion(AD_PIXEL_KIND_BY_GOAL[goal]);
   return true;
 }

@@ -5,6 +5,19 @@ const sent = vi.hoisted(() => ({ labels: [] as string[] }));
 vi.mock("@/lib/ads/consent", () => ({
   hasCategoryConsent: (cat: string) => (cat === "marketing" ? consent.marketing : true),
 }));
+const mirror = vi.hoisted(() => ({ kinds: [] as string[] }));
+vi.mock("../adPixelTelemetry", () => ({
+  recordAdPixelConversion: (kind: string) => {
+    mirror.kinds.push(kind);
+  },
+}));
+const linkedin = vi.hoisted(() => ({ goals: [] as string[] }));
+vi.mock("../linkedinInsightEvents", () => ({
+  trackLinkedInGoal: (goal: string) => {
+    linkedin.goals.push(goal);
+    return true;
+  },
+}));
 vi.mock("../conversions", () => ({
   adsConversion: (label: string) => {
     sent.labels.push(label);
@@ -17,6 +30,15 @@ describe("trackAdsGoal", () => {
   beforeEach(() => {
     consent.marketing = true;
     sent.labels = [];
+    mirror.kinds = [];
+    linkedin.goals = [];
+  });
+
+  it("sends the same confirmed outcome to LinkedIn Ads and the admin panel mirror once", () => {
+    trackAdsGoal("club_application");
+    trackAdsGoal("contact_form");
+    expect(linkedin.goals).toEqual(["club_application", "contact_form"]);
+    expect(mirror.kinds).toEqual(["club_application", "form_submit"]);
   });
 
   it("maps each outcome to its Google Ads action label", () => {
@@ -38,5 +60,7 @@ describe("trackAdsGoal", () => {
     consent.marketing = false;
     expect(trackAdsGoal("contact_form")).toBe(false);
     expect(sent.labels).toHaveLength(0);
+    expect(linkedin.goals).toHaveLength(0);
+    expect(mirror.kinds).toHaveLength(0);
   });
 });
