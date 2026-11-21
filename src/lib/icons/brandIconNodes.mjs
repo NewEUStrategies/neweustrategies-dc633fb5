@@ -28,6 +28,11 @@ export const BRAND_ICON_NODES = {
       },
     ],
   ],
+  // Logo X (geometria Tabler "brand-x", MIT) - nowy znak marki zamiast ptaka.
+  "x-logo": [
+    ["path", { d: "m4 4 11.733 16H20L8.267 4z", key: "nesx01" }],
+    ["path", { d: "m4 20 6.768-6.768m2.46-2.46L20 4", key: "nesx02" }],
+  ],
   instagram: [
     ["rect", { width: "20", height: "20", x: "2", y: "2", rx: "5", ry: "5", key: "2e1cvw" }],
     ["path", { d: "M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z", key: "9exkf1" }],

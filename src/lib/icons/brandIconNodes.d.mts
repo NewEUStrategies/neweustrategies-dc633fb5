@@ -1,7 +1,7 @@
 import type { IconNode } from "lucide-react";
 
 export declare const BRAND_ICON_NODES: Record<
-  "facebook" | "linkedin" | "twitter" | "instagram" | "youtube" | "github" | "google",
+  "facebook" | "linkedin" | "twitter" | "x-logo" | "instagram" | "youtube" | "github" | "google",
   IconNode
 >;
 

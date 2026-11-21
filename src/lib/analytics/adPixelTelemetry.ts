@@ -23,7 +23,11 @@ export function activeAdPlatforms(): readonly AdPlatform[] {
 /** Wizyta po zgodzie - raz na załadowanie pikseli. */
 export function recordAdPixelVisit(): void {
   if (active.length === 0 || !hasCategoryConsent("marketing")) return;
-  track({ type: "interaction", name: AD_PIXEL_VISIT_EVENT, meta: { platforms: encodePlatforms(active) } });
+  track({
+    type: "interaction",
+    name: AD_PIXEL_VISIT_EVENT,
+    meta: { platforms: encodePlatforms(active) },
+  });
 }
 
 /** Konwersja przypisana do aktywnych pikseli (np. `form_submit`, `registration`). */

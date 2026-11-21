@@ -3,7 +3,7 @@
 // the matching category.
 import { z } from "zod";
 import { extractLinkedInConversionId } from "./linkedinConversionId";
-import { extractXPixelId } from "./xPixelId";
+import { extractXEventId, extractXPixelId } from "./xPixelId";
 import {
   DEFAULT_GOOGLE_ADS_ID,
   DEFAULT_GOOGLE_ADS_LABELS,
@@ -71,6 +71,41 @@ export const LinkedInConversionsSchema = z
     add_to_cart: "",
   });
 
+/** Identyfikator zdarzenia X (`tw-…-…`) albo kod `twq('event', …)`; śmieci -> "". */
+const xEventId = z
+  .string()
+  .max(2_000)
+  .catch("")
+  .transform((v) => extractXEventId(v));
+
+export const XConversionsSchema = z
+  .object({
+    page_view: xEventId.default(""),
+    video_view: xEventId.default(""),
+    event_registration: xEventId.default(""),
+    account_signup: xEventId.default(""),
+    download: xEventId.default(""),
+    newsletter: xEventId.default(""),
+    schedule: xEventId.default(""),
+    contact_form: xEventId.default(""),
+    club_application: xEventId.default(""),
+    add_to_cart: xEventId.default(""),
+    purchase: xEventId.default(""),
+  })
+  .catch({
+    page_view: "",
+    video_view: "",
+    event_registration: "",
+    account_signup: "",
+    download: "",
+    newsletter: "",
+    schedule: "",
+    contact_form: "",
+    club_application: "",
+    add_to_cart: "",
+    purchase: "",
+  });
+
 /** Etykieta konwersji Google Ads: etykieta albo fragment `send_to`; śmieci -> "" (konwersja wyłączona). */
 const googleAdsLabel = (fallback: string) =>
   z.string().max(500).catch(fallback).transform(extractGoogleAdsLabel).default(fallback);
@@ -100,6 +135,8 @@ export const MarketingConfigSchema = z.object({
   linkedin_conversions: LinkedInConversionsSchema.prefault({}),
   /** Piksel X Ads: identyfikator albo cały kod bazowy `twq('config', …)`; śmieci -> "". */
   x_pixel_id: z.string().max(2_000).catch("").transform(extractXPixelId).default(""),
+  /** Zdarzenia (konwersje) X Ads: identyfikator `tw-<piksel>-<zdarzenie>` na cel. */
+  x_conversions: XConversionsSchema.prefault({}),
   tiktok_pixel_id: z.string().trim().max(64).default(""),
   custom_head_html: z.string().max(20_000).default(""),
   custom_body_html: z.string().max(20_000).default(""),

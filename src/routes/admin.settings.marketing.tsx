@@ -1,4 +1,4 @@
-// Admin "Pixels": Google Ads, Meta, LinkedIn i pozostałe tagi reklamowe. Zasila
+// Admin "Pixels": Google Ads, Meta, LinkedIn, X Ads i pozostałe tagi reklamowe. Zasila
 // ConsentScriptInjector - nic nie startuje przed zgodą na kategorię Marketing.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -12,6 +12,7 @@ import {
   GoogleAdsBrandIcon,
   LinkedInBrandIcon,
   MetaBrandIcon,
+  XBrandIcon,
 } from "@/components/admin/atoms/PixelBrandIcons";
 import { defaultMarketingConfig, type MarketingConfig } from "@/lib/analytics/config";
 import {
@@ -21,7 +22,14 @@ import {
   type LinkedInGoal,
 } from "@/lib/analytics/linkedinGoals";
 import { extractLinkedInConversionId } from "@/lib/analytics/linkedinConversionId";
-import { extractXPixelId } from "@/lib/analytics/xPixelId";
+import { extractXEventId, extractXPixelId, xEventPixelId } from "@/lib/analytics/xPixelId";
+import {
+  X_EVENT_TYPES,
+  X_FUNNEL,
+  X_GOALS,
+  X_VALUE_GOALS,
+  type XGoal,
+} from "@/lib/analytics/xGoals";
 import {
   extractGoogleAdsId,
   extractGoogleAdsLabel,
@@ -79,6 +87,16 @@ function PixelsSettings() {
     return raw !== "" && extractGoogleAdsLabel(raw) === "";
   });
   const xPixelInvalid = draft.x_pixel_id.trim() !== "" && extractXPixelId(draft.x_pixel_id) === "";
+  const xPixel = extractXPixelId(draft.x_pixel_id);
+  const setXEvent = (goal: XGoal, raw: string) =>
+    setDraft({ ...draft, x_conversions: { ...draft.x_conversions, [goal]: raw } });
+  const xEventState = (goal: XGoal): "empty" | "invalid" | "otherPixel" | "ok" => {
+    const raw = draft.x_conversions[goal].trim();
+    if (raw === "") return "empty";
+    const id = extractXEventId(raw);
+    if (!id) return "invalid";
+    return xPixel && xEventPixelId(id) !== xPixel ? "otherPixel" : "ok";
+  };
   const adsIdInvalid =
     draft.google_ads_id.trim() !== "" && extractGoogleAdsId(draft.google_ads_id) === "";
   const normalizedDraft = (): MarketingConfig => {
@@ -96,12 +114,25 @@ function PixelsSettings() {
       if (id) linkedin_conversions[goal] = id;
     }
     const x_pixel_id = extractXPixelId(draft.x_pixel_id) || draft.x_pixel_id;
-    return { ...draft, google_ads_id, google_ads_conversions, linkedin_conversions, x_pixel_id };
+    const x_conversions = { ...draft.x_conversions };
+    for (const goal of X_GOALS) {
+      const id = extractXEventId(x_conversions[goal]);
+      if (id) x_conversions[goal] = id;
+    }
+    return {
+      ...draft,
+      google_ads_id,
+      google_ads_conversions,
+      linkedin_conversions,
+      x_pixel_id,
+      x_conversions,
+    };
   };
   const tabIcon: Record<PixelsTab, ReactNode> = {
     google: <GoogleAdsBrandIcon className="mr-2 h-3.5 w-3.5" />,
     meta: <MetaBrandIcon className="mr-2 h-3.5 w-3.5" />,
     linkedin: <LinkedInBrandIcon className="mr-2 h-3.5 w-3.5" />,
+    x: <XBrandIcon className="mr-2 h-3.5 w-3.5" />,
     other: <Code2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />,
   };
 
@@ -259,8 +290,8 @@ function PixelsSettings() {
           ))}
         </TabsContent>
 
-        <TabsContent value="other">
-          <Field label={t("admin.marketing.other.x")} htmlFor="pixels-x-id">
+        <TabsContent value="x">
+          <Field label={t("admin.marketing.x.pixelId")} htmlFor="pixels-x-id">
             <Text
               id="pixels-x-id"
               value={draft.x_pixel_id}
@@ -272,14 +303,84 @@ function PixelsSettings() {
               aria-describedby="pixels-x-hint"
             />
             <p id="pixels-x-hint" className="mt-1 text-xs text-muted-foreground">
-              {t("admin.marketing.other.xHint")}
+              {t("admin.marketing.x.pixelHint")}
             </p>
             {xPixelInvalid ? (
               <p role="alert" className="mt-1 text-xs text-destructive">
-                {t("admin.marketing.other.xInvalid")}
+                {t("admin.marketing.x.pixelInvalid")}
               </p>
             ) : null}
           </Field>
+          <section
+            className="mb-4 rounded-md border border-border p-4"
+            aria-labelledby="pixels-x-base-title"
+          >
+            <h3 id="pixels-x-base-title" className="font-display text-base mb-1">
+              {t("admin.marketing.x.baseTitle")}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-2">
+              {xPixel
+                ? t("admin.marketing.x.baseInstalled", { id: xPixel })
+                : t("admin.marketing.x.baseOff")}
+            </p>
+            {xPixel ? (
+              <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs">
+                <code>{`twq('config', '${xPixel}');`}</code>
+              </pre>
+            ) : null}
+          </section>
+          <p className="text-sm text-muted-foreground mb-4">{t("admin.marketing.x.eventsHint")}</p>
+          {X_FUNNEL.map((group) => (
+            <fieldset key={group.stage} className="mb-4 rounded-md border border-border p-4">
+              <legend className="px-1 font-display text-base">
+                {t(`admin.marketing.linkedinConversions.stages.${group.stage}`)}
+              </legend>
+              {group.goals.map((goal) => {
+                const state = xEventState(goal);
+                const eventId = extractXEventId(draft.x_conversions[goal]);
+                const params = X_VALUE_GOALS.includes(goal)
+                  ? "{ value, currency, conversion_id }"
+                  : "{ conversion_id }";
+                return (
+                  <Field
+                    key={goal}
+                    label={t(`admin.marketing.linkedinConversions.goals.${goal}`)}
+                    hint={t("admin.marketing.x.eventTypeLabel", { type: X_EVENT_TYPES[goal] })}
+                    htmlFor={`pixels-x-${goal}`}
+                  >
+                    <Text
+                      id={`pixels-x-${goal}`}
+                      value={draft.x_conversions[goal]}
+                      onChange={(e) => setXEvent(goal, e.target.value)}
+                      placeholder={`tw-${xPixel || "rjppz"}-abc12`}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-invalid={state === "invalid"}
+                    />
+                    {state === "invalid" ? (
+                      <p role="alert" className="mt-1 text-xs text-destructive">
+                        {t("admin.marketing.x.eventInvalid")}
+                      </p>
+                    ) : null}
+                    {state === "otherPixel" ? (
+                      <p role="alert" className="mt-1 text-xs text-destructive">
+                        {t("admin.marketing.x.eventOtherPixel", { id: xPixel })}
+                      </p>
+                    ) : null}
+                    {eventId ? (
+                      <p className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                        {t("admin.marketing.x.eventSent")}{" "}
+                        <code>{`twq('event', '${eventId}', ${params})`}</code>
+                      </p>
+                    ) : null}
+                  </Field>
+                );
+              })}
+            </fieldset>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="other">
           <Field label={t("admin.marketing.other.tiktok")} htmlFor="pixels-tiktok-id">
             <Text
               id="pixels-tiktok-id"

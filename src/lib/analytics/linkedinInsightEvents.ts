@@ -29,6 +29,7 @@
 // konwersje "odwiedzenie strony" i grupy odbiorców z URL zawyżałyby się.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { extractLinkedInConversionId } from "./linkedinConversionId";
+import { installAdAutoGoals } from "./adAutoGoals";
 
 export { extractLinkedInConversionId };
 
@@ -181,47 +182,14 @@ export function trackLinkedInGoal(goal: LinkedInGoal, options: LinkedInGoalOptio
   return ok;
 }
 
-/** Pliki, których pobranie liczy się jako konwersja "Pobierz". */
-const DOWNLOAD_FILE_RE = /\.(pdf|mp3|m4a|wav|epub|docx?|xlsx?|pptx?|csv|zip)(?:$|[?#])/i;
-
 /**
- * Cele zbierane z zachowania na stronie, bez wiązania z konkretnym ekranem:
- * - "Wyświetlenie wideo": pierwsze uruchomienie odtwarzacza `<video>` na
- *   danej podstronie (zdarzenie `play` w fazie przechwytywania - nie bąbelkuje);
- * - "Pobierz": kliknięcie odnośnika z atrybutem `download` albo do pliku
- *   (także programowe kliknięcie przy pobieraniu MP3 artykułu).
- * Każdy cel raz na plik / film w sesji karty. Zwraca funkcję sprzątającą.
+ * Wyświetlenie wideo i pobranie pliku jako konwersje LinkedIn (wspólny
+ * nasłuch `installAdAutoGoals`). Zwraca funkcję sprzątającą.
  */
 export function installLinkedInAutoGoals(): () => void {
-  if (typeof document === "undefined") return () => undefined;
-  const seenVideos = new Set<string>();
-  const seenDownloads = new Set<string>();
-  const onPlay = (event: Event) => {
-    const el = event.target;
-    if (!(el instanceof HTMLVideoElement)) return;
-    const key = `${normalizePath(window.location.pathname)}|${el.currentSrc || el.src || "inline"}`;
-    if (seenVideos.has(key)) return;
-    seenVideos.add(key);
-    trackLinkedInGoal("video_view");
-  };
-  const onClick = (event: MouseEvent) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const link = target.closest("a");
-    if (!link) return;
-    const href = link.getAttribute("href") ?? "";
-    if (!link.hasAttribute("download") && !DOWNLOAD_FILE_RE.test(href)) return;
-    const key = link.getAttribute("download") || href;
-    if (!key || seenDownloads.has(key)) return;
-    seenDownloads.add(key);
-    trackLinkedInGoal("download");
-  };
-  document.addEventListener("play", onPlay, true);
-  document.addEventListener("click", onClick, true);
-  return () => {
-    document.removeEventListener("play", onPlay, true);
-    document.removeEventListener("click", onClick, true);
-  };
+  return installAdAutoGoals((goal) => {
+    trackLinkedInGoal(goal);
+  });
 }
 
 /** Tylko testy. */

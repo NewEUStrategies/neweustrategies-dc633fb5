@@ -8,11 +8,13 @@
 //
 // KIEDY. Wyłącznie po potwierdzeniu przez serwer (w tych samych miejscach co
 // zdarzenia wyniku piksela Meta). ZGODA: tylko po zgodzie marketingowej.
-// Ten sam wynik idzie też jako konwersja LinkedIn Ads (`trackLinkedInGoal`),
+// Ten sam wynik idzie też jako konwersja LinkedIn Ads (`trackLinkedInGoal`)
+// i zdarzenie X Ads (`trackXGoal`),
 // więc każdy kanał reklamowy liczy go w jednym, wspólnym miejscu.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
 import { trackLinkedInGoal } from "./linkedinInsightEvents";
+import { trackXGoal } from "./xPixelEvents";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { DEFAULT_GOOGLE_ADS_LABELS, googleAdsLabel, type GoogleAdsGoal } from "./googleAdsGoals";
 
@@ -48,6 +50,7 @@ export function trackAdsGoal(goal: AdsNativeGoal): boolean {
   if (!hasCategoryConsent("marketing")) return false;
   adsConversion(googleAdsLabel(goal));
   trackLinkedInGoal(goal);
+  trackXGoal(goal);
   recordAdPixelConversion(AD_PIXEL_KIND_BY_GOAL[goal]);
   return true;
 }

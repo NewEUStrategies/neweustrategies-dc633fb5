@@ -460,10 +460,24 @@ export const adminExtrasPl = {
           "Google Analytics i Microsoft Clarity ustawisz w Analityce, a Google Ads w zakładce Google Ads.",
         googleLink: "Przejdź do Analityki",
         tiktok: "TikTok Pixel ID",
-        x: "X Pixel ID",
-        xHint:
-          "Identyfikator piksela z X Ads Managera (Conversion Diagnostics -> X Pixel), np. rjppz. Możesz wkleić sam identyfikator albo cały kod bazowy - zapiszemy tylko identyfikator. Piksel startuje po zgodzie marketingowej i liczy każdą odsłonę, także przejścia między stronami. Puste pole - piksel X wyłączony.",
-        xInvalid:
+      },
+      x: {
+        baseInstalled:
+          "Wdrożony automatycznie dla piksela {{id}} - nie wklejasz go na stronę. Startuje po zgodzie marketingowej i liczy każdą odsłonę, także przejścia między podstronami.",
+        baseOff: "Brak identyfikatora piksela - kod bazowy X nie jest ładowany.",
+        baseTitle: "Kod bazowy X (Base pixel)",
+        eventInvalid:
+          "Nie rozpoznano zdarzenia - wklej identyfikator tw-…-… albo cały kod twq('event', ...).",
+        eventOtherPixel:
+          "To zdarzenie należy do innego piksela niż {{id}} - X go nie przypisze. Utwórz zdarzenie w pikselu {{id}}.",
+        eventSent: "Platforma wyśle po potwierdzonej akcji:",
+        eventTypeLabel: "Typ zdarzenia w X: {{type}}",
+        eventsHint:
+          "W X Ads: Tools -> Events Manager -> piksel -> Add events -> Define event -> wybierz typ podany pod polem, metoda „Define event with code”. Wklej identyfikator zdarzenia (tw-…-…) albo cały kod twq('event', ...) - zapiszemy tylko identyfikator, a kod platforma wywoła sama po potwierdzonej akcji i zgodzie marketingowej. Puste pole - X tej konwersji nie liczy.",
+        pixelHint:
+          "Identyfikator piksela z X Ads Managera (Events Manager -> X Pixel), np. rjppz. Możesz wkleić sam identyfikator albo cały kod bazowy - zapiszemy tylko identyfikator. Puste pole - piksel X wyłączony.",
+        pixelId: "X Pixel ID",
+        pixelInvalid:
           "Nie rozpoznano identyfikatora piksela X - wklej sam identyfikator (np. rjppz) albo kod z twq('config', ...).",
       },
       tabs: {
@@ -471,6 +485,7 @@ export const adminExtrasPl = {
         linkedin: "LinkedIn",
         meta: "Meta",
         other: "Pozostałe",
+        x: "X Ads",
       },
       title: "Pixels",
     },
@@ -584,6 +599,7 @@ export const adminExtrasPl = {
       pixelsLinkedIn: "LinkedIn Insight",
       pixelsMeta: "Meta Pixel",
       pixelsOther: "Pozostałe tagi",
+      pixelsX: "X Ads",
       trackingSettings: "Google i Clarity",
       audience: "Audytorium / retencja",
       authors: "Autorzy",
@@ -1432,10 +1448,24 @@ export const adminExtrasEn = {
           "Google Analytics and Microsoft Clarity are configured in Analytics, Google Ads in the Google Ads tab.",
         googleLink: "Go to Analytics",
         tiktok: "TikTok Pixel ID",
-        x: "X Pixel ID",
-        xHint:
-          "The pixel ID from X Ads Manager (Conversion Diagnostics -> X Pixel), e.g. rjppz. Paste the ID alone or the whole base code - only the ID is saved. The pixel starts after marketing consent and counts every page view, including moves between pages. Empty field - X pixel off.",
-        xInvalid:
+      },
+      x: {
+        baseInstalled:
+          "Installed automatically for pixel {{id}} - you do not paste it into the site. It starts after marketing consent and counts every page view, including moves between pages.",
+        baseOff: "No pixel ID - the X base code is not loaded.",
+        baseTitle: "X base code (Base pixel)",
+        eventInvalid:
+          "Event not recognised - paste the tw-…-… ID or the whole twq('event', ...) code.",
+        eventOtherPixel:
+          "This event belongs to a pixel other than {{id}} - X will not attribute it. Create the event in pixel {{id}}.",
+        eventSent: "The platform sends after a confirmed action:",
+        eventTypeLabel: "Event type in X: {{type}}",
+        eventsHint:
+          "In X Ads: Tools -> Events Manager -> pixel -> Add events -> Define event -> pick the type shown under the field, method “Define event with code”. Paste the event ID (tw-…-…) or the whole twq('event', ...) code - only the ID is saved and the platform calls the code itself after a confirmed action and marketing consent. Empty field - X does not count this conversion.",
+        pixelHint:
+          "The pixel ID from X Ads Manager (Events Manager -> X Pixel), e.g. rjppz. Paste the ID alone or the whole base code - only the ID is saved. Empty field - X pixel off.",
+        pixelId: "X Pixel ID",
+        pixelInvalid:
           "X pixel ID not recognised - paste the ID alone (e.g. rjppz) or the code with twq('config', ...).",
       },
       tabs: {
@@ -1443,6 +1473,7 @@ export const adminExtrasEn = {
         linkedin: "LinkedIn",
         meta: "Meta",
         other: "Other",
+        x: "X Ads",
       },
       title: "Pixels",
     },
@@ -1556,6 +1587,7 @@ export const adminExtrasEn = {
       pixelsLinkedIn: "LinkedIn Insight",
       pixelsMeta: "Meta Pixel",
       pixelsOther: "Other tags",
+      pixelsX: "X Ads",
       trackingSettings: "Google & Clarity",
       audience: "Audience / retention",
       authors: "Authors",

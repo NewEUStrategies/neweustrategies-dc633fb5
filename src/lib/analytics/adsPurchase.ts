@@ -15,6 +15,7 @@
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
 import { trackLinkedInGoal } from "./linkedinInsightEvents";
+import { trackXGoal } from "./xPixelEvents";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { DEFAULT_GOOGLE_ADS_LABELS, googleAdsLabel } from "./googleAdsGoals";
 
@@ -46,6 +47,8 @@ export function trackAdsPurchase(input: AdsPurchaseInput): boolean {
   });
   // LinkedIn Ads: ta sama potwierdzona płatność, `event_id` = transakcja.
   trackLinkedInGoal("purchase", { eventId: transactionId });
+  // X Ads: zakup z kwotą i walutą, `conversion_id` = transakcja.
+  trackXGoal("purchase", { eventId: transactionId, value: input.value, currency });
   recordAdPixelConversion("purchase");
   return true;
 }

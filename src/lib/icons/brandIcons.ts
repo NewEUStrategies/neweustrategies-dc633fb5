@@ -9,6 +9,7 @@ import { BRAND_ICON_NODES } from "./brandIconNodes.mjs";
 export const Facebook = createLucideIcon("facebook", BRAND_ICON_NODES.facebook);
 export const Linkedin = createLucideIcon("linkedin", BRAND_ICON_NODES.linkedin);
 export const Twitter = createLucideIcon("twitter", BRAND_ICON_NODES.twitter);
+export const XLogo = createLucideIcon("x-logo", BRAND_ICON_NODES["x-logo"]);
 export const Instagram = createLucideIcon("instagram", BRAND_ICON_NODES.instagram);
 export const Youtube = createLucideIcon("youtube", BRAND_ICON_NODES.youtube);
 export const Github = createLucideIcon("github", BRAND_ICON_NODES.github);

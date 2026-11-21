@@ -394,6 +394,7 @@ export function ConsentScriptInjector() {
     let stopMetaContact: (() => void) | null = null;
     let stopTicketWatch: (() => void) | null = null;
     let stopLinkedInAuto: (() => void) | null = null;
+    let stopXAuto: (() => void) | null = null;
     if (categories.marketing) {
       marketingCleanup.current = loadMarketing(marketing);
       // Piksel Meta stoi: wysyłamy zdarzenia zakolejkowane przed jego startem
@@ -419,11 +420,14 @@ export function ConsentScriptInjector() {
           })
           .catch(() => undefined);
       }
-      // Piksel X stoi: zapamiętujemy go dla odsłon przejść SPA.
+      // Piksel X stoi: zapamiętujemy go dla odsłon przejść SPA, przekazujemy
+      // identyfikatory zdarzeń z panelu i wysyłamy zakolejkowane wyniki.
       if (marketing.x_pixel_id) {
         void import("@/lib/analytics/xPixelEvents")
           .then((m) => {
-            if (active) m.configureXPixel(marketing.x_pixel_id);
+            if (!active) return;
+            m.configureXPixel(marketing.x_pixel_id, marketing.x_conversions);
+            stopXAuto = m.installXAutoGoals();
           })
           .catch(() => undefined);
       }
@@ -479,6 +483,7 @@ export function ConsentScriptInjector() {
       stopMetaContact?.();
       stopTicketWatch?.();
       stopLinkedInAuto?.();
+      stopXAuto?.();
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     };

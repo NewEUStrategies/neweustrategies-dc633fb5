@@ -4,7 +4,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
-import { AD_PIXEL_EVENTS, aggregateAdPixelRows, type AdPixelRawRow, type AdPixelSummary } from "./adPixels";
+import {
+  AD_PIXEL_EVENTS,
+  aggregateAdPixelRows,
+  type AdPixelRawRow,
+  type AdPixelSummary,
+} from "./adPixels";
 
 const SAMPLE_CAP = 20_000;
 

@@ -78,6 +78,7 @@ import {
 import {
   GoogleAdsBrandIcon,
   LinkedInBrandIcon,
+  XBrandIcon,
   MetaBrandIcon,
 } from "@/components/admin/atoms/PixelBrandIcons";
 
@@ -545,7 +546,7 @@ export function buildAdminNavGroups({
         { to: "/admin/redirects", icon: LinkIcon, label: t("admin.nav.redirects") },
         // Piksele reklamowe i pomiar (tylko administrator) - w grupie Marketing,
         // bo to praca kampanijna (konwersje, zgody), a nie konfiguracja serwisu.
-        // Cztery pierwsze pozycje prowadzą do zakładek jednego ekranu Pixels.
+        // Pięć pierwszych pozycji prowadzi do zakładek jednego ekranu Pixels.
         ...(isAdmin
           ? [
               {
@@ -577,6 +578,22 @@ export function buildAdminNavGroups({
                 icon: LinkedInBrandIcon,
                 label: t("admin.nav.pixelsLinkedIn"),
                 keywords: ["linkedin", "insight", "konwersje", "conversions", "lejek", "pixels"],
+              },
+              {
+                to: "/admin/settings/marketing",
+                search: { tab: "x" },
+                icon: XBrandIcon,
+                label: t("admin.nav.pixelsX"),
+                keywords: [
+                  "x",
+                  "twitter",
+                  "x ads",
+                  "twq",
+                  "piksel",
+                  "pixel",
+                  "konwersje",
+                  "pixels",
+                ],
               },
               {
                 to: "/admin/settings/marketing",

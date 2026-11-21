@@ -14,6 +14,7 @@
 // decyzji, czyli liczbe wygladajaca wiarygodnie i nieprawdziwa.
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { trackLinkedInGoal } from "@/lib/analytics/linkedinInsightEvents";
+import { trackXGoal } from "@/lib/analytics/xPixelEvents";
 import {
   keepPreviousData,
   useMutation,
@@ -149,6 +150,7 @@ export function useInviteToMeeting(
         content_category: "event_meeting",
       });
       trackLinkedInGoal("schedule");
+      trackXGoal("schedule");
       invalidate();
     },
   });

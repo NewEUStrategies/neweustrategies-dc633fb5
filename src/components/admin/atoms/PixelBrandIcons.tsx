@@ -1,7 +1,7 @@
-// Ikony marek pikseli (Google Ads, Meta, LinkedIn) dla panelu - zawsze przez `BrandIcon`,
+// Ikony marek pikseli (Google Ads, Meta, LinkedIn, X) dla panelu - zawsze przez `BrandIcon`,
 // więc ikona wgrana w /admin/icons wygrywa z glifem w kodzie.
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { Facebook, Google, Linkedin } from "@/lib/icons/brandIcons";
+import { Facebook, Google, Linkedin, XLogo } from "@/lib/icons/brandIcons";
 
 type IconProps = { className?: string };
 
@@ -15,4 +15,8 @@ export function LinkedInBrandIcon({ className }: IconProps) {
 
 export function GoogleAdsBrandIcon({ className }: IconProps) {
   return <BrandIcon name="google-ads" fallback={Google} className={className} aria-hidden="true" />;
+}
+
+export function XBrandIcon({ className }: IconProps) {
+  return <BrandIcon name="x" fallback={XLogo} className={className} aria-hidden="true" />;
 }

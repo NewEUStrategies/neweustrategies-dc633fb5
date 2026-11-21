@@ -26,11 +26,7 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 let listening = false;
 let firstFbclid: string | null = null;
 
-type Sender = (batch: {
-  events: MetaCapiEvent[];
-  fbp?: string;
-  fbc?: string;
-}) => Promise<unknown>;
+type Sender = (batch: { events: MetaCapiEvent[]; fbp?: string; fbc?: string }) => Promise<unknown>;
 
 let senderOverride: Sender | null = null;
 

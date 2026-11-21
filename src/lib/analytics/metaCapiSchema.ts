@@ -55,4 +55,3 @@ export const MetaCapiBatchSchema = z
   .strict();
 
 export type MetaCapiBatch = z.infer<typeof MetaCapiBatchSchema>;
-
