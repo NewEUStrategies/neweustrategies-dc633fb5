@@ -369,4 +369,7 @@
 - [ ] Akcja „Wyświetlenie strony (/en)” jako dodatkowa - tylko w panelu Google Ads (API nie pozwala).
 - [x] Zgodność z Google Ad Grants: stawki za kliknięcia (limit 2 USD), odsłony nie są konwersją, pauza jednowyrazowych słów, poprawiona literówka (słowo i nagłówek).
 - [x] Druga reklama EN (/en), istniejąca reklama EN kieruje na /en, nowa grupa PL z 2 reklamami, 8 słowami i 2 wykluczeniami.
+- [x] Akcje tagu strony (raz na kliknięcie): formularz, wniosek do klubu, rejestracja konta, newsletter, zapis na wydarzenie; importy GA4 formularza i rejestracji dodatkowe.
+- [x] Grupy odbiorców w trybie obserwacji (3 zainteresowania, 3 listy własne).
+- [ ] Konwersje rozszerzone i warunki danych klienta - akceptacja w panelu Google Ads przez właściciela.
 - [ ] Weryfikacja reklamodawcy / status Ad Grants - do sprawdzenia przez właściciela w panelu Google Ads.
