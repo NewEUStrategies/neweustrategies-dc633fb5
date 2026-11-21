@@ -21,6 +21,7 @@
 import { ga4Event } from "./ga4Client";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { trackMetaEvent } from "./metaPixelEvents";
+import { trackAdsGoal } from "./adsNativeGoals";
 
 /** "Wyswietlenie strony" - cel 1 (fragment: ads_conversion_www). */
 export const ADS_GOAL_PAGE_VIEW_WWW = "ads_conversion_www";
@@ -52,6 +53,7 @@ export function trackAdsRegistrationGoal(): void {
   ga4Event(ADS_GOAL_REGISTRATION);
   recordAdPixelConversion("registration");
   trackMetaEvent("CompleteRegistration", { content_category: "account" });
+  trackAdsGoal("account_signup");
 }
 
 /**

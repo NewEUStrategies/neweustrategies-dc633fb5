@@ -114,6 +114,7 @@ import { RegistrationTermsList } from "./RegistrationTermsList";
 import { RegistrationTicketPicker } from "./RegistrationTicketPicker";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { trackAdsGoal } from "@/lib/analytics/adsNativeGoals";
 
 ensureEventRegistrationI18n();
 
@@ -325,6 +326,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         content_ids: [slug],
         content_category: "event_registration",
       });
+      trackAdsGoal("event_registration");
       if (outcome.kind === "registered") {
         setResult(outcome.result);
         return;

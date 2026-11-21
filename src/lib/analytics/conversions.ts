@@ -20,6 +20,7 @@ import { GOOGLE_ADS_ID } from "./tagIds";
 import { track } from "./track";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { newMetaEventId, trackMetaEvent } from "./metaPixelEvents";
+import { trackAdsGoal } from "./adsNativeGoals";
 
 /** Etykieta konwersji Ads dla leada z formularza (np. `abCdEfGhIj`). */
 const ADS_LEAD_LABEL = String(import.meta.env.VITE_GOOGLE_ADS_LEAD_LABEL ?? "").trim();
@@ -74,6 +75,7 @@ export function trackFormConversion(input: FormConversionInput): void {
   // Cele zdarzeniowe Google Ads (fragmenty z panelu Ads, 2026-10-22):
   // `ads_conversion_Formularz_1` + `ads_submit_form` - patrz `adsGoals.ts`.
   trackAdsFormGoals();
+  trackAdsGoal("contact_form");
   recordAdPixelConversion("form_submit");
   // Meta: zdarzenie standardowe "Lead" (bez danych z formularza).
   trackMetaEvent("Lead", { content_category: "form" }, newMetaEventId(`lead_${input.formId}`));

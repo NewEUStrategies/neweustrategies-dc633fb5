@@ -6,6 +6,7 @@
 // wymuszać pokazanie dodatkowych pól (imię/nazwisko/firma) oraz renderować
 // custom fields zdefiniowane w builderze - całość leci do CRM przez server.
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { trackAdsGoal } from "@/lib/analytics/adsNativeGoals";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import * as React from "react";
 import { useId, useMemo, useState, type FormEvent } from "react";
@@ -315,6 +316,7 @@ export function NewsletterForm({
       setState("ok");
       // Meta: zapis na newsletter przyjęty przez serwer (bez adresu).
       trackMetaEvent("CompleteRegistration", { content_category: "newsletter" });
+      trackAdsGoal("newsletter");
       setEmail("");
       setName("");
       setFirstName("");

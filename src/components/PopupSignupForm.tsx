@@ -12,6 +12,7 @@ import { PlatformSelect } from "@/components/ui/platform-select";
 // Kolory nie są tu hardkodowane: panel popupu (SignupPopupPanel) ustawia tokeny
 // palety, a pola i checkboxy to niezmienione komponenty platformy.
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { trackAdsGoal } from "@/lib/analytics/adsNativeGoals";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { pickLocalized, pickPair } from "@/lib/i18n/pickLocalized";
@@ -399,6 +400,7 @@ export function PopupSignupForm({
       setState("ok");
       // Meta: konto założone przez okienko zapisu (bez danych osoby).
       trackMetaEvent("CompleteRegistration", { content_category: "account_popup" });
+      trackAdsGoal("account_signup");
 
       track("success", undefined);
       setV(empty);
