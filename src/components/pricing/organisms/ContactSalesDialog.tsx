@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitContactMessage } from "@/lib/contact.functions";
+import { trackFormConversion } from "@/lib/analytics/conversions";
 import { tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 
 const EMAIL_RE = /.+@.+\..+/;
@@ -82,6 +83,12 @@ export function ContactSalesDialog({
           formName: "Pricing - contact sales",
           pageUrl,
         },
+      });
+      // Konwersja dopiero po potwierdzeniu zapisu przez serwer.
+      trackFormConversion({
+        formId: "pricing-contact-sales",
+        formName: "Pricing - contact sales",
+        lang: lang === "en" ? "en" : "pl",
       });
       toast.success(t("pricing.contactDialog.success"));
       setName("");

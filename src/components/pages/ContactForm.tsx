@@ -14,6 +14,7 @@
 import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
+import { trackFormConversion } from "@/lib/analytics/conversions";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { MessageComposerField } from "@/components/forms/MessageComposerField";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
@@ -119,6 +120,9 @@ export function ContactForm({ lang }: Props) {
         },
       });
       setStatus("ok");
+      // Konwersja (GA4, Google Ads, Meta Lead, LinkedIn "Formularz kontaktowy")
+      // liczy się TYLKO po potwierdzeniu zapisu przez serwer - jak w widżecie.
+      trackFormConversion({ formId: "page_contact", formName: t.title, lang });
       setForm({ name: "", email: "", subject: "", message: "" });
       setConsent(false);
       toast.success(t.ok);

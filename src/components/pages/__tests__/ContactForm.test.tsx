@@ -11,6 +11,11 @@ vi.mock("@/lib/contact.functions", () => ({
   submitContactMessage: (...args: unknown[]) => submitContactMessage(...args),
 }));
 
+const trackFormConversion = vi.fn();
+vi.mock("@/lib/analytics/conversions", () => ({
+  trackFormConversion: (...args: unknown[]) => trackFormConversion(...args),
+}));
+
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock("sonner", () => ({
@@ -42,6 +47,7 @@ function fillValidForm() {
 describe("ContactForm", () => {
   beforeEach(() => {
     submitContactMessage.mockReset();
+    trackFormConversion.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
   });
@@ -55,6 +61,28 @@ describe("ContactForm", () => {
     await waitFor(() => expect(submitContactMessage).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("reports the contact conversion (LinkedIn/Ads/Meta) only after the server confirms", async () => {
+    submitContactMessage.mockResolvedValueOnce({ ok: true, id: "1", emails: {} });
+    render(<ContactForm lang="pl" />);
+    fillValidForm();
+    fireEvent.click(screen.getByRole("button", { name: "Wyślij" }));
+
+    await waitFor(() => expect(trackFormConversion).toHaveBeenCalledTimes(1));
+    expect(trackFormConversion).toHaveBeenCalledWith(
+      expect.objectContaining({ formId: "page_contact", lang: "pl" }),
+    );
+  });
+
+  it("does not report a conversion when the server rejects the message", async () => {
+    submitContactMessage.mockRejectedValueOnce(new Error("policy_violation"));
+    render(<ContactForm lang="pl" />);
+    fillValidForm();
+    fireEvent.click(screen.getByRole("button", { name: "Wyślij" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(trackFormConversion).not.toHaveBeenCalled();
   });
 
   it("shows an error toast - never a success toast - when the server call fails", async () => {
