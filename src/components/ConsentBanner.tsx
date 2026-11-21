@@ -633,7 +633,7 @@ export function ConsentBanner({
                         <tbody className="divide-y divide-[color:var(--cb-border,var(--border))]">
                           {vendors.map((v) => (
                             <tr key={`${v.kind}:${v.name}`} className="align-top">
-                              <td className="max-w-[10rem] break-words whitespace-normal px-3 py-2 font-mono text-[color:var(--cb-fg,var(--card-foreground))]">
+                              <td className="max-w-[10rem] break-words whitespace-normal px-3 py-2 text-[color:var(--cb-fg,var(--card-foreground))]">
                                 {v.name}
                                 {v.auto && (
                                   <span className="ml-1 rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1 py-0.5 font-sans text-[9px] uppercase">
