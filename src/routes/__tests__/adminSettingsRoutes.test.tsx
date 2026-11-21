@@ -871,7 +871,11 @@ describe("admin.settings.marketing - identyfikatory pikseli i wstawki HTML", () 
     // Wyczyszczenie identyfikatora piksela to sposób na WYŁĄCZENIE skryptu.
     // Gdyby puste pole wypadło z ładunku, skrypt zostałby włączony na zawsze.
     h.rows.marketing = { meta_pixel_id: "111", custom_head_html: "<script></script>" };
-    await mount(MarketingRoute, "/admin/settings/marketing");
+    await renderRoute({
+      route: MarketingRoute,
+      path: "/admin/settings/marketing",
+      initialEntry: "/admin/settings/marketing?tab=meta",
+    });
     await waitFor(() => expect(saveButton()).toBeTruthy());
     const metaInput = textInputs()[0];
     fireEvent.change(metaInput, { target: { value: "" } });
@@ -880,6 +884,7 @@ describe("admin.settings.marketing - identyfikatory pikseli i wstawki HTML", () 
     const saved = lastSave("marketing");
     expect(saved?.meta_pixel_id).toBe("");
     expect(saved).toHaveProperty("linkedin_partner_id");
+    expect(saved).toHaveProperty("google_ads_id");
     expect(saved).toHaveProperty("tiktok_pixel_id");
     expect(saved).toHaveProperty("custom_head_html");
     expect(saved).toHaveProperty("custom_body_html");

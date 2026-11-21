@@ -1,4 +1,4 @@
-// Admin "Pixels": Meta, LinkedIn i pozostałe tagi reklamowe. Zasila
+// Admin "Pixels": Google Ads, Meta, LinkedIn i pozostałe tagi reklamowe. Zasila
 // ConsentScriptInjector - nic nie startuje przed zgodą na kategorię Marketing.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -8,7 +8,11 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LinkedInBrandIcon, MetaBrandIcon } from "@/components/admin/atoms/PixelBrandIcons";
+import {
+  GoogleAdsBrandIcon,
+  LinkedInBrandIcon,
+  MetaBrandIcon,
+} from "@/components/admin/atoms/PixelBrandIcons";
 import { defaultMarketingConfig, type MarketingConfig } from "@/lib/analytics/config";
 import {
   LINKEDIN_FUNNEL,
@@ -17,6 +21,13 @@ import {
   type LinkedInGoal,
 } from "@/lib/analytics/linkedinGoals";
 import { extractLinkedInConversionId } from "@/lib/analytics/linkedinConversionId";
+import {
+  extractGoogleAdsId,
+  extractGoogleAdsLabel,
+  GOOGLE_ADS_GOAL_COUNTING,
+  GOOGLE_ADS_GOALS,
+  type GoogleAdsGoal,
+} from "@/lib/analytics/googleAdsGoals";
 import {
   DEFAULT_PIXELS_TAB,
   parsePixelsTab,
@@ -31,8 +42,8 @@ export const Route = createFileRoute("/admin/settings/marketing")({
   },
   head: () =>
     adminPageHead(
-      "Pixels - Meta, LinkedIn i pozostałe tagi - Ustawienia",
-      "Meta Pixel, LinkedIn Insight z konwersjami ułożonymi według lejka LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
+      "Pixels - Google Ads, Meta, LinkedIn i pozostałe tagi - Ustawienia",
+      "Tag i konwersje Google Ads, Meta Pixel, LinkedIn Insight z konwersjami ułożonymi według lejka LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
     ),
   component: PixelsSettings,
 });
@@ -57,7 +68,24 @@ function PixelsSettings() {
     const raw = draft.linkedin_conversions[goal].trim();
     return raw !== "" && extractLinkedInConversionId(raw) === "";
   });
+  const setAdsLabel = (goal: GoogleAdsGoal, raw: string) =>
+    setDraft({
+      ...draft,
+      google_ads_conversions: { ...draft.google_ads_conversions, [goal]: raw },
+    });
+  const invalidAdsGoals = GOOGLE_ADS_GOALS.filter((goal) => {
+    const raw = draft.google_ads_conversions[goal].trim();
+    return raw !== "" && extractGoogleAdsLabel(raw) === "";
+  });
+  const adsIdInvalid =
+    draft.google_ads_id.trim() !== "" && extractGoogleAdsId(draft.google_ads_id) === "";
   const normalizedDraft = (): MarketingConfig => {
+    const google_ads_conversions = { ...draft.google_ads_conversions };
+    for (const goal of GOOGLE_ADS_GOALS) {
+      const label = extractGoogleAdsLabel(google_ads_conversions[goal]);
+      if (label) google_ads_conversions[goal] = label;
+    }
+    const google_ads_id = extractGoogleAdsId(draft.google_ads_id) || draft.google_ads_id;
     const linkedin_conversions = { ...draft.linkedin_conversions };
     for (const goal of LINKEDIN_GOALS) {
       // Rozpoznany wpis zapisujemy jako sam numer; nierozpoznany zostaje, jak
@@ -65,9 +93,10 @@ function PixelsSettings() {
       const id = extractLinkedInConversionId(linkedin_conversions[goal]);
       if (id) linkedin_conversions[goal] = id;
     }
-    return { ...draft, linkedin_conversions };
+    return { ...draft, google_ads_id, google_ads_conversions, linkedin_conversions };
   };
   const tabIcon: Record<PixelsTab, ReactNode> = {
+    google: <GoogleAdsBrandIcon className="mr-2 h-3.5 w-3.5" />,
     meta: <MetaBrandIcon className="mr-2 h-3.5 w-3.5" />,
     linkedin: <LinkedInBrandIcon className="mr-2 h-3.5 w-3.5" />,
     other: <Code2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />,
@@ -92,6 +121,67 @@ function PixelsSettings() {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        <TabsContent value="google">
+          <p className="text-sm text-muted-foreground mb-4">
+            {t("admin.marketing.google.accountHint")}
+          </p>
+          <Field
+            label={t("admin.marketing.google.adsId")}
+            hint={t("admin.marketing.google.adsIdHint")}
+            htmlFor="pixels-google-ads-id"
+          >
+            <Text
+              id="pixels-google-ads-id"
+              value={draft.google_ads_id}
+              onChange={(e) => set("google_ads_id", e.target.value)}
+              placeholder="AW-123456789"
+              aria-invalid={adsIdInvalid}
+            />
+            {adsIdInvalid ? (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {t("admin.marketing.google.invalidId")}
+              </p>
+            ) : null}
+          </Field>
+          <fieldset className="mb-4 rounded-md border border-border p-4">
+            <legend className="px-1 font-display text-base">
+              {t("admin.marketing.google.conversionsTitle")}
+            </legend>
+            <p className="text-sm text-muted-foreground mb-4">
+              {t("admin.marketing.google.conversionsHint")}
+            </p>
+            {GOOGLE_ADS_GOALS.map((goal) => (
+              <Field
+                key={goal}
+                label={t(`admin.marketing.google.goals.${goal}`)}
+                hint={t("admin.marketing.google.countingLabel", {
+                  counting: t(`admin.marketing.google.counting.${GOOGLE_ADS_GOAL_COUNTING[goal]}`),
+                })}
+                htmlFor={`pixels-gads-${goal}`}
+              >
+                <Text
+                  id={`pixels-gads-${goal}`}
+                  value={draft.google_ads_conversions[goal]}
+                  onChange={(e) => setAdsLabel(goal, e.target.value)}
+                  placeholder="AbCdEfGh123"
+                  aria-invalid={invalidAdsGoals.includes(goal)}
+                />
+                {invalidAdsGoals.includes(goal) ? (
+                  <p role="alert" className="mt-1 text-xs text-destructive">
+                    {t("admin.marketing.google.invalid")}
+                  </p>
+                ) : null}
+              </Field>
+            ))}
+          </fieldset>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t("admin.marketing.google.otherHint")}{" "}
+            <Link to="/admin/settings/analytics" className="text-brand-ink underline">
+              {t("admin.marketing.other.googleLink")}
+            </Link>
+          </p>
+        </TabsContent>
 
         <TabsContent value="meta">
           <Field

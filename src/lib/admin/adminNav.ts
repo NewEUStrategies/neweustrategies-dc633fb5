@@ -75,7 +75,11 @@ import {
   UserPlus,
   UsersRound,
 } from "lucide-react";
-import { LinkedInBrandIcon, MetaBrandIcon } from "@/components/admin/atoms/PixelBrandIcons";
+import {
+  GoogleAdsBrandIcon,
+  LinkedInBrandIcon,
+  MetaBrandIcon,
+} from "@/components/admin/atoms/PixelBrandIcons";
 
 import { canSeeTab, hubTabsFor } from "@/lib/admin/revenue/hubTabs";
 import { metricSearchEntries } from "@/lib/admin/revenue/metricSearchIndex";
@@ -539,6 +543,70 @@ export function buildAdminNavGroups({
           ],
         },
         { to: "/admin/redirects", icon: LinkIcon, label: t("admin.nav.redirects") },
+        // Piksele reklamowe i pomiar (tylko administrator) - w grupie Marketing,
+        // bo to praca kampanijna (konwersje, zgody), a nie konfiguracja serwisu.
+        // Cztery pierwsze pozycje prowadzą do zakładek jednego ekranu Pixels.
+        ...(isAdmin
+          ? [
+              {
+                to: "/admin/settings/marketing",
+                search: { tab: "google" },
+                searchDefault: true,
+                icon: GoogleAdsBrandIcon,
+                label: t("admin.nav.pixelsGoogleAds"),
+                keywords: [
+                  "google ads",
+                  "ads",
+                  "adwords",
+                  "konwersje",
+                  "conversions",
+                  "aw-",
+                  "grants",
+                ],
+              },
+              {
+                to: "/admin/settings/marketing",
+                search: { tab: "meta" },
+                icon: MetaBrandIcon,
+                label: t("admin.nav.pixelsMeta"),
+                keywords: ["pixel", "piksel", "meta", "facebook", "instagram", "capi", "pixels"],
+              },
+              {
+                to: "/admin/settings/marketing",
+                search: { tab: "linkedin" },
+                icon: LinkedInBrandIcon,
+                label: t("admin.nav.pixelsLinkedIn"),
+                keywords: ["linkedin", "insight", "konwersje", "conversions", "lejek", "pixels"],
+              },
+              {
+                to: "/admin/settings/marketing",
+                search: { tab: "other" },
+                icon: Code2,
+                label: t("admin.nav.pixelsOther"),
+                keywords: ["tiktok", "html", "head", "body", "tag", "pixels"],
+              },
+              {
+                to: "/admin/settings/analytics",
+                icon: ChartLine,
+                label: t("admin.nav.trackingSettings"),
+                keywords: [
+                  "ga4",
+                  "google",
+                  "analytics",
+                  "clarity",
+                  "gtm",
+                  "tag manager",
+                  "plausible",
+                ],
+              },
+              {
+                to: "/admin/settings/cookie-banner",
+                icon: Cookie,
+                label: t("admin.nav.cookieBanner"),
+                keywords: ["zgody", "consent", "rodo", "gdpr", "cookies"],
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -644,49 +712,6 @@ export function buildAdminNavGroups({
           { to: "/admin/analytics/bi", icon: BarChart3, label: t("admin.nav.analyticsBi") },
           { to: "/admin/audience", icon: UsersRound, label: t("admin.nav.audience") },
           { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
-        ],
-      },
-      {
-        // Piksele reklamowe i pomiar - wyodrębnione z Ustawień, bo to osobna
-        // praca (kampanie, konwersje, zgody), a nie konfiguracja serwisu.
-        // Trzy pozycje prowadzą do zakładek jednego ekranu Pixels.
-        id: "tracking",
-        label: t("admin.navGroups.tracking"),
-        items: [
-          {
-            to: "/admin/settings/marketing",
-            search: { tab: "meta" },
-            searchDefault: true,
-            icon: MetaBrandIcon,
-            label: t("admin.nav.pixelsMeta"),
-            keywords: ["pixel", "piksel", "meta", "facebook", "instagram", "capi", "pixels"],
-          },
-          {
-            to: "/admin/settings/marketing",
-            search: { tab: "linkedin" },
-            icon: LinkedInBrandIcon,
-            label: t("admin.nav.pixelsLinkedIn"),
-            keywords: ["linkedin", "insight", "konwersje", "conversions", "lejek", "pixels"],
-          },
-          {
-            to: "/admin/settings/marketing",
-            search: { tab: "other" },
-            icon: Code2,
-            label: t("admin.nav.pixelsOther"),
-            keywords: ["tiktok", "html", "head", "body", "tag", "pixels"],
-          },
-          {
-            to: "/admin/settings/analytics",
-            icon: ChartLine,
-            label: t("admin.nav.trackingSettings"),
-            keywords: ["ga4", "google", "ads", "clarity", "gtm", "tag manager", "plausible"],
-          },
-          {
-            to: "/admin/settings/cookie-banner",
-            icon: Cookie,
-            label: t("admin.nav.cookieBanner"),
-            keywords: ["zgody", "consent", "rodo", "gdpr", "cookies"],
-          },
         ],
       },
       {

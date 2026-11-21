@@ -53,6 +53,8 @@ export const BRAND_ICON_NODES = {
     ],
     ["path", { d: "M9 18c-4.51 2-5-2-7-2", key: "9comsn" }],
   ],
+  // "G" w geometrii Lucide (obrys 2 px, siatka 24) - panel Pixels / Google Ads.
+  google: [["path", { d: "M19.07 4.93A10 10 0 1 0 22 12H12", key: "nesg01" }]],
 };
 
 // Pozostałe glify usunięte w Lucide 1.x bez zamiennika (znaki towarowe).

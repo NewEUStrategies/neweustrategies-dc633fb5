@@ -16,7 +16,7 @@
 
 import { trackAdsFormGoals } from "./adsGoals";
 import { ga4Event } from "./ga4Client";
-import { GOOGLE_ADS_ID } from "./tagIds";
+import { googleAdsId } from "./googleAdsGoals";
 import { track } from "./track";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
 import { newMetaEventId, trackMetaEvent } from "./metaPixelEvents";
@@ -32,7 +32,8 @@ const LABEL_RE = /^[A-Za-z0-9_-]{4,40}$/;
 
 export function adsSendTo(label: string): string {
   const clean = label.trim();
-  return LABEL_RE.test(clean) ? `${GOOGLE_ADS_ID}/${clean}` : "";
+  const id = googleAdsId();
+  return id && LABEL_RE.test(clean) ? `${id}/${clean}` : "";
 }
 
 /** Natychmiastowa konwersja Google Ads. No-op bez poprawnej etykiety. */

@@ -16,9 +16,10 @@ import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
 import { trackLinkedInGoal } from "./linkedinInsightEvents";
 import { recordAdPixelConversion } from "./adPixelTelemetry";
+import { DEFAULT_GOOGLE_ADS_LABELS, googleAdsLabel } from "./googleAdsGoals";
 
-/** Etykieta akcji "NES - Zakup (tag strony)" z fragmentu zdarzenia Google Ads. */
-export const ADS_PURCHASE_LABEL = "n02PCIG0wLwdEMD6kM5B";
+/** Wbudowana etykieta akcji "NES - Zakup (tag strony)"; bieżącą zwraca `googleAdsLabel`. */
+export const ADS_PURCHASE_LABEL = DEFAULT_GOOGLE_ADS_LABELS.purchase;
 
 const CURRENCY_RE = /^[A-Z]{3}$/;
 
@@ -38,7 +39,7 @@ export function trackAdsPurchase(input: AdsPurchaseInput): boolean {
   const currency = input.currency.trim().toUpperCase();
   if (!transactionId || !CURRENCY_RE.test(currency)) return false;
   if (!Number.isFinite(input.value) || input.value <= 0) return false;
-  adsConversion(ADS_PURCHASE_LABEL, {
+  adsConversion(googleAdsLabel("purchase"), {
     value: Math.round(input.value * 100) / 100,
     currency,
     transaction_id: transactionId,

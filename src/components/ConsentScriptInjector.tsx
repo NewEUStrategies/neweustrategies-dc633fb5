@@ -20,9 +20,9 @@ import {
   bootstrapGa4,
   ga4ConfigureAds,
   ga4ConsentUpdate,
-  GOOGLE_ADS_ID,
   resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
+import { configureGoogleAds, extractGoogleAdsId } from "@/lib/analytics/googleAdsGoals";
 import type { AdPlatform } from "@/lib/analytics/adPixels";
 
 type CleanupFn = () => void;
@@ -335,11 +335,20 @@ export function ConsentScriptInjector() {
   // `config AW` przed aktualizacją zgody wysłałby pierwsze trafienie Ads
   // powracającego odwiedzającego w stanie `denied`. Idempotencja (flaga i skan
   // warstwy danych na `config AW` z HTML-a z cache) jest po stronie `ga4Client`.
+  // Google Ads z panelu (Pixels -> Google Ads): identyfikator tagu i etykiety
+  // konwersji trafiają do wysyłki PRZED konfiguracją Ads poniżej.
+  const adsId = extractGoogleAdsId(marketing.google_ads_id);
+  const adsLabelsKey = JSON.stringify(marketing.google_ads_conversions);
+  useEffect(() => {
+    configureGoogleAds({ id: adsId, labels: marketing.google_ads_conversions });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adsId, adsLabelsKey]);
+
   useEffect(() => {
     if (!mounted || !ga4Id) return;
     ga4ConsentUpdate(categories);
-    if (categories.marketing === true) ga4ConfigureAds(GOOGLE_ADS_ID);
-  }, [mounted, ga4Id, categories]);
+    if (categories.marketing === true && adsId) ga4ConfigureAds(adsId);
+  }, [mounted, ga4Id, adsId, categories]);
 
   const analyticsCleanup = useRef<CleanupFn | null>(null);
   const marketingCleanup = useRef<CleanupFn | null>(null);
@@ -409,7 +418,7 @@ export function ConsentScriptInjector() {
       // Lustro pikseli do panelu admina (Piksele Ads) - patrz adPixels.ts.
       const platforms: AdPlatform[] = [];
       if (marketing.meta_pixel_id) platforms.push("meta");
-      if (ga4Id && GOOGLE_ADS_ID) platforms.push("google_ads");
+      if (ga4Id && adsId) platforms.push("google_ads");
       if (marketing.linkedin_partner_id) platforms.push("linkedin");
       // Leniwie: lustro ciągnie `track()`, którego nie chcemy w chunku bootu.
       void import("@/lib/analytics/adPixelTelemetry")

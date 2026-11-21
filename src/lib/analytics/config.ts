@@ -3,6 +3,12 @@
 // the matching category.
 import { z } from "zod";
 import { extractLinkedInConversionId } from "./linkedinConversionId";
+import {
+  DEFAULT_GOOGLE_ADS_ID,
+  DEFAULT_GOOGLE_ADS_LABELS,
+  extractGoogleAdsId,
+  extractGoogleAdsLabel,
+} from "./googleAdsGoals";
 
 /** Identyfikator projektu Microsoft Clarity (małe litery i cyfry); śmieci -> "". */
 export const CLARITY_PROJECT_ID_RE = /^[a-z0-9]{6,20}$/;
@@ -64,7 +70,30 @@ export const LinkedInConversionsSchema = z
     add_to_cart: "",
   });
 
+/** Etykieta konwersji Google Ads: etykieta albo fragment `send_to`; śmieci -> "" (konwersja wyłączona). */
+const googleAdsLabel = (fallback: string) =>
+  z.string().max(500).catch(fallback).transform(extractGoogleAdsLabel).default(fallback);
+
+export const GoogleAdsConversionsSchema = z
+  .object({
+    contact_form: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.contact_form),
+    club_application: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.club_application),
+    account_signup: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.account_signup),
+    newsletter: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.newsletter),
+    event_registration: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.event_registration),
+    purchase: googleAdsLabel(DEFAULT_GOOGLE_ADS_LABELS.purchase),
+  })
+  .catch(() => ({ ...DEFAULT_GOOGLE_ADS_LABELS }));
+
 export const MarketingConfigSchema = z.object({
+  /** `AW-…` tagu Google Ads; brak klucza = konto wbudowane, pusty wpis = Ads wyłączone. */
+  google_ads_id: z
+    .string()
+    .max(200)
+    .catch(DEFAULT_GOOGLE_ADS_ID)
+    .transform(extractGoogleAdsId)
+    .default(DEFAULT_GOOGLE_ADS_ID),
+  google_ads_conversions: GoogleAdsConversionsSchema.prefault({}),
   meta_pixel_id: z.string().trim().max(64).default(""),
   linkedin_partner_id: z.string().trim().max(64).default(""),
   linkedin_conversions: LinkedInConversionsSchema.prefault({}),

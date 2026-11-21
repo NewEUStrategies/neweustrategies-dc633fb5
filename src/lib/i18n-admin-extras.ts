@@ -375,6 +375,32 @@ export const adminExtrasPl = {
       customBody: "Własny HTML w <body>",
       customHead: "Własny HTML w <head>",
       hint: "Piksele i tagi reklamowe startują dopiero, gdy odwiedzający wyrazi zgodę na kategorię Marketingowe.",
+      google: {
+        accountHint:
+          "Konto Google Ads 251-385-9854 (Google Ad Grants). Tag ładuje się dopiero po zgodzie na kategorię Marketingowe, a konwersja idzie po potwierdzeniu akcji przez serwer.",
+        adsId: "Identyfikator tagu Google Ads",
+        adsIdHint:
+          "Google Ads -> Cele -> Konwersje -> akcja -> Konfiguracja tagu -> Zainstaluj samodzielnie. Wklej AW-… albo cały fragment tagu. Puste pole wyłącza Google Ads na stronie.",
+        conversionsHint:
+          "Przy każdej akcji wklej etykietę konwersji albo cały fragment zdarzenia z send_to: 'AW-…/etykieta'. Puste pole - Google Ads tej konwersji nie liczy.",
+        conversionsTitle: "Konwersje Google Ads (tag strony)",
+        counting: {
+          every: "Każda, z wartością - okno 30 dni",
+          one: "Jedna na kliknięcie - okno 90 dni",
+        },
+        countingLabel: "Liczenie w Google Ads: {{counting}}",
+        goals: {
+          account_signup: "Rejestracja konta",
+          club_application: "Wniosek do klubu",
+          contact_form: "Formularz kontaktowy",
+          event_registration: "Zapis na wydarzenie",
+          newsletter: "Zapis do newslettera",
+          purchase: "Zakup / bilet / darowizna",
+        },
+        invalid: "Nie rozpoznano etykiety - wklej samą etykietę albo fragment z send_to.",
+        invalidId: "Nie rozpoznano identyfikatora - wpisz AW- i 9-12 cyfr.",
+        otherHint: "GA4, Tag Manager i Microsoft Clarity ustawisz w Analityce.",
+      },
       linkedin: {
         partnerId: "LinkedIn Insight Partner ID",
       },
@@ -412,7 +438,8 @@ export const adminExtrasPl = {
         },
         hint: "W LinkedIn Campaign Manager: Analiza -> Śledzenie konwersji -> Utwórz konwersję -> Insight Tag -> Ręczna konfiguracja -> Określonego zdarzenia. Wybierz kategorię podaną pod polem i wklej numer conversion_id albo cały fragment window.lintrk(...). Puste pole - LinkedIn tej konwersji nie liczy.",
         invalid: "Nie rozpoznano numeru konwersji - wklej sam numer albo fragment z conversion_id.",
-        qualifiedNote: "Kategorie „Kwalifikowany potencjalny klient” (także marketingowy i sprzedażowy) nadaje CRM po ocenie kontaktu, a nie strona. LinkedIn przyjmuje je tylko przez API konwersji, dlatego nie mają tu pól.",
+        qualifiedNote:
+          "Kategorie „Kwalifikowany potencjalny klient” (także marketingowy i sprzedażowy) nadaje CRM po ocenie kontaktu, a nie strona. LinkedIn przyjmuje je tylko przez API konwersji, dlatego nie mają tu pól.",
         stages: {
           bottom: "Dolny lejek - duże zainteresowanie",
           closed: "Zamknięta transakcja",
@@ -422,17 +449,20 @@ export const adminExtrasPl = {
         title: "Konwersje LinkedIn Ads",
       },
       meta: {
-        events: "PageView, ViewContent, Search, Lead, CompleteRegistration, Subscribe, SubmitApplication, Contact, Schedule, AddToWishlist, AddToCart, InitiateCheckout, AddPaymentInfo, Purchase, Donate, StartTrial.",
+        events:
+          "PageView, ViewContent, Search, Lead, CompleteRegistration, Subscribe, SubmitApplication, Contact, Schedule, AddToWishlist, AddToCart, InitiateCheckout, AddPaymentInfo, Purchase, Donate, StartTrial.",
         eventsTitle: "Zdarzenia wysyłane automatycznie",
         hint: "Numer zestawu danych z Menedżera zdarzeń Meta. Każde zdarzenie wysyłamy z przeglądarki i z serwera (API konwersji) z tym samym identyfikatorem, więc Meta liczy je raz.",
         pixelId: "Meta Pixel ID",
       },
       other: {
-        googleHint: "Google Analytics, Google Ads i Microsoft Clarity ustawisz w Analityce.",
+        googleHint:
+          "Google Analytics i Microsoft Clarity ustawisz w Analityce, a Google Ads w zakładce Google Ads.",
         googleLink: "Przejdź do Analityki",
         tiktok: "TikTok Pixel ID",
       },
       tabs: {
+        google: "Google Ads",
         linkedin: "LinkedIn",
         meta: "Meta",
         other: "Pozostałe",
@@ -545,6 +575,7 @@ export const adminExtrasPl = {
     },
     nav: {
       analytics: "Analityka (GA4 / GSC)",
+      pixelsGoogleAds: "Google Ads",
       pixelsLinkedIn: "LinkedIn Insight",
       pixelsMeta: "Meta Pixel",
       pixelsOther: "Pozostałe tagi",
@@ -1310,6 +1341,32 @@ export const adminExtrasEn = {
       customBody: "Custom <body> HTML",
       customHead: "Custom <head> HTML",
       hint: "Pixels and ad tags only start once the visitor consents to the Marketing category.",
+      google: {
+        accountHint:
+          "Google Ads account 251-385-9854 (Google Ad Grants). The tag only loads after consent to the Marketing category, and a conversion is sent once the server confirms the action.",
+        adsId: "Google Ads tag ID",
+        adsIdHint:
+          "Google Ads -> Goals -> Conversions -> action -> Tag setup -> Install the tag yourself. Paste AW-… or the whole tag snippet. Leave empty to turn Google Ads off on the site.",
+        conversionsHint:
+          "For each action paste the conversion label or the whole event snippet with send_to: 'AW-…/label'. Empty field - Google Ads does not count that conversion.",
+        conversionsTitle: "Google Ads conversions (website tag)",
+        counting: {
+          every: "Every, with value - 30-day window",
+          one: "One per click - 90-day window",
+        },
+        countingLabel: "Counting in Google Ads: {{counting}}",
+        goals: {
+          account_signup: "Account sign-up",
+          club_application: "Club application",
+          contact_form: "Contact form",
+          event_registration: "Event registration",
+          newsletter: "Newsletter sign-up",
+          purchase: "Purchase / ticket / donation",
+        },
+        invalid: "Label not recognised - paste the label alone or the snippet with send_to.",
+        invalidId: "ID not recognised - enter AW- followed by 9-12 digits.",
+        otherHint: "GA4, Tag Manager and Microsoft Clarity are configured in Analytics.",
+      },
       linkedin: {
         partnerId: "LinkedIn Insight Partner ID",
       },
@@ -1346,8 +1403,10 @@ export const adminExtrasEn = {
           video_view: "Video view",
         },
         hint: "In LinkedIn Campaign Manager: Analyze -> Conversion tracking -> Create conversion -> Insight Tag -> Manual setup -> Specific event. Pick the category shown under the field and paste the conversion_id number or the whole window.lintrk(...) snippet. Leave empty and LinkedIn does not count that conversion.",
-        invalid: "Conversion number not recognised - paste the number alone or the snippet with conversion_id.",
-        qualifiedNote: "The \"Qualified lead\" categories (including marketing and sales qualified) are assigned by the CRM after a contact is assessed, not by the website. LinkedIn only accepts them through the Conversions API, so they have no fields here.",
+        invalid:
+          "Conversion number not recognised - paste the number alone or the snippet with conversion_id.",
+        qualifiedNote:
+          'The "Qualified lead" categories (including marketing and sales qualified) are assigned by the CRM after a contact is assessed, not by the website. LinkedIn only accepts them through the Conversions API, so they have no fields here.',
         stages: {
           bottom: "Bottom of funnel - strong interest",
           closed: "Closed deal",
@@ -1357,17 +1416,20 @@ export const adminExtrasEn = {
         title: "LinkedIn Ads conversions",
       },
       meta: {
-        events: "PageView, ViewContent, Search, Lead, CompleteRegistration, Subscribe, SubmitApplication, Contact, Schedule, AddToWishlist, AddToCart, InitiateCheckout, AddPaymentInfo, Purchase, Donate, StartTrial.",
+        events:
+          "PageView, ViewContent, Search, Lead, CompleteRegistration, Subscribe, SubmitApplication, Contact, Schedule, AddToWishlist, AddToCart, InitiateCheckout, AddPaymentInfo, Purchase, Donate, StartTrial.",
         eventsTitle: "Events sent automatically",
         hint: "The dataset number from Meta Events Manager. Every event is sent from the browser and from the server (Conversions API) with the same ID, so Meta counts it once.",
         pixelId: "Meta Pixel ID",
       },
       other: {
-        googleHint: "Google Analytics, Google Ads and Microsoft Clarity are configured in Analytics.",
+        googleHint:
+          "Google Analytics and Microsoft Clarity are configured in Analytics, Google Ads in the Google Ads tab.",
         googleLink: "Go to Analytics",
         tiktok: "TikTok Pixel ID",
       },
       tabs: {
+        google: "Google Ads",
         linkedin: "LinkedIn",
         meta: "Meta",
         other: "Other",
@@ -1480,6 +1542,7 @@ export const adminExtrasEn = {
     },
     nav: {
       analytics: "Analytics (GA4 / GSC)",
+      pixelsGoogleAds: "Google Ads",
       pixelsLinkedIn: "LinkedIn Insight",
       pixelsMeta: "Meta Pixel",
       pixelsOther: "Other tags",

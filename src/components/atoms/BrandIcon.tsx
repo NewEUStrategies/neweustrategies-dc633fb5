@@ -83,6 +83,8 @@ const ALIASES: Record<string, string[]> = {
   instagram: ["instagram", "ig"],
   tiktok: ["tiktok", "tik-tok"],
   github: ["github", "git-hub"],
+  google: ["google", "google-ads"],
+  "google-ads": ["google-ads", "google"],
   gitlab: ["gitlab", "git-lab"],
   slack: ["slack"],
   twitch: ["twitch"],
