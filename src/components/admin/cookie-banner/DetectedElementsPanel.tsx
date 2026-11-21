@@ -82,7 +82,7 @@ export function DetectedElementsPanel() {
                   <tbody className="divide-y divide-border">
                     {items.map((item) => (
                       <tr key={`${item.kind}:${item.name}`} className="align-top">
-                        <td className="px-3 py-2 font-mono">
+                        <td className="px-3 py-2 [overflow-wrap:anywhere]">
                           {item.name}
                           {item.auto && (
                             <span className="ml-1 rounded bg-brand/15 px-1 py-0.5 font-sans text-[9px] uppercase text-brand">
@@ -100,7 +100,7 @@ export function DetectedElementsPanel() {
                         <td className="px-3 py-2 text-muted-foreground">
                           {pickLocalized(item, "purpose", lang)}
                         </td>
-                        <td className="px-3 py-2 font-mono text-muted-foreground">
+                        <td className="px-3 py-2 text-muted-foreground [overflow-wrap:anywhere]">
                           {item.detected?.length ? item.detected.join(", ") : "-"}
                         </td>
                       </tr>
