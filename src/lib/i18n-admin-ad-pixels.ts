@@ -17,7 +17,12 @@ const pl = {
       conversions: "Konwersje",
       rate: "Współczynnik konwersji",
     },
-    platform: { meta: "Meta Pixel", google_ads: "Google Ads", linkedin: "LinkedIn Insight" },
+    platform: {
+      meta: "Meta Pixel",
+      google_ads: "Google Ads",
+      linkedin: "LinkedIn Insight",
+      x: "X Pixel",
+    },
     platformLine: "{{visits}} wizyt · {{conversions}} konwersji · CR {{rate}}%",
     charts: {
       visits: "Wizyty dziennie wg platformy",
@@ -52,7 +57,12 @@ const en: typeof pl = {
     empty: "No visits with marketing consent in this period.",
     capped: "The period has more events than the sample limit - numbers are understated.",
     kpi: { visits: "Consented visits", conversions: "Conversions", rate: "Conversion rate" },
-    platform: { meta: "Meta Pixel", google_ads: "Google Ads", linkedin: "LinkedIn Insight" },
+    platform: {
+      meta: "Meta Pixel",
+      google_ads: "Google Ads",
+      linkedin: "LinkedIn Insight",
+      x: "X Pixel",
+    },
     platformLine: "{{visits}} visits · {{conversions}} conversions · CR {{rate}}%",
     charts: {
       visits: "Daily visits by platform",

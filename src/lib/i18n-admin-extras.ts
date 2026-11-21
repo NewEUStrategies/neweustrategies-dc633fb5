@@ -460,6 +460,11 @@ export const adminExtrasPl = {
           "Google Analytics i Microsoft Clarity ustawisz w Analityce, a Google Ads w zakładce Google Ads.",
         googleLink: "Przejdź do Analityki",
         tiktok: "TikTok Pixel ID",
+        x: "X Pixel ID",
+        xHint:
+          "Identyfikator piksela z X Ads Managera (Conversion Diagnostics -> X Pixel), np. rjppz. Możesz wkleić sam identyfikator albo cały kod bazowy - zapiszemy tylko identyfikator. Piksel startuje po zgodzie marketingowej i liczy każdą odsłonę, także przejścia między stronami. Puste pole - piksel X wyłączony.",
+        xInvalid:
+          "Nie rozpoznano identyfikatora piksela X - wklej sam identyfikator (np. rjppz) albo kod z twq('config', ...).",
       },
       tabs: {
         google: "Google Ads",
@@ -1427,6 +1432,11 @@ export const adminExtrasEn = {
           "Google Analytics and Microsoft Clarity are configured in Analytics, Google Ads in the Google Ads tab.",
         googleLink: "Go to Analytics",
         tiktok: "TikTok Pixel ID",
+        x: "X Pixel ID",
+        xHint:
+          "The pixel ID from X Ads Manager (Conversion Diagnostics -> X Pixel), e.g. rjppz. Paste the ID alone or the whole base code - only the ID is saved. The pixel starts after marketing consent and counts every page view, including moves between pages. Empty field - X pixel off.",
+        xInvalid:
+          "X pixel ID not recognised - paste the ID alone (e.g. rjppz) or the code with twq('config', ...).",
       },
       tabs: {
         google: "Google Ads",

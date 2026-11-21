@@ -1,4 +1,4 @@
-// Pomiar pikseli reklamowych (Meta Pixel, Google Ads, LinkedIn Insight) PO
+// Pomiar pikseli reklamowych (Meta Pixel, Google Ads, LinkedIn Insight, X) PO
 // zgodzie marketingowej - czysta logika współdzielona przez klienta (lustro
 // zdarzeń) i serwer (agregacja do panelu /admin/analytics -> „Piksele Ads").
 //
@@ -10,7 +10,7 @@
 // jedzie przez `track()`, więc wymaga też zgody analitycznej - odwiedzający
 // z samą zgodą marketingową nie jest liczony (zaniżenie jawne w panelu).
 
-export const AD_PLATFORMS = ["meta", "google_ads", "linkedin"] as const;
+export const AD_PLATFORMS = ["meta", "google_ads", "linkedin", "x"] as const;
 export type AdPlatform = (typeof AD_PLATFORMS)[number];
 
 export const AD_PIXEL_VISIT_EVENT = "ad_pixel_visit";
@@ -60,7 +60,7 @@ export interface AdPixelSummary {
 }
 
 function zeroRecord(): Record<AdPlatform, number> {
-  return { meta: 0, google_ads: 0, linkedin: 0 };
+  return { meta: 0, google_ads: 0, linkedin: 0, x: 0 };
 }
 
 /** Kolejne dni UTC (YYYY-MM-DD) kończące się na `now`, łącznie `days`. */
@@ -86,6 +86,7 @@ export function aggregateAdPixelRows(
     meta: { visits: 0, conversions: 0 },
     google_ads: { visits: 0, conversions: 0 },
     linkedin: { visits: 0, conversions: 0 },
+    x: { visits: 0, conversions: 0 },
   };
   const kinds = new Map<string, number>();
   let consentedVisits = 0;
@@ -124,7 +125,9 @@ export function aggregateAdPixelRows(
     conversionKinds: [...kinds.entries()]
       .map(([kind, count]) => ({ kind, count }))
       .sort((a, b) => b.count - a.count),
-    daily: keys.map((k) => byDay.get(k) ?? { date: k, visits: zeroRecord(), conversions: zeroRecord() }),
+    daily: keys.map(
+      (k) => byDay.get(k) ?? { date: k, visits: zeroRecord(), conversions: zeroRecord() },
+    ),
   };
 }
 

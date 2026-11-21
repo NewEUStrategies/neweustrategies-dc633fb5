@@ -299,6 +299,29 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_pl: "Do 1 roku (lidc: 24 h)",
     ttl_en: "Up to 1 year (lidc: 24 h)",
   },
+  {
+    name: "Piksel X Ads (_twpid, _twclid, muc_ads, personalization_id)",
+    category: "marketing",
+    kind: "cookie",
+    match: [
+      "_twpid",
+      "_twclid",
+      "_twsid",
+      "muc_ads",
+      "personalization_id",
+      "guest_id",
+      "guest_id_ads",
+      "guest_id_marketing",
+    ],
+    party_pl: "X Internet Unlimited Company (samodzielny administrator)",
+    party_en: "X Internet Unlimited Company (independent controller)",
+    purpose_pl:
+      "Pomiar skuteczności reklam w serwisie X (odsłony, kliknięcia reklam) i docieranie z reklamą do odwiedzających",
+    purpose_en:
+      "Measuring how ads on X perform (page views, ad clicks) and reaching visitors with ads",
+    ttl_pl: "Do 2 lat (_twclid: 30 dni)",
+    ttl_en: "Up to 2 years (_twclid: 30 days)",
+  },
 ];
 
 /** Znane trackery zewnętrzne - rozpoznawane po kluczu i po skrypcie na stronie. */
@@ -359,6 +382,14 @@ const THIRD_PARTY_SIGNATURES: ReadonlyArray<{
     party: "LinkedIn Ireland Unlimited Company",
     purpose_pl: "Atrybucja kampanii i remarketing B2B",
     purpose_en: "Campaign attribution and B2B remarketing",
+  },
+  {
+    test: /ads-twitter|analytics\.twitter|^_tw(pid|clid|sid)$|^muc_ads$/i,
+    name: "X Pixel",
+    category: "marketing",
+    party: "X Internet Unlimited Company",
+    purpose_pl: "Pomiar konwersji z reklam w serwisie X i remarketing",
+    purpose_en: "X ad conversion measurement and remarketing",
   },
   {
     test: /stripe|__stripe_mid|__stripe_sid|js\.stripe\.com/i,

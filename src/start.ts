@@ -317,6 +317,13 @@ const LINKEDIN_INSIGHT_CONNECT_SRC =
   "https://px.ads.linkedin.com https://px4.ads.linkedin.com https://dc.ads.linkedin.com";
 
 /**
+ * Piksel X Ads: uwt.js z static.ads-twitter.com; zdarzenia wysyła jako piksele
+ * obrazkowe (t.co, analytics.twitter.com - obejmuje je `img-src https:`).
+ * Ładuje go wyłącznie `ConsentScriptInjector` po zgodzie na marketing.
+ */
+const X_PIXEL_SCRIPT_SRC = "https://static.ads-twitter.com";
+
+/**
  * Microsoft Clarity: znacznik z www.clarity.ms, właściwy skrypt ze
  * scripts.clarity.ms, dane do <litera>.clarity.ms/collect. Ładuje go
  * wyłącznie `ConsentScriptInjector` po zgodzie analitycznej.
@@ -348,7 +355,7 @@ function contentSecurityPolicy(request?: Request): string {
     // Stripe.js MUSI pochodzić z js.stripe.com (wymóg PCI - Stripe nie
     // wspiera self-hostingu tego skryptu). Bez tego wpisu CSP blokuje
     // ładowanie SDK i checkout nie startuje.
-    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC} ${META_PIXEL_SCRIPT_SRC} ${LINKEDIN_INSIGHT_SCRIPT_SRC} ${CLARITY_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline' https://js.stripe.com ${GOOGLE_TAG_SCRIPT_SRC} ${META_PIXEL_SCRIPT_SRC} ${LINKEDIN_INSIGHT_SCRIPT_SRC} ${X_PIXEL_SCRIPT_SRC} ${CLARITY_SCRIPT_SRC}${preview ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",

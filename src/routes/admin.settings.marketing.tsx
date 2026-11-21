@@ -21,6 +21,7 @@ import {
   type LinkedInGoal,
 } from "@/lib/analytics/linkedinGoals";
 import { extractLinkedInConversionId } from "@/lib/analytics/linkedinConversionId";
+import { extractXPixelId } from "@/lib/analytics/xPixelId";
 import {
   extractGoogleAdsId,
   extractGoogleAdsLabel,
@@ -42,8 +43,8 @@ export const Route = createFileRoute("/admin/settings/marketing")({
   },
   head: () =>
     adminPageHead(
-      "Pixels - Google Ads, Meta, LinkedIn i pozostałe tagi - Ustawienia",
-      "Tag i konwersje Google Ads, Meta Pixel, LinkedIn Insight z konwersjami ułożonymi według lejka LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
+      "Pixels - Google Ads, Meta, LinkedIn, X i pozostałe tagi - Ustawienia",
+      "Tag i konwersje Google Ads, Meta Pixel, LinkedIn Insight z konwersjami ułożonymi według lejka LinkedIn Ads, piksel X Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
     ),
   component: PixelsSettings,
 });
@@ -77,6 +78,7 @@ function PixelsSettings() {
     const raw = draft.google_ads_conversions[goal].trim();
     return raw !== "" && extractGoogleAdsLabel(raw) === "";
   });
+  const xPixelInvalid = draft.x_pixel_id.trim() !== "" && extractXPixelId(draft.x_pixel_id) === "";
   const adsIdInvalid =
     draft.google_ads_id.trim() !== "" && extractGoogleAdsId(draft.google_ads_id) === "";
   const normalizedDraft = (): MarketingConfig => {
@@ -93,7 +95,8 @@ function PixelsSettings() {
       const id = extractLinkedInConversionId(linkedin_conversions[goal]);
       if (id) linkedin_conversions[goal] = id;
     }
-    return { ...draft, google_ads_id, google_ads_conversions, linkedin_conversions };
+    const x_pixel_id = extractXPixelId(draft.x_pixel_id) || draft.x_pixel_id;
+    return { ...draft, google_ads_id, google_ads_conversions, linkedin_conversions, x_pixel_id };
   };
   const tabIcon: Record<PixelsTab, ReactNode> = {
     google: <GoogleAdsBrandIcon className="mr-2 h-3.5 w-3.5" />,
@@ -257,6 +260,26 @@ function PixelsSettings() {
         </TabsContent>
 
         <TabsContent value="other">
+          <Field label={t("admin.marketing.other.x")} htmlFor="pixels-x-id">
+            <Text
+              id="pixels-x-id"
+              value={draft.x_pixel_id}
+              onChange={(e) => set("x_pixel_id", e.target.value)}
+              placeholder="rjppz"
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={xPixelInvalid}
+              aria-describedby="pixels-x-hint"
+            />
+            <p id="pixels-x-hint" className="mt-1 text-xs text-muted-foreground">
+              {t("admin.marketing.other.xHint")}
+            </p>
+            {xPixelInvalid ? (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {t("admin.marketing.other.xInvalid")}
+              </p>
+            ) : null}
+          </Field>
           <Field label={t("admin.marketing.other.tiktok")} htmlFor="pixels-tiktok-id">
             <Text
               id="pixels-tiktok-id"

@@ -574,6 +574,19 @@ describe("security headers across deployment modes", () => {
     expect(directive("connect-src")).toContain("https://px.ads.linkedin.com");
     expect(directive("connect-src")).not.toMatch(/\shttps:(\s|$)/);
   });
+  it("dopuszcza piksel X: uwt.js w script-src, piksele zdarzeń przez img-src https:", () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");
+    vi.stubEnv("SUPABASE_URL", "");
+    const csp =
+      applySecurityHeaders(request(), document()).headers.get("content-security-policy") ?? "";
+    const directive = (name: string) =>
+      csp
+        .split(";")
+        .map((part) => part.trim())
+        .find((part) => part.startsWith(`${name} `)) ?? "";
+    expect(directive("script-src")).toContain("https://static.ads-twitter.com");
+    expect(directive("img-src")).toContain("https:");
+  });
   it("dopuszcza Microsoft Clarity: znacznik i skrypt w script-src, dane w connect-src", () => {
     vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");
     vi.stubEnv("SUPABASE_URL", "");

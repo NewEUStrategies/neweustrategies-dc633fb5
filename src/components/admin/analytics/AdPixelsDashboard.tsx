@@ -6,7 +6,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getAdPixelsAnalytics } from "@/lib/analytics/adPixelsAnalytics.functions";
 import { AD_PLATFORMS, conversionRate, type AdPlatform } from "@/lib/analytics/adPixels";
 import { useCurrentTenantId } from "@/lib/tenant";
@@ -39,7 +45,10 @@ export function AdPixelsDashboard() {
       biChart({
         kind,
         categories: cats,
-        series: AD_PLATFORMS.map((p) => ({ name: name(p), values: data.daily.map((d) => d[key][p]) })),
+        series: AD_PLATFORMS.map((p) => ({
+          name: name(p),
+          values: data.daily.map((d) => d[key][p]),
+        })),
         showLegend: true,
       });
     return { visits: mk("visits", "line"), conversions: mk("conversions", "bar") };
@@ -54,7 +63,9 @@ export function AdPixelsDashboard() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold tracking-tight">{t("adminAdPixels.title")}</h2>
-          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">{t("adminAdPixels.subtitle")}</p>
+          <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+            {t("adminAdPixels.subtitle")}
+          </p>
         </div>
         <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
           <SelectTrigger className="w-44" aria-label={t("adminAdPixels.range", { days })}>
@@ -77,7 +88,9 @@ export function AdPixelsDashboard() {
       ) : q.isError || !data || !charts ? (
         <Card role="alert" className="p-4 text-sm text-destructive">
           {t("adminAdPixels.error")}
-          {q.error instanceof Error ? <div className="mt-1 text-xs text-muted-foreground">{q.error.message}</div> : null}
+          {q.error instanceof Error ? (
+            <div className="mt-1 text-xs text-muted-foreground">{q.error.message}</div>
+          ) : null}
         </Card>
       ) : (
         <>
@@ -87,7 +100,9 @@ export function AdPixelsDashboard() {
               <div className="text-2xl font-semibold tabular-nums">{data.consentedVisits}</div>
             </Card>
             <Card className="p-4">
-              <div className="text-xs text-muted-foreground">{t("adminAdPixels.kpi.conversions")}</div>
+              <div className="text-xs text-muted-foreground">
+                {t("adminAdPixels.kpi.conversions")}
+              </div>
               <div className="text-2xl font-semibold tabular-nums">{data.conversions}</div>
             </Card>
             <Card className="p-4">
@@ -98,7 +113,7 @@ export function AdPixelsDashboard() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {AD_PLATFORMS.map((p) => (
               <Card key={p} className="p-4">
                 <div className="text-sm font-semibold">{name(p)}</div>
@@ -113,7 +128,9 @@ export function AdPixelsDashboard() {
             ))}
           </div>
 
-          {data.capped ? <p className="text-xs text-muted-foreground">{t("adminAdPixels.capped")}</p> : null}
+          {data.capped ? (
+            <p className="text-xs text-muted-foreground">{t("adminAdPixels.capped")}</p>
+          ) : null}
           {data.consentedVisits === 0 ? (
             <p className="text-sm text-muted-foreground">{t("adminAdPixels.empty")}</p>
           ) : null}
@@ -122,13 +139,21 @@ export function AdPixelsDashboard() {
             title={t("adminAdPixels.charts.visits")}
             subtitle={t("adminAdPixels.charts.visitsSub")}
             config={charts.visits}
-            csv={{ filename: "ad-pixels-visits", headers: [t("adminAdPixels.cols.day"), ...AD_PLATFORMS.map(name)], rows: csvRows("visits") }}
+            csv={{
+              filename: "ad-pixels-visits",
+              headers: [t("adminAdPixels.cols.day"), ...AD_PLATFORMS.map(name)],
+              rows: csvRows("visits"),
+            }}
           />
           <ChartCard
             title={t("adminAdPixels.charts.conversions")}
             subtitle={t("adminAdPixels.charts.conversionsSub")}
             config={charts.conversions}
-            csv={{ filename: "ad-pixels-conversions", headers: [t("adminAdPixels.cols.day"), ...AD_PLATFORMS.map(name)], rows: csvRows("conversions") }}
+            csv={{
+              filename: "ad-pixels-conversions",
+              headers: [t("adminAdPixels.cols.day"), ...AD_PLATFORMS.map(name)],
+              rows: csvRows("conversions"),
+            }}
           />
 
           {data.conversionKinds.length > 0 ? (

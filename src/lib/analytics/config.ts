@@ -3,6 +3,7 @@
 // the matching category.
 import { z } from "zod";
 import { extractLinkedInConversionId } from "./linkedinConversionId";
+import { extractXPixelId } from "./xPixelId";
 import {
   DEFAULT_GOOGLE_ADS_ID,
   DEFAULT_GOOGLE_ADS_LABELS,
@@ -97,6 +98,8 @@ export const MarketingConfigSchema = z.object({
   meta_pixel_id: z.string().trim().max(64).default(""),
   linkedin_partner_id: z.string().trim().max(64).default(""),
   linkedin_conversions: LinkedInConversionsSchema.prefault({}),
+  /** Piksel X Ads: identyfikator albo cały kod bazowy `twq('config', …)`; śmieci -> "". */
+  x_pixel_id: z.string().max(2_000).catch("").transform(extractXPixelId).default(""),
   tiktok_pixel_id: z.string().trim().max(64).default(""),
   custom_head_html: z.string().max(20_000).default(""),
   custom_body_html: z.string().max(20_000).default(""),

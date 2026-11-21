@@ -1,0 +1,2 @@
+- Read Google Ads ID/labels only via `googleAdsId()`/`googleAdsLabel()` so Pixels edits need no code change.
+- Count X pixel router page views only through `trackXPageView` (repeat `twq('config')`, landing view left to the base code, `__nesXPixel` marker guard), because uwt.js ignores pushState and re-running the base code would double-count.

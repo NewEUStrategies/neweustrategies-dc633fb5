@@ -930,6 +930,17 @@ describe("ConsentScriptInjector - loadery marketingu", () => {
     expect(code).toContain("window.lintrk.q=[]");
   });
 
+  it("piksel X dodaje kod bazowy z twq('config') i oznaczonym uwt.js", () => {
+    setMarketing({ x_pixel_id: "rjppz" });
+
+    renderInjector();
+
+    const code = inlineCode(MARKETING_OWNER);
+    expect(code).toContain("https://static.ads-twitter.com/uwt.js");
+    expect(code).toContain(`twq('config',"rjppz")`);
+    expect(code).toContain(`u.setAttribute('${MARK_ATTR}','${MARKETING_OWNER}')`);
+  });
+
   it("TikTok dodaje inline z pixel id", () => {
     setMarketing({ tiktok_pixel_id: TIKTOK_ID });
 

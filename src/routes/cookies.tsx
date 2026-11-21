@@ -49,8 +49,18 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
       en: "Provide the basic functionality of the platform - user session, security (CSRF), consent memory. Cannot be disabled under Article 5(3) of the ePrivacy Directive.",
     },
     examples: {
-      pl: ["consent:v2 + nes_cookie_consent (zapis zgód)", "sb-*-auth-token (sesja)", "nes_lang", "cf_clearance"],
-      en: ["consent:v2 + nes_cookie_consent (consent record)", "sb-*-auth-token (session)", "nes_lang", "cf_clearance"],
+      pl: [
+        "consent:v2 + nes_cookie_consent (zapis zgód)",
+        "sb-*-auth-token (sesja)",
+        "nes_lang",
+        "cf_clearance",
+      ],
+      en: [
+        "consent:v2 + nes_cookie_consent (consent record)",
+        "sb-*-auth-token (session)",
+        "nes_lang",
+        "cf_clearance",
+      ],
     },
   },
   {
@@ -103,20 +113,22 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
     toneBorder: "border-cat-cyber/30",
     name: { pl: "Marketingowe", en: "Marketing" },
     desc: {
-      pl: "Mierzą skuteczność naszych reklam w Google, na Facebooku, Instagramie i LinkedIn oraz pozwalają pokazywać reklamy osobom, które odwiedziły serwis. Dostawcy otrzymują identyfikatory z plików cookie, odwiedzane adresy i wykonane działania (np. zapis, zakup z kwotą). Uruchamiamy je wyłącznie po zgodzie marketingowej.",
-      en: "Measure how our ads on Google, Facebook, Instagram and LinkedIn perform and let us show ads to people who have visited the site. Providers receive cookie identifiers, the addresses you visit and the actions you take (e.g. a sign-up, a purchase with its value). Loaded only after marketing consent.",
+      pl: "Mierzą skuteczność naszych reklam w Google, na Facebooku, Instagramie, LinkedIn i X oraz pozwalają pokazywać reklamy osobom, które odwiedziły serwis. Dostawcy otrzymują identyfikatory z plików cookie, odwiedzane adresy i wykonane działania (np. zapis, zakup z kwotą). Uruchamiamy je wyłącznie po zgodzie marketingowej.",
+      en: "Measure how our ads on Google, Facebook, Instagram, LinkedIn and X perform and let us show ads to people who have visited the site. Providers receive cookie identifiers, the addresses you visit and the actions you take (e.g. a sign-up, a purchase with its value). Loaded only after marketing consent.",
     },
     examples: {
       pl: [
         "Meta Pixel (_fbp, _fbc)",
         "Google Ads (_gcl_au, _gcl_aw)",
         "LinkedIn Insight (li_fat_id, li_sugr, bcookie, lidc)",
+        "Piksel X Ads (_twpid, _twclid, muc_ads, personalization_id)",
         "nes.attribution.v1 (localStorage, atrybucja kampanii, 90 dni)",
       ],
       en: [
         "Meta Pixel (_fbp, _fbc)",
         "Google Ads (_gcl_au, _gcl_aw)",
         "LinkedIn Insight (li_fat_id, li_sugr, bcookie, lidc)",
+        "X Ads pixel (_twpid, _twclid, muc_ads, personalization_id)",
         "nes.attribution.v1 (localStorage, campaign attribution, 90 days)",
       ],
     },
@@ -421,7 +433,10 @@ function CookiesPage() {
                   </thead>
                   <tbody>
                     {rows.map((row) => (
-                      <tr key={row.name} className="border-b border-border last:border-b-0 align-top">
+                      <tr
+                        key={row.name}
+                        className="border-b border-border last:border-b-0 align-top"
+                      >
                         <td className="px-4 py-2 font-mono break-words">{row.name}</td>
                         <td className="px-4 py-2">{lang === "en" ? row.party_en : row.party_pl}</td>
                         <td className="px-4 py-2 text-muted-foreground">
