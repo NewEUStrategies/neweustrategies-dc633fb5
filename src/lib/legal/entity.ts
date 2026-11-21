@@ -34,10 +34,16 @@ export const LEGAL_UPDATED = "2026-07-30";
  * osobne pole, potwierdzane przyciskiem przez właściciela skrzynki (I9d-Y2b,
  * decyzje właściciela 2026-10-23: D1 wariant (b), D2); przy późniejszym
  * wdrożeniu - dzień wdrożenia. 2026-11-21: narzędzia analityczne i piksele
- * reklamowe (Clarity, Google Ads, Meta, LinkedIn), współadministrowanie,
+ * reklamowe (Clarity, Google Ads, Meta, LinkedIn, X Ads), współadministrowanie,
  * transfery DPF, pomiar odwiedzin bez cookies.
  */
 export const PRIVACY_UPDATED = "2026-11-21";
+/**
+ * Data ostatniej zmiany TREŚCI regulaminu - osobno od `LEGAL_UPDATED` (polityka
+ * zwrotów się nie zmieniła; doktryna jak przy `PRIVACY_UPDATED`). 2026-11-21:
+ * sekcja o plikach cookie, analityce i pikselach reklamowych (w tym X Ads).
+ */
+export const TERMS_UPDATED = "2026-11-21";
 /** Liczba dni na odstąpienie / zwrot bez podania przyczyny. */
 export const REFUND_WINDOW_DAYS = 30;
 /** Warunki kupującego operatora płatności (Stripe / Link). */

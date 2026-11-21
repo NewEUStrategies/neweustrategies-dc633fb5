@@ -183,7 +183,7 @@ const COPY = {
     tableTtl: "Okres",
     vendorsHeading: "Polityki prywatności dostawców",
     vendorsLead:
-      "Meta i LinkedIn są naszymi współadministratorami w zakresie zbierania danych przez ich piksele (art. 26 RODO); dalsze przetwarzanie prowadzą jako samodzielni administratorzy. Przekazanie danych do USA opiera się na unijno-amerykańskich ramach ochrony danych (EU-US Data Privacy Framework) albo standardowych klauzulach umownych.",
+      "Meta i LinkedIn są naszymi współadministratorami w zakresie zbierania danych przez ich piksele (art. 26 RODO); dalsze przetwarzanie prowadzą jako samodzielni administratorzy. X (X Internet Unlimited Company) przetwarza dane z piksela X Ads jako samodzielny administrator; reklamy dopasowane do zainteresowań w X wyłączysz też w ustawieniach konta X (Preferencje reklam) albo na www.youronlinechoices.eu. Przekazanie danych do USA opiera się na unijno-amerykańskich ramach ochrony danych (EU-US Data Privacy Framework) albo standardowych klauzulach umownych.",
   },
   en: {
     title: "Cookie policy",
@@ -232,7 +232,7 @@ const COPY = {
     tableTtl: "Duration",
     vendorsHeading: "Provider privacy policies",
     vendorsLead:
-      "Meta and LinkedIn are our joint controllers for the collection of data through their pixels (Article 26 GDPR); they carry out any further processing as independent controllers. Transfers to the US rely on the EU-US Data Privacy Framework or on standard contractual clauses.",
+      "Meta and LinkedIn are our joint controllers for the collection of data through their pixels (Article 26 GDPR); they carry out any further processing as independent controllers. X (X Internet Unlimited Company) processes data from the X Ads pixel as an independent controller; you can also turn off interest-based ads on X in your X account settings (Ad preferences) or at www.youronlinechoices.eu. Transfers to the US rely on the EU-US Data Privacy Framework or on standard contractual clauses.",
   },
 } as const;
 
@@ -241,6 +241,7 @@ const VENDOR_LINKS: ReadonlyArray<{ name: string; href: string }> = [
   { name: "Microsoft (Clarity)", href: "https://privacy.microsoft.com/privacystatement" },
   { name: "Meta (Facebook, Instagram)", href: "https://www.facebook.com/privacy/policy/" },
   { name: "LinkedIn", href: "https://www.linkedin.com/legal/privacy-policy" },
+  { name: "X (X Ads)", href: "https://x.com/privacy" },
   { name: "Lovable", href: "https://lovable.dev/privacy" },
   { name: "Stripe", href: "https://stripe.com/privacy" },
 ];

@@ -5,7 +5,7 @@ import { TERMS_META } from "../meta";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
-  LEGAL_UPDATED,
+  TERMS_UPDATED,
   PAYMENT_PROVIDER_BUYER_TERMS_URL,
   PAYMENT_PROVIDER_DISCLOSURE,
   PAYMENT_PROVIDER_NAME,
@@ -17,7 +17,7 @@ export const TERMS_CONTENT: LegalDocContent = {
     eyebrow: "Warunki",
     // Tytuł + lead żyją w ../meta.ts (head() tras czyta je bez pełnej treści).
     ...TERMS_META.pl,
-    updated: `Ostatnia aktualizacja: ${LEGAL_UPDATED}`,
+    updated: `Ostatnia aktualizacja: ${TERMS_UPDATED}`,
     footnote: `Regulamin prowadzi ${LEGAL_ENTITY}. O istotnych zmianach informujemy z wyprzedzeniem na tej stronie oraz mailowo dla aktywnych subskrybentów.`,
     sections: [
       {
@@ -50,6 +50,20 @@ export const TERMS_CONTENT: LegalDocContent = {
         ],
         paragraphs: [
           "Dokładamy należytej staranności, aby Serwis działał nieprzerwanie, ale nie gwarantujemy działania wolnego od przerw i błędów. Możemy prowadzić prace serwisowe i rozwijać funkcje.",
+        ],
+      },
+      {
+        id: "cookies-reklamy",
+        icon: "Cookie",
+        heading: "Pliki cookie, analityka i reklamy",
+        bullets: [
+          "Pliki cookie niezbędne do działania Serwisu (logowanie, koszyk, zapis Twoich wyborów) działają zawsze.",
+          "Narzędzia analityczne (Google Analytics 4, Microsoft Clarity) uruchamiamy wyłącznie po zgodzie analitycznej.",
+          "Piksele reklamowe - Google Ads, piksel Meta (Facebook, Instagram), LinkedIn Insight Tag i piksel X Ads - uruchamiamy wyłącznie po zgodzie marketingowej. Służą do pomiaru skuteczności naszych reklam i docierania z reklamą do osób, które odwiedziły Serwis.",
+          "Zgody są dobrowolne i niezależne od siebie, a ich brak nie ogranicza dostępu do treści ani funkcji Serwisu. Decyzję zmienisz w każdej chwili w centrum preferencji (/cookies); sygnał Global Privacy Control traktujemy jak odmowę.",
+        ],
+        paragraphs: [
+          "Szczegóły - dostawców, zakres danych, okresy przechowywania i Twoje prawa - opisują polityka prywatności (/polityka-prywatnosci) i polityka cookies (/cookies).",
         ],
       },
       {
@@ -148,7 +162,7 @@ export const TERMS_CONTENT: LegalDocContent = {
   en: {
     eyebrow: "Terms",
     ...TERMS_META.en,
-    updated: `Last updated: ${LEGAL_UPDATED}`,
+    updated: `Last updated: ${TERMS_UPDATED}`,
     footnote: `These terms are maintained by ${LEGAL_ENTITY}. Material changes are announced in advance on this page and by email to active subscribers.`,
     sections: [
       {
@@ -181,6 +195,20 @@ export const TERMS_CONTENT: LegalDocContent = {
         ],
         paragraphs: [
           "We take due care to keep the service available, but we do not guarantee uninterrupted or error-free performance. We may run maintenance and change features.",
+        ],
+      },
+      {
+        id: "cookies-reklamy",
+        icon: "Cookie",
+        heading: "Cookies, analytics and ads",
+        bullets: [
+          "Cookies necessary for the Service to work (sign-in, cart, saving your choices) are always on.",
+          "Analytics tools (Google Analytics 4, Microsoft Clarity) run only after analytics consent.",
+          "Ad pixels - Google Ads, the Meta Pixel (Facebook, Instagram), the LinkedIn Insight Tag and the X Ads pixel - run only after marketing consent. They measure how our ads perform and let us reach people who have visited the Service with ads.",
+          "Consents are voluntary and independent of each other, and refusing them does not limit access to the Service's content or features. You can change your decision at any time in the preference centre (/cookies); we treat the Global Privacy Control signal as a refusal.",
+        ],
+        paragraphs: [
+          "The details - providers, data, retention periods and your rights - are in the privacy notice (/polityka-prywatnosci) and the cookie policy (/cookies).",
         ],
       },
       {

@@ -84,12 +84,17 @@ export function ContactSalesDialog({
           pageUrl,
         },
       });
-      // Konwersja dopiero po potwierdzeniu zapisu przez serwer.
-      trackFormConversion({
-        formId: "pricing-contact-sales",
-        formName: "Pricing - contact sales",
-        lang: lang === "en" ? "en" : "pl",
-      });
+      // Konwersja dopiero po potwierdzeniu zapisu przez serwer. Pomiar jest
+      // best-effort: jego błąd nie może zamienić wysłanego zgłoszenia w porażkę.
+      try {
+        trackFormConversion({
+          formId: "pricing-contact-sales",
+          formName: "Pricing - contact sales",
+          lang: lang === "en" ? "en" : "pl",
+        });
+      } catch {
+        /* pomiar niedostępny - zgłoszenie i tak zapisane */
+      }
       toast.success(t("pricing.contactDialog.success"));
       setName("");
       setEmail("");
