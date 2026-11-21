@@ -364,7 +364,9 @@
 ## Google Ads - konfiguracja i optymalizacja (2026-11-21)
 
 - [x] Nowa akcja „NES - Zakup (tag strony)” (główna); import zakupu z GA4 i `ads_submit_form` jako dodatkowe.
-- [x] Kampania „NES - Website visibility” pod wizyty: cele na poziomie kampanii, tylko odsłony sterują stawkami; `ads_conversion_PAGE_VIEW_1` dodatkowa.
+- [x] Kampania „NES - Website visibility” pod wizyty: cele na poziomie kampanii (rejestracje, formularze, zakupy); wszystkie akcje odsłon dodatkowe.
 - [x] Strona wysyła zakup do Google Ads po potwierdzonej płatności (bilety, członkostwo, darowizny).
 - [ ] Akcja „Wyświetlenie strony (/en)” jako dodatkowa - tylko w panelu Google Ads (API nie pozwala).
-- [ ] Porządki w kampanii (słowa „Data”, „outcomes”, „scenarios”, literówka, budżet 200 USD/dzień) - czeka na decyzję właściciela.
+- [x] Zgodność z Google Ad Grants: stawki za kliknięcia (limit 2 USD), odsłony nie są konwersją, pauza jednowyrazowych słów, poprawiona literówka (słowo i nagłówek).
+- [x] Druga reklama EN (/en), istniejąca reklama EN kieruje na /en, nowa grupa PL z 2 reklamami, 8 słowami i 2 wykluczeniami.
+- [ ] Weryfikacja reklamodawcy / status Ad Grants - do sprawdzenia przez właściciela w panelu Google Ads.
