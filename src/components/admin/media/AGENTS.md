@@ -1,0 +1,1 @@
+- Render admin media images only through `MediaVariantImage` / `mediaVariant` with the surface matching what is drawn (row, tile, panel, preview), keeping originals for download, new tab and dimension reads, so the library never downloads full uploads for thumbnails.
