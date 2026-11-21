@@ -882,9 +882,13 @@ export function VisualCanvas({
     }
     [data-visual-canvas] [data-widget-id]:active::before{cursor:grabbing}
     [data-visual-canvas] [data-sec-id]{position:relative}
+    /* Plakietka sekcji stoi WEWNĄTRZ jej ramki (jak wstążka testu A/B):
+       sekcja ma \`overflow-hidden\` (to samo co na stronie), więc plakietka
+       nad krawędzią była ucinana. Na wierzchu treści i uchwytów widgetów -
+       może je przykrywać, bo widać ją tylko przy najechaniu / zaznaczeniu. */
     [data-visual-canvas] [data-sec-id]:not([data-ab-variant])::before{
       content:${cssText("⋮⋮ " + t("builder.canvas.section"))};
-      position:absolute;top:-12px;left:8px;z-index:44;
+      position:absolute;top:6px;left:8px;z-index:60;
       padding:2px 8px;border-radius:999px;
       background:color-mix(in oklab, var(--brand) 92%, black 8%);
       color:var(--brand-foreground, #fff);
