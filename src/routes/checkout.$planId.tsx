@@ -19,7 +19,8 @@ import { formatPlanMoney, planDisplayCurrency } from "@/lib/billing/planMoney";
 
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { track } from "@/lib/analytics/track";
-import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { newMetaEventId, trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { rememberMetaCheckout } from "@/lib/analytics/metaCheckoutMarker";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -299,6 +300,16 @@ function CheckoutPage() {
         setBusy(false);
         return;
       }
+      // Meta: kwota i plan dla strony powrotu - Purchase/Subscribe wyśle
+      // dopiero /checkout/success, gdy operator odeśle tam kupującego.
+      rememberMetaCheckout("membership", {
+        event: planData.interval === "one_time" ? "Purchase" : "Subscribe",
+        value: finalCentsDisplay / 100,
+        currency: planCurrency,
+        contentId: planData.id,
+        category: "membership_plan",
+        eventId: newMetaEventId(`membership_${planData.id}`),
+      });
       setClientSecret(result.session.clientSecret);
       setBusy(false);
     } catch {

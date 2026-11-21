@@ -1,24 +1,41 @@
-// Zdarzenia standardowe piksela Meta (Lead, CompleteRegistration,
-// InitiateCheckout, ViewContent) - jedyna droga wysyłki zdarzeń poza PageView.
+// Zdarzenia standardowe piksela Meta - jedyna droga wysyłki zdarzeń poza
+// PageView (ten wysyła sam snippet w `ConsentScriptInjector`).
 //
 // ZGODA. Zdarzenie wychodzi WYŁĄCZNIE, gdy: (1) odwiedzający ma zgodę
 // marketingową, (2) `window.fbq` istnieje - piksel uruchamia tylko
 // `ConsentScriptInjector` po tej zgodzie. Wycofanie zgody zatrzymuje wysyłkę
 // bez przeładowania strony (`fbq('consent','revoke')` + ta bramka).
 //
-// MOMENT. Lead i CompleteRegistration wołamy PO potwierdzeniu zapisu przez
-// serwer (te same miejsca co cele Google Ads), nigdy na samo kliknięcie.
+// KOLEJKA STARTOWA. Przy twardym wejściu efekt strony (np. odsłona artykułu,
+// powrót z płatności) biegnie PRZED efektem injectora w `__root`, więc zgoda
+// już jest, a `fbq` jeszcze nie. Takie zdarzenie czeka w pamięci (max 20,
+// 60 s) i wychodzi przy `flushPendingMetaEvents()` zaraz po starcie piksela.
+// Bez zgody nic nie jest kolejkowane - zdarzenie sprzed zgody przepada.
+//
+// MOMENT. Zdarzenia wyniku (Lead, CompleteRegistration, SubmitApplication,
+// Purchase, Subscribe, Donate) wołamy PO potwierdzeniu przez serwer albo
+// operatora płatności, nigdy na samo kliknięcie. Zdarzenia zamiaru
+// (ViewContent, Search, AddToCart, InitiateCheckout, Contact) idą przy samej
+// akcji odwiedzającego.
 //
 // DANE. Bez danych osobowych: tylko wartość, waluta, identyfikatory treści
-// i kategoria. Każde zdarzenie ma własny `eventID` - gdy kiedyś dojdzie
-// wysyłka serwerowa (Conversions API), ten sam ID pozwoli Meta zdeduplikować.
+// i kategoria - fraza wyszukiwania i adres e-mail/telefon NIE wychodzą.
+// Każde zdarzenie ma własny `eventID` - gdy kiedyś dojdzie wysyłka serwerowa
+// (Conversions API), ten sam ID pozwoli Meta zdeduplikować.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 
 export type MetaStandardEvent =
   | "Lead"
   | "CompleteRegistration"
   | "InitiateCheckout"
-  | "ViewContent";
+  | "ViewContent"
+  | "Search"
+  | "AddToCart"
+  | "Purchase"
+  | "Subscribe"
+  | "Donate"
+  | "SubmitApplication"
+  | "Contact";
 
 export interface MetaEventParams {
   value?: number;
@@ -30,9 +47,22 @@ export interface MetaEventParams {
 
 type FbqFn = (...args: unknown[]) => void;
 
+interface PendingMetaEvent {
+  name: MetaStandardEvent;
+  params: Record<string, unknown>;
+  eventId: string;
+  queuedAt: number;
+}
+
 const CURRENCY_RE = /^[A-Z]{3}$/;
 const MAX_CONTENT_IDS = 20;
 const MAX_TEXT = 100;
+const MAX_PENDING = 20;
+const PENDING_TTL_MS = 60_000;
+export const META_SEARCH_IDLE_MS = 1_500;
+const CONTACT_DEDUPE_MS = 2_000;
+
+const pending: PendingMetaEvent[] = [];
 
 function readFbq(): FbqFn | null {
   if (typeof window === "undefined") return null;
@@ -62,7 +92,11 @@ export function sanitizeMetaParams(params: MetaEventParams): Record<string, unkn
     const category = clip(params.content_category);
     if (category) out["content_category"] = category;
   }
-  if (typeof params.num_items === "number" && Number.isInteger(params.num_items) && params.num_items > 0) {
+  if (
+    typeof params.num_items === "number" &&
+    Number.isInteger(params.num_items) &&
+    params.num_items > 0
+  ) {
     out["num_items"] = params.num_items;
   }
   return out;
@@ -77,22 +111,118 @@ export function newMetaEventId(prefix: string): string {
   return `${clip(prefix).replace(/[^A-Za-z0-9_-]/g, "_")}_${random}`;
 }
 
+function send(fbq: FbqFn, event: Omit<PendingMetaEvent, "queuedAt">): boolean {
+  try {
+    fbq("track", event.name, event.params, { eventID: event.eventId });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Wysyła zdarzenie standardowe do piksela Meta. Zwraca `true`, gdy zdarzenie
- * zostało przekazane do `fbq`; `false`, gdy bramka zgody/piksela je zatrzymała.
+ * zostało przekazane do `fbq`; `false`, gdy bramka zgody je zatrzymała albo
+ * czeka w kolejce startowej na uruchomienie piksela.
  */
 export function trackMetaEvent(
   name: MetaStandardEvent,
   params: MetaEventParams = {},
   eventId?: string,
 ): boolean {
+  if (typeof window === "undefined") return false;
   if (!hasCategoryConsent("marketing")) return false;
+  const event = { name, params: sanitizeMetaParams(params), eventId: eventId ?? newMetaEventId(name) };
   const fbq = readFbq();
-  if (!fbq) return false;
-  try {
-    fbq("track", name, sanitizeMetaParams(params), { eventID: eventId ?? newMetaEventId(name) });
-    return true;
-  } catch {
+  if (!fbq) {
+    if (pending.length >= MAX_PENDING) pending.shift();
+    pending.push({ ...event, queuedAt: Date.now() });
     return false;
   }
+  return send(fbq, event);
+}
+
+/**
+ * Wysyła zdarzenia zakolejkowane przed startem piksela. Woła go
+ * `ConsentScriptInjector` po wstrzyknięciu snippetu. Brak zgody czyści kolejkę.
+ */
+export function flushPendingMetaEvents(now: number = Date.now()): number {
+  if (!hasCategoryConsent("marketing")) {
+    pending.length = 0;
+    return 0;
+  }
+  const fbq = readFbq();
+  if (!fbq) return 0;
+  const ready = pending.splice(0, pending.length);
+  let sent = 0;
+  for (const event of ready) {
+    if (now - event.queuedAt > PENDING_TTL_MS) continue;
+    if (send(fbq, event)) sent += 1;
+  }
+  return sent;
+}
+
+/** Tylko testy: stan modułu między przypadkami. */
+export function resetMetaPixelStateForTests(): void {
+  pending.length = 0;
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = null;
+  lastSearch = "";
+  lastContactAt = 0;
+}
+
+// ---------------- Search ----------------
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSearch = "";
+
+/**
+ * Wyszukiwanie w witrynie. Pisanie frazy ("eu" -> "euro" -> "europa") daje
+ * JEDNO zdarzenie: wysyłamy ostatnią frazę po 1,5 s bezczynności, a ta sama
+ * fraza drugi raz z rzędu nie liczy się ponownie. Sama fraza nie wychodzi.
+ */
+export function trackMetaSearch(query: string, source: string = "site_search"): void {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (normalized.length < 2) return;
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchTimer = null;
+    if (normalized === lastSearch) return;
+    lastSearch = normalized;
+    trackMetaEvent("Search", { content_category: source });
+  }, META_SEARCH_IDLE_MS);
+}
+
+// ---------------- Contact ----------------
+
+let lastContactAt = 0;
+
+/** Kanał kontaktu z adresu odnośnika: `mailto:` -> email, `tel:` -> phone. */
+export function contactChannel(href: string | null | undefined): "email" | "phone" | null {
+  const value = (href ?? "").trim().toLowerCase();
+  if (value.startsWith("mailto:")) return "email";
+  if (value.startsWith("tel:")) return "phone";
+  return null;
+}
+
+/**
+ * Kliknięcie w odnośnik e-mail/telefon = zdarzenie Contact (bez samego
+ * adresu). Nasłuch zakłada `ConsentScriptInjector` po starcie piksela i zdejmuje
+ * go przy wycofaniu zgody; zwraca funkcję sprzątającą.
+ */
+export function installMetaContactListener(): () => void {
+  if (typeof document === "undefined") return () => undefined;
+  const onClick = (event: MouseEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const anchor = target.closest("a[href]");
+    const channel = contactChannel(anchor?.getAttribute("href"));
+    if (!channel) return;
+    const now = Date.now();
+    if (now - lastContactAt < CONTACT_DEDUPE_MS) return;
+    lastContactAt = now;
+    trackMetaEvent("Contact", { content_category: channel });
+  };
+  document.addEventListener("click", onClick, { capture: true });
+  return () => document.removeEventListener("click", onClick, { capture: true });
 }

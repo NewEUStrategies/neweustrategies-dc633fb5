@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart/useCart";
 import { cartItemId, type CartItem } from "@/lib/cart/cartStore";
 import { cartItemToGa4Item, ga4AddToCart } from "@/lib/analytics/ga4Ecommerce";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-cart";
 
@@ -47,6 +48,13 @@ export function AddToCartButton({ item }: { item: AddToCartInput }) {
         };
         add(entry);
         ga4AddToCart(cartItemToGa4Item(entry, lang));
+        trackMetaEvent("AddToCart", {
+          value: entry.priceCents / 100,
+          currency: entry.currency,
+          content_ids: [entry.id],
+          content_category: "event_ticket",
+          num_items: 1,
+        });
         toast.success(t("cart.added"));
       }}
     >

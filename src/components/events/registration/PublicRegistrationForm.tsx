@@ -113,6 +113,7 @@ import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
 import { RegistrationTicketPicker } from "./RegistrationTicketPicker";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 
 ensureEventRegistrationI18n();
 
@@ -319,6 +320,11 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       return outcome;
     },
     onSuccess: (outcome, { current, groupGuests }) => {
+      // Meta: zapis na wydarzenie przyjęty przez serwer (oba warianty odpowiedzi).
+      trackMetaEvent("CompleteRegistration", {
+        content_ids: [slug],
+        content_category: "event_registration",
+      });
       if (outcome.kind === "registered") {
         setResult(outcome.result);
         return;

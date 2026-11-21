@@ -87,6 +87,7 @@ import { Button } from "@/components/ui/button";
 import { EventTicketPurchase } from "@/components/community/EventTicketPurchase";
 import { EventTicketCard } from "@/components/community/EventTicketCard";
 import { useEventSeatsRealtime } from "@/hooks/useEventSeatsRealtime";
+import { useMetaViewContent } from "@/hooks/useMetaPixelSignals";
 import { formatMoney } from "@/lib/billing/types";
 import type { EventPracticalInfo } from "@/lib/events/eventPractical";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -187,6 +188,8 @@ function EventOverview() {
   });
 
   const { seats: liveSeats } = useEventSeatsRealtime(eventId ?? undefined);
+  // Meta: odsłona strony wydarzenia (po zgodzie marketingowej).
+  useMetaViewContent(eventId ?? null, "event");
 
   const tiersQ = useMembershipTiers();
   const currentTierQ = useCurrentTier();

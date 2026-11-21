@@ -28,6 +28,8 @@ import { getStripeEnvironment } from "@/lib/stripe";
 import { normalizeCheckoutLocale } from "@/lib/billing/checkoutLocale";
 import { createDonationCheckout, getDonationsPublicStats } from "@/lib/billing/donations.functions";
 import { useDonationsConfig } from "@/lib/billing/donationsConfigQuery";
+import { newMetaEventId } from "@/lib/analytics/metaPixelEvents";
+import { rememberMetaCheckout } from "@/lib/analytics/metaCheckoutMarker";
 import {
   DONATION_MAX_CENTS,
   DONATION_MIN_CENTS,
@@ -139,6 +141,15 @@ export function DonationForm({ className }: { className?: string }) {
         setError(t(`donate.errors.${result.error}`, { defaultValue: t("donate.errors.generic") }));
         return;
       }
+      // Meta: Donate wyśle dopiero /donate?status=thanks po powrocie z płatności.
+      rememberMetaCheckout("donation", {
+        event: "Donate",
+        value: amountCents / 100,
+        currency: config.currency,
+        contentId: mode === "monthly" ? "donation_monthly" : "donation_once",
+        category: "donation",
+        eventId: newMetaEventId("donation"),
+      });
       setClientSecret(result.clientSecret);
     } catch {
       setError(t("donate.errors.generic"));

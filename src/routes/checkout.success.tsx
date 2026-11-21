@@ -25,6 +25,7 @@ import { hasRenderableBody } from "@/lib/access/gating";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { withBudget } from "@/lib/asyncBudget";
+import { useMetaCheckoutCompletion } from "@/hooks/useMetaPixelSignals";
 
 // Slug dokumentu redakcyjnego. Brak strony = wbudowany widok.
 const DOC_SEGMENTS = ["checkout-success"];
@@ -99,6 +100,8 @@ function SuccessPage() {
   const { order, mock } = Route.useSearch();
   const finalize = useServerFn(finalizeCheckout);
   const queryClient = useQueryClient();
+  // Meta: Purchase/Subscribe raz na płatność - tylko po powrocie z kasy tej karty.
+  useMetaCheckoutCompletion("membership");
 
   const docQ = useQuery({ ...resolvedContentQueryOptions(DOC_SEGMENTS), retry: false });
   const builderPage = docQ.data && docQ.data.kind === "page" ? (docQ.data.item as PageData) : null;

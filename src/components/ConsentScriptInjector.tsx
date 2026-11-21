@@ -316,8 +316,21 @@ export function ConsentScriptInjector() {
 
   useEffect(() => {
     if (!mounted) return;
+    let active = true;
+    let stopMetaContact: (() => void) | null = null;
     if (categories.marketing) {
       marketingCleanup.current = loadMarketing(marketing);
+      // Piksel Meta stoi: wysyłamy zdarzenia zakolejkowane przed jego startem
+      // (odsłona, powrót z płatności) i zakładamy nasłuch Contact (mailto/tel).
+      if (marketing.meta_pixel_id) {
+        void import("@/lib/analytics/metaPixelEvents")
+          .then((m) => {
+            if (!active) return;
+            m.flushPendingMetaEvents();
+            stopMetaContact = m.installMetaContactListener();
+          })
+          .catch(() => undefined);
+      }
       // Lustro pikseli do panelu admina (Piksele Ads) - patrz adPixels.ts.
       const platforms: AdPlatform[] = [];
       if (marketing.meta_pixel_id) platforms.push("meta");
@@ -347,6 +360,8 @@ export function ConsentScriptInjector() {
       marketingCleanup.current = null;
     }
     return () => {
+      active = false;
+      stopMetaContact?.();
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     };

@@ -37,6 +37,7 @@ import {
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { trackSearch } from "@/lib/analytics/track";
+import { trackMetaSearch } from "@/lib/analytics/metaPixelEvents";
 import {
   SuggestGroupHeader,
   SuggestListShell,
@@ -159,6 +160,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
   useEffect(() => {
     if (!enabled || grouped.isPending) return;
     trackSearch(debouncedQ, { results: totalCount, source: "overlay", mode, lang });
+    trackMetaSearch(debouncedQ, "search_overlay");
   }, [enabled, grouped.isPending, debouncedQ, totalCount, mode, lang]);
 
   useEffect(() => {

@@ -42,6 +42,7 @@ import { archiveListingQueryOptions } from "@/lib/queries/archiveListing";
 // chunku wejściowego (patrz nagłówek `relatedPosts/config.ts`).
 import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
+import { useMetaViewContent } from "@/hooks/useMetaPixelSignals";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
 import { findPageTemplate } from "@/lib/pageTemplates";
@@ -1315,6 +1316,8 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     return mergedToc.enabled && mergedToc.showInBody;
   })();
   useRecordPostView(isPost ? it.id : null, postAuthor?.id ?? null);
+  // Meta: odsłona artykułu (po zgodzie marketingowej, bez tytułu i treści).
+  useMetaViewContent(isPost ? it.id : null, "article");
 
   // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
   // caller gets an all-null body, so premium content is never shipped. For an

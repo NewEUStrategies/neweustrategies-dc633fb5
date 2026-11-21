@@ -80,6 +80,7 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureSearchI18n } from "@/lib/i18n-search";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
+import { trackMetaSearch } from "@/lib/analytics/metaPixelEvents";
 import { VoiceListeningIndicator } from "@/components/voice/VoiceListeningIndicator";
 import {
   addRecentSearch,
@@ -202,6 +203,12 @@ function SearchPage() {
     ...searchQueryOptions(filters, limit),
     placeholderData: (prev) => prev,
   });
+
+  // Meta: wyszukiwanie w witrynie - jedno zdarzenie na ustaloną frazę, bez frazy.
+  useEffect(() => {
+    if (!enabled || isFetching || isError || qTrimmed.length < 2) return;
+    trackMetaSearch(qTrimmed, "search_page");
+  }, [enabled, isFetching, isError, qTrimmed]);
 
   // Osoby i organizacje: pełna sekcja w zakładce "people" (także tryb
   // przeglądania bez frazy) + kompaktowy pasek nad wynikami "Wszystko".

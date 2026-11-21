@@ -12,6 +12,7 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureDonateI18n } from "@/lib/i18n-donate";
+import { useMetaCheckoutCompletion } from "@/hooks/useMetaPixelSignals";
 
 export const Route = createFileRoute("/donate")({
   validateSearch: (search: Record<string, unknown>): { status?: string } => ({
@@ -41,6 +42,8 @@ function DonatePage() {
   ensureDonateI18n();
   const { t } = useTranslation();
   const { status } = Route.useSearch();
+  // Meta: Donate raz na wpłatę - tylko po powrocie z płatności tej karty.
+  useMetaCheckoutCompletion("donation", status === "thanks");
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-12">

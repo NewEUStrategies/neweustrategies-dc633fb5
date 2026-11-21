@@ -49,6 +49,7 @@ import {
 } from "@/lib/clubs/applyValidation";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { buildClubApplyHead } from "@/lib/clubs/applyHead";
+import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
 
 interface ApplySearch {
   spec?: string;
@@ -261,6 +262,8 @@ function ClubApplyPage() {
     setStatus("sending");
     try {
       await submitClubApplication(form, lang);
+      // Meta: zgłoszenie przyjęte przez serwer (bez danych kandydata).
+      trackMetaEvent("SubmitApplication", { content_category: "club_application" });
 
       // 3.3: zgoda marketingowa musi wyladowac w rejestrze `user_consents` -
       // to jedno zrodlo prawdy widoczne w profilu i jedyne miejsce, w ktorym
