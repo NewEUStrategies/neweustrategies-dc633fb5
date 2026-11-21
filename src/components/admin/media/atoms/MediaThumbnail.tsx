@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { MediaRow } from "../types";
 import { extOf } from "../lib/mediaFormat";
 import { isRenderableImage, resolveMediaCategory } from "../lib/mediaKind";
 import { MediaTypeIcon } from "./MediaTypeIcon";
+import { MediaVariantImage } from "./MediaVariantImage";
 
 interface MediaThumbnailProps {
   file: MediaRow;
@@ -16,15 +16,17 @@ interface MediaThumbnailProps {
 /**
  * Atom: the square preview tile used in the grid. Renders the bitmap for real
  * images, or a type icon + extension label for everything else (animated GIFs
- * intentionally show the icon rather than autoplaying).
+ * intentionally show the icon rather than autoplaying). The bitmap is a
+ * tile-sized variant, never the full original upload.
  */
 export function MediaThumbnail({ file, className, overlay }: MediaThumbnailProps) {
   const renderable = isRenderableImage(file.mime_type, file.filename);
   return (
     <div className={cn("aspect-square bg-muted/30 flex items-center justify-center", className)}>
       {renderable ? (
-        <img
-          src={mediaRenderUrl(file.public_url)}
+        <MediaVariantImage
+          publicUrl={file.public_url}
+          surface="tile"
           alt={file.alt_text || file.filename}
           className="w-full h-full object-cover"
           loading="lazy"

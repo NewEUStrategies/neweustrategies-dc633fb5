@@ -18,6 +18,7 @@ import { extOf } from "../lib/mediaFormat";
 import { resolvePreviewKind } from "../lib/mediaKind";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import { MediaUsageList } from "../molecules/MediaUsageList";
+import { MediaPreviewImage } from "../molecules/MediaPreviewImage";
 
 interface MediaPreviewDialogProps {
   file: MediaRow | null;
@@ -70,11 +71,7 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
         <div className="flex-1 min-h-0 flex overflow-hidden">
           <div className="flex-1 min-w-0 bg-muted/30 flex items-center justify-center overflow-auto">
             {file && kind === "image" && (
-              <img
-                src={url}
-                alt={file.alt_text || file.filename}
-                className="max-w-full max-h-full object-contain"
-              />
+              <MediaPreviewImage publicUrl={file.public_url} alt={file.alt_text || file.filename} />
             )}
             {file && kind === "video" && (
               <video src={url} controls className="max-w-full max-h-full" />

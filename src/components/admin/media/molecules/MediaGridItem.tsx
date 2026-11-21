@@ -1,9 +1,14 @@
-import type { DragEvent, MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { cn } from "@/lib/utils";
 import type { MediaRow } from "../types";
 import { extOf, formatBytes } from "../lib/mediaFormat";
 import { MediaThumbnail } from "../atoms/MediaThumbnail";
 import { SelectionBadge } from "../atoms/SelectionBadge";
+import { isRenderableImage } from "../lib/mediaKind";
+import { prefetchMediaPreview } from "../lib/mediaVariants";
+
+/** Hover dwell before the preview variant is prefetched (skips fly-overs). */
+const PREFETCH_DELAY_MS = 150;
 
 interface MediaGridItemProps {
   file: MediaRow;
@@ -33,6 +38,20 @@ export function MediaGridItem({
   onDragStart,
   onPreview,
 }: MediaGridItemProps) {
+  const prefetchTimer = useRef<number | null>(null);
+  const cancelPrefetch = () => {
+    if (prefetchTimer.current !== null) window.clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = null;
+  };
+  useEffect(() => cancelPrefetch, []);
+  const schedulePrefetch = () => {
+    if (!isRenderableImage(file.mime_type, file.filename)) return;
+    cancelPrefetch();
+    prefetchTimer.current = window.setTimeout(
+      () => prefetchMediaPreview(file.public_url),
+      PREFETCH_DELAY_MS,
+    );
+  };
   return (
     <div
       data-media-item={file.id}
@@ -41,6 +60,8 @@ export function MediaGridItem({
       onClick={(e) => onSelect(file.id, e)}
       onContextMenu={(e) => onContext(e, file.id)}
       onDoubleClick={() => onPreview(file)}
+      onPointerEnter={schedulePrefetch}
+      onPointerLeave={cancelPrefetch}
       className={cn(
         "group relative rounded-md border overflow-hidden cursor-pointer transition-colors",
         selected

@@ -144,3 +144,22 @@ describe("MediaEmptyState", () => {
     expect(onFiles.mock.calls[0][0][0].name).toBe("raport.pdf");
   });
 });
+
+describe("MediaThumbnail - wariant rozmiaru", () => {
+  const branded = "https://neweuropeanstrategies.com/media/t1/u/a.png";
+
+  it("kafel pobiera pomniejszony wariant zamiast oryginału", () => {
+    render(<MediaThumbnail file={file({ public_url: branded })} />);
+    const img = screen.getByRole("img");
+    expect(img.getAttribute("src")).toContain("width=200");
+    expect(img.getAttribute("srcset")).toContain("width=400");
+  });
+
+  it("gdy wariantu nie da się wygenerować, wraca do oryginału", () => {
+    render(<MediaThumbnail file={file({ public_url: branded })} />);
+    const img = screen.getByRole("img");
+    fireEvent.error(img);
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/media/t1/u/a.png");
+    expect(screen.getByRole("img")).not.toHaveAttribute("srcset");
+  });
+});

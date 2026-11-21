@@ -1,8 +1,8 @@
 import type { DragEvent, MouseEvent as ReactMouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { MediaRow } from "../types";
 import { extOf, formatBytes } from "../lib/mediaFormat";
+import { MediaVariantImage } from "../atoms/MediaVariantImage";
 
 interface MediaListRowProps {
   file: MediaRow;
@@ -38,9 +38,11 @@ export function MediaListRow({
     >
       <td className="px-3 py-1.5 flex items-center gap-2 truncate">
         {isImage ? (
-          <img
-            src={mediaRenderUrl(file.public_url)}
+          <MediaVariantImage
+            publicUrl={file.public_url}
+            surface="row"
             alt=""
+            loading="lazy"
             className="w-6 h-6 rounded object-cover"
             draggable={false}
           />

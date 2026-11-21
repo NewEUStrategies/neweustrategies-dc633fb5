@@ -34,6 +34,7 @@ import {
   updateMediaMeta,
 } from "@/lib/media.functions";
 import { brandedMediaUrl, mediaRenderUrl } from "@/lib/media/publicUrl";
+import { MediaVariantImage } from "./atoms/MediaVariantImage";
 import {
   Dialog,
   DialogContent,
@@ -889,8 +890,9 @@ export function MediaPickerDialog({
                     title={`${m.filename}\n${m.folder_path}`}
                   >
                     {isImg ? (
-                      <img
-                        src={mediaRenderUrl(m.public_url)}
+                      <MediaVariantImage
+                        publicUrl={m.public_url}
+                        surface="tile"
                         alt={m.filename}
                         loading="lazy"
                         className="w-full h-full object-cover"

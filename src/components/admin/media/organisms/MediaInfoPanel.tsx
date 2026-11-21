@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
+import { MediaVariantImage } from "../atoms/MediaVariantImage";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { MoreVertical } from "@/lib/lucide-shim";
-import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import type { ImageSize, MediaRow } from "../types";
 import { formatBytes } from "../lib/mediaFormat";
 import { InfoRow } from "../atoms/InfoRow";
@@ -38,8 +38,10 @@ export function MediaInfoPanel({ target, imgSize, onSaveAlt }: MediaInfoPanelPro
   return (
     <div className="space-y-3">
       {isImage ? (
-        <img
-          src={mediaRenderUrl(target.public_url)}
+        <MediaVariantImage
+          key={target.id}
+          publicUrl={target.public_url}
+          surface="panel"
           alt={target.alt_text || target.filename}
           className="w-full rounded border border-border object-contain max-h-56 bg-muted/20"
         />
