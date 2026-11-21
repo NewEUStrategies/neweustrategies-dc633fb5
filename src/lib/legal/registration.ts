@@ -38,6 +38,12 @@ export const PRIVACY_HUB_PATH = "/profile/privacy";
  * zmienił - a w sporze to jest sygnał dowodowy.
  */
 export const COMPLIANCE_PACK_UPDATED = "2026-09-14";
+/**
+ * Data ostatniej zmiany TREŚCI polityki przetwarzania danych - osobno od pakietu
+ * (ta sama doktryna co wyżej). 2026-11-21: pomiar reklam (Google Ads, Meta,
+ * LinkedIn), współadministrowanie i narzędzia analityczne w rejestrze.
+ */
+export const DATA_PROCESSING_UPDATED = "2026-11-21";
 
 /**
  * Data ostatniej zmiany TREŚCI polityki komunikacji i marketingu - osobno od

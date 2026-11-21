@@ -129,13 +129,32 @@ describe("detectCollectedElements - skan przeglądarki", () => {
       ttl_en: "Session",
       auto: true,
     });
-    const meta = auto.find((item) => item.detected?.includes("_fbp"));
-    expect(meta).toMatchObject({
-      category: "marketing",
-      kind: "cookie",
-      ttl_pl: "Wg dostawcy",
-      ttl_en: "Per vendor",
-    });
+    // Piksel Meta ma STAŁĄ deklarację (podmiot, cel, okres) - wykryte `_fbp`
+    // dokleja się do niej zamiast lądować w „wykrytych automatycznie".
+    expect(auto.find((item) => item.detected?.includes("_fbp"))).toBeUndefined();
+  });
+
+  it("dostawcy reklam i analityki są zadeklarowani przed zgodą, z kategorią i okresem", () => {
+    // Przed decyzją ich skrypty nie działają, więc skaner niczego nie widzi -
+    // a baner musi pokazać podmioty już w chwili wyboru.
+    const { byCategory } = detectCollectedElements();
+    const marketing = byCategory.marketing.map((item) => item.name).join(" | ");
+    const analytics = byCategory.analytics.map((item) => item.name).join(" | ");
+    expect(marketing).toContain("Meta Pixel");
+    expect(marketing).toContain("Google Ads");
+    expect(marketing).toContain("LinkedIn Insight");
+    expect(analytics).toContain("Google Analytics 4");
+    expect(analytics).toContain("Microsoft Clarity");
+    expect(classifyKey("_fbp")?.ttl_pl).toBe("90 dni");
+  });
+
+  it("pliki _gcl_* to Google Ads (marketing), nie statystyki", () => {
+    document.cookie = "_gcl_au=1.1.123; path=/";
+    const { known, auto } = detectCollectedElements();
+    expect(classifyKey("_gcl_au")?.category).toBe("marketing");
+    expect(known.find((item) => item.name.startsWith("Google Ads"))?.detected).toEqual(["_gcl_au"]);
+    expect(auto.find((item) => item.detected?.includes("_gcl_au"))).toBeUndefined();
+    document.cookie = "_gcl_au=; path=/; max-age=0";
   });
 
   it("klucz własny bez wpisu opisany po kategorii: opis i termin zgodne z kategorią i magazynem", () => {

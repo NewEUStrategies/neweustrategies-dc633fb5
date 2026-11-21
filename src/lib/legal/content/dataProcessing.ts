@@ -9,13 +9,13 @@
 import type { LegalDocContent } from "../types";
 import { DATA_PROCESSING_META } from "../meta";
 import { LEGAL_CONTACT_EMAIL, PAYMENT_PROVIDER_NAME } from "@/lib/legal/entity";
-import { COMPLIANCE_PACK_UPDATED } from "@/lib/legal/registration";
+import { DATA_PROCESSING_UPDATED } from "@/lib/legal/registration";
 
 export const DATA_PROCESSING_CONTENT: LegalDocContent = {
   pl: {
     eyebrow: "Przetwarzanie danych",
     ...DATA_PROCESSING_META.pl,
-    updated: `Ostatnia aktualizacja: ${COMPLIANCE_PACK_UPDATED}`,
+    updated: `Ostatnia aktualizacja: ${DATA_PROCESSING_UPDATED}`,
     footnote: `Dokument opisuje stan procesów na dzień ostatniej aktualizacji. Pełny rejestr czynności przetwarzania (art. 30 RODO) prowadzimy wewnętrznie i udostępniamy organowi nadzorczemu na żądanie; osoba, której dane dotyczą, otrzymuje na żądanie informacje z art. 15 RODO.`,
     sections: [
       {
@@ -44,7 +44,8 @@ export const DATA_PROCESSING_CONTENT: LegalDocContent = {
           "Kluby dyskusyjne: wnioski o członkostwo, roster, wypowiedzi - wykonanie umowy i prawnie uzasadniony interes w utrzymaniu poufnego formatu.",
           "Wydarzenia: rejestracja, bilety, kontrola wejścia, identyfikatory - wykonanie umowy; przekazanie kontaktu partnerowi wyłącznie na podstawie odrębnej zgody.",
           "Bezpieczeństwo i przeciwdziałanie nadużyciom: logi, ograniczanie liczby żądań, wykrywanie nadużyć - prawnie uzasadniony interes (art. 6 ust. 1 lit. f RODO).",
-          "Analityka produktowa i pomiar publikacji - zgoda dla plików cookie innych niż niezbędne, prawnie uzasadniony interes dla pomiarów zagregowanych.",
+          "Analityka produktowa i pomiar publikacji - zgoda dla plików cookie innych niż niezbędne, prawnie uzasadniony interes dla pomiarów zagregowanych (pomiar odwiedzin bez plików cookie).",
+          "Pomiar skuteczności reklam (Google Ads, piksel Meta, LinkedIn Insight Tag) - zgoda marketingowa (art. 6 ust. 1 lit. a RODO w związku z art. 399 ustawy - Prawo komunikacji elektronicznej); z Meta i LinkedIn jako współadministratorami (art. 26 RODO).",
           "Obsługa żądań z RODO, reklamacji i zgłoszeń treści - obowiązek prawny oraz prawnie uzasadniony interes w obronie roszczeń.",
         ],
       },
@@ -70,7 +71,8 @@ export const DATA_PROCESSING_CONTENT: LegalDocContent = {
           "Sieć dostarczania treści i ochrona przed atakami - obsługa ruchu, filtrowanie nadużyć, terminacja szyfrowania.",
           `Operator płatności (${PAYMENT_PROVIDER_NAME}) - przyjmowanie płatności, rozliczanie podatku, obsługa sporów i obciążeń zwrotnych.`,
           "Dostawca poczty transakcyjnej i newslettera - doręczanie wiadomości oraz statusy doręczeń.",
-          "Narzędzia analityczne i pomiar publikacji - wyłącznie w zakresie objętym Twoją zgodą.",
+          "Narzędzia analityczne i pomiar publikacji (Google Analytics, Microsoft Clarity, pomiar odwiedzin dostawcy hostingu) - wyłącznie w zakresie objętym Twoją zgodą; pomiar odwiedzin bez plików cookie także bez niej.",
+          "Dostawcy reklam (Google, Meta, LinkedIn) - wyłącznie po zgodzie marketingowej. Meta i LinkedIn występują przy zbieraniu danych przez piksele jako współadministratorzy, a nie podmioty przetwarzające; pełna lista plików cookie jest w polityce cookies (/cookies).",
           "Dostawcy narzędzi wspierających redakcję i obsługę zgłoszeń - w zakresie niezbędnym do wykonania zadania.",
           "Doradcy zewnętrzni (prawni, księgowi, audytorzy) - jako odrębni administratorzy albo podmioty przetwarzające, zależnie od charakteru usługi.",
         ],
@@ -143,7 +145,7 @@ export const DATA_PROCESSING_CONTENT: LegalDocContent = {
   en: {
     eyebrow: "Data processing",
     ...DATA_PROCESSING_META.en,
-    updated: `Last updated: ${COMPLIANCE_PACK_UPDATED}`,
+    updated: `Last updated: ${DATA_PROCESSING_UPDATED}`,
     footnote: `This document describes the state of our processes on the date of last update. We maintain the full record of processing activities (Article 30 GDPR) internally and make it available to the supervisory authority on request; data subjects receive Article 15 information on request.`,
     sections: [
       {
@@ -172,7 +174,8 @@ export const DATA_PROCESSING_CONTENT: LegalDocContent = {
           "Discussion clubs: membership applications, rosters, contributions - performance of a contract and legitimate interest in maintaining a confidential format.",
           "Events: registration, tickets, access control, badges - performance of a contract; passing a contact to a partner only on the basis of separate consent.",
           "Security and abuse prevention: logs, rate limiting, abuse detection - legitimate interest (Article 6(1)(f) GDPR).",
-          "Product analytics and audience measurement - consent for non-essential cookies, legitimate interest for aggregate measurement.",
+          "Product analytics and audience measurement - consent for non-essential cookies, legitimate interest for aggregate measurement (cookieless visit measurement).",
+          "Ad performance measurement (Google Ads, Meta Pixel, LinkedIn Insight Tag) - marketing consent (Article 6(1)(a) GDPR together with Article 399 of the Polish Electronic Communications Law); with Meta and LinkedIn as joint controllers (Article 26 GDPR).",
           "Handling GDPR requests, complaints and content reports - legal obligation and legitimate interest in defending claims.",
         ],
       },
@@ -198,7 +201,8 @@ export const DATA_PROCESSING_CONTENT: LegalDocContent = {
           "Content delivery network and attack protection - traffic handling, abuse filtering, TLS termination.",
           `Payment provider (${PAYMENT_PROVIDER_NAME}) - taking payments, tax settlement, handling disputes and chargebacks.`,
           "Transactional email and newsletter provider - message delivery and delivery statuses.",
-          "Analytics and audience measurement tools - strictly within the scope of your consent.",
+          "Analytics and audience measurement tools (Google Analytics, Microsoft Clarity, the hosting provider's visit measurement) - strictly within the scope of your consent; cookieless visit measurement also without it.",
+          "Advertising providers (Google, Meta, LinkedIn) - only after marketing consent. When their pixels collect data, Meta and LinkedIn act as joint controllers rather than processors; the full list of cookies is in the cookie policy (/cookies).",
           "Providers of editorial and support tooling - to the extent necessary to perform the task.",
           "External advisers (legal, accounting, audit) - as separate controllers or as processors, depending on the nature of the service.",
         ],

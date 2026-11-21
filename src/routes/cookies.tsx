@@ -20,6 +20,8 @@ import { loadResilient } from "@/lib/ssr/resilientLoad";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { staticFallbackCacheControl } from "@/lib/http/cachePolicy";
 import { requestConsentPreferences, useConsent, type ConsentCategory } from "@/lib/ads/consent";
+import { DATA_ELEMENT_REGISTRY } from "@/lib/cookieBanner/registry";
+import { PRIVACY_UPDATED } from "@/lib/legal/entity";
 
 interface CategoryCopy {
   key: ConsentCategory;
@@ -47,8 +49,8 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
       en: "Provide the basic functionality of the platform - user session, security (CSRF), consent memory. Cannot be disabled under Article 5(3) of the ePrivacy Directive.",
     },
     examples: {
-      pl: ["nes_cookie_consent", "sb-*-auth-token (sesja)", "cf_clearance"],
-      en: ["nes_cookie_consent", "sb-*-auth-token (session)", "cf_clearance"],
+      pl: ["consent:v2 + nes_cookie_consent (zapis zgód)", "sb-*-auth-token (sesja)", "nes_lang", "cf_clearance"],
+      en: ["consent:v2 + nes_cookie_consent (consent record)", "sb-*-auth-token (session)", "nes_lang", "cf_clearance"],
     },
   },
   {
@@ -75,17 +77,19 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
     toneBorder: "border-cat-finance/30",
     name: { pl: "Analityczne", en: "Analytics" },
     desc: {
-      pl: "Zbierają zanonimizowane statystyki (odsłony, źródła ruchu, czas sesji), które służą optymalizacji treści. Nic z tego nie działa przed wyrażeniem zgody.",
-      en: "Collect anonymised statistics (pageviews, traffic sources, session duration) used to improve content. None of it runs before you consent.",
+      pl: "Pokazują, jak korzystasz z serwisu: odwiedzane strony, źródła wejść, czas wizyty, kliknięcia, mapy przewijania i nagrania sesji (wpisywane treści są maskowane). Uruchamiamy je dopiero po Twojej zgodzie. Bez niej działa wyłącznie pomiar bez plików cookie opisany niżej.",
+      en: "Show how you use the site: pages visited, traffic sources, visit duration, clicks, scroll maps and session recordings (typed input is masked). They start only after your consent. Without it only the cookieless measurement described below runs.",
     },
     examples: {
       pl: [
-        "Google Analytics 4 (_ga, _gid)",
+        "Google Analytics 4 (_ga, _ga_*)",
+        "Microsoft Clarity (_clck, _clsk)",
         "post_views (własna baza, w tym czas aktywnego czytania wpisu)",
         "nes.event-funnel.sent (sessionStorage, lejek wydarzenia)",
       ],
       en: [
-        "Google Analytics 4 (_ga, _gid)",
+        "Google Analytics 4 (_ga, _ga_*)",
+        "Microsoft Clarity (_clck, _clsk)",
         "post_views (own database, including active reading time on the article)",
         "nes.event-funnel.sent (sessionStorage, event funnel)",
       ],
@@ -99,20 +103,20 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
     toneBorder: "border-cat-cyber/30",
     name: { pl: "Marketingowe", en: "Marketing" },
     desc: {
-      pl: "Umożliwiają personalizację reklam i pomiar skuteczności kampanii. Uruchamiamy tylko po Twojej zgodzie i wyłącznie w kategoriach, które wskażesz.",
-      en: "Enable ad personalisation and campaign measurement. Loaded only after your consent and only for the categories you approve.",
+      pl: "Mierzą skuteczność naszych reklam w Google, na Facebooku, Instagramie i LinkedIn oraz pozwalają pokazywać reklamy osobom, które odwiedziły serwis. Dostawcy otrzymują identyfikatory z plików cookie, odwiedzane adresy i wykonane działania (np. zapis, zakup z kwotą). Uruchamiamy je wyłącznie po zgodzie marketingowej.",
+      en: "Measure how our ads on Google, Facebook, Instagram and LinkedIn perform and let us show ads to people who have visited the site. Providers receive cookie identifiers, the addresses you visit and the actions you take (e.g. a sign-up, a purchase with its value). Loaded only after marketing consent.",
     },
     examples: {
       pl: [
-        "Meta pixel",
-        "LinkedIn Insight",
-        "Google Ads",
+        "Meta Pixel (_fbp, _fbc)",
+        "Google Ads (_gcl_au, _gcl_aw)",
+        "LinkedIn Insight (li_fat_id, li_sugr, bcookie, lidc)",
         "nes.attribution.v1 (localStorage, atrybucja kampanii, 90 dni)",
       ],
       en: [
-        "Meta pixel",
-        "LinkedIn Insight",
-        "Google Ads",
+        "Meta Pixel (_fbp, _fbc)",
+        "Google Ads (_gcl_au, _gcl_aw)",
+        "LinkedIn Insight (li_fat_id, li_sugr, bcookie, lidc)",
         "nes.attribution.v1 (localStorage, campaign attribution, 90 days)",
       ],
     },
@@ -144,7 +148,30 @@ const COPY = {
     ],
     contactHeading: "Kontakt",
     contactBody:
-      "W sprawach związanych z prywatnością napisz do nas na adres inspektora ochrony danych podany w polityce prywatności.",
+      "W sprawach związanych z prywatnością napisz do nas na adres kontaktowy podany w polityce prywatności.",
+    updated: `Ostatnia aktualizacja: ${PRIVACY_UPDATED}`,
+    cookielessHeading: "Pomiar bez plików cookie",
+    cookieless: [
+      "Każdą wizytę liczy też wbudowana analityka naszego dostawcy hostingu (Lovable). Nie używa plików cookie, niczego nie zapisuje na Twoim urządzeniu, nie przechowuje adresów IP i nie ustala, kim jesteś.",
+      "Rejestruje odwiedzane strony, źródło wejścia, kraj, przeglądarkę, system i typ urządzenia, czas na stronie, szybkość ładowania, błędy, a także kliknięcia i zdarzenia serwisu.",
+      "Kliknięcia i zdarzenia serwisu wysyła dopiero po zgodzie na pliki analityczne. Odsłony, czas na stronie, szybkość i błędy liczy u każdego odwiedzającego, bez plików cookie i bez identyfikacji. Gdy Twoja przeglądarka wysyła sygnał Global Privacy Control, kliknięcia i zdarzenia nie są wysyłane nawet po akceptacji.",
+      "Dane szczegółowe są przechowywane 90 dni, a dzienne podsumowania - rok. Lovable zbiera te dane w naszym imieniu. Jak je przetwarza, opisuje polityka prywatności Lovable: https://lovable.dev/privacy.",
+    ],
+    choiceHeading: "Jak działa Twój wybór",
+    choice: [
+      "Przed decyzją wszystkie kategorie poza niezbędnymi są wyłączone, a znaczniki Google działają w trybie odmowy (Consent Mode). Zamknięcie lub zignorowanie banera niczego nie włącza.",
+      "Zgody analityczna i marketingowa są niezależne - jedna nie zastępuje drugiej. Wybór zapisujemy w przeglądarce do 12 miesięcy; zmienisz go w każdej chwili.",
+      "Wycofanie zgody zatrzymuje wysyłkę danych od razu, także w innych otwartych kartach. Pliki cookie zapisane wcześniej przez dostawców możesz usunąć w ustawieniach przeglądarki.",
+      "Sygnał Global Privacy Control traktujemy jak odmowę zgody na pliki analityczne i marketingowe.",
+    ],
+    tableHeading: "Szczegółowa lista plików cookie i podmiotów",
+    tableName: "Nazwa",
+    tableParty: "Podmiot",
+    tablePurpose: "Cel",
+    tableTtl: "Okres",
+    vendorsHeading: "Polityki prywatności dostawców",
+    vendorsLead:
+      "Meta i LinkedIn są naszymi współadministratorami w zakresie zbierania danych przez ich piksele (art. 26 RODO); dalsze przetwarzanie prowadzą jako samodzielni administratorzy. Przekazanie danych do USA opiera się na unijno-amerykańskich ramach ochrony danych (EU-US Data Privacy Framework) albo standardowych klauzulach umownych.",
   },
   en: {
     title: "Cookie policy",
@@ -170,9 +197,41 @@ const COPY = {
     ],
     contactHeading: "Contact",
     contactBody:
-      "For privacy matters, write to us at the data protection officer address given in the privacy policy.",
+      "For privacy matters, write to us at the contact address given in the privacy policy.",
+    updated: `Last updated: ${PRIVACY_UPDATED}`,
+    cookielessHeading: "Cookieless measurement",
+    cookieless: [
+      "Every visit is also counted by the built-in analytics of our hosting provider (Lovable). It uses no cookies, stores nothing on your device, does not keep IP addresses and does not identify you.",
+      "It records the pages visited, where visitors came from, their country, browser, operating system and device type, time on page, page load speed, errors, as well as clicks and site events.",
+      "Clicks and site events are sent only after you accept analytics cookies. Page views, time on page, page speed and errors are counted for every visitor, without cookies and without identifying anyone. When your browser sends the Global Privacy Control signal, clicks and events are never sent, even after you accept.",
+      "Detailed data is kept for 90 days and daily summaries for a year. Lovable collects this data for us. Lovable's privacy policy explains how it handles it: https://lovable.dev/privacy.",
+    ],
+    choiceHeading: "How your choice works",
+    choice: [
+      "Before you decide, every category except necessary is off and Google tags run in denied mode (Consent Mode). Closing or ignoring the banner grants nothing.",
+      "Analytics and marketing consents are independent - one never stands in for the other. Your choice is saved in your browser for up to 12 months; you can change it at any time.",
+      "Withdrawing consent stops data from being sent immediately, also in your other open tabs. Cookies already set by providers can be deleted in your browser settings.",
+      "We treat the Global Privacy Control signal as a refusal of analytics and marketing cookies.",
+    ],
+    tableHeading: "Detailed list of cookies and entities",
+    tableName: "Name",
+    tableParty: "Entity",
+    tablePurpose: "Purpose",
+    tableTtl: "Duration",
+    vendorsHeading: "Provider privacy policies",
+    vendorsLead:
+      "Meta and LinkedIn are our joint controllers for the collection of data through their pixels (Article 26 GDPR); they carry out any further processing as independent controllers. Transfers to the US rely on the EU-US Data Privacy Framework or on standard contractual clauses.",
   },
 } as const;
+
+const VENDOR_LINKS: ReadonlyArray<{ name: string; href: string }> = [
+  { name: "Google (Analytics, Ads)", href: "https://policies.google.com/privacy" },
+  { name: "Microsoft (Clarity)", href: "https://privacy.microsoft.com/privacystatement" },
+  { name: "Meta (Facebook, Instagram)", href: "https://www.facebook.com/privacy/policy/" },
+  { name: "LinkedIn", href: "https://www.linkedin.com/legal/privacy-policy" },
+  { name: "Lovable", href: "https://lovable.dev/privacy" },
+  { name: "Stripe", href: "https://stripe.com/privacy" },
+];
 
 export const Route = createFileRoute("/cookies")({
   component: CookiesPage,
@@ -238,6 +297,7 @@ function CookiesPage() {
         <h1 className="font-display text-3xl sm:text-4xl leading-tight">{c.title}</h1>
         <p className="text-muted-foreground max-w-2xl">{c.description}</p>
         <p className="text-sm text-muted-foreground max-w-2xl">{c.intro}</p>
+        <p className="text-xs text-muted-foreground">{c.updated}</p>
       </header>
 
       <Card className="p-5 space-y-4">
@@ -306,6 +366,98 @@ function CookiesPage() {
           </Card>
         ))}
       </section>
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card className="p-5">
+          <h2 className="font-display text-lg mb-2">{c.choiceHeading}</h2>
+          <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-5">
+            {c.choice.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </Card>
+        <Card className="p-5">
+          <h2 className="font-display text-lg mb-2">{c.cookielessHeading}</h2>
+          <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-5">
+            {c.cookieless.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </Card>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="cookies-table-heading">
+        <h2 id="cookies-table-heading" className="font-display text-xl">
+          {c.tableHeading}
+        </h2>
+        {CATEGORIES.map((cat) => {
+          const rows = DATA_ELEMENT_REGISTRY.filter((entry) => entry.category === cat.key);
+          if (rows.length === 0) return null;
+          return (
+            <Card key={cat.key} className="p-0 overflow-hidden">
+              <h3
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium ${cat.toneText} ${cat.toneBg}`}
+              >
+                <cat.Icon className="h-4 w-4" aria-hidden />
+                {cat.name[lang]}
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="text-muted-foreground">
+                    <tr className="border-b border-border">
+                      <th scope="col" className="px-4 py-2 font-medium">
+                        {c.tableName}
+                      </th>
+                      <th scope="col" className="px-4 py-2 font-medium">
+                        {c.tableParty}
+                      </th>
+                      <th scope="col" className="px-4 py-2 font-medium">
+                        {c.tablePurpose}
+                      </th>
+                      <th scope="col" className="px-4 py-2 font-medium whitespace-nowrap">
+                        {c.tableTtl}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.name} className="border-b border-border last:border-b-0 align-top">
+                        <td className="px-4 py-2 font-mono break-words">{row.name}</td>
+                        <td className="px-4 py-2">{lang === "en" ? row.party_en : row.party_pl}</td>
+                        <td className="px-4 py-2 text-muted-foreground">
+                          {lang === "en" ? row.purpose_en : row.purpose_pl}
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          {lang === "en" ? row.ttl_en : row.ttl_pl}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          );
+        })}
+      </section>
+
+      <Card className="p-5 space-y-3">
+        <h2 className="font-display text-lg">{c.vendorsHeading}</h2>
+        <p className="text-sm text-muted-foreground">{c.vendorsLead}</p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+          {VENDOR_LINKS.map((v) => (
+            <li key={v.href}>
+              <a
+                href={v.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-brand-ink"
+              >
+                {v.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </Card>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="p-5">

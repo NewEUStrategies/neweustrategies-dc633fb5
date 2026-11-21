@@ -226,6 +226,79 @@ export const DATA_ELEMENT_REGISTRY: readonly RegistryEntry[] = [
     ttl_pl: "Sesja przeglądarki",
     ttl_en: "Browser session",
   },
+  // ── DOSTAWCY ZEWNĘTRZNI (deklaracja STAŁA) ─────────────────────────────
+  // Ich skrypty startują dopiero po zgodzie, więc skaner przed decyzją ich
+  // cookies nie widzi - a informacja z art. 13 RODO należy się W CHWILI
+  // decyzji. Wpisy poniżej pokazują podmiot, cel i okres zawsze, a skaner
+  // dopina do nich realnie wykryte klucze. Okresy - wg dokumentacji dostawców.
+  {
+    name: "Google Analytics 4 (_ga, _ga_*)",
+    category: "analytics",
+    kind: "cookie",
+    match: ["_ga", "_ga_*", "_gid"],
+    party_pl: "Google Ireland Ltd.",
+    party_en: "Google Ireland Ltd.",
+    purpose_pl: "Statystyki odwiedzin: odsłony, źródła ruchu, czas wizyty i zdarzenia w serwisie",
+    purpose_en: "Visit statistics: page views, traffic sources, visit duration and on-site events",
+    ttl_pl: "Do 2 lat (_gid: 24 h)",
+    ttl_en: "Up to 2 years (_gid: 24 h)",
+  },
+  {
+    name: "Microsoft Clarity (_clck, _clsk)",
+    category: "analytics",
+    kind: "cookie",
+    match: ["_clck", "_clsk", "CLID", "ANONCHK"],
+    party_pl: "Microsoft Ireland Operations Ltd.",
+    party_en: "Microsoft Ireland Operations Ltd.",
+    purpose_pl:
+      "Mapy kliknięć i przewijania oraz nagrania sesji z maskowaniem wpisywanych treści - do poprawy czytelności i nawigacji",
+    purpose_en:
+      "Click and scroll heatmaps and session recordings with typed input masked - to improve readability and navigation",
+    ttl_pl: "Do 1 roku (_clsk: 1 dzień)",
+    ttl_en: "Up to 1 year (_clsk: 1 day)",
+  },
+  {
+    name: "Meta Pixel (_fbp, _fbc)",
+    category: "marketing",
+    kind: "cookie",
+    match: ["_fbp", "_fbc"],
+    party_pl: "Meta Platforms Ireland Ltd. (współadministrator)",
+    party_en: "Meta Platforms Ireland Ltd. (joint controller)",
+    purpose_pl:
+      "Pomiar skuteczności reklam na Facebooku i Instagramie (odsłony, wyświetlenia treści, zapisy, zakupy) i docieranie z reklamą do odwiedzających",
+    purpose_en:
+      "Measuring Facebook and Instagram ad performance (page views, content views, sign-ups, purchases) and reaching visitors with ads",
+    ttl_pl: "90 dni",
+    ttl_en: "90 days",
+  },
+  {
+    name: "Google Ads (_gcl_au, _gcl_aw)",
+    category: "marketing",
+    kind: "cookie",
+    match: ["_gcl_*"],
+    party_pl: "Google Ireland Ltd.",
+    party_en: "Google Ireland Ltd.",
+    purpose_pl:
+      "Pomiar konwersji z reklam Google (formularze, zapisy, zakupy z kwotą) i listy odbiorców do remarketingu",
+    purpose_en:
+      "Google ad conversion measurement (forms, sign-ups, purchases with value) and remarketing audience lists",
+    ttl_pl: "90 dni",
+    ttl_en: "90 days",
+  },
+  {
+    name: "LinkedIn Insight (li_fat_id, li_sugr, bcookie, lidc)",
+    category: "marketing",
+    kind: "cookie",
+    match: ["li_fat_id", "li_sugr", "bcookie", "lidc", "UserMatchHistory", "ln_or"],
+    party_pl: "LinkedIn Ireland Unlimited Company (współadministrator)",
+    party_en: "LinkedIn Ireland Unlimited Company (joint controller)",
+    purpose_pl:
+      "Pomiar konwersji z kampanii LinkedIn (odsłony, zapisy, zakupy) i zbiorcze statystyki odbiorców B2B",
+    purpose_en:
+      "LinkedIn campaign conversion measurement (page views, sign-ups, purchases) and aggregate B2B audience statistics",
+    ttl_pl: "Do 1 roku (lidc: 24 h)",
+    ttl_en: "Up to 1 year (lidc: 24 h)",
+  },
 ];
 
 /** Znane trackery zewnętrzne - rozpoznawane po kluczu i po skrypcie na stronie. */
@@ -238,7 +311,25 @@ const THIRD_PARTY_SIGNATURES: ReadonlyArray<{
   purpose_en: string;
 }> = [
   {
-    test: /^_ga|^_gid|^_gcl|googletagmanager|google-analytics/i,
+    // PRZED Google Analytics: `_gcl_*` to pliki Google Ads (marketing), nie
+    // statystyki - dawny wzorzec `^_gcl` wrzucał je do kategorii analitycznej.
+    test: /^_gcl|googleadservices|doubleclick/i,
+    name: "Google Ads",
+    category: "marketing",
+    party: "Google Ireland Ltd.",
+    purpose_pl: "Pomiar konwersji reklam i remarketing",
+    purpose_en: "Ad conversion measurement and remarketing",
+  },
+  {
+    test: /^_clck|^_clsk|clarity/i,
+    name: "Microsoft Clarity",
+    category: "analytics",
+    party: "Microsoft Ireland Operations Ltd.",
+    purpose_pl: "Mapy kliknięć i nagrania sesji",
+    purpose_en: "Heatmaps and session recordings",
+  },
+  {
+    test: /^_ga|^_gid|googletagmanager|google-analytics/i,
     name: "Google Analytics",
     category: "analytics",
     party: "Google Ireland Ltd.",

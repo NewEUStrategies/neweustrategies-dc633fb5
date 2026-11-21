@@ -132,12 +132,14 @@ describe("polityka prywatności - pomiar za osobną zgodą potwierdzoną przycis
 });
 
 describe("daty wersji polityk (I9d-Y2b)", () => {
-  it("polityka komunikacji i prywatności: 2026-10-23, widoczne w nagłówku dokumentu", () => {
+  // Polityka prywatności zmieniła się później (2026-11-21: narzędzia analityczne
+  // i piksele reklamowe) - data komunikacji zostaje przy decyzji z 2026-10-23.
+  it("polityka komunikacji: 2026-10-23, prywatności: 2026-11-21, widoczne w nagłówku dokumentu", () => {
     expect(COMMUNICATIONS_UPDATED).toBe("2026-10-23");
-    expect(PRIVACY_UPDATED).toBe("2026-10-23");
+    expect(PRIVACY_UPDATED).toBe("2026-11-21");
     expect(COMMUNICATIONS_CONTENT.pl.updated).toContain("2026-10-23");
     expect(COMMUNICATIONS_CONTENT.en.updated).toContain("2026-10-23");
-    expect(PRIVACY_CONTENT.pl.updated).toContain("2026-10-23");
-    expect(PRIVACY_CONTENT.en.updated).toContain("2026-10-23");
+    expect(PRIVACY_CONTENT.pl.updated).toContain("2026-11-21");
+    expect(PRIVACY_CONTENT.en.updated).toContain("2026-11-21");
   });
 });

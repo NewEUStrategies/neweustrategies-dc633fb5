@@ -130,10 +130,10 @@ export const COOKIE_BANNER_COLOR_DEFAULTS: CookieBannerColors = {
 const COPY_PL: CookieBannerCopy = {
   title: "Zarządzaj swoją prywatnością",
   intro:
-    "Nasza platforma wykorzystuje pliki cookie i podobne technologie w celu zapewnienia bezpieczeństwa, personalizacji oraz analizy ruchu. Poniżej znajdziesz szczegółowe informacje o każdej kategorii i podmiotach przetwarzających dane. Pełne informacje zawiera nasza",
+    "Nasza platforma wykorzystuje pliki cookie i podobne technologie w celu zapewnienia bezpieczeństwa, zapamiętania ustawień, analizy ruchu oraz pomiaru reklam. Poniżej znajdziesz szczegółowe informacje o każdej kategorii i podmiotach przetwarzających dane. Pełne informacje zawiera nasza",
   policyLabel: "Polityka Prywatności",
   compactMessage:
-    "Używamy plików cookie, aby serwis działał poprawnie i by lepiej dopasować treści. Szczegóły:",
+    "Używamy plików cookie, aby serwis działał poprawnie, a za Twoją zgodą także do statystyk i pomiaru reklam. Szczegóły:",
   acceptAll: "Akceptuj wszystkie",
   rejectAll: "Tylko niezbędne",
   saveSelection: "Zapisz wybrane",
@@ -151,17 +151,17 @@ const COPY_PL: CookieBannerCopy = {
   descFunctional:
     "Zapamiętują Twoje preferencje (motyw kolorystyczny, układ interfejsu). Dane przechowywane lokalnie w przeglądarce (localStorage), bez transmisji do podmiotów trzecich.",
   descAnalytics:
-    "Zbierają zanonimizowane dane o sposobie korzystania z platformy (odwiedzane strony, czas sesji, źródła ruchu). Służą optymalizacji treści i funkcjonalności. Żadne dane analityczne nie są zbierane przed wyrażeniem zgody.",
+    "Pomagają zrozumieć, jak korzystasz z serwisu: odwiedzane strony, źródła wejść, czas wizyty, kliknięcia, mapy przewijania i nagrania sesji (wpisywane treści są maskowane). Służą poprawie treści i nawigacji. Bez tej zgody liczymy wyłącznie odsłony, czas na stronie, szybkość i błędy - bez plików cookie i bez rozpoznawania odwiedzających.",
   descMarketing:
-    "Umożliwiają prowadzenie kampanii e-mailowych, śledzenie konwersji i personalizację komunikacji marketingowej. Dane mogą być przekazywane do podmiotów trzecich wymienionych poniżej.",
+    "Pozwalają mierzyć skuteczność naszych reklam w wyszukiwarce i serwisach społecznościowych oraz pokazywać je osobom, które odwiedziły serwis. Podmioty wymienione poniżej otrzymują wtedy identyfikatory z plików cookie, odwiedzane adresy i wykonane działania (np. zapis, zakup z kwotą). Zgodę możesz wycofać w każdej chwili w polityce cookies.",
 };
 
 const COPY_EN: CookieBannerCopy = {
   title: "Manage your privacy",
   intro:
-    "Our platform uses cookies and similar technologies to ensure security, personalisation and traffic analysis. Below you will find detailed information about each category and the entities processing the data. Full information is available in our",
+    "Our platform uses cookies and similar technologies for security, remembering your settings, traffic analysis and ad measurement. Below you will find detailed information about each category and the entities processing the data. Full information is available in our",
   policyLabel: "Privacy Policy",
-  compactMessage: "We use cookies to keep the site working and to tailor content. Details:",
+  compactMessage: "We use cookies to keep the site working and, with your consent, for statistics and ad measurement. Details:",
   acceptAll: "Accept all",
   rejectAll: "Only necessary",
   saveSelection: "Save selection",
@@ -179,9 +179,9 @@ const COPY_EN: CookieBannerCopy = {
   descFunctional:
     "Remember your preferences (color theme, interface layout). Stored locally in the browser (localStorage), never sent to third parties.",
   descAnalytics:
-    "Collect anonymised information on how the platform is used (pages visited, session duration, traffic sources). Used to improve content and features. No analytics is collected before consent is granted.",
+    "Help us understand how you use the site: pages visited, traffic sources, visit duration, clicks, scroll maps and session recordings (typed input is masked). Used to improve content and navigation. Without this consent we only count page views, time on page, page speed and errors - without cookies and without recognising visitors.",
   descMarketing:
-    "Enable email campaigns, conversion tracking and personalised marketing communication. Data may be shared with the third parties listed below.",
+    "Let us measure how our ads in search and on social networks perform and show them to people who have visited the site. The entities listed below then receive cookie identifiers, the addresses you visit and the actions you take (e.g. a sign-up, a purchase with its value). You can withdraw consent at any time in the cookie policy.",
 };
 
 export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
