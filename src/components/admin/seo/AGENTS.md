@@ -1,0 +1,1 @@
+- Render the admin SEO ecosystem (generated files, RSS/News/llms switches, AI-crawler policy, robots.txt preview) only through the shared `SeoEcosystemPanel` fed by `seoEcosystemEntries`/`robotsSitemapPaths` over `MACHINE_SURFACES`, in both the site-identity and SEO tabs, so the file list updates itself and both tabs never diverge.
