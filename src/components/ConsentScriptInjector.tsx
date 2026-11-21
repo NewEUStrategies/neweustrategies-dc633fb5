@@ -174,7 +174,9 @@ function loadMarketing(cfg: MarketingConfig): CleanupFn {
 
   if (cfg.linkedin_partner_id) {
     injectInlineScript(
-      `_linkedin_partner_id=${JSON.stringify(cfg.linkedin_partner_id)};window._linkedin_data_partner_ids=window._linkedin_data_partner_ids||[];window._linkedin_data_partner_ids.push(_linkedin_partner_id);`,
+      // Oficjalny stub `lintrk` z kolejką: konwersje zgłoszone przed dociągnięciem
+      // insight.min.js nie przepadają (skrypt odczytuje `lintrk.q`).
+      `_linkedin_partner_id=${JSON.stringify(cfg.linkedin_partner_id)};window._linkedin_data_partner_ids=window._linkedin_data_partner_ids||[];window._linkedin_data_partner_ids.push(_linkedin_partner_id);(function(l){if(!l){window.lintrk=function(a,b){window.lintrk.q.push([a,b])};window.lintrk.q=[]}})(window.lintrk);`,
       owner,
     );
     injectExternalScript("https://snap.licdn.com/li.lms-analytics/insight.min.js", owner);
@@ -332,6 +334,15 @@ export function ConsentScriptInjector() {
           })
           .catch(() => undefined);
       }
+      // LinkedIn Insight stoi: przekazujemy ID konwersji z panelu i wysyłamy
+      // wyniki zakolejkowane przed odczytem ustawień.
+      if (marketing.linkedin_partner_id) {
+        void import("@/lib/analytics/linkedinInsightEvents")
+          .then((m) => {
+            if (active) m.configureLinkedInConversions(marketing.linkedin_conversions);
+          })
+          .catch(() => undefined);
+      }
       // Powrót z płatności za bilet: Purchase (Meta) i zakup Google Ads po
       // potwierdzeniu zamówienia w bazie - niezależnie od tego, czy piksel Meta
       // jest skonfigurowany (każdy kanał sam pilnuje zgody marketingowej).
@@ -365,6 +376,9 @@ export function ConsentScriptInjector() {
           /* piksel niedostępny - nic do wycofania */
         }
       }
+      void import("@/lib/analytics/linkedinInsightEvents")
+        .then((m) => m.resetLinkedInConversions())
+        .catch(() => undefined);
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     }

@@ -375,6 +375,19 @@ export const adminExtrasPl = {
       customBody: "Custom <body> HTML",
       customHead: "Custom <head> HTML",
       hint: "Tagi reklamowe uruchamiają się dopiero gdy użytkownik wyrazi zgodę na kategorię Marketingowe.",
+      linkedinConversions: {
+        goals: {
+          account_signup: "Rejestracja konta",
+          club_application: "Wniosek do klubu",
+          contact_form: "Formularz kontaktowy",
+          event_registration: "Zapis na wydarzenie",
+          newsletter: "Zapis do newslettera",
+          purchase: "Zakup / bilet / darowizna",
+        },
+        hint: "W LinkedIn Campaign Manager: Analiza -> Śledzenie konwersji -> Utwórz konwersję -> Insight Tag -> instalacja dla konkretnego zdarzenia. Wklej numer conversion_id albo cały fragment window.lintrk(...). Puste pole - LinkedIn tej konwersji nie liczy.",
+        invalid: "Nie rozpoznano numeru konwersji - wklej sam numer albo fragment z conversion_id.",
+        title: "Konwersje LinkedIn Ads",
+      },
       title: "Marketing",
     },
     menu: {
@@ -1244,6 +1257,19 @@ export const adminExtrasEn = {
       customBody: "Custom <body> HTML",
       customHead: "Custom <head> HTML",
       hint: "Ad tags only fire once the user consents to the Marketing category.",
+      linkedinConversions: {
+        goals: {
+          account_signup: "Account sign-up",
+          club_application: "Club application",
+          contact_form: "Contact form",
+          event_registration: "Event registration",
+          newsletter: "Newsletter sign-up",
+          purchase: "Purchase / ticket / donation",
+        },
+        hint: "In LinkedIn Campaign Manager: Analyze -> Conversion tracking -> Create conversion -> Insight Tag -> event-specific installation. Paste the conversion_id number or the whole window.lintrk(...) snippet. Leave empty and LinkedIn does not count that conversion.",
+        invalid: "Conversion number not recognised - paste the number alone or the snippet with conversion_id.",
+        title: "LinkedIn Ads conversions",
+      },
       title: "Marketing",
     },
     menu: {

@@ -8,8 +8,11 @@
 //
 // KIEDY. Wyłącznie po potwierdzeniu przez serwer (w tych samych miejscach co
 // zdarzenia wyniku piksela Meta). ZGODA: tylko po zgodzie marketingowej.
+// Ten sam wynik idzie też jako konwersja LinkedIn Ads (`trackLinkedInGoal`),
+// więc każdy kanał reklamowy liczy go w jednym, wspólnym miejscu.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
+import { trackLinkedInGoal } from "./linkedinInsightEvents";
 
 /** Etykiety akcji z fragmentów zdarzeń Google Ads (konto 251-385-9854). */
 export const ADS_GOAL_LABELS = {
@@ -27,5 +30,6 @@ export function trackAdsGoal(goal: AdsNativeGoal): boolean {
   if (typeof window === "undefined") return false;
   if (!hasCategoryConsent("marketing")) return false;
   adsConversion(ADS_GOAL_LABELS[goal]);
+  trackLinkedInGoal(goal);
   return true;
 }

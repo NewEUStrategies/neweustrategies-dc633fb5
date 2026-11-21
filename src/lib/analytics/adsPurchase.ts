@@ -14,6 +14,7 @@
 // ZGODA. Tylko po zgodzie marketingowej; bez niej nic nie wychodzi.
 import { hasCategoryConsent } from "@/lib/ads/consent";
 import { adsConversion } from "./conversions";
+import { trackLinkedInGoal } from "./linkedinInsightEvents";
 
 /** Etykieta akcji "NES - Zakup (tag strony)" z fragmentu zdarzenia Google Ads. */
 export const ADS_PURCHASE_LABEL = "n02PCIG0wLwdEMD6kM5B";
@@ -41,5 +42,7 @@ export function trackAdsPurchase(input: AdsPurchaseInput): boolean {
     currency,
     transaction_id: transactionId,
   });
+  // LinkedIn Ads: ta sama potwierdzona płatność, `event_id` = transakcja.
+  trackLinkedInGoal("purchase", { eventId: transactionId });
   return true;
 }
