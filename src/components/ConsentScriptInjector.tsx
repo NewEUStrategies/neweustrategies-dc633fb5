@@ -205,8 +205,12 @@ function loadMarketing(cfg: MarketingConfig): CleanupFn {
   removeMarked(owner);
 
   if (cfg.meta_pixel_id) {
+    // Snippet tylko inicjuje piksel. `disablePushState` wyłącza automatyczne
+    // odsłony przejść SPA, które piksel wysyłałby BEZ `eventID` (nie do
+    // zdeduplikowania z API konwersji); odsłony - pierwszą i każde przejście -
+    // wysyła `trackMetaPageView` z `eventID` i kopią serwerową.
     injectInlineScript(
-      `if(window.fbq){window.fbq('consent','grant');}!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;t.setAttribute('data-consent-owner','${owner}');s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(cfg.meta_pixel_id)},{},{agent:'lovable'});fbq('track','PageView');`,
+      `if(window.fbq){window.fbq('consent','grant');}!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];n.disablePushState=!0;t=b.createElement(e);t.async=!0;t.src=v;t.setAttribute('data-consent-owner','${owner}');s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',${JSON.stringify(cfg.meta_pixel_id)},{},{agent:'lovable'});`,
       owner,
     );
   }
@@ -377,6 +381,7 @@ export function ConsentScriptInjector() {
           .then((m) => {
             if (!active) return;
             m.flushPendingMetaEvents();
+            m.trackMetaPageView();
             stopMetaContact = m.installMetaContactListener();
           })
           .catch(() => undefined);
@@ -414,7 +419,11 @@ export function ConsentScriptInjector() {
       void import("@/lib/analytics/adPixelTelemetry")
         .then((m) => m.setActiveAdPlatforms([]))
         .catch(() => undefined);
-      // Wycofanie zgody: piksel Meta przestaje wysyłać bez przeładowania strony.
+      // Wycofanie zgody: piksel Meta przestaje wysyłać bez przeładowania strony,
+      // a ponowna zgoda znów policzy bieżącą odsłonę.
+      void import("@/lib/analytics/metaPixelEvents")
+        .then((m) => m.resetMetaPageView())
+        .catch(() => undefined);
       const fbq: unknown = (window as Window & { fbq?: unknown }).fbq;
       if (typeof fbq === "function") {
         try {

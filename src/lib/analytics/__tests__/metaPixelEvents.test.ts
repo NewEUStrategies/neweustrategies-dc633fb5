@@ -6,6 +6,14 @@ vi.mock("@/lib/ads/consent", () => ({
   hasCategoryConsent: (cat: string) => (cat === "marketing" ? consent.marketing : true),
 }));
 
+const mirror = vi.hoisted(() => ({ calls: [] as Array<{ name: string; eventId: string }> }));
+
+vi.mock("../metaCapiMirror", () => ({
+  mirrorMetaEventToCapi: (input: { name: string; eventId: string }) => {
+    mirror.calls.push(input);
+  },
+}));
+
 import {
   META_SEARCH_IDLE_MS,
   contactChannel,
@@ -14,6 +22,7 @@ import {
   resetMetaPixelStateForTests,
   sanitizeMetaParams,
   trackMetaEvent,
+  trackMetaPageView,
   trackMetaSearch,
 } from "../metaPixelEvents";
 
@@ -211,5 +220,44 @@ describe("sanitizeMetaParams - catalog fields", () => {
 
   it("drops predicted_ltv without a currency", () => {
     expect(sanitizeMetaParams({ predicted_ltv: 10 })).toEqual({});
+  });
+});
+
+describe("Conversions API mirror and PageView", () => {
+  let fbq: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    resetMetaPixelStateForTests();
+    mirror.calls.length = 0;
+    consent.marketing = true;
+    fbq = vi.fn();
+    (window as FbqWindow).fbq = fbq;
+  });
+
+  afterEach(() => {
+    delete (window as FbqWindow).fbq;
+  });
+
+  it("mirrors every pixel event to the server with the same name and eventID", () => {
+    trackMetaEvent("Lead", { content_category: "form" }, "Lead_dedupe01");
+    expect(mirror.calls).toHaveLength(1);
+    expect(mirror.calls[0]).toMatchObject({ name: "Lead", eventId: "Lead_dedupe01" });
+  });
+
+  it("sends a PageView with an eventID once per page", () => {
+    expect(trackMetaPageView()).toBe(true);
+    expect(trackMetaPageView()).toBe(false);
+    expect(fbq).toHaveBeenCalledTimes(1);
+    const call = fbq.mock.calls[0] as [string, string, object, { eventID: string }];
+    expect(call[1]).toBe("PageView");
+    expect(call[3].eventID).toMatch(/^PageView_/);
+    expect(mirror.calls[0]).toMatchObject({ name: "PageView", eventId: call[3].eventID });
+  });
+
+  it("sends no PageView without marketing consent", () => {
+    consent.marketing = false;
+    expect(trackMetaPageView()).toBe(false);
+    expect(fbq).not.toHaveBeenCalled();
+    expect(mirror.calls).toHaveLength(0);
   });
 });

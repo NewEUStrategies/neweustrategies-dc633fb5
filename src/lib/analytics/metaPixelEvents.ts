@@ -1,5 +1,7 @@
-// Zdarzenia standardowe piksela Meta - jedyna droga wysyłki zdarzeń poza
-// PageView (ten wysyła sam snippet w `ConsentScriptInjector`).
+// Zdarzenia standardowe piksela Meta - jedyna droga wysyłki zdarzeń, także
+// PageView (`trackMetaPageView`; snippet w `ConsentScriptInjector` tylko
+// inicjuje piksel i wyłącza jego automatyczne odsłony przejść SPA, które
+// wychodziłyby bez `eventID`).
 //
 // ZGODA. Zdarzenie wychodzi WYŁĄCZNIE, gdy: (1) odwiedzający ma zgodę
 // marketingową, (2) `window.fbq` istnieje - piksel uruchamia tylko
@@ -20,26 +22,14 @@
 //
 // DANE. Bez danych osobowych: tylko wartość, waluta, identyfikatory treści
 // i kategoria - fraza wyszukiwania i adres e-mail/telefon NIE wychodzą.
-// Każde zdarzenie ma własny `eventID` - gdy kiedyś dojdzie wysyłka serwerowa
-// (Conversions API), ten sam ID pozwoli Meta zdeduplikować.
+// Każde zdarzenie ma własny `eventID` i po przekazaniu do `fbq` dostaje kopię
+// serwerową (API konwersji, `metaCapiMirror.ts`) z tym samym ID i nazwą, więc
+// Meta liczy parę raz, a zdarzenie zgubione przez przeglądarkę dociera z serwera.
 import { hasCategoryConsent } from "@/lib/ads/consent";
+import type { MetaCapiCustomData, MetaStandardEventName } from "./metaCapiContract";
+import { mirrorMetaEventToCapi } from "./metaCapiMirror";
 
-export type MetaStandardEvent =
-  | "Lead"
-  | "CompleteRegistration"
-  | "InitiateCheckout"
-  | "ViewContent"
-  | "Search"
-  | "AddToCart"
-  | "Purchase"
-  | "Subscribe"
-  | "Donate"
-  | "SubmitApplication"
-  | "Contact"
-  | "AddPaymentInfo"
-  | "AddToWishlist"
-  | "StartTrial"
-  | "Schedule";
+export type MetaStandardEvent = MetaStandardEventName;
 
 export interface MetaEventParams {
   value?: number;
@@ -59,8 +49,11 @@ type FbqFn = (...args: unknown[]) => void;
 
 interface PendingMetaEvent {
   name: MetaStandardEvent;
-  params: Record<string, unknown>;
+  params: MetaCapiCustomData;
   eventId: string;
+  /** Moment zdarzenia (ms) i adres strony w tej chwili - dla kopii serwerowej. */
+  occurredAt: number;
+  href: string;
   queuedAt: number;
 }
 
@@ -71,6 +64,9 @@ const MAX_PENDING = 20;
 const PENDING_TTL_MS = 60_000;
 export const META_SEARCH_IDLE_MS = 1_500;
 const CONTACT_DEDUPE_MS = 2_000;
+/** Górne granice zgodne z kontraktem serwera (`MetaCapiCustomDataSchema`). */
+const MAX_VALUE = 10_000_000;
+const MAX_QUANTITY = 1_000;
 
 const pending: PendingMetaEvent[] = [];
 
@@ -85,45 +81,58 @@ function clip(value: string): string {
 }
 
 /** Czyści parametry: odrzuca niepoprawne kwoty, waluty i puste identyfikatory. */
-export function sanitizeMetaParams(params: MetaEventParams): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  if (typeof params.value === "number" && Number.isFinite(params.value) && params.value >= 0) {
-    out["value"] = Math.round(params.value * 100) / 100;
+export function sanitizeMetaParams(params: MetaEventParams): MetaCapiCustomData {
+  const out: MetaCapiCustomData = {};
+  if (
+    typeof params.value === "number" &&
+    Number.isFinite(params.value) &&
+    params.value >= 0 &&
+    params.value <= MAX_VALUE
+  ) {
+    out.value = Math.round(params.value * 100) / 100;
   }
   const currency = params.currency?.trim().toUpperCase();
-  if (currency && CURRENCY_RE.test(currency)) out["currency"] = currency;
-  if (out["value"] !== undefined && out["currency"] === undefined) delete out["value"];
+  if (currency && CURRENCY_RE.test(currency)) out.currency = currency;
+  if (out.value !== undefined && out.currency === undefined) delete out.value;
   const ids = (params.content_ids ?? [])
     .map(clip)
     .filter((id) => id.length > 0)
     .slice(0, MAX_CONTENT_IDS);
-  if (ids.length > 0) out["content_ids"] = ids;
+  if (ids.length > 0) out.content_ids = ids;
   if (params.content_category) {
     const category = clip(params.content_category);
-    if (category) out["content_category"] = category;
+    if (category) out.content_category = category;
   }
   if (params.content_type === "product" || params.content_type === "product_group") {
-    out["content_type"] = params.content_type;
+    out.content_type = params.content_type;
   }
   const contents = (params.contents ?? [])
     .map((entry) => ({ id: clip(entry.id), quantity: entry.quantity }))
-    .filter((entry) => entry.id.length > 0 && Number.isInteger(entry.quantity) && entry.quantity > 0)
+    .filter(
+      (entry) =>
+        entry.id.length > 0 &&
+        Number.isInteger(entry.quantity) &&
+        entry.quantity > 0 &&
+        entry.quantity <= MAX_QUANTITY,
+    )
     .slice(0, MAX_CONTENT_IDS);
-  if (contents.length > 0) out["contents"] = contents;
+  if (contents.length > 0) out.contents = contents;
   if (
     typeof params.predicted_ltv === "number" &&
     Number.isFinite(params.predicted_ltv) &&
     params.predicted_ltv >= 0 &&
-    out["currency"] !== undefined
+    params.predicted_ltv <= MAX_VALUE &&
+    out.currency !== undefined
   ) {
-    out["predicted_ltv"] = Math.round(params.predicted_ltv * 100) / 100;
+    out.predicted_ltv = Math.round(params.predicted_ltv * 100) / 100;
   }
   if (
     typeof params.num_items === "number" &&
     Number.isInteger(params.num_items) &&
-    params.num_items > 0
+    params.num_items > 0 &&
+    params.num_items <= MAX_QUANTITY
   ) {
-    out["num_items"] = params.num_items;
+    out.num_items = params.num_items;
   }
   return out;
 }
@@ -140,10 +149,22 @@ export function newMetaEventId(prefix: string): string {
 function send(fbq: FbqFn, event: Omit<PendingMetaEvent, "queuedAt">): boolean {
   try {
     fbq("track", event.name, event.params, { eventID: event.eventId });
-    return true;
   } catch {
     return false;
   }
+  // Kopia serwerowa z tym samym `eventID` - błąd kolejki nie cofa piksela.
+  try {
+    mirrorMetaEventToCapi({
+      name: event.name,
+      eventId: event.eventId,
+      params: event.params,
+      occurredAt: event.occurredAt,
+      href: event.href,
+    });
+  } catch {
+    /* tylko piksel */
+  }
+  return true;
 }
 
 /**
@@ -158,7 +179,13 @@ export function trackMetaEvent(
 ): boolean {
   if (typeof window === "undefined") return false;
   if (!hasCategoryConsent("marketing")) return false;
-  const event = { name, params: sanitizeMetaParams(params), eventId: eventId ?? newMetaEventId(name) };
+  const event = {
+    name,
+    params: sanitizeMetaParams(params),
+    eventId: eventId ?? newMetaEventId(name),
+    occurredAt: Date.now(),
+    href: window.location.href,
+  };
   const fbq = readFbq();
   if (!fbq) {
     if (pending.length >= MAX_PENDING) pending.shift();
@@ -188,9 +215,36 @@ export function flushPendingMetaEvents(now: number = Date.now()): number {
   return sent;
 }
 
+// ---------------- PageView ----------------
+
+let lastPageViewPath: string | null = null;
+
+/**
+ * Odsłona strony z `eventID` (piksel + kopia serwerowa). Wołają ją: start
+ * piksela w `ConsentScriptInjector` i każde przejście SPA (`track.ts`). Klucz to
+ * bieżąca ścieżka (bez zapytania) - ta sama ścieżka dwa razy z rzędu liczy się
+ * raz, więc oba wywołania przy wejściu na stronę dają jedną odsłonę. Bez zgody
+ * nic nie zapamiętujemy.
+ */
+export function trackMetaPageView(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!hasCategoryConsent("marketing")) return false;
+  const path = window.location.pathname || "/";
+  if (path === lastPageViewPath) return false;
+  lastPageViewPath = path;
+  trackMetaEvent("PageView");
+  return true;
+}
+
+/** Wycofanie zgody: następne udzielenie zgody znów liczy bieżącą odsłonę. */
+export function resetMetaPageView(): void {
+  lastPageViewPath = null;
+}
+
 /** Tylko testy: stan modułu między przypadkami. */
 export function resetMetaPixelStateForTests(): void {
   pending.length = 0;
+  lastPageViewPath = null;
   if (searchTimer !== null) clearTimeout(searchTimer);
   searchTimer = null;
   lastSearch = "";

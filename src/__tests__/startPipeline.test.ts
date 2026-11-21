@@ -557,6 +557,8 @@ describe("security headers across deployment modes", () => {
         .find((part) => part.startsWith(`${name} `)) ?? "";
     expect(directive("script-src")).toContain("https://connect.facebook.net");
     expect(directive("connect-src")).toContain("https://www.facebook.com");
+    // Paczki kilku zdarzeń piksel wysyła formularzem POST do www.facebook.com/tr.
+    expect(directive("form-action")).toBe("form-action 'self' https://www.facebook.com");
   });
   it("dopuszcza LinkedIn Insight: insight.min.js w script-src, zdarzenia w connect-src", () => {
     vi.stubEnv("VITE_SUPABASE_URL", "https://db.example.org");

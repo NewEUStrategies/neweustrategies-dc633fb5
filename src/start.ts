@@ -300,6 +300,12 @@ const GOOGLE_TAG_CONNECT_SRC = /* @__PURE__ */ [
  */
 const META_PIXEL_SCRIPT_SRC = "https://connect.facebook.net";
 const META_PIXEL_CONNECT_SRC = "https://connect.facebook.net https://www.facebook.com";
+/**
+ * Paczkę kilku zdarzeń (np. ViewContent + PageView przy przejściu) piksel
+ * wysyła formularzem POST do ukrytej ramki - bez tego wpisu `form-action`
+ * blokował ją i zdarzenia przeglądarki ginęły.
+ */
+const META_PIXEL_FORM_ACTION = "https://www.facebook.com";
 
 /**
  * LinkedIn Insight Tag: insight.min.js z snap.licdn.com, zdarzenia (fetch/
@@ -352,7 +358,7 @@ function contentSecurityPolicy(request?: Request): string {
     "frame-src https:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action 'self' ${META_PIXEL_FORM_ACTION}`,
     preview ? "frame-ancestors 'self' https:" : "frame-ancestors 'self'",
     "upgrade-insecure-requests",
   ].join("; ");

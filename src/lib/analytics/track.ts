@@ -37,6 +37,7 @@ import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { supabase } from "@/integrations/supabase/client";
 import { trackAdsPageViewGoals } from "./adsGoals";
 import { trackLinkedInPageView } from "./linkedinInsightEvents";
+import { trackMetaPageView } from "./metaPixelEvents";
 import { ga4Event, ga4PageView } from "./ga4Client";
 import { redactTrackedHref, redactTrackedPath } from "./redactTrackedUrl";
 import { ga4EventName, ga4EventParams } from "./ga4EventMap";
@@ -270,6 +271,8 @@ export function track(input: AnalyticsEventInput): void {
     trackAdsPageViewGoals();
     // LinkedIn Insight: odsłona przejścia SPA (pierwszą liczy sam tag).
     trackLinkedInPageView(mirrored.path);
+    // Piksel Meta: odsłona z `eventID` + kopia serwerowa (API konwersji).
+    trackMetaPageView();
   } else {
     mirrorToGa4(mirrored);
   }
