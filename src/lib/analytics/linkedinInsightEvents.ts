@@ -32,17 +32,16 @@ import { extractLinkedInConversionId } from "./linkedinConversionId";
 
 export { extractLinkedInConversionId };
 
-export const LINKEDIN_GOALS = [
-  "contact_form",
-  "club_application",
-  "account_signup",
-  "newsletter",
-  "event_registration",
-  "purchase",
-  "page_view",
-] as const;
+import { LINKEDIN_GOALS, type LinkedInGoal } from "./linkedinGoals";
 
-export type LinkedInGoal = (typeof LINKEDIN_GOALS)[number];
+export {
+  LINKEDIN_FUNNEL,
+  LINKEDIN_GOAL_COUNTING,
+  LINKEDIN_GOALS,
+  type LinkedInFunnelStage,
+  type LinkedInGoal,
+} from "./linkedinGoals";
+
 export type LinkedInConversionIds = Readonly<Record<LinkedInGoal, string>>;
 
 type LintrkFn = (action: string, payload?: Record<string, unknown>) => void;
@@ -113,7 +112,11 @@ export function configureLinkedInConversions(ids: Partial<Record<LinkedInGoal, s
 }
 
 function sendPageViewConversion(lintrk: LintrkFn, ids: LinkedInConversionIds): boolean {
-  return send(lintrk, ids, { goal: "page_view", eventId: newEventId("page_view"), queuedAt: Date.now() });
+  return send(lintrk, ids, {
+    goal: "page_view",
+    eventId: newEventId("page_view"),
+    queuedAt: Date.now(),
+  });
 }
 
 /** Wycofanie zgody / brak tagu: zapomina konfigurację i kolejkę. */
@@ -176,6 +179,49 @@ export function trackLinkedInGoal(goal: LinkedInGoal, options: LinkedInGoalOptio
   const ok = send(lintrk, ids, event);
   if (ok && goal === "purchase") sentPurchases.add(stableId);
   return ok;
+}
+
+/** Pliki, których pobranie liczy się jako konwersja "Pobierz". */
+const DOWNLOAD_FILE_RE = /\.(pdf|mp3|m4a|wav|epub|docx?|xlsx?|pptx?|csv|zip)(?:$|[?#])/i;
+
+/**
+ * Cele zbierane z zachowania na stronie, bez wiązania z konkretnym ekranem:
+ * - "Wyświetlenie wideo": pierwsze uruchomienie odtwarzacza `<video>` na
+ *   danej podstronie (zdarzenie `play` w fazie przechwytywania - nie bąbelkuje);
+ * - "Pobierz": kliknięcie odnośnika z atrybutem `download` albo do pliku
+ *   (także programowe kliknięcie przy pobieraniu MP3 artykułu).
+ * Każdy cel raz na plik / film w sesji karty. Zwraca funkcję sprzątającą.
+ */
+export function installLinkedInAutoGoals(): () => void {
+  if (typeof document === "undefined") return () => undefined;
+  const seenVideos = new Set<string>();
+  const seenDownloads = new Set<string>();
+  const onPlay = (event: Event) => {
+    const el = event.target;
+    if (!(el instanceof HTMLVideoElement)) return;
+    const key = `${normalizePath(window.location.pathname)}|${el.currentSrc || el.src || "inline"}`;
+    if (seenVideos.has(key)) return;
+    seenVideos.add(key);
+    trackLinkedInGoal("video_view");
+  };
+  const onClick = (event: MouseEvent) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest("a");
+    if (!link) return;
+    const href = link.getAttribute("href") ?? "";
+    if (!link.hasAttribute("download") && !DOWNLOAD_FILE_RE.test(href)) return;
+    const key = link.getAttribute("download") || href;
+    if (!key || seenDownloads.has(key)) return;
+    seenDownloads.add(key);
+    trackLinkedInGoal("download");
+  };
+  document.addEventListener("play", onPlay, true);
+  document.addEventListener("click", onClick, true);
+  return () => {
+    document.removeEventListener("play", onPlay, true);
+    document.removeEventListener("click", onClick, true);
+  };
 }
 
 /** Tylko testy. */

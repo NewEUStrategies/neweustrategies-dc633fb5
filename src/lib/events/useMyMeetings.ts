@@ -13,6 +13,7 @@
 // znikelo. Punktowe uniewaznienie listy zostawialoby na ekranie licznik sprzed
 // decyzji, czyli liczbe wygladajaca wiarygodnie i nieprawdziwa.
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { trackLinkedInGoal } from "@/lib/analytics/linkedinInsightEvents";
 import {
   keepPreviousData,
   useMutation,
@@ -147,6 +148,7 @@ export function useInviteToMeeting(
         ...(hasSlug(slug) ? { content_ids: [slug] } : {}),
         content_category: "event_meeting",
       });
+      trackLinkedInGoal("schedule");
       invalidate();
     },
   });

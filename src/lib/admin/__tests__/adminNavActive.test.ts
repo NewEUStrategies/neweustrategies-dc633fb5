@@ -41,3 +41,38 @@ describe("resolveActiveNavTarget - jedna pomarańczowa pozycja w sidebarze", () 
     expect(navItemMatchesPath("/admin", "/admin/events")).toBe(false);
   });
 });
+
+describe("resolveActiveNavTarget - zakładki jednego ekranu (Pixels)", () => {
+  const pixels: AdminNavGroup[] = [
+    {
+      id: "tracking",
+      items: [
+        {
+          to: "/admin/settings/marketing",
+          search: { tab: "meta" },
+          searchDefault: true,
+          icon: CalendarDays,
+          label: "Meta",
+        },
+        {
+          to: "/admin/settings/marketing",
+          search: { tab: "linkedin" },
+          icon: CalendarDays,
+          label: "LinkedIn",
+        },
+        { to: "/admin/settings", icon: CalendarDays, label: "Ustawienia" },
+      ],
+    },
+  ];
+  const path = "/admin/settings/marketing";
+
+  it("świeci się wyłącznie pozycja wybranej zakładki", () => {
+    expect(resolveActiveNavTarget(pixels, path, { tab: "linkedin" })).toBe(
+      "/admin/settings/marketing?tab=linkedin",
+    );
+  });
+
+  it("bez parametru świeci się zakładka domyślna, nie Ustawienia", () => {
+    expect(resolveActiveNavTarget(pixels, path, {})).toBe("/admin/settings/marketing?tab=meta");
+  });
+});

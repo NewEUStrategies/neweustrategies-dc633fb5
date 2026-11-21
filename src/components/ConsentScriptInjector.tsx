@@ -372,6 +372,7 @@ export function ConsentScriptInjector() {
     let active = true;
     let stopMetaContact: (() => void) | null = null;
     let stopTicketWatch: (() => void) | null = null;
+    let stopLinkedInAuto: (() => void) | null = null;
     if (categories.marketing) {
       marketingCleanup.current = loadMarketing(marketing);
       // Piksel Meta stoi: wysyłamy zdarzenia zakolejkowane przed jego startem
@@ -391,7 +392,9 @@ export function ConsentScriptInjector() {
       if (marketing.linkedin_partner_id) {
         void import("@/lib/analytics/linkedinInsightEvents")
           .then((m) => {
-            if (active) m.configureLinkedInConversions(marketing.linkedin_conversions);
+            if (!active) return;
+            m.configureLinkedInConversions(marketing.linkedin_conversions);
+            stopLinkedInAuto = m.installLinkedInAutoGoals();
           })
           .catch(() => undefined);
       }
@@ -442,6 +445,7 @@ export function ConsentScriptInjector() {
       active = false;
       stopMetaContact?.();
       stopTicketWatch?.();
+      stopLinkedInAuto?.();
       marketingCleanup.current?.();
       marketingCleanup.current = null;
     };

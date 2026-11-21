@@ -78,6 +78,7 @@ const ALIASES: Record<string, string[]> = {
   website: ["website", "globe", "web", "link"],
   linkedin: ["linkedin", "linked-in"],
   facebook: ["facebook", "fb", "meta"],
+  meta: ["meta", "facebook", "fb"],
   youtube: ["youtube", "yt"],
   instagram: ["instagram", "ig"],
   tiktok: ["tiktok", "tik-tok"],

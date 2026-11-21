@@ -45,6 +45,10 @@ export const LinkedInConversionsSchema = z
     event_registration: linkedInConversionId.default(""),
     purchase: linkedInConversionId.default(""),
     page_view: linkedInConversionId.default(""),
+    video_view: linkedInConversionId.default(""),
+    download: linkedInConversionId.default(""),
+    schedule: linkedInConversionId.default(""),
+    add_to_cart: linkedInConversionId.default(""),
   })
   .catch({
     contact_form: "",
@@ -54,6 +58,10 @@ export const LinkedInConversionsSchema = z
     event_registration: "",
     purchase: "",
     page_view: "",
+    video_view: "",
+    download: "",
+    schedule: "",
+    add_to_cart: "",
   });
 
 export const MarketingConfigSchema = z.object({

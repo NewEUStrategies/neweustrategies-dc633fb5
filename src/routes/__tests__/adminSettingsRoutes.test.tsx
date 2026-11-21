@@ -888,7 +888,12 @@ describe("admin.settings.marketing - identyfikatory pikseli i wstawki HTML", () 
   it("wstawki HTML idą do zapisu BEZ zmian - to kod, nie tekst", async () => {
     // Sanityzacja tutaj byłaby błędem: to pole ISTNIEJE po to, żeby wstawić
     // znacznik dostawcy. Bramkuje je zgoda marketingowa, nie filtr treści.
-    await mount(MarketingRoute, "/admin/settings/marketing");
+    // Wstawki stoją w zakładce „Pozostałe" (skrót z paska bocznego: ?tab=other).
+    await renderRoute({
+      route: MarketingRoute,
+      path: "/admin/settings/marketing",
+      initialEntry: "/admin/settings/marketing?tab=other",
+    });
     await waitFor(() => expect(saveButton()).toBeTruthy());
     const areas = Array.from(document.querySelectorAll("textarea"));
     expect(areas).toHaveLength(2);

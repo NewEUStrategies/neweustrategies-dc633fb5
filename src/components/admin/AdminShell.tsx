@@ -219,7 +219,7 @@ function groupContainsPath(group: AdminNavGroup, path: string): boolean {
 
 type AdminNavRowProps = {
   item: AdminNavItem;
-  /** Trasa JEDYNEJ aktywnej pozycji sidebara (rozstrzygnięta w adminNav). */
+  /** Klucz JEDYNEJ aktywnej pozycji sidebara (`adminNavItemKey`, rozstrzygnięty w adminNav). */
   activeTo: string | null;
   compact: boolean;
   externalHint: string;
@@ -252,7 +252,7 @@ function AdminNavRow({
       />
     );
   }
-  const active = item.to === activeTo;
+  const active = adminNavItemKey(item) === activeTo;
 
   return (
     <Link
@@ -321,6 +321,7 @@ function AdminShellInner({
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const locationSearch = useRouterState({ select: (s) => s.location.search });
   const lang = i18n.language ?? "pl";
   const { extras } = useAdminSidebarExtrasSlot();
   // SZEROKOŚĆ PASKA JEST DECYZJĄ UKŁADU, więc nie wolno jej podjąć dwa razy.
@@ -380,7 +381,10 @@ function AdminShellInner({
 
   // DOKŁADNIE JEDNA pomarańczowa pozycja: wygrywa najdłuższe dopasowanie, więc
   // podtrasa nie podświetla się razem z pozycją nadrzędną.
-  const activeTo = useMemo(() => resolveActiveNavTarget(groups, path), [groups, path]);
+  const activeTo = useMemo(
+    () => resolveActiveNavTarget(groups, path, locationSearch),
+    [groups, path, locationSearch],
+  );
 
   // Wyszukiwarka wewnętrzna panelu (tylko admin) - filtruje mapę nawigacji,
   // bez sięgania po treści publiczne.

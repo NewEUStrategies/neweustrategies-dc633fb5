@@ -12,6 +12,7 @@ import { useCart } from "@/lib/cart/useCart";
 import { cartItemId, type CartItem } from "@/lib/cart/cartStore";
 import { cartItemToGa4Item, ga4AddToCart } from "@/lib/analytics/ga4Ecommerce";
 import { trackMetaEvent } from "@/lib/analytics/metaPixelEvents";
+import { trackLinkedInGoal } from "@/lib/analytics/linkedinInsightEvents";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-cart";
 
@@ -55,6 +56,7 @@ export function AddToCartButton({ item }: { item: AddToCartInput }) {
           content_category: "event_ticket",
           num_items: 1,
         });
+        trackLinkedInGoal("add_to_cart");
         toast.success(t("cart.added"));
       }}
     >

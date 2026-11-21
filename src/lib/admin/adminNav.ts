@@ -22,12 +22,10 @@ import {
   Megaphone,
   Mic,
   Film,
-  Wand2,
   Share2,
   Gauge,
   MousePointerClick,
   Clock as HistoryIcon,
-  Globe2,
   FlaskConical,
   Link as LinkIcon,
   Search,
@@ -56,7 +54,28 @@ import {
   TrendingUp,
   UserCheck,
   Workflow,
+  ArrowLeftRight,
+  Blocks,
+  Building2,
+  ChartLine,
+  ClipboardList,
+  Code2,
+  Cookie,
+  FileSearch,
+  Funnel,
+  GraduationCap,
+  Hash,
+  Languages,
+  MessageSquareQuote,
+  PenLine,
+  ReceiptText,
+  SlidersHorizontal,
+  TicketPercent,
+  Undo2,
+  UserPlus,
+  UsersRound,
 } from "lucide-react";
+import { LinkedInBrandIcon, MetaBrandIcon } from "@/components/admin/atoms/PixelBrandIcons";
 
 import { canSeeTab, hubTabsFor } from "@/lib/admin/revenue/hubTabs";
 import { metricSearchEntries } from "@/lib/admin/revenue/metricSearchIndex";
@@ -88,6 +107,11 @@ export type AdminNavItem =
   | {
       to: string;
       search?: AdminNavSearch;
+      /**
+       * Pozycja z `search` świeci się także wtedy, gdy adres nie ma jeszcze
+       * tego parametru (domyślna zakładka ekranu, np. Pixels -> Meta).
+       */
+      searchDefault?: boolean;
       icon: AdminNavIcon;
       label: string;
       badge?: number;
@@ -348,7 +372,7 @@ export function buildAdminNavGroups({
         { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
         { to: "/admin/versions", icon: HistoryIcon, label: t("admin.nav.versions") },
         { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
-        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
+        { to: "/admin/personalized", icon: SlidersHorizontal, label: t("admin.nav.personalized") },
       ],
     },
     {
@@ -427,7 +451,7 @@ export function buildAdminNavGroups({
         { to: "/admin/monetization", icon: TrendingUp, label: t("admin.nav.monetization") },
         {
           to: "/admin/monetization-ledger",
-          icon: TrendingUp,
+          icon: ReceiptText,
           label: t("admin.nav.monetizationLedger"),
         },
         { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
@@ -435,9 +459,9 @@ export function buildAdminNavGroups({
         { to: "/admin/membership", icon: Crown, label: t("admin.nav.membership") },
         { to: "/admin/members", icon: Users, label: t("admin.nav.members") },
         { to: "/admin/gifting", icon: Gift, label: t("admin.nav.gifting") },
-        { to: "/admin/coupons", icon: Megaphone, label: t("admin.nav.coupons") },
+        { to: "/admin/coupons", icon: TicketPercent, label: t("admin.nav.coupons") },
         { to: "/admin/library", icon: BookOpen, label: t("admin.nav.library") },
-        { to: "/admin/organizations", icon: Landmark, label: t("admin.nav.organizations") },
+        { to: "/admin/organizations", icon: Building2, label: t("admin.nav.organizations") },
         { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
       ],
     },
@@ -453,19 +477,19 @@ export function buildAdminNavGroups({
         },
         {
           to: "/admin/billing-reconcile",
-          icon: CreditCard,
+          icon: ArrowLeftRight,
           label: t("admin.nav.billingReconcile"),
           keywords: ["webhook", "stripe", "rekoncyliacja"],
         },
         {
           to: "/admin/billing-settlements",
-          icon: CreditCard,
+          icon: Undo2,
           label: t("admin.nav.billingSettlements"),
           keywords: ["zwroty", "refunds", "rozliczenia", "settlements", "status"],
         },
         {
           to: "/admin/billing-audit",
-          icon: CreditCard,
+          icon: FileSearch,
           label: t("admin.nav.billingAudit"),
           keywords: ["audyt", "audit", "webhook", "csv", "xlsx", "ksiegowosc"],
         },
@@ -522,8 +546,8 @@ export function buildAdminNavGroups({
       label: t("admin.navGroups.crm"),
       items: [
         { to: "/admin/crm", icon: Users, label: t("admin.nav.crm") },
-        { to: "/admin/crm/funnel", icon: Mail, label: t("admin.nav.crmFunnel") },
-        { to: "/admin/companies", icon: Users, label: t("admin.nav.companies") },
+        { to: "/admin/crm/funnel", icon: Funnel, label: t("admin.nav.crmFunnel") },
+        { to: "/admin/companies", icon: Building2, label: t("admin.nav.companies") },
         { to: "/admin/workflows", icon: Workflow, label: t("admin.nav.workflows") },
         ...journeys,
         { to: "/admin/integrations", icon: Cable, label: t("admin.nav.integrations") },
@@ -534,9 +558,13 @@ export function buildAdminNavGroups({
           label: t("admin.nav.emailOutbox"),
           keywords: ["maile", "wysylka", "outbox", "email", "zaproszenia", "log"],
         },
-        { to: "/admin/expert-requests", icon: Inbox, label: t("admin.nav.expertRequests") },
+        {
+          to: "/admin/expert-requests",
+          icon: MessageSquareQuote,
+          label: t("admin.nav.expertRequests"),
+        },
         { to: "/admin/careers", icon: Briefcase, label: t("admin.nav.careers") },
-        { to: "/admin/hiring", icon: Briefcase, label: t("admin.nav.hiring") },
+        { to: "/admin/hiring", icon: UserPlus, label: t("admin.nav.hiring") },
       ],
     },
     {
@@ -552,16 +580,16 @@ export function buildAdminNavGroups({
         },
         {
           to: "/admin/community/clubs/applications",
-          icon: Inbox,
+          icon: ClipboardList,
           label: t("admin.nav.clubApplications"),
         },
         {
           to: "/admin/community/clubs/specializations",
-          icon: Shapes,
+          icon: GraduationCap,
           label: t("admin.nav.clubSpecializations"),
         },
-        { to: "/admin/community/clubs/topics", icon: Shapes, label: t("admin.nav.clubTopics") },
-        { to: "/admin/community/clubs/elements", icon: Shapes, label: t("admin.nav.clubElements") },
+        { to: "/admin/community/clubs/topics", icon: Hash, label: t("admin.nav.clubTopics") },
+        { to: "/admin/community/clubs/elements", icon: Blocks, label: t("admin.nav.clubElements") },
         { to: "/admin/comments", icon: MessageCircle, label: t("admin.nav.comments") },
       ],
     },
@@ -612,11 +640,53 @@ export function buildAdminNavGroups({
         id: "analytics",
         label: t("admin.navGroups.analytics"),
         items: [
-          { to: "/admin/analytics", icon: TrendingUp, label: t("admin.nav.analytics") },
+          { to: "/admin/analytics", icon: ChartLine, label: t("admin.nav.analytics") },
           { to: "/admin/analytics/bi", icon: BarChart3, label: t("admin.nav.analyticsBi") },
-          { to: "/admin/audience", icon: TrendingUp, label: t("admin.nav.audience") },
+          { to: "/admin/audience", icon: UsersRound, label: t("admin.nav.audience") },
           { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
-          { to: "/admin/i18n", icon: Globe2, label: t("admin.nav.i18nAudit") },
+        ],
+      },
+      {
+        // Piksele reklamowe i pomiar - wyodrębnione z Ustawień, bo to osobna
+        // praca (kampanie, konwersje, zgody), a nie konfiguracja serwisu.
+        // Trzy pozycje prowadzą do zakładek jednego ekranu Pixels.
+        id: "tracking",
+        label: t("admin.navGroups.tracking"),
+        items: [
+          {
+            to: "/admin/settings/marketing",
+            search: { tab: "meta" },
+            searchDefault: true,
+            icon: MetaBrandIcon,
+            label: t("admin.nav.pixelsMeta"),
+            keywords: ["pixel", "piksel", "meta", "facebook", "instagram", "capi", "pixels"],
+          },
+          {
+            to: "/admin/settings/marketing",
+            search: { tab: "linkedin" },
+            icon: LinkedInBrandIcon,
+            label: t("admin.nav.pixelsLinkedIn"),
+            keywords: ["linkedin", "insight", "konwersje", "conversions", "lejek", "pixels"],
+          },
+          {
+            to: "/admin/settings/marketing",
+            search: { tab: "other" },
+            icon: Code2,
+            label: t("admin.nav.pixelsOther"),
+            keywords: ["tiktok", "html", "head", "body", "tag", "pixels"],
+          },
+          {
+            to: "/admin/settings/analytics",
+            icon: ChartLine,
+            label: t("admin.nav.trackingSettings"),
+            keywords: ["ga4", "google", "ads", "clarity", "gtm", "tag manager", "plausible"],
+          },
+          {
+            to: "/admin/settings/cookie-banner",
+            icon: Cookie,
+            label: t("admin.nav.cookieBanner"),
+            keywords: ["zgody", "consent", "rodo", "gdpr", "cookies"],
+          },
         ],
       },
       {
@@ -624,13 +694,9 @@ export function buildAdminNavGroups({
         label: t("admin.navGroups.system"),
         items: [
           { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-          { to: "/admin/authors", icon: Users, label: t("admin.nav.authors") },
+          { to: "/admin/authors", icon: PenLine, label: t("admin.nav.authors") },
           { to: "/admin/permissions", icon: ShieldCheck, label: t("admin.nav.permissions") },
-          {
-            to: "/admin/settings/cookie-banner",
-            icon: ShieldCheck,
-            label: t("admin.nav.cookieBanner"),
-          },
+          { to: "/admin/i18n", icon: Languages, label: t("admin.nav.i18nAudit") },
           ...(isSuperAdmin
             ? [{ to: "/admin/login-settings", icon: Lock, label: t("admin.nav.loginSettings") }]
             : []),
@@ -668,16 +734,36 @@ export function navItemMatchesPath(to: string, path: string): boolean {
  * z najdłuższą trasą, więc na `/admin/events/types` świeci się „Wydarzenia -
  * rodzaje", a nadrzędne „Wydarzenia" już nie.
  */
-export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): string | null {
-  let best: string | null = null;
+export function resolveActiveNavTarget(
+  groups: AdminNavGroup[],
+  path: string,
+  search: Readonly<Record<string, unknown>> = {},
+): string | null {
+  let best: { key: string; score: number } | null = null;
   for (const group of groups) {
     for (const item of group.items) {
       if (!("to" in item)) continue;
       if (!navItemMatchesPath(item.to, path)) continue;
-      if (best === null || item.to.length > best.length) best = item.to;
+      if (item.search && !navItemSearchMatches(item, search)) continue;
+      // Dłuższa trasa wygrywa; przy tej samej trasie - pozycja z zakładką.
+      const score = item.to.length * 2 + (item.search ? 1 : 0);
+      if (best === null || score > best.score) best = { key: adminNavItemKey(item), score };
     }
   }
-  return best;
+  return best?.key ?? null;
+}
+
+function navItemSearchMatches(
+  item: { search?: AdminNavSearch; searchDefault?: boolean },
+  search: Readonly<Record<string, unknown>>,
+): boolean {
+  return Object.entries(item.search ?? {}).every(([key, value]) => {
+    const current = search[key];
+    if (current === undefined || current === null || current === "") {
+      return item.searchDefault === true;
+    }
+    return String(current) === value;
+  });
 }
 
 /**

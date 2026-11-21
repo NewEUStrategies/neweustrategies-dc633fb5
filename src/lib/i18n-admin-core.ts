@@ -288,6 +288,7 @@ export const adminCorePl = {
       community: "Społeczność i media",
       events: "Wydarzenia",
       design: "Wygląd",
+      tracking: "Pixels i pomiar",
       system: "System",
     },
     onboarding: {
@@ -1586,6 +1587,7 @@ export const adminCoreEn = {
       community: "Community & media",
       events: "Events",
       design: "Appearance",
+      tracking: "Pixels & tracking",
       system: "System",
     },
     onboarding: {

@@ -1,28 +1,54 @@
-// Admin marketing config. Powers ConsentScriptInjector - loads only after
-// visitor grants the Marketing category.
-import { createFileRoute } from "@tanstack/react-router";
+// Admin "Pixels": Meta, LinkedIn i pozostałe tagi reklamowe. Zasila
+// ConsentScriptInjector - nic nie startuje przed zgodą na kategorię Marketing.
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Code2 } from "lucide-react";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LinkedInBrandIcon, MetaBrandIcon } from "@/components/admin/atoms/PixelBrandIcons";
 import { defaultMarketingConfig, type MarketingConfig } from "@/lib/analytics/config";
-import { LINKEDIN_GOALS, type LinkedInGoal } from "@/lib/analytics/linkedinInsightEvents";
+import {
+  LINKEDIN_FUNNEL,
+  LINKEDIN_GOAL_COUNTING,
+  LINKEDIN_GOALS,
+  type LinkedInGoal,
+} from "@/lib/analytics/linkedinGoals";
 import { extractLinkedInConversionId } from "@/lib/analytics/linkedinConversionId";
+import {
+  DEFAULT_PIXELS_TAB,
+  parsePixelsTab,
+  PIXELS_TABS,
+  type PixelsTab,
+} from "@/lib/admin/pixelsTabs";
 
 export const Route = createFileRoute("/admin/settings/marketing")({
+  validateSearch: (search: Record<string, unknown>): { tab?: PixelsTab } => {
+    const tab = parsePixelsTab(search["tab"]);
+    return tab ? { tab } : {};
+  },
   head: () =>
     adminPageHead(
-      "Marketing i piksele reklamowe - Ustawienia",
-      "Meta Pixel, LinkedIn Insight z konwersjami LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
+      "Pixels - Meta, LinkedIn i pozostałe tagi - Ustawienia",
+      "Meta Pixel, LinkedIn Insight z konwersjami ułożonymi według lejka LinkedIn Ads, TikTok i własne tagi uruchamiane po zgodzie marketingowej. Panel administracyjny New European Strategies.",
     ),
-  component: MarketingSettings,
+  component: PixelsSettings,
 });
 
-function MarketingSettings() {
+const textareaClass =
+  "w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono";
+
+function PixelsSettings() {
   const { t } = useTranslation();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { tab } = Route.useSearch();
+  const activeTab = tab ?? DEFAULT_PIXELS_TAB;
   const { query, save } = useSettings<MarketingConfig>("marketing", defaultMarketingConfig());
   const [draft, setDraft] = useDraft(query.data);
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
+
   const set = <K extends keyof MarketingConfig>(k: K, v: MarketingConfig[K]) =>
     setDraft({ ...draft, [k]: v });
   const setConversion = (goal: LinkedInGoal, raw: string) =>
@@ -41,74 +67,140 @@ function MarketingSettings() {
     }
     return { ...draft, linkedin_conversions };
   };
+  const tabIcon: Record<PixelsTab, ReactNode> = {
+    meta: <MetaBrandIcon className="mr-2 h-3.5 w-3.5" />,
+    linkedin: <LinkedInBrandIcon className="mr-2 h-3.5 w-3.5" />,
+    other: <Code2 className="mr-2 h-3.5 w-3.5" aria-hidden="true" />,
+  };
 
   return (
     <div>
       <h2 className="font-display text-xl mb-2">{t("admin.marketing.title")}</h2>
       <p className="text-sm text-muted-foreground mb-4">{t("admin.marketing.hint")}</p>
-      <Field label="Meta (Facebook) Pixel ID">
-        <Text
-          value={draft.meta_pixel_id}
-          onChange={(e) => set("meta_pixel_id", e.target.value)}
-          placeholder="1234567890"
-        />
-      </Field>
-      <Field label="LinkedIn Insight Partner ID">
-        <Text
-          value={draft.linkedin_partner_id}
-          onChange={(e) => set("linkedin_partner_id", e.target.value)}
-        />
-      </Field>
-      <fieldset className="mb-4 rounded-md border border-border p-4">
-        <legend className="px-1 font-display text-base">
-          {t("admin.marketing.linkedinConversions.title")}
-        </legend>
-        <p className="text-sm text-muted-foreground mb-3">
-          {t("admin.marketing.linkedinConversions.hint")}
-        </p>
-        {LINKEDIN_GOALS.map((goal) => (
-          <Field key={goal} label={t(`admin.marketing.linkedinConversions.goals.${goal}`)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const next = parsePixelsTab(value);
+          if (next) void navigate({ search: { tab: next }, replace: true });
+        }}
+      >
+        <TabsList className="mb-5">
+          {PIXELS_TABS.map((id) => (
+            <TabsTrigger key={id} value={id}>
+              {tabIcon[id]}
+              {t(`admin.marketing.tabs.${id}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="meta">
+          <Field
+            label={t("admin.marketing.meta.pixelId")}
+            hint={t("admin.marketing.meta.hint")}
+            htmlFor="pixels-meta-id"
+          >
             <Text
-              value={draft.linkedin_conversions[goal]}
-              onChange={(e) => setConversion(goal, e.target.value)}
-              placeholder="12345678"
+              id="pixels-meta-id"
+              value={draft.meta_pixel_id}
+              onChange={(e) => set("meta_pixel_id", e.target.value)}
+              placeholder="1234567890"
               inputMode="numeric"
-              aria-invalid={invalidGoals.includes(goal)}
             />
-            {invalidGoals.includes(goal) ? (
-              <p role="alert" className="mt-1 text-xs text-destructive">
-                {t("admin.marketing.linkedinConversions.invalid")}
-              </p>
-            ) : null}
           </Field>
-        ))}
-      </fieldset>
-      <Field label="TikTok Pixel ID">
-        <Text
-          value={draft.tiktok_pixel_id}
-          onChange={(e) => set("tiktok_pixel_id", e.target.value)}
-        />
-      </Field>
-      <Field label={t("admin.marketing.customHead")}>
-        <textarea
-          value={draft.custom_head_html}
-          onChange={(e) => set("custom_head_html", e.target.value)}
-          rows={5}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
-        />
-      </Field>
-      <Field label={t("admin.marketing.customBody")}>
-        <textarea
-          value={draft.custom_body_html}
-          onChange={(e) => set("custom_body_html", e.target.value)}
-          rows={5}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono"
-        />
-      </Field>
-      <SaveBar
-        saving={save.isPending}
-        onSave={() => save.mutate(normalizedDraft())}
-      />
+          <section className="mb-4 rounded-md border border-border p-4">
+            <h3 className="font-display text-base mb-1">{t("admin.marketing.meta.eventsTitle")}</h3>
+            <p className="text-sm text-muted-foreground">{t("admin.marketing.meta.events")}</p>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="linkedin">
+          <Field label={t("admin.marketing.linkedin.partnerId")} htmlFor="pixels-linkedin-id">
+            <Text
+              id="pixels-linkedin-id"
+              value={draft.linkedin_partner_id}
+              onChange={(e) => set("linkedin_partner_id", e.target.value)}
+              inputMode="numeric"
+            />
+          </Field>
+          <p className="text-sm text-muted-foreground mb-4">
+            {t("admin.marketing.linkedinConversions.hint")}
+          </p>
+          {LINKEDIN_FUNNEL.map((group) => (
+            <fieldset key={group.stage} className="mb-4 rounded-md border border-border p-4">
+              <legend className="px-1 font-display text-base">
+                {t(`admin.marketing.linkedinConversions.stages.${group.stage}`)}
+              </legend>
+              {group.goals.map((goal) => (
+                <Field
+                  key={goal}
+                  label={t(`admin.marketing.linkedinConversions.goals.${goal}`)}
+                  hint={t("admin.marketing.linkedinConversions.categoryLabel", {
+                    category: t(`admin.marketing.linkedinConversions.categories.${goal}`),
+                    counting: t(
+                      `admin.marketing.linkedinConversions.counting.${LINKEDIN_GOAL_COUNTING[goal]}`,
+                    ),
+                  })}
+                  htmlFor={`pixels-li-${goal}`}
+                >
+                  <Text
+                    id={`pixels-li-${goal}`}
+                    value={draft.linkedin_conversions[goal]}
+                    onChange={(e) => setConversion(goal, e.target.value)}
+                    placeholder="12345678"
+                    inputMode="numeric"
+                    aria-invalid={invalidGoals.includes(goal)}
+                  />
+                  {invalidGoals.includes(goal) ? (
+                    <p role="alert" className="mt-1 text-xs text-destructive">
+                      {t("admin.marketing.linkedinConversions.invalid")}
+                    </p>
+                  ) : null}
+                </Field>
+              ))}
+              {group.stage === "bottom" ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("admin.marketing.linkedinConversions.qualifiedNote")}
+                </p>
+              ) : null}
+            </fieldset>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="other">
+          <Field label={t("admin.marketing.other.tiktok")} htmlFor="pixels-tiktok-id">
+            <Text
+              id="pixels-tiktok-id"
+              value={draft.tiktok_pixel_id}
+              onChange={(e) => set("tiktok_pixel_id", e.target.value)}
+            />
+          </Field>
+          <Field label={t("admin.marketing.customHead")} htmlFor="pixels-custom-head">
+            <textarea
+              id="pixels-custom-head"
+              value={draft.custom_head_html}
+              onChange={(e) => set("custom_head_html", e.target.value)}
+              rows={5}
+              className={textareaClass}
+            />
+          </Field>
+          <Field label={t("admin.marketing.customBody")} htmlFor="pixels-custom-body">
+            <textarea
+              id="pixels-custom-body"
+              value={draft.custom_body_html}
+              onChange={(e) => set("custom_body_html", e.target.value)}
+              rows={5}
+              className={textareaClass}
+            />
+          </Field>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t("admin.marketing.other.googleHint")}{" "}
+            <Link to="/admin/settings/analytics" className="text-brand-ink underline">
+              {t("admin.marketing.other.googleLink")}
+            </Link>
+          </p>
+        </TabsContent>
+      </Tabs>
+      <SaveBar saving={save.isPending} onSave={() => save.mutate(normalizedDraft())} />
     </div>
   );
 }
