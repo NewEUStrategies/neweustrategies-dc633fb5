@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { RotateCcw, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignupPopupEditor } from "@/components/admin/popups/signup/SignupPopupEditor";
 import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
@@ -34,6 +34,7 @@ import {
 import { defaultPopupDesign } from "@/lib/newsletter/popupDesign";
 import { toastError } from "@/lib/toastError";
 import "@/lib/i18n-admin-popup-signup";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 /** Grupa kolumn tego edytora - biała lista po stronie TS i SQL (PLAN S1 §4.2). */
 const SETTINGS_GROUP = "popup" as const;
@@ -126,16 +127,13 @@ export function SignupPopupContentSection() {
             {t("adminPopupSignup.unsaved")}
           </span>
         )}
-        <Button
-          variant="outline"
-          onClick={() => {
+        <RestoreDefaultsButton
+          onRestore={() => {
             update({ popup_design: defaultPopupDesign() });
             toast.success(t("adminPopupSignup.resetDone"));
           }}
-        >
-          <RotateCcw className="mr-2 h-4 w-4" />
-          {t("adminPopupSignup.reset")}
-        </Button>
+          label={t("adminPopupSignup.reset")}
+        />
         <Button onClick={() => void onSave()} disabled={!dirty || save.isPending}>
           <Save className="mr-2 h-4 w-4" />
           {t("adminPopupSignup.save")}

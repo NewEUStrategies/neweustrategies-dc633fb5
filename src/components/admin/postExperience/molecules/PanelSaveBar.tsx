@@ -1,4 +1,5 @@
-import { Save, RotateCcw } from "lucide-react";
+import { Save } from "lucide-react";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { Button } from "@/components/ui/button";
 
 interface PanelSaveBarProps {
@@ -51,10 +52,12 @@ export function PanelSaveBar({
 }: PanelSaveBarProps) {
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={onReset} disabled={!canReset || pending}>
-        <RotateCcw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-        {resetLabel}
-      </Button>
+      <RestoreDefaultsButton
+        onRestore={onReset}
+        label={resetLabel}
+        disabled={!canReset || pending}
+        size="sm"
+      />
       <Button size="sm" onClick={onSave} disabled={!canSave || pending}>
         <Save className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
         {pending ? savingLabel : saveLabel}

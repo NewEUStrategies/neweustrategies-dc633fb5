@@ -2,6 +2,7 @@
 // oraz dwie pełne palety. Paleta ciemna to kolumny `popup_*_color` (zgodność
 // wstecz), jasna żyje w `popup_design.light`. Kontrast tekstu do tła jest
 // sprawdzany na bieżąco - WCAG AA wymaga 4.5:1.
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { useTranslation } from "react-i18next";
 import { CheckSquare, Palette, SunMoon } from "lucide-react";
 import { ColorRow, ContrastNote, SectionCard, SegmentedRow, TextRow } from "./controls";
@@ -186,13 +187,13 @@ export function ColorsTab({
               />
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => patchControls(mode, emptyPopupControlColors())}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-          >
-            {t("adminPopupSignup.colors.reset")}
-          </button>
+          <RestoreDefaultsButton
+            onRestore={() => patchControls(mode, emptyPopupControlColors())}
+            label={t("adminPopupSignup.colors.reset")}
+            confirm={false}
+            size="sm"
+            className="self-start"
+          />
         </SectionCard>
       ))}
     </div>

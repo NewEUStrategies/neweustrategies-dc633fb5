@@ -39,6 +39,7 @@ import {
 } from "@/lib/mobileDrawer";
 import { mobileDrawerConfigQueryOptions } from "@/lib/queries/mobileDrawer";
 import { upsertMobileDrawerConfig } from "@/lib/mobileDrawer.functions";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 export const Route = createFileRoute("/admin/super/mobile-drawer")({
   head: () =>
@@ -312,13 +313,11 @@ function MobileDrawerEditor() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {t("mobileDrawer.admin.save")}
         </button>
-        <button
-          type="button"
-          onClick={resetDefaults}
-          className="inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border text-sm hover:bg-muted transition"
-        >
-          {t("mobileDrawer.admin.resetDefaults")}
-        </button>
+        <RestoreDefaultsButton
+          onRestore={resetDefaults}
+          label={t("mobileDrawer.admin.resetDefaults")}
+          className="h-10 px-4"
+        />
         {message && (
           <span
             role="status"

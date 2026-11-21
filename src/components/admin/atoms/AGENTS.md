@@ -1,0 +1,1 @@
+- Render every admin "restore defaults" action through `RestoreDefaultsButton` (or `SaveBar onRestoreDefaults`), confirming via its dialog only when a reset discards hand-written copy, so the control looks and behaves the same in every panel.

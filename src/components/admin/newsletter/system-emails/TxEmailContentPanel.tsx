@@ -3,11 +3,12 @@
 //
 // Puste pole = domyślna treść z szablonu, więc edycja jest zawsze odwracalna.
 // Podgląd na żywo korzysta z tego samego renderera co realna wysyłka.
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Loader2, Mail, RotateCcw, Save } from "lucide-react";
+import { Loader2, Mail, Save } from "lucide-react";
 
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
 import { Button } from "@/components/ui/button";
@@ -106,10 +107,12 @@ export function TxEmailContentPanel() {
           ]}
         />
 
-        <Button variant="outline" size="sm" onClick={resetLang} disabled={save.isPending}>
-          <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-          {t("adminNewsletter.emailContent.resetDefaults")}
-        </Button>
+        <RestoreDefaultsButton
+          onRestore={resetLang}
+          label={t("adminNewsletter.emailContent.resetDefaults")}
+          disabled={save.isPending}
+          size="sm"
+        />
         <Button size="sm" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}>
           {save.isPending ? (
             <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />

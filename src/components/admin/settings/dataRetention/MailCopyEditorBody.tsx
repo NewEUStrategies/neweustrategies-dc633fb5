@@ -24,6 +24,7 @@
 // Etykiety pól i przycisków są wspólne (`adminDataRetention.sunsetCopy.*`,
 // słownik ładuje się tu) - napisy właściwe dla prośby (`texts`) tłumaczy
 // opakowanie swoim słownikiem.
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -236,9 +237,12 @@ export function MailCopyEditorBody({
               {t("adminDataRetention.sunsetCopy.unsaved")}
             </Badge>
           ) : null}
-          <Button size="sm" variant="outline" disabled={saving} onClick={resetLang}>
-            {t("adminDataRetention.sunsetCopy.reset")}
-          </Button>
+          <RestoreDefaultsButton
+            onRestore={resetLang}
+            label={t("adminDataRetention.sunsetCopy.reset")}
+            disabled={saving}
+            size="sm"
+          />
           <Button size="sm" disabled={!dirty || !valid || saving} onClick={() => void onSave()}>
             {t("adminDataRetention.sunsetCopy.save")}
           </Button>

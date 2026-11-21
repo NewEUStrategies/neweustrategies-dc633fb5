@@ -1,3 +1,4 @@
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -200,10 +201,11 @@ function GreetingsAdmin() {
           <p className="text-sm text-muted-foreground max-w-2xl mt-1">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={resetAll} className="gap-1.5">
-            <RotateCcw className="w-3.5 h-3.5" />
-            {isPL ? "Przywróć domyślne" : "Reset to defaults"}
-          </Button>
+          <RestoreDefaultsButton
+            onRestore={resetAll}
+            label={isPL ? "Przywróć domyślne" : "Reset to defaults"}
+            size="sm"
+          />
           <Button size="sm" onClick={save} disabled={busy || !canSave}>
             {busy ? (isPL ? "Zapisywanie…" : "Saving…") : isPL ? "Zapisz" : "Save"}
           </Button>

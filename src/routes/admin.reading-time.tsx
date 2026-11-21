@@ -39,9 +39,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Clock, RotateCcw, ShieldAlert } from "lucide-react";
+import { Clock, ShieldAlert } from "lucide-react";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 export const Route = createFileRoute("/admin/reading-time")({
   head: () => {
@@ -179,10 +180,11 @@ function ReadingTimeAdmin() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("admin.readingTime.subtitle")}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={resetDefaults}>
-          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-          {t("admin.readingTime.reset")}
-        </Button>
+        <RestoreDefaultsButton
+          onRestore={resetDefaults}
+          label={t("admin.readingTime.reset")}
+          size="sm"
+        />
       </header>
 
       <Card>

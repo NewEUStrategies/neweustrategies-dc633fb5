@@ -33,6 +33,7 @@ import {
 import { isPreviewSection } from "./lib";
 import { useThemeDesignDrafts } from "./hooks";
 import type { SectionEditorProps } from "./types";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 export function ThemeDesignPane() {
   const { t } = useTranslation();
@@ -130,9 +131,10 @@ export function ThemeDesignPane() {
         <Button onClick={c.saveAll} disabled={c.saving}>
           <Save className="w-4 h-4 mr-1.5" /> {t("adminThemeDesign.saveAll")}
         </Button>
-        <Button variant="outline" onClick={c.restoreDefaults}>
-          {t("adminThemeDesign.restoreDefaults")}
-        </Button>
+        <RestoreDefaultsButton
+          onRestore={c.restoreDefaults}
+          label={t("adminThemeDesign.restoreDefaults")}
+        />
       </div>
     </div>
   );

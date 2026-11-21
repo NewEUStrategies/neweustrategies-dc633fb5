@@ -11,7 +11,7 @@
 //      przykłady, bo to angielski baner.
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
 
 const h = vi.hoisted(() => ({ requestUrl: "" }));
@@ -118,16 +118,11 @@ describe("/admin/settings/cookie-banner - język interfejsu", () => {
 
   it("potwierdzenie przywrócenia domyślnych jest w języku interfejsu", async () => {
     await i18n.changeLanguage("en");
-    const confirm = vi.fn(() => false);
-    const original = Reflect.get(window, "confirm");
-    Reflect.set(window, "confirm", confirm);
-    try {
-      renderPage();
-      fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
-      expect(confirm).toHaveBeenCalledWith("Restore the default values (colours + copy)?");
-    } finally {
-      Reflect.set(window, "confirm", original);
-    }
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Restore the default values (colours + copy)?");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
   });
 
   it("tytuł karty: język z ŻĄDANIA (activeLang), nie z singletonu i18next", async () => {

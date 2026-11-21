@@ -12,7 +12,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, Save } from "@/lib/lucide-shim";
+import { Save } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminFontScale, useSaveFontScale } from "@/hooks/useFontScaleAdmin";
@@ -27,6 +27,7 @@ import {
   type FontScaleValue,
 } from "@/lib/theme/fontScale";
 import { ensureI18n as ensureFontSizesI18n } from "@/lib/i18n-admin-font-sizes";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 export const Route = createFileRoute("/admin/appearance/font-sizes")({
   head: () =>
@@ -142,10 +143,11 @@ function FontScaleEditor({ initial }: { initial: FontScaleValue }) {
           <p className="text-sm text-muted-foreground">{t("fontScale.intro")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={reset} disabled={save.isPending}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            {t("fontScale.reset")}
-          </Button>
+          <RestoreDefaultsButton
+            onRestore={reset}
+            label={t("fontScale.reset")}
+            disabled={save.isPending}
+          />
           <Button type="button" onClick={submit} disabled={save.isPending}>
             <Save className="mr-2 h-4 w-4" />
             {save.isPending ? t("fontScale.saving") : t("fontScale.save")}

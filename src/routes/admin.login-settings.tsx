@@ -36,6 +36,7 @@ import { AuthSettingsIssueList } from "@/components/admin/auth/atoms/AuthSetting
 import { BilingualTextField } from "@/components/admin/auth/molecules/BilingualTextField";
 import { ImageUrlField } from "@/components/admin/auth/organisms/ImageUrlField";
 import { ensureI18n as ensureAdminPopupSignupI18n } from "@/lib/i18n-admin-popup-signup";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 /** Klucze `AuthSettings` o wartości tekstowej - jedyne, które wiąże `bindText`. */
 type TextField = {
   [K in keyof AuthSettings]: AuthSettings[K] extends string ? K : never;
@@ -134,9 +135,10 @@ function LoginSettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold">{t("adminLoginSettings.pageTitle")}</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setS(AUTH_DEFAULTS)}>
-            {t("adminLoginSettings.reset")}
-          </Button>
+          <RestoreDefaultsButton
+            onRestore={() => setS(AUTH_DEFAULTS)}
+            label={t("adminLoginSettings.reset")}
+          />
           <Button onClick={submit} disabled={save.isPending}>
             {save.isPending ? t("adminLoginSettings.saving") : t("adminLoginSettings.saveChanges")}
           </Button>

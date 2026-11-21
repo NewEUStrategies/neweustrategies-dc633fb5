@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { Checkbox as AnimatedCheckbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 
 export function Field({
   label,
@@ -120,14 +121,23 @@ export function SaveBar({
   saving,
   disabled,
   onSave,
+  onRestoreDefaults,
+  restoreLabel,
+  restoreConfirm,
 }: {
   saving: boolean;
   disabled?: boolean;
   onSave: () => void;
+  /** Reset szkicu do wartości domyślnych - wspólny atom obok „Zapisz". */
+  onRestoreDefaults?: () => void;
+  /** Własny podpis przycisku resetu (domyślnie „Przywróć domyślne"). */
+  restoreLabel?: string;
+  /** Własna treść potwierdzenia resetu; bez niej reset działa od razu. */
+  restoreConfirm?: string;
 }) {
   const { t } = useTranslation();
   return (
-    <div className="mt-6 flex items-center gap-3">
+    <div className="mt-6 flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={onSave}
@@ -136,6 +146,15 @@ export function SaveBar({
       >
         {saving ? t("admin.saving") : t("admin.saveSettings")}
       </button>
+      {onRestoreDefaults && (
+        <RestoreDefaultsButton
+          onRestore={onRestoreDefaults}
+          {...(restoreLabel ? { label: restoreLabel } : {})}
+          confirm={restoreConfirm ?? false}
+          disabled={saving}
+          className="h-9"
+        />
+      )}
     </div>
   );
 }

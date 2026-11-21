@@ -161,16 +161,11 @@ function GoogleSourceSettings() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
-        <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
-        <button
-          type="button"
-          onClick={() => setDraft(GOOGLE_SOURCE_BADGE_DEFAULTS)}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-        >
-          Przywróć domyślne
-        </button>
-      </div>
+      <SaveBar
+        saving={save.isPending}
+        onSave={() => save.mutate(draft)}
+        onRestoreDefaults={() => setDraft(GOOGLE_SOURCE_BADGE_DEFAULTS)}
+      />
     </div>
   );
 }

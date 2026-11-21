@@ -1004,6 +1004,13 @@ export const adminCorePl = {
     save: "Zapisz",
     saving: "Zapisywanie…",
     saveSettings: "Zapisz ustawienia",
+    restoreDefaults: {
+      label: "Przywróć domyślne",
+      confirmTitle: "Przywrócić ustawienia domyślne?",
+      confirmBody:
+        'Pola tego formularza wrócą do wartości domyślnych. Nic nie zostanie utracone, dopóki nie klikniesz „Zapisz".',
+      confirmAction: "Przywróć",
+    },
     saved: "Zapisano",
     cancel: "Anuluj",
     loading: "Ładowanie…",
@@ -2296,6 +2303,13 @@ export const adminCoreEn = {
     save: "Save",
     saving: "Saving…",
     saveSettings: "Save settings",
+    restoreDefaults: {
+      label: "Restore defaults",
+      confirmTitle: "Restore the default settings?",
+      confirmBody:
+        'The fields in this form will return to their default values. Nothing is lost until you click "Save".',
+      confirmAction: "Restore",
+    },
     saved: "Saved",
     cancel: "Cancel",
     loading: "Loading…",

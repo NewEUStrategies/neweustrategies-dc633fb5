@@ -277,12 +277,6 @@ function CookieBannerSettings() {
   const setCopy = (lang: Lang, next: CookieBannerCopy) =>
     setDraft({ ...draft, copy: { ...draft.copy, [lang]: next } });
 
-  const resetDefaults = () => {
-    if (confirm(t("adminCookieBanner.restoreConfirm"))) {
-      setDraft(COOKIE_BANNER_DEFAULTS);
-    }
-  };
-
   return (
     <div>
       <div className="flex items-start justify-between gap-4 mb-4">
@@ -415,16 +409,13 @@ function CookieBannerSettings() {
         />
       </section>
 
-      <div className="flex items-center gap-3">
-        <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
-        <button
-          type="button"
-          onClick={resetDefaults}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-        >
-          {t("adminCookieBanner.restoreDefaults")}
-        </button>
-      </div>
+      <SaveBar
+        saving={save.isPending}
+        onSave={() => save.mutate(draft)}
+        onRestoreDefaults={() => setDraft(COOKIE_BANNER_DEFAULTS)}
+        restoreLabel={t("adminCookieBanner.restoreDefaults")}
+        restoreConfirm={t("adminCookieBanner.restoreConfirm")}
+      />
 
       {previewOpen && <PreviewOverlay config={draft} onClose={() => setPreviewOpen(false)} />}
     </div>

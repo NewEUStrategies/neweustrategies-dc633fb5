@@ -1,5 +1,6 @@
 // CMS panel for the header "Na czasie / Trending" ticker.
 // Stores config in site_settings.header.value.trending as { activeVariantId, variants }.
+import { RestoreDefaultsButton } from "@/components/admin/atoms/RestoreDefaultsButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -927,9 +928,12 @@ export function TrendingTickerPane() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>{t.colors}</Label>
-            <Button type="button" size="sm" variant="ghost" onClick={resetColors}>
-              {t.resetColors}
-            </Button>
+            <RestoreDefaultsButton
+              onRestore={resetColors}
+              label={t.resetColors}
+              confirm={false}
+              size="sm"
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ColorGroup

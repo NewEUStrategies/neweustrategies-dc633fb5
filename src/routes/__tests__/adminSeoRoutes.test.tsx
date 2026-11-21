@@ -1074,8 +1074,10 @@ describe("/admin/settings/seo - ustawienia SEO serwisu", () => {
   it("przełącznik RSS trafia do payloadu w obie strony", async () => {
     h.seoSettings = { ...SEO_DEFAULTS, ...{ rss_enabled: true } };
     await mount();
-    await waitFor(() => expect(screen.getByText("admin.seoSettings.rssEnabled")).toBeTruthy());
-    fireEvent.click(screen.getByText("admin.seoSettings.rssEnabled"));
+    await waitFor(() =>
+      expect(screen.getByText("adminSiteIdentity.toggles.rss_enabled")).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByText("adminSiteIdentity.toggles.rss_enabled"));
     fireEvent.click(saveButton());
     await waitFor(() => expect(h.savePayloads).toHaveLength(1));
     expect(h.savePayloads[0]).toMatchObject({ rss_enabled: false });
@@ -1092,8 +1094,8 @@ describe("/admin/settings/seo - ustawienia SEO serwisu", () => {
 
   it.each([
     ["admin.seoSettings.titleSuffixEnabled", "title_suffix_enabled"],
-    ["admin.seoSettings.newsSitemapEnabled", "news_sitemap_enabled"],
-    ["admin.seoSettings.llmsEnabled", "llms_txt_enabled"],
+    ["adminSiteIdentity.toggles.news_sitemap_enabled", "news_sitemap_enabled"],
+    ["adminSiteIdentity.toggles.llms_txt_enabled", "llms_txt_enabled"],
     ["admin.seoSettings.aiSearchAllowed", "ai_search_crawlers_allowed"],
     ["admin.seoSettings.aiTrainingAllowed", "ai_training_crawlers_allowed"],
   ])("przełącznik %s trafia do payloadu jako `%s`", async (labelKey, field) => {
@@ -1204,11 +1206,13 @@ describe("/admin/settings/seo - ustawienia SEO serwisu", () => {
     );
   });
 
-  it("sekcje AI i encji wydawcy renderują nagłówki z kluczy", async () => {
+  it("sekcje ekosystemu (wspólny panel z robots.txt) i encji wydawcy renderują nagłówki z kluczy", async () => {
     await mount();
-    await waitFor(() => expect(screen.getByText("admin.seoSettings.sectionAi")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("adminSiteIdentity.sectionEcosystem")).toBeTruthy(),
+    );
     expect(screen.getByText("admin.seoSettings.sectionEntity")).toBeTruthy();
-    expect(screen.getByText("admin.seoSettings.robotsPreview")).toBeTruthy();
+    expect(screen.getByText("adminSiteIdentity.robotsSync")).toBeTruthy();
   });
 
   it("stan zapisywania blokuje przycisk - dwa kliknięcia nie wysyłają dwóch zapisów", async () => {

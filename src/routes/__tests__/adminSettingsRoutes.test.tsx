@@ -49,7 +49,7 @@
 // - NAGŁÓWKÓW SEO: panel jest `noindex` z definicji; sprawdzamy tylko, że
 //   żadna z piętnastu tras nie dokłada sobie `head()` z tytułem publicznym.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 /** Ustalona data bazowa - żadnego `Date.now()`. */
@@ -1719,14 +1719,13 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     );
     if (!restore) throw new Error("test: brak przycisku przywrócenia");
 
-    const original = window.confirm;
-    Reflect.set(window, "confirm", () => false);
-    try {
-      fireEvent.click(restore);
-      expect(textInputs().some((input) => input.value === "Mój tytuł")).toBe(true);
-    } finally {
-      Reflect.set(window, "confirm", original);
-    }
+    // Okno potwierdzenia platformy (nie natywne `confirm()`): „Anuluj" nic nie zmienia.
+    fireEvent.click(restore);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(translateKey("adminCookieBanner.restoreConfirm"));
+    fireEvent.click(within(dialog).getByRole("button", { name: translateKey("admin.cancel") }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(textInputs().some((input) => input.value === "Mój tytuł")).toBe(true);
   });
 
   it("PRZYWRÓCENIE domyślnych po potwierdzeniu podmienia treści na domyślne", async () => {
@@ -1736,23 +1735,23 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     );
     if (!restore) throw new Error("test: brak przycisku przywrócenia");
 
-    const original = window.confirm;
-    Reflect.set(window, "confirm", () => true);
-    try {
-      fireEvent.click(restore);
-      await waitFor(() =>
-        expect(textInputs().some((input) => input.value === "Mój tytuł")).toBe(false),
-      );
-      fireEvent.click(saveButton() as HTMLButtonElement);
-      await waitFor(() => expect(lastSave(COOKIE_BANNER_SETTINGS_KEY)).toBeTruthy());
-      const copy = lastSave(COOKIE_BANNER_SETTINGS_KEY)?.copy as Record<
-        string,
-        Record<string, string>
-      >;
-      expect(copy.pl.title).not.toBe("Mój tytuł");
-    } finally {
-      Reflect.set(window, "confirm", original);
-    }
+    fireEvent.click(restore);
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: translateKey("admin.restoreDefaults.confirmAction"),
+      }),
+    );
+    await waitFor(() =>
+      expect(textInputs().some((input) => input.value === "Mój tytuł")).toBe(false),
+    );
+    fireEvent.click(saveButton() as HTMLButtonElement);
+    await waitFor(() => expect(lastSave(COOKIE_BANNER_SETTINGS_KEY)).toBeTruthy());
+    const copy = lastSave(COOKIE_BANNER_SETTINGS_KEY)?.copy as Record<
+      string,
+      Record<string, string>
+    >;
+    expect(copy.pl.title).not.toBe("Mój tytuł");
   });
 
   it("podgląd DA SIĘ ZAMKNĄĆ - nakładka nie może uwięzić administratora", async () => {
@@ -2841,10 +2840,11 @@ describe("admin.settings.google-source - logo, urządzenia, podgląd", () => {
     // a przywrócenie nie zapisuje się samo - trzeba jeszcze kliknąć „Zapisz".
     await mountGoogle({ logo: { light: "https://example.org/moje.svg", dark: "", size: 30 } });
     const restore = Array.from(document.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Przywróć domyślne"),
+      button.textContent?.includes(translateKey("admin.restoreDefaults.label")),
     );
     if (!restore) throw new Error("test: brak przycisku przywrócenia");
     fireEvent.click(restore);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     fireEvent.click(saveButton() as HTMLButtonElement);
     await waitFor(() => expect(lastSave(GOOGLE_SOURCE_BADGE_SETTINGS_KEY)).toBeTruthy());
     const logo = lastSave(GOOGLE_SOURCE_BADGE_SETTINGS_KEY)?.logo as Record<string, unknown>;
